@@ -57,6 +57,11 @@ impl TemporalDag {
 
     /// Eager unfold into a static [`Dag`] (materialises the full window).
     ///
+    /// This materializes a window, not a certificate that its history is sufficient: parents
+    /// that fall before the earliest slice are dropped, so d-separation statements about nodes
+    /// near the start of a truncated window can be false for the stationary process.
+    /// Identification must separately certify the query's boundary closure.
+    ///
     /// # Errors
     ///
     /// Unknown/non-lagged nodes, indexer issues, or cycle insertion.
@@ -136,6 +141,19 @@ fn edge_matches(
             == concrete_to.offset.wrapping_sub(template_to.offset)
 }
 
+/// Translations `delta` that keep an edge with endpoint offsets `a_offset`, `b_offset` inside the
+/// indexer window `[-history, horizon - 1]`. Template offsets are <= 0, so a fully lagged edge
+/// (both endpoints negative) is shifted into the newest slices too.
+pub(crate) fn stationary_shifts(
+    indexer: &TemporalIndexer,
+    a_offset: i64,
+    b_offset: i64,
+) -> std::ops::RangeInclusive<i64> {
+    let lower = -i64::from(indexer.history());
+    let upper = i64::from(indexer.horizon()) - 1;
+    (lower - a_offset.min(b_offset))..=(upper - a_offset.max(b_offset))
+}
+
 fn insert_replicated_edges(
     dag: &mut Dag,
     indexer: &TemporalIndexer,
@@ -144,11 +162,8 @@ fn insert_replicated_edges(
 ) -> Result<(), GraphError> {
     let min_off = -(indexer.history() as i32);
     let max_off = (indexer.horizon() as i32) - 1;
-    // Template offsets are <= 0; shift far enough that even a fully lagged edge
-    // (both endpoints negative) lands in the newest window slices.
-    let lo = min_off - from_key.offset.min(to_key.offset);
-    let hi = max_off - from_key.offset.max(to_key.offset);
-    for delta in lo..=hi {
+    for delta in stationary_shifts(indexer, i64::from(from_key.offset), i64::from(to_key.offset)) {
+        let delta = delta as i32;
         let a = TemporalNodeKey {
             variable: from_key.variable,
             offset: from_key.offset.saturating_add(delta),
@@ -212,9 +227,7 @@ impl TemporalGraphReview {
     /// Accept a pending edge by endpoints (no-op if absent).
     #[must_use]
     pub fn accept_edge(mut self, from: TemporalNodeKey, to: TemporalNodeKey) -> Self {
-        let pending: Vec<_> =
-            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
-        self.pending_edges = Arc::from(pending);
+        self.pending_edges = crate::types::without_pending(&self.pending_edges, (from, to));
         self
     }
 
@@ -273,9 +286,7 @@ impl TemporalCpdagReview {
     /// Accept a pending directed edge (no-op if absent).
     #[must_use]
     pub fn accept_edge(mut self, from: TemporalNodeKey, to: TemporalNodeKey) -> Self {
-        let pending: Vec<_> =
-            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
-        self.pending_edges = Arc::from(pending);
+        self.pending_edges = crate::types::without_pending(&self.pending_edges, (from, to));
         self
     }
 
@@ -392,7 +403,19 @@ mod tests {
         for i in 0..unfolded.dag.node_count() {
             edge_count += unfolded.dag.children(DenseNodeId::from_raw(i as u32)).len();
         }
-        assert!(edge_count >= 1);
+        // The template edge x[-1] -> y[0] repeats at each translation inside the 3-slot
+        // window: exactly x[-1] -> y[0] and x[0] -> y[1], and nothing else.
+        assert_eq!(edge_count, 2);
+        let node = |v: u32, offset: i32| {
+            DenseNodeId::from_raw(
+                unfolded
+                    .indexer
+                    .dense_id(TemporalNodeKey { variable: VariableId::from_raw(v), offset })
+                    .unwrap(),
+            )
+        };
+        assert_eq!(unfolded.dag.children(node(0, -1)), &[node(1, 0)]);
+        assert_eq!(unfolded.dag.children(node(0, 0)), &[node(1, 1)]);
     }
 
     #[test]

@@ -255,6 +255,11 @@ impl MarkedEdge {
     }
 }
 
+/// `pending` without the entries equal to `item` (review artifacts drop an edge once accepted).
+pub(crate) fn without_pending<T: Copy + PartialEq>(pending: &[T], item: T) -> std::sync::Arc<[T]> {
+    pending.iter().copied().filter(|e| *e != item).collect()
+}
+
 /// Reject an edge whose source lag is nearer the present than its target lag.
 ///
 /// No-op when either endpoint is not lagged (context nodes, static). Callers

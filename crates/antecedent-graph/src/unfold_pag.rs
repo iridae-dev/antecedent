@@ -34,8 +34,6 @@ impl TemporalPag {
         }
         let count = u32::try_from(indexer.dense_len()).map_err(|_| GraphError::TooManyNodes)?;
         let mut pag = Pag::with_variables(count);
-        let lower = -i64::from(indexer.history());
-        let upper = i64::from(indexer.horizon()) - 1;
         for edge in self.edges() {
             let (a_variable, a_offset) = template_key(self, edge.a)?;
             let (b_variable, b_offset) = template_key(self, edge.b)?;
@@ -46,7 +44,7 @@ impl TemporalPag {
                     message: "temporal PAG variable outside unfold schema",
                 });
             }
-            for shift in (lower - a_offset.min(b_offset))..=(upper - a_offset.max(b_offset)) {
+            for shift in crate::unfold::stationary_shifts(&indexer, a_offset, b_offset) {
                 let a = unfolded_node(&indexer, a_variable, a_offset + shift)?;
                 let b = unfolded_node(&indexer, b_variable, b_offset + shift)?;
                 let copy =
@@ -187,6 +185,20 @@ mod tests {
         let d = lagged(&mut graph, 1, 1);
         graph.insert_directed(a, b).unwrap();
         graph.insert_directed(c, d).unwrap();
-        assert!(graph.unfold(TemporalIndexer::new(2, 2, 1).unwrap()).is_ok());
+        let indexer = TemporalIndexer::new(2, 2, 1).unwrap();
+        let unfolded = graph.unfold(indexer.clone()).unwrap();
+        // Both templates are the same edge up to a shift: x[s] -> y[s+1] for s in {-2, -1}, once each.
+        let mut endpoints = 0usize;
+        for i in 0..unfolded.pag.node_count() {
+            endpoints +=
+                unfolded.pag.neighbors(DenseNodeId::from_raw(u32::try_from(i).unwrap())).count();
+        }
+        assert_eq!(endpoints, 4, "two edges, two adjacency halves each");
+        for offset in [-2, -1] {
+            let from = unfolded_node(&indexer, VariableId::from_raw(0), offset).unwrap();
+            let to = unfolded_node(&indexer, VariableId::from_raw(1), offset + 1).unwrap();
+            let edge = unfolded.pag.edge_between(from, to).unwrap();
+            assert_eq!((edge.at_a, edge.at_b), (Endpoint::Tail, Endpoint::Arrow));
+        }
     }
 }

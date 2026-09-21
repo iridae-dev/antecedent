@@ -146,6 +146,11 @@ pub fn column_blocks_for_frame(
 /// The original vector variable id becomes the first (logical) component; additional
 /// component ids are appended to the schema as `{name}__c{k}`.
 ///
+/// Naming convention: component 0 keeps the bare vector name and components `k >= 1` are
+/// `{name}__c{k}`, so a result reported for `name` describes component 0 only; the other
+/// components appear under their own `__c{k}` names and are tested jointly only through the
+/// registered group blocks.
+///
 /// # Errors
 ///
 /// Schema construction failure, width mismatch, or unsupported non-float companion columns.

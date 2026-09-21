@@ -102,7 +102,7 @@ pub unsafe fn import_array(
 pub(crate) fn float64_column_from_array(
     id: VariableId,
     array: ArrayRef,
-) -> Result<(OwnedColumn, u64, u64, antecedent_core::Diagnostic), DataError> {
+) -> Result<(OwnedColumn, u64, u64, Option<antecedent_core::Diagnostic>), DataError> {
     let floats = array
         .as_any()
         .downcast_ref::<Float64Array>()
@@ -129,7 +129,10 @@ pub(crate) fn float64_column_from_array(
         let values = F64Buffer::foreign(foreign);
         let borrowed = values.nbytes();
         let col = Float64Column::new(id, values, validity)?;
-        let diag = materialization_diagnostic(MaterializationReason::ExplicitCopy, validity_copied);
+        // The values are borrowed; only a bitmap built from Arrow null slots is a copy.
+        let diag = (validity_copied > 0).then(|| {
+            materialization_diagnostic(MaterializationReason::ValidityBitmap, validity_copied)
+        });
         Ok((OwnedColumn::Float64(col), borrowed, validity_copied, diag))
     } else {
         let mut values = Vec::with_capacity(n);
@@ -141,16 +144,15 @@ pub(crate) fn float64_column_from_array(
         let col = Float64Column::new(id, F64Buffer::owned(Arc::from(values)), validity)?;
         let diag =
             materialization_diagnostic(MaterializationReason::ForeignBufferIncompatible, copied);
-        Ok((OwnedColumn::Float64(col), 0, copied, diag))
+        Ok((OwnedColumn::Float64(col), 0, copied, Some(diag)))
     }
 }
 
 fn validity_from_arrow(floats: &Float64Array) -> Result<(ValidityBitmap, u64), DataError> {
     let n = floats.len();
     if floats.null_count() == 0 {
-        let v = ValidityBitmap::all_valid(n);
-        let bytes = n.div_ceil(8) as u64;
-        return Ok((v, bytes));
+        // Synthesised locally: nothing is copied from the Arrow buffers.
+        return Ok((ValidityBitmap::all_valid(n), 0));
     }
     let mut validity_bytes = vec![0u8; n.div_ceil(8)];
     for row in 0..n {

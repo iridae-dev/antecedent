@@ -1,8 +1,9 @@
-//! Growable aligned f64 scratch buffers.
+//! Growable typed scratch buffers.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Aligned growable `f64` buffer for design-matrix materialization.
+/// Growable scratch buffer for design-matrix materialization. Backed by a plain `Vec<T>`,
+/// so alignment is only `align_of::<T>()`; no wider (SIMD or cache-line) alignment is provided.
 #[derive(Clone, Debug, Default)]
 pub struct AlignedBuffer<T> {
     data: Vec<T>,

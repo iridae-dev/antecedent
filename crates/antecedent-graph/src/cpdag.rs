@@ -29,6 +29,8 @@ pub struct Cpdag {
 }
 
 impl Cpdag {
+    crate::marked_storage::impl_cpdag_accessors!();
+
     /// Empty static CPDAG.
     #[must_use]
     pub fn empty() -> Self {
@@ -61,24 +63,6 @@ impl Cpdag {
             g.insert_directed(from, to)?;
         }
         Ok(g)
-    }
-
-    /// Node count.
-    #[must_use]
-    pub fn node_count(&self) -> usize {
-        self.nodes.len()
-    }
-
-    /// Whether empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
-    /// Nodes in dense order.
-    #[must_use]
-    pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
     }
 
     /// Add a static node.
@@ -177,42 +161,6 @@ impl Cpdag {
         marked_storage::mark_conflict_finish(&mut self.adj, a, b)
     }
 
-    /// Whether any edge exists between `a` and `b`.
-    #[must_use]
-    pub fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
-        self.edge_between(a, b).is_some()
-    }
-
-    /// Marked edge between `a` and `b` if present.
-    #[must_use]
-    pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
-        marked_storage::edge_between(&self.adj, a, b)
-    }
-
-    /// All marked edges (each pair once).
-    #[must_use]
-    pub fn edges(&self) -> Vec<MarkedEdge> {
-        marked_storage::all_marked_edges(&self.adj)
-    }
-
-    /// Directed children of `id`.
-    #[must_use]
-    pub fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        marked_storage::directed_children(&self.adj, id).collect()
-    }
-
-    /// Directed parents of `id`.
-    #[must_use]
-    pub fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        marked_storage::directed_parents(&self.adj, id).collect()
-    }
-
-    /// Undirected neighbors of `id`.
-    #[must_use]
-    pub fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        marked_storage::undirected_neighbors(&self.adj, id).collect()
-    }
-
     /// All adjacency neighbors (any mark).
     #[must_use]
     pub fn adjacent(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
@@ -220,11 +168,6 @@ impl Cpdag {
             return Vec::new();
         }
         self.adj[id.as_usize()].iter().map(|e| e.neighbor).collect()
-    }
-
-    /// Borrowed directed-child iterator.
-    pub fn children_iter(&self, id: DenseNodeId) -> impl Iterator<Item = DenseNodeId> + '_ {
-        marked_storage::directed_children(&self.adj, id)
     }
 
     /// Build from a directed [`Dag`].
@@ -281,49 +224,12 @@ impl Cpdag {
         self.to_directed_skeleton()
     }
 
-    /// Count conflict (`x-x`) edges.
-    #[must_use]
-    pub fn conflict_edge_count(&self) -> usize {
-        self.edges().iter().filter(|e| e.is_conflict()).count()
-    }
-
-    /// Count undirected (Tail–Tail) edges.
-    #[must_use]
-    pub fn undirected_edge_count(&self) -> usize {
-        self.edges().iter().filter(|e| e.is_undirected()).count()
-    }
-
-    /// Count directed edges.
-    #[must_use]
-    pub fn directed_edge_count(&self) -> usize {
-        self.edges().iter().filter(|e| e.parent_child().is_some()).count()
-    }
-
     /// Map dense id to [`VariableId`] for static nodes.
     #[must_use]
     pub fn variable_id(&self, id: DenseNodeId) -> Option<VariableId> {
         match self.nodes.get(id.as_usize())? {
             NodeRef::Static(v) => Some(*v),
             _ => None,
-        }
-    }
-
-    /// Directed reachability reusing a caller-owned workspace.
-    #[must_use]
-    pub fn reaches_directed_with(
-        &self,
-        ws: &mut GraphWorkspace,
-        from: DenseNodeId,
-        to: DenseNodeId,
-    ) -> bool {
-        marked_storage::reaches_directed(&self.adj, ws, from, to)
-    }
-
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            Err(GraphError::UnknownNode { id: id.raw() })
-        } else {
-            Ok(())
         }
     }
 }
@@ -373,9 +279,7 @@ impl CpdagReview {
     /// Accept a pending directed edge (no-op if absent).
     #[must_use]
     pub fn accept_edge(mut self, from: VariableId, to: VariableId) -> Self {
-        let pending: Vec<_> =
-            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
-        self.pending_edges = Arc::from(pending);
+        self.pending_edges = crate::types::without_pending(&self.pending_edges, (from, to));
         self
     }
 
@@ -388,13 +292,10 @@ impl CpdagReview {
         let from_id = self.resolve_var(from)?;
         let to_id = self.resolve_var(to)?;
         self.graph.orient_undirected(from_id, to_id)?;
-        let undirected: Vec<_> = self
-            .pending_undirected
-            .iter()
-            .copied()
-            .filter(|&(a, b)| (a, b) != (from, to) && (a, b) != (to, from))
-            .collect();
-        self.pending_undirected = Arc::from(undirected);
+        self.pending_undirected =
+            crate::types::without_pending(&self.pending_undirected, (from, to));
+        self.pending_undirected =
+            crate::types::without_pending(&self.pending_undirected, (to, from));
         if !self.pending_edges.iter().any(|e| *e == (from, to)) {
             let mut pending = self.pending_edges.to_vec();
             pending.push((from, to));
@@ -442,28 +343,12 @@ pub struct TemporalCpdag {
 }
 
 impl TemporalCpdag {
+    crate::marked_storage::impl_cpdag_accessors!();
+
     /// Empty temporal CPDAG.
     #[must_use]
     pub fn empty() -> Self {
         Self { nodes: Vec::new(), adj: Vec::new() }
-    }
-
-    /// Node count.
-    #[must_use]
-    pub fn node_count(&self) -> usize {
-        self.nodes.len()
-    }
-
-    /// Whether empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
-    /// Nodes in dense order.
-    #[must_use]
-    pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
     }
 
     /// Add a lagged or context node.
@@ -600,48 +485,6 @@ impl TemporalCpdag {
         marked_storage::mark_conflict_finish(&mut self.adj, a, b)
     }
 
-    /// Whether any edge exists between `a` and `b`.
-    #[must_use]
-    pub fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
-        self.edge_between(a, b).is_some()
-    }
-
-    /// Marked edge between `a` and `b` if present (marks oriented from `a`'s perspective as `at_a`).
-    #[must_use]
-    pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
-        marked_storage::edge_between(&self.adj, a, b)
-    }
-
-    /// All marked edges (each undirected/directed pair once, with `a.raw() <= b.raw()` for undirected
-    /// and parent-first for directed).
-    #[must_use]
-    pub fn edges(&self) -> Vec<MarkedEdge> {
-        marked_storage::all_marked_edges(&self.adj)
-    }
-
-    /// Directed children of `id` (outgoing arrows).
-    #[must_use]
-    pub fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        marked_storage::directed_children(&self.adj, id).collect()
-    }
-
-    /// Directed parents of `id` (incoming arrows).
-    #[must_use]
-    pub fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        marked_storage::directed_parents(&self.adj, id).collect()
-    }
-
-    /// Undirected neighbors of `id`.
-    #[must_use]
-    pub fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
-        marked_storage::undirected_neighbors(&self.adj, id).collect()
-    }
-
-    /// Borrowed directed-child iterator (orientation hot path).
-    pub fn children_iter(&self, id: DenseNodeId) -> impl Iterator<Item = DenseNodeId> + '_ {
-        marked_storage::directed_children(&self.adj, id)
-    }
-
     /// Build from a directed [`TemporalDag`] (all edges become directed marks).
     #[must_use]
     pub fn from_temporal_dag(dag: &TemporalDag) -> Self {
@@ -697,12 +540,6 @@ impl TemporalCpdag {
         self.to_directed_skeleton()
     }
 
-    /// Count conflict (`x-x`) edges.
-    #[must_use]
-    pub fn conflict_edge_count(&self) -> usize {
-        self.edges().iter().filter(|e| e.is_conflict()).count()
-    }
-
     /// Map dense id to a serializable [`TemporalNodeKey`].
     #[must_use]
     pub fn temporal_key(&self, id: DenseNodeId) -> Option<TemporalNodeKey> {
@@ -712,37 +549,6 @@ impl TemporalCpdag {
                 Some(TemporalNodeKey { variable: *variable, offset })
             }
             _ => None,
-        }
-    }
-
-    /// Count undirected (Tail–Tail) edges.
-    #[must_use]
-    pub fn undirected_edge_count(&self) -> usize {
-        self.edges().iter().filter(|e| e.is_undirected()).count()
-    }
-
-    /// Count directed edges.
-    #[must_use]
-    pub fn directed_edge_count(&self) -> usize {
-        self.edges().iter().filter(|e| e.parent_child().is_some()).count()
-    }
-
-    /// Directed reachability reusing a caller-owned workspace.
-    #[must_use]
-    pub fn reaches_directed_with(
-        &self,
-        ws: &mut GraphWorkspace,
-        from: DenseNodeId,
-        to: DenseNodeId,
-    ) -> bool {
-        marked_storage::reaches_directed(&self.adj, ws, from, to)
-    }
-
-    fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            Err(GraphError::UnknownNode { id: id.raw() })
-        } else {
-            Ok(())
         }
     }
 }

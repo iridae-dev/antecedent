@@ -246,7 +246,9 @@ pub fn tabular_from_arrow_c_columns(
         let (owned, borrowed, copied, diag) = float64_column_from_array(id, array)?;
         bytes_borrowed += borrowed;
         bytes_copied += copied;
-        diagnostics.push(diag);
+        if let Some(diag) = diag {
+            diagnostics.push(diag);
+        }
         owned_cols.push(owned);
     }
 

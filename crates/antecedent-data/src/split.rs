@@ -303,11 +303,11 @@ impl RandomIidSplit {
     ///
     /// # Errors
     ///
-    /// Empty `n`, invalid fraction, or empty train/test after rounding.
+    /// `n < 2`, invalid fraction, or empty train/test after rounding.
     pub fn try_new(n: usize, test_frac: f64, seed: u64) -> Result<Self, DataError> {
-        if n == 0 {
+        if n < 2 {
             return Err(DataError::InvalidArgument {
-                message: "random IID split needs n ≥ 1".into(),
+                message: "random IID split needs n ≥ 2 (one train and one test row)".into(),
             });
         }
         if !(test_frac > 0.0 && test_frac < 1.0) {
@@ -686,6 +686,14 @@ mod tests {
         assert_eq!(a.rows, b.rows);
         assert_eq!(a.rows.test.len(), 20);
         assert_eq!(a.rows.train.len(), 80);
+    }
+
+    #[test]
+    fn random_iid_needs_a_row_on_each_side() {
+        assert!(RandomIidSplit::try_new(0, 0.5, 1).is_err());
+        assert!(RandomIidSplit::try_new(1, 0.5, 1).is_err());
+        let s = RandomIidSplit::try_new(2, 0.5, 1).unwrap();
+        assert_eq!((s.rows.train.len(), s.rows.test.len()), (1, 1));
     }
 
     #[test]

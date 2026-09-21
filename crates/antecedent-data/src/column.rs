@@ -691,6 +691,7 @@ impl OwnedColumn {
                 codes: Arc::clone(&c.codes),
                 validity: c.validity.clone(),
                 domain: Arc::clone(&c.domain),
+                n_remapped_unknown: c.n_remapped_unknown,
             }),
             Self::Timestamp(c) => Self::Timestamp(TimestampColumn {
                 id,

@@ -224,9 +224,7 @@ where
     ) {
         // A cancellation can race with the check above. Other data failures must
         // remain errors, even if cancellation happens concurrently with them.
-        if ctx.cancellation.is_cancelled()
-            && matches!(&error, DataError::InvalidArgument { message } if message == "resampling cancelled")
-        {
+        if ctx.cancellation.is_cancelled() && matches!(&error, DataError::Cancelled) {
             return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
         }
         return Err(error.into());

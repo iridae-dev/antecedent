@@ -45,143 +45,91 @@ pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, Graph
         map[o.as_usize()] = Some(DenseNodeId::try_from_usize(i)?);
     }
 
+    let k = observed.len();
     let mut ws = GraphWorkspace::default();
-    // Directed projection edges.
+    let mut reached = BitSet::with_len(k);
+    // Directed projection edges: one latent-only search per observed source.
     for (i, &u) in observed.iter().enumerate() {
-        for (j, &v) in observed.iter().enumerate() {
-            if i == j {
+        observed_reachable_via_latents(dag, u, &observed_set, &map, &mut ws, &mut reached)?;
+        for j in 0..k {
+            if i == j || !reached.contains(DenseNodeId::try_from_usize(j)?) {
                 continue;
             }
-            if directed_path_through_latents(dag, u, v, &observed_set, &mut ws) {
-                let from = map[u.as_usize()].expect("mapped");
-                let to = map[v.as_usize()].expect("mapped");
-                // Longer latent paths can propose edges that cycle with shorter ones already
-                // inserted; skip only those conflicts.
-                match admg.insert_directed(from, to) {
-                    Ok(()) | Err(GraphError::DuplicateEdge { .. }) => {}
-                    Err(GraphError::Cycle { .. }) => {
-                        // Silent skip would drop a required projection edge and can
-                        // break d/m-separation equivalence — fail closed instead.
-                        return Err(GraphError::InvalidEndpoints {
-                            message: "latent projection directed edge conflicts with an existing path (cycle); refuse incomplete projection",
-                        });
-                    }
-                    Err(e) => return Err(e),
+            let from = DenseNodeId::try_from_usize(i)?;
+            let to = DenseNodeId::try_from_usize(j)?;
+            // Longer latent paths can propose edges that cycle with shorter ones already
+            // inserted; skip only those conflicts.
+            match admg.insert_directed(from, to) {
+                Ok(()) | Err(GraphError::DuplicateEdge { .. }) => {}
+                Err(GraphError::Cycle { .. }) => {
+                    // Silent skip would drop a required projection edge and can
+                    // break d/m-separation equivalence — fail closed instead.
+                    return Err(GraphError::InvalidEndpoints {
+                        message: "latent projection directed edge conflicts with an existing path (cycle); refuse incomplete projection",
+                    });
                 }
+                Err(e) => return Err(e),
             }
         }
     }
 
-    // Bidirected: shared latent ancestor with latent-only paths to both.
-    for i in 0..observed.len() {
-        for j in (i + 1)..observed.len() {
-            let u = observed[i];
-            let v = observed[j];
-            if share_latent_common_ancestor(dag, u, v, &observed_set, &mut ws)? {
-                let a = map[u.as_usize()].expect("mapped");
-                let b = map[v.as_usize()].expect("mapped");
-                match admg.insert_bidirected(a, b) {
-                    Ok(()) | Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
-                    Err(e) => return Err(e),
-                }
+    // Bidirected: observed u, v are joined iff some latent L reaches both by latent-only
+    // directed paths (a divergent path with every interior node latent has a last common
+    // node, which is such an L). One search per latent gives its reachable observed set S_L;
+    // every pair inside S_L is joined, so OR S_L into the row of each of its members.
+    let mut joined: Vec<BitSet> = (0..k).map(|_| BitSet::with_len(k)).collect();
+    for l in 0..dag.node_count() {
+        let l = DenseNodeId::try_from_usize(l)?;
+        if observed_set.contains(l) {
+            continue;
+        }
+        observed_reachable_via_latents(dag, l, &observed_set, &map, &mut ws, &mut reached)?;
+        for member in reached.to_dense_ids() {
+            joined[member.as_usize()].union_with(&reached);
+        }
+    }
+    for (i, row) in joined.iter().enumerate() {
+        for j in (i + 1)..k {
+            if !row.contains(DenseNodeId::try_from_usize(j)?) {
+                continue;
+            }
+            let a = DenseNodeId::try_from_usize(i)?;
+            let b = DenseNodeId::try_from_usize(j)?;
+            match admg.insert_bidirected(a, b) {
+                Ok(()) | Err(GraphError::Cycle { .. } | GraphError::DuplicateEdge { .. }) => {}
+                Err(e) => return Err(e),
             }
         }
     }
     Ok(admg)
 }
 
-fn is_latent(id: DenseNodeId, observed: &BitSet) -> bool {
-    !observed.contains(id)
-}
-
-/// Directed path u ⇝ v with all *internal* nodes latent (endpoints may be observed).
-fn directed_path_through_latents(
+/// Observed nodes reachable from `start` by a directed path whose *internal* nodes are all
+/// latent (an observed node ends the path). Fills `out` (over projected positions, via `map`).
+fn observed_reachable_via_latents(
     dag: &Dag,
-    u: DenseNodeId,
-    v: DenseNodeId,
+    start: DenseNodeId,
     observed: &BitSet,
+    map: &[Option<DenseNodeId>],
     ws: &mut GraphWorkspace,
-) -> bool {
-    if u == v {
-        return false;
-    }
-    // Direct edge.
-    if dag.children(u).contains(&v) {
-        return true;
-    }
+    out: &mut BitSet,
+) -> Result<(), GraphError> {
+    out.clear();
     ws.prepare(dag.node_count());
-    ws.frontier.push(u);
-    ws.visited.insert(u);
+    ws.frontier.push(start);
+    ws.visited.insert(start);
     while let Some(n) = ws.frontier.pop() {
         for &c in dag.children(n) {
-            if c == v {
-                return true;
-            }
-            // May only traverse through latents (not other observed).
             if observed.contains(c) {
-                continue;
-            }
-            if !ws.visited.contains(c) {
+                let pos = map[c.as_usize()].ok_or(GraphError::UnknownNode { id: c.raw() })?;
+                out.insert(pos);
+            } else if !ws.visited.contains(c) {
                 ws.visited.insert(c);
                 ws.frontier.push(c);
             }
         }
     }
-    false
-}
-
-fn share_latent_common_ancestor(
-    dag: &Dag,
-    u: DenseNodeId,
-    v: DenseNodeId,
-    observed: &BitSet,
-    ws: &mut GraphWorkspace,
-) -> Result<bool, GraphError> {
-    let n = dag.node_count();
-    for i in 0..n {
-        let l = DenseNodeId::try_from_usize(i)?;
-        if !is_latent(l, observed) {
-            continue;
-        }
-        // Latent L reaches both via paths that do not pass through other observed
-        // (except the targets).
-        if reaches_observed_via_latents(dag, l, u, observed, ws)
-            && reaches_observed_via_latents(dag, l, v, observed, ws)
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-fn reaches_observed_via_latents(
-    dag: &Dag,
-    from: DenseNodeId,
-    target: DenseNodeId,
-    observed: &BitSet,
-    ws: &mut GraphWorkspace,
-) -> bool {
-    if from == target {
-        return true;
-    }
-    ws.prepare(dag.node_count());
-    ws.frontier.push(from);
-    ws.visited.insert(from);
-    while let Some(n) = ws.frontier.pop() {
-        for &c in dag.children(n) {
-            if c == target {
-                return true;
-            }
-            if observed.contains(c) {
-                continue;
-            }
-            if !ws.visited.contains(c) {
-                ws.visited.insert(c);
-                ws.frontier.push(c);
-            }
-        }
-    }
-    false
+    Ok(())
 }
 
 /// Check that m-separation on the projected ADMG agrees with d-separation on the
@@ -220,6 +168,12 @@ pub fn projection_preserves_msep_sample(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::needless_range_loop
+)]
 mod tests {
     use super::*;
     use crate::dag::Dag;
@@ -288,6 +242,161 @@ mod tests {
         let projected = latent_project(&dag, &[y, x]).unwrap();
         assert_eq!(projected.nodes(), &[dag.nodes()[y.as_usize()], dag.nodes()[x.as_usize()]]);
         assert_eq!(projected.children(DenseNodeId::from_raw(1)), &[DenseNodeId::from_raw(0)]);
+    }
+
+    /// Independent oracle: is there a directed path `from ⇝ to` whose internal nodes are all
+    /// latent (plain recursive path enumeration on adjacency-matrix form)?
+    fn latent_path(
+        adj: &[Vec<bool>],
+        obs: &[bool],
+        from: usize,
+        to: usize,
+        seen: &mut [bool],
+    ) -> bool {
+        for c in 0..adj.len() {
+            if !adj[from][c] {
+                continue;
+            }
+            if c == to {
+                return true;
+            }
+            if !obs[c] && !seen[c] {
+                seen[c] = true;
+                if latent_path(adj, obs, c, to, seen) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    #[test]
+    fn projection_matches_path_enumeration_on_random_dags() {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as u32
+        };
+        for _ in 0..200 {
+            let n = 4 + (next() % 6) as usize;
+            let mut dag = Dag::with_variables(n as u32);
+            let mut adj = vec![vec![false; n]; n];
+            for a in 0..n {
+                for b in (a + 1)..n {
+                    if next() % 100 < 30 {
+                        dag.insert_directed(
+                            DenseNodeId::from_raw(a as u32),
+                            DenseNodeId::from_raw(b as u32),
+                        )
+                        .unwrap();
+                        adj[a][b] = true;
+                    }
+                }
+            }
+            let obs: Vec<bool> = (0..n).map(|_| next() % 100 < 55).collect();
+            let observed: Vec<DenseNodeId> =
+                (0..n).filter(|&i| obs[i]).map(|i| DenseNodeId::from_raw(i as u32)).collect();
+            if observed.is_empty() {
+                continue;
+            }
+            let admg = latent_project(&dag, &observed).unwrap();
+            for (pi, &u) in observed.iter().enumerate() {
+                for (pj, &v) in observed.iter().enumerate() {
+                    if pi == pj {
+                        continue;
+                    }
+                    let (ui, vi) = (u.as_usize(), v.as_usize());
+                    let want_dir = latent_path(&adj, &obs, ui, vi, &mut vec![false; n]);
+                    let p_i = DenseNodeId::from_raw(pi as u32);
+                    let p_j = DenseNodeId::from_raw(pj as u32);
+                    assert_eq!(admg.children(p_i).contains(&p_j), want_dir, "{u:?}->{v:?}");
+                    let want_bi = (0..n).filter(|&l| !obs[l]).any(|l| {
+                        latent_path(&adj, &obs, l, ui, &mut vec![false; n])
+                            && latent_path(&adj, &obs, l, vi, &mut vec![false; n])
+                    });
+                    assert_eq!(
+                        admg.bidirected_neighbors(p_i).contains(&p_j),
+                        want_bi,
+                        "{u:?}<->{v:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn admg_m_separation_equals_d_separation_in_the_latent_dag() {
+        // Oracle: d-separation in the DAG with explicit latents (itself checked against a
+        // path-enumeration oracle in dsep_tests), for every pair and every conditioning set
+        // over the observed nodes.
+        let mut state = 0xA076_1D64_78BD_642F_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as u32
+        };
+        let mut connected = 0usize;
+        for _ in 0..60 {
+            let n = 5 + (next() % 3) as usize;
+            let mut dag = Dag::with_variables(n as u32);
+            for a in 0..n {
+                for b in (a + 1)..n {
+                    if next() % 100 < 35 {
+                        dag.insert_directed(
+                            DenseNodeId::from_raw(a as u32),
+                            DenseNodeId::from_raw(b as u32),
+                        )
+                        .unwrap();
+                    }
+                }
+            }
+            let observed: Vec<DenseNodeId> = (0..n)
+                .filter(|_| next() % 100 < 65)
+                .map(|i| DenseNodeId::from_raw(i as u32))
+                .collect();
+            if observed.len() < 2 {
+                continue;
+            }
+            let admg = latent_project(&dag, &observed).unwrap();
+            let (mut dws, mut mws) =
+                (DSeparationWorkspace::default(), DSeparationWorkspace::default());
+            let k = observed.len();
+            for i in 0..k {
+                for j in (i + 1)..k {
+                    let rest: Vec<usize> = (0..k).filter(|&m| m != i && m != j).collect();
+                    for mask in 0..(1usize << rest.len()) {
+                        let z_dag: Vec<DenseNodeId> = rest
+                            .iter()
+                            .enumerate()
+                            .filter(|(bit, _)| (mask >> bit) & 1 == 1)
+                            .map(|(_, &m)| observed[m])
+                            .collect();
+                        let z_admg: Vec<DenseNodeId> = rest
+                            .iter()
+                            .enumerate()
+                            .filter(|(bit, _)| (mask >> bit) & 1 == 1)
+                            .map(|(_, &m)| DenseNodeId::from_raw(m as u32))
+                            .collect();
+                        let want =
+                            dag.is_d_separated(observed[i], observed[j], &z_dag, &mut dws).unwrap();
+                        let got = admg
+                            .is_m_separated(
+                                DenseNodeId::from_raw(i as u32),
+                                DenseNodeId::from_raw(j as u32),
+                                &z_admg,
+                                &mut mws,
+                            )
+                            .unwrap();
+                        assert_eq!(got, want, "pair ({i},{j}) mask {mask:b}");
+                        connected += usize::from(!want);
+                    }
+                }
+            }
+        }
+        assert!(connected > 50, "the oracle must see connected queries too ({connected})");
     }
 
     #[test]

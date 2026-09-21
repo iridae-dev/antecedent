@@ -140,16 +140,16 @@ impl Dag {
         self.parents[to.as_usize()].retain(|p| *p != from);
     }
 
-    /// Children of `id`.
+    /// Children of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.children[id.as_usize()]
+        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
-    /// Parents of `id`.
+    /// Parents of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.parents[id.as_usize()]
+        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
     /// Whether `from` can reach `to` via directed edges.
@@ -401,9 +401,7 @@ impl DagReview {
     /// Accept a pending directed edge (no-op if absent).
     #[must_use]
     pub fn accept_edge(mut self, from: VariableId, to: VariableId) -> Self {
-        let pending: Vec<_> =
-            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
-        self.pending_edges = Arc::from(pending);
+        self.pending_edges = crate::types::without_pending(&self.pending_edges, (from, to));
         self
     }
 

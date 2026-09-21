@@ -25,10 +25,19 @@ impl BitSet {
         }
     }
 
-    /// Ensure capacity for `len` bits.
+    /// Set the number of addressable bits to `len`.
+    ///
+    /// Bits at or beyond `len` are cleared, so a shrink followed by a grow cannot re-expose
+    /// stale members and equality / hashing see only the addressable bits.
     pub fn resize(&mut self, len: usize) {
         self.len = len;
         self.words.resize(len.div_ceil(64), 0);
+        let tail = len % 64;
+        if tail != 0 {
+            if let Some(last) = self.words.last_mut() {
+                *last &= (1u64 << tail) - 1;
+            }
+        }
     }
 
     /// Number of addressable bits.
@@ -164,13 +173,59 @@ pub struct GraphWorkspace {
 }
 
 impl GraphWorkspace {
-    /// Prepare workspace for a graph with `n` nodes.
+    /// Prepare workspace for a graph with `n` nodes (visited set, frontier, scratch nodes).
+    ///
+    /// The predecessor map is not touched: traversals that need it call
+    /// [`Self::prepare_with_predecessors`], so plain reachability does not pay an O(n) reset.
     pub fn prepare(&mut self, n: usize) {
         self.visited.resize(n);
         self.visited.clear();
         self.frontier.clear();
         self.scratch_nodes.clear();
+    }
+
+    /// [`Self::prepare`], plus a predecessor map of `n` empty slots.
+    pub fn prepare_with_predecessors(&mut self, n: usize) {
+        self.prepare(n);
         self.predecessor.clear();
         self.predecessor.resize(n, None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id(i: u32) -> DenseNodeId {
+        DenseNodeId::from_raw(i)
+    }
+
+    #[test]
+    fn resize_clears_bits_beyond_the_new_length() {
+        let mut a = BitSet::with_len(64);
+        for i in [3, 9, 10, 40, 63] {
+            a.insert(id(i));
+        }
+        a.resize(10);
+        // Bits 10.. are gone: equal (and hash-equal) to a fresh set holding {3, 9}.
+        let mut fresh = BitSet::with_len(10);
+        fresh.insert(id(3));
+        fresh.insert(id(9));
+        assert_eq!(a, fresh);
+        assert_eq!(a.words(), fresh.words());
+        // Growing back must not resurrect the stale members.
+        a.resize(64);
+        assert_eq!(a.to_dense_ids(), vec![id(3), id(9)]);
+        assert_eq!(a.count_ones(), 2);
+    }
+
+    #[test]
+    fn prepare_only_sizes_predecessors_on_request() {
+        let mut ws = GraphWorkspace::default();
+        ws.prepare(5);
+        assert!(ws.predecessor.is_empty());
+        ws.prepare_with_predecessors(5);
+        assert_eq!(ws.predecessor.len(), 5);
+        assert!(ws.predecessor.iter().all(Option::is_none));
     }
 }
