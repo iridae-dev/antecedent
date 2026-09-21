@@ -5,6 +5,20 @@
 //! Bayes-factor / posterior-dependence soft proposal weights are recorded as
 //! diagnostics notes (not hard truth).
 //!
+//! The screen is a frequentist filter, not an oracle: a pair the CI test fails
+//! to reject is excluded from the MCMC proposal set, so its posterior marginal
+//! is bounded by the search space, not by evidence against the edge. The
+//! screening constraints and the caller's [`GraphPrior`] constraints are
+//! merged (required/forbidden unioned, `max_parents` taken as the stricter of
+//! the two), never one silently replacing the other; a real disagreement
+//! (a link required by one side and forbidden by the other, or incompatible
+//! tiers) is refused rather than resolved in the dark. When the caller states
+//! an explicit nonzero prior edge-inclusion probability, screened-out pairs
+//! keep a small floor probability instead of an exact 0.0 — this crate has no
+//! Type-II / power estimate for the screening test, so the floor is the
+//! documented conservative approximation `min(caller_prior, screen_alpha)`,
+//! not a principled Bayesian update.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::too_many_lines)]
@@ -133,10 +147,16 @@ impl CiScreenedPosterior {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let mut prior = prior.clone();
-        prior.constraints = self.constraints.clone();
+        let effective = merge_screening_constraints(&self.constraints, &prior.constraints)?;
+        let merged_caller_constraints = !prior.constraints.required.is_empty()
+            || !prior.constraints.forbidden.is_empty()
+            || prior.constraints.max_parents.is_some()
+            || !prior.constraints.tiers.is_empty();
 
-        let pairs = pc_skeleton_pairs(self, data, variables, workspace, ctx)?;
+        let mut prior = prior.clone();
+        prior.constraints = effective.clone();
+
+        let pairs = pc_skeleton_pairs(&effective, self, data, variables, workspace, ctx)?;
         if pairs.is_empty() {
             return Err(DiscoveryError::unsupported("CI screening produced empty skeleton"));
         }
@@ -150,7 +170,157 @@ impl CiScreenedPosterior {
             post.diagnostics.notes.push(note);
         }
         post.diagnostics.notes.push(Arc::from(format!("ci_screened_pairs={}", pair_arc.len())));
+        if merged_caller_constraints {
+            post.diagnostics.notes.push(Arc::from(
+                "ci_screened_prior_constraints_merged=caller required/forbidden/max_parents/tiers \
+                 combined with screening constraints, not overwritten",
+            ));
+        }
+        apply_screened_out_floor(&mut post, &effective, variables, &pair_arc, prior.edge_inclusion);
         Ok(post)
+    }
+}
+
+/// Merge the engine's own screening constraints with a caller-supplied prior's
+/// constraints.
+///
+/// `required` and `forbidden` are unioned rather than one replacing the
+/// other, `max_parents` takes the stricter (smaller) bound when both sides
+/// state one, and `tiers` is taken from whichever side declares it (or either,
+/// if identical). All other fields (temporal window, alpha, significance
+/// method, `mask_type`, …) are screening configuration and come from the
+/// engine, since the caller's posterior request must use the same screen that
+/// produced the candidate pairs.
+///
+/// # Errors
+///
+/// A link required by one side and forbidden by the other, or non-empty,
+/// unequal tier partitions on both sides — these are real disagreements that
+/// must be resolved by the caller, not silently arbitrated.
+fn merge_screening_constraints(
+    screen: &DiscoveryConstraints,
+    caller: &DiscoveryConstraints,
+) -> Result<DiscoveryConstraints, DiscoveryError> {
+    let mut required: Vec<_> = screen.required.iter().copied().collect();
+    for link in caller.required.iter() {
+        if !required.contains(link) {
+            required.push(*link);
+        }
+    }
+    let mut forbidden: Vec<_> = screen.forbidden.iter().copied().collect();
+    for link in caller.forbidden.iter() {
+        if !forbidden.contains(link) {
+            forbidden.push(*link);
+        }
+    }
+    if required.iter().any(|r| forbidden.contains(r)) {
+        return Err(DiscoveryError::unsupported(
+            "CI-screened posterior: a link is required by one of the screening/prior \
+             constraint sets and forbidden by the other",
+        ));
+    }
+    let tiers = match (screen.tiers.is_empty(), caller.tiers.is_empty()) {
+        (_, true) => screen.tiers.clone(),
+        (true, false) => caller.tiers.clone(),
+        (false, false) => {
+            let same = screen.tiers.len() == caller.tiers.len()
+                && screen
+                    .tiers
+                    .iter()
+                    .zip(caller.tiers.iter())
+                    .all(|(a, b)| a.as_ref() == b.as_ref());
+            if !same {
+                return Err(DiscoveryError::unsupported(
+                    "CI-screened posterior: screening and prior constraints declare \
+                     different, non-empty variable tiers",
+                ));
+            }
+            screen.tiers.clone()
+        }
+    };
+    let max_parents = match (screen.max_parents, caller.max_parents) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+    Ok(DiscoveryConstraints {
+        required: Arc::from(required),
+        forbidden: Arc::from(forbidden),
+        tiers,
+        max_parents,
+        ..screen.clone()
+    })
+}
+
+/// Replace an exact-0.0 posterior marginal on a screened-out pair with a
+/// small floor when the caller stated an explicit nonzero prior belief about
+/// edge inclusion.
+///
+/// A pair the CI screen excludes from the MCMC proposal set can never be
+/// sampled, so [`GraphPosterior::edge_marginals`] is identically 0.0 for it
+/// regardless of what the prior said — that is a search-space artifact, not
+/// evidence the edge is absent. Without a Type-II / power estimate for the
+/// screening test (this crate does not compute one), the honest fallback is a
+/// documented conservative floor rather than a silent hard zero:
+/// `min(caller's stated edge_inclusion, screen alpha)`, split evenly across
+/// both edge directions since screening does not determine orientation. Pairs
+/// the caller (or the engine) explicitly forbade keep their exact 0.0 — that
+/// zero was asked for, not imposed by the screen.
+fn apply_screened_out_floor(
+    post: &mut GraphPosterior,
+    effective: &DiscoveryConstraints,
+    variables: &[VariableId],
+    screened_in: &[(u32, u32)],
+    edge_inclusion_prior: Option<f64>,
+) {
+    let Some(p) = edge_inclusion_prior else { return };
+    if p <= 0.0 {
+        return;
+    }
+    let floor = p.min(effective.alpha);
+    if floor <= 0.0 {
+        return;
+    }
+    let n = variables.len();
+    let screened_in: HashSet<(u32, u32)> = screened_in.iter().copied().collect();
+    let forbidden_idx: HashSet<(u32, u32)> = effective
+        .forbidden
+        .iter()
+        .filter_map(|link| {
+            let si = variables.iter().position(|v| *v == link.source)?;
+            let ti = variables.iter().position(|v| *v == link.target)?;
+            Some((si.min(ti) as u32, si.max(ti) as u32))
+        })
+        .collect();
+
+    let mut floored = 0usize;
+    let mut marginals = post.edge_marginals.to_vec();
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let key = (i as u32, j as u32);
+            if screened_in.contains(&key) || forbidden_idx.contains(&key) {
+                continue;
+            }
+            let half = floor / 2.0;
+            let cell_ij = i * n + j;
+            let cell_ji = j * n + i;
+            if marginals[cell_ij] < half {
+                marginals[cell_ij] = half;
+            }
+            if marginals[cell_ji] < half {
+                marginals[cell_ji] = half;
+            }
+            floored += 1;
+        }
+    }
+    if floored > 0 {
+        post.edge_marginals = Arc::from(marginals);
+        post.diagnostics.notes.push(Arc::from(format!(
+            "ci_screened_floor pairs={floored} floor={floor:.4} \
+             (min of caller edge_inclusion prior and screen alpha; screened-out \
+             pairs are reported as unlikely, not certainly absent)"
+        )));
     }
 }
 
@@ -169,6 +339,7 @@ impl GraphPosteriorEngine for CiScreenedPosterior {
 }
 
 fn pc_skeleton_pairs(
+    constraints: &DiscoveryConstraints,
     eng: &CiScreenedPosterior,
     data: &TabularData,
     variables: &[VariableId],
@@ -176,7 +347,7 @@ fn pc_skeleton_pairs(
     ctx: &ExecutionContext,
 ) -> Result<Vec<(u32, u32)>, DiscoveryError> {
     let pc = Pc::new()
-        .with_constraints(eng.constraints.clone())
+        .with_constraints(constraints.clone())
         .with_fdr_adjustment(eng.fdr)
         .with_ci(Arc::clone(&eng.ci));
     let result = pc.run(data, variables, workspace, ctx)?;
@@ -302,5 +473,71 @@ mod tests {
             .unwrap();
         assert!(post.n_graphs >= 1);
         assert!(post.diagnostics.notes.iter().any(|n| n.contains("ci_screened_pairs")));
+    }
+
+    /// `a—c` is screened out of the PC skeleton by the `a ⊥ c | b` chain
+    /// separation. A caller who supplied a nonzero `edge_inclusion` prior for
+    /// every pair believed something about that edge too; the CI screen's
+    /// failure to reject independence is evidence, not proof, so the reported
+    /// marginal must never be forced to an exact 0.0 regardless of that prior.
+    #[test]
+    fn screened_out_edge_keeps_nonzero_marginal_under_explicit_prior() {
+        let (data, vars) = chain_data(180);
+        let eng = CiScreenedPosterior::new()
+            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+        let ctx = ExecutionContext::for_tests(5);
+        let mut ws = DiscoveryWorkspace::default();
+        let prior = GraphPrior::bernoulli_edges(0.3).unwrap();
+        let post =
+            eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
+        let n = 3;
+        let ac = post.edge_marginals[2] + post.edge_marginals[2 * n];
+        assert!(ac > 0.0, "screened-out a—c marginal reported as exact 0.0 (ac={ac})");
+        assert!(
+            post.diagnostics.notes.iter().any(|note| note.contains("ci_screened_floor")),
+            "no diagnostic disclosed the screened-out floor: {:?}",
+            post.diagnostics.notes
+        );
+    }
+
+    /// A caller's explicit `required` link is an explicit prior belief, not a
+    /// suggestion. `infer_graphs` must not silently discard it by replacing the
+    /// whole constraint set with the engine's own screening constraints.
+    #[test]
+    fn caller_required_link_is_not_discarded_by_screening_constraints() {
+        let (data, vars) = chain_data(180);
+        let eng = CiScreenedPosterior::new()
+            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+        let ctx = ExecutionContext::for_tests(5);
+        let mut ws = DiscoveryWorkspace::default();
+        let mut prior = GraphPrior::uniform();
+        prior.constraints.required = Arc::from([crate::graph_posterior::static_link(&vars, 0, 2)]);
+        let post =
+            eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx).unwrap();
+        assert!(
+            post.diagnostics.notes.iter().any(|n| n.contains("ci_screened_pairs=3")),
+            "caller's required a—c link was dropped from the screened candidate set: {:?}",
+            post.diagnostics.notes
+        );
+    }
+
+    /// When the engine's own screening constraints and the caller's prior
+    /// disagree outright (one forbids what the other requires), overwriting
+    /// one with the other hides a real conflict. `infer_graphs` must refuse.
+    #[test]
+    fn conflicting_required_and_forbidden_constraints_are_refused() {
+        let (data, vars) = chain_data(180);
+        let eng = CiScreenedPosterior::new()
+            .with_constraints(DiscoveryConstraints {
+                forbidden: Arc::from([crate::graph_posterior::static_link(&vars, 0, 2)]),
+                ..DiscoveryConstraints::default()
+            })
+            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+        let ctx = ExecutionContext::for_tests(5);
+        let mut ws = DiscoveryWorkspace::default();
+        let mut prior = GraphPrior::uniform();
+        prior.constraints.required = Arc::from([crate::graph_posterior::static_link(&vars, 0, 2)]);
+        let err = eng.run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx);
+        assert!(err.is_err(), "conflicting required/forbidden constraints were silently resolved");
     }
 }
