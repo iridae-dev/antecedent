@@ -2331,6 +2331,22 @@ impl super::Study {
                 ]),
             });
         }
+        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
+            result.diagnostics.push(Diagnostic {
+                code: Arc::from("latency.bootstrap_not_applied"),
+                kind: DiagnosticKind::Scientific,
+                severity: DiagnosticSeverity::Info,
+                message: Arc::from(format!(
+                    "the latency tier maps to {tier} bootstrap replicates, but the configured \
+                     estimator owns its replicate count; {configured} replicates ran"
+                )),
+                artifact_id: None,
+                fields: Arc::from([
+                    (Arc::from("tier_replicates"), Arc::from(tier.to_string())),
+                    (Arc::from("configured_replicates"), Arc::from(configured.to_string())),
+                ]),
+            });
+        }
         if let Some(requested) = self.refute_default_downgrade {
             let requested_id = requested.validation_suite_id().unwrap_or("none");
             result.diagnostics.push(Diagnostic {

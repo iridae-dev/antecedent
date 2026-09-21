@@ -10,7 +10,7 @@ use antecedent_core::{
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
 };
-use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
+use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
 use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
@@ -19,12 +19,7 @@ use antecedent_io::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-fn err(error: impl std::fmt::Display) -> IoError {
-    IoError::Convert(error.to_string())
-}
-fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
-    Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())
-}
+use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
 
 /// Distinct identity layers for a prepared exact-law study.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -510,11 +505,19 @@ impl PreparedStudy<ExactPreparedState> {
     /// # Errors
     /// Support failure, cancellation, or resource exhaustion. No partial result escapes.
     pub fn estimate_retained(&self, ctx: &ExecutionContext) -> Result<ExactStudyResult, IoError> {
-        Ok(ExactStudyResult {
-            distribution: self.state.plan.evaluate(ctx).map_err(err)?,
+        Ok(self.result_from_evaluation(self.state.plan.evaluate(ctx).map_err(err)?))
+    }
+    /// Wrap a distribution already produced by this handle's own plan, so a caller that
+    /// evaluated the plan for eligibility does not evaluate it a second time.
+    pub(super) fn result_from_evaluation(
+        &self,
+        distribution: ExactDistribution,
+    ) -> ExactStudyResult {
+        ExactStudyResult {
+            distribution,
             identities: self.state.identities.clone(),
             reasoning: Self::reasoning(true),
-        })
+        }
     }
     /// Preview using the common transformation/invalidation contract.
     ///
@@ -583,21 +586,13 @@ impl PreparedStudy<ExactPreparedState> {
         if !self.preview_snapshot(&data)? {
             return Err(err("transport.reprepare_required"));
         }
-        let mut catalog = self.state.functional.catalog().clone();
-        let mut bindings = catalog.bindings.to_vec();
-        for binding in &mut bindings {
-            let mut snapshots = data
-                .laws()
+        let catalog = rebind_snapshots(self.state.functional.catalog(), |regime| {
+            data.laws()
                 .iter()
-                .filter(|law| law.regime() == binding.regime)
-                .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity);
-            let snapshot = snapshots.next().ok_or_else(|| err("missing bound snapshot"))?;
-            if snapshots.any(|other| other != snapshot) {
-                return Err(err("regime has inconsistent snapshot identities"));
-            }
-            binding.snapshot_identity = Arc::from(snapshot);
-        }
-        catalog.bindings = bindings.into();
+                .filter(|law| law.regime() == regime)
+                .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
+                .collect()
+        })?;
         let functional = self.state.functional.derivation().bind_catalog(&catalog).map_err(err)?;
         Self::build_with_identity(
             self.state.diagram.clone(),
@@ -760,43 +755,15 @@ impl PreparedStudy<ExactPreparedState> {
         {
             return Err(err("transport artifact format/limits"));
         }
-        let mut graph = Admg::empty();
-        for node in &wire.nodes {
-            graph.add_node(NodeRef::Static(VariableId::from_raw(*node))).map_err(err)?;
-        }
-        for (a, b) in wire.directed {
-            graph
-                .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(err)?;
-        }
-        for (a, b) in wire.bidirected {
-            graph
-                .insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(err)?;
-        }
-        graph.validate().map_err(err)?;
-        let diagram = SelectionDiagram::try_new(
-            graph,
-            wire.selections.into_iter().map(VariableId::from_raw).collect::<Vec<_>>(),
-        )
-        .map_err(err)?;
-        let query = ClassicalTransportQuery {
-            outcomes: wire.proof.proof.outcomes.iter().copied().map(VariableId::from_raw).collect(),
-            treatments: wire
-                .proof
-                .proof
-                .treatments
-                .iter()
-                .copied()
-                .map(VariableId::from_raw)
-                .collect(),
-            source: Arc::from(wire.proof.proof.source.as_str()),
-            target: Arc::from(wire.proof.proof.target.as_str()),
-        };
-        let proof = wire.proof.check(
-            &diagram,
-            &query,
-            SidLimits { steps: limits.operations, depth: limits.depth },
+        let (diagram, proof) = rebuild_checked_proof(
+            &GraphFields {
+                nodes: &wire.nodes,
+                directed: &wire.directed,
+                bidirected: &wire.bidirected,
+                selections: &wire.selections,
+            },
+            &wire.proof,
+            limits,
             ctx,
         )?;
         let functional = proof.bind_catalog(&wire.catalog.to_catalog()?).map_err(err)?;
@@ -849,6 +816,7 @@ mod tests {
         RegimeKind, Value,
     };
     use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
+    use antecedent_graph::{Admg, DenseNodeId};
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)
     }

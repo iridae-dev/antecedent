@@ -1740,12 +1740,7 @@ impl PreparedStudy {
             .score_table
             .as_ref()
             .ok_or(CausalError::Unsupported { message: "missing frozen scores" })?;
-        let n_thresholds = {
-            let mut t: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-            t.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            t.dedup_by(|a, b| *a == *b);
-            t.len()
-        };
+        let n_thresholds = table.distinct_threshold_count();
         let quantile = match &self.analysis.query {
             CausalQuery::AverageEffect(q) => q
                 .outcome_functional
@@ -1783,31 +1778,7 @@ impl PreparedStudy {
                 (c.value, c.se)
             }
             CausalQuery::Response(q) => {
-                let antecedent_core::ResponseFunctional::InterventionResponse {
-                    interventions, ..
-                } = &q.functional
-                else {
-                    return Err(CausalError::Unsupported {
-                        message: "retarget requires joint Set response",
-                    });
-                };
-                let mut arm = 0u32;
-                for (j, iv) in interventions.iter().enumerate() {
-                    let Intervention::Set { value, .. } = iv else {
-                        return Err(CausalError::Unsupported {
-                            message: "retarget requires Set interventions",
-                        });
-                    };
-                    let v = value.as_f64().ok_or(CausalError::Unsupported {
-                        message: "retarget requires numeric binary levels",
-                    })?;
-                    if (v != 0.0 && v != 1.0) || j >= 3 {
-                        return Err(CausalError::Unsupported {
-                            message: "retarget requires at most three binary coordinates",
-                        });
-                    }
-                    arm |= u32::from(v == 1.0) << j;
-                }
+                let arm = super::helpers::requested_joint_arm(q)?;
                 let col = table
                     .columns
                     .iter()
@@ -1867,7 +1838,7 @@ impl PreparedStudy {
             "estimate.aipw.crossfit_scores",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
-            "retarget averages the prepared cross-fitted φ table; it is not a residualized full-sample AIPW refit",
+            "retarget averages the prepared cross-fitted φ table; it is not a residualized full-sample AIPW refit, so it can differ from the estimator's own point value under uniform weights",
         ));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "retarget.selection_assumption", antecedent_core::DiagnosticKind::Scientific,
@@ -2020,7 +1991,13 @@ impl PreparedStudy {
             .iter()
             .map(|validator| Arc::from(validator.name()))
             .collect();
-        let click_scores = click_analysis.prepare_score_table(ctx)?;
+        // Only a non-mean functional is read from the frozen scores; a mean click keeps
+        // the estimator's own value, so refitting the cross-fit table would be discarded.
+        let click_scores = if query_reads_score_table(&self.analysis.query) {
+            click_analysis.prepare_score_table(ctx)?
+        } else {
+            None
+        };
         overlay_prepared_score_functional(
             &self.analysis.query,
             click_scores.as_ref(),
@@ -3443,6 +3420,23 @@ fn score_table_treatment_col(analysis: &Study, table: &ScoreTable) -> Option<Vec
     Some(col)
 }
 
+/// Whether the query's outcome functional is computed from the frozen score table
+/// (exceedance, exceedance grid, quantile) rather than by the estimator itself.
+fn query_reads_score_table(query: &CausalQuery) -> bool {
+    let functional = match query {
+        CausalQuery::AverageEffect(q) => &q.outcome_functional,
+        CausalQuery::Response(q) => &q.outcome_functional,
+        CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
+        _ => return false,
+    };
+    matches!(
+        functional,
+        OutcomeFunctional::Exceedance(_)
+            | OutcomeFunctional::ExceedanceGrid(_)
+            | OutcomeFunctional::Quantile(_)
+    )
+}
+
 fn overlay_prepared_score_functional(
     query: &CausalQuery,
     table: Option<&ScoreTable>,
@@ -3456,20 +3450,15 @@ fn overlay_prepared_score_functional(
     {
         return Ok(());
     }
+    if !query_reads_score_table(query) {
+        return Ok(());
+    }
     let functional = match query {
         CausalQuery::AverageEffect(q) => &q.outcome_functional,
         CausalQuery::Response(q) => &q.outcome_functional,
         CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
         _ => return Ok(()),
     };
-    if !matches!(
-        functional,
-        OutcomeFunctional::Exceedance(_)
-            | OutcomeFunctional::ExceedanceGrid(_)
-            | OutcomeFunctional::Quantile(_)
-    ) {
-        return Ok(());
-    }
     let (estimate, diagnostics) = if let Some(tau) = functional.quantile_level() {
         if let CausalQuery::Response(q) = query {
             super::helpers::attach_joint_quantile_from_table(
@@ -3676,15 +3665,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Response(q)) if !q.is_temporal() => {
-            let codetermined = analysis
-                .tiered
-                .as_ref()
-                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined);
-            if !(matches!(
+            // An Admg is licensed for a joint response with or without a tiered background
+            // (the functional-effect estimator serves it), so no tier condition narrows it.
+            if !matches!(
                 analysis.graph.class(),
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg
-            ) || analysis.graph.class() == GraphClass::Admg && codetermined)
-            {
+            ) {
                 return Err(CausalError::Unsupported {
                     message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, Pag, \
                               or Admg (or CoDetermined joint cells)",

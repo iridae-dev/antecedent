@@ -11,8 +11,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseFunctional,
-    ResponseQuery, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, ResponseQuery, VariableId,
 };
 
 /// Query frozen on a [`PreparedBatch`] handle.
@@ -1058,35 +1057,24 @@ fn align_influence_to_rows(
     Ok((embed_centered_influence(inf, &rows, data.row_count()), rows))
 }
 
+/// Place a claim's influence values on the full row universe so claims with different
+/// complete cases share one covariance. The joint covariance divides by `N(N-1)` where the
+/// claim's own standard error divides by `n(n-1)`, so the centred values are scaled by
+/// `sqrt(N(N-1)/(n(n-1)))`: the embedded column then has exactly the claim's variance.
 fn embed_centered_influence(inf: &[f64], rows: &[usize], full_n: usize) -> Vec<f64> {
-    let mean = inf.iter().sum::<f64>() / inf.len() as f64;
+    let n = inf.len() as f64;
+    let big_n = full_n as f64;
+    let scale = (big_n * (big_n - 1.0) / (n * (n - 1.0))).sqrt();
+    let mean = inf.iter().sum::<f64>() / n;
     let mut col = vec![0.0; full_n];
     for (&r, &v) in rows.iter().zip(inf) {
-        col[r] = (v - mean) * full_n as f64 / inf.len() as f64;
+        col[r] = (v - mean) * scale;
     }
     col
 }
 
-#[allow(clippy::float_cmp)] // discrete Set levels are exact 0/1, not estimated floats
 fn response_requested_arm(query: &ResponseQuery) -> Option<u32> {
-    let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional else {
-        return None;
-    };
-    let mut arm = 0u32;
-    for (j, iv) in interventions.iter().enumerate() {
-        let Intervention::Set { value, .. } = iv else {
-            return None;
-        };
-        let level = value.as_f64()?;
-        if level != 0.0 && level != 1.0 {
-            return None;
-        }
-        if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY {
-            return None;
-        }
-        arm |= u32::from(level == 1.0) << j;
-    }
-    Some(arm)
+    super::helpers::requested_joint_arm(query).ok()
 }
 
 fn cell_family_contrast_claim(
@@ -1101,10 +1089,7 @@ fn cell_family_contrast_claim(
         return None;
     }
     let table = result.estimate.score_table.as_ref()?;
-    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    thresholds.dedup_by(|a, b| (*a - *b).abs() <= f64::EPSILON);
-    if thresholds.len() > 1 {
+    if table.distinct_threshold_count() > 1 {
         return None;
     }
     let arm = response_requested_arm(query)?;
@@ -1602,6 +1587,27 @@ mod max_t_diagnostic_tests {
 #[cfg(test)]
 mod selection_review_tests {
     use super::*;
+
+    #[test]
+    fn embedded_influence_keeps_the_claims_own_variance() {
+        // Six complete cases out of ten table rows. The claim's own variance is
+        // S / (n (n - 1)) with S the centred sum of squares; the joint covariance of the
+        // embedded column must reproduce it exactly.
+        let inf = [1.0, -2.0, 0.5, 3.0, -1.5, 4.0];
+        let rows = [0usize, 2, 3, 5, 6, 9];
+        let n = inf.len() as f64;
+        let mean = inf.iter().sum::<f64>() / n;
+        let s: f64 = inf.iter().map(|v| (v - mean).powi(2)).sum();
+        let own_variance = s / (n * (n - 1.0));
+        let col = embed_centered_influence(&inf, &rows, 10);
+        let cov = antecedent_estimate::joint_influence_covariance(&[col.as_slice()], None).unwrap();
+        assert!(
+            (cov.get(0, 0) - own_variance).abs() < 1e-12 * own_variance,
+            "joint variance {} vs own {own_variance}",
+            cov.get(0, 0)
+        );
+    }
+
     #[test]
     fn recorded_splits_reject_empty_duplicate_and_out_of_range_rows() {
         let values = [0.0, 1.0, 2.0];

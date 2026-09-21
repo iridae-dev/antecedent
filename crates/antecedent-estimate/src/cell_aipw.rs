@@ -633,7 +633,7 @@ pub fn cell_minus_control_coefficients(
     table: &ScoreTable,
     requested_arm: u32,
 ) -> Result<Vec<f64>, EstimationError> {
-    if distinct_threshold_count(table) > 1 {
+    if table.distinct_threshold_count() > 1 {
         return Err(EstimationError::unsupported(
             "cell_minus_control on an exceedance grid is not licensed; request a single threshold",
         ));
@@ -663,7 +663,7 @@ pub fn cell_minus_control_coefficients(
 ///
 /// An exceedance grid or fewer than four mean columns.
 pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, EstimationError> {
-    if distinct_threshold_count(table) > 1 {
+    if table.distinct_threshold_count() > 1 {
         return Err(EstimationError::unsupported(
             "interaction contrast on an exceedance grid is not licensed; request a single Exceedance threshold or a raw coefficient vector",
         ));
@@ -685,13 +685,6 @@ pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, Estimati
     coeffs[mean_cols[2]] = -1.0;
     coeffs[mean_cols[3]] = 1.0;
     Ok(coeffs)
-}
-
-fn distinct_threshold_count(table: &ScoreTable) -> usize {
-    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    thresholds.dedup_by(|a, b| (*a - *b).abs() <= f64::EPSILON);
-    thresholds.len()
 }
 
 /// Named or raw linear cell contrast.

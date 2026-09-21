@@ -431,7 +431,7 @@ pub(crate) fn attach_score_functional_grid(
     table: ScoreTable,
 ) -> Result<(EffectEstimate, Vec<Diagnostic>), CausalError> {
     let (summary, monotone_rearranged, mut diagnostics) = summarize_functional(&table, None)?;
-    let n_thresholds = distinct_threshold_count(&table);
+    let n_thresholds = table.distinct_threshold_count();
     if table.intervened.is_empty() && summary.means.len() >= 2 && n_thresholds <= 1 {
         let mut coefficients = vec![0.0; table.n_columns()];
         coefficients[0] = -1.0;
@@ -478,13 +478,6 @@ pub(crate) fn attach_score_functional_grid(
         .with_monotone_rearranged(monotone_rearranged);
     estimate.score_inference = Some(inference);
     Ok((estimate, diagnostics))
-}
-
-fn distinct_threshold_count(table: &ScoreTable) -> usize {
-    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    thresholds.dedup_by(|a, b| a.total_cmp(b).is_eq());
-    thresholds.len()
 }
 
 /// Build scores on original `Y` and attach the exceedance grid when licensed.
@@ -593,25 +586,29 @@ pub(crate) fn attach_quantile_from_table(
     Ok((estimate, diagnostics))
 }
 
+/// The joint-cell arm index of a binary `Set` response: the one decoder shared by quantile,
+/// batch family-contrast and retarget paths.
 pub(crate) fn requested_joint_arm(
     query: &antecedent_core::ResponseQuery,
 ) -> Result<u32, CausalError> {
     let antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. } =
         &query.functional
     else {
-        return Err(CausalError::Unsupported { message: "joint quantile requires Set response" });
+        return Err(CausalError::Unsupported {
+            message: "joint-cell response requires Set response",
+        });
     };
     let mut arm = 0u32;
     for (j, iv) in interventions.iter().enumerate() {
         let Intervention::Set { value, .. } = iv else {
             return Err(CausalError::Unsupported {
-                message: "joint quantile requires binary Set levels",
+                message: "joint-cell response requires binary Set levels",
             });
         };
         let v = value.as_f64();
-        if j >= 3 || !matches!(v, Some(0.0 | 1.0)) {
+        if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY || !matches!(v, Some(0.0 | 1.0)) {
             return Err(CausalError::Unsupported {
-                message: "joint quantile requires at most three binary Set levels",
+                message: "joint-cell response requires at most three binary Set levels",
             });
         }
         arm |= u32::from(v == Some(1.0)) << j;

@@ -594,8 +594,19 @@ fn catalog_axes_bounded(
 /// Whether every estimated binding is IID independent studies.
 #[must_use]
 pub fn licensed_iid_dependence(catalog: &EvidenceCatalog, samples: &[RegimeSample]) -> bool {
-    samples.iter().all(|sample| {
-        let Some(binding) = catalog.bindings.iter().find(|b| b.regime == sample.regime) else {
+    licensed_iid_regimes(catalog, samples.iter().map(|sample| sample.regime))
+}
+
+/// [`licensed_iid_dependence`] over bare regime ids, for callers that hold a sample
+/// summary rather than the samples. A catalog binds one dataset per regime, so the
+/// regime's binding is unique.
+#[must_use]
+pub fn licensed_iid_regimes(
+    catalog: &EvidenceCatalog,
+    regimes: impl IntoIterator<Item = RegimeId>,
+) -> bool {
+    regimes.into_iter().all(|regime| {
+        let Some(binding) = catalog.bindings.iter().find(|b| b.regime == regime) else {
             return false;
         };
         binding.sampling == SamplingDesign::Independent

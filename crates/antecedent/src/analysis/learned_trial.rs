@@ -7,9 +7,7 @@ use antecedent_identify::{TransportIdentification, TransportIdentifier};
 use antecedent_io::{IoError, learned_trial_wire::LearnedTrialWire};
 use std::sync::Arc;
 
-fn err(e: impl std::fmt::Display) -> IoError {
-    IoError::Convert(e.to_string())
-}
+use super::transport_common::err;
 
 /// Checked structural request and immutable trial/target snapshot.
 #[derive(Clone, Debug)]
