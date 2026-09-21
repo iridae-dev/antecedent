@@ -2798,7 +2798,7 @@ impl Study {
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
             DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
-            identify_static_query_with_rd, select_estimand,
+            identify_static_query_with_rd, select_claim, select_estimand,
         };
         if matches!(self.query, CausalQuery::Counterfactual(_)) {
             let graph = self
@@ -2884,7 +2884,7 @@ impl Study {
                     &CausalQuery::AverageEffect(query.clone()),
                     rd,
                 )?;
-                let estimand = select_estimand(&identification, estimator_id)?;
+                let (identification, estimand) = select_claim(identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::Response(query) => {
@@ -2981,7 +2981,7 @@ impl Study {
                 } else {
                     EstimatorId::ConditionalLinearAdjustment
                 };
-                let estimand = select_estimand(&identification, estimator_id)?;
+                let (identification, estimand) = select_claim(identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::PathSpecific(query) => {
