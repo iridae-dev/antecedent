@@ -1,3 +1,21 @@
 # Cross-document public claims are intentionally re-baselined for the 2.0
 # preparation line. Capability and refusal assertions continue to be checked
 # against the support matrix by scripts/gate_docs_support_matrix.sh.
+
+[[claim]]
+id = "transport_not_certified_is_not_impossibility"
+sentence = "A not-certified transport outcome is a conservative refusal, not a proof of impossibility."
+licensed_by = "parity/transport_stages.toml"
+files = ["docs/guides/transport-failure.md"]
+
+[[claim]]
+id = "transport_classical_completeness_is_paper_family"
+sentence = "Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent."
+licensed_by = "parity/transport_stages.toml"
+files = ["docs/guides/transport-scope.md"]
+
+[[claim]]
+id = "transport_stage_support_is_not_analyze_cartesian"
+sentence = "Stage transport routes are licensed in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`."
+licensed_by = "parity/transport_stages.toml"
+files = ["docs/guides/transport-scope.md"]

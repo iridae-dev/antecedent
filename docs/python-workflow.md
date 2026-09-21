@@ -177,7 +177,9 @@ Not-certified, missing evidence, local support failure, an uncalibrated
 interval, and a budget refusal are different outcomes. Do not treat them as
 one error.
 
-See [the 2.0 transport UX migration](migrations/2.0-transport-day1.md).
+See [the 2.0 transport UX migration](migrations/2.0-transport-day1.md),
+[the failure guide](guides/transport-failure.md), and
+[theorem scope](guides/transport-scope.md).
 
 ## Next steps
 

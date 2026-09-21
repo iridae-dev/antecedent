@@ -106,6 +106,18 @@ path = "../../examples/rust/staged_static_kinds.rs"
 name = "class_preserving_cpdag"
 path = "../../examples/rust/class_preserving_cpdag.rs"
 
+[[example]]
+name = "transport_statistical"
+path = "../../examples/rust/transport_statistical.rs"
+
+[[example]]
+name = "transport_exact"
+path = "../../examples/rust/transport_exact.rs"
+
+[[example]]
+name = "transport_meta_grid"
+path = "../../examples/rust/transport_meta_grid.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false
