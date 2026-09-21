@@ -28,13 +28,16 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, fit_2sls};
+use antecedent_stats::{
+    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
+    fit_2sls,
+};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::se::AnalyticSeKind;
+use crate::util::stats_err;
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -266,7 +269,11 @@ impl WaldIv {
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
-    /// Compute the Wald ratio ATE, with optional bootstrap.
+    /// Compute the Wald ratio ATE.
+    ///
+    /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
+    /// [`EffectEstimate::first_stage_diagnostics`]. Wald analytic and bootstrap
+    /// standard errors are never published.
     ///
     /// # Errors
     ///
@@ -277,6 +284,7 @@ impl WaldIv {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let _ = ctx;
         if problem.instruments.len() != 1 {
             return Err(EstimationError::unsupported(
                 "WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments",
@@ -297,60 +305,26 @@ impl WaldIv {
 
         let wald = wald_ratio(&z, &problem.treatment, &problem.outcome)?;
         let ate = wald.ratio * problem.treatment_delta;
-        let first_stage_diagnostics = wald_first_stage_diagnostics(&z, &problem.treatment);
-        let psi = wald_influence_scores(&z, &problem.treatment, &problem.outcome, wald.ratio)?;
-        let se_unit = crate::se::influence_se_kind(
+        let mut first_stage_diagnostics = wald_first_stage_diagnostics(&z, &problem.treatment);
+        attach_anderson_rubin(
+            &mut first_stage_diagnostics,
             self.se_kind,
-            &psi,
-            problem.nrows,
-            self.cluster_ids.as_deref(),
-            self.multiway_ids.as_deref(),
-            self.panel_times.as_deref(),
-            None,
+            &problem.outcome,
+            &problem.treatment,
+            &z,
+            1,
+            &problem.exogenous_matrix,
+            problem.x_ncols,
+            problem.treatment_delta,
         )?;
-        let se_analytic = se_if_strong_instrument(
-            first_stage_diagnostics.as_ref(),
-            se_unit * problem.treatment_delta.abs(),
-        );
-
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, &z, ctx)?)
-        };
+        // Licensed IV uncertainty is the Anderson–Rubin set on first-stage
+        // diagnostics — never a Wald SE (pretest or otherwise) or bootstrap SE.
+        let se_analytic = f64::NAN;
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(n).unwrap_or(u64::MAX))
             .with_first_stage_diagnostics(first_stage_diagnostics)
-            .with_se_kind(self.se_kind)
-            .with_bootstrap(boot))
-    }
-
-    fn bootstrap_se(
-        &self,
-        problem: &PreparedIvProblem,
-        z: &[f64],
-        ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
-        let n = problem.nrows;
-        crate::util::bootstrap_se_with_scratch(
-            self.bootstrap_replicates,
-            ctx,
-            0x5A1D_u64,
-            n,
-            || (vec![0.0; n], vec![0.0; n], vec![0.0; n]),
-            |(z_boot, t_boot, y_boot), idx| {
-                for (r, &src) in idx.iter().enumerate() {
-                    z_boot[r] = z[src];
-                    t_boot[r] = problem.treatment[src];
-                    y_boot[r] = problem.outcome[src];
-                }
-                match wald_ratio(z_boot, t_boot, y_boot) {
-                    Ok(w) => Ok(Some(w.ratio * problem.treatment_delta)),
-                    Err(_) => Ok(None),
-                }
-            },
-        )
+            .with_se_kind(self.se_kind))
     }
 }
 
@@ -394,16 +368,57 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
     Ok(WaldResult { ratio })
 }
 
-/// Staiger–Stock / Stock–Yogo rule-of-thumb: analytic Wald / homoskedastic 2SLS
-/// intervals are not published below this first-stage F.
-const WEAK_IV_F_THRESHOLD: f64 = 10.0;
+/// Nominal level for the licensed Anderson–Rubin IV confidence set (matches the
+/// Wald interval level previously claimed by `se_analytic`).
+const AR_LEVEL: f64 = 0.95;
 
-/// Analytic SE is NaN when the first stage is weaker than [`WEAK_IV_F_THRESHOLD`].
-fn se_if_strong_instrument(diagnostics: Option<&FirstStageDiagnostics>, se: f64) -> f64 {
-    match diagnostics {
-        Some(d) if d.f_statistic.is_finite() && d.f_statistic < WEAK_IV_F_THRESHOLD => f64::NAN,
-        _ => se,
+/// Attach a homoskedastic Anderson–Rubin set for the ATE-scale structural effect.
+///
+/// Non-homoskedastic `se_kind` values withhold AR with an explicit reason: a robust
+/// AR score test is not derived here, and the F≥10 Wald SE is never used as a fallback.
+fn attach_anderson_rubin(
+    diagnostics: &mut Option<FirstStageDiagnostics>,
+    se_kind: AnalyticSeKind,
+    y: &[f64],
+    t: &[f64],
+    instruments_colmajor: &[f64],
+    z_ncols: usize,
+    exogenous_colmajor: &[f64],
+    x_ncols: usize,
+    treatment_delta: f64,
+) -> Result<(), EstimationError> {
+    let Some(diag) = diagnostics.as_mut() else {
+        return Ok(());
+    };
+    if !matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+        diag.anderson_rubin = None;
+        diag.uncertainty_withheld = Some("anderson_rubin_requires_homoskedastic");
+        return Ok(());
     }
+    let mut ws = LeastSquaresWorkspace::default();
+    let (ar, reason) = anderson_rubin_confidence_set(
+        y,
+        t,
+        instruments_colmajor,
+        y.len(),
+        z_ncols,
+        exogenous_colmajor,
+        x_ncols,
+        AR_LEVEL,
+        &FaerBackend,
+        &mut ws,
+    )
+    .map_err(stats_err)?;
+    // Scale structural-β endpoints to the published ATE contrast.
+    diag.anderson_rubin = ar.map(|(lo, hi, level)| {
+        let (mut lo_a, mut hi_a) = (lo * treatment_delta, hi * treatment_delta);
+        if treatment_delta < 0.0 {
+            std::mem::swap(&mut lo_a, &mut hi_a);
+        }
+        (lo_a, hi_a, level)
+    });
+    diag.uncertainty_withheld = reason;
+    Ok(())
 }
 
 /// Weak-instrument diagnostic for the binary single-instrument Wald design.
@@ -413,8 +428,7 @@ fn se_if_strong_instrument(diagnostics: Option<&FirstStageDiagnostics>, se: f64)
 /// and `Z=0` arms with pooled variance, with `df1 = 1` and `df2 = n1 + n0 - 2`. Returns
 /// `None` when either arm has fewer than 2 observations (pooled variance undefined),
 /// mirroring [`fit_2sls`]'s [`FirstStageDiagnostics`] shape so both IV estimators expose
-/// the same diagnostic type. [`WaldIv::fit`] still returns a point estimate, but
-/// `se_analytic` is NaN when `f_statistic < 10`.
+/// the same diagnostic type.
 fn wald_first_stage_diagnostics(z: &[f64], t: &[f64]) -> Option<FirstStageDiagnostics> {
     let (mut n1, mut n0) = (0usize, 0usize);
     let (mut st1, mut st0) = (0.0, 0.0);
@@ -450,54 +464,14 @@ fn wald_first_stage_diagnostics(z: &[f64], t: &[f64]) -> Option<FirstStageDiagno
     let sst = ssr + sse;
     let f_statistic = if sse > 0.0 { ssr / (sse / df2 as f64) } else { f64::INFINITY };
     let partial_r2 = if sst > 0.0 { ssr / sst } else { 0.0 };
-    Some(FirstStageDiagnostics { f_statistic, df1: 1, df2, partial_r2 })
-}
-
-/// Influence-function SE for the Wald ratio `(ȳ₁−ȳ₀)/(t̄₁−t̄₀)`.
-///
-/// Per-row score for the ratio uses the IF of a ratio of mean contrasts. With optional
-/// clustering, scores are fed to [`cluster_influence_se`].
-fn wald_influence_scores(
-    z: &[f64],
-    t: &[f64],
-    y: &[f64],
-    ratio: f64,
-) -> Result<Vec<f64>, EstimationError> {
-    let n = z.len();
-    let (mut n1, mut n0) = (0.0, 0.0);
-    let (mut sy1, mut sy0, mut st1, mut st0) = (0.0, 0.0, 0.0, 0.0);
-    for i in 0..n {
-        if z[i] > 0.5 {
-            n1 += 1.0;
-            sy1 += y[i];
-            st1 += t[i];
-        } else {
-            n0 += 1.0;
-            sy0 += y[i];
-            st0 += t[i];
-        }
-    }
-    if n1 < 1.0 || n0 < 1.0 {
-        return Err(EstimationError::data_msg("Wald IV requires both instrument arms"));
-    }
-    let mean_y1 = sy1 / n1;
-    let mean_y0 = sy0 / n0;
-    let mean_t1 = st1 / n1;
-    let mean_t0 = st0 / n0;
-    let dt = mean_t1 - mean_t0;
-    if dt.abs() < 1e-10 {
-        return Err(EstimationError::stats_msg("degenerate first stage"));
-    }
-    let mut psi = vec![0.0; n];
-    for i in 0..n {
-        let (psi_dy, psi_dt) = if z[i] > 0.5 {
-            ((y[i] - mean_y1) * (n as f64 / n1), (t[i] - mean_t1) * (n as f64 / n1))
-        } else {
-            (-(y[i] - mean_y0) * (n as f64 / n0), -(t[i] - mean_t0) * (n as f64 / n0))
-        };
-        psi[i] = (psi_dy - ratio * psi_dt) / dt;
-    }
-    Ok(psi)
+    Some(FirstStageDiagnostics {
+        f_statistic,
+        df1: 1,
+        df2,
+        partial_r2,
+        anderson_rubin: None,
+        uncertainty_withheld: None,
+    })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -626,7 +600,11 @@ impl TwoStageLeastSquares {
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
-    /// Fit 2SLS and compute the ATE, with optional bootstrap.
+    /// Fit 2SLS and compute the ATE.
+    ///
+    /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
+    /// [`EffectEstimate::first_stage_diagnostics`]. Wald analytic and bootstrap
+    /// standard errors are never published.
     ///
     /// # Errors
     ///
@@ -638,6 +616,7 @@ impl TwoStageLeastSquares {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let _ = ctx;
         // The exogenous block carries the intercept, so pass the excluded instruments
         // without their leading intercept column (fit_2sls appends the exogenous block
         // to form the full first-stage instrument set).
@@ -655,124 +634,25 @@ impl TwoStageLeastSquares {
         .map_err(stats_err)?;
         let coef = fit.second_stage.coefficients[0];
         let ate = coef * problem.treatment_delta;
-        let ncols = 1 + problem.x_ncols;
-        let mut xhat = vec![0.0; problem.nrows * ncols];
-        xhat[..problem.nrows].copy_from_slice(&fit.fitted_endogenous);
-        xhat[problem.nrows..problem.nrows * ncols]
-            .copy_from_slice(&problem.exogenous_matrix[..problem.nrows * problem.x_ncols]);
-        let se_coef = if let Some(se) = residual_sandwich_coef_se(
+        let mut diagnostics = Some(fit.first_stage_diagnostics);
+        attach_anderson_rubin(
+            &mut diagnostics,
             self.se_kind,
-            &xhat,
-            problem.nrows,
-            ncols,
-            &fit.structural_residuals,
-            0,
-            self.cluster_ids.as_deref(),
-            self.multiway_ids.as_deref(),
-            self.panel_times.as_deref(),
-        )? {
-            se
-        } else {
-            analytic_se_2sls(
-                &fit.fitted_endogenous,
-                &problem.exogenous_matrix,
-                problem.nrows,
-                problem.x_ncols,
-                fit.structural_rss,
-            )
-        };
-        let se_analytic = se_if_strong_instrument(
-            Some(&fit.first_stage_diagnostics),
-            se_coef * problem.treatment_delta.abs(),
-        );
-
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, workspace, ctx)?)
-        };
+            &problem.outcome,
+            &problem.treatment,
+            &problem.instruments_matrix[problem.nrows..],
+            problem.z_ncols - 1,
+            &problem.exogenous_matrix,
+            problem.x_ncols,
+            problem.treatment_delta,
+        )?;
+        let se_analytic = f64::NAN;
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(problem.nrows).unwrap_or(u64::MAX))
-            .with_first_stage_diagnostics(Some(fit.first_stage_diagnostics))
-            .with_se_kind(self.se_kind)
-            .with_bootstrap(boot))
+            .with_first_stage_diagnostics(diagnostics)
+            .with_se_kind(self.se_kind))
     }
-
-    fn bootstrap_se(
-        &self,
-        problem: &PreparedIvProblem,
-        workspace: &mut TwoStageLeastSquaresWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
-        let n = problem.nrows;
-        let zc = problem.z_ncols;
-        let xc = problem.x_ncols;
-        let _ = workspace;
-        crate::util::bootstrap_se_with_scratch(
-            self.bootstrap_replicates,
-            ctx,
-            0x25D5_u64,
-            n,
-            || {
-                (
-                    TwoStageLeastSquaresWorkspace::default(),
-                    vec![0.0; n * zc],
-                    vec![0.0; n * xc],
-                    vec![0.0; n],
-                    vec![0.0; n],
-                )
-            },
-            |(ws, z_boot, x_boot, t_boot, y_boot), idx| {
-                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_bootstrap_design(
-                    z_boot,
-                    &problem.instruments_matrix,
-                    n,
-                    zc,
-                    idx,
-                );
-                crate::util::gather_bootstrap_design(x_boot, &problem.exogenous_matrix, n, xc, idx);
-                match fit_2sls(
-                    &z_boot[n..],
-                    n,
-                    zc - 1,
-                    t_boot,
-                    x_boot,
-                    xc,
-                    y_boot,
-                    &self.backend,
-                    &mut ws.ols,
-                ) {
-                    Ok(fit) => Ok(Some(fit.second_stage.coefficients[0] * problem.treatment_delta)),
-                    Err(_) => Ok(None),
-                }
-            },
-        )
-    }
-}
-
-/// Analytic SE for the treatment coefficient (column 0) of the 2SLS second stage:
-/// `sqrt(σ̂² · [(X̂'X̂)⁻¹]₀₀)` with `X̂ = [fitted_T | exogenous]` and
-/// `σ̂² = ‖y − Tβ̂ − Xγ̂‖² / (n − k)` from the STRUCTURAL residuals (actual `T`, not
-/// fitted). It assumes homoskedasticity; the bootstrap SE remains the robust choice.
-fn analytic_se_2sls(
-    fitted_endogenous: &[f64],
-    exogenous_colmajor: &[f64],
-    nrows: usize,
-    x_ncols: usize,
-    structural_rss: f64,
-) -> f64 {
-    let ncols = 1 + x_ncols;
-    let mut x2 = vec![0.0; nrows * ncols];
-    x2[..nrows].copy_from_slice(fitted_endogenous);
-    x2[nrows..nrows * ncols].copy_from_slice(&exogenous_colmajor[..nrows * x_ncols]);
-    let Some(inv) = crate::util::xtx_inverse(&x2, nrows, ncols) else {
-        return f64::NAN;
-    };
-    let sigma2 = structural_rss / (nrows as f64 - ncols as f64).max(1.0);
-    (sigma2 * inv[0].max(0.0)).sqrt()
 }
 
 #[cfg(test)]
@@ -953,27 +833,26 @@ mod tests {
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap.is_none(), "IV must not publish bootstrap SE");
+        assert!(!effect.se_analytic.is_finite(), "IV must not publish Wald SE");
+        let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+        let (lo, hi, level) = diag.anderson_rubin.expect("homoskedastic AR set");
+        assert_eq!(level, 0.95);
+        assert!(lo <= 2.0 && 2.0 <= hi, "AR [{lo}, {hi}]");
     }
 
     #[test]
-    fn two_sls_analytic_se_tracks_bootstrap() {
-        // Strong instrument: the structural-residual analytic SE should sit near the
-        // bootstrap SE (the naive fitted-T RSS variant is systematically larger when
-        // beta != 0 because it treats T-hat prediction error as regression noise).
+    fn two_sls_withholds_wald_and_bootstrap_se() {
         let (data, estimand) = continuous_iv_scm(2000, 7);
         let est = TwoStageLeastSquares { bootstrap_replicates: 60, ..TwoStageLeastSquares::new() };
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        let se_boot = effect.se_bootstrap.unwrap();
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
-        let ratio = effect.se_analytic / se_boot;
-        assert!(
-            (0.4..=2.5).contains(&ratio),
-            "analytic={} bootstrap={se_boot}",
-            effect.se_analytic
-        );
+        assert!(effect.se_bootstrap.is_none());
+        assert!(!effect.se_analytic.is_finite());
+        let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+        assert!(diag.anderson_rubin.is_some());
+        assert!(diag.uncertainty_withheld.is_none());
     }
 
     #[test]
@@ -1000,20 +879,32 @@ mod tests {
         let weak_effect = est.fit(&weak_prep, &mut weak_ws, &ctx(), AssumptionSet::new()).unwrap();
         let weak_diag =
             weak_effect.first_stage_diagnostics.expect("2SLS always reports diagnostics");
-        // F < 10 is the Staiger-Stock rule-of-thumb weak-instrument threshold, which is
-        // what this diagnostic exists to let a caller check.
         assert!(
             weak_diag.f_statistic < 10.0,
             "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
             weak_diag.f_statistic
         );
-        assert!(
-            weak_effect.se_analytic.is_nan(),
-            "weak first stage must not publish a Wald/2SLS analytic SE"
-        );
-        assert!(strong_effect.se_analytic.is_finite() && strong_effect.se_analytic > 0.0);
-        // The separation is the real claim: a weak first stage must sit an order of
-        // magnitude below a strong one.
+        assert!(!weak_effect.se_analytic.is_finite());
+        assert!(weak_effect.se_bootstrap.is_none());
+        assert!(!strong_effect.se_analytic.is_finite());
+        match &weak_diag.anderson_rubin {
+            Some((lo, hi, level)) => {
+                assert_eq!(*level, 0.95);
+                // Finite AR sets under weak IV may miss on a single draw; unbounded
+                // sets must contain the truth on the infinite side.
+                if !lo.is_finite() || !hi.is_finite() {
+                    let covers = (!lo.is_finite() || 2.0 >= *lo) && (!hi.is_finite() || 2.0 <= *hi);
+                    assert!(covers, "unbounded AR [{lo}, {hi}] must contain 2");
+                }
+            }
+            None => {
+                assert_eq!(
+                    weak_diag.uncertainty_withheld,
+                    Some("anderson_rubin_set_is_union"),
+                    "honest withhold when AR set is a union"
+                );
+            }
+        }
         assert!(
             strong_diag.f_statistic > 10.0 * weak_diag.f_statistic,
             "expected strong F ({}) to dwarf weak F ({})",
@@ -1043,20 +934,29 @@ mod tests {
         let weak_effect = est.fit(&weak_prep, &ctx(), AssumptionSet::new()).unwrap();
         let weak_diag =
             weak_effect.first_stage_diagnostics.expect("WaldIv always reports diagnostics");
-        // F < 10 is the Staiger-Stock rule-of-thumb weak-instrument threshold, which is
-        // what this diagnostic exists to let a caller check.
         assert!(
             weak_diag.f_statistic < 10.0,
             "expected a weak instrument to stay under the F=10 rule of thumb, got {}",
             weak_diag.f_statistic
         );
-        assert!(
-            weak_effect.se_analytic.is_nan(),
-            "weak first stage must not publish a Wald/2SLS analytic SE"
-        );
-        assert!(strong_effect.se_analytic.is_finite() && strong_effect.se_analytic > 0.0);
-        // The separation is the real claim: a weak first stage must sit an order of
-        // magnitude below a strong one.
+        assert!(!weak_effect.se_analytic.is_finite());
+        assert!(weak_effect.se_bootstrap.is_none());
+        assert!(!strong_effect.se_analytic.is_finite());
+        match &weak_diag.anderson_rubin {
+            Some((lo, hi, level)) => {
+                assert_eq!(*level, 0.95);
+                if !lo.is_finite() || !hi.is_finite() {
+                    let covers = (!lo.is_finite() || 2.0 >= *lo) && (!hi.is_finite() || 2.0 <= *hi);
+                    assert!(covers, "unbounded AR [{lo}, {hi}] must contain 2");
+                }
+            }
+            None => {
+                assert_eq!(
+                    weak_diag.uncertainty_withheld,
+                    Some("anderson_rubin_set_is_union")
+                );
+            }
+        }
         assert!(
             strong_diag.f_statistic > 10.0 * weak_diag.f_statistic,
             "expected strong F ({}) to dwarf weak F ({})",
@@ -1101,7 +1001,117 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.6, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap.is_none());
+        assert!(!effect.se_analytic.is_finite());
+        let (lo, hi, _) =
+            effect.first_stage_diagnostics.as_ref().unwrap().anderson_rubin.expect("AR set");
+        assert!(lo <= 2.0 && 2.0 <= hi);
+    }
+
+    #[test]
+    fn wald_iv_hc1_withholds_anderson_rubin() {
+        let (data, estimand) = binary_iv_scm(800, 5);
+        let est = WaldIv {
+            bootstrap_replicates: 20,
+            se_kind: AnalyticSeKind::Hc1,
+            ..WaldIv::new()
+        };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(!effect.se_analytic.is_finite());
+        assert!(effect.se_bootstrap.is_none());
+        let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+        assert!(diag.anderson_rubin.is_none());
+        assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
+    }
+
+    #[test]
+    fn anderson_rubin_coverage_on_weakish_dgp() {
+        // First stage ~0.45·Z at n=300 leaves a substantial F<10 share; AR coverage
+        // of the acceptance set (published interval, unbounded ray, or withheld union
+        // that still contains the truth) must sit near 0.95.
+        let n = 300usize;
+        let n_sim = 400u32;
+        let mut covered = 0u32;
+        let mut weak_f = 0u32;
+        let mut scored = 0u32;
+        let crit = antecedent_stats::chi2_critical(0.95, 1);
+        let est = WaldIv { bootstrap_replicates: 0, ..WaldIv::new() };
+        for s in 0..n_sim {
+            let (data, estimand) = moderate_binary_iv_scm(n, 90_000 + u64::from(s));
+            let prep = est.prepare(&data, &estimand, &query()).unwrap();
+            let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
+            assert!(!effect.se_analytic.is_finite());
+            assert!(effect.se_bootstrap.is_none());
+            let diag = effect.first_stage_diagnostics.as_ref().unwrap();
+            if diag.f_statistic.is_finite() && diag.f_statistic < 10.0 {
+                weak_f += 1;
+            }
+            scored += 1;
+            let z: Vec<f64> = (0..prep.nrows)
+                .map(|r| prep.instruments_matrix[prep.nrows + r])
+                .collect();
+            let mut ws = LeastSquaresWorkspace::default();
+            let ar_true = antecedent_stats::anderson_rubin_statistic(
+                &prep.outcome,
+                &prep.treatment,
+                &z,
+                prep.nrows,
+                1,
+                &prep.exogenous_matrix,
+                prep.x_ncols,
+                2.0,
+                &FaerBackend,
+                &mut ws,
+            )
+            .unwrap();
+            let accepts_truth = ar_true.is_finite() && ar_true <= crit;
+            let covers = match diag.anderson_rubin {
+                Some((lo, hi, level)) => {
+                    assert_eq!(level, 0.95);
+                    let left_ok = !lo.is_finite() || 2.0 >= lo;
+                    let right_ok = !hi.is_finite() || 2.0 <= hi;
+                    left_ok && right_ok
+                }
+                None => {
+                    // Union of disjoint rays is not published as one interval, but the
+                    // AR non-rejection set still covers when the test accepts at truth.
+                    diag.uncertainty_withheld == Some("anderson_rubin_set_is_union")
+                        && accepts_truth
+                }
+            };
+            if covers {
+                covered += 1;
+            }
+        }
+        let rate = f64::from(covered) / f64::from(scored);
+        let weak_share = f64::from(weak_f) / f64::from(scored);
+        assert!(
+            weak_share > 0.05,
+            "DGP must produce a non-trivial F<10 share, got {weak_share}"
+        );
+        assert!(
+            (0.85..=0.99).contains(&rate),
+            "AR coverage {rate} outside wide band around 0.95 (covered={covered}/{scored}, weak_share={weak_share})"
+        );
+    }
+
+    /// Binary IV with a moderate first stage (`0.45·Z`) so many draws have F < 10.
+    fn moderate_binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E75_u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = (i % 2) as f64;
+            let u = standard_normal(&mut rng);
+            let ti = 0.45 * zi + u + 0.1 * standard_normal(&mut rng);
+            let yi = 2.0 * ti + u + 0.1 * standard_normal(&mut rng);
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = yi;
+        }
+        (build_iv_data(n, t, y, z), instrumental_estimand())
     }
 
     #[test]

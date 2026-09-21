@@ -106,4 +106,7 @@ pub use special::{
     digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf,
     student_t_sf, trigamma,
 };
-pub use twosls::{FirstStageDiagnostics, TwoSlsFit, fit_2sls, fit_wls};
+pub use twosls::{
+    FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_statistic,
+    chi2_critical, fit_2sls, fit_wls,
+};
