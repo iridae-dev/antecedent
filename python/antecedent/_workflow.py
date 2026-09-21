@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from ._api import describe_refusal
 from .errors import CausalSerializationError
-from .estimation import PreparedAnalysis, _PreparedQuery
+from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
@@ -17,6 +17,7 @@ from .results._slots import ReasoningSlots
 from .transport import (
     ClassicalTransportIdentification,
     ExactTransportDistribution,
+    LearnedTrialEstimate,
     StatisticalTransportDistribution,
     TransportResponseGrid,
 )
@@ -49,7 +50,7 @@ def prepare(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-) -> PreparedAnalysis:
+) -> PreparedAnalysis[_PreparedResult]:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
     Every argument :func:`analyze` accepts is accepted here, with the same
@@ -152,7 +153,16 @@ class LoadedResult(ResultAPI):
 
 
 @describe_refusal
-def load(data: bytes) -> LoadedResult | ExactTransportDistribution | StatisticalTransportDistribution | TransportResponseGrid | ClassicalTransportIdentification:
+def load(
+    data: bytes,
+) -> (
+    LoadedResult
+    | ExactTransportDistribution
+    | StatisticalTransportDistribution
+    | TransportResponseGrid
+    | ClassicalTransportIdentification
+    | LearnedTrialEstimate
+):
     """Load a contracted result through the Rust semantic consumer.
 
     Missing/unknown contracts remain explicitly unavailable and can still be
@@ -160,7 +170,14 @@ def load(data: bytes) -> LoadedResult | ExactTransportDistribution | Statistical
     """
     from . import artifacts
 
+    prepared: PreparedAnalysis[Any]
     encoded = bytes(data)
+    if encoded.startswith(b"ANTECEDENT-LEARNED-TRIAL\x01"):
+        from . import _native
+        from .transport import _learned_trial
+
+        native = _native.consume_learned_trial(encoded)
+        return _learned_trial(native, native.last_result())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
         from .transport import _exact_distribution, consume_exact
 

@@ -339,3 +339,9 @@ mod tests {
         assert_eq!(round.derivation[0].rule, "backdoor.criterion");
     }
 }
+
+/// Transport grid artifact records and encoding.
+pub mod transport_grid_wire;
+
+/// Learner-backed trial transport artifact verification.
+pub mod learned_trial_wire;

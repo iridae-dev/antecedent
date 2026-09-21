@@ -3902,6 +3902,7 @@ fn composite_result_wire(
         structural_response: None,
         unit_effects: None,
         cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
+        fitted_effect: result.estimate.fitted_effect.as_deref().cloned(),
         cate_se: result.estimate.cate_se.as_ref().map(|v| v.to_vec()),
         outcome_oof_r2: result.estimate.outcome_oof_r2,
         treatment_oof_logloss: result.estimate.treatment_oof_logloss,

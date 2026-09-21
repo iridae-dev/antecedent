@@ -8,7 +8,7 @@ import numbers
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Literal, cast
+from typing import Any, Generic, Literal, TypeVar, cast
 
 from ._api import describe_refusal
 from ._coerce import coerce_latency, coerce_query, coerce_refute
@@ -114,6 +114,7 @@ from .results import (
 )
 from .results.response import SupportStatus, UncertaintyKind
 from .transport import (
+    ExactTransportDistribution,
     ExactTransportQuery,
     OverlapDiagnostic,
     StatisticalTransportDistribution,
@@ -2830,7 +2831,18 @@ def _check_response_observation(query: Any, inference: Any) -> None:
         )
 
 
-class PreparedAnalysis:
+_PreparedResult = (
+    AnalysisResult
+    | CausalResponseView
+    | ExactTransportDistribution
+    | StatisticalTransportDistribution
+    | TransportResponseGrid
+)
+
+ResultT = TypeVar("ResultT", covariant=True)
+
+
+class PreparedAnalysis(Generic[ResultT]):
     """Compile-once / re-estimate-many handle for licensed analysis cells.
 
     **Frozen at prepare:** schema (names, types, order); graph, accepted graph,
@@ -2862,7 +2874,15 @@ class PreparedAnalysis:
         self,
         native: Any,
         *,
-        kind: Literal["average", "response_curve", "intervention_response", "exact_transport", "statistical_transport", "transport_grid"] = "average",
+        kind: Literal[
+            "average",
+            "response_curve",
+            "intervention_response",
+            "exact_transport",
+            "statistical_transport",
+            "transport_grid",
+            "learned_trial",
+        ] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
         threads: int | None = None,
@@ -2872,6 +2892,9 @@ class PreparedAnalysis:
     ) -> None:
         self._native = native
         self._kind = kind
+        from ._transport_lifecycle import transport_lifecycle
+
+        self._transport = transport_lifecycle(kind)
         self._query = query
         # A scalar Dag InterventionResponse runs its refuter suite as the
         # second click of every estimate, so `refute=` is honoured on the
@@ -2883,7 +2906,7 @@ class PreparedAnalysis:
         self._controls = controls or _Controls()
         self._cancelled = False
 
-    def _frozen(self, execution: Any) -> PreparedAnalysis:
+    def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
         """A handle over one retained execution with this study's seed and controls."""
         return PreparedAnalysis(
             execution,
@@ -2897,7 +2920,7 @@ class PreparedAnalysis:
     @property
     def validator_names(self) -> tuple[str, ...]:
         """Attested custom-validator names frozen at prepare (their claim identity)."""
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             return ()
         return tuple(self._native.validator_names())
 
@@ -2908,7 +2931,7 @@ class PreparedAnalysis:
         results, never the callables. The names must equal
         :attr:`validator_names`; otherwise the rebind is refused.
         """
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             if validators:
                 raise ValueError("Transport studies do not fit or invoke sampled-data validators")
             return
@@ -2944,7 +2967,7 @@ class PreparedAnalysis:
         running_variable: str | None = None,
         cutoff: float | None = None,
         bandwidth: float | None = None,
-    ) -> PreparedAnalysis:
+    ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
         Every argument either reaches the compiled study or is refused with a
@@ -3012,56 +3035,150 @@ class PreparedAnalysis:
             prepare_response_grid,
             prepare_statistical,
         )
+
         if isinstance(query, TransportResponseGridQuery):
             if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
                 raise ValueError("Transport grid requires explicit exact or statistical providers")
-            if any(option is not None for option in (
-                graph, discovery, inference, identifier, estimator, estimator_config,
-                refute, bootstrap, threads, latency, class_prior, max_completions,
-                population_registry, on_progress, on_stage, validators, regimes,
-                running_variable, cutoff, bandwidth,
-            )) or seed != 1 or not accept_discovered:
-                raise ValueError("Transport grids use their retained graph, catalog, and inference settings")
-            return prepare_response_grid(query.identification, query.catalog, data, at=query.at,
-                                         bootstrap=query.bootstrap, coverage_level=query.coverage_level,
-                                         seed=query.seed, cancel=cancel)
-        if isinstance(query, StatisticalTransportQuery) or isinstance(data, StatisticalTransportData):
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        graph,
+                        discovery,
+                        inference,
+                        identifier,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        bootstrap,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or seed != 1
+                or not accept_discovered
+            ):
+                raise ValueError(
+                    "Transport grids use their retained graph, catalog, and inference settings"
+                )
+            return prepare_response_grid(
+                query.identification,
+                query.catalog,
+                data,
+                at=query.at,
+                bootstrap=query.bootstrap,
+                coverage_level=query.coverage_level,
+                seed=query.seed,
+                estimator=query.estimator,
+                cancel=cancel,
+            )
+        if isinstance(query, StatisticalTransportQuery) or isinstance(
+            data, StatisticalTransportData
+        ):
             if not isinstance(query, StatisticalTransportQuery) or not isinstance(
                 data, StatisticalTransportData
             ):
                 raise ValueError(
                     "Statistical transport requires StatisticalTransportData and StatisticalTransportQuery"
                 )
-            if any(option is not None for option in (
-                graph, discovery, inference, identifier, estimator, estimator_config,
-                refute, threads, latency, class_prior, max_completions,
-                population_registry, on_progress, on_stage, validators, regimes,
-                running_variable, cutoff, bandwidth,
-            )) or not accept_discovered:
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        graph,
+                        discovery,
+                        inference,
+                        identifier,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or not accept_discovered
+            ):
                 raise ValueError(
                     "Statistical transport uses its retained graph, catalog, and inference settings"
                 )
-            prepared = prepare_statistical(
-                query.identification, query.catalog, data, at=query.at, cancel=cancel,
-                bootstrap=query.bootstrap, coverage_level=query.coverage_level,
-                estimator=query.estimator, seed=query.seed,
+            statistical_prepared = prepare_statistical(
+                query.identification,
+                query.catalog,
+                data,
+                at=query.at,
+                cancel=cancel,
+                bootstrap=query.bootstrap,
+                coverage_level=query.coverage_level,
+                estimator=query.estimator,
+                seed=query.seed,
             )
-            prepared._controls = _Controls(cancel=cancel)
-            return prepared
+            statistical_prepared._controls = _Controls(cancel=cancel)
+            return statistical_prepared
 
         if isinstance(query, ExactTransportQuery) or isinstance(data, ExactTransportData):
-            if not isinstance(query, ExactTransportQuery) or not isinstance(data, ExactTransportData):
-                raise ValueError("Exact transport requires ExactTransportData and ExactTransportQuery")
-            if any(option is not None for option in (
-                graph, discovery, inference, identifier, estimator, estimator_config,
-                refute, bootstrap, threads, latency, class_prior, max_completions,
-                population_registry, on_progress, on_stage, validators, regimes,
-                running_variable, cutoff, bandwidth,
-            )) or seed != 1 or not accept_discovered:
-                raise ValueError("Exact transport uses its retained graph and evidence contract; sampled-data preparation options do not apply")
-            prepared = prepare_exact(query.identification, query.catalog, data, at=query.at, cancel=cancel)
-            prepared._controls = _Controls(cancel=cancel)
-            return prepared
+            if not isinstance(query, ExactTransportQuery) or not isinstance(
+                data, ExactTransportData
+            ):
+                raise ValueError(
+                    "Exact transport requires ExactTransportData and ExactTransportQuery"
+                )
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        graph,
+                        discovery,
+                        inference,
+                        identifier,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        bootstrap,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or seed != 1
+                or not accept_discovered
+            ):
+                raise ValueError(
+                    "Exact transport uses its retained graph and evidence contract; sampled-data preparation options do not apply"
+                )
+            exact_prepared = prepare_exact(
+                query.identification, query.catalog, data, at=query.at, cancel=cancel
+            )
+            exact_prepared._controls = _Controls(cancel=cancel)
+            return exact_prepared
 
         from .population import registry_wire
 
@@ -3198,7 +3315,7 @@ class PreparedAnalysis:
                 "several identifications, so it has no such stages (use on_progress)",
                 reason_code="stage_stream_unavailable",
             )
-        return prepared
+        return cast(PreparedAnalysis[_PreparedResult], prepared)
 
     def export_artifact(
         self,
@@ -3216,9 +3333,11 @@ class PreparedAnalysis:
         artifacts also retain support and assumptions; retain the analysis result
         separately for posterior assumptions and validation reports.
         """
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             if payload != "result":
-                raise ValueError("Transport artifacts export a checked execution and its full proof")
+                raise ValueError(
+                    "Transport artifacts export a checked execution and its full proof"
+                )
             return self._native.export()
         return self._native.export_artifact(artifact_id=artifact_id, payload=payload)
 
@@ -3230,7 +3349,7 @@ class PreparedAnalysis:
                 "Cancelled estimate produced no claim.",
                 reason_code="cancelled_no_claim",
             )
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             return self._native.export()
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
 
@@ -3263,7 +3382,7 @@ class PreparedAnalysis:
         its ``calibration`` is unavailable (``not_executed``) until an estimate
         runs. :meth:`preflight` is the cheap structural-only view.
         """
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             return InspectionReport(**json.loads(self._native.inspection_json()))
 
         from dataclasses import replace
@@ -3283,7 +3402,7 @@ class PreparedAnalysis:
         """Cheap structural-only inspection; identification and fitting are not run."""
         from .results._report import as_inspection
 
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             return self.inspect()
         return as_inspection(ReasoningSlots.from_contract(self._native.inspect()))
 
@@ -3321,11 +3440,11 @@ class PreparedAnalysis:
 
     def replace_snapshot(self, data: Any, *, cancel: Any = _UNSET) -> None:
         """Replace exact-law providers and invalidate execution claims atomically."""
-        if self._kind == "exact_transport":
-            self._native.replace_snapshot(data.laws, cancel=self._controls.cancel if cancel is _UNSET else cancel)
-            return
-        if self._kind in {"statistical_transport", "transport_grid"}:
-            self._native.replace_snapshot(data, cancel=self._controls.cancel if cancel is _UNSET else cancel)
+        if self._transport is not None:
+            self._native.replace_snapshot(
+                self._transport.payload(data),
+                cancel=self._controls.cancel if cancel is _UNSET else cancel,
+            )
             return
         raise ValueError("Use refresh for this sampled-data modality")
 
@@ -3362,7 +3481,14 @@ class PreparedAnalysis:
                 return names, columns, None
         return _frame_payload(data)
 
-    def _wrap(self, raw: Any) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
+    def _wrap(
+        self, raw: Any
+    ) -> (
+        AnalysisResult
+        | CausalResponseView
+        | StatisticalTransportDistribution
+        | TransportResponseGrid
+    ):
         if self._kind in ("response_curve", "intervention_response"):
             query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
@@ -3376,47 +3502,23 @@ class PreparedAnalysis:
         seed: int | None,
         threads: int | None,
         controls: dict[str, Any],
-    ) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
-        if self._kind == "transport_grid":
-            from .transport import _response_grid
-
-            if seed is not None or threads is not None or any(controls.get(name) is not None for name in ("on_progress", "on_stage")):
-                raise ValueError("Transport grids retain inference settings; only cancellation can change per execution")
-            if refresh:
-                raw = self._native.refresh(data, cancel=controls.get("cancel"))
-            elif data is None:
-                raw = self._native.estimate(cancel=controls.get("cancel"))
-            else:
-                raise ValueError("Use refresh for a grid snapshot change")
-            return _response_grid(self._native, raw)
-        if self._kind == "exact_transport":
-            from .transport import _exact_distribution
-
-            if seed is not None or threads is not None or any(
-                controls.get(name) is not None for name in ("on_progress", "on_stage")
-            ):
-                raise ValueError("Exact execution accepts cancellation; sampling and callback controls are not applicable")
-            if refresh:
-                raw = self._native.refresh(data.laws, cancel=controls.get("cancel"))
-            elif data is None:
-                raw = self._native.estimate(cancel=controls.get("cancel"))
-            else:
-                raise ValueError("Use replace_snapshot or refresh for an explicit exact-law snapshot change")
-            return _exact_distribution(self._native, raw)
-        if self._kind == "statistical_transport":
-            from .transport import _statistical_distribution
-
-            if threads is not None or any(
-                controls.get(name) is not None for name in ("on_progress", "on_stage")
-            ):
-                raise ValueError("Statistical transport accepts cancellation; progress callbacks are not applicable")
-            if refresh:
-                raw = self._native.refresh(data, cancel=controls.get("cancel"))
-            elif data is None:
-                raw = self._native.estimate(cancel=controls.get("cancel"))
-            else:
-                raise ValueError("Use replace_snapshot or refresh for an explicit statistical snapshot change")
-            return _statistical_distribution(self._native, raw)
+    ) -> (
+        AnalysisResult
+        | CausalResponseView
+        | StatisticalTransportDistribution
+        | TransportResponseGrid
+    ):
+        if self._transport is not None:
+            return self._run_click(
+                lambda: self._transport.execute(
+                    self._native,
+                    data,
+                    refresh=refresh,
+                    seed=seed,
+                    threads=threads,
+                    controls=controls,
+                )
+            )
         seed = self._seed if seed is None else seed
         threads = self._threads if threads is None else threads
         response = self._kind in ("response_curve", "intervention_response")
@@ -3485,7 +3587,7 @@ class PreparedAnalysis:
         cancel: Any = _UNSET,
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
-    ) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
+    ) -> ResultT:
         """Re-estimate without recompiling.
 
         With no ``data`` this re-executes the prepared program on the retained
@@ -3495,12 +3597,15 @@ class PreparedAnalysis:
         ``on_stage`` default to the study's retained controls and may be
         overridden (``None`` turns one off for this click).
         """
-        return self._click(
-            data,
-            refresh=False,
-            seed=seed,
-            threads=threads,
-            controls=self._click_controls(cancel, on_progress, on_stage),
+        return cast(
+            ResultT,
+            self._click(
+                data,
+                refresh=False,
+                seed=seed,
+                threads=threads,
+                controls=self._click_controls(cancel, on_progress, on_stage),
+            ),
         )
 
     @describe_refusal
@@ -3519,7 +3624,7 @@ class PreparedAnalysis:
         descendant closure can be checked. Nonconstant weights require a
         nonempty ``depends_on``.
         """
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             raise CausalUnsupportedError(
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",
@@ -3550,7 +3655,7 @@ class PreparedAnalysis:
         ``reason_code="row_weights_bound_to_snapshot"`` instead of silently
         reweighting other rows.
         """
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             raise CausalUnsupportedError(
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",
@@ -3568,14 +3673,17 @@ class PreparedAnalysis:
         cancel: Any = _UNSET,
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
-    ) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
+    ) -> ResultT:
         """Replace retained data and re-estimate (controls as in :meth:`estimate`)."""
-        return self._click(
-            data,
-            refresh=True,
-            seed=seed,
-            threads=threads,
-            controls=self._click_controls(cancel, on_progress, on_stage),
+        return cast(
+            ResultT,
+            self._click(
+                data,
+                refresh=True,
+                seed=seed,
+                threads=threads,
+                controls=self._click_controls(cancel, on_progress, on_stage),
+            ),
         )
 
     @describe_refusal
@@ -3594,7 +3702,7 @@ class PreparedAnalysis:
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         ``seed`` / ``threads`` / ``cancel`` default to the study's own.
         """
-        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
+        if self._transport is not None:
             raise CausalUnsupportedError(
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",

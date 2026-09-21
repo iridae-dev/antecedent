@@ -250,8 +250,74 @@ fn encode_external_estimate_claim_py<'py>(
     Ok(PyBytes::new(py, &bytes))
 }
 
+/// A verified parent claim and its immutable provider-independent predictor.
+#[pyclass(frozen, skip_from_py_object)]
+struct FittedEffectModel {
+    model: antecedent_estimate::FittedEffect,
+    bytes: Vec<u8>,
+    #[pyo3(get)]
+    features: Vec<String>,
+    #[pyo3(get)]
+    parent_claim: String,
+}
+
+#[pymethods]
+impl FittedEffectModel {
+    #[staticmethod]
+    fn load(bytes: &[u8]) -> PyResult<Self> {
+        let consumed =
+            antecedent_io::consume_analysis_result(bytes).map_err(serialization_error)?;
+        if !consumed.acceptance.accepts_as_verified_program()
+            || !consumed.acceptance.verified_references
+        {
+            return Err(serialization_error("fitted prediction requires a verified parent claim"));
+        }
+        let claim =
+            consumed.contract.as_ref().and_then(|c| c.claim.as_ref()).ok_or_else(|| {
+                serialization_error("fitted prediction requires an executed claim")
+            })?;
+        let model = consumed
+            .body
+            .fitted_effect
+            .ok_or_else(|| serialization_error("this result has no portable fitted effect"))?;
+        model.validate().map_err(serialization_error)?;
+        let features = model
+            .features
+            .iter()
+            .map(|v| consumed.header.variable_names[*v as usize].clone())
+            .collect();
+        Ok(Self {
+            model,
+            bytes: bytes.to_vec(),
+            features,
+            parent_claim: antecedent_io::digest_hex(&claim.claim_id),
+        })
+    }
+
+    fn predict(&self, py: Python<'_>, columns: Vec<Vec<f64>>, nrows: usize) -> PyResult<Vec<f64>> {
+        let ids: Vec<_> =
+            self.model.features.iter().map(|v| antecedent_core::VariableId::from_raw(*v)).collect();
+        py.detach(|| {
+            let columns: Vec<_> = columns.iter().map(Vec::as_slice).collect();
+            self.model
+                .predict(
+                    &ids,
+                    &columns,
+                    nrows,
+                    &antecedent_core::ExecutionContext::production_default(0),
+                )
+                .map_err(serialization_error)
+        })
+    }
+
+    fn export<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.bytes)
+    }
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DecodedCausalArtifact>()?;
+    m.add_class::<FittedEffectModel>()?;
     m.add_function(wrap_pyfunction!(encode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;

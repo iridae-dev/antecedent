@@ -318,8 +318,34 @@ impl PreparedStatisticalStage {
     }
 }
 
+pub(crate) fn parse_provider(
+    value: Option<&Bound<'_, PyAny>>,
+) -> PyResult<EmpiricalTableEstimator> {
+    let Some(value) = value else { return Ok(EmpiricalTableEstimator::Plugin) };
+    if let Ok(name) = value.extract::<String>() {
+        return match name.as_str() {
+            "plugin" => Ok(EmpiricalTableEstimator::Plugin),
+            "dirichlet" => Ok(EmpiricalTableEstimator::Dirichlet),
+            _ => Err(error(format!("unknown statistical provider {name}"))),
+        };
+    }
+    let wire = value.call_method0("_wire")?;
+    let wire = wire.cast::<pyo3::types::PyDict>()?;
+    let kind: String =
+        wire.get_item("kind")?.ok_or_else(|| error("missing provider kind"))?.extract()?;
+    match kind.as_str() {
+        "empirical_table" => Ok(EmpiricalTableEstimator::Plugin),
+        "learned_categorical" => {
+            let spec = crate::estimator_config::get_learner(wire, "learner")?
+                .ok_or_else(|| error("missing categorical learner"))?;
+            Ok(EmpiricalTableEstimator::Learned(spec))
+        }
+        _ => Err(error("unknown statistical provider")),
+    }
+}
+
 #[pyfunction]
-#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=199, coverage_level=0.95, estimator="plugin", seed=1))]
+#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=199, coverage_level=0.95, estimator=None, seed=1))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_statistical_transport(
     py: Python<'_>,
@@ -334,7 +360,7 @@ fn prepare_statistical_transport(
     cancel: Option<crate::PyCancellationToken>,
     bootstrap: u32,
     coverage_level: f64,
-    estimator: &str,
+    estimator: Option<&Bound<'_, PyAny>>,
     seed: u64,
 ) -> PyResult<PreparedStatisticalStage> {
     let proof = stage.identified()?;
@@ -348,11 +374,7 @@ fn prepare_statistical_transport(
     );
     let diagram = stage.diagram();
     let graph = stage.named_graph();
-    let estimator = match estimator {
-        "plugin" => EmpiricalTableEstimator::Plugin,
-        "dirichlet" => EmpiricalTableEstimator::Dirichlet,
-        other => return Err(error(format!("unknown empirical estimator {other}"))),
-    };
+    let estimator = parse_provider(estimator)?;
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(seed);
         ctx.memory.hard_limit_bytes = memory_bytes;

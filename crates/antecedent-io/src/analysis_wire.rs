@@ -101,6 +101,9 @@ pub struct EffectEstimateWire {
     /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<Vec<f64>>,
+    /// Portable fitted effect, bound into the result body identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
     /// Licensed pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
@@ -392,6 +395,7 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         family_contrast_interval: e.family_contrast_interval,
         unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
         cate: e.cate.as_ref().map(|v| v.to_vec()),
+        fitted_effect: e.fitted_effect.as_deref().cloned(),
         cate_se: e.cate_se.as_ref().map(|v| v.to_vec()),
         outcome_oof_r2: e.outcome_oof_r2,
         treatment_oof_logloss: e.treatment_oof_logloss,
@@ -589,6 +593,12 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
+    if let Some(model) = &w.fitted_effect {
+        if model.version == 1 && model.predictor.version == 1 {
+            model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            estimate.fitted_effect = Some(std::sync::Arc::new(model.clone()));
+        }
+    }
     estimate.cate = w.cate.clone().map(Into::into);
     estimate.cate_se = w.cate_se.clone().map(Into::into);
     estimate.outcome_oof_r2 = w.outcome_oof_r2;
@@ -1117,6 +1127,7 @@ mod tests {
             interaction_structurally_zero: None,
             unit_effects_homogeneous: None,
             cate: None,
+            fitted_effect: None,
             cate_se: None,
             outcome_oof_r2: None,
             treatment_oof_logloss: None,

@@ -166,14 +166,17 @@ SNAPSHOT: dict[str, set[str]] = {
         "model",
         "observation",
         "population",
+        "prediction",
         "priors",
         "query",
         "results",
         "state",
         "transport",
+        "learners",
         "validation",
     },
     "AnalysisResult": {
+        "fitted_model",
         # The five-line API (`ResultAPI`)
         "answer",
         "as_point",
@@ -264,6 +267,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "export_artifact",
     },
     "LoadedResult": {
+        "fitted_model",
         "acceptance",
         "answer",
         "artifact",

@@ -125,6 +125,18 @@ impl FittedPredictor for ElasticNetPredictor {
         predict_linear(&self.coefficients, x, out)
     }
 
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        Ok(crate::PortablePredictor {
+            version: 1,
+            columns: self.coefficients.len(),
+            provenance: self.provenance(),
+            model: crate::PredictionMap::Linear {
+                coefficients: self.coefficients.clone(),
+                logistic: false,
+            },
+        })
+    }
+
     fn provenance(&self) -> LearnerProvenance {
         LearnerProvenance {
             spec: "elastic_net".into(),

@@ -121,3 +121,7 @@ harness = false
 [[bench]]
 name = "user_path"
 harness = false
+
+[[bench]]
+name = "cohesion_allocations"
+harness = false

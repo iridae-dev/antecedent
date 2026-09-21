@@ -59,11 +59,11 @@ impl DrLearner {
         }
     }
 
-    /// Copy one spec onto both first-stage nuisances.
+    /// Adapt one shared spec to each first-stage nuisance task.
     #[must_use]
     pub const fn with_learner(mut self, spec: LearnerSpec) -> Self {
-        self.outcome = spec;
-        self.treatment = spec;
+        self.outcome = spec.for_task(PredictionTask::Regression);
+        self.treatment = spec.for_task(PredictionTask::BinaryProbability);
         self
     }
 
@@ -135,9 +135,10 @@ impl DrLearner {
         if self.folds < 2 {
             return Err(EstimationError::data_msg("DRLearner requires at least two folds"));
         }
-        let (mu0, mu1, mut ehat, treat) =
+        let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
-        let raw_e = ehat.clone();
+        let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
+        let mut ehat = raw_e.clone();
         clip_propensity(&mut ehat, clip_of(problem.overlap));
         let phi =
             aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, &mu0, &mu1);
@@ -164,8 +165,8 @@ impl DrLearner {
         let yhat = problem
             .treatment
             .iter()
-            .zip(&mu0)
-            .zip(&mu1)
+            .zip(mu0)
+            .zip(mu1)
             .map(|((&t, &m0), &m1)| if t > 0.5 { m1 } else { m0 })
             .collect::<Vec<_>>();
         let outcome_diag =
@@ -176,14 +177,28 @@ impl DrLearner {
             assumptions,
             treat.validation.logloss,
             outcome_diag.r2,
-            raw_e,
+            raw_e.clone(),
         )?
         .with_cate(Some(Arc::from(cate.clone())))
         .with_cate_se(linear_cate_pointwise_se(self.final_learner, view, &phi, &cate));
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
-        effect.learner_provenance = treat.model_provenance;
+        effect.learner_provenance = treat.model_provenance.clone();
         effect.learner_provenance.push(fitted.provenance());
+        match fitted.portable() {
+            Ok(predictor) => {
+                let model = crate::FittedEffect {
+                    version: 1,
+                    features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+                    intercept: view.ncols() == problem.design_ncols,
+                    predictor,
+                };
+                model.validate()?;
+                effect.fitted_effect = Some(Arc::new(model));
+            }
+            Err(antecedent_learn::LearnError::Unsupported { .. }) => {}
+            Err(error) => return Err(learn_err(error)),
+        }
         Ok(effect)
     }
 }

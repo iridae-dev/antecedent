@@ -56,7 +56,8 @@ impl LearnerCapabilities {
 }
 
 /// Hidden implementation identity recorded on artifacts.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LearnerProvenance {
     /// Public spec name (`"linear"`, `"gradient_boosted_trees"`, …).
     pub spec: String,
@@ -92,6 +93,13 @@ pub trait LearnerFactory: Send + Sync {
 
 /// Fitted predictor. Writes one value per logical design row into `out`.
 pub trait FittedPredictor: Send + Sync {
+    /// Export a provider-independent numerical map, when supported.
+    /// # Errors
+    /// A provider without a codec explicitly refuses portable export.
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        Err(LearnError::Unsupported { message: "portable export unavailable for this predictor" })
+    }
+
     /// Predict into `out` (`out.len()` must equal `x.nrows()`).
     ///
     /// # Errors

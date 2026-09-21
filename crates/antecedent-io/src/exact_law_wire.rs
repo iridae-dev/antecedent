@@ -23,6 +23,8 @@ pub struct ExactLawWire {
     pub relative_tolerance: f64,
     #[serde(default)]
     pub origin: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub empirical_counts: Option<Vec<u64>>,
 }
 impl ExactLawWire {
     /// Preserve exact values and declared tolerance without normalization.
@@ -30,6 +32,7 @@ impl ExactLawWire {
     pub fn from_law(law: &ExactDiscreteLaw) -> Self {
         let mut wire = Self::metadata(law);
         wire.probabilities = law.probabilities().to_vec();
+        wire.empirical_counts = law.empirical_counts().map(<[u64]>::to_vec);
         wire
     }
     /// Read only declared axes and provider identity; never read table masses.
@@ -49,6 +52,7 @@ impl ExactLawWire {
                 .map(|a| (a.variable.raw(), a.values.iter().map(ValueWire::from_value).collect()))
                 .collect(),
             probabilities: Vec::new(),
+            empirical_counts: None,
             snapshot: law.snapshot_identity().into(),
             absolute_tolerance: law.tolerance().absolute,
             relative_tolerance: law.tolerance().relative,
@@ -63,10 +67,10 @@ impl ExactLawWire {
         let origin = LawOrigin::parse(&self.origin)
             .ok_or_else(|| IoError::Convert(format!("unknown law origin {}", self.origin)))?;
         let build = match origin {
-            LawOrigin::SuppliedExact => ExactDiscreteLaw::try_new,
+            LawOrigin::SuppliedExact | LawOrigin::LearnedPlugin => ExactDiscreteLaw::try_new,
             LawOrigin::EmpiricalPlugin => ExactDiscreteLaw::try_empirical,
         };
-        build(
+        let law = build(
             self.population.clone(),
             RegimeId::from_raw(self.regime),
             self.interventions
@@ -87,6 +91,16 @@ impl ExactLawWire {
             self.snapshot.clone(),
             LawTolerance { absolute: self.absolute_tolerance, relative: self.relative_tolerance },
         )
-        .map_err(|e| IoError::Convert(e.to_string()))
+        .map_err(|e| IoError::Convert(e.to_string()))?;
+        match (origin, &self.empirical_counts) {
+            (LawOrigin::LearnedPlugin, Some(counts)) => law
+                .with_empirical_counts(counts.clone())
+                .map_err(|e| IoError::Convert(e.to_string())),
+            (LawOrigin::LearnedPlugin, None) => {
+                Err(IoError::Convert("learned law lacks empirical support".into()))
+            }
+            (_, Some(_)) => Err(IoError::Convert("unexpected learned support metadata".into())),
+            (_, None) => Ok(law),
+        }
     }
 }

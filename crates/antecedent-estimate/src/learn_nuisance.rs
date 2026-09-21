@@ -14,7 +14,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_learn::{
     CrossFittedPrediction, DesignView, LearnerFactory, LearnerSpec, NuisanceDiagnostics,
-    PredictionTask, RowSelection, TargetView, assign_folds, cross_fit, diagnose, resolve_for,
+    PredictionTask, RowSelection, TargetView, cross_fit, diagnose, resolve_for,
 };
 
 use crate::error::EstimationError;
@@ -60,7 +60,7 @@ pub(crate) fn resolve_nuisance(
     _y: &[f64],
     _ctx: &ExecutionContext,
 ) -> Result<(Box<dyn LearnerFactory>, NuisanceDiagnostics), EstimationError> {
-    Ok((resolve_for(spec.for_task(task), task).map_err(learn_err)?, NuisanceDiagnostics::default()))
+    Ok((resolve_for(spec, task).map_err(learn_err)?, NuisanceDiagnostics::default()))
 }
 
 pub(crate) fn cross_fit_nuisance(
@@ -89,6 +89,7 @@ pub(crate) fn cross_fit_aipw_nuisances(
     t: &[f64],
     folds: usize,
     ctx: &ExecutionContext,
+    fold_ids: Vec<u16>,
 ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction), EstimationError> {
     let (outcome_factory, _) =
         resolve_nuisance(outcome, PredictionTask::Regression, design, nrows, ncols, y, ctx)?;
@@ -103,7 +104,6 @@ pub(crate) fn cross_fit_aipw_nuisances(
     )?;
     let x_outcome = design_for_spec(outcome, design, nrows, ncols)?;
     let x_treat = design_for_spec(treatment, design, nrows, ncols)?;
-    let fold_ids = assign_folds(nrows, folds).map_err(learn_err)?;
     let fold_parts = ctx
         .map_indexed(folds, |fold, inner| {
             fit_aipw_fold(
@@ -240,9 +240,11 @@ pub(crate) fn aipw_scores(t: &[f64], y: &[f64], e: &[f64], mu0: &[f64], mu1: &[f
         .collect()
 }
 
-/// One-entry OOF cache tied to immutable prepared input buffers and exact fit settings.
-/// Holding the Arcs prevents allocator reuse from turning pointer identity into a stale hit.
-#[derive(Clone, Debug)]
+/// Immutable predictions shared across compatible estimators.
+pub(crate) type AipwPredictions = (Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction);
+
+/// A prepared-input key owns its buffers so allocator reuse cannot create stale hits.
+#[derive(Debug)]
 pub(crate) struct AipwCacheEntry {
     design: std::sync::Arc<[f64]>,
     outcome_values: std::sync::Arc<[f64]>,
@@ -253,7 +255,9 @@ pub(crate) struct AipwCacheEntry {
     treatment: LearnerSpec,
     folds: usize,
     seed: u64,
-    result: (Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction),
+    row_index: std::sync::Arc<[u32]>,
+    fold_assignment: Option<std::sync::Arc<[u32]>>,
+    result: std::sync::Mutex<Option<std::sync::Arc<AipwPredictions>>>,
 }
 
 pub(crate) fn cached_aipw_nuisances(
@@ -262,27 +266,99 @@ pub(crate) fn cached_aipw_nuisances(
     treatment: LearnerSpec,
     folds: usize,
     ctx: &ExecutionContext,
-) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction), EstimationError> {
+) -> Result<std::sync::Arc<AipwPredictions>, EstimationError> {
     use std::sync::Arc;
-    let mut cache = problem
-        .learner_cache
-        .lock()
-        .map_err(|_| EstimationError::stats_msg("nuisance cache lock poisoned"))?;
-    if let Some(entry) = cache.as_ref() {
-        if Arc::ptr_eq(&entry.design, &problem.design_matrix)
-            && Arc::ptr_eq(&entry.outcome_values, &problem.outcome)
-            && Arc::ptr_eq(&entry.treatment_values, &problem.treatment)
-            && entry.nrows == problem.nrows
-            && entry.ncols == problem.design_ncols
-            && entry.outcome == outcome
-            && entry.treatment == treatment
-            && entry.folds == folds
-            && entry.seed == ctx.rng.master_seed()
-        {
-            return Ok(entry.result.clone());
+    let check_cancel = || {
+        if ctx.cancellation.is_cancelled() {
+            Err(EstimationError::stats_msg("nuisance fitting cancelled"))
+        } else {
+            Ok(())
         }
+    };
+    check_cancel()?;
+    let entry = {
+        let mut cache = problem
+            .learner_cache
+            .lock()
+            .map_err(|_| EstimationError::stats_msg("nuisance cache lock poisoned"))?;
+        if let Some(entry) = cache.iter().find(|entry| {
+            Arc::ptr_eq(&entry.design, &problem.design_matrix)
+                && Arc::ptr_eq(&entry.outcome_values, &problem.outcome)
+                && Arc::ptr_eq(&entry.treatment_values, &problem.treatment)
+                && entry.nrows == problem.nrows
+                && entry.ncols == problem.design_ncols
+                && entry.outcome == outcome
+                && entry.treatment == treatment
+                && entry.folds == folds
+                && entry.seed == ctx.rng.master_seed()
+                && Arc::ptr_eq(&entry.row_index, &problem.row_index)
+                && match (&entry.fold_assignment, &problem.fold_assignment) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                    _ => false,
+                }
+        }) {
+            Arc::clone(entry)
+        } else {
+            // Bound idle retention without evicting an in-flight initialization.
+            while cache.len() >= 8 {
+                let Some(index) = cache.iter().position(|entry| Arc::strong_count(entry) == 1)
+                else {
+                    break;
+                };
+                cache.remove(index);
+            }
+            let entry = Arc::new(AipwCacheEntry {
+                design: Arc::clone(&problem.design_matrix),
+                outcome_values: Arc::clone(&problem.outcome),
+                treatment_values: Arc::clone(&problem.treatment),
+                nrows: problem.nrows,
+                ncols: problem.design_ncols,
+                outcome,
+                treatment,
+                folds,
+                seed: ctx.rng.master_seed(),
+                row_index: Arc::clone(&problem.row_index),
+                fold_assignment: problem.fold_assignment.clone(),
+                result: std::sync::Mutex::new(None),
+            });
+            cache.push(Arc::clone(&entry));
+            entry
+        }
+    };
+    // Only callers for this exact key wait on the fit. Failure leaves it retryable.
+    let mut slot = loop {
+        check_cancel()?;
+        match entry.result.try_lock() {
+            Ok(slot) => break slot,
+            Err(std::sync::TryLockError::WouldBlock) => {
+                std::thread::sleep(std::time::Duration::from_millis(5))
+            }
+            Err(std::sync::TryLockError::Poisoned(_)) => {
+                return Err(EstimationError::stats_msg("nuisance fit lock poisoned"));
+            }
+        }
+    };
+    check_cancel()?;
+    if let Some(result) = slot.as_ref() {
+        return Ok(Arc::clone(result));
     }
-    let result = cross_fit_aipw_nuisances(
+    // Preserve physical unit folds, including duplicated bootstrap rows.
+    if folds < 2
+        || folds > usize::from(u16::MAX) + 1
+        || problem.nrows < folds
+        || problem.nrows > u32::MAX as usize
+    {
+        return Err(EstimationError::data_msg("invalid retained nuisance fold count"));
+    }
+    let raw = problem.fold_assignment.as_deref().unwrap_or(&problem.row_index);
+    if raw.len() != problem.nrows
+        || problem.fold_assignment.is_some() && raw.iter().any(|f| *f as usize >= folds)
+    {
+        return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
+    }
+    let fold_ids = raw.iter().map(|f| (*f as usize % folds) as u16).collect();
+    let result = Arc::new(cross_fit_aipw_nuisances(
         outcome,
         treatment,
         &problem.design_matrix,
@@ -292,18 +368,9 @@ pub(crate) fn cached_aipw_nuisances(
         &problem.treatment,
         folds,
         ctx,
-    )?;
-    *cache = Some(AipwCacheEntry {
-        design: Arc::clone(&problem.design_matrix),
-        outcome_values: Arc::clone(&problem.outcome),
-        treatment_values: Arc::clone(&problem.treatment),
-        nrows: problem.nrows,
-        ncols: problem.design_ncols,
-        outcome,
-        treatment,
-        folds,
-        seed: ctx.rng.master_seed(),
-        result: result.clone(),
-    });
+        fold_ids,
+    )?);
+    check_cancel()?;
+    *slot = Some(Arc::clone(&result));
     Ok(result)
 }

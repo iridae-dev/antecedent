@@ -9,11 +9,13 @@ use crate::logistic::LogisticLearner;
 use crate::ridge::RidgeLearner;
 
 /// Public linear (OLS) options. The design already includes an intercept if wanted.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LinearSpec {}
 
 /// Ridge options (milestone D).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct RidgeSpec {
     /// Penalty strength. Zero is ordinary least squares, not a ridge default.
     pub lambda: f64,
@@ -26,11 +28,13 @@ impl Default for RidgeSpec {
 }
 
 /// Logistic options (milestone D).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LogisticSpec {}
 
 /// Elastic-net options (milestone D). Coordinate descent; not a dense factorization.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ElasticNetSpec {
     /// L1/L2 mix in `[0, 1]`. `1` is lasso; `0` is ridge.
     pub l1_ratio: f64,
@@ -45,7 +49,8 @@ impl Default for ElasticNetSpec {
 }
 
 /// Gradient-boosted trees (Forust in F). Public name is not the provider.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct GbtSpec {
     /// Number of trees.
     pub trees: u32,
@@ -62,14 +67,16 @@ impl Default for GbtSpec {
 }
 
 /// Random forest or extra-trees (`SmartCore` in H).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ForestSpec {
     /// Extra-trees split randomization when the forest provider is present.
     pub extra_trees: bool,
 }
 
 /// Neural net (Burn in L). Public name is not the provider.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct NeuralSpec {
     /// Units in each of two hidden layers.
     pub hidden: u32,
@@ -86,7 +93,8 @@ impl Default for NeuralSpec {
 }
 
 /// Public model specification. Resolution hides the provider.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum LearnerSpec {
     /// Restrained Auto (milestone I).
     Auto,
@@ -107,6 +115,54 @@ pub enum LearnerSpec {
 }
 
 impl LearnerSpec {
+    /// Stable exact-parameter identity, shared by compilation and provider caches.
+    #[must_use]
+    pub fn identity(self) -> String {
+        match self {
+            Self::Auto => "auto".into(),
+            Self::Linear(_) => "linear".into(),
+            Self::Logistic(_) => "logistic".into(),
+            Self::Ridge(s) => format!("ridge:{}", s.lambda.to_bits()),
+            Self::ElasticNet(s) => {
+                format!("elastic_net:{}:{}", s.lambda.to_bits(), s.l1_ratio.to_bits())
+            }
+            Self::GradientBoostedTrees(s) => {
+                format!("gbdt:{}:{}:{}", s.trees, s.depth, s.learning_rate.to_bits())
+            }
+            Self::RandomForest(s) => format!("forest:{}", u8::from(s.extra_trees)),
+            Self::NeuralNet(s) => {
+                format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits())
+            }
+        }
+    }
+
+    /// Validate configuration independently of feature availability or task coercion.
+    /// # Errors
+    /// Nonfinite, negative, or otherwise invalid hyperparameters.
+    pub fn validate(self) -> Result<(), LearnError> {
+        let valid = match self {
+            Self::Ridge(s) => s.lambda.is_finite() && s.lambda >= 0.0,
+            Self::ElasticNet(s) => {
+                s.lambda.is_finite()
+                    && s.lambda >= 0.0
+                    && s.l1_ratio.is_finite()
+                    && (0.0..=1.0).contains(&s.l1_ratio)
+            }
+            Self::GradientBoostedTrees(s) => {
+                s.trees > 0 && s.depth > 0 && s.learning_rate.is_finite() && s.learning_rate > 0.0
+            }
+            Self::NeuralNet(s) => {
+                s.hidden > 0 && s.epochs > 0 && s.learning_rate.is_finite() && s.learning_rate > 0.0
+            }
+            _ => true,
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(LearnError::Shape { message: "invalid learner hyperparameters" })
+        }
+    }
+
     /// Public name for provenance and errors.
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -143,13 +199,13 @@ impl LearnerSpec {
 
     /// Remap a parametric spec onto the task a nuisance actually needs.
     #[must_use]
-    pub fn for_task(self, task: PredictionTask) -> Self {
+    pub const fn for_task(self, task: PredictionTask) -> Self {
         match (self, task) {
             (
                 Self::Linear(_) | Self::Ridge(_) | Self::ElasticNet(_),
                 PredictionTask::BinaryProbability,
-            ) => Self::Logistic(LogisticSpec::default()),
-            (Self::Logistic(_), PredictionTask::Regression) => Self::Linear(LinearSpec::default()),
+            ) => Self::Logistic(LogisticSpec {}),
+            (Self::Logistic(_), PredictionTask::Regression) => Self::Linear(LinearSpec {}),
             (other, _) => other,
         }
     }
@@ -173,6 +229,7 @@ pub fn resolve_for(
     spec: LearnerSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
+    spec.validate()?;
     match spec {
         LearnerSpec::Linear(_) => {
             require_resolved_task(task, PredictionTask::Regression)?;

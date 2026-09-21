@@ -8,7 +8,7 @@ use antecedent::analysis::{
     TransportGridState,
 };
 use antecedent_core::{ExecutionContext, Value, VariableId};
-use antecedent_estimate::{EmpiricalTableEstimator, EmpiricalTableOptions};
+use antecedent_estimate::EmpiricalTableOptions;
 use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -72,7 +72,7 @@ impl PreparedTransportGridStage {
         let points:Vec<_>=result.points().iter().zip(&self.inner.query().at).map(|(point,at)|{
             let coordinates:BTreeMap<_,_>=at.entries().iter().map(|(v,x)|(self.names[v.as_usize()].as_str(),x.as_f64())).collect();
             match point {
-                TransportGridPoint::Unavailable(failure)=>serde_json::json!({"at":coordinates,"status":failure.kind,"detail":failure.detail,"factor_diagnostic":failure}),
+                TransportGridPoint::Unavailable(failure)=>serde_json::json!({"at":coordinates,"status":failure.kind,"detail":failure.detail,"factor_diagnostic":antecedent_io::transport_grid_wire::TransportGridFailureWire::from_failure(failure)}),
                 _=>{
                     let distribution=point.distribution().expect("executable point");
                     let query=self.inner.query().functional.derivation().query();
@@ -204,7 +204,7 @@ impl PreparedTransportGridStage {
     }
 }
 #[pyfunction]
-#[pyo3(signature=(stage,catalog,data,at,*,statistical=false,bootstrap=199,coverage_level=0.95,seed=1,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
+#[pyo3(signature=(stage,catalog,data,at,*,statistical=false,estimator=None,bootstrap=199,coverage_level=0.95,seed=1,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_transport_grid(
     py: Python<'_>,
@@ -213,6 +213,7 @@ fn prepare_transport_grid(
     data: &Bound<'_, PyAny>,
     at: Vec<BTreeMap<String, f64>>,
     statistical: bool,
+    estimator: Option<&Bound<'_, PyAny>>,
     bootstrap: u32,
     coverage_level: f64,
     seed: u64,
@@ -225,7 +226,7 @@ fn prepare_transport_grid(
     let proof = stage.identified()?;
     let catalog = parse_catalog(catalog, stage.graph())?;
     let options = statistical.then_some(EmpiricalTableOptions {
-        estimator: EmpiricalTableEstimator::Plugin,
+        estimator: crate::transport_statistical_api::parse_provider(estimator)?,
         bootstrap_replicates: bootstrap,
         coverage_level,
         max_joint_cells: max_support_rows,

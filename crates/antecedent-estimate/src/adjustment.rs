@@ -171,6 +171,8 @@ pub struct EffectEstimate {
     pub block_family: Option<crate::temporal_block::CircularBlockFamily>,
     /// Per-row CATE when a heterogeneous-effect estimator produced one.
     pub cate: Option<Arc<[f64]>>,
+    /// Retained portable CATE model, separate from the marginal estimate.
+    pub fitted_effect: Option<Arc<crate::FittedEffect>>,
     /// Per-row CATE standard errors, when a licensed pointwise formula produced them.
     ///
     /// Linear DR-Learner finals use the HC0 sandwich of the orthogonal scores.
@@ -260,6 +262,7 @@ impl EffectEstimate {
             se_kind: None,
             block_family: None,
             cate: None,
+            fitted_effect: None,
             cate_se: None,
         }
     }
@@ -327,6 +330,7 @@ impl EffectEstimate {
             se_kind: None,
             block_family: None,
             cate: None,
+            fitted_effect: None,
             cate_se: None,
         }
     }

@@ -196,7 +196,38 @@ impl CausalForest {
         }
         // Variation across fitted CATEs is heterogeneity, not sampling
         // uncertainty in the ATE. Use the orthogonal marginal score instead.
-        let effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
+        let mut effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
+        let portable_trees = trees
+            .iter()
+            .map(|tree| {
+                let mut nodes = Vec::new();
+                tree.portable_nodes(&mut nodes);
+                nodes
+            })
+            .collect();
+        let model = crate::FittedEffect {
+            version: 1,
+            features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+            intercept: false,
+            predictor: antecedent_learn::PortablePredictor {
+                version: 1,
+                columns: p,
+                provenance: antecedent_learn::LearnerProvenance {
+                    spec: "causal_forest".into(),
+                    implementation: "antecedent".into(),
+                    version: env!("CARGO_PKG_VERSION").into(),
+                },
+                model: antecedent_learn::PredictionMap::Trees {
+                    trees: portable_trees,
+                    base: 0.0,
+                    average: true,
+                    logistic: false,
+                    probability: false,
+                },
+            },
+        };
+        model.validate()?;
+        effect.fitted_effect = Some(Arc::new(model));
         if hits.iter().any(|&count| count == 0.0) {
             return Err(EstimationError::data_msg(
                 "CausalForest has no honest two-arm estimate for a row; increase tree count or sample size",
@@ -215,6 +246,28 @@ enum Node {
 }
 
 impl Node {
+    fn portable_nodes(&self, nodes: &mut Vec<antecedent_learn::PredictionNode>) -> usize {
+        use antecedent_learn::PredictionNode;
+        let index = nodes.len();
+        nodes.push(PredictionNode::Leaf { value: None });
+        nodes[index] = match self {
+            Self::Leaf { cate, .. } => PredictionNode::Leaf { value: *cate },
+            Self::Split { feature, threshold, left, right } => {
+                let left = left.portable_nodes(nodes);
+                let right = right.portable_nodes(nodes);
+                PredictionNode::Split {
+                    feature: *feature,
+                    threshold: *threshold,
+                    inclusive: true,
+                    left,
+                    right,
+                    missing: right,
+                }
+            }
+        };
+        index
+    }
+
     fn predict_leaf(
         &self,
         x: &[f64],
@@ -593,6 +646,11 @@ mod tests {
         let effect = est.fit(&prep, &ExecutionContext::for_tests(2), AssumptionSet::new()).unwrap();
         let cate = effect.cate.as_ref().expect("cate");
         assert_eq!(cate.len(), z.len());
+        let model = effect.fitted_effect.as_ref().expect("portable forest");
+        let predicted = model
+            .predict(&prep.adjustment_set, &[&z], z.len(), &ExecutionContext::for_tests(2))
+            .unwrap();
+        assert_eq!(predicted.as_slice(), cate.as_ref());
         assert!(effect.se_analytic > 0.0);
         assert!(effect.influence.as_ref().unwrap().iter().sum::<f64>().abs() < 1e-8);
         let mut pairs: Vec<(f64, f64)> =

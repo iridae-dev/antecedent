@@ -20,10 +20,11 @@ root-exported stage modules are:
 ``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``, and
 ``antecedent.validation``.
 
-Fifteen narrower modules are reachable but deliberately outside ``__all__``:
+Seventeen narrower modules are reachable but deliberately outside ``__all__``:
 ``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``handoff``,
-``ids``, ``inference``, ``interference``, ``intervention``, ``model``,
-``observation``, ``population``, ``query``, ``results``, and ``transport``.
+``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
+``model``, ``observation``, ``population``, ``prediction``, ``query``,
+``results``, and ``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -79,9 +80,11 @@ from . import ids as ids
 from . import inference as inference
 from . import interference as interference
 from . import intervention as intervention
+from . import learners as learners
 from . import model as model
 from . import observation as observation
 from . import population as population
+from . import prediction as prediction
 from . import query as query
 from . import results as results
 from . import transport as transport

@@ -89,11 +89,11 @@ impl DmlAte {
         }
     }
 
-    /// Copy one public spec onto both nuisances (task remap happens at fit).
+    /// Adapt one shared spec to each nuisance task at configuration time.
     #[must_use]
     pub const fn with_learner(mut self, spec: LearnerSpec) -> Self {
-        self.outcome = spec;
-        self.treatment = spec;
+        self.outcome = spec.for_task(PredictionTask::Regression);
+        self.treatment = spec.for_task(PredictionTask::BinaryProbability);
         self
     }
 
@@ -185,17 +185,18 @@ impl DmlAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let (mu0, mu1, mut ehat, treat) =
+        let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
-        let raw_e = ehat.clone();
+        let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
+        let mut ehat = raw_e.clone();
         clip_propensity(&mut ehat, clip_of(problem.overlap));
         let phi =
             aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, &mu0, &mu1);
         let yhat: Vec<f64> = problem
             .treatment
             .iter()
-            .zip(&mu0)
-            .zip(&mu1)
+            .zip(mu0)
+            .zip(mu1)
             .map(|((&ti, &m0), &m1)| if ti > 0.5 { m1 } else { m0 })
             .collect();
         let outcome_diag = diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
@@ -205,11 +206,11 @@ impl DmlAte {
             assumptions,
             treat.validation.logloss,
             outcome_diag.r2,
-            raw_e,
+            raw_e.clone(),
         )?;
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
-        effect.learner_provenance = treat.model_provenance;
+        effect.learner_provenance = treat.model_provenance.clone();
         Ok(effect)
     }
 
@@ -539,6 +540,52 @@ mod tests {
         assert_eq!(first.crossfit_seed, Some(44));
         let again = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
         assert_eq!(first.ate.to_bits(), again.ate.to_bits());
+        // Concurrent callers must initialize one shared bundle, not four fits.
+        problem.learner_cache.lock().unwrap().clear();
+        let bundles = std::thread::scope(|scope| {
+            let jobs: Vec<_> = (0..4)
+                .map(|_| {
+                    scope.spawn(|| {
+                        cached_aipw_nuisances(
+                            &problem,
+                            estimator.outcome,
+                            estimator.treatment,
+                            5,
+                            &ctx,
+                        )
+                        .unwrap()
+                    })
+                })
+                .collect();
+            jobs.into_iter().map(|job| job.join().unwrap()).collect::<Vec<_>>()
+        });
+        assert!(bundles.iter().all(|bundle| Arc::ptr_eq(bundle, &bundles[0])));
+        let mut reassigned = problem.clone();
+        let assignments: Arc<[u32]> =
+            (0..problem.nrows).map(|i| ((i / 2) % 5) as u32).collect::<Vec<_>>().into();
+        reassigned.fold_assignment = Some(assignments.clone());
+        let new_folds =
+            cached_aipw_nuisances(&reassigned, estimator.outcome, estimator.treatment, 5, &ctx)
+                .unwrap();
+        assert!(!Arc::ptr_eq(&new_folds, &bundles[0]));
+        assert_eq!(
+            new_folds.3.fold_assignment,
+            assignments.iter().map(|f| *f as u16).collect::<Vec<_>>()
+        );
+        let cancelled = ExecutionContext::for_tests(44);
+        cancelled.cancellation.cancel();
+        assert!(
+            cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 5, &cancelled)
+                .is_err()
+        );
+        assert!(
+            cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 121, &ctx)
+                .is_err()
+        );
+        assert!(
+            cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 5, &ctx)
+                .is_ok()
+        );
         let mut outcomes = problem.outcome.to_vec();
         for (y, t) in outcomes.iter_mut().zip(problem.treatment.iter()) {
             *y += t * 2.0;

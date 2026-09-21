@@ -628,8 +628,18 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
     }))
 }
 
-fn parse_learner(key: &str) -> PyResult<LearnerSpec> {
-    LearnerSpec::parse(key).map_err(|e| PyValueError::new_err(e.to_string()))
+pub(crate) fn get_learner(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<LearnerSpec>> {
+    let Some(value) = dict.get_item(key)? else { return Ok(None) };
+    let spec = if let Ok(name) = value.extract::<String>() {
+        LearnerSpec::parse(&name).map_err(|e| invalid(e.to_string()))?
+    } else {
+        let wire =
+            if value.is_instance_of::<PyDict>() { value } else { value.call_method0("_wire")? };
+        let json: String = dict.py().import("json")?.call_method1("dumps", (wire,))?.extract()?;
+        serde_json::from_str::<LearnerSpec>(&json).map_err(|e| invalid(format!("{key}: {e}")))?
+    };
+    spec.validate().map_err(|e| invalid(format!("{key}: {e}")))?;
+    Ok(Some(spec))
 }
 
 fn invalid(message: String) -> PyErr {
@@ -848,14 +858,14 @@ fn build_configured_spec(
         }
         "dml" => {
             let mut est = DmlAte::new();
-            if let Some(learner) = get_string(dict, "learner")? {
-                est = est.with_learner(parse_learner(&learner)?);
+            if let Some(learner) = get_learner(dict, "learner")? {
+                est = est.with_learner(learner);
             }
-            if let Some(outcome) = get_string(dict, "outcome")? {
-                est = est.with_outcome(parse_learner(&outcome)?);
+            if let Some(outcome) = get_learner(dict, "outcome")? {
+                est = est.with_outcome(outcome);
             }
-            if let Some(treatment) = get_string(dict, "treatment")? {
-                est = est.with_treatment(parse_learner(&treatment)?);
+            if let Some(treatment) = get_learner(dict, "treatment")? {
+                est = est.with_treatment(treatment);
             }
             if let Some(score) = get_string(dict, "score")? {
                 est = est.with_score(
@@ -872,17 +882,17 @@ fn build_configured_spec(
         }
         "dr.learner" => {
             let mut est = DrLearner::new();
-            if let Some(learner) = get_string(dict, "learner")? {
-                est = est.with_learner(parse_learner(&learner)?);
+            if let Some(learner) = get_learner(dict, "learner")? {
+                est = est.with_learner(learner);
             }
-            if let Some(outcome) = get_string(dict, "outcome")? {
-                est = est.with_outcome(parse_learner(&outcome)?);
+            if let Some(outcome) = get_learner(dict, "outcome")? {
+                est = est.with_outcome(outcome);
             }
-            if let Some(treatment) = get_string(dict, "treatment")? {
-                est = est.with_treatment(parse_learner(&treatment)?);
+            if let Some(treatment) = get_learner(dict, "treatment")? {
+                est = est.with_treatment(treatment);
             }
-            if let Some(final_learner) = get_string(dict, "final_learner")? {
-                est = est.with_final_learner(parse_learner(&final_learner)?);
+            if let Some(final_learner) = get_learner(dict, "final_learner")? {
+                est = est.with_final_learner(final_learner);
             }
             if let Some(folds) = get_u32(dict, "folds")? {
                 est = est.with_folds(folds as usize);

@@ -48,6 +48,7 @@ from typing import Any, Final, Literal, get_args
 
 from .errors import CausalValueError
 from .ids import Estimator
+from .learners import LearnerSpec, _learner_wire
 
 SeKind = Literal[
     "homoskedastic",
@@ -771,9 +772,9 @@ class SharpRd:
 class DML:
     """``dml`` — cross-fitted DML / AIPW."""
 
-    learner: str | None = None
-    outcome: str | None = None
-    treatment: str | None = None
+    learner: LearnerSpec | str | None = None
+    outcome: LearnerSpec | str | None = None
+    treatment: LearnerSpec | str | None = None
     score: str | None = None
     folds: int | None = None
     overlap: Overlap | None = None
@@ -791,11 +792,11 @@ class DML:
     def _wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
         if self.learner is not None:
-            out["learner"] = self.learner
+            out["learner"] = _learner_wire(self.learner)
         if self.outcome is not None:
-            out["outcome"] = self.outcome
+            out["outcome"] = _learner_wire(self.outcome)
         if self.treatment is not None:
-            out["treatment"] = self.treatment
+            out["treatment"] = _learner_wire(self.treatment)
         if self.score is not None:
             out["score"] = self.score
         if self.folds is not None:
@@ -808,10 +809,10 @@ class DML:
 class DRLearner:
     """``dr.learner`` — doubly robust CATE learner."""
 
-    learner: str | None = None
-    outcome: str | None = None
-    treatment: str | None = None
-    final_learner: str | None = None
+    learner: LearnerSpec | str | None = None
+    outcome: LearnerSpec | str | None = None
+    treatment: LearnerSpec | str | None = None
+    final_learner: LearnerSpec | str | None = None
     folds: int | None = None
     overlap: Overlap | None = None
 
@@ -826,13 +827,13 @@ class DRLearner:
     def _wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
         if self.learner is not None:
-            out["learner"] = self.learner
+            out["learner"] = _learner_wire(self.learner)
         if self.outcome is not None:
-            out["outcome"] = self.outcome
+            out["outcome"] = _learner_wire(self.outcome)
         if self.treatment is not None:
-            out["treatment"] = self.treatment
+            out["treatment"] = _learner_wire(self.treatment)
         if self.final_learner is not None:
-            out["final_learner"] = self.final_learner
+            out["final_learner"] = _learner_wire(self.final_learner)
         if self.folds is not None:
             out["folds"] = self.folds
         out.update(_wire_overlap(self.overlap))

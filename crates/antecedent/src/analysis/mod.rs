@@ -16,12 +16,14 @@ mod contract;
 mod contract_identity;
 mod exact;
 mod execute;
+mod learned_trial;
 mod statistical;
 mod transport_grid;
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,

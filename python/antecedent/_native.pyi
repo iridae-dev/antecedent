@@ -3475,28 +3475,61 @@ class ClassicalTransportStage:
     @property
     def rules(self) -> list[str]: ...
     def evaluate_exact(
-        self, catalog: Any, laws: Any, assignments: dict[str, float], *,
-        max_operations: int = 10_000_000, max_depth: int = 256,
-        max_support_rows: int = 1_000_000, memory_bytes: int | None = None,
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int = 1_000_000,
+        memory_bytes: int | None = None,
     ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
     def prepare_exact(
-        self, catalog: Any, laws: Any, assignments: dict[str, float], *,
-        max_operations: int = 10_000_000, max_depth: int = 256,
-        max_support_rows: int = 1_000_000, memory_bytes: int | None = None, cancel: CancellationToken | None = None,
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int = 1_000_000,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> PreparedExactStage: ...
-    def catalog_search(self, catalog: Any, *, max_steps: int = 100_000, max_depth: int = 256, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> str: ...
+    def catalog_search(
+        self,
+        catalog: Any,
+        *,
+        max_steps: int = 100_000,
+        max_depth: int = 256,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
 def identify_classical_transport_stage(
-    graph: Admg, selections: list[str], source: str, target: str,
-    outcomes: list[str], treatments: list[str], *, max_steps: int = 100_000,
-    max_depth: int = 256, memory_bytes: int | None = None, cancel: CancellationToken | None = None,
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> ClassicalTransportStage: ...
 
 class PreparedExactStage:
     @property
     def outcomes(self) -> list[str]: ...
-    def estimate(self, execution: str | None = None, cancel: CancellationToken | None = None) -> tuple[list[list[float]], list[float], str, list[str]]: ...
-    def refresh(self, laws: Any, cancel: CancellationToken | None = None) -> tuple[list[list[float]], list[float], str, list[str]]: ...
+    def estimate(
+        self, execution: str | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
+    def refresh(
+        self, laws: Any, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
     def replace_snapshot(self, laws: Any, cancel: CancellationToken | None = None) -> None: ...
     def last_result(self) -> tuple[list[list[float]], list[float], str, list[str]]: ...
     def plan_summary(self) -> dict[str, str]: ...
@@ -3505,14 +3538,27 @@ class PreparedExactStage:
     def export(self) -> bytes: ...
     def preview_transform(self, intent: str) -> dict[str, str]: ...
 
-def consume_exact_transport(bytes: bytes, *, max_operations: int = 10_000_000, max_depth: int = 256, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> PreparedExactStage: ...
+def consume_exact_transport(
+    bytes: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedExactStage: ...
 
 class PreparedStatisticalStage:
     @property
     def outcomes(self) -> list[str]: ...
-    def estimate_grid(self, assignments: list[dict[str, float]], cancel: CancellationToken | None = None) -> list[PreparedStatisticalStage]: ...
-    def estimate(self, execution: str | None = None, cancel: CancellationToken | None = None) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
-    def refresh(self, payload: Any, cancel: CancellationToken | None = None) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
+    def estimate_grid(
+        self, assignments: list[dict[str, float]], cancel: CancellationToken | None = None
+    ) -> list[PreparedStatisticalStage]: ...
+    def estimate(
+        self, execution: str | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
+    def refresh(
+        self, payload: Any, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
     def replace_snapshot(self, payload: Any, cancel: CancellationToken | None = None) -> None: ...
     def contrast(self, reference: PreparedStatisticalStage, outcome: str) -> str: ...
     def last_result(self) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
@@ -3523,15 +3569,29 @@ class PreparedStatisticalStage:
     def preview_transform(self, intent: str) -> dict[str, str]: ...
 
 def prepare_statistical_transport(
-    stage: ClassicalTransportStage, catalog: Any, payload: Any, assignments: dict[str, float], *,
-    max_operations: int = 10_000_000, max_depth: int = 256, max_support_rows: int = 1_000_000,
-    memory_bytes: int | None = None, cancel: CancellationToken | None = None,
-    bootstrap: int = 199, coverage_level: float = 0.95, estimator: str = "plugin", seed: int = 1,
+    stage: ClassicalTransportStage,
+    catalog: Any,
+    payload: Any,
+    assignments: dict[str, float],
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+    bootstrap: int = 199,
+    coverage_level: float = 0.95,
+    estimator: object = None,
+    seed: int = 1,
 ) -> PreparedStatisticalStage: ...
-
 def consume_statistical_transport(
-    bytes: bytes, *, max_operations: int = 10_000_000, max_depth: int = 256,
-    memory_bytes: int | None = None, cancel: CancellationToken | None = None, seed: int = 1,
+    bytes: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+    seed: int = 1,
 ) -> PreparedStatisticalStage: ...
 
 class PreparedTransportGridStage:
@@ -3547,7 +3607,83 @@ class PreparedTransportGridStage:
     def plan_summary(self) -> dict[str, str]: ...
     def preview_transform(self, intent: str) -> dict[str, str]: ...
 
-def prepare_transport_grid(stage: ClassicalTransportStage, catalog: Any, data: Any, at: list[dict[str, float]], *, statistical: bool = False, bootstrap: int = 199, coverage_level: float = 0.95, seed: int = 1, max_operations: int = 10_000_000, max_depth: int = 256, max_support_rows: int = 1_000_000, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> PreparedTransportGridStage: ...
-def consume_transport_grid(artifact: bytes, *, max_operations: int = 10_000_000, max_depth: int = 256, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> PreparedTransportGridStage: ...
-def identify_meta_transport_stage(graph: Admg, catalog: Any, target: str, outcomes: list[str], treatments: list[str], *, max_steps: int = 100_000, max_depth: int = 256, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> ClassicalTransportStage: ...
-def consume_transport_certificate(artifact: bytes, *, max_steps: int = 100_000, max_depth: int = 256, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> ClassicalTransportStage: ...
+def prepare_transport_grid(
+    stage: ClassicalTransportStage,
+    catalog: Any,
+    data: Any,
+    at: list[dict[str, float]],
+    *,
+    statistical: bool = False,
+    estimator: object = None,
+    bootstrap: int = 199,
+    coverage_level: float = 0.95,
+    seed: int = 1,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedTransportGridStage: ...
+def consume_transport_grid(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedTransportGridStage: ...
+def identify_meta_transport_stage(
+    graph: Admg,
+    catalog: Any,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ClassicalTransportStage: ...
+def consume_transport_certificate(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ClassicalTransportStage: ...
+
+class FittedEffectModel:
+    features: list[str]
+    parent_claim: str
+    @staticmethod
+    def load(bytes: bytes) -> FittedEffectModel: ...
+    def predict(self, columns: list[list[float]], nrows: int) -> list[float]: ...
+    def export(self) -> bytes: ...
+
+class PreparedLearnedTrial:
+    def preview_transform(self, intent: str) -> dict[str, str]: ...
+    def estimate(self, cancel: CancellationToken | None = None) -> str: ...
+    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> str: ...
+    def replace_snapshot(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def last_result(self) -> str: ...
+    def freeze(self) -> PreparedLearnedTrial: ...
+    def inspection_json(self) -> str: ...
+    def plan_summary(self) -> dict[str, str]: ...
+    def export(self) -> bytes: ...
+
+def prepare_learned_trial(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    treatment: str,
+    outcome: str,
+    data: Any,
+    options: str,
+    *,
+    seed: int = 1,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedLearnedTrial: ...
+def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...

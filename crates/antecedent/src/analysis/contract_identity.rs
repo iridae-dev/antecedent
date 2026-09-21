@@ -479,23 +479,7 @@ pub(crate) fn interference_snapshot(
 }
 
 fn learner_identity(spec: antecedent_estimate::LearnerSpec) -> String {
-    use antecedent_estimate::LearnerSpec;
-    match spec {
-        LearnerSpec::Auto => "auto".into(),
-        LearnerSpec::Linear(_) => "linear".into(),
-        LearnerSpec::Logistic(_) => "logistic".into(),
-        LearnerSpec::Ridge(s) => format!("ridge:{}", s.lambda.to_bits()),
-        LearnerSpec::ElasticNet(s) => {
-            format!("elastic_net:{}:{}", s.lambda.to_bits(), s.l1_ratio.to_bits())
-        }
-        LearnerSpec::GradientBoostedTrees(s) => {
-            format!("gbdt:{}:{}:{}", s.trees, s.depth, s.learning_rate.to_bits())
-        }
-        LearnerSpec::RandomForest(s) => format!("forest:{}", u8::from(s.extra_trees)),
-        LearnerSpec::NeuralNet(s) => {
-            format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits())
-        }
-    }
+    spec.identity()
 }
 
 #[cfg(test)]
