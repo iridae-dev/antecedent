@@ -3,10 +3,10 @@
 
 Idempotent: re-running with no matrix changes must leave a clean git tree.
 
-The licensed-cell block is rewritten only in the current workspace version's
-release notes (`docs/release-notes/vX.Y.Z.md`). Historical notes use frozen
-markers so a later regen cannot overwrite a shipped cut. `set_version.sh`
-freezes the previous notes when the version bumps.
+The licensed-cell block is rewritten only in the active documentation release
+notes (`docs/release-notes/vX.Y.Z.md`). During release preparation this can be
+ahead of the workspace package version; `docs/release-notes/preparation.toml`
+is the explicit, reviewed source for that temporary target.
 """
 
 from __future__ import annotations
@@ -48,7 +48,17 @@ def release_notes_path(version: str) -> Path:
     return NOTES_DIR / f"v{version}.md"
 
 
-RELEASE_NOTES = release_notes_path(workspace_version())
+def documentation_release_version() -> str:
+    preparation = NOTES_DIR / "preparation.toml"
+    if preparation.is_file():
+        target = tomllib.loads(preparation.read_text()).get("target_version")
+        if isinstance(target, str) and re.fullmatch(r"\d+\.\d+\.\d+", target):
+            return target
+        raise SystemExit(f"{preparation}: target_version must be X.Y.Z")
+    return workspace_version()
+
+
+RELEASE_NOTES = release_notes_path(documentation_release_version())
 
 
 def git_tag_exists(version: str) -> bool:
@@ -449,7 +459,7 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     has live markers, or if this workspace version is already a git tag —
     bump the version and put live markers on the new notes file first.
     """
-    version = workspace_version()
+    version = documentation_release_version()
     assert_historical_notes_are_frozen(version)
     if git_tag_exists(version):
         raise SystemExit(

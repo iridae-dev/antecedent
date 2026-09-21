@@ -58,45 +58,13 @@ nav:
   - Evidence and development:
       - Development: development.md
       - Conformance: conformance/README.md
-      - Execution contract walkthrough: v1.10-practitioner-walkthrough.md
-      - 1.11 finding closeout: reviews/v1.11-finding-closeout.md
+      - 2.0 learner audit: audits/2.0-learner-audit.md
+      - 2.0 milestone audit: audits/2.0-milestone-audit.md
+      - 2.0 transport UX: migrations/2.0-transport-day1.md
       - Hot paths: hot_paths.md
       - Security review: security_review.md
-  - Release notes:
-      - "1.11.0": release-notes/v1.11.0.md
-      - "1.10.0": release-notes/v1.10.0.md
-      - "1.9.0": release-notes/v1.9.0.md
-      - "1.9 licensed-cell review": v1.9-cell-review.md
-      - "Short-series thresholds": short-series-thresholds.md
-      - "1.8.0": release-notes/v1.8.0.md
-      - "1.8 evidence and limits": v1.8-evidence.md
-      - "1.8 review": v1.8-review.md
-      - "1.7.0": release-notes/v1.7.0.md
-      - "1.7 evidence and limits": v1.7-evidence.md
-      - "Shared mathematics review (2026-09-13)": mathematical-review-2026-09-13.md
-      - "1.6.0": release-notes/v1.6.0.md
-      - "1.6 evidence and limits": v1.6-evidence.md
-      - "1.6 library review": v1.6-library-review.md
-      - "1.5.0": release-notes/v1.5.0.md
-      - "1.5 evidence and limits": v1.5-evidence.md
-      - "1.4.0": release-notes/v1.4.0.md
-      - "1.4 evidence and limits": v1.4-evidence.md
-      - "1.3.0": release-notes/v1.3.0.md
-      - "1.3 evidence and limits": v1.3-evidence.md
-      - "1.2.0": release-notes/v1.2.0.md
-      - "1.2 evidence and limits": v1.2-evidence.md
-      - "1.1.0": release-notes/v1.1.0.md
-      - "1.0.0": release-notes/v1.0.0.md
-      - "0.9.1": release-notes/v0.9.1.md
-      - "0.9.0": release-notes/v0.9.0.md
-      - "0.7.1": release-notes/v0.7.1.md
-      - "0.7.0": release-notes/v0.7.0.md
-      - "0.6.1": release-notes/v0.6.1.md
-      - "0.6.0": release-notes/v0.6.0.md
-      - "0.5.2": release-notes/v0.5.2.md
-      - "0.5.1": release-notes/v0.5.1.md
-      - "0.5.0": release-notes/v0.5.0.md
-      - "0.4.0": release-notes/v0.4.0.md
+  - Release preparation:
+      - "2.0.0 draft": release-notes/v2.0.0.md
 
 plugins:
   - search

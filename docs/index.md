@@ -1,41 +1,39 @@
-# Antecedent
+# Antecedent 2.0
 
-Antecedent helps you estimate causal effects in Python and Rust. Supply data,
-a causal question, and a graph or discovery method. It checks whether the
-question can be answered under the stated assumptions, then estimates the
-effect or explains why it cannot.
+**Release preparation:** these are the active 2.0 docs. The published package
+is still 1.11.0 until the release metadata and tag are advanced.
 
-Results keep the assumptions, uncertainty, and diagnostics alongside the answer.
-When several causal structures remain plausible, that uncertainty stays visible.
+Antecedent makes causal analysis a reviewable program: define a question and
+causal structure, identify the available claim, estimate through a supported
+path, inspect its assumptions and diagnostics, then reuse or export the same
+contract.
 
 ## Start here
 
-These docs describe **Antecedent 1.11**. The Python quickstart begins with
-installation from PyPI.
+| Goal | Start with |
+| --- | --- |
+| Run an analysis in Python | [Python workflow](python-workflow.md) |
+| Use the Rust facade | [Rust quickstart](rust-quickstart.md) |
+| Choose a supported route | [Supported analyses](supported-analyses.md) |
+| Understand what can be claimed | [Capabilities](capabilities.md) and the [support matrix](support-matrix.md) |
+| Learn the system shape | [Architecture](architecture.md) |
 
-| What you want to do | Start with |
-|---|---|
-| Run your first Python analysis | [Python quickstart](python-workflow.md) |
-| Use Rust | [Rust quickstart](rust-quickstart.md) |
-| Learn from a worked example | [Examples](examples.md) |
-| Check whether your analysis is supported | [Supported analyses](supported-analyses.md) |
-| Look up a Python method | [Python API](python-api.md) |
+## The 2.0 whole
 
-## Explore a question
+Existing graph, identification, estimation, validation, response, temporal,
+Bayesian, attribution, design, state, and artifact workflows remain first-class.
+2.0 adds a Rust-native learner substrate for honest nuisance prediction and a
+population/evidence-aware transport foundation; neither bypasses the existing
+identification and claim lifecycle.
 
-- **How does an effect change with dose?** Read [causal responses](causal-responses.md).
-- **Does it differ across populations or outcomes?** Read [local, distributional, and joint effects](local-distributional-joint.md).
-- **Was the outcome censored or selected?** Read the [observation contract](observation-contract.md).
-- **Can evidence transfer, or do units affect each other?** Read [transport and interference](transport-interference.md).
-- **Can an earlier study inform a new one?** Read about the [prior bank](priors.md).
+Use DML, DR-Learner, or causal forest only where their assumptions, support,
+and reported diagnostics fit the question. Use structural transport only when
+the evidence catalog represents the actual populations and regimes. A refusal
+or an unavailable answer is useful information, not an estimator fallback.
 
-A supported analysis still depends on its assumptions and on adequate data.
-The [capabilities](capabilities.md) page describes the available methods;
-the [support matrix](support-matrix.md) records which combinations can run.
+## Evidence status
 
-## Go deeper
-
-Read the [architecture](architecture.md), [evidence and conformance](conformance/README.md),
-or [development guide](development.md). For changes in this version, see the
-[1.11.0 release notes](release-notes/v1.11.0.md) and the
-[1.11 finding closeout](reviews/v1.11-finding-closeout.md).
+The repository retains executable conformance and compatibility evidence. The
+long-running 2.0 calibration measurement remains planned, not completed; see
+the [draft release notes](release-notes/v2.0.0.md) and `result.calibration` for
+the scope of any reported interval.
