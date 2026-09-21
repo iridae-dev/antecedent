@@ -189,15 +189,12 @@ impl<R: Read + Seek> ArtifactReader<R> {
         if hash.as_bytes() != &desc.blake3 {
             return Err(IoError::ChecksumMismatch { section: id.into() });
         }
-        let (logical, decompressed) =
-            decode_on_wire_arc_owned(on_wire, desc.compression.as_deref(), &desc.id)?;
-        let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
-        if logical.len() != expected {
-            return Err(IoError::Decompress {
-                section: desc.id.clone(),
-                message: format!("logical size {} != uncompressed_size {expected}", logical.len()),
-            });
-        }
+        let (logical, decompressed) = decode_on_wire_arc_owned(
+            on_wire,
+            desc.compression.as_deref(),
+            &desc.id,
+            desc.uncompressed_size,
+        )?;
         self.note_loaded(entry.on_wire_len, decompressed);
         Ok(SectionAccess::Shared(logical))
     }
@@ -405,7 +402,11 @@ impl MappedArtifactReader {
         }
         let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        let on_wire = &self.backing.as_slice()[start..start + len];
+        let bytes = self.backing.as_slice();
+        if start.checked_add(len).is_none_or(|end| end > bytes.len()) {
+            return Err(IoError::Io("mmap section range out of bounds".into()));
+        }
+        let on_wire = &bytes[start..start + len];
         if !self.verified[pos] {
             let hash = blake3::hash(on_wire);
             if hash.as_bytes() != &desc.blake3 {
@@ -413,15 +414,12 @@ impl MappedArtifactReader {
             }
             self.verified[pos] = true;
         }
-        let (logical, decompressed) =
-            decode_on_wire_arc(on_wire, desc.compression.as_deref(), &desc.id)?;
-        let expected = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
-        if logical.len() != expected {
-            return Err(IoError::Decompress {
-                section: desc.id.clone(),
-                message: format!("logical size {} != uncompressed_size {expected}", logical.len()),
-            });
-        }
+        let (logical, decompressed) = decode_on_wire_arc(
+            on_wire,
+            desc.compression.as_deref(),
+            &desc.id,
+            desc.uncompressed_size,
+        )?;
         self.stats.sections_loaded += 1;
         self.stats.bytes_loaded += u64::from(entry.on_wire_len);
         if decompressed {
@@ -477,6 +475,7 @@ fn index_seekable<R: Read + Seek>(
 mod tests {
     use std::collections::HashSet;
     use std::io::{Cursor, Write};
+    use std::sync::Arc;
 
     use antecedent_core::VERSION;
 
@@ -605,5 +604,38 @@ mod tests {
         let partial = EncodedArtifact::read_selective(buf.as_slice(), &want).unwrap();
         assert_eq!(partial.sections.len(), 1);
         assert_eq!(partial.sections[0].id, "meta");
+    }
+
+    /// Truncated on-wire payload for a compressed mapped section must return
+    /// `Err` from `load_section` (io-6), not panic on the slice.
+    #[test]
+    fn mapped_load_section_truncated_compressed_returns_err() {
+        let payload = vec![0u8; 16 * 1024];
+        let (d0, s0) =
+            pack_section("blob", "application/octet-stream", payload, CompressPolicy::Always);
+        let art = EncodedArtifact {
+            manifest: ArtifactManifest {
+                format_version: FormatVersion { major: 0, minor: 2 },
+                minimum_reader_version: FormatVersion { major: 0, minor: 2 },
+                artifact_kind: ArtifactKind::Other("test".into()),
+                library_version: SemanticVersion::from_crate_version(VERSION).unwrap(),
+                artifact_id: "zstd-trunc".into(),
+                sections: vec![d0],
+                provenance: ProvenanceWire { note: "t".into() },
+            },
+            sections: vec![s0],
+        };
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).unwrap();
+        // Leave the section length prefix intact so indexing succeeds, but shorten
+        // the on-wire payload so `start + len` exceeds the backing slice.
+        assert!(buf.len() > 16, "artifact must be large enough to truncate");
+        buf.truncate(buf.len() - 8);
+        let mut reader = MappedArtifactReader::from_bytes(Arc::from(buf)).unwrap();
+        let err = reader.load_section("blob").unwrap_err();
+        assert!(
+            matches!(err, IoError::Io(_)),
+            "truncated mapped compressed section must be Err, got {err:?}"
+        );
     }
 }

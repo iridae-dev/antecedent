@@ -294,18 +294,7 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
     if hash.as_bytes() != &desc.blake3 {
         return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
     }
-    let logical = decode_on_wire(&on_wire, desc.compression.as_deref(), &desc.id)?;
-    let expected_uncomp = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
-    if logical.len() != expected_uncomp {
-        return Err(IoError::Decompress {
-            section: desc.id.clone(),
-            message: format!(
-                "logical size {} != uncompressed_size {expected_uncomp}",
-                logical.len()
-            ),
-        });
-    }
-    Ok(logical)
+    decode_on_wire(&on_wire, desc.compression.as_deref(), &desc.id, desc.uncompressed_size)
 }
 
 /// Consume an on-wire section, verifying BLAKE3, without retaining the payload.
@@ -458,15 +447,33 @@ fn encode_on_wire_owned(
     }
 }
 
+/// Decode on-wire bytes to logical bytes.
+///
+/// For zstd, `uncompressed_size` is a hard cap applied *during* streaming
+/// decompression (not after). Missing / unrepresentable sizes and frames that
+/// expand past the declared size are refused without allocating the expansion.
 pub(crate) fn decode_on_wire(
     on_wire: &[u8],
     compression: Option<&str>,
     section: &str,
+    uncompressed_size: u64,
 ) -> Result<Vec<u8>, IoError> {
     match compression {
         None => Ok(on_wire.to_vec()),
-        Some(COMPRESSION_ZSTD) => zstd::decode_all(on_wire)
-            .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() }),
+        Some(COMPRESSION_ZSTD) => {
+            let max = decode_size_cap(uncompressed_size)?;
+            let logical = decode_zstd_bounded(on_wire, max, section)?;
+            if logical.len() != max {
+                return Err(IoError::Decompress {
+                    section: section.into(),
+                    message: format!(
+                        "logical size {} != uncompressed_size {max}",
+                        logical.len()
+                    ),
+                });
+            }
+            Ok(logical)
+        }
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
     }
 }
@@ -477,14 +484,12 @@ pub(crate) fn decode_on_wire_arc(
     on_wire: &[u8],
     compression: Option<&str>,
     section: &str,
+    uncompressed_size: u64,
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
         None => Ok((Arc::from(on_wire.to_vec()), false)),
         Some(COMPRESSION_ZSTD) => {
-            let v = zstd::decode_all(on_wire).map_err(|e| IoError::Decompress {
-                section: section.into(),
-                message: e.to_string(),
-            })?;
+            let v = decode_on_wire(on_wire, compression, section, uncompressed_size)?;
             Ok((Arc::from(v), true))
         }
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
@@ -498,11 +503,52 @@ pub(crate) fn decode_on_wire_arc_owned(
     on_wire: Vec<u8>,
     compression: Option<&str>,
     section: &str,
+    uncompressed_size: u64,
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
         None => Ok((Arc::from(on_wire), false)),
-        _ => decode_on_wire_arc(&on_wire, compression, section),
+        _ => decode_on_wire_arc(&on_wire, compression, section, uncompressed_size),
     }
+}
+
+fn decode_size_cap(uncompressed_size: u64) -> Result<usize, IoError> {
+    let max = usize::try_from(uncompressed_size).map_err(|_| IoError::TooLarge)?;
+    if max > MAX_SECTION_BYTES {
+        return Err(IoError::TooLarge);
+    }
+    Ok(max)
+}
+
+/// Stream-decompress zstd, never retaining more than `max_uncompressed + 1` bytes
+/// so a hostile frame cannot expand past the declared size.
+fn decode_zstd_bounded(
+    on_wire: &[u8],
+    max_uncompressed: usize,
+    section: &str,
+) -> Result<Vec<u8>, IoError> {
+    let decoder = zstd::Decoder::new(on_wire).map_err(|e| IoError::Decompress {
+        section: section.into(),
+        message: e.to_string(),
+    })?;
+    let read_cap = u64::try_from(max_uncompressed)
+        .ok()
+        .and_then(|n| n.checked_add(1))
+        .ok_or(IoError::TooLarge)?;
+    let mut limited = decoder.take(read_cap);
+    let mut out = Vec::new();
+    limited.read_to_end(&mut out).map_err(|e| IoError::Decompress {
+        section: section.into(),
+        message: e.to_string(),
+    })?;
+    if out.len() > max_uncompressed {
+        return Err(IoError::Decompress {
+            section: section.into(),
+            message: format!(
+                "decompressed size exceeds declared uncompressed_size {max_uncompressed}"
+            ),
+        });
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -688,5 +734,33 @@ mod tests {
         assert_eq!(partial.sections[0].id, "meta");
         assert_eq!(&*partial.sections[0].data, meta.as_slice());
         assert_eq!(partial.manifest.sections.len(), 2);
+    }
+
+    /// Hostile zstd frame that expands far past a lying `uncompressed_size`
+    /// must fail during the capped stream decode (io-5), not after allocating.
+    #[test]
+    fn zstd_decode_refuses_oversize_or_lying_declared_size() {
+        let logical = vec![0xABu8; 64 * 1024];
+        let on_wire = zstd::encode_all(logical.as_slice(), ZSTD_LEVEL).unwrap();
+        let err = decode_on_wire(&on_wire, Some(COMPRESSION_ZSTD), "blob", 128).unwrap_err();
+        assert!(
+            matches!(err, IoError::Decompress { .. }),
+            "lying uncompressed_size must be Err, got {err:?}"
+        );
+        let err_huge =
+            decode_on_wire(&on_wire, Some(COMPRESSION_ZSTD), "blob", (MAX_SECTION_BYTES as u64) + 1)
+                .unwrap_err();
+        assert!(
+            matches!(err_huge, IoError::TooLarge),
+            "missing usable size bound must be Err, got {err_huge:?}"
+        );
+        let ok = decode_on_wire(
+            &on_wire,
+            Some(COMPRESSION_ZSTD),
+            "blob",
+            u64::try_from(logical.len()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(ok, logical);
     }
 }
