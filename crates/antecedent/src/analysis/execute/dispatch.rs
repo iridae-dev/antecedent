@@ -873,7 +873,7 @@ impl super::Study {
             // No bidirected edges: this ADMG *is* a DAG. Coercing keeps the
             // caller's identifier choice meaningful instead of forcing general
             // ID on a graph with no latent structure to reason about.
-            let coerced = admg_to_dag(admg)?;
+            let coerced = admg_without_latents_to_dag(admg)?;
             return identify_static_query(id, &coerced, &self.query);
         }
 

@@ -600,7 +600,8 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
         .iter()
         .find(|d| d.code.as_ref() == "estimate.bayesian.temporal.dependence_correction")
         .expect("dependence correction diagnostic");
-    assert!(correction.message.contains("over 2 fit(s)"), "{}", correction.message);
+    let listed = correction.message.split("kappa = [").nth(1).and_then(|t| t.split(']').next());
+    assert_eq!(listed.map(|list| list.split(", ").count()), Some(2), "{}", correction.message);
     let product = post
         .assumptions
         .entries

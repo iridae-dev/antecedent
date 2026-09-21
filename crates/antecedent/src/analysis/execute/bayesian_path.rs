@@ -2764,11 +2764,7 @@ fn mix_dbn_mediation_refuters(
     full: bool,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
-    let mut order = Vec::new();
-    let mut by_refuter: std::collections::HashMap<
-        Arc<str>,
-        Vec<(f64, antecedent_validate::RefutationReport)>,
-    > = std::collections::HashMap::new();
+    let mut per_atom = Vec::new();
     for atom in atoms {
         if atom.weight <= 0.0 {
             continue;
@@ -2784,41 +2780,23 @@ fn mix_dbn_mediation_refuters(
             ctx,
         )
         .map_err(CausalError::from)?;
-        for report in reports {
-            let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
-                order.push(Arc::clone(&report.refuter));
-                Vec::new()
-            });
-            bucket.push((atom.weight, report));
-        }
+        per_atom.push((atom.weight, reports));
     }
-    let mut mixed = Vec::with_capacity(order.len());
-    for id in order {
-        let Some(items) = by_refuter.get(&id) else {
-            continue;
-        };
-        let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
-            items.iter().map(|(w, r)| (*w, r)).collect();
-        if let Some(report) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed) {
-            mixed.push(report);
-        }
-    }
+    let (mixed, mut diagnostics) = mix_atom_refutation_reports(&per_atom);
     let atom_keys: String =
         atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
-    Ok((
-        mixed,
-        vec![Diagnostic::new(
-            "refute.envelope.effect_mixture",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "mediation refuters evaluated each contributing graph atom [{atom_keys}] against \
-                 that atom's own composed estimate using that atom's I(h), not the pooled \
-                 mixture; reports mix by envelope mass and pass only if every contributing atom \
-                 passes"
-            ),
-        )],
-    ))
+    diagnostics.push(Diagnostic::new(
+        "refute.envelope.effect_mixture",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "mediation refuters evaluated each contributing graph atom [{atom_keys}] against \
+             that atom's own composed estimate using that atom's I(h), not the pooled \
+             mixture; reports mix by envelope mass and pass only if every contributing atom \
+             passes"
+        ),
+    ));
+    Ok((mixed, diagnostics))
 }
 
 fn run_dbn_mediation_bayesian_validation(

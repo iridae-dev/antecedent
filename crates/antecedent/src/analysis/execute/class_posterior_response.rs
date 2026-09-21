@@ -692,33 +692,9 @@ fn plugin_level_on_class_response_atoms(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let reports = if mix_scalar {
-        let mut order = Vec::new();
-        let mut by_refuter: std::collections::HashMap<
-            Arc<str>,
-            Vec<(f64, antecedent_validate::RefutationReport)>,
-        > = std::collections::HashMap::new();
-        for (weight, reports) in per_atom {
-            for report in reports {
-                let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
-                    order.push(Arc::clone(&report.refuter));
-                    Vec::new()
-                });
-                bucket.push((weight, report));
-            }
-        }
-        let mut out = Vec::with_capacity(order.len());
-        for id in order {
-            let Some(items) = by_refuter.get(&id) else {
-                continue;
-            };
-            let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
-                items.iter().map(|(w, report)| (*w, report)).collect();
-            if let Some(mixed) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed)
-            {
-                out.push(mixed);
-            }
-        }
-        out
+        let (mixed, coverage) = mix_atom_refutation_reports(&per_atom);
+        diagnostics.extend(coverage);
+        mixed
     } else {
         per_atom.into_iter().flat_map(|(_, reports)| reports).collect()
     };

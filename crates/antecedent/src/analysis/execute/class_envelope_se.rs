@@ -126,7 +126,11 @@ impl TemporalAtomDesign {
             prep.design.ncols,
             &prep.design.outcome,
         )
-        .unwrap_or_default();
+        // Without the nuisance scores the block length silently falls back to the
+        // influence-only rule, which under-sizes blocks for a persistent residual.
+        .ok_or_else(|| CausalError::Compile {
+            message: "normal-equation scores of the atom's regression could not be computed".into(),
+        })?;
         Ok(Self::Linear {
             prep: Box::new(prep),
             rows,
