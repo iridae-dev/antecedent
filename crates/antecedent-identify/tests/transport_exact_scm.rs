@@ -210,168 +210,173 @@ fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
                         "inconclusive uncapped three-node case: directed={directed_mask} bidirected={bidirected_mask} selected={selected}"
                     ),
                 };
-                let enumerate =
-                    |target: bool, intervention_mask: usize, intervention_values: usize| {
-                        let axes: Vec<usize> =
-                            (0..3).filter(|i| intervention_mask & (1 << i) == 0).collect();
-                        let mut law = vec![0.0; 1 << axes.len()];
-                        for latent in 0..8usize {
-                            for values in 0..8usize {
-                                if (values & intervention_mask)
-                                    != (intervention_values & intervention_mask)
-                                {
-                                    continue;
-                                }
-                                let bit = |node: usize| (values >> node) & 1;
-                                let mut mass = 0.125;
-                                for node in 0..3 {
-                                    if intervention_mask & (1 << node) != 0 {
+                for (base, parent_w, shared_w, sel_w) in
+                    [(0.12_f64, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07)]
+                {
+                    let enumerate =
+                        |target: bool, intervention_mask: usize, intervention_values: usize| {
+                            let axes: Vec<usize> =
+                                (0..3).filter(|i| intervention_mask & (1 << i) == 0).collect();
+                            let mut law = vec![0.0; 1 << axes.len()];
+                            for latent in 0..8usize {
+                                for values in 0..8usize {
+                                    if (values & intervention_mask)
+                                        != (intervention_values & intervention_mask)
+                                    {
                                         continue;
                                     }
-                                    let parents: usize = edges
-                                        .iter()
-                                        .enumerate()
-                                        .filter(|(e, (_, b))| {
-                                            *b == node && directed_mask & (1 << e) != 0
-                                        })
-                                        .map(|(_, (a, _))| bit(*a))
-                                        .sum();
-                                    let shared: usize = edges
-                                        .iter()
-                                        .enumerate()
-                                        .filter(|(e, (a, b))| {
-                                            (*a == node || *b == node)
-                                                && bidirected_mask & (1 << e) != 0
-                                        })
-                                        .map(|(e, _)| (latent >> e) & 1)
-                                        .sum();
-                                    let p = 0.12
-                                        + 0.16 * parents as f64
-                                        + 0.12 * shared as f64
-                                        + if target && selected & (1 << node) != 0 {
-                                            0.09
-                                        } else {
-                                            0.0
-                                        };
-                                    mass *= bernoulli(bit(node), p);
+                                    let bit = |node: usize| (values >> node) & 1;
+                                    let mut mass = 0.125;
+                                    for node in 0..3 {
+                                        if intervention_mask & (1 << node) != 0 {
+                                            continue;
+                                        }
+                                        let parents: usize = edges
+                                            .iter()
+                                            .enumerate()
+                                            .filter(|(e, (_, b))| {
+                                                *b == node && directed_mask & (1 << e) != 0
+                                            })
+                                            .map(|(_, (a, _))| bit(*a))
+                                            .sum();
+                                        let shared: usize = edges
+                                            .iter()
+                                            .enumerate()
+                                            .filter(|(e, (a, b))| {
+                                                (*a == node || *b == node)
+                                                    && bidirected_mask & (1 << e) != 0
+                                            })
+                                            .map(|(e, _)| (latent >> e) & 1)
+                                            .sum();
+                                        let p = base
+                                            + parent_w * parents as f64
+                                            + shared_w * shared as f64
+                                            + if target && selected & (1 << node) != 0 {
+                                                sel_w
+                                            } else {
+                                                0.0
+                                            };
+                                        mass *= bernoulli(bit(node), p);
+                                    }
+                                    let row = axes.iter().fold(0, |row, i| row * 2 + bit(*i));
+                                    law[row] += mass;
                                 }
-                                let row = axes.iter().fold(0, |row, i| row * 2 + bit(*i));
-                                law[row] += mass;
                             }
+                            (axes, law)
+                        };
+                    let mut laws = Vec::new();
+                    let mut regimes = Vec::new();
+                    for mask in 0..8usize {
+                        let interventions: Vec<_> =
+                            (0..3).filter(|i| mask & (1 << i) != 0).map(v).collect();
+                        let measured: Vec<_> =
+                            (0..3).filter(|i| mask & (1 << i) == 0).map(v).collect();
+                        regimes.push(
+                            EvidenceRegime::try_new(
+                                RegimeId::from_raw(mask as u32),
+                                if mask == 0 {
+                                    RegimeKind::Observational
+                                } else {
+                                    RegimeKind::Experimental
+                                },
+                                EvidenceKind::Available,
+                                interventions.clone(),
+                                [],
+                                measured,
+                                "source",
+                                DistributionAvailability::Joint,
+                            )
+                            .unwrap(),
+                        );
+                        for values in 0..8usize {
+                            if values & !mask != 0 {
+                                continue;
+                            }
+                            let (axes, mass) = enumerate(false, mask, values);
+                            let assignments = interventions
+                                .iter()
+                                .map(|v| antecedent_expr::InterventionAssignment {
+                                    variable: *v,
+                                    value: Value::Int64(((values >> v.raw()) & 1) as i64),
+                                })
+                                .collect::<Vec<_>>();
+                            let axes = axes
+                                .into_iter()
+                                .map(|i| DiscreteAxis {
+                                    variable: v(i as u32),
+                                    values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                                })
+                                .collect::<Vec<_>>();
+                            laws.push(
+                                ExactDiscreteLaw::try_new(
+                                    "source",
+                                    RegimeId::from_raw(mask as u32),
+                                    assignments,
+                                    axes,
+                                    mass,
+                                    "oracle",
+                                    LawTolerance::default(),
+                                )
+                                .unwrap(),
+                            );
                         }
-                        (axes, law)
-                    };
-                let mut laws = Vec::new();
-                let mut regimes = Vec::new();
-                for mask in 0..8usize {
-                    let interventions: Vec<_> =
-                        (0..3).filter(|i| mask & (1 << i) != 0).map(v).collect();
-                    let measured: Vec<_> = (0..3).filter(|i| mask & (1 << i) == 0).map(v).collect();
+                    }
+                    let (axes, mass) = enumerate(true, 0, 0);
                     regimes.push(
                         EvidenceRegime::try_new(
-                            RegimeId::from_raw(mask as u32),
-                            if mask == 0 {
-                                RegimeKind::Observational
-                            } else {
-                                RegimeKind::Experimental
-                            },
+                            RegimeId::from_raw(8),
+                            RegimeKind::Observational,
                             EvidenceKind::Available,
-                            interventions.clone(),
                             [],
-                            measured,
-                            "source",
+                            [],
+                            [v(0), v(1), v(2)],
+                            "target",
                             DistributionAvailability::Joint,
                         )
                         .unwrap(),
                     );
-                    for values in 0..8usize {
-                        if values & !mask != 0 {
-                            continue;
-                        }
-                        let (axes, mass) = enumerate(false, mask, values);
-                        let assignments = interventions
-                            .iter()
-                            .map(|v| antecedent_expr::InterventionAssignment {
-                                variable: *v,
-                                value: Value::Int64(((values >> v.raw()) & 1) as i64),
-                            })
-                            .collect::<Vec<_>>();
-                        let axes = axes
-                            .into_iter()
-                            .map(|i| DiscreteAxis {
-                                variable: v(i as u32),
-                                values: Arc::from([Value::Int64(0), Value::Int64(1)]),
-                            })
-                            .collect::<Vec<_>>();
-                        laws.push(
-                            ExactDiscreteLaw::try_new(
-                                "source",
-                                RegimeId::from_raw(mask as u32),
-                                assignments,
-                                axes,
-                                mass,
-                                "oracle",
-                                LawTolerance::default(),
-                            )
-                            .unwrap(),
+                    let axes = axes
+                        .into_iter()
+                        .map(|i| DiscreteAxis {
+                            variable: v(i as u32),
+                            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                        })
+                        .collect::<Vec<_>>();
+                    laws.push(
+                        ExactDiscreteLaw::try_new(
+                            "target",
+                            RegimeId::from_raw(8),
+                            [],
+                            axes,
+                            mass,
+                            "oracle",
+                            LawTolerance::default(),
+                        )
+                        .unwrap(),
+                    );
+                    let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
+                    let bound = proof.bind_catalog(&catalog).unwrap();
+                    let data = ExactTransportData::try_new(laws, 1000).unwrap();
+                    for level in 0..2 {
+                        let (_, truth) = enumerate(true, 1, level);
+                        let expected = truth[1] + truth[3];
+                        let plan = ExactEvaluationPlan::compile(
+                            bound.arena(),
+                            bound.root(),
+                            data.clone(),
+                            [v(2)],
+                            Assignment::from_pairs([(v(0), Value::Int64(level as i64))]),
+                            ExactEvaluationLimits::default(),
+                            LawTolerance::default(),
+                            &ctx,
+                        )
+                        .unwrap();
+                        let result = plan.evaluate(&ctx).unwrap();
+                        assert!(
+                            (result.mean(v(2)).unwrap() - expected).abs() < 1e-10,
+                            "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} level={level} base={base}"
                         );
                     }
-                }
-                let (axes, mass) = enumerate(true, 0, 0);
-                regimes.push(
-                    EvidenceRegime::try_new(
-                        RegimeId::from_raw(8),
-                        RegimeKind::Observational,
-                        EvidenceKind::Available,
-                        [],
-                        [],
-                        [v(0), v(1), v(2)],
-                        "target",
-                        DistributionAvailability::Joint,
-                    )
-                    .unwrap(),
-                );
-                let axes = axes
-                    .into_iter()
-                    .map(|i| DiscreteAxis {
-                        variable: v(i as u32),
-                        values: Arc::from([Value::Int64(0), Value::Int64(1)]),
-                    })
-                    .collect::<Vec<_>>();
-                laws.push(
-                    ExactDiscreteLaw::try_new(
-                        "target",
-                        RegimeId::from_raw(8),
-                        [],
-                        axes,
-                        mass,
-                        "oracle",
-                        LawTolerance::default(),
-                    )
-                    .unwrap(),
-                );
-                let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
-                let bound = proof.bind_catalog(&catalog).unwrap();
-                let data = ExactTransportData::try_new(laws, 1000).unwrap();
-                for level in 0..2 {
-                    let (_, truth) = enumerate(true, 1, level);
-                    let expected = truth[1] + truth[3];
-                    let plan = ExactEvaluationPlan::compile(
-                        bound.arena(),
-                        bound.root(),
-                        data.clone(),
-                        [v(2)],
-                        Assignment::from_pairs([(v(0), Value::Int64(level as i64))]),
-                        ExactEvaluationLimits::default(),
-                        LawTolerance::default(),
-                        &ctx,
-                    )
-                    .unwrap();
-                    let result = plan.evaluate(&ctx).unwrap();
-                    assert!(
-                        (result.mean(v(2)).unwrap() - expected).abs() < 1e-10,
-                        "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} level={level}"
-                    );
                 }
             }
         }
@@ -519,6 +524,117 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
         ["sid.line1", "sid.line2", "sid.line3", "sid.line4", "sid.line7", "sid.line8", "sid.line10"]
     {
         assert!(rules.contains(rule), "missing branch {rule}");
+    }
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn four_node_frontdoor_matches_independent_parameterizations() {
+    let mut graph = Admg::with_variables(4);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_directed(d(1), d(3)).unwrap();
+    graph.insert_directed(d(2), d(3)).unwrap();
+    graph.insert_bidirected(d(0), d(3)).unwrap();
+    let diagram = SelectionDiagram::try_new(graph, [v(3)]).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(3)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let ctx = ExecutionContext::for_tests(4);
+    let ClassicalTransportResult::Identified(proof) =
+        identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap()
+    else {
+        panic!("four-node frontdoor with covariate is identifiable");
+    };
+    let catalog = EvidenceCatalog::try_new(
+        [],
+        [EvidenceRegime::try_new(
+            RegimeId::from_raw(0),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            (0..4).map(v).collect::<Vec<_>>(),
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap()],
+        [],
+        None,
+    )
+    .unwrap();
+    let functional = proof.bind_catalog(&catalog).unwrap();
+    for (latent_mass, mediator_shift, z_shift) in
+        [(0.2_f64, 0.25, 0.15), (0.45, 0.55, 0.05), (0.8, 0.35, 0.25)]
+    {
+        let mut observational = vec![0.0; 16];
+        for u in 0..2 {
+            for x in 0..2 {
+                for m in 0..2 {
+                    for z in 0..2 {
+                        for y in 0..2 {
+                            let mass = bernoulli(u, latent_mass)
+                                * bernoulli(x, if u == 1 { 0.75 } else { 0.25 })
+                                * bernoulli(m, 0.2 + mediator_shift * x as f64)
+                                * bernoulli(z, 0.4)
+                                * bernoulli(
+                                    y,
+                                    0.1 + 0.35 * m as f64 + z_shift * z as f64 + 0.2 * u as f64,
+                                );
+                            observational[x * 8 + m * 4 + z * 2 + y] += mass;
+                        }
+                    }
+                }
+            }
+        }
+        let law = ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(0),
+            [],
+            (0..4)
+                .map(|i| DiscreteAxis {
+                    variable: v(i),
+                    values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                })
+                .collect::<Vec<_>>(),
+            observational,
+            "four-node-oracle",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([law], 10_000).unwrap();
+        for x in 0..2 {
+            let mut truth = 0.0;
+            for u in 0..2 {
+                for m in 0..2 {
+                    for z in 0..2 {
+                        truth += bernoulli(u, latent_mass)
+                            * bernoulli(m, 0.2 + mediator_shift * x as f64)
+                            * bernoulli(z, 0.4)
+                            * (0.1 + 0.35 * m as f64 + z_shift * z as f64 + 0.2 * u as f64);
+                    }
+                }
+            }
+            let result = ExactEvaluationPlan::compile(
+                functional.arena(),
+                functional.root(),
+                data.clone(),
+                [v(3)],
+                Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                ExactEvaluationLimits::default(),
+                LawTolerance::default(),
+                &ctx,
+            )
+            .unwrap()
+            .evaluate(&ctx)
+            .unwrap();
+            assert!(
+                (result.mean(v(3)).unwrap() - truth).abs() < 1e-12,
+                "x={x} latent={latent_mass} mediator={mediator_shift} z={z_shift}"
+            );
+        }
     }
 }
 
