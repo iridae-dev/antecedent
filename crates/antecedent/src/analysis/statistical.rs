@@ -204,6 +204,27 @@ pub struct StatisticalBindingView {
     pub origin: &'static str,
 }
 
+// Canonicalize only new multi-source/grid provider collections; historical scalar
+// statistical-v2 identities retain their original ordering.
+pub(super) fn canonicalize_input(input: &mut StatisticalTransportInput) -> Result<(), IoError> {
+    input.samples.sort_by_key(|s| {
+        (
+            s.population.clone(),
+            s.regime.raw(),
+            s.snapshot_identity.clone(),
+            antecedent_estimate::empirical_table::sample_key(s),
+        )
+    });
+    let mut supplied = input
+        .supplied
+        .drain(..)
+        .map(|law| Ok((antecedent_io::to_cbor(&ExactLawWire::from_law(&law))?, law)))
+        .collect::<Result<Vec<_>, IoError>>()?;
+    supplied.sort_by(|a, b| a.0.cmp(&b.0));
+    input.supplied = supplied.into_iter().map(|(_, law)| law).collect();
+    Ok(())
+}
+
 impl StudyBuilder {
     /// Prepare mixed supplied-law / empirical-table transport on the common handle.
     ///
@@ -242,6 +263,10 @@ impl PreparedStudy<StatisticalPreparedState> {
         options: EmpiricalTableOptions,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        let mut input = input;
+        if !functional.derivation().sources().is_empty() {
+            canonicalize_input(&mut input)?;
+        }
         antecedent_estimate::statistical_transport::check_statistical_resources(
             &input,
             &functional,
@@ -322,6 +347,19 @@ impl PreparedStudy<StatisticalPreparedState> {
                 limits.depth,
             ),
         )?;
+        let aliases: Vec<_> = catalog
+            .bindings
+            .iter()
+            .filter_map(|b| b.dataset_identity.as_ref().map(|id| (b.regime.raw(), id.as_ref())))
+            .collect();
+        let inference_binding = if aliases.is_empty() {
+            inference_binding
+        } else {
+            digest(
+                IdentityDomain::InferenceBinding,
+                &(&inference_binding, "shared_dataset_aliases_v1", aliases),
+            )?
+        };
         let identification = digest(
             IdentityDomain::Identification,
             &(
@@ -334,6 +372,11 @@ impl PreparedStudy<StatisticalPreparedState> {
                 &observation,
             ),
         )?;
+        let identification = if proof.proof.sources.is_empty() {
+            identification
+        } else {
+            digest(IdentityDomain::Identification, &(&identification, &proof.proof.sources))?
+        };
         let identification_product = digest(IdentityDomain::IdentificationProduct, &proof)?;
         let program = digest(
             IdentityDomain::Program,
@@ -453,8 +496,12 @@ impl PreparedStudy<StatisticalPreparedState> {
             factors: statistical_requirements(&self.state.functional),
             bindings: statistical_bindings(&self.state.input, &self.state.data),
             reasoning: self.reasoning(false, None),
-            theorem_scope: TheoremScope::statistical_table_inspect_label(),
-            classical_scope: TheoremScope::classical_sid_complete(),
+            theorem_scope: if self.state.functional.derivation().sources().is_empty() {
+                TheoremScope::statistical_table_inspect_label()
+            } else {
+                "classical_meta_all_source_experiments_v1; empirical_table_plugin_iid"
+            },
+            classical_scope: self.state.functional.derivation().theorem_scope(),
             catalog_scope: TheoremScope::finite_catalog_search(),
         }
     }
@@ -1102,7 +1149,7 @@ fn statistical_assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-struct StatisticalOptionsWire {
+pub(super) struct StatisticalOptionsWire {
     estimator: String,
     bootstrap_replicates: u32,
     coverage_level: f64,
@@ -1110,7 +1157,7 @@ struct StatisticalOptionsWire {
 }
 
 impl StatisticalOptionsWire {
-    fn from_options(options: &EmpiricalTableOptions) -> Self {
+    pub(super) fn from_options(options: &EmpiricalTableOptions) -> Self {
         Self {
             estimator: options.estimator.as_str().into(),
             bootstrap_replicates: options.bootstrap_replicates,
@@ -1118,7 +1165,7 @@ impl StatisticalOptionsWire {
             max_joint_cells: options.max_joint_cells,
         }
     }
-    fn to_options(&self) -> Result<EmpiricalTableOptions, IoError> {
+    pub(super) fn to_options(&self) -> Result<EmpiricalTableOptions, IoError> {
         if self.estimator != antecedent_estimate::EMPIRICAL_TABLE_PLUGIN {
             return Err(err("unknown or unlicensed empirical estimator"));
         }
@@ -1220,7 +1267,7 @@ struct StatisticalExecutionWire {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-struct SampleSummary {
+pub(super) struct SampleSummary {
     population: String,
     regime: u32,
     snapshot: String,
@@ -1229,7 +1276,7 @@ struct SampleSummary {
     content_digest: String,
 }
 impl SampleSummary {
-    fn from_sample(sample: &antecedent_estimate::RegimeSample) -> Result<Self, IoError> {
+    pub(super) fn from_sample(sample: &antecedent_estimate::RegimeSample) -> Result<Self, IoError> {
         let columns: Vec<_> = sample.columns.iter().map(|(v, xs)| (v.raw(), xs)).collect();
         let mut interventions: Vec<_> = sample
             .interventions
@@ -1248,7 +1295,7 @@ impl SampleSummary {
     }
 }
 
-fn validate_sample_summaries(
+pub(super) fn validate_sample_summaries(
     samples: &[SampleSummary],
     data: &ExactTransportData,
     catalog: &antecedent_core::EvidenceCatalog,
@@ -1286,6 +1333,22 @@ fn validate_sample_summaries(
             if (count - count.round()).abs() > (8.0 * f64::EPSILON * f64::from(sample.n)).max(1e-7)
             {
                 return Err(err("fitted joint is inconsistent with sample size"));
+            }
+        }
+    }
+    let mut aliases = std::collections::BTreeMap::new();
+    for sample in samples {
+        if let Some(identity) = catalog
+            .bindings
+            .iter()
+            .find(|binding| binding.regime.raw() == sample.regime)
+            .and_then(|binding| binding.dataset_identity.as_ref())
+        {
+            let key = antecedent_io::to_cbor(&(identity.as_ref(), &sample.interventions))?;
+            if let Some(previous) = aliases.insert(key, sample) {
+                if previous.n != sample.n || previous.content_digest != sample.content_digest {
+                    return Err(err("conflicting forwarded dataset provenance"));
+                }
             }
         }
     }
@@ -1522,6 +1585,7 @@ mod tests {
             )
             .unwrap()],
             [RegimeBinding {
+                dataset_identity: None,
                 regime: RegimeId::from_raw(0),
                 snapshot_identity: Arc::from(snapshot),
                 schema_names: Arc::from([]),
@@ -1727,6 +1791,7 @@ mod tests {
             )
             .unwrap()],
             [RegimeBinding {
+                dataset_identity: None,
                 regime: RegimeId::from_raw(0),
                 snapshot_identity: Arc::from("one"),
                 schema_names: Arc::from([]),
@@ -1812,6 +1877,7 @@ mod tests {
             )
             .unwrap()],
             [RegimeBinding {
+                dataset_identity: None,
                 regime: RegimeId::from_raw(0),
                 snapshot_identity: Arc::from("one"),
                 schema_names: Arc::from([]),

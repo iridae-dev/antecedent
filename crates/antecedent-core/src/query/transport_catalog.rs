@@ -420,6 +420,9 @@ pub struct LicensedWeights {
 /// Bind a dataset / table to one regime.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegimeBinding {
+    /// Shared underlying dataset identity for explicitly forwarded study copies.
+    /// Aliases must contain the same rows, worlds and sampling contract.
+    pub dataset_identity: Option<Arc<str>>,
     /// Regime this snapshot satisfies.
     pub regime: RegimeId,
     /// Snapshot identity.
@@ -663,6 +666,7 @@ impl EvidenceCatalog {
         for binding in self.bindings.iter() {
             if !bound_regimes.insert(binding.regime)
                 || binding.snapshot_identity.trim().is_empty()
+                || binding.dataset_identity.as_ref().is_some_and(|id| id.trim().is_empty())
                 || binding.schema_names.iter().any(|s| s.trim().is_empty())
                 || binding.schema_names.iter().collect::<BTreeSet<_>>().len()
                     != binding.schema_names.len()

@@ -299,6 +299,7 @@ fn check_cache_memory(
     let bytes = entries
         .checked_mul(entry_bytes)
         .and_then(|n| n.checked_add(intermediates))
+        .and_then(|n| n.checked_add(data.factor_cache_bytes()?))
         .ok_or_else(bad)?;
     if ctx.memory.hard_limit_bytes.is_some_and(|n| u64::try_from(bytes).map_or(true, |b| b > n)) {
         return Err(bad());

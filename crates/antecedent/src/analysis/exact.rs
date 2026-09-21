@@ -348,6 +348,11 @@ impl PreparedStudy<ExactPreparedState> {
                 &observation,
             ),
         )?;
+        let identification = if proof.proof.sources.is_empty() {
+            identification
+        } else {
+            digest(IdentityDomain::Identification, &(&identification, &proof.proof.sources))?
+        };
         let identification_product = digest(IdentityDomain::IdentificationProduct, &proof)?;
         let program = digest(
             IdentityDomain::Program,
@@ -423,8 +428,12 @@ impl PreparedStudy<ExactPreparedState> {
                 })
                 .collect(),
             reasoning: Self::reasoning(false),
-            theorem_scope: TheoremScope::exact_law_inspect_label(),
-            classical_scope: TheoremScope::classical_sid_complete(),
+            theorem_scope: if self.state.functional.derivation().sources().is_empty() {
+                TheoremScope::exact_law_inspect_label()
+            } else {
+                "classical_meta_all_source_experiments_v1; finite_catalog_search_bounded"
+            },
+            classical_scope: self.state.functional.derivation().theorem_scope(),
             catalog_scope: TheoremScope::finite_catalog_search(),
         }
     }
