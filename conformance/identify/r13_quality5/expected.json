@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "R13 tests-quality-5: numeric identification cases missing from the transport sweeps and mag_visibility_id status pins",
+    "generator": "hand-derived binary SCMs; interventional means are truncated-factorization truths on the named graphs, not package dumps"
+  },
+  "cases": [
+    {
+      "id": "treatment_with_observed_parent",
+      "nodes": ["Z", "X", "Y"],
+      "edges": ["Z->X", "X->Y", "Z->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "parent_free_nodes": ["X", "Y"],
+      "parent_free_edges": ["X->Y"],
+      "status": "identified",
+      "scm": {
+        "P(Z=1)": 0.35,
+        "P(X=1|Z)": "0.2 + 0.45 Z",
+        "P(Y=1|X,Z)": "0.1 + 0.4 X + 0.25 Z",
+        "parent_free_P(X=1)": 0.4,
+        "parent_free_P(Y=1|X)": "0.15 + 0.5 X"
+      },
+      "expected_ate": 0.4,
+      "parent_free_expected_ate": 0.5,
+      "functional_must_differ_from_parent_free": true,
+      "closed_form": "sum_z P(y|x,z) P(z)",
+      "parent_free_closed_form": "P(y|x)",
+      "reason": "the treatment X has observed parent Z; empty-backdoor identification on the parent-free graph is a different functional"
+    },
+    {
+      "id": "napkin",
+      "nodes": ["W", "Z", "X", "Y"],
+      "edges": ["W->Z", "Z->X", "X->Y", "W<->X", "W<->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "status": "identified",
+      "lines": ["line3", "line7", "line2", "line6"],
+      "closed_form": "sum_w P(x,y|z,w) P(w) / sum_w P(x|z,w) P(w), for any z",
+      "scm": {
+        "latent_p": [0.35, 0.7],
+        "P(W=1|u1,u2)": "0.2 + 0.3 u1 + 0.25 u2",
+        "P(Z=1|W)": "0.3 + 0.45 W",
+        "P(X=1|Z,u1)": "0.15 + 0.5 Z + 0.2 u1",
+        "P(Y=1|X,u2)": "0.1 + 0.35 X + 0.4 u2"
+      },
+      "expected_do_y1": [0.38, 0.73],
+      "expected_ate": 0.35,
+      "reason": "line 7 → 2 → 6 napkin; free in z; ATE equals the structural coefficient of X because U2 is exogenous under do(X)"
+    },
+    {
+      "id": "discriminating_path_visibility",
+      "nodes": ["A", "Q", "C", "T", "Y"],
+      "edges": ["A->Q", "Q<->C", "C<->T", "T->Y", "Q->Y", "C->Y"],
+      "generating_dag": "A -> Q <- L1 -> C <- L2 -> T, Q -> Y, C -> Y, T -> Y",
+      "treatments": ["T"],
+      "outcomes": ["Y"],
+      "status": "identified",
+      "method": "generalized.adjustment",
+      "identified_weight": 1,
+      "unidentified_weight": 0,
+      "visibility_path": ["A", "Q", "C", "T"],
+      "scm": {
+        "P(A=1)": 0.4,
+        "P(L1=1)": 0.4,
+        "P(L2=1)": 0.55,
+        "P(Q=1|A,L1)": "0.15 + 0.35 A + 0.25 L1",
+        "P(C=1|L1,L2)": "0.2 + 0.3 L1 + 0.25 L2",
+        "P(T=1|L2)": "0.25 + 0.4 L2",
+        "P(Y=1|Q,C,T)": "0.05 + 0.2 Q + 0.25 C + 0.35 T"
+      },
+      "expected_do_y1": [0.242375, 0.592375],
+      "expected_ate": 0.35,
+      "without_witness_nodes": ["Q", "C", "T", "Y"],
+      "without_witness_edges": ["Q<->C", "C<->T", "T->Y", "Q->Y", "C->Y"],
+      "without_witness_status": "not_identified",
+      "reason": "T->Y is invisible until the discriminating collider path A->Q<->C<->T with Q,C parents of Y; adjustment then identifies over {Q,C}"
+    }
+  ]
+}
