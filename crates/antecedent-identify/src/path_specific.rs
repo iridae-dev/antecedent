@@ -177,10 +177,8 @@ impl PathSpecificIdentifier {
                 prepared.declared_assumptions().clone(),
                 perf,
             );
-            out.diagnostics.push(antecedent_core::Diagnostic::new(
+            out.diagnostics.push(crate::result::search_bounded_diagnostic(
                 SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-                antecedent_core::DiagnosticKind::Execution,
-                antecedent_core::DiagnosticSeverity::Warning,
                 format!(
                     "path enumeration stopped at max_paths={} / max_len={} before the path set \
                      was complete; identifiability is undecided, not refuted — raise the budget",

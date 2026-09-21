@@ -215,6 +215,7 @@ impl IdIdentifier {
     }
 
     /// Identify the requested intervention mean, retaining the actual Set levels.
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn identify_response(
         &self,
         prepared: &PreparedAdmg,
@@ -229,24 +230,60 @@ impl IdIdentifier {
                     "MeanCurve general ID requires a finite evaluation grid",
                 )
             })?;
-            let Some(&level) = levels.first() else {
+            if levels.is_empty() {
                 return Err(IdentificationError::unsupported(
                     "MeanCurve general ID requires a finite evaluation grid",
                 ));
-            };
-            let mut level_query = response.clone();
-            level_query.functional = antecedent_core::ResponseFunctional::InterventionResponse {
-                outcome: *outcome,
-                interventions: Arc::from([Intervention::set(
-                    treatment.variable,
-                    Value::f64(level),
-                )]),
-            };
-            let mut result = self.identify_response(prepared, &level_query, workspace)?;
+            }
+            // Whether the mean is identified does not depend on the level, but the functional
+            // does: every grid level gets its own estimand, in grid order, so the result never
+            // describes the whole curve with one literal level.
+            let mut merged: Option<IdentificationResult> = None;
+            for &level in &levels {
+                let mut level_query = response.clone();
+                level_query.functional =
+                    antecedent_core::ResponseFunctional::InterventionResponse {
+                        outcome: *outcome,
+                        interventions: Arc::from([Intervention::set(
+                            treatment.variable,
+                            Value::f64(level),
+                        )]),
+                    };
+                let mut at_level = self.identify_response(prepared, &level_query, workspace)?;
+                if at_level.estimands.is_empty() {
+                    at_level.query = CausalQuery::Response(response.clone());
+                    return Ok(at_level);
+                }
+                match merged.as_mut() {
+                    None => merged = Some(at_level),
+                    Some(curve) => {
+                        for estimand in &at_level.estimands {
+                            let functional =
+                                curve.arena.import(&at_level.arena, estimand.functional);
+                            let mut copy = estimand.clone();
+                            copy.functional = functional;
+                            curve.estimands.push(copy);
+                        }
+                        curve.performance.candidates_examined = curve
+                            .performance
+                            .candidates_examined
+                            .saturating_add(at_level.performance.candidates_examined);
+                        curve.performance.sets_returned = curve
+                            .performance
+                            .sets_returned
+                            .saturating_add(at_level.performance.sets_returned);
+                    }
+                }
+            }
+            let mut result = merged.expect("the grid is non-empty");
             result.query = CausalQuery::Response(response.clone());
             result.derivation.push(
                 "identify.response.general_id",
-                "MeanCurve is the identified intervention mean on the requested grid",
+                format!(
+                    "MeanCurve: one identified intervention mean per grid level, {} estimand(s) \
+                     in grid order",
+                    levels.len()
+                ),
             );
             return Ok(result);
         }
@@ -1273,8 +1310,8 @@ fn intervention_for_factor(
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        AverageEffectQuery, CausalQuery, Intervention, MechanismOverride, TargetPopulation, Value,
-        VariableId,
+        AverageEffectQuery, CausalQuery, ContinuousDomain, GridSpec, Intervention,
+        MechanismOverride, ResponseFunctional, ResponseQuery, TargetPopulation, Value, VariableId,
     };
     use antecedent_graph::{Admg, Dag, DenseNodeId};
     use std::sync::Arc;
@@ -1556,6 +1593,72 @@ mod tests {
             panic!("numerator body must be the carried C-factor");
         };
         assert_eq!(res.arena.list(list).len(), 3);
+    }
+
+    /// `Z -> T`, `Z -> Y`, `T -> Y` and a four-point grid: the mean curve is one identified
+    /// intervention mean per grid level, not the first level standing for the whole curve.
+    #[test]
+    fn mean_curve_general_id_identifies_every_grid_level() {
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let (t, y) = (VariableId::from_raw(1), VariableId::from_raw(2));
+        let grid = [0.0, 0.5, 1.0, 2.0];
+        let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(t, GridSpec::Values(Arc::from(grid))),
+        });
+        let res = id
+            .identify_response(&prep, &response, &mut IdentificationWorkspace::default())
+            .unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(matches!(res.query, CausalQuery::Response(_)));
+        assert_eq!(res.estimands.len(), grid.len());
+        for estimand in &res.estimands {
+            assert_eq!(estimand.method_kind().unwrap(), EstimandMethod::GeneralId);
+            let ExprNode::Expectation { function, .. } = res.arena.node(estimand.functional) else {
+                panic!("each grid level is the mean of Y");
+            };
+            assert_eq!(function.variable(), y);
+        }
+        // The level is part of the functional, so no two grid points share one.
+        for (i, a) in res.estimands.iter().enumerate() {
+            for b in &res.estimands[i + 1..] {
+                assert_ne!(a.functional, b.functional);
+            }
+        }
+    }
+
+    /// `P(A | do(A = 1))` is the point mass at 1, not the observational `P(A)`: an outcome that
+    /// is also an intervention target is an invalid query for ID, whole or partial overlap.
+    #[test]
+    fn outcome_that_is_an_intervention_target_is_refused() {
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let (t, y) = (VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut ws = IdentificationWorkspace::default();
+        let whole =
+            CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
+                t,
+                [Intervention::set(t, Value::f64(1.0))],
+            ));
+        let partial = CausalQuery::Distribution(
+            antecedent_core::InterventionalDistributionQuery::new(
+                y,
+                [Intervention::set(t, Value::f64(1.0))],
+            )
+            .with_outcomes([y, t]),
+        );
+        for query in [whole, partial] {
+            let err = id.identify(&prep, &query, &mut ws).unwrap_err();
+            assert!(matches!(err, IdentificationError::InvalidQuery { .. }), "{err}");
+        }
+        // Disjoint outcome and intervention stay valid.
+        let fine =
+            CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
+                y,
+                [Intervention::set(t, Value::f64(1.0))],
+            ));
+        assert!(id.identify(&prep, &fine, &mut ws).is_ok());
     }
 
     #[test]

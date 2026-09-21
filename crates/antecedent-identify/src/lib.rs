@@ -59,12 +59,17 @@ mod id_scm_property;
 #[cfg(test)]
 mod mag_id_bruteforce;
 /// Hidden parser for the frozen external `graph_dot` oracles used by tests.
+///
+/// Compiled only for this crate's tests and under the `test-util` feature: it panics on
+/// malformed input, which is fine for frozen fixtures and wrong for a library API.
+#[cfg(any(test, feature = "test-util"))]
 #[doc(hidden)]
 pub mod oracle_dot;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{
-    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, RankedAdjustmentSet,
+    AdjustmentSearchConfig, BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, BackdoorIdentifier,
+    PreparedIdentificationGraph, RankedAdjustmentSet,
 };
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use efficient::EfficientBackdoorIdentifier;
@@ -73,10 +78,13 @@ pub use envelope::{
     carries_identified_mass, search_truncated,
 };
 pub use error::IdentificationError;
-pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
+pub use frontdoor::{
+    FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, FrontDoorIdentifier, FrontDoorSearchConfig,
+};
 pub use generalized::{
     CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use hedge::HedgeCertificate;
 pub use id::IdIdentifier;

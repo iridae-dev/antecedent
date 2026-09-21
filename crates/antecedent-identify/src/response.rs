@@ -89,6 +89,7 @@ impl ResponseIdentifier {
         let mut performance = IdentificationPerformanceRecord::default();
         let mut assumptions = prepared.declared_assumptions().clone();
         append_observation_assumptions(response, &mut assumptions);
+        let mut diagnostics = Vec::new();
 
         for (treatment, outcome) in pairs {
             let witness = AverageEffectQuery::with_levels(treatment, outcome, 0.0, 1.0)
@@ -105,33 +106,62 @@ impl ResponseIdentifier {
                 .saturating_add(result.performance.candidates_examined);
             performance.sets_returned =
                 performance.sets_returned.saturating_add(result.performance.sets_returned);
-            let result = if result.status == IdentificationStatus::NonparametricallyIdentified {
-                result
-            } else {
-                match crate::response_id::identify_dag_via_id(prepared.dag(), response)? {
-                    id if id.status == IdentificationStatus::NonparametricallyIdentified => {
-                        derivation.push(
-                            "identify.response.general_id",
-                            format!(
-                                "pair ({treatment},{outcome}) identified by Shpitser–Pearl ID after back-door failed"
-                            ),
-                        );
-                        id
-                    }
-                    _ => {
-                        derivation.push(
-                            "response.backdoor",
-                            format!("pair ({treatment},{outcome}) was not identified"),
-                        );
-                        return Ok(IdentificationResult::not_identified(
-                            query.clone(),
-                            derivation,
-                            assumptions,
-                            performance,
-                        ));
+            if result.status != IdentificationStatus::NonparametricallyIdentified {
+                // Back-door failed for this pair: general ID decides it. A response naming one
+                // pair is identified as itself; a Jacobian or directional derivative names many,
+                // and each pair gets its own ID run whose functional joins the shared arena.
+                let general = if matches!(
+                    response.functional,
+                    ResponseFunctional::InterventionResponse { .. }
+                        | ResponseFunctional::MeanCurve { .. }
+                ) {
+                    crate::response_id::identify_dag_via_id(prepared.dag(), response)?
+                } else {
+                    crate::response_id::identify_dag_pair_via_id(
+                        prepared.dag(),
+                        treatment,
+                        outcome,
+                    )?
+                };
+                if general.status != IdentificationStatus::NonparametricallyIdentified
+                    || general.estimands.is_empty()
+                {
+                    derivation.push(
+                        "response.backdoor",
+                        format!("pair ({treatment},{outcome}) was not identified"),
+                    );
+                    return Ok(IdentificationResult::not_identified(
+                        query.clone(),
+                        derivation,
+                        assumptions,
+                        performance,
+                    ));
+                }
+                derivation.push(
+                    "identify.response.general_id",
+                    format!(
+                        "pair ({treatment},{outcome}) identified by Shpitser–Pearl ID after back-door failed"
+                    ),
+                );
+                derivation.steps.extend(general.derivation.steps.iter().cloned());
+                for record in &general.required_assumptions.entries {
+                    if !assumptions.entries.contains(record) {
+                        assumptions.push(record.clone());
                     }
                 }
-            };
+                performance.candidates_examined = performance
+                    .candidates_examined
+                    .saturating_add(general.performance.candidates_examined);
+                performance.sets_returned =
+                    performance.sets_returned.saturating_add(general.performance.sets_returned);
+                diagnostics.extend(general.diagnostics.iter().cloned());
+                for estimand in &general.estimands {
+                    let mut copy = estimand.clone();
+                    copy.functional = arena.import(&general.arena, estimand.functional);
+                    estimands.push(copy);
+                }
+                continue;
+            }
             let Some(first) = result.estimands.first() else {
                 return Ok(IdentificationResult::not_identified(
                     query.clone(),
@@ -140,11 +170,6 @@ impl ResponseIdentifier {
                     performance,
                 ));
             };
-            if first.method_kind().ok() == Some(antecedent_expr::EstimandMethod::GeneralId) {
-                let mut identified = result;
-                identified.query = query.clone();
-                return Ok(identified);
-            }
             let functional = match &response.functional {
                 ResponseFunctional::InterventionResponse { interventions, .. } => {
                     let level = interventions.iter().find_map(|iv| match iv {
@@ -193,14 +218,16 @@ impl ResponseIdentifier {
             );
         }
 
-        Ok(IdentificationResult::identified(
+        let mut identified = IdentificationResult::identified(
             query.clone(),
             estimands,
             arena,
             derivation,
             assumptions,
             performance,
-        ))
+        );
+        identified.diagnostics = diagnostics;
+        Ok(identified)
     }
 }
 
@@ -307,6 +334,60 @@ mod tests {
         assert!(result.required_assumptions.entries.iter().any(|record| {
             record.assumption == Assumption::CausalMarkov
                 && record.scope == AssumptionScope::Identification
+        }));
+    }
+
+    /// `Y1 -> T -> Y2`. For the pair (T, Y1) the outcome is a parent of the treatment, so
+    /// no adjustment set exists and general ID decides it; the pair (T, Y2) is back-door
+    /// identified with the empty set. Both pairs must appear, in order, in one result.
+    #[test]
+    fn jacobian_keeps_every_pair_when_one_needs_general_id() {
+        let mut dag = Dag::with_variables(3);
+        let (t, y1, y2) =
+            (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let response = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([y1, y2]),
+            treatments: Arc::from([t]),
+            at: Arc::from([0.5]),
+            scale: antecedent_core::DerivativeScale::Identity,
+        });
+        let identifier = ResponseIdentifier::new();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        let result = identifier
+            .identify(
+                &prepared,
+                &CausalQuery::Response(response),
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(result.estimands.len(), 2, "one estimand per (treatment, outcome) pair");
+        assert_eq!(
+            result.estimands[0].method_kind().unwrap(),
+            antecedent_expr::EstimandMethod::GeneralId
+        );
+        assert_eq!(
+            result.estimands[1].method_kind().unwrap(),
+            antecedent_expr::EstimandMethod::BackdoorAdjustment
+        );
+        assert!(result.estimands[1].adjustment_set.is_empty());
+        // The general-ID functional lives in the shared arena and is about the first pair's
+        // outcome, Y1, not the second's.
+        let antecedent_expr::ExprNode::Contrast { left, .. } =
+            result.arena.node(result.estimands[0].functional)
+        else {
+            panic!("a pair's identification witness is a contrast");
+        };
+        let antecedent_expr::ExprNode::Expectation { function, .. } = result.arena.node(*left)
+        else {
+            panic!("each side of the contrast is a mean");
+        };
+        assert_eq!(function.variable(), y1);
+        // ID's assumptions are carried into the merged result.
+        assert!(result.required_assumptions.entries.iter().any(|r| {
+            r.assumption == Assumption::CausalMarkov && r.scope == AssumptionScope::Identification
         }));
     }
 

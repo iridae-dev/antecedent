@@ -109,12 +109,22 @@ pub(crate) fn identify_mag_response(
     mag: &Pag,
     query: &ResponseQuery,
     max_candidates: usize,
+    max_examinations: u64,
 ) -> Result<IdentificationResult, IdentificationError> {
     if let Some((t, y, level)) = intervention_response_set(query) {
         let t_d = pag_var_to_dense(mag, t)?;
         let y_d = pag_var_to_dense(mag, y)?;
-        let mut result =
-            identify_on_mag_completion_mean(mag, t, y, t_d, y_d, level, max_candidates, query)?;
+        let mut result = identify_on_mag_completion_mean(
+            mag,
+            t,
+            y,
+            t_d,
+            y_d,
+            level,
+            max_candidates,
+            max_examinations,
+            query,
+        )?;
         if !is_identified(&result) {
             result = identify_admg_response(mag, query)?;
         }
@@ -135,6 +145,7 @@ pub(crate) fn identify_mag_response(
         active.clone(),
         control.clone(),
         max_candidates,
+        max_examinations,
     )?;
     if !is_identified(&result) {
         result = identify_admg_response(mag, query)?;
@@ -154,6 +165,34 @@ pub(crate) fn identify_dag_via_id(
     result.derivation.push(
         "identify.response.general_id",
         "back-door search failed; Shpitser–Pearl ID on the DAG-as-ADMG",
+    );
+    Ok(result)
+}
+
+/// General ID of one treatment/outcome pair of a multi-pair response on the DAG-as-ADMG.
+///
+/// The binary contrast is the identification witness of that pair: whether `treatment`'s
+/// effect on `outcome` is identified, and by which functional. A Jacobian or directional
+/// derivative names many pairs, and each needs its own answer.
+pub(crate) fn identify_dag_pair_via_id(
+    dag: &Dag,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<IdentificationResult, IdentificationError> {
+    let identifier = IdIdentifier::new();
+    let prepared = identifier.prepare_dag(dag)?;
+    let mut workspace = IdentificationWorkspace::default();
+    let mut result = identifier.identify_ate(
+        &prepared,
+        &AverageEffectQuery::binary_ate(treatment, outcome),
+        &mut workspace,
+    )?;
+    result.derivation.push(
+        "identify.response.general_id",
+        format!(
+            "back-door search failed for pair ({treatment},{outcome}); Shpitser–Pearl ID of its \
+             binary contrast, an identification witness only"
+        ),
     );
     Ok(result)
 }
@@ -246,7 +285,9 @@ pub fn identify_pag_response_general(
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
     let id = GeneralizedAdjustmentIdentifier::new();
-    id.pag_envelope_with(pag, |mag| identify_mag_response(mag, query, id.config.max_candidates))
+    id.pag_envelope_with(pag, |mag| {
+        identify_mag_response(mag, query, id.config.max_candidates, id.config.max_examinations)
+    })
 }
 
 /// Identify a single-treatment CPDAG response by back-door, then general ID.
@@ -347,6 +388,7 @@ mod tests {
             Value::f64(1.0),
             Value::f64(0.0),
             16,
+            1_000_000,
         )
         .unwrap();
         assert_eq!(adj.status, IdentificationStatus::NotIdentified, "{:?}", adj.derivation);

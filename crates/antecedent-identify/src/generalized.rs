@@ -9,11 +9,16 @@
 //! `An({T,Y}) ∪ (De(T) \ Forb(T,Y))` excluding `Forb(T,Y) ∪ {T,Y}`, where
 //! `Forb(T,Y) = De(cn(T,Y))` and `cn(T,Y) = De(T) ∩ An(Y) \ {T}` (nodes on
 //! proper causal paths from `T` to `Y`). Each subset is tested for m-separation of
-//! `T` and `Y` in `G_{\underline{T}}` (outgoing edges from `T` removed). Enumeration is
-//! by increasing set size and stops at the first valid set (minimal-first). Completions
-//! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
-//! unidentified mass. A completion whose candidate family exceeds `max_candidates` is
-//! folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
+//! `T` and `Y` in `G_{\underline{T}}` (outgoing edges from `T` removed). Whether any set
+//! exists is decided first by one m-separation test on the ancestral candidates
+//! `An({T,Y})` within that family (Perkovic et al. 2018, Thm. 5): if it fails, no
+//! generalized adjustment set exists on the completion and the search does not run.
+//! Enumeration is by increasing set size and stops at the first valid set (minimal-first);
+//! if `max_examinations` ends it early the ancestral set, already certified, is returned
+//! with an Execution diagnostic. Completions that are not MAGs, or MAGs with no qualifying
+//! set in this candidate family, contribute unidentified mass. A completion whose
+//! ancestral candidates pass that test but whose candidate family exceeds
+//! `max_candidates` is folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
 //! (there is no third identification outcome). Enumeration
 //! was never attempted, so this is not a scientific open-back-door: the result
 //! carries an Execution diagnostic [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] and is
@@ -81,13 +86,31 @@ pub struct GeneralizedAdjustmentConfig {
     pub per_completion_weight: f64,
     /// Max candidate covariates to enumerate (bitmask width).
     pub max_candidates: usize,
+    /// Separation tests one adjustment search may run before it stops looking for a smaller
+    /// set (work budget, not an output cap).
+    ///
+    /// Whether a single-treatment set exists is decided by one test on the ancestral set,
+    /// which is returned when the budget ends the search for a smaller one. The joint
+    /// multi-treatment search has no such shortcut: its budget ends the whole search and the
+    /// result is a bounded search, not a refutation.
+    pub max_examinations: u64,
 }
 
 impl Default for GeneralizedAdjustmentConfig {
     fn default() -> Self {
-        Self { max_completions: 32, per_completion_weight: 1.0, max_candidates: 40 }
+        Self {
+            max_completions: 32,
+            per_completion_weight: 1.0,
+            max_candidates: 40,
+            max_examinations: 1_000_000,
+        }
     }
 }
+
+/// Diagnostic code of a MAG generalized-adjustment search that spent `max_examinations`
+/// before it found a smaller set. The set it returns is valid; it is not minimal.
+pub const MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.generalized_adjustment.search_bounded";
 
 /// Class-aware identifier for PAGs via completion envelopes.
 #[derive(Clone, Debug, Default)]
@@ -139,6 +162,7 @@ impl GeneralizedAdjustmentIdentifier {
                 active.clone(),
                 control.clone(),
                 self.config.max_candidates,
+                self.config.max_examinations,
             )?;
             result.query = CausalQuery::AverageEffect(query.clone());
             if let (Some(admg), Some(cut)) =
@@ -330,14 +354,7 @@ pub(crate) fn pag_var_to_dense(
     pag: &Pag,
     id: VariableId,
 ) -> Result<DenseNodeId, IdentificationError> {
-    for (i, node) in pag.nodes().iter().enumerate() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == id {
-                return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
-            }
-        }
-    }
-    Err(IdentificationError::UnknownVariable { id })
+    crate::prepared::dense_of_static(pag.nodes(), id)
 }
 
 pub(crate) fn validate_dag_conditional_adjustment(
@@ -385,13 +402,7 @@ fn validate_conditional_adjustment(
     if query.effect_modifiers.is_empty() {
         return Ok(());
     }
-    let dense = |v: VariableId| {
-        nodes
-            .iter()
-            .position(|node| *node == antecedent_graph::NodeRef::Static(v))
-            .map(|i| DenseNodeId::from_raw(i as u32))
-            .ok_or(IdentificationError::UnknownVariable { id: v })
-    };
+    let dense = |v: VariableId| crate::prepared::dense_of_static(nodes, v);
     let t = dense(query.treatment)?;
     let y = dense(query.outcome)?;
     let modifiers =
@@ -420,7 +431,7 @@ fn validate_conditional_adjustment(
         let found =
             constrained_conditional_set(graph, mutilated, nodes, query, &modifiers, config)?;
         match found {
-            ConditionalSearch::Found(adjustments, examined) => {
+            ConditionalSearch::Found(adjustments, examined, budget_exhausted) => {
                 for adjustment in adjustments {
                     let (active, control) = conditional_levels(query)?;
                     let functional = result.arena.backdoor_ate(
@@ -442,6 +453,17 @@ fn validate_conditional_adjustment(
                 result.performance.sets_returned = valid.len() as u64;
                 result.diagnostics.retain(|d| d.code.as_ref() != CAPPED_COMPLETION_DIAGNOSTIC_CODE);
                 result.derivation.push("conditional.adjustment.search", "searched with the fixed pre-treatment modifier in every separation test; alternative joint conditioning set certified");
+                if budget_exhausted {
+                    result.diagnostics.push(crate::result::search_bounded_diagnostic(
+                        CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+                        format!(
+                            "conditional adjustment search reached max_examinations={} before it \
+                             finished; the returned set separates treatment from outcome but a \
+                             smaller one may exist",
+                            config.max_examinations
+                        ),
+                    ));
+                }
                 if result.required_assumptions.entries.is_empty() {
                     result
                         .required_assumptions
@@ -454,25 +476,6 @@ fn validate_conditional_adjustment(
                     n,
                     config.max_candidates,
                 );
-                return Ok(());
-            }
-            ConditionalSearch::Bounded(examined) => {
-                *result = not_identified(
-                    CausalQuery::AverageEffect(query.clone()),
-                    "modifier-constrained adjustment search stopped at its examination budget; undecided",
-                );
-                result.performance.candidates_examined = examined;
-                result.diagnostics.push(Diagnostic::new(
-                    CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-                    DiagnosticKind::Execution,
-                    DiagnosticSeverity::Warning,
-                    format!(
-                        "conditional adjustment search ran {examined} separation tests \
-                         (max_examinations={}) without finding a set and without exhausting \
-                         the candidate subsets; identifiability is undecided, not refuted",
-                        config.max_examinations
-                    ),
-                ));
                 return Ok(());
             }
             ConditionalSearch::Absent => {}
@@ -510,10 +513,11 @@ fn conditional_levels(query: &AverageEffectQuery) -> Result<(Value, Value), Iden
 }
 
 enum ConditionalSearch {
-    Found(Vec<Vec<VariableId>>, u64),
+    /// Certified sets, separation tests spent, and whether the examination budget cut the
+    /// search for smaller sets short.
+    Found(Vec<Vec<VariableId>>, u64, bool),
     Capped(usize),
-    /// No set among the subsets tested, and the examination budget ran out first.
-    Bounded(u64),
+    /// Proved: no admissible set exists.
     Absent,
 }
 
@@ -525,25 +529,28 @@ fn constrained_conditional_set(
     modifiers: &[DenseNodeId],
     config: &crate::backdoor::AdjustmentSearchConfig,
 ) -> Result<ConditionalSearch, IdentificationError> {
-    let dense = |v| {
-        nodes
-            .iter()
-            .position(|node| *node == antecedent_graph::NodeRef::Static(v))
-            .map(|i| DenseNodeId::from_raw(i as u32))
-            .ok_or(IdentificationError::UnknownVariable { id: v })
-    };
+    let dense = |v| crate::prepared::dense_of_static(nodes, v);
     let t = dense(query.treatment)?;
     let y = dense(query.outcome)?;
     let candidates = gac_conditional_candidates(graph, nodes, t, y, modifiers, config);
+    // The candidates are An({T,Y} + modifiers) minus the forbidden variables, so together
+    // with the modifiers they are the ancestral conditioning set: it separates T from Y in
+    // the cut graph whenever any admissible set does (van der Zander, Liskiewicz & Textor
+    // 2014). One test decides existence; the subset search only chooses among valid sets.
+    let mut ws = DSeparationWorkspace::default();
+    let mut examined = 1u64;
+    let mut all_conditioned = candidates.clone();
+    all_conditioned.extend_from_slice(modifiers);
+    if !cut.is_m_separated(t, y, &all_conditioned, &mut ws)? {
+        return Ok(ConditionalSearch::Absent);
+    }
     if candidates.len() > config.max_candidates {
         return Ok(ConditionalSearch::Capped(candidates.len()));
     }
     if config.max_results == 0 {
         return Ok(ConditionalSearch::Absent);
     }
-    let mut ws = DSeparationWorkspace::default();
     let mut found: Vec<Vec<DenseNodeId>> = Vec::new();
-    let mut examined = 0;
     let mut budget_exhausted = false;
     let sizes: Vec<_> = if config.maximal_only && !config.minimal_only {
         (0..=candidates.len()).rev().collect()
@@ -559,14 +566,21 @@ fn constrained_conditional_set(
             if config.maximal_only && found.iter().any(|old| z.iter().all(|v| old.contains(v))) {
                 return false;
             }
-            if examined >= config.max_examinations {
+            // The ancestral set was tested above; it is not tested twice.
+            let known_valid = z == candidates.as_slice();
+            if !known_valid && examined >= config.max_examinations {
                 budget_exhausted = true;
                 return true;
             }
-            examined += 1;
             let mut conditioned = z.to_vec();
             conditioned.extend_from_slice(modifiers);
-            match cut.is_m_separated(t, y, &conditioned, &mut ws) {
+            let separated = if known_valid {
+                Ok(true)
+            } else {
+                examined += 1;
+                cut.is_m_separated(t, y, &conditioned, &mut ws)
+            };
+            match separated {
                 Ok(true) => {
                     found.push(z.to_vec());
                     config.minimal_only && z.is_empty() || found.len() >= config.max_results
@@ -601,15 +615,24 @@ fn constrained_conditional_set(
                 .collect()
         })
         .collect();
+    if sets.is_empty() && budget_exhausted {
+        // The budget stopped the search for smaller sets, but the ancestral set is already
+        // known valid: existence is decided, only the choice of set is unfinished.
+        sets.push(
+            candidates
+                .iter()
+                .map(|id| match nodes[id.as_usize()] {
+                    antecedent_graph::NodeRef::Static(v) => v,
+                    _ => unreachable!("static graph"),
+                })
+                .collect(),
+        );
+    }
     rank_conditional_sets(&mut sets, config);
     Ok(if sets.is_empty() {
-        if budget_exhausted {
-            ConditionalSearch::Bounded(examined)
-        } else {
-            ConditionalSearch::Absent
-        }
+        ConditionalSearch::Absent
     } else {
-        ConditionalSearch::Found(sets, examined)
+        ConditionalSearch::Found(sets, examined, budget_exhausted)
     })
 }
 
@@ -696,10 +719,11 @@ fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg
 }
 
 enum MagAdjustment {
-    Found { z_vars: Arc<[VariableId]>, examined: u64 },
+    Found { z_vars: Arc<[VariableId]>, examined: u64, budget_exhausted: bool },
     Failed(IdentificationResult),
 }
 
+#[allow(clippy::too_many_arguments)]
 fn mag_adjustment_search(
     mag: &Pag,
     _t: VariableId,
@@ -708,6 +732,7 @@ fn mag_adjustment_search(
     y_d: DenseNodeId,
     query: CausalQuery,
     max_candidates: usize,
+    max_examinations: u64,
 ) -> Result<MagAdjustment, IdentificationError> {
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(MagAdjustment::Failed(not_identified(
@@ -723,6 +748,32 @@ fn mag_adjustment_search(
         )));
     };
     let candidates = adjustment_candidates(&admg, t_d, y_d);
+
+    // A generalized adjustment set exists iff An({T,Y}) restricted to the candidates
+    // separates T from Y in the proper back-door graph (Perkovic et al. 2018, Thm. 5, after
+    // van der Zander et al. 2014). The ancestors of {T,Y} agree in the cut graph and in the
+    // MAG because the cut removes only edges leaving T, so one m-separation test decides
+    // existence and the subset search below only picks a small set.
+    let ancestral = directed_closure(&admg, &[t_d, y_d], true);
+    let constructive: Vec<DenseNodeId> =
+        candidates.iter().copied().filter(|&v| ancestral.contains(v)).collect();
+    let mut ws = DSeparationWorkspace::default();
+    if !mutilated.is_m_separated(t_d, y_d, &constructive, &mut ws)? {
+        return Ok(MagAdjustment::Failed(IdentificationResult::not_identified(
+            query,
+            {
+                let mut d = DerivationTrace::default();
+                d.push(
+                    "generalized.adjustment",
+                    "no generalized adjustment set on completion: the ancestral candidate set does \
+                     not m-separate treatment from outcome in the proper back-door graph",
+                );
+                d
+            },
+            AssumptionSet::default(),
+            IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 0 },
+        )));
+    }
     if candidates.len() > max_candidates {
         return Ok(MagAdjustment::Failed(capped_completion_result(
             query,
@@ -731,63 +782,28 @@ fn mag_adjustment_search(
         )));
     }
 
-    let mut ws = DSeparationWorkspace::default();
-    let mut examined = 0u64;
-    let mut found: Option<Vec<DenseNodeId>> = None;
-    'sizes: for size in 0..=candidates.len() {
-        let mut early = false;
-        let mut enum_err: Option<IdentificationError> = None;
-        crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
-            if enum_err.is_some() {
-                return true;
-            }
-            examined += 1;
-            match mutilated.is_m_separated(t_d, y_d, z, &mut ws) {
-                Ok(true) => {
-                    found = Some(z.to_vec());
-                    early = true;
-                    true
-                }
-                Ok(false) => false,
-                Err(e) => {
-                    enum_err = Some(IdentificationError::from(e));
-                    true
-                }
-            }
-        });
-        if let Some(e) = enum_err {
-            return Err(e);
+    let search = crate::enum_masks::first_set_by_size(&candidates, 1, max_examinations, |z| {
+        if z == constructive.as_slice() {
+            return Ok(true);
         }
-        if early {
-            break 'sizes;
-        }
-    }
-
-    let Some(z_dense) = found else {
-        return Ok(MagAdjustment::Failed(IdentificationResult::not_identified(
-            query,
-            {
-                let mut d = DerivationTrace::default();
-                d.push(
-                    "generalized.adjustment",
-                    "no generalized adjustment set among ancestor candidates on completion",
-                );
-                d
-            },
-            AssumptionSet::default(),
-            IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-        )));
-    };
-
+        mutilated.is_m_separated(t_d, y_d, z, &mut ws).map_err(IdentificationError::from)
+    })?;
+    // The budget ended the search for a smaller set; the ancestral set is already certified.
+    let z_dense = search.found.unwrap_or(constructive);
     let z_vars: Arc<[VariableId]> =
         z_dense.iter().map(|&d| mag_dense_to_var(mag, d)).collect::<Result<Vec<_>, _>>()?.into();
-    Ok(MagAdjustment::Found { z_vars, examined })
+    Ok(MagAdjustment::Found {
+        z_vars,
+        examined: search.examined,
+        budget_exhausted: search.budget_exhausted,
+    })
 }
 
 fn mag_adjustment_identified(
     query: CausalQuery,
     z_vars: Arc<[VariableId]>,
     examined: u64,
+    budget_exhausted: bool,
     functional: antecedent_expr::ExprId,
     arena: CausalExprArena,
 ) -> IdentificationResult {
@@ -796,7 +812,7 @@ fn mag_adjustment_identified(
     let estimand = IdentifiedEstimand::backdoor(label, z_vars, functional);
     let mut assumptions = AssumptionSet::default();
     assumptions.push(crate::assumptions::causal_markov("generalized.adjustment.mag"));
-    IdentificationResult::identified(
+    let mut result = IdentificationResult::identified(
         query,
         vec![estimand],
         arena,
@@ -812,7 +828,18 @@ fn mag_adjustment_identified(
         },
         assumptions,
         IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 1 },
-    )
+    );
+    if budget_exhausted {
+        result.diagnostics.push(crate::result::search_bounded_diagnostic(
+            MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+            format!(
+                "generalized adjustment search reached its examination budget after {examined} \
+                 separation tests before it found a smaller set; the returned set m-separates \
+                 treatment from outcome but is not minimal"
+            ),
+        ));
+    }
+    result
 }
 
 pub(crate) fn identify_on_mag_completion(
@@ -824,6 +851,7 @@ pub(crate) fn identify_on_mag_completion(
     active: Value,
     control: Value,
     max_candidates: usize,
+    max_examinations: u64,
 ) -> Result<IdentificationResult, IdentificationError> {
     let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
         t,
@@ -833,12 +861,28 @@ pub(crate) fn identify_on_mag_completion(
         antecedent_core::Intervention::set(t, active.clone()),
         antecedent_core::TargetPopulation::AllObserved,
     ));
-    match mag_adjustment_search(mag, t, y, t_d, y_d, query.clone(), max_candidates)? {
+    match mag_adjustment_search(
+        mag,
+        t,
+        y,
+        t_d,
+        y_d,
+        query.clone(),
+        max_candidates,
+        max_examinations,
+    )? {
         MagAdjustment::Failed(result) => Ok(result),
-        MagAdjustment::Found { z_vars, examined } => {
+        MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
             let functional = arena.backdoor_ate(t, y, &z_vars, active, control);
-            Ok(mag_adjustment_identified(query, z_vars, examined, functional, arena))
+            Ok(mag_adjustment_identified(
+                query,
+                z_vars,
+                examined,
+                budget_exhausted,
+                functional,
+                arena,
+            ))
         }
     }
 }
@@ -852,15 +896,32 @@ pub(crate) fn identify_on_mag_completion_mean(
     y_d: DenseNodeId,
     level: Value,
     max_candidates: usize,
+    max_examinations: u64,
     response: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let query = CausalQuery::Response(response.clone());
-    match mag_adjustment_search(mag, t, y, t_d, y_d, query.clone(), max_candidates)? {
+    match mag_adjustment_search(
+        mag,
+        t,
+        y,
+        t_d,
+        y_d,
+        query.clone(),
+        max_candidates,
+        max_examinations,
+    )? {
         MagAdjustment::Failed(result) => Ok(result),
-        MagAdjustment::Found { z_vars, examined } => {
+        MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
             let functional = arena.backdoor_mean(t, y, &z_vars, level);
-            Ok(mag_adjustment_identified(query, z_vars, examined, functional, arena))
+            Ok(mag_adjustment_identified(
+                query,
+                z_vars,
+                examined,
+                budget_exhausted,
+                functional,
+                arena,
+            ))
         }
     }
 }
@@ -905,22 +966,25 @@ fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<Den
     out
 }
 
+/// Directed ancestors (or descendants) of `seeds`, seeds included.
 pub(crate) fn directed_closure(admg: &Admg, seeds: &[DenseNodeId], ancestors: bool) -> BitSet {
-    let mut out = BitSet::with_len(admg.node_count());
-    let mut stack: Vec<DenseNodeId> = seeds.to_vec();
-    for &s in seeds {
-        out.insert(s);
-    }
-    while let Some(u) = stack.pop() {
-        let nbrs = if ancestors { admg.parents(u) } else { admg.children(u) };
-        for &v in nbrs {
-            if !out.contains(v) {
-                out.insert(v);
-                stack.push(v);
-            }
+    let n = admg.node_count();
+    let mut ws = antecedent_graph::GraphWorkspace::default();
+    if ancestors {
+        let mut seed_set = BitSet::with_len(n);
+        let mut active = BitSet::with_len(n);
+        for &s in seeds {
+            seed_set.insert(s);
         }
+        for i in 0..n {
+            active.insert(DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")));
+        }
+        admg.ancestors_within(&seed_set, &active, None, &mut ws)
+    } else {
+        let mut out = BitSet::with_len(n);
+        admg.descendants_of(seeds, &mut out, &mut ws);
+        out
     }
-    out
 }
 
 pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
@@ -1109,10 +1173,12 @@ mod tests {
     }
 
     /// `T <- A -> W <- B -> Y`, `T -> Y`, conditioning on the pre-treatment collider `W`:
-    /// the empty set fails and `{A}` succeeds. A search allowed one separation test stops
-    /// after the empty set, which decides nothing.
+    /// the empty set fails and `{A}` and `{B}` succeed. A budget of two separation tests
+    /// is spent on the ancestral set and the empty set, so the search for smaller sets stops
+    /// before it reaches `{A}`; the ancestral set `{A, B}` was already tested valid, so the
+    /// query is identified with it and the unfinished search is marked, not refuted.
     #[test]
-    fn conditional_search_budget_exit_is_a_bounded_search_not_a_refutation() {
+    fn conditional_search_budget_exit_keeps_the_certified_ancestral_set() {
         let mut dag = antecedent_graph::Dag::with_variables(5);
         for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
             dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
@@ -1138,8 +1204,12 @@ mod tests {
             .unwrap()
         };
 
-        let bounded = run(1);
-        assert_eq!(bounded.status, IdentificationStatus::NotIdentified);
+        let bounded = run(2);
+        assert_eq!(bounded.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(
+            bounded.estimands[0].adjustment_set.as_ref(),
+            &[VariableId::from_raw(1), VariableId::from_raw(3)]
+        );
         let kinds: Vec<_> =
             bounded.diagnostics.iter().map(|d| (d.code.as_ref().to_owned(), d.kind)).collect();
         assert_eq!(
@@ -1154,6 +1224,43 @@ mod tests {
         let full = run(1_000_000);
         assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(full.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(1)]);
+        assert!(full.diagnostics.is_empty());
+    }
+
+    /// Same graph with both `A` and `B` forbidden: conditioning on the collider `W` opens
+    /// `T <- A -> W <- B -> Y` and nothing admissible can close it. One separation test on
+    /// the ancestral conditioning set proves that; it is not a budget miss.
+    #[test]
+    fn conditional_adjustment_with_no_admissible_set_is_absent_not_bounded() {
+        let mut dag = antecedent_graph::Dag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let query = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
+                .with_effect_modifiers([VariableId::from_raw(2)]),
+        );
+        let id = crate::BackdoorIdentifier {
+            config: crate::backdoor::AdjustmentSearchConfig {
+                max_examinations: 2,
+                forbidden: Arc::from([VariableId::from_raw(1), VariableId::from_raw(3)]),
+                ..Default::default()
+            },
+        };
+        let prepared = id.prepare(&dag).unwrap();
+        let result = crate::Identifier::identify(
+            &id,
+            &prepared,
+            &query,
+            &mut crate::IdentificationWorkspace::default(),
+        )
+        .unwrap();
+        assert_eq!(result.status, IdentificationStatus::NotIdentified);
+        assert!(
+            !result.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Execution),
+            "{:?}",
+            result.diagnostics
+        );
     }
 
     #[test]
@@ -1165,6 +1272,7 @@ mod tests {
                 max_completions: 8,
                 per_completion_weight: 1.0,
                 max_candidates: 16,
+                ..Default::default()
             },
         };
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
@@ -1259,6 +1367,7 @@ mod tests {
                 max_completions: 8,
                 per_completion_weight: 1.0,
                 max_candidates: 0,
+                ..Default::default()
             },
         };
         let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));

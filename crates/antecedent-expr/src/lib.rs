@@ -640,6 +640,117 @@ impl CausalExprArena {
         id
     }
 
+    /// Copy the expression rooted at `root` in `source` into this arena and return its id here.
+    ///
+    /// Every interned table an expression refers to (variable sets, intervention sets, lists,
+    /// populations) is re-interned, so the copy is structurally equal to the original and
+    /// shares nodes with anything already in this arena. Derivation metadata of the copied
+    /// nodes comes along, with references to nodes outside the copy dropped.
+    ///
+    /// This is how functionals derived in separate arenas are listed in one result.
+    pub fn import(&mut self, source: &CausalExprArena, root: ExprId) -> ExprId {
+        // Children are interned before their parents, so ascending id order visits every
+        // node after the nodes it refers to.
+        let mut reachable = std::collections::BTreeSet::new();
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            if !reachable.insert(id) {
+                continue;
+            }
+            stack.extend(source.children_of(id));
+        }
+        let mut remap: HashMap<ExprId, ExprId> = HashMap::with_capacity(reachable.len());
+        for &id in &reachable {
+            let node = match source.node(id) {
+                ExprNode::Distribution {
+                    variables,
+                    conditioned_on,
+                    intervention,
+                    domain,
+                    population,
+                    regime,
+                } => ExprNode::Distribution {
+                    variables: self.import_var_set(source, *variables),
+                    conditioned_on: self.import_var_set(source, *conditioned_on),
+                    intervention: self.intern_intervention_assignments(
+                        source.intervention_assignments(*intervention).iter().cloned(),
+                    ),
+                    domain: *domain,
+                    population: self.intern_population(source.population(*population)),
+                    regime: *regime,
+                },
+                ExprNode::Kernel { body, bound, population, regime } => ExprNode::Kernel {
+                    body: remap[body],
+                    bound: self.import_var_set(source, *bound),
+                    population: self.intern_population(source.population(*population)),
+                    regime: *regime,
+                },
+                ExprNode::Product(list) => {
+                    let children: Vec<ExprId> =
+                        source.list(*list).iter().map(|c| remap[c]).collect();
+                    ExprNode::Product(self.intern_list(children))
+                }
+                ExprNode::SumOut { variables, expr } => ExprNode::SumOut {
+                    variables: self.import_var_set(source, *variables),
+                    expr: remap[expr],
+                },
+                ExprNode::IntegralOut { variables, expr } => ExprNode::IntegralOut {
+                    variables: self.import_var_set(source, *variables),
+                    expr: remap[expr],
+                },
+                ExprNode::Ratio { numerator, denominator } => {
+                    ExprNode::Ratio { numerator: remap[numerator], denominator: remap[denominator] }
+                }
+                ExprNode::Expectation { function, distribution } => {
+                    ExprNode::Expectation { function: *function, distribution: remap[distribution] }
+                }
+                ExprNode::Contrast { left, right, op } => {
+                    ExprNode::Contrast { left: remap[left], right: remap[right], op: *op }
+                }
+            };
+            remap.insert(id, self.intern(node));
+        }
+        for &id in &reachable {
+            let Some(meta) = source.derivation(id) else {
+                continue;
+            };
+            let mapped = |e: &Option<ExprId>| e.and_then(|e| remap.get(&e).copied());
+            let parents: Vec<ExprId> =
+                meta.parents.iter().filter_map(|p| remap.get(p).copied()).collect();
+            self.set_derivation_if_absent(
+                remap[&id],
+                DerivationMeta {
+                    rule: Arc::clone(&meta.rule),
+                    note: meta.note.clone(),
+                    input: mapped(&meta.input),
+                    output: mapped(&meta.output),
+                    graph_operation: meta.graph_operation.clone(),
+                    premises: Arc::clone(&meta.premises),
+                    evidence: Arc::clone(&meta.evidence),
+                    parents: Arc::from(parents),
+                },
+            );
+        }
+        remap[&root]
+    }
+
+    fn import_var_set(&mut self, source: &CausalExprArena, id: VarSetId) -> VarSetId {
+        self.intern_var_set(source.var_set(id).iter().copied())
+    }
+
+    /// Direct sub-expressions of a node.
+    fn children_of(&self, id: ExprId) -> Vec<ExprId> {
+        match self.node(id) {
+            ExprNode::Distribution { .. } => Vec::new(),
+            ExprNode::Kernel { body, .. } => vec![*body],
+            ExprNode::Product(list) => self.list(*list).to_vec(),
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => vec![*expr],
+            ExprNode::Ratio { numerator, denominator } => vec![*numerator, *denominator],
+            ExprNode::Expectation { distribution, .. } => vec![*distribution],
+            ExprNode::Contrast { left, right, .. } => vec![*left, *right],
+        }
+    }
+
     /// Attach derivation metadata (does not affect semantic equality).
     pub fn set_derivation(&mut self, id: ExprId, meta: DerivationMeta) {
         self.derivation.insert(id.0, meta);
@@ -1033,6 +1144,31 @@ impl fmt::Display for ExprId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn import_copies_a_functional_between_arenas_without_changing_it() {
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut source = CausalExprArena::new();
+        // Populate the source with unrelated nodes first so ids differ between arenas.
+        source.backdoor_ate(y, t, &[], Value::f64(5.0), Value::f64(4.0));
+        let ate = source.backdoor_ate(t, y, &[z], Value::f64(1.0), Value::f64(0.0));
+        let front = source.frontdoor_ate(t, y, &[z], Value::f64(1.0), Value::f64(0.0));
+
+        let mut target = CausalExprArena::new();
+        let existing = target.backdoor_ate(t, z, &[], Value::f64(1.0), Value::f64(0.0));
+        let copied = target.import(&source, ate);
+        let copied_front = target.import(&source, front);
+
+        assert_eq!(target.pretty(copied), source.pretty(ate));
+        assert_eq!(target.pretty(copied_front), source.pretty(front));
+        assert_ne!(copied, existing);
+        // Importing is idempotent: hash-consing returns the same node the second time.
+        assert_eq!(target.import(&source, ate), copied);
+        // The copy keeps the derivation rule of the root.
+        assert_eq!(target.derivation(copied).map(|m| m.rule.as_ref()), Some("backdoor.adjustment"));
+        // The source is untouched.
+        assert_eq!(source.pretty(ate), target.pretty(copied));
+    }
 
     #[test]
     fn rd_functional_is_the_boundary_contrast_not_the_unadjusted_one() {
