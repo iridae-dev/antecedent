@@ -40,7 +40,7 @@ use crate::serial_dependence::{
 };
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::temporal_block::{
-    AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores,
+    AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores_of_residuals,
     testing_block_length,
 };
 use crate::temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
@@ -1936,6 +1936,9 @@ struct FittedHorizon {
     column_means: Vec<f64>,
     /// Full-sample OLS residuals (length n).
     residuals: Vec<f64>,
+    /// Gram matrix `X'X` (`p × p`, row-major): it depends on the horizon's design only,
+    /// so every cell of the grid reads this one copy.
+    gram: Vec<f64>,
 }
 
 impl FittedHorizon {
@@ -1949,7 +1952,8 @@ impl FittedHorizon {
             .least_squares(&prepared.design.matrix, n, p, &prepared.design.outcome, ols_ws)
             .map_err(EstimationError::from)?;
         let column_means = design_column_means(&prepared.design);
-        Ok(Self { prepared, coefs: fit.coefficients, column_means, residuals: fit.residuals })
+        let gram = crate::util::gram(&prepared.design.matrix[..n * p], n, p);
+        Ok(Self { prepared, coefs: fit.coefficients, column_means, residuals: fit.residuals, gram })
     }
 
     fn treatment_mean(&self) -> f64 {
@@ -1968,24 +1972,12 @@ impl FittedHorizon {
         let design = &self.prepared.design;
         let (n, p) = (design.nrows, design.ncols);
         let x = &design.matrix[..n * p];
-        let mut xtx = vec![0.0; p * p];
-        for a in 0..p {
-            for b in a..p {
-                let dot: f64 = x[a * n..(a + 1) * n]
-                    .iter()
-                    .zip(&x[b * n..(b + 1) * n])
-                    .map(|(u, v)| u * v)
-                    .sum();
-                xtx[a * p + b] = dot;
-                xtx[b * p + a] = dot;
-            }
-        }
         let mut direction = self.column_means.clone();
         direction[TREATMENT_COL] = match eval {
             CellEval::Dose(dose) => dose,
             CellEval::Shift(shift) => self.column_means[TREATMENT_COL] + shift,
         };
-        let v = solve_spd(&xtx, &direction, p)?;
+        let v = solve_spd(&self.gram, &direction, p)?;
         let reads_treatment_mean = matches!(eval, CellEval::Shift(_));
         let n_f = n as f64;
         Some(
@@ -2028,9 +2020,7 @@ fn horizon_scores(horizons: &[FittedHorizon]) -> Vec<Vec<f64>> {
     for fitted in horizons {
         let design = &fitted.prepared.design;
         let (n, p) = (design.nrows, design.ncols);
-        scores.extend(
-            normal_equation_scores(&design.matrix, n, p, &design.outcome).unwrap_or_default(),
-        );
+        scores.extend(normal_equation_scores_of_residuals(&design.matrix, n, p, &fitted.residuals));
         for (c, &mean) in fitted.column_means.iter().enumerate().skip(1) {
             scores.push(design.matrix[c * n..(c + 1) * n].iter().map(|x| x - mean).collect());
         }
@@ -3873,6 +3863,38 @@ mod tests {
                 psi_rep[2 * t],
                 psi2[t]
             );
+        }
+    }
+
+    /// The horizon caches one Gram matrix and reads its OLS residuals for the estimating
+    /// scores; both must equal the definitions (`x_a'x_b` and, by the normal equations,
+    /// `Σ_t x_tj ê_t = 0`).
+    #[test]
+    fn horizon_caches_gram_and_scores_use_the_held_residuals() {
+        let n = 60usize;
+        let z_id = VariableId::from_raw(2);
+        let a: Vec<f64> = (0..n).map(|i| ((i * 7 % 11) as f64) - 5.0).collect();
+        let z: Vec<f64> = (0..n).map(|i| ((i * 5 % 13) as f64) * 0.5 - 3.0).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 1.0 + 0.7 * a[i] - 0.4 * z[i] + 0.3 * ((i * 3 % 7) as f64 - 3.0))
+            .collect();
+        let fitted = fitted_horizon(&a, &[(z_id, z.as_slice())], &y);
+        let cols: [Vec<f64>; 3] = [vec![1.0; n], a.clone(), z.clone()];
+        for r in 0..3 {
+            for c in 0..3 {
+                let dot: f64 = (0..n).map(|t| cols[r][t] * cols[c][t]).sum();
+                assert!((fitted.gram[r * 3 + c] - dot).abs() < 1e-9, "gram[{r}][{c}]");
+            }
+        }
+        let scores = horizon_scores(std::slice::from_ref(&fitted));
+        // 3 normal-equation series, then the 2 centered non-intercept columns.
+        assert_eq!(scores.len(), 5);
+        for (j, series) in scores.iter().take(3).enumerate() {
+            let total: f64 = series.iter().sum();
+            assert!(total.abs() < 1e-8, "normal equation {j}: sum {total}");
+            for t in 0..n {
+                assert!((series[t] - cols[j][t] * fitted.residuals[t]).abs() < 1e-12);
+            }
         }
     }
 

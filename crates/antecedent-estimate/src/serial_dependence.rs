@@ -106,7 +106,9 @@ use std::sync::Arc;
 
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
+use crate::ar_kernel::{MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho};
 use crate::error::EstimationError;
+use crate::util::gram;
 
 /// Stable prefix of the inference-diagnostics note recording the tempering factor.
 pub const DEPENDENCE_NOTE_PREFIX: &str = "serial_dependence.long_run_tempering";
@@ -116,7 +118,7 @@ pub const DEPENDENCE_ASSUMPTION_ID: &str = "bayes.temporal.long_run_tempering";
 
 /// Largest absolute partial autocorrelation of the fitted AR(q), and largest
 /// absolute AR(1) prewhitening coefficient (keeps the recolouring finite).
-const MAX_PARTIAL_AUTOCORRELATION: f64 = 0.97;
+const MAX_PARTIAL_AUTOCORRELATION: f64 = MAX_AR_RHO;
 
 /// Fewest rows on which a tempering factor is estimated; shorter designs keep `κ = 1`.
 const MIN_ROWS: usize = 8;
@@ -124,9 +126,6 @@ const MIN_ROWS: usize = 8;
 /// Residual sum of squares, relative to the outcome's centred sum of squares, at or
 /// below which the fit is exact and `κ̂` stays at `1`.
 const EXACT_FIT_RELATIVE_SS: f64 = 1e-20;
-
-/// Largest autoregressive order the BIC search considers.
-const MAX_AR_ORDER: usize = 4;
 
 /// Largest factor by which the autoregressive factor may exceed the
 /// fixed-b-scaled score HAC ratio. On the calibration designs the bound
@@ -718,20 +717,6 @@ fn residual_fit(design: &CompiledDesign) -> Result<Arc<ResidualFit>, EstimationE
         total -= cache.pop().map_or(0, |c| retained(&c));
     }
     Ok(fit)
-}
-
-/// `X'X` (row-major `p × p`) of a column-major design.
-fn gram(x: &[f64], n: usize, p: usize) -> Vec<f64> {
-    let mut xtx = vec![0.0; p * p];
-    for a in 0..p {
-        for b in a..p {
-            let dot: f64 =
-                x[a * n..(a + 1) * n].iter().zip(&x[b * n..(b + 1) * n]).map(|(u, v)| u * v).sum();
-            xtx[a * p + b] = dot;
-            xtx[b * p + a] = dot;
-        }
-    }
-    xtx
 }
 
 /// REML AR(q) fit of the residual process.
@@ -1438,54 +1423,6 @@ fn information_matrix(z: &[f64], kernel: &RemlKernel) -> Vec<f64> {
     info
 }
 
-/// Yule–Walker autoregression of a series, at a BIC-selected order (the
-/// prewhitening filter of the bounding score HAC ratio).
-#[derive(Clone, Debug, Default)]
-struct Autoregression {
-    /// Coefficients `φ₁ … φ_q` (empty for `q = 0`).
-    phi: Vec<f64>,
-}
-
-/// Yule–Walker AR(q) fit of `s` from its uncentred autocovariances (the same
-/// convention as [`kendall_rho`]; OLS residuals and scores have mean zero), with
-/// `q ≤ MAX_AR_ORDER` minimizing `n ln σ̂²_q + q ln n` (Levinson–Durbin). The
-/// Toeplitz autocovariance is positive definite, so every fitted model is
-/// stationary.
-fn bic_autoregression(s: &[f64]) -> Autoregression {
-    let n = s.len();
-    let max_order = MAX_AR_ORDER.min(n.saturating_sub(2));
-    let gamma: Vec<f64> = (0..=max_order).map(|k| dot(&s[k..], s) / n as f64).collect();
-    if gamma[0] <= 0.0 || !gamma[0].is_finite() {
-        return Autoregression::default();
-    }
-    let nf = n as f64;
-    let mut phi: Vec<f64> = Vec::new();
-    let mut variance = gamma[0];
-    let (mut best_bic, mut best) = (nf * variance.ln(), Vec::new());
-    for order in 1..=max_order {
-        let acc = gamma[order]
-            - phi.iter().enumerate().map(|(j, f)| f * gamma[order - 1 - j]).sum::<f64>();
-        let reflection = acc / variance;
-        if !reflection.is_finite() || reflection.abs() >= 1.0 {
-            break;
-        }
-        let mut next: Vec<f64> =
-            (0..order - 1).map(|j| phi[j] - reflection * phi[order - 2 - j]).collect();
-        next.push(reflection);
-        phi = next;
-        variance *= 1.0 - reflection * reflection;
-        if variance <= 0.0 || variance.is_nan() {
-            break;
-        }
-        let bic = nf * variance.ln() + order as f64 * nf.ln();
-        if bic < best_bic {
-            best_bic = bic;
-            best.clone_from(&phi);
-        }
-    }
-    Autoregression { phi: best }
-}
-
 /// AR(q)-prewhitened Bartlett long-run variance of `s` divided by its variance:
 /// `u_t = s_t − Σ φ_j s_{t−j}`, recoloured by `1/(1 − Σφ)²` (floored like the
 /// AR(1) filter's `1 − ρ̂`).
@@ -1503,36 +1440,31 @@ fn ar_prewhitened_variance_ratio(s: &[f64], phi: &[f64], bandwidth: usize) -> f6
     bartlett_long_run_variance(&u, bandwidth) / recolour.powi(2) / gamma0
 }
 
-/// Bias-corrected lag-1 autocorrelation of `s` (Kendall 1954:
-/// `E[ρ̂] ≈ ρ − (1 + 3ρ)/n`), clamped to `±MAX_PARTIAL_AUTOCORRELATION`.
-fn kendall_rho(s: &[f64]) -> f64 {
-    let (num, den) = if s.len() < 2 {
-        (0.0, 0.0)
-    } else {
-        let lead = &s[..s.len() - 1];
-        (dot(&s[1..], lead), dot(lead, lead))
-    };
-    let rho_hat = if den > 0.0 { num / den } else { 0.0 };
-    (rho_hat + (1.0 + 3.0 * rho_hat) / s.len() as f64)
-        .clamp(-MAX_PARTIAL_AUTOCORRELATION, MAX_PARTIAL_AUTOCORRELATION)
-}
-
-/// Dot product over the common length of `a` and `b` with four independent
-/// accumulators (the score HAC passes are otherwise latency-bound on one
-/// floating-point chain).
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    let n = a.len().min(b.len());
-    let (a, b) = (&a[..n], &b[..n]);
-    let mut acc = [0.0_f64; 4];
-    let (head_a, tail_a) = a.split_at(n - n % 4);
-    let (head_b, tail_b) = b.split_at(n - n % 4);
-    for (ca, cb) in head_a.chunks_exact(4).zip(head_b.chunks_exact(4)) {
-        for k in 0..4 {
-            acc[k] += ca[k] * cb[k];
-        }
+/// Standard error of the sample mean of a serially dependent series: `√(γ₀ · r / n)` with
+/// `γ₀` the variance and `r` the Bartlett long-run-variance ratio, the larger of the
+/// AR(1)-prewhitened and (when BIC selects order 2 or more) the AR(q)-prewhitened
+/// readings, floored at 1 so a persistence-blind mean is never narrower than the iid one
+/// (the same floor as the tempering factor). `0` for fewer than three finite values or a
+/// constant series.
+#[must_use]
+pub(crate) fn mean_standard_error(series: &[f64]) -> f64 {
+    let n = series.len();
+    if n < 3 || series.iter().any(|v| !v.is_finite()) {
+        return 0.0;
     }
-    let tail: f64 = tail_a.iter().zip(tail_b).map(|(u, v)| u * v).sum();
-    (acc[0] + acc[1]) + (acc[2] + acc[3]) + tail
+    let mean = series.iter().sum::<f64>() / n as f64;
+    let s: Vec<f64> = series.iter().map(|v| v - mean).collect();
+    let gamma0 = dot(&s, &s) / n as f64;
+    if !gamma0.is_finite() || gamma0 <= 0.0 {
+        return 0.0;
+    }
+    let bandwidth = newey_west_bandwidth(n);
+    let mut ratio = long_run_variance_ratio(&s, bandwidth);
+    let model = bic_autoregression(&s);
+    if model.phi.len() >= 2 {
+        ratio = ratio.max(ar_prewhitened_variance_ratio(&s, &model.phi, bandwidth));
+    }
+    (gamma0 * ratio.max(1.0) / n as f64).sqrt()
 }
 
 /// Newey–West rule-of-thumb bandwidth `⌊4 (n/100)^{2/9}⌋`.
@@ -1606,6 +1538,30 @@ mod tests {
             }
         }
         r
+    }
+
+    /// The standard error of a mean is `√(γ₀ (1 + ρ)/(1 − ρ) / n)` for an AR(1); the
+    /// iid reading is a floor, so a white series reads `√(γ₀/n)` up to the estimated ratio.
+    #[test]
+    fn mean_standard_error_reads_the_long_run_variance_of_the_mean() {
+        let (n, rho) = (6000usize, 0.8_f64);
+        let mut rng = CausalRng::from_seed(101);
+        let persistent = ar1(n, rho, &mut rng);
+        let mean = persistent.iter().sum::<f64>() / n as f64;
+        let gamma0 = persistent.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64;
+        let truth = (gamma0 * (1.0 + rho) / (1.0 - rho) / n as f64).sqrt();
+        let se = mean_standard_error(&persistent);
+        assert!((se / truth - 1.0).abs() < 0.25, "se {se} vs closed form {truth}");
+        let white = ar1(n, 0.0, &mut rng);
+        let white_mean = white.iter().sum::<f64>() / n as f64;
+        let white_gamma0 = white.iter().map(|v| (v - white_mean).powi(2)).sum::<f64>() / n as f64;
+        let iid = (white_gamma0 / n as f64).sqrt();
+        let white_se = mean_standard_error(&white);
+        assert!(white_se >= iid - 1e-15, "never narrower than the iid reading");
+        assert!(white_se < 1.25 * iid, "white se {white_se} vs iid {iid}");
+        assert_eq!(mean_standard_error(&[1.0, 2.0]), 0.0);
+        assert_eq!(mean_standard_error(&[3.0; 40]), 0.0);
+        assert_eq!(mean_standard_error(&[1.0, f64::NAN, 2.0, 4.0]), 0.0);
     }
 
     #[test]

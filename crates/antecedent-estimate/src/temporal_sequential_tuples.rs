@@ -404,21 +404,23 @@ impl PreparedSequenceLevel {
             let y = &gathered[self.column_of[i]];
             coefficients[i] = FaerBackend.least_squares(x_boot, m, p, y, ls_ws).ok()?.coefficients;
         }
-        let mut level = vec![0.0; self.column_of.len()];
-        for &i in &self.order {
-            let natural = if coefficients[i].is_empty() {
-                mean(self.column_of[i])
-            } else {
-                coefficients[i][0]
-                    + self.parents[i]
-                        .iter()
-                        .enumerate()
-                        .map(|(k, &node)| coefficients[i][k + 1] * level[node])
-                        .sum::<f64>()
-            };
-            level[i] = self.overlay_at[i].map_or(natural, |overlay| overlay.assigned(natural));
-        }
-        let value = level[self.outcome];
+        let value = crate::temporal_sequential::propagate_linear_level(
+            &self.order,
+            self.column_of.len(),
+            self.outcome,
+            |i| self.overlay_at[i],
+            |i, level| {
+                if coefficients[i].is_empty() {
+                    mean(self.column_of[i])
+                } else {
+                    crate::temporal_sequential::linear_natural(
+                        &coefficients[i],
+                        &self.parents[i],
+                        level,
+                    )
+                }
+            },
+        );
         value.is_finite().then_some(value)
     }
 }

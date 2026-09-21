@@ -343,25 +343,11 @@ impl TemporalMediationEstimator {
         let influence_refs: Vec<&[f64]> =
             scores.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
         // Every mechanism's normal-equation scores (intercept = residual series)
-        // join the contrast scores, as on the single-window effect path. The
-        // scan refits each mechanism and reads every score; without replicates
-        // no interval is published and the rule length is reported instead.
+        // join the contrast scores, as on the single-window effect path. The scan
+        // reads every score; without replicates no interval is published and the
+        // rule length is reported instead.
         let block_length = if replicates > 0 {
-            let (m, y) = (design.column(1), design.column(2));
-            let normal_scores: Vec<Vec<f64>> = point
-                .designs
-                .iter()
-                .zip([m, y, y])
-                .filter_map(|(matrix, outcome)| {
-                    crate::temporal_block::normal_equation_scores(
-                        matrix,
-                        design.n,
-                        matrix.len() / design.n,
-                        outcome,
-                    )
-                })
-                .flatten()
-                .collect();
+            let normal_scores = shared::mechanism_normal_scores(&point);
             let score_refs: Vec<&[f64]> = influence_refs
                 .iter()
                 .copied()
@@ -376,9 +362,8 @@ impl TemporalMediationEstimator {
         // predicts is a persistent treatment or mediator, which partialling on
         // lagged design columns removes from the influence while the interval
         // still under-covers (docs/short-series-thresholds.md measures both).
-        let probes = design.persistence_probes(self.backend, &point);
-        let contrast_scores: Vec<&[f64]> =
-            probes.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
+        let probes = design.persistence_probes(&point);
+        let contrast_scores: Vec<&[f64]> = probes.iter().map(Vec::as_slice).collect();
         let mut block = TemporalMediationBlockSe {
             total: None,
             direct: None,
@@ -524,11 +509,14 @@ impl TemporalMediationEstimator {
         let n_extra = design.n_extra;
         let extras: Vec<_> = (0..n_extra).map(|i| column(3 + i)).collect();
         // Stage 1: M ~ [1, T] → a = β_T
-        let (a, _intercept_m, design_a, sigma2_a) = ols_two_col(self.backend, t, m, &extras)?;
+        let (a, _intercept_m, design_a, sigma2_a, resid_a) =
+            ols_two_col(self.backend, t, m, &extras)?;
         // Stage 2: Y ~ [1, T, M] → c' = β_T (direct), b = β_M
-        let (c_prime, b, design_b, sigma2_b) = ols_three_col(self.backend, t, m, y, &extras)?;
+        let (c_prime, b, design_b, sigma2_b, resid_b) =
+            ols_three_col(self.backend, t, m, y, &extras)?;
         // Reduced form: Y ~ [1, T] → c = total
-        let (c, _intercept_y, design_c, sigma2_c) = ols_two_col(self.backend, t, y, &extras)?;
+        let (c, _intercept_y, design_c, sigma2_c, resid_c) =
+            ols_two_col(self.backend, t, y, &extras)?;
         Ok(ContrastFit {
             total: c * delta,
             direct: c_prime * delta,
@@ -540,6 +528,7 @@ impl TemporalMediationEstimator {
             n_extra,
             designs: [design_a, design_b, design_c],
             sigma2: [sigma2_a, sigma2_b, sigma2_c],
+            residuals: [resid_a, resid_b, resid_c],
         })
     }
 }
@@ -558,32 +547,13 @@ impl MediationDesign {
 
     /// Persistence probes of the Total, Direct and Mediated contrasts: each
     /// mechanism residual times the centred treatment (and, for the mediated
-    /// path, the centred mediator), or `None` when a mechanism regression
-    /// fails. They are not influence functions (see [`Self::contrast_scores`]);
+    /// path, the centred mediator), from the residuals of the point fit. They
+    /// are not influence functions (see [`Self::contrast_scores`]);
     /// they feed only the short-series effective-row statistic, whose threshold
     /// was measured on them.
-    fn persistence_probes(&self, backend: FaerBackend, fit: &ContrastFit) -> Option<[Vec<f64>; 3]> {
-        let (t, m, y) = (self.column(0), self.column(1), self.column(2));
-        let extras: Vec<&[f64]> = (0..self.n_extra).map(|i| self.column(3 + i)).collect();
-        let residuals = |regressors: &[&[f64]], outcome: &[f64]| -> Option<Vec<f64>> {
-            let mut design = vec![1.0; self.n];
-            for column in regressors.iter().chain(&extras) {
-                design.extend_from_slice(column);
-            }
-            let ncols = 1 + regressors.len() + extras.len();
-            let coef = ols_fit(backend, &design, ncols, outcome).ok()?;
-            Some(
-                (0..self.n)
-                    .map(|r| {
-                        outcome[r]
-                            - (0..ncols).map(|c| design[c * self.n + r] * coef[c]).sum::<f64>()
-                    })
-                    .collect(),
-            )
-        };
-        let r_a = residuals(&[t], m)?;
-        let r_b = residuals(&[t, m], y)?;
-        let r_c = residuals(&[t], y)?;
+    fn persistence_probes(&self, fit: &ContrastFit) -> [Vec<f64>; 3] {
+        let (t, m) = (self.column(0), self.column(1));
+        let [r_a, r_b, r_c] = &fit.residuals;
         let centered = |x: &[f64]| {
             let mean = x.iter().sum::<f64>() / x.len() as f64;
             x.iter().map(|v| v - mean).collect::<Vec<f64>>()
@@ -593,7 +563,27 @@ impl MediationDesign {
         let direct = r_b.iter().zip(&tc).map(|(e, x)| e * x).collect();
         let mediated =
             (0..self.n).map(|r| fit.b * r_a[r] * tc[r] + fit.a * r_b[r] * mc[r]).collect();
-        Some([total, direct, mediated])
+        [total, direct, mediated]
+    }
+
+    /// OLS residuals of `outcome` on `[1, regressors…, extras…]` over the design's rows.
+    fn partial_residuals(
+        &self,
+        backend: FaerBackend,
+        regressors: &[&[f64]],
+        outcome: &[f64],
+    ) -> Option<Vec<f64>> {
+        let mut design = vec![1.0; self.n];
+        for column in regressors {
+            design.extend_from_slice(column);
+        }
+        for i in 0..self.n_extra {
+            design.extend_from_slice(self.column(3 + i));
+        }
+        let ncols = design.len() / self.n;
+        ols_fit_with_residuals(backend, &design, ncols, outcome)
+            .ok()
+            .map(|(_, residuals)| residuals)
     }
 
     /// Influence scores of the Total, Direct and Mediated contrasts on the
@@ -607,40 +597,21 @@ impl MediationDesign {
     /// `b·ψ_a + a·ψ_b`, which needs the second-moment scaling to weigh its two
     /// terms correctly.
     fn contrast_scores(&self, backend: FaerBackend, fit: &ContrastFit) -> Option<[Vec<f64>; 3]> {
-        let (t, m, y) = (self.column(0), self.column(1), self.column(2));
-        let extras: Vec<&[f64]> = (0..self.n_extra).map(|i| self.column(3 + i)).collect();
-        let residuals = |regressors: &[&[f64]], outcome: &[f64]| -> Option<Vec<f64>> {
-            let mut design = vec![1.0; self.n];
-            for column in regressors.iter().chain(&extras) {
-                design.extend_from_slice(column);
-            }
-            let ncols = 1 + regressors.len() + extras.len();
-            let coef = ols_fit(backend, &design, ncols, outcome).ok()?;
-            Some(
-                (0..self.n)
-                    .map(|r| {
-                        outcome[r]
-                            - (0..ncols).map(|c| design[c * self.n + r] * coef[c]).sum::<f64>()
-                    })
-                    .collect(),
-            )
-        };
-        let r_a = residuals(&[t], m)?;
-        let r_b = residuals(&[t, m], y)?;
-        let r_c = residuals(&[t], y)?;
+        let (t, m) = (self.column(0), self.column(1));
+        let [r_a, r_b, r_c] = &fit.residuals;
         // Coefficient score: residual × partialled regressor / its second moment.
         let score = |residual: &[f64], partialled: &[f64]| -> Option<Vec<f64>> {
             let moment = partialled.iter().map(|x| x * x).sum::<f64>() / self.n as f64;
             (moment > 0.0 && moment.is_finite())
                 .then(|| residual.iter().zip(partialled).map(|(e, x)| e * x / moment).collect())
         };
-        let t_given_extras = residuals(&[], t)?;
-        let t_given_m = residuals(&[m], t)?;
-        let total = score(&r_c, &t_given_extras)?;
-        let direct = score(&r_b, &t_given_m)?;
-        let psi_a = score(&r_a, &t_given_extras)?;
+        let t_given_extras = self.partial_residuals(backend, &[], t)?;
+        let t_given_m = self.partial_residuals(backend, &[m], t)?;
+        let total = score(r_c, &t_given_extras)?;
+        let direct = score(r_b, &t_given_m)?;
+        let psi_a = score(r_a, &t_given_extras)?;
         // `M` partialled on `[1, T, extras]` is the `M ~ T` residual itself.
-        let psi_b = score(&r_b, &r_a)?;
+        let psi_b = score(r_b, r_a)?;
         let mediated: Vec<f64> =
             psi_a.iter().zip(&psi_b).map(|(sa, sb)| fit.b * sa + fit.a * sb).collect();
         Some([total, direct, mediated])
@@ -700,6 +671,8 @@ struct ContrastFit {
     /// Column-major designs for `M ~ T`, `Y ~ T + M`, `Y ~ T`.
     designs: [Vec<f64>; 3],
     sigma2: [f64; 3],
+    /// OLS residuals of the same three regressions, in the same order.
+    residuals: [Vec<f64>; 3],
 }
 
 impl ContrastFit {
@@ -730,7 +703,7 @@ fn ols_two_col(
     x: &[f64],
     y: &[f64],
     extra: &[&[f64]],
-) -> Result<(f64, f64, Vec<f64>, f64), EstimationError> {
+) -> Result<(f64, f64, Vec<f64>, f64, Vec<f64>), EstimationError> {
     let n = x.len();
     let mut design = vec![0.0; n * 2];
     for i in 0..n {
@@ -740,19 +713,19 @@ fn ols_two_col(
     for column in extra {
         design.extend_from_slice(column);
     }
-    let coef = ols_fit(backend, &design, 2 + extra.len(), y)?;
+    let (coef, residuals) = ols_fit_with_residuals(backend, &design, 2 + extra.len(), y)?;
     let sigma2 = ols_sigma2(&design, n, 2 + extra.len(), y, &coef);
-    Ok((coef[1], coef[0], design, sigma2))
+    Ok((coef[1], coef[0], design, sigma2, residuals))
 }
 
-/// Returns `(c' = β_T, b = β_M, design [1,T,M], σ²)`.
+/// Returns `(c' = β_T, b = β_M, design [1,T,M], σ², residuals)`.
 fn ols_three_col(
     backend: FaerBackend,
     t: &[f64],
     m: &[f64],
     y: &[f64],
     extra: &[&[f64]],
-) -> Result<(f64, f64, Vec<f64>, f64), EstimationError> {
+) -> Result<(f64, f64, Vec<f64>, f64, Vec<f64>), EstimationError> {
     let n = t.len();
     let mut design = vec![0.0; n * 3];
     for i in 0..n {
@@ -763,22 +736,33 @@ fn ols_three_col(
     for column in extra {
         design.extend_from_slice(column);
     }
-    let coef = ols_fit(backend, &design, 3 + extra.len(), y)?;
+    let (coef, residuals) = ols_fit_with_residuals(backend, &design, 3 + extra.len(), y)?;
     let sigma2 = ols_sigma2(&design, n, 3 + extra.len(), y, &coef);
-    Ok((coef[1], coef[2], design, sigma2))
+    Ok((coef[1], coef[2], design, sigma2, residuals))
 }
 
+#[cfg(test)]
 fn ols_fit(
     backend: FaerBackend,
     design_colmajor: &[f64],
     ncols: usize,
     y: &[f64],
 ) -> Result<Vec<f64>, EstimationError> {
+    Ok(ols_fit_with_residuals(backend, design_colmajor, ncols, y)?.0)
+}
+
+/// `(coefficients, residuals)` of one least-squares fit.
+fn ols_fit_with_residuals(
+    backend: FaerBackend,
+    design_colmajor: &[f64],
+    ncols: usize,
+    y: &[f64],
+) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
     let mut ws = LeastSquaresWorkspace::default();
     let fit = backend
         .least_squares(design_colmajor, y.len(), ncols, y, &mut ws)
         .map_err(crate::util::stats_err)?;
-    Ok(fit.coefficients)
+    Ok((fit.coefficients, fit.residuals))
 }
 
 /// Temporal effect surface: direct, total, mediated, and (optional) conditional effects.
@@ -808,12 +792,33 @@ impl TemporalMediationEstimator {
         ctx: &ExecutionContext,
     ) -> Result<TemporalEffectSurface, EstimationError> {
         let est = self.estimate(data, estimand, query, ctx)?;
-        Ok(TemporalEffectSurface {
-            total: est.total.unwrap_or(est.effect.ate),
-            direct: est.direct.unwrap_or(0.0),
-            mediated: est.mediated.unwrap_or(0.0),
-            conditional: None,
-        })
+        TemporalEffectSurface::from_components(est.total, est.direct, est.mediated)
+    }
+}
+
+impl TemporalEffectSurface {
+    /// Assemble the surface from the estimator's optional components.
+    ///
+    /// A component the estimator did not compute is a refusal, never a value:
+    /// substituting zero would publish "not estimated" as "no effect", and
+    /// substituting the requested contrast would publish a Direct or Mediated
+    /// estimate as the total.
+    ///
+    /// # Errors
+    ///
+    /// [`EstimationError::Unsupported`] when any of the three components is absent.
+    pub fn from_components(
+        total: Option<f64>,
+        direct: Option<f64>,
+        mediated: Option<f64>,
+    ) -> Result<Self, EstimationError> {
+        let (Some(total), Some(direct), Some(mediated)) = (total, direct, mediated) else {
+            return Err(EstimationError::unsupported(
+                "temporal effect surface needs the total, direct and mediated effects; \
+                 the estimator did not compute all three",
+            ));
+        };
+        Ok(Self { total, direct, mediated, conditional: None })
     }
 }
 
@@ -960,6 +965,21 @@ mod tests {
     }
 
     #[test]
+    fn effect_surface_refuses_an_absent_component_instead_of_reporting_zero() {
+        let full = TemporalEffectSurface::from_components(Some(1.5), Some(0.5), Some(1.0))
+            .expect("all three components present");
+        assert_eq!((full.total, full.direct, full.mediated), (1.5, 0.5, 1.0));
+        assert_eq!(full.conditional, None);
+        for missing in 0..3 {
+            let pick = |i: usize, v: f64| (i != missing).then_some(v);
+            let err =
+                TemporalEffectSurface::from_components(pick(0, 1.5), pick(1, 0.5), pick(2, 1.0))
+                    .expect_err("an absent component must be refused, not zero-filled");
+            assert!(matches!(err, EstimationError::Unsupported { .. }));
+        }
+    }
+
+    #[test]
     fn natural_contrast_without_flag_errors() {
         let (data, mut q, estimand) = mediated_series(300);
         q.contrast = MediationContrast::NaturalIndirect;
@@ -967,6 +987,46 @@ mod tests {
             .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
             .unwrap_err();
         assert!(matches!(err, EstimationError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn point_fit_residuals_feed_the_normal_equation_scores_without_a_refit() {
+        let n = 40;
+        let x: Vec<f64> = (0..n).map(|i| (0.37 * i as f64).sin()).collect();
+        let t: Vec<f64> = (0..n).map(|i| 0.8 * x[i] + 0.3 * (1.3 * i as f64).cos()).collect();
+        let m: Vec<f64> =
+            (0..n).map(|i| 0.6 * t[i] + 0.4 * x[i] + 0.2 * (2.1 * i as f64).sin()).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 0.5 * t[i] + 0.7 * m[i] - 0.3 * x[i] + 0.25 * (0.9 * i as f64).cos())
+            .collect();
+        let design =
+            MediationDesign { columns: [t.as_slice(), &m, &y, &x].concat(), n, n_extra: 1 };
+        let estimator = TemporalMediationEstimator::new();
+        let fit = estimator.fit_design(&design, None, 1.0).unwrap();
+        let scores = shared::mechanism_normal_scores(&fit);
+        // M ~ [1, T, X] (3 columns), Y ~ [1, T, M, X] (4), Y ~ [1, T, X] (3).
+        assert_eq!(scores.len(), 10);
+        // Normal equations: every score series of an OLS fit sums to zero, and each is the
+        // column times the residual of *that* regression.
+        let cols = |c: &[&[f64]]| -> Vec<Vec<f64>> {
+            std::iter::once(vec![1.0; n]).chain(c.iter().map(|s| s.to_vec())).collect()
+        };
+        let regressions = [
+            (cols(&[&t, &x]), &fit.residuals[0]),
+            (cols(&[&t, &m, &x]), &fit.residuals[1]),
+            (cols(&[&t, &x]), &fit.residuals[2]),
+        ];
+        let mut k = 0;
+        for (columns, residual) in &regressions {
+            for column in columns {
+                let total: f64 = scores[k].iter().sum();
+                assert!(total.abs() < 1e-8, "score {k} sums to {total}");
+                for r in 0..n {
+                    assert!((scores[k][r] - column[r] * residual[r]).abs() < 1e-12);
+                }
+                k += 1;
+            }
+        }
     }
 
     #[test]

@@ -17,6 +17,7 @@
 
 pub mod adjustment;
 pub mod aipw;
+pub mod ar_kernel;
 pub mod bayesian;
 pub mod bayesian_mediation;
 pub mod causal_forest;
@@ -87,6 +88,7 @@ pub use antecedent_learn::{
     RidgeSpec,
 };
 pub use antecedent_stats::FirstStageDiagnostics;
+pub use ar_kernel::kernel_bias_factor;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
@@ -206,7 +208,7 @@ pub use temporal_response::{
     plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_response_dispersion::{
-    CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows, kernel_bias_factor,
+    CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows,
 };
 pub use temporal_sequential::{
     SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,

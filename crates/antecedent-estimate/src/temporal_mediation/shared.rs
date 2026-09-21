@@ -12,7 +12,7 @@ use super::{
 };
 use crate::temporal_block::{
     AlignedRows, aligned_block_bootstrap, common_time_window, dependence_block_length,
-    kernel_bias_scale, normal_equation_scores, score_effective_rows,
+    kernel_bias_scale, normal_equation_scores_of_residuals, score_effective_rows,
 };
 
 /// One temporal mediation atom prepared once on the original series, so a
@@ -26,7 +26,7 @@ pub struct PreparedTemporalMediation {
     aligned: AlignedRows,
     structural_span: usize,
     contrast_scores: Option<[Vec<f64>; 3]>,
-    persistence_probes: Option<[Vec<f64>; 3]>,
+    persistence_probes: [Vec<f64>; 3],
     normal_scores: Vec<Vec<f64>>,
 }
 
@@ -52,8 +52,8 @@ impl TemporalMediationEstimator {
         let estimate = self.estimate_from_fit(query, &point);
         let max_lag = mediation_design_max_lag(query, adjustment) as usize;
         let contrast_scores = design.contrast_scores(self.backend, &point);
-        let persistence_probes = design.persistence_probes(self.backend, &point);
-        let normal_scores = mechanism_normal_scores(&design, &point);
+        let persistence_probes = design.persistence_probes(&point);
+        let normal_scores = mechanism_normal_scores(&point);
         Ok(PreparedTemporalMediation {
             estimator: self.clone(),
             aligned: AlignedRows { first_time: max_lag, rows: design.n },
@@ -101,17 +101,16 @@ impl PreparedTemporalMediation {
     }
 }
 
-/// Every mechanism's normal-equation scores (intercept = residual series).
-fn mechanism_normal_scores(design: &MediationDesign, point: &ContrastFit) -> Vec<Vec<f64>> {
-    let (m, y) = (design.column(1), design.column(2));
+/// Every mechanism's normal-equation scores (intercept = residual series), from the
+/// residuals the point fit already holds.
+pub(super) fn mechanism_normal_scores(point: &ContrastFit) -> Vec<Vec<f64>> {
     point
         .designs
         .iter()
-        .zip([m, y, y])
-        .filter_map(|(matrix, outcome)| {
-            normal_equation_scores(matrix, design.n, matrix.len() / design.n, outcome)
+        .zip(&point.residuals)
+        .flat_map(|(matrix, residuals)| {
+            normal_equation_scores_of_residuals(matrix, point.n, matrix.len() / point.n, residuals)
         })
-        .flatten()
         .collect()
 }
 
@@ -212,11 +211,7 @@ pub fn shared_mediation_block_bootstrap(
     let mut probe_mixture: Option<[Vec<f64>; 3]> =
         mixture.as_ref().map(|_| [vec![0.0; len], vec![0.0; len], vec![0.0; len]]);
     for (atom, weight) in atoms.iter().zip(weights) {
-        let Some(probes) = atom.persistence_probes.as_ref() else {
-            probe_mixture = None;
-            continue;
-        };
-        for (k, probe) in probes.iter().enumerate() {
+        for (k, probe) in atom.persistence_probes.iter().enumerate() {
             let Some(w) = window(probe, atom.aligned) else {
                 probe_mixture = None;
                 continue;

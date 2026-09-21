@@ -63,9 +63,9 @@ impl CircularBlockFamily {
     /// below which the interval carries a `short_series` warning.
     ///
     /// Provenance: `crates/antecedent/tests/v19_short_series_measurement.rs`,
-    /// table in `docs/short-series-thresholds.md` (2000 replicates per cell,
-    /// nominal 0.90, AR(1) ρ ∈ {0.5, 0.8, 0.9, 0.95}, n from 40 to 1600). Each
-    /// family is measured on a short-memory score and on a persistent one
+    /// table in `docs/short-series-thresholds.md` (2000 replicates per cell, the
+    /// nominal-0.90 interval built from the published SE, AR(1) ρ ∈ {0.5, 0.8, 0.9,
+    /// 0.95}, n from 40 to 1600). Each family is measured on a short-memory score and on a persistent one
     /// (AR(1) treatment as well as residual), because the effective-row count
     /// alone does not separate them: the short-memory designs cover nominally
     /// at every measured n, the persistent ones fail at the same counts. A
@@ -78,7 +78,11 @@ impl CircularBlockFamily {
     /// ([`kernel_bias_scale`]; blocks sized on every estimating score,
     /// circular-Bartlett fixed-b factor). That factor only widens intervals;
     /// re-measured with it, every cell below 0.855 still warns on at least 91%
-    /// of its replicates and the thresholds stand:
+    /// of its replicates and the thresholds stand. The factor has since taken the
+    /// Kendall-corrected AR(1) and BIC AR(q) model of [`crate::ar_kernel`], which is
+    /// never smaller on the same score; the warning reads effective rows, not the
+    /// factor, so the warnings are unchanged and only the coverage of the affected
+    /// cells can rise:
     ///
     /// * `SingleWindow` 45 (sweep 45, replication 40): the AR(1)-treatment
     ///   Pulse covers 0.750–0.854 at n = 40–60 (ρ ≥ 0.8), n = 100–160 (ρ ≥ 0.9)
@@ -384,18 +388,25 @@ pub fn normal_equation_scores(
             &mut LeastSquaresWorkspace::default(),
         )
         .ok()?;
-    let residuals = fit.residuals;
-    Some(
-        (0..cols)
-            .map(|j| {
-                matrix[j * rows..(j + 1) * rows]
-                    .iter()
-                    .zip(&residuals)
-                    .map(|(x, e)| x * e)
-                    .collect()
-            })
-            .collect(),
-    )
+    Some(normal_equation_scores_of_residuals(matrix, rows, cols, &fit.residuals))
+}
+
+/// [`normal_equation_scores`] for a regression whose OLS `residuals` the caller
+/// already holds: the score `x_tj · ê_t` of every column, without a second fit.
+///
+/// `matrix` is column-major `rows × cols` and `residuals` has length `rows`.
+#[must_use]
+pub fn normal_equation_scores_of_residuals(
+    matrix: &[f64],
+    rows: usize,
+    cols: usize,
+    residuals: &[f64],
+) -> Vec<Vec<f64>> {
+    (0..cols)
+        .map(|j| {
+            matrix[j * rows..(j + 1) * rows].iter().zip(residuals).map(|(x, e)| x * e).collect()
+        })
+        .collect()
 }
 
 /// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
@@ -428,11 +439,14 @@ pub fn normal_equation_scores(
 /// [`dependence_block_length`] and the short-series warning are for.
 ///
 /// Scaling the SE by this ratio makes `estimate ± 1.96·SE` the 95% fixed-b
-/// interval. Published 90% scalar intervals use the same 95% ratio (not
-/// `cv_90 / z_{0.90}`), so they are 90% normal intervals around a 95%-scaled SE;
-/// in the same simulation that construction covers 0.901–0.913 at nominal 0.90
-/// for `b ≤ 1/3` (conservative, increasingly so at long blocks). The gates
-/// measured that construction; do not silently swap in the 90% ratio.
+/// interval, which is the level the result publishes
+/// (`REPORTED_SE_INTERVAL_LEVEL`). The short-series sweeps
+/// ([`CircularBlockFamily::min_effective_rows`]) measured a different, nominal
+/// 0.90, interval built from the same published SE: `estimate ± z_{0.90}·SE`
+/// with the 95% ratio (not `cv_90 / z_{0.90}`). In the same simulation that
+/// construction covers 0.901–0.913 at nominal 0.90 for `b ≤ 1/3` (conservative,
+/// increasingly so at long blocks). The thresholds describe where that
+/// construction stops covering; do not silently swap in the 90% ratio.
 #[must_use]
 pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     if rows == 0 {
@@ -442,17 +456,10 @@ pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96
 }
 
-/// Largest lag-1 autocorrelation the kernel-bias factor prewhitens with
-/// (Andrews & Monahan 1992 cap the AR(1) coefficient the same way, so a
-/// near-unit-root score cannot inflate the factor without bound).
-const KERNEL_BIAS_MAX_RHO: f64 = 0.97;
-
-/// Bartlett kernel-bias factor for a circular-block SE over `block_length`:
-/// `sqrt(LRV_AR(1)(ρ̂) / Bartlett_ℓ,AR(1)(ρ̂))`, the largest over `scores` (the
-/// interval's estimating scores: the target influence(s) and, for a mixture,
-/// the weighted mixture score), with `ρ̂` each score's lag-1 autocorrelation
-/// floored at zero and capped at [`KERNEL_BIAS_MAX_RHO`]. `1` for fewer than
-/// three scores, a non-finite or constant series, or a non-positive `ρ̂`.
+/// Bartlett kernel-bias factor of a circular-block SE over `block_length`: the largest
+/// [`crate::ar_kernel::kernel_bias_factor`] over `scores` (the interval's estimating
+/// scores: the target influence(s) and, for a mixture, the weighted mixture score).
+/// `1` for no scores, a non-finite or constant series, or fewer than eight rows.
 ///
 /// A circular block of length `ℓ` reproduces the circular Bartlett long-run
 /// variance at bandwidth `ℓ`, whose expectation under an AR(1)(ρ) score is
@@ -463,47 +470,17 @@ const KERNEL_BIAS_MAX_RHO: f64 = 0.97;
 /// which grows with the score's memory relative to the block: 3% of the SE for
 /// an AR(1)(0.81) score at `ℓ = 74` (a persistent treatment and residual at
 /// ρ = 0.9, n = 400, where the short-series measurement put the interval at
-/// 0.87–0.89 for nominal 0.90), under 1% for short-memory scores. Prewhitening
-/// the score by its lag-1 autocorrelation (Andrews & Monahan 1992) gives the
-/// ratio directly; the factor is capped so a near-unit-root `ρ̂` (at most
-/// 0.97) cannot inflate it without bound, and the short-series warning, not
-/// this factor, is what says the series is too short for the dependence.
+/// 0.87–0.89 for nominal 0.90), under 1% for short-memory scores. The score is
+/// modelled by a Kendall-corrected AR(1) and a BIC-selected AR(q ≤ 4)
+/// ([`crate::ar_kernel`]); the response bands read the same factor per cell, so a
+/// scalar Pulse or Sustained SE and the matching response-cell SE apply one
+/// correction to one score. The factor only widens an interval, and the short-series
+/// warning, not this factor, is what says the series is too short for the
+/// dependence.
 #[must_use]
 pub fn kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64 {
     let l = block_length.max(1);
-    scores
-        .iter()
-        .filter_map(|s| lag_one_autocorrelation(s))
-        .map(|rho| {
-            let rho = rho.clamp(0.0, KERNEL_BIAS_MAX_RHO);
-            let long_run = (1.0 + rho) / (1.0 - rho);
-            let mut power = 1.0;
-            let tail: f64 = (1..l)
-                .map(|k| {
-                    power *= rho;
-                    (1.0 - k as f64 / l as f64) * power
-                })
-                .sum();
-            (long_run / (1.0 + 2.0 * tail)).sqrt()
-        })
-        .filter(|f| f.is_finite())
-        .fold(1.0, f64::max)
-}
-
-/// Lag-1 autocorrelation of `scores`; `None` for fewer than three, non-finite
-/// or constant scores.
-fn lag_one_autocorrelation(scores: &[f64]) -> Option<f64> {
-    let n = scores.len();
-    if n < 3 || scores.iter().any(|s| !s.is_finite()) {
-        return None;
-    }
-    let mean = scores.iter().sum::<f64>() / n as f64;
-    let gamma0: f64 = scores.iter().map(|s| (s - mean).powi(2)).sum();
-    if gamma0 <= 0.0 {
-        return None;
-    }
-    let gamma1: f64 = scores.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum();
-    Some(gamma1 / gamma0)
+    scores.iter().map(|s| crate::ar_kernel::kernel_bias_factor(s, l)).fold(1.0, f64::max)
 }
 
 /// Kiefer–Vogelsang (2005) fixed-b correction for a *non-circular* Bartlett
@@ -1016,6 +993,11 @@ mod tests {
         let at_20 = kernel_bias_scale(&[&persistent], 20);
         assert!(at_74 > 1.01 && at_74 < 1.08, "{at_74}");
         assert!(at_20 > at_74, "{at_20} vs {at_74}");
+        // One correction for one score: the scalar SE reads exactly the factor the
+        // response bands read per cell (Kendall-corrected AR(1) / BIC AR(q)), and a
+        // mildly persistent score is not left at the raw-lag-1 reading.
+        assert_eq!(at_74, crate::ar_kernel::kernel_bias_factor(&persistent, 74));
+        assert_eq!(at_20, crate::kernel_bias_factor(&persistent, 20));
         // The largest over several scores, and the ρ̂ cap keeps it finite.
         assert!((kernel_bias_scale(&[&alternating, &persistent], 74) - at_74).abs() < 1e-12);
         let ramp: Vec<f64> = (0..400).map(f64::from).collect();
