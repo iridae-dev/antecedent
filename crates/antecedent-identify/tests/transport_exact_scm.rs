@@ -167,8 +167,20 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
 fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
+    three_node_selection_sweep(0);
+}
+
+#[test]
+fn three_node_selection_graphs_with_pre_treatment_ancestor_agree_with_full_experimental_oracle() {
+    // X = v(1) has the potential parent W = v(0), so sID line 3 (enlargement over
+    // non-ancestors of Y) and the weighted marginalization over W are exercised
+    // numerically, not only by rule name.
+    three_node_selection_sweep(1);
+}
+
+#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
+fn three_node_selection_sweep(x: u32) {
     // Domain: all 64 ordered three-node ADMGs × 8 selection patterns × 3
     // independent Bernoulli latent-SCM parameterizations. Truth is the target
     // interventional P(Y=1 | do(X=x)), not a second wrapper of the same formula.
@@ -176,7 +188,7 @@ fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
     let edges = [(0usize, 1usize), (0, 2), (1, 2)];
     let query = ClassicalTransportQuery {
         outcomes: Arc::from([v(2)]),
-        treatments: Arc::from([v(0)]),
+        treatments: Arc::from([v(x)]),
         source: Arc::from("source"),
         target: Arc::from("target"),
     };
@@ -361,14 +373,14 @@ fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
                     let bound = proof.bind_catalog(&catalog).unwrap();
                     let data = ExactTransportData::try_new(laws, 1000).unwrap();
                     for level in 0..2 {
-                        let (_, truth) = enumerate(true, 1, level);
+                        let (_, truth) = enumerate(true, 1 << x, level << x);
                         let expected = truth[1] + truth[3];
                         let plan = ExactEvaluationPlan::compile(
                             bound.arena(),
                             bound.root(),
                             data.clone(),
                             [v(2)],
-                            Assignment::from_pairs([(v(0), Value::Int64(level as i64))]),
+                            Assignment::from_pairs([(v(x), Value::Int64(level as i64))]),
                             ExactEvaluationLimits::default(),
                             LawTolerance::default(),
                             &ctx,
@@ -377,7 +389,7 @@ fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
                         let result = plan.evaluate(&ctx).unwrap();
                         assert!(
                             (result.mean(v(2)).unwrap() - expected).abs() < 1e-10,
-                            "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} level={level} base={base}"
+                            "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} level={level} base={base} treatment=v({x})"
                         );
                     }
                 }
@@ -555,6 +567,40 @@ fn exhausted_identification_budget_is_an_error_never_a_negative_witness() {
             assert!(matches!(full, ClassicalTransportResult::Identified(_)));
         } else {
             assert!(matches!(full, ClassicalTransportResult::ProvenNonTransportable(_)));
+        }
+    }
+}
+
+#[test]
+fn identification_within_an_explicit_budget_matches_the_default_search() {
+    // X -> Y with X <-> Y; an unselected diagram identifies, a Y-selected one is
+    // an s-hedge. A generous but non-default budget must not change either verdict.
+    let mut graph = Admg::with_variables(2);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_bidirected(d(0), d(1)).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(1)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let ctx = ExecutionContext::for_tests(5);
+    let explicit = SidLimits { steps: 1_000, depth: 32 };
+    for selected in [vec![v(1)], vec![]] {
+        let diagram = SelectionDiagram::try_new(graph.clone(), selected.clone()).unwrap();
+        let bounded = identify_classical_transport(&diagram, &query, explicit, &ctx).unwrap();
+        let default =
+            identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap();
+        match (bounded, default) {
+            (ClassicalTransportResult::Identified(a), ClassicalTransportResult::Identified(b)) => {
+                assert!(selected.is_empty());
+                assert_eq!(a.rules(), b.rules());
+            }
+            (
+                ClassicalTransportResult::ProvenNonTransportable(_),
+                ClassicalTransportResult::ProvenNonTransportable(_),
+            ) => assert!(!selected.is_empty()),
+            _ => panic!("an explicit budget that is not exhausted changed the verdict"),
         }
     }
 }

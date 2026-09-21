@@ -145,7 +145,7 @@ description = "Propensity base, matching, stratification, weighting"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/propensity_ipw"
-limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference SE is not compared: at 0.273 (n=800) it is about five times the Monte Carlo sampling SD of any IPW estimator on the stated SCM, so it cannot calibrate this estimator; see SE_NOT_COMPARABLE in crates/antecedent/tests/estimate_conformance.rs."
+limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference SE is not compared: at 0.273 (n=800) it is about five times the Monte Carlo sampling SD of any IPW estimator on the stated SCM, so it cannot calibrate this estimator; see SE_NOT_COMPARABLE in crates/antecedent/tests/estimate_conformance.rs. Propensity matching reports a simplified matched-effect variance and donor-reuse SE, not the Abadie-Imbens conditional-residual variance estimator, and enables an ordinary row bootstrap by default although that bootstrap is inconsistent for fixed-match nearest-neighbour estimators (provenance/estimate.propensity_matching.toml). The only matching coverage record is ATT on a constant-effect law, so the ATE path and its SE are unmeasured."
 owner = "estimate"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage"]
 
@@ -156,7 +156,7 @@ description = "Distance matching"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/distance_matching"
-limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared."
+limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared. The reported SE is a simplified reuse-count formula (half the matched-effect sample variance), not the Abadie-Imbens conditional-residual variance estimator, and an ordinary row bootstrap is enabled by default although it is inconsistent for fixed-match nearest-neighbour estimators (provenance/estimate.distance_matching.toml)."
 owner = "estimate"
 calibration_reason = "estimator_grid_not_measured"
 
@@ -178,7 +178,7 @@ description = "Instrumental variables"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/iv_2sls"
-limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE for both iv.2sls (iv_2sls) and iv.wald (iv_wald) after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared."
+limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE for both iv.2sls (iv_2sls) and iv.wald (iv_wald) after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared. Every coverage record and known-truth fixture uses a strong instrument (first stage 1.5 per unit of Z); weak-instrument behaviour has no record and no boundary record, so no coverage claim extends to a weak first stage."
 owner = "estimate"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_hc1_heteroskedastic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.wald_iv_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.wald_iv_hc1_ci_coverage"]
 

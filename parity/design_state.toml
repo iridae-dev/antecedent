@@ -31,6 +31,7 @@ notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
 id = "design_state.decision_utility"
 status = "done"
 evidence_kind = "implementation_exists"
+limitations = "Bayes action, EVPI regret and preposterior EVSI are computed but not compared with a closed-form or simulated value; no numerical truth backs any decision quantity."
 notes = "Batch Utility + DecisionConstraint; Bayes action, EVPI regret, chance probs; preposterior EVSI"
 
 [[capabilities]]

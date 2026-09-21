@@ -26,6 +26,24 @@ sentence = "Stage transport routes are licensed in `transport_stages.toml`; the 
 licensed_by = "parity/transport_stages.toml"
 files = ["docs/guides/transport-scope.md"]
 
+[[claim]]
+id = "calibrated_slot_means_a_current_matching_record"
+sentence = "the record still attests the current code."
+licensed_by = "parity/coverage_records.toml"
+files = ["README.md"]
+
+[[claim]]
+id = "exact_dag_posterior_is_enumeration"
+sentence = "* exact DAG posterior;"
+licensed_by = "parity/bayesian.toml"
+files = ["docs/capabilities.md"]
+
+[[claim]]
+id = "kennedy_dr_is_a_least_squares_construction"
+sentence = "a local-quadratic of the doubly robust pseudo-outcome) and needs finite"
+licensed_by = "parity/estimate.toml"
+files = ["docs/capabilities.md"]
+
 [[forbidden]]
 pattern = '(?<![<>=,~])1\.12(?![0-9])|1\.11\.1'
 files = ["README.md", "docs/python-workflow.md", "docs/capabilities.md"]

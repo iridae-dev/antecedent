@@ -83,6 +83,7 @@ FAMILIES = {
 EVIDENCE_CLASSES = {
     "external_parity", "exact_scm_truth", "internal_cross_check",
     "theoretical_witness", "statistical_calibration",
+    "inferential_plumbing", "resampling_property",
 }
 roles: dict[str, dict[str, tuple[str, str]]] = {}
 for row in registry.get("fixture_evidence", []):
@@ -122,6 +123,11 @@ for route in registry.get("routes", []):
     for cid in route.get("coverage") or []:
         if cid not in coverage_ids:
             errors.append(f"{route.get('route')}: unknown coverage record {cid}")
+    if route.get("coverage") and route.get("calibration_reason"):
+        errors.append(
+            f"{route.get('route')}: a route cannot cite coverage records and also state "
+            "calibration_reason; the records must measure the route's own estimator"
+        )
     for key in ("scm", "tolerance", "calibration_reason"):
         value = route.get(key)
         if value is not None and (not isinstance(value, str) or not value.strip()):

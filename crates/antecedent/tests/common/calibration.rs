@@ -584,7 +584,12 @@ impl CoverageTally {
                 self.name, self.level
             );
         }
-        self.emit_record(!self.passes_nominal(), "reported_level");
+        // A short run more than RECHECK_SHORTFALL under the level is unresolved until
+        // the recheck at RECHECK_N_SIM supersedes it; until then it is a boundary,
+        // never a nominal pass.
+        let unresolved_shortfall =
+            attempts < PRECISION_N_SIM && rate < self.level - RECHECK_SHORTFALL;
+        self.emit_record(!self.passes_nominal() || unresolved_shortfall, "reported_level");
     }
 
     /// Record a named boundary cell whose coverage the test measures but does

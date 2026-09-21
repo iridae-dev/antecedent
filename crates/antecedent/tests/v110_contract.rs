@@ -5447,7 +5447,10 @@ fn every_licensed_cell_has_a_calibration_record_or_code() {
     for block in licensed.split("[[cell]]").skip(1) {
         let has_record = block.contains("calibration =");
         let has_reason = block.contains("calibration_reason =");
-        if has_record == has_reason {
+        // A record list beside `boundary_record` says what was measured and that none
+        // of it is a nominal pass; any other pairing is one too many or too few.
+        let boundary_only = block.contains("calibration_reason = \"boundary_record\"");
+        if has_record == has_reason && !(has_record && boundary_only) {
             missing.push(block.lines().take(6).collect::<Vec<_>>().join(" "));
         }
         if has_record {

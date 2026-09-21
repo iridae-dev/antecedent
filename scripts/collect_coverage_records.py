@@ -362,8 +362,25 @@ def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
     out.write_text("\n".join(lines))
 
 
-def replace_pair(block: str, calibration: list[str] | None, reason: str | None) -> str:
-    """Replace the calibration / calibration_reason pair inside one TOML block."""
+REPORTED_LEVEL = 0.95
+
+
+def all_boundary_at_reported_level(ids: list[str], records: dict[str, dict]) -> bool:
+    """Whether the cell's records measure the reported level and none of them passes it."""
+    at_level = [
+        records[rid] for rid in ids if abs(float(records[rid]["nominal"]) - REPORTED_LEVEL) < 1e-9
+    ]
+    return bool(at_level) and all(rec["boundary"] for rec in at_level)
+
+
+def replace_pair(
+    block: str, calibration: list[str] | None, reason: str | None, boundary_only: bool = False
+) -> str:
+    """Replace the calibration / calibration_reason pair inside one TOML block.
+
+    A cell whose every reported-level record is a boundary keeps its record list
+    and also states `boundary_record`: the list says what was measured, the
+    reason says that none of it is a nominal pass."""
     kept = [
         line
         for line in block.splitlines()
@@ -374,6 +391,8 @@ def replace_pair(block: str, calibration: list[str] | None, reason: str | None) 
     if calibration:
         ids = ", ".join(f'"{rid}"' for rid in calibration)
         kept.append(f"calibration = [{ids}]")
+        if boundary_only:
+            kept.append('calibration_reason = "boundary_record"')
     else:
         kept.append(f'calibration_reason = "{reason}"')
     return "\n".join(kept) + "\n\n"
@@ -403,7 +422,7 @@ def sync_licensed_cells(records: dict[str, dict]) -> int:
             if not ids and cell["query"] in NO_INTERVAL_QUERIES
             else "estimator_grid_not_measured"
         )
-        new_block = replace_pair(block, ids, reason)
+        new_block = replace_pair(block, ids, reason, all_boundary_at_reported_level(ids, records))
         changed += int(new_block != block)
         out.append(new_block)
     LICENSED.write_text("[[cell]]".join(out))

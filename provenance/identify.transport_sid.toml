@@ -10,6 +10,7 @@ implementation_deviations = [
  "Target-only ordinary ID is attempted before source experimental factors. Completeness does not extend to arbitrary supplied catalogs or limited-experiment settings.",
  "Standardization-subset search is bounded to at most 20 candidate covariates. Response queries reduce to componentwise response factors, not differentiated functionals.",
  "Budget exhaustion and catalog gaps are inconclusive; they are never s-hedge witnesses.",
+ "sID line 3 (intervention enlargement over the non-ancestors W of the outcome) is implemented as a weighted average: the enlarged query is multiplied by the marginal of the input kernel over V minus W and summed over W. The evaluated formula therefore needs the observational law to be defined on every W cell it weights (a positivity/support requirement) that the published line 3 does not state. The completeness claim is evidenced only by exhaustive enumeration over <=4-node ordered ADMGs with X a root and a single treatment and outcome, where identified formulas are not evaluated; numeric truth on line 3 is pinned by a single hand-built graph.",
 ]
 
 papers = [
