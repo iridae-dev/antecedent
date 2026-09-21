@@ -3505,11 +3505,14 @@ fn overlay_prepared_score_functional(
 
 fn sequence_identification_schedule(
     query: &antecedent_core::ResponseQuery,
-) -> Result<Option<Vec<(antecedent_core::VariableId, i32)>>, CausalError> {
+) -> Result<Option<Vec<(antecedent_core::VariableId, i32, Option<f64>)>>, CausalError> {
     match antecedent_estimate::plan_from_response_query(query) {
-        Ok(Some(plan)) => Ok(plan
-            .mechanism_overlays()
-            .map(|overlays| overlays.iter().map(|o| (o.node.variable, o.node.offset)).collect())),
+        Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
+            let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+                message: "sequence schedule requires TemporalResponseSpec".into(),
+            })?;
+            Ok(Some(plan.identification_schedule(temporal)))
+        }
         Ok(_) => Ok(None),
         Err(error) => Err(CausalError::from(error)),
     }
@@ -3522,7 +3525,7 @@ pub(crate) fn identify_temporal_response_horizons(
     temporal: &TemporalResponseSpec,
     target_population: &TargetPopulation,
     estimator_id: crate::strategy_table::EstimatorId,
-    schedule: Option<&[(antecedent_core::VariableId, i32)]>,
+    schedule: Option<&[(antecedent_core::VariableId, i32, Option<f64>)]>,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
     if temporal.horizons.is_empty() {
@@ -3532,8 +3535,8 @@ pub(crate) fn identify_temporal_response_horizons(
     }
     let origin =
         temporal.treatment_offset().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    let sequential =
-        schedule.is_some_and(|nodes| nodes.len() != 1 || nodes[0] != (treatment, origin));
+    let sequential = schedule
+        .is_some_and(|nodes| nodes.len() != 1 || (nodes[0].0, nodes[0].1) != (treatment, origin));
     let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
     for &horizon in temporal.horizons.iter() {
         let id_res = if sequential {

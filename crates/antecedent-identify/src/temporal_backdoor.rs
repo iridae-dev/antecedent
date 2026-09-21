@@ -476,30 +476,45 @@ impl TemporalBackdoorIdentifier {
         })
     }
 
-    /// Identify a joint schedule of `(variable, offset)` treatment nodes.
+    /// Identify a joint schedule of `(variable, offset, level)` treatment nodes.
     ///
+    /// `level` is the hard `Set` value the caller actually requested at that
+    /// step (`None` for a Soft/shift step, which carries no fixed value).
     /// Used by multi-step Sustained / Dynamic and by multi-step / joint Sequence
     /// overlays. The identifier remains `temporal.backdoor.unfolded`.
+    ///
+    /// The active side of the emitted contrast is the schedule's own requested
+    /// level, not a fabricated 0-vs-1 pair: [`resolve_schedule_active_level`]
+    /// requires every `Some` level in the schedule to agree, since
+    /// [`IdIdentifier::identify_schedule_contrast`] bakes a single literal into
+    /// every schedule node.
+    ///
+    /// # Errors
+    ///
+    /// In addition to the usual unfolding / identification failures, refuses a
+    /// schedule that requests two different `Set` levels at different offsets
+    /// (a genuine per-node dose schedule), because the general-ID contrast
+    /// cannot express more than one literal active level today.
     pub fn identify_temporal_schedule(
         &self,
         template: &TemporalDag,
         outcome: VariableId,
         outcome_at: i32,
-        schedule: &[(VariableId, i32)],
+        schedule: &[(VariableId, i32, Option<f64>)],
         max_history_lag: Option<u32>,
         target_population: antecedent_core::TargetPopulation,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         if schedule.is_empty() {
             return Err(IdentificationError::msg("empty treatment schedule"));
         }
-        let (treatment, first_offset) = schedule[0];
+        let (treatment, first_offset, _) = schedule[0];
         let offsets: Vec<i32> = {
-            let mut offsets: Vec<i32> = schedule.iter().map(|&(_, offset)| offset).collect();
+            let mut offsets: Vec<i32> = schedule.iter().map(|&(_, offset, _)| offset).collect();
             offsets.sort_unstable();
             offsets.dedup();
             offsets
         };
-        let same_var = schedule.iter().all(|(variable, _)| *variable == treatment);
+        let same_var = schedule.iter().all(|(variable, _, _)| *variable == treatment);
         let contiguous =
             same_var && offsets.len() > 1 && offsets.windows(2).all(|w| w[1] == w[0] + 1);
         let policy = if contiguous {
@@ -509,12 +524,13 @@ impl TemporalBackdoorIdentifier {
         } else {
             TemporalPolicy::dynamic(antecedent_core::DynamicRuleId::from_raw(0), offsets)
         };
+        let active_level = resolve_schedule_active_level(schedule)?;
         let query = TemporalEffectQuery {
             treatment,
             outcome,
             policy,
             control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+            active: Intervention::set(treatment, antecedent_core::Value::f64(active_level)),
             horizon_steps: u32::try_from(outcome_at.saturating_add(1))
                 .map_err(|_| IdentificationError::msg("outcome offset does not fit horizon"))?,
             max_history_lag,
@@ -524,7 +540,9 @@ impl TemporalBackdoorIdentifier {
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal schedule query",
         })?;
-        self.identify_active_offsets(template, &query, schedule, outcome_at)
+        let schedule_pairs: Vec<(VariableId, i32)> =
+            schedule.iter().map(|&(variable, offset, _)| (variable, offset)).collect();
+        self.identify_active_offsets(template, &query, &schedule_pairs, outcome_at)
     }
 
     /// Multi-time-point interventions (sustained windows or dynamic schedules):
@@ -646,6 +664,44 @@ impl TemporalBackdoorIdentifier {
             treatment_key,
             outcome_key,
         })
+    }
+}
+
+/// The single literal `Set` level to bake into every node of a joint schedule.
+///
+/// `IdIdentifier::identify_schedule_contrast` assigns one `active_level` to
+/// every schedule node (`assign_for` in `id.rs`), so a schedule can only be
+/// certified against the *actual* requested regime when every `Some` level it
+/// carries agrees. A step with `level = None` (a Soft/shift overlay) supplies
+/// no fixed value and is not counted: the estimator downstream reads the
+/// overlay's own shift, never this certificate's literal. A schedule with no
+/// `Set` step at all keeps the historical `1.0` reference level purely to
+/// certify structural identifiability, which is level-free.
+///
+/// # Errors
+///
+/// [`IdentificationError::unsupported`] when two schedule steps request
+/// different `Set` levels: a genuine per-node dose schedule, which the
+/// current single-literal contrast cannot express without silently
+/// substituting one side's request for another's.
+fn resolve_schedule_active_level(
+    schedule: &[(VariableId, i32, Option<f64>)],
+) -> Result<f64, IdentificationError> {
+    let mut distinct: Vec<f64> = Vec::new();
+    for &(_, _, level) in schedule {
+        if let Some(value) = level {
+            if !distinct.contains(&value) {
+                distinct.push(value);
+            }
+        }
+    }
+    match distinct.as_slice() {
+        [] => Ok(1.0),
+        [only] => Ok(*only),
+        _ => Err(IdentificationError::unsupported(
+            "temporal schedule requests different Set levels at different offsets; \
+             a single joint-schedule contrast cannot certify a per-node dose schedule",
+        )),
     }
 }
 
@@ -1374,5 +1430,73 @@ mod tests {
             identifier.identify_temporal(&template, &query),
             Err(IdentificationError::NotCertified { .. })
         ));
+    }
+
+    /// A joint schedule sustained at a non-0/1 dose must be certified as a
+    /// contrast against *that* dose, not against a fabricated 1.0. Before the
+    /// fix, `identify_temporal_schedule` hard-coded `active = 1.0` regardless
+    /// of the level every schedule step actually requested.
+    #[test]
+    fn schedule_identifies_the_requested_dose_not_a_fabricated_one() {
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
+
+        let schedule =
+            [(VariableId::from_raw(0), -1, Some(2.5)), (VariableId::from_raw(0), 0, Some(2.5))];
+        let identifier = TemporalBackdoorIdentifier::new();
+        let identified = identifier
+            .identify_temporal_schedule(
+                &template,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                antecedent_core::TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let CausalQuery::TemporalEffect(recorded) = &identified.result.query else {
+            panic!("schedule contrast must record a TemporalEffectQuery");
+        };
+        assert_eq!(
+            recorded.active,
+            Intervention::set(VariableId::from_raw(0), antecedent_core::Value::f64(2.5)),
+            "the certified active arm must be the dose the schedule actually requested"
+        );
+        assert_eq!(
+            recorded.control,
+            Intervention::set(VariableId::from_raw(0), antecedent_core::Value::f64(0.0))
+        );
+    }
+
+    /// A schedule that requests two different `Set` levels at different
+    /// offsets (a genuine per-node dose schedule) cannot be certified by a
+    /// single-literal contrast; refusing is honest, silently picking one
+    /// side's number is not.
+    #[test]
+    fn schedule_refuses_mixed_dose_levels_instead_of_picking_one() {
+        let mut template = TemporalDag::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
+
+        let schedule =
+            [(VariableId::from_raw(0), -1, Some(2.0)), (VariableId::from_raw(0), 0, Some(5.0))];
+        let identifier = TemporalBackdoorIdentifier::new();
+        let err = identifier
+            .identify_temporal_schedule(
+                &template,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                antecedent_core::TargetPopulation::AllObserved,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(err, IdentificationError::UnsupportedQuery { .. }),
+            "mixed-level schedules must be refused, not silently identified: {err:?}"
+        );
     }
 }

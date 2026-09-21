@@ -471,8 +471,8 @@ mod tests {
         graph: &TemporalDag,
         overlays: &[SequentialMechanismOverlay],
     ) -> (IdentifiedEstimand, TemporalIndexer) {
-        let schedule: Vec<(VariableId, i32)> =
-            overlays.iter().map(|o| (o.node.variable, o.node.offset)).collect();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
         let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
             .identify_temporal_schedule(
                 graph,
