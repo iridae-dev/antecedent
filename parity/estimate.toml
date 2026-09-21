@@ -196,13 +196,24 @@ calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_anal
 [[capabilities]]
 id = "estimate.two_stage"
 group = "estimation"
-description = "Two-stage regression"
+description = "Linear front-door two-stage regression (frontdoor.linear_two_stage: product of coefficients, records frontdoor.linear_path_product)"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/frontdoor"
-limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared."
+limitations = "Exact only under a linear SEM with no treatment-mediator interaction; the restriction is recorded on every result and conformance/estimate/frontdoor_functional pins the case where the product of coefficients converges to 0.3631 against an enumerated 0.315. assert_recovers checks the synthetic true_effect 0.4*5=2 at tolerance 0.06 on an uncentred treatment, so neither path coefficient alone passes; the reported SE is compared with the closed-form delta-method SE of the SCM (|ln ratio| < 0.1). The recorded DoWhy block predates the current SCM and is not compared. The hc1 coverage record predates the per-equation HC1 factor (n/(n-2), n/(n-3) instead of n/(n-5)); a replay at n=400 gives 0.935 against the recorded 0.9375."
 owner = "estimate"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_ci_coverage"]
+
+[[capabilities]]
+id = "estimate.frontdoor_functional"
+group = "estimation"
+description = "Plug-in of the nonparametric front-door functional (frontdoor.functional) with an influence-function SE"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/frontdoor_functional"
+limitations = "Discrete treatment only (at most 32 observed levels, both contrasted levels observed); a continuous treatment is refused. Discrete mediators use saturated cell means and are refused, not extrapolated, when a mediator value seen under a contrasted arm is missing from another arm; continuous mediators use a per-arm linear outcome regression whose within-arm linearity and additivity are recorded as a parametric restriction. The analytic SE was checked by 400 seeded replicates per outcome model inside the crate (mean SE within 12% of the sampling SD, 95% coverage inside the three-sigma binomial band); no coverage record has been measured for it yet. Selectable by id only: the outcome model is chosen automatically through the facade and Python."
+owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.conditional"

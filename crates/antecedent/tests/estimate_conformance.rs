@@ -229,7 +229,9 @@ fn estimate_iv_2sls_recovers_structural_effect() {
 }
 
 /// `U -> T -> M -> Y` with `U -> Y` (no direct `T -> Y` edge; `U` unmeasured, absent from the
-/// graph). `M = T + noise`, `Y = 2M + U + noise`. True mediated effect = `1 * 2 = 2`.
+/// graph). `T = 3 + U + noise` (uncentred, so a dropped intercept shows), `M = 0.4T + noise`,
+/// `Y = 5M + U + noise`. True mediated effect = `0.4 * 5 = 2`; neither path coefficient alone
+/// (0.4, 5) nor the confounded `Y ~ T` slope (about 3) is near it.
 fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5053_u64);
     let mut t = vec![0.0; n];
@@ -237,9 +239,9 @@ fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) 
     let mut y = vec![0.0; n];
     for i in 0..n {
         let u = standard_normal(&mut rng);
-        let ti = u + 0.1 * standard_normal(&mut rng);
-        let mi = ti + 0.1 * standard_normal(&mut rng);
-        let yi = 2.0 * mi + u + 0.1 * standard_normal(&mut rng);
+        let ti = 3.0 + u + 0.1 * standard_normal(&mut rng);
+        let mi = 0.4 * ti + 0.1 * standard_normal(&mut rng);
+        let yi = 5.0 * mi + u + 0.1 * standard_normal(&mut rng);
         t[i] = ti;
         m[i] = mi;
         y[i] = yi;
@@ -249,12 +251,26 @@ fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) 
         ("y", RoleHint::OutcomeCandidate, y),
         ("m", RoleHint::Context, m),
     ]);
+    (data, frontdoor_dag(), frontdoor_query())
+}
+
+fn frontdoor_dag() -> Dag {
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap(); // t -> m
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap(); // m -> y
-    let query =
-        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    (data, dag, query)
+    dag
+}
+
+fn frontdoor_query() -> AverageEffectQuery {
+    AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0)
+}
+
+fn records_assumption(result: &antecedent::StudyResult, id: &str) -> bool {
+    result.estimate.assumptions.entries.iter().any(|r| match &r.assumption {
+        antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
+        antecedent_core::Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
+        _ => false,
+    })
 }
 
 #[test]
@@ -272,7 +288,80 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     let ctx = ExecutionContext::for_tests(41);
     let result = analysis.run(&ctx).unwrap();
     assert_recovers(&result, &expected);
-    assert_reference_se(&result, "frontdoor", 4000);
+    assert!(records_assumption(&result, "frontdoor.linear_path_product"));
+
+    // Large-sample SE of the product `ab` in this linear Gaussian SCM, by the delta method with
+    // independent stages: n·Var(a) = σ²_M / Var(T) = 0.01 / 1.01 and
+    // n·Var(b) = Var(Y | T, M) / Var(M | T) = (Var(U | T) + 0.01) / 0.01 with
+    // Var(U | T) = 0.01 / 1.01, so n·Var(ab) = 25·0.0099 + 0.16·1.990 = 0.566.
+    let var_u_given_t = 0.01 / 1.01;
+    let n_var = 25.0 * (0.01 / 1.01) + 0.16 * (var_u_given_t + 0.01) / 0.01;
+    let closed_form = (n_var / 4000.0_f64).sqrt();
+    let log_ratio = (result.estimate.se_analytic / closed_form).ln();
+    assert!(
+        log_ratio.abs() < 0.1,
+        "se_analytic={} closed form={closed_form}",
+        result.estimate.se_analytic
+    );
+}
+
+/// Exact 4000-row population table of `U ~ Bern(.5)`, `P(T=1|U) = .1 + .5U`,
+/// `P(M=1|T) = .1 + .7T`, `P(Y=1|M,U) = .05 + .9MU` with `U` dropped. The latent modifies the
+/// mediator's effect, so the enumerated effect `0.7 · 0.9 · E[U] = 0.315` is reached by the
+/// front-door functional and missed by the product of coefficients (0.363).
+fn frontdoor_interaction_table() -> TabularData {
+    let (mut t, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());
+    for u in [0.0_f64, 1.0] {
+        for ti in [0.0_f64, 1.0] {
+            let pt = if ti == 1.0 { 0.1 + 0.5 * u } else { 0.9 - 0.5 * u };
+            for mi in [0.0_f64, 1.0] {
+                let pm = if mi == 1.0 { 0.1 + 0.7 * ti } else { 0.9 - 0.7 * ti };
+                for yi in [0.0_f64, 1.0] {
+                    let py1 = 0.05 + 0.9 * mi * u;
+                    let py = if yi == 1.0 { py1 } else { 1.0 - py1 };
+                    let count = (0.5 * pt * pm * py * 4000.0).round() as usize;
+                    t.extend(std::iter::repeat_n(ti, count));
+                    m.extend(std::iter::repeat_n(mi, count));
+                    y.extend(std::iter::repeat_n(yi, count));
+                }
+            }
+        }
+    }
+    assert_eq!(t.len(), 4000);
+    tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("m", RoleHint::Context, m),
+    ])
+}
+
+#[test]
+fn estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_does_not() {
+    let expected = load_expected("frontdoor_functional");
+    let truth = expected["true_effect"].as_f64().unwrap();
+    let run = |estimator: &str| {
+        Study::tabular(frontdoor_interaction_table())
+            .graph(frontdoor_dag())
+            .query(frontdoor_query())
+            .identifier(expected["identifier"].as_str().unwrap().parse::<IdentifierId>().unwrap())
+            .estimator(estimator.parse::<EstimatorId>().unwrap())
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(43))
+            .unwrap()
+    };
+    let functional = run(expected["estimator"].as_str().unwrap());
+    assert_recovers(&functional, &expected);
+    assert!(records_assumption(&functional, "frontdoor.functional.saturated_cells"));
+    assert!(!records_assumption(&functional, "frontdoor.linear_path_product"));
+    assert!(functional.estimate.se_analytic > 0.0);
+
+    let shortcut = run("frontdoor.linear_two_stage");
+    let shortcut_limit = expected["linear_path_product_limit"].as_f64().unwrap();
+    assert!((shortcut.estimate.ate - shortcut_limit).abs() < 1e-3, "{}", shortcut.estimate.ate);
+    assert!((shortcut.estimate.ate - truth).abs() > 0.04);
+    assert!(records_assumption(&shortcut, "frontdoor.linear_path_product"));
 }
 
 fn run_static(

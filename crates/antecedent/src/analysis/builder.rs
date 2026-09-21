@@ -668,7 +668,10 @@ fn refuse_estimator_inference_mismatch(
                 EstimatorId::DrLearner if average => frequentist!("dr.learner"),
                 EstimatorId::CausalForest if average => frequentist!("causal.forest"),
                 EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
-                EstimatorId::FrontDoorTwoStage if average => frequentist!("frontdoor.two_stage"),
+                EstimatorId::FrontDoorTwoStage if average => {
+                    frequentist!("frontdoor.linear_two_stage")
+                }
+                EstimatorId::FrontDoorFunctional if average => frequentist!("frontdoor.functional"),
                 EstimatorId::IvWald if average => frequentist!("iv.wald"),
                 EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
                 EstimatorId::RdSharp if average => frequentist!("rd.sharp"),

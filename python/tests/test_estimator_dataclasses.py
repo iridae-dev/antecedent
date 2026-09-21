@@ -21,7 +21,7 @@ from antecedent.estimators import (
     CausalForest,
     DistanceMatching,
     DRLearner,
-    FrontdoorTwoStage,
+    FrontdoorLinearTwoStage,
     GlmAdjustment,
     GlmOptions,
     Iv2Sls,
@@ -85,7 +85,7 @@ _DEFAULT_INSTANCE_CASES = [
     (DRLearner(), Estimator.DR_LEARNER),
     (CausalForest(), Estimator.CAUSAL_FOREST),
     (GlmAdjustment(), Estimator.GLM_ADJUSTMENT),
-    (FrontdoorTwoStage(), Estimator.FRONTDOOR_TWO_STAGE),
+    (FrontdoorLinearTwoStage(), Estimator.FRONTDOOR_LINEAR_TWO_STAGE),
     (IvWald(), Estimator.IV_WALD),
     (Iv2Sls(), Estimator.IV_2SLS),
 ]
@@ -361,14 +361,14 @@ def test_se_validation_shared_by_every_se_bearing_estimator(cls):
 
 
 def test_frontdoor_two_stage_has_no_multiway_or_panel_fields():
-    # frontdoor.two_stage's Rust struct only carries cluster_ids (no multiway/panel_times
+    # frontdoor.linear_two_stage's Rust struct only carries cluster_ids (no multiway/panel_times
     # SE machinery); passing those as kwargs must be a plain TypeError (unknown field),
     # not a silently-accepted-then-ignored value.
     with pytest.raises(TypeError):
-        FrontdoorTwoStage(multiway_ids=[[0, 1]])  # type: ignore[call-arg]
+        FrontdoorLinearTwoStage(multiway_ids=[[0, 1]])  # type: ignore[call-arg]
     with pytest.raises(TypeError):
-        FrontdoorTwoStage(panel_times=[0, 1])  # type: ignore[call-arg]
-    cfg = FrontdoorTwoStage(se="cluster", cluster_ids=[0, 1, 2])
+        FrontdoorLinearTwoStage(panel_times=[0, 1])  # type: ignore[call-arg]
+    cfg = FrontdoorLinearTwoStage(se="cluster", cluster_ids=[0, 1, 2])
     assert cfg._wire() == {"se_kind": "cluster", "cluster_ids": [0, 1, 2]}
 
 

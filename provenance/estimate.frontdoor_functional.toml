@@ -1,0 +1,27 @@
+feature_id = "estimate.frontdoor_functional"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Plug-in of Pearl's front-door functional for a discrete treatment, with an
+# influence-function standard error. Identification is identify.frontdoor.
+papers = [
+ { title = "Causal Diagrams for Empirical Research", doi = "10.1093/biomet/82.4.669", sections = ["front-door criterion and adjustment formula"] },
+ { title = "Robust inference on population indirect causal effects: the generalized front door criterion", sections = ["Fulcher, Shpitser, Marealle, Tchetgen Tchetgen (JRSS-B 2020): efficient influence function of the front-door functional"] },
+]
+
+implementation_deviations = [
+ "Evaluates the front-door functional as E[g(M) | T=a] with g(m) = sum_t' E[Y | m, t'] P(t'), averaging over the empirical mediator law of each contrasted arm; no mediator density or propensity model is fitted.",
+ "The treatment must be discrete (at most 32 observed levels) and both contrasted levels must be observed; a continuous treatment is refused.",
+ "E[Y | M, T] is either saturated (cell means over observed joint mediator values; refused when a mediator value seen under a contrasted arm is absent from another arm) or, for continuous mediators, a separate OLS of Y on the mediators within each arm, which leaves treatment-mediator interaction free but assumes within-arm linearity and additivity in the mediators. The variant used is recorded on the result.",
+ "The standard error is the empirical second moment of the plug-in's influence function (heteroskedasticity-robust, independent rows); the cited paper's one-step and doubly robust estimators are not implemented.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/frontdoor_functional.rs (exact population tables of binary and three-arm two-mediator SCMs enumerated over the latent confounder; seeded replicate study of the influence-function SE and 95% coverage for both outcome models)",
+ "conformance/estimate/frontdoor_functional",
+]

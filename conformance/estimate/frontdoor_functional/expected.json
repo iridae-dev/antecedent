@@ -1,0 +1,12 @@
+{
+  "true_effect": 0.315,
+  "tolerance": 1e-12,
+  "identifier": "frontdoor",
+  "estimator": "frontdoor.functional",
+  "linear_path_product_limit": 0.3631,
+  "notes": "clean-room; exact 4000-row population table of the binary SCM U~Bern(.5), P(T=1|U)=.1+.5U, P(M=1|T)=.1+.7T, P(Y=1|M,U)=.05+.9MU with U dropped (every cell probability is a multiple of 1/4000). True effect by enumeration over U: sum_u P(u) sum_m [P(m|T=1)-P(m|T=0)] E[Y|m,u] = 0.7*0.9*0.5 = 0.315. The latent modifies the mediator effect, so E[Y|M,T] has a T x M interaction: the within-arm mediator slopes are 0.9*E[U|T=1]=0.7714 and 0.9*E[U|T=0]=0.2769 with P(T=1)=0.35. The product of coefficients converges to 0.7 * (0.35*0.16*0.7714 + 0.65*0.09*0.2769)/(0.35*0.16 + 0.65*0.09) = 0.3631, and weighting the inner sum uniformly over T would give 0.3669; only the P(t')-weighted functional equals 0.315.",
+  "reference": {
+    "available": false,
+    "note": "No external oracle: the truth is the closed-form enumeration above."
+  }
+}

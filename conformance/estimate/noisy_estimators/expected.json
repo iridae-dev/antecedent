@@ -83,7 +83,7 @@
         "y",
         "m"
       ],
-      "scm": "U~N; t=U+noise; m=t+noise; y=2m+U+noise; U unobserved",
+      "scm": "U~N(0,1) unobserved; t=3+U+0.5N (uncentred); m=0.4t+0.5N; y=5m+U+0.5N; effect 0.4*5=2; generate_frontdoor.py (stdlib random.Random(7))",
       "method_ids": [
         "frontdoor"
       ]
@@ -128,8 +128,9 @@
     "frontdoor": {
       "method_name": "frontdoor.two_stage_regression",
       "target": "ate",
-      "val": 2.9613610010837883,
-      "se": 0.01314660798295739
+      "val": null,
+      "se": null,
+      "note": "not re-run: frontdoor.csv was re-cut with unequal path coefficients (0.4, 5) after the pinned baseline run, and the Rust estimate is asserted against true_ate, never against this block"
     }
   },
   "estimator_map": {
@@ -157,9 +158,9 @@
     },
     "frontdoor": {
       "identifier": "frontdoor",
-      "estimator": "frontdoor.two_stage",
+      "estimator": "frontdoor.linear_two_stage",
       "assert_against": "true_ate",
-      "note": "DoWhy frontdoor.two_stage uses naive product E[M|T]*E[Y|M]; assert Rust vs true_ate"
+      "note": "asserted against true_ate; with path coefficients 0.4 and 5 neither coefficient alone is within tolerance of 2"
     }
   },
   "generation": {

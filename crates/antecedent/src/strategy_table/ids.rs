@@ -241,8 +241,10 @@ pub enum EstimatorId {
     Aipw,
     /// GLM (logit) adjustment.
     GlmAdjustment,
-    /// Front-door two-stage.
+    /// Linear front-door two-stage (product of coefficients).
     FrontDoorTwoStage,
+    /// Plug-in of the nonparametric front-door functional.
+    FrontDoorFunctional,
     /// Wald IV.
     IvWald,
     /// Two-stage least squares.
@@ -385,10 +387,16 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             provenance: ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
         },
         EstimatorId::FrontDoorTwoStage => EstimatorData {
-            name: "frontdoor.two_stage",
+            name: "frontdoor.linear_two_stage",
             parallel_task_dimension: "bootstrap.replicate",
-            kernel_label: "frontdoor.two_stage",
+            kernel_label: "frontdoor.linear_two_stage",
             provenance: ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
+        },
+        EstimatorId::FrontDoorFunctional => EstimatorData {
+            name: "frontdoor.functional",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "frontdoor.functional",
+            provenance: ("estimate.frontdoor_functional", "estimate.frontdoor_functional"),
         },
         EstimatorId::IvWald => EstimatorData {
             name: "iv.wald",
@@ -750,7 +758,10 @@ pub fn validate_static_pair(
         {
             true
         }
-        (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage)
+        (
+            IdentifierId::Frontdoor,
+            EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional,
+        )
         | (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls)
         | (IdentifierId::RdSharp, EstimatorId::RdSharp)
         | (
@@ -774,7 +785,10 @@ pub fn validate_static_pair(
             if backdoor_estimators
                 || matches!(
                     estimator,
-                    EstimatorId::FrontDoorTwoStage | EstimatorId::IvWald | EstimatorId::Iv2Sls
+                    EstimatorId::FrontDoorTwoStage
+                        | EstimatorId::FrontDoorFunctional
+                        | EstimatorId::IvWald
+                        | EstimatorId::Iv2Sls
                 ) =>
         {
             true
@@ -891,7 +905,9 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
         | EstimatorId::ResponseBayesian => method.is_backdoor_family(),
-        EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
+        EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {
+            matches!(method, EstimandMethod::FrontDoor)
+        }
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
         EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
         EstimatorId::TemporalLinearAdjustment

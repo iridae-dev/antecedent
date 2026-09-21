@@ -327,7 +327,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "DRLearner",
         "DistanceMatching",
         "FitKind",
-        "FrontdoorTwoStage",
+        "FrontdoorLinearTwoStage",
         "GlmAdjustment",
         "GlmFamilyName",
         "GlmOptions",

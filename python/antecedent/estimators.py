@@ -287,7 +287,7 @@ def _wire_se_common(
     shared by every estimator config that carries these fields.
 
     ``multiway_ids``/``panel_times`` default to ``None`` so callers whose dataclass has no
-    such field (``FrontdoorTwoStage``) can simply omit them rather than inventing values.
+    such field (``FrontdoorLinearTwoStage``) can simply omit them rather than inventing values.
     """
     out: dict[str, Any] = {}
     if bootstrap is not None:
@@ -602,12 +602,18 @@ class GlmAdjustment:
 
 
 @dataclass(frozen=True, slots=True)
-class FrontdoorTwoStage:
-    """``frontdoor.two_stage`` — two-stage front-door estimator.
+class FrontdoorLinearTwoStage:
+    """``frontdoor.linear_two_stage`` — linear product-of-coefficients front-door estimator.
+
+    Multiplies OLS coefficients (``T -> M`` times ``M -> Y`` given ``T``) rather than
+    evaluating the front-door functional, so it is exact only when ``E[M|T]`` is linear
+    and ``E[Y|M,T]`` has no treatment-mediator interaction; the result records that
+    restriction (``frontdoor.linear_path_product``). For a discrete treatment prefer
+    ``estimator="frontdoor.functional"``, which estimates the functional itself.
 
     No ``multiway_ids``/``panel_times`` fields: the Rust struct carries only
     ``cluster_ids`` (no multiway/panel SE machinery for this estimator) — matches
-    ``estimator_config.rs``'s ``ESTIMATOR_KEYS`` row for ``frontdoor.two_stage``,
+    ``estimator_config.rs``'s ``ESTIMATOR_KEYS`` row for ``frontdoor.linear_two_stage``,
     which likewise omits those two keys.
     """
 
@@ -622,7 +628,7 @@ class FrontdoorTwoStage:
 
     @property
     def estimator_id(self) -> str:
-        return str(Estimator.FRONTDOOR_TWO_STAGE)
+        return str(Estimator.FRONTDOOR_LINEAR_TWO_STAGE)
 
     def _wire(self) -> dict[str, Any]:
         return _omit_empty(
@@ -896,7 +902,7 @@ __all__ = [
     "DRLearner",
     "DistanceMatching",
     "FitKind",
-    "FrontdoorTwoStage",
+    "FrontdoorLinearTwoStage",
     "GlmAdjustment",
     "GlmFamilyName",
     "GlmOptions",

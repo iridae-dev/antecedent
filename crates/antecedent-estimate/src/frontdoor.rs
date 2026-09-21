@@ -757,7 +757,7 @@ fn stacked_cluster_meat(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(clippy::many_single_char_names, clippy::float_cmp, clippy::cast_sign_loss)]
 pub(crate) mod tests {
     use std::sync::Arc;
 
