@@ -192,7 +192,9 @@ impl PosteriorDraws {
         for q in 0..n_q {
             let col = &self.values[q * self.n_draws..(q + 1) * self.n_draws];
             mean[q] = reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(0.0);
-            sd[q] = reduce_posterior_draws(col, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
+            // Fewer than two draws carry no spread information: NaN, never a zero sd.
+            sd[q] =
+                reduce_posterior_draws(col, PosteriorReduceOp::Std, &policy).unwrap_or(f64::NAN);
             let mut sorted = col.to_vec();
             sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             q025[q] = quantile_sorted(&sorted, 0.025);

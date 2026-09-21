@@ -49,8 +49,8 @@ pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceProjection, EvidenceRegime, InterventionAssignment, LicensedWeights, RegimeBinding,
-    RegimeKind, SamplingDesign, TargetSampling, UnmetDependency, VariableCoordinate,
+    EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LicensedWeights,
+    RegimeBinding, RegimeKind, SamplingDesign, TargetSampling, UnmetDependency, VariableCoordinate,
     VariableDomain,
 };
 pub use transport_contract::{

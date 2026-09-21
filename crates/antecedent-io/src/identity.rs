@@ -1835,16 +1835,21 @@ pub fn execution_identity_from_context(ctx: &ExecutionContext) -> ExecutionIdent
         library_version: antecedent_core::VERSION.into(),
         seed: ctx.rng.master_seed(),
         threads: ctx.parallelism.max_threads.get(),
-        backend: if policy.force_scalar {
+        // The backend that runs, not the one requested: SIMD requested but not
+        // compiled in is the portable path, so behaviourally identical contexts
+        // share one execution identity.
+        backend: if policy.force_scalar
+            || !(policy.arch_simd_effective() || policy.allow_portable_optimized)
+        {
             "scalar".into()
-        } else if policy.allow_arch_simd {
+        } else if policy.arch_simd_effective() {
             "optimized".into()
         } else {
             "portable".into()
         },
         kernel: KernelPolicyWire {
             allow_portable_optimized: policy.allow_portable_optimized,
-            allow_arch_simd: policy.allow_arch_simd,
+            allow_arch_simd: policy.arch_simd_effective(),
             force_scalar: policy.force_scalar,
         },
         determinism: match ctx.determinism {

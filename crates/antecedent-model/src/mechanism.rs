@@ -914,8 +914,8 @@ fn softmax_row_probs(
 }
 
 fn categorical_draw(support: &[f64], probs: &[f64], u: f64) -> f64 {
-    let idx = categorical_from_u(u, probs);
-    support.get(idx).copied().unwrap_or(0.0)
+    // No probability mass has no category: NaN, not an arbitrary support point.
+    categorical_from_u(u, probs).map_or(f64::NAN, |idx| support.get(idx).copied().unwrap_or(0.0))
 }
 
 /// Fill an entire noise batch for all nodes (structural path).

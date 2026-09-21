@@ -322,12 +322,12 @@ pub fn max_t_critical(
         }
     }
     let chol = cholesky_corr(&corr, k)?;
-    let mut rng = SplitMix64 { state: seed | 1 };
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
     let mut maxima = Vec::with_capacity(replicates as usize);
     let mut z = vec![0.0; k];
     for _ in 0..replicates {
         for zi in &mut z {
-            *zi = standard_normal(&mut rng);
+            *zi = antecedent_kernels::standard_normal(&mut rng);
         }
         let mut max_abs: f64 = 0.0;
         for i in 0..k {
@@ -398,27 +398,6 @@ fn pava_increasing(y: &mut [f64]) {
             }
         }
     }
-}
-
-struct SplitMix64 {
-    state: u64,
-}
-
-impl SplitMix64 {
-    fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-}
-
-fn standard_normal(rng: &mut SplitMix64) -> f64 {
-    let u = (rng.next_u64() >> 11) as f64 / ((1u64 << 53) as f64);
-    let v = (rng.next_u64() >> 11) as f64 / ((1u64 << 53) as f64);
-    let u = u.clamp(f64::EPSILON, 1.0 - f64::EPSILON);
-    (-2.0 * u.ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
 }
 
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {

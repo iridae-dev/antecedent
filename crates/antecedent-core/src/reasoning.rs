@@ -104,6 +104,61 @@ impl IdentificationSlot {
         }
     }
 
+    /// Validated construction: masses finite, in `[0, 1]`, summing to 1.
+    ///
+    /// # Errors
+    ///
+    /// Returns the reason the mass partition is not a probability partition.
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new(
+        status: IdentificationStatus,
+        identified_mass: f64,
+        unidentified_mass: f64,
+        unevaluable_mass: f64,
+        incomplete_search_mass: f64,
+        full_mass_scope: bool,
+        weight_basis: Option<Arc<str>>,
+        search_capped: bool,
+    ) -> Result<Self, &'static str> {
+        let slot = Self::new(
+            status,
+            identified_mass,
+            unidentified_mass,
+            unevaluable_mass,
+            incomplete_search_mass,
+            full_mass_scope,
+            weight_basis,
+            search_capped,
+        );
+        slot.check_masses().map(|()| slot)
+    }
+
+    /// Whether the four masses form a probability partition (finite, each in
+    /// `[0, 1]`, summing to 1 within `1e-9`).
+    #[must_use]
+    pub fn masses_are_valid(&self) -> bool {
+        self.check_masses().is_ok()
+    }
+
+    fn check_masses(&self) -> Result<(), &'static str> {
+        let masses = [
+            self.identified_mass,
+            self.unidentified_mass,
+            self.unevaluable_mass,
+            self.incomplete_search_mass,
+        ];
+        if masses.iter().any(|mass| !mass.is_finite()) {
+            return Err("identification_mass_not_finite");
+        }
+        if masses.iter().any(|mass| !(0.0..=1.0).contains(mass)) {
+            return Err("identification_mass_out_of_range");
+        }
+        if (masses.iter().sum::<f64>() - 1.0).abs() > 1e-9 {
+            return Err("identification_mass_not_partition");
+        }
+        Ok(())
+    }
+
     /// Single-atom result whose status alone determines the mass partition.
     ///
     /// Only uniquely identified point statuses report mass 1. `GraphDependent`

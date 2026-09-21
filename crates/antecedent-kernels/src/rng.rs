@@ -17,9 +17,24 @@ pub fn standard_normal(rng: &mut CausalRng) -> f64 {
 /// components and halves RNG consumption vs repeated [`standard_normal`].
 #[must_use]
 pub fn standard_normal_pair(rng: &mut CausalRng) -> (f64, f64) {
-    let u1 = rng.next_f64().clamp(1e-12, 1.0);
+    let u1 = rng.next_f64();
     let u2 = rng.next_f64();
-    let r = (-2.0 * u1.ln()).sqrt();
+    box_muller(u1, u2)
+}
+
+/// Smallest positive value [`CausalRng::next_f64`] can return: `2^-53`.
+const UNIFORM_RESOLUTION: f64 = 1.0 / 9_007_199_254_740_992.0;
+
+/// Box–Muller transform of two uniforms in `[0, 1)` into a `(cos, sin)` normal pair.
+///
+/// The single owner of the transform. `ln(0)` is the only singularity, and a
+/// 53-bit uniform is either 0 or at least `2^-53`, so `u1` is floored at that
+/// resolution: no draw is altered except the exact-zero one, and the tail is
+/// truncated at `|z| <= sqrt(2 * 53 * ln 2) ~ 8.57`, the point the generator's own
+/// resolution cannot reach anyway.
+#[must_use]
+pub fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
+    let r = (-2.0 * u1.max(UNIFORM_RESOLUTION).ln()).sqrt();
     let theta = std::f64::consts::TAU * u2;
     (r * theta.cos(), r * theta.sin())
 }
@@ -65,43 +80,114 @@ pub fn shuffle<T>(rng: &mut CausalRng, items: &mut [T]) {
     }
 }
 
-/// Draw a categorical index given non-negative weights (normalized internally).
+/// A weight counts only if it is finite and positive; NaN, negative and infinite
+/// weights carry no probability mass.
+fn categorical_mass(weight: f64) -> f64 {
+    if weight.is_finite() && weight > 0.0 { weight } else { 0.0 }
+}
+
+/// Inverse-CDF category for `target` in `[0, total)` over the sanitized masses.
 ///
-/// Returns `0` if all weights are zero / empty.
-#[must_use]
-pub fn sample_categorical(rng: &mut CausalRng, weights: &[f64]) -> usize {
-    if weights.is_empty() {
-        return 0;
-    }
-    let sum: f64 = weights.iter().copied().sum();
-    if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-        return 0;
-    }
-    let u = rng.next_f64() * sum;
+/// `target < cumulative` skips zero-mass categories by construction. Rounding
+/// that leaves `target` at or above the final cumulative mass resolves to the
+/// last category that has mass.
+fn categorical_index(weights: &[f64], target: f64) -> usize {
     let mut acc = 0.0;
     for (i, &w) in weights.iter().enumerate() {
-        acc += w.max(0.0);
-        if u < acc {
+        acc += categorical_mass(w);
+        if target < acc {
             return i;
         }
     }
-    weights.len() - 1
+    weights.iter().rposition(|&w| categorical_mass(w) > 0.0).unwrap_or(0)
+}
+
+/// Total sanitized mass, or `None` when there is none (or it overflows).
+fn categorical_total(weights: &[f64]) -> Option<f64> {
+    let total: f64 = weights.iter().map(|&w| categorical_mass(w)).sum();
+    (total > 0.0 && total.is_finite()).then_some(total)
+}
+
+/// Draw a categorical index given non-negative weights (normalized internally).
+///
+/// Negative, NaN and infinite weights carry no mass. Returns `None` when there is
+/// no positive mass (empty, all-zero or all-invalid weights); a category with zero
+/// mass is never returned.
+#[must_use]
+pub fn sample_categorical(rng: &mut CausalRng, weights: &[f64]) -> Option<usize> {
+    let total = categorical_total(weights)?;
+    Some(categorical_index(weights, rng.next_f64() * total))
 }
 
 /// Draw a categorical index from a unit-interval `u` and (possibly unnormalized) weights.
+///
+/// The inverse CDF: category `i` owns `[F(i-1), F(i))`, so `u == 0` never selects a
+/// leading zero-mass category and `u == 1` selects the last category with mass.
+/// `None` when the weights carry no positive mass or `u` is NaN.
 #[must_use]
-pub fn categorical_from_u(u: f64, probs: &[f64]) -> usize {
-    if probs.is_empty() {
-        return 0;
+pub fn categorical_from_u(u: f64, probs: &[f64]) -> Option<usize> {
+    if u.is_nan() {
+        return None;
     }
-    let sum: f64 = probs.iter().copied().sum::<f64>().max(f64::EPSILON);
-    let target = u.clamp(0.0, 1.0) * sum;
-    let mut acc = 0.0;
-    for (i, &p) in probs.iter().enumerate() {
-        acc += p.max(0.0);
-        if target <= acc {
-            return i;
+    let total = categorical_total(probs)?;
+    Some(categorical_index(probs, u.clamp(0.0, 1.0) * total))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inverse_cdf_skips_zero_mass_categories() {
+        // u = 0 belongs to the first category WITH mass, not the zero-mass index 0.
+        assert_eq!(categorical_from_u(0.0, &[0.0, 0.5, 0.5]), Some(1));
+        // F = [0, 0.5, 1]: u = 0.5 opens the interval of category 2.
+        assert_eq!(categorical_from_u(0.5, &[0.0, 0.5, 0.5]), Some(2));
+        assert_eq!(categorical_from_u(0.25, &[0.0, 0.5, 0.5]), Some(1));
+        // u = 1 lands on the last category with mass, never a trailing zero-mass one.
+        assert_eq!(categorical_from_u(1.0, &[0.5, 0.5, 0.0]), Some(1));
+        // Unnormalized weights use their own total.
+        assert_eq!(categorical_from_u(0.75, &[2.0, 6.0]), Some(1));
+        assert_eq!(categorical_from_u(0.2, &[2.0, 6.0]), Some(0));
+    }
+
+    #[test]
+    fn categorical_without_mass_is_none() {
+        assert_eq!(categorical_from_u(0.5, &[]), None);
+        assert_eq!(categorical_from_u(0.5, &[0.0, 0.0]), None);
+        assert_eq!(categorical_from_u(0.5, &[f64::NAN, -1.0]), None);
+        assert_eq!(categorical_from_u(f64::NAN, &[1.0]), None);
+        let mut rng = CausalRng::from_seed(1);
+        assert_eq!(sample_categorical(&mut rng, &[0.0, 0.0]), None);
+        assert_eq!(sample_categorical(&mut rng, &[f64::NAN]), None);
+    }
+
+    #[test]
+    fn invalid_weights_carry_no_mass_in_the_same_total() {
+        // The negative weight is dropped from both the total and the running sum.
+        assert_eq!(categorical_from_u(0.9, &[3.0, -2.0, 1.0]), Some(2));
+        assert_eq!(categorical_from_u(0.7, &[3.0, -2.0, 1.0]), Some(0));
+        let mut rng = CausalRng::from_seed(7);
+        let n = 20_000;
+        let mut counts = [0usize; 3];
+        for _ in 0..n {
+            counts[sample_categorical(&mut rng, &[3.0, -2.0, 1.0]).unwrap()] += 1;
         }
+        assert_eq!(counts[1], 0, "the negative-weight category must never be drawn");
+        // P(2) = 1/4; the binomial sd at n = 20000 is 0.0031.
+        let freq = counts[2] as f64 / n as f64;
+        assert!((freq - 0.25).abs() < 0.02, "freq {freq}");
     }
-    probs.len() - 1
+
+    #[test]
+    fn box_muller_matches_the_closed_form() {
+        let (c, s) = box_muller(0.5, 0.25);
+        let r = (-2.0 * 0.5_f64.ln()).sqrt();
+        assert!((c - r * (std::f64::consts::FRAC_PI_2).cos()).abs() < 1e-15);
+        assert!((s - r).abs() < 1e-15);
+        // u1 = 0 is finite and bounded by the 2^-53 floor: r = sqrt(2 * 53 * ln 2).
+        let (z, _) = box_muller(0.0, 0.0);
+        let bound = (2.0 * 53.0 * std::f64::consts::LN_2).sqrt();
+        assert!((z - bound).abs() < 1e-12, "{z} vs {bound}");
+    }
 }

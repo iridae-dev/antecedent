@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::VariableId;
 
-use super::transport_catalog::{EvidenceCatalog, UnmetDependency};
+use super::transport_catalog::{EvidenceCatalog, FactorNeed, UnmetDependency, same_variable_set};
 use super::{QueryError, ResponseQuery};
 
 /// Transport a response from one explicitly named population to another.
@@ -88,9 +88,9 @@ impl TransportQuery {
     #[must_use]
     pub fn unmet_factor_dependencies(
         &self,
-        needed: &[(Arc<str>, Arc<[VariableId]>)],
+        needed: &[(Arc<str>, FactorNeed<'_>)],
     ) -> Arc<[UnmetDependency]> {
-        self.compatibility_catalog().unmet_factor_dependencies(&self.source_population, needed)
+        self.compatibility_catalog().unmet_factor_dependencies(needed)
     }
 
     /// Validate population keys, response semantics, experiment uniqueness, and catalog.
@@ -126,15 +126,4 @@ impl TransportQuery {
         }
         Ok(())
     }
-}
-
-fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
-    if left.len() != right.len() {
-        return false;
-    }
-    let mut a = left.to_vec();
-    let mut b = right.to_vec();
-    a.sort_unstable_by_key(|id| id.raw());
-    b.sort_unstable_by_key(|id| id.raw());
-    a == b
 }

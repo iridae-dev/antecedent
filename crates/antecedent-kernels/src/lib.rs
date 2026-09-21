@@ -30,8 +30,8 @@ pub use parcorr::{
 };
 pub use posterior_reduce::{PosteriorReduceOp, reduce_posterior_draws};
 pub use rng::{
-    categorical_from_u, fill_standard_normal, sample_categorical, shuffle, standard_normal,
-    standard_normal_pair, unbiased_index,
+    box_muller, categorical_from_u, fill_standard_normal, sample_categorical, shuffle,
+    standard_normal, standard_normal_pair, unbiased_index,
 };
 pub use scalar::sanitize_weight;
 pub use special::{erf, erfc, norm_cdf, norm_inv, norm_pdf, norm_sf};

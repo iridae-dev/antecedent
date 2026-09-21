@@ -331,6 +331,7 @@ name = "antecedent-state"
 version = "1.11.0"
 dependencies = [
  "antecedent-core",
+ "antecedent-kernels",
  "antecedent-stats",
  "criterion",
  "serde_json",

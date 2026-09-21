@@ -62,4 +62,20 @@ impl IdentificationStatus {
             Self::NotIdentified => "not_identified",
         }
     }
+
+    /// Evidential strength of the identification claim, larger is stronger.
+    ///
+    /// A derivation may keep or lower this rank but never raise it: a derived
+    /// claim cannot assert a stronger identification than the parents it came from.
+    #[must_use]
+    pub const fn strength_rank(self) -> u8 {
+        match self {
+            Self::NonparametricallyIdentified => 5,
+            Self::IdentifiedUnderParametricRestrictions => 4,
+            Self::IdentifiedUnderPriorRestrictions => 3,
+            Self::PartiallyIdentified => 2,
+            Self::GraphDependent => 1,
+            Self::NotIdentified => 0,
+        }
+    }
 }
