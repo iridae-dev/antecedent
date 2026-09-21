@@ -43,6 +43,8 @@ nav:
       - Causal responses: causal-responses.md
       - Local, distributional, and joint effects: local-distributional-joint.md
       - Transport and interference: transport-interference.md
+      - Transport failures: guides/transport-failure.md
+      - Transport theorem scope: guides/transport-scope.md
       - Prior bank: priors.md
   - Concepts:
       - Capabilities: capabilities.md

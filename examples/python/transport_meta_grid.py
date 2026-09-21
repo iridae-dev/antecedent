@@ -3,6 +3,21 @@
 import antecedent as ant
 
 
+def _slots(result, *, uncertainty: bool) -> None:
+    report = result.inspect()
+    assert report.identification.available
+    assert report.assumptions.available
+    assert report.support.summary
+    assert report.uncertainty.available is uncertainty
+    print(
+        f"identification: {report.identification.summary}",
+        f"support: {report.support.summary}",
+        f"uncertainty: {report.uncertainty.summary}",
+        f"assumptions: {report.assumptions.summary}",
+        sep="\n",
+    )
+
+
 def main() -> None:
     graph = ant.Admg.from_edges(
         ["x", "z", "y"], [("x", "z"), ("z", "y")], bidirected=[("x", "z"), ("x", "y")]
@@ -49,7 +64,7 @@ def main() -> None:
             )
     data = ant.transport.ExactTransportData(tuple(laws))
     result = ant.analyze(data, graph=graph, query=query)
-    print(result.inspect().identification)
+    _slots(result, uncertainty=False)
     assert result.answer.kind == "response"
     assert [round(row[0], 2) for row in result.response.values] == [0.26, 0.74]
     print(list(result.response.values))

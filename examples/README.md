@@ -89,10 +89,13 @@ cargo run -p antecedent --example <name>
 | Rank designs | Rank candidate experiments by identification probability | [python](python/rank_designs.py) | [rust](rust/rank_designs.rs) |
 | CausalState workflow | Update an analysis as data arrive and identify outdated results | [python](python/causal_state_workflow.py) | [rust](rust/causal_state_workflow.rs) |
 | Sales analysis | Explore average, mediated, individual, and delayed effects | [python](python/sales_spreadsheet_e2e.py) | [rust](rust/sales_spreadsheet_e2e.rs) |
+| Transport a source table | Single-source empirical transport of a response grid | [python](python/transport_statistical.py) | [rust](rust/transport_statistical.rs) |
+| Transport an exact law | Single-source exact-law transport of a response grid | [python](python/transport_exact.py) | [rust](rust/transport_exact.rs) |
+| Complementary-source grid | Combined sources identify a target curve; one source does not | [python](python/transport_meta_grid.py) | [rust](rust/transport_meta_grid.rs) |
 | ATE quickstart | Build and run an average-effect analysis | — | [rust](rust/ate_quickstart.rs) |
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |
 
-`python/transport_meta_grid.py` demonstrates complementary-source identification,
-exact mean responses, retained missing grid points, paired contrasts, and
-independent artifact consumption. It makes no sampling-coverage claim.
+The three transport scripts share one workflow and differ only in evidence.
+Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`.
+Exact and complementary-source examples make no sampling-coverage claim.

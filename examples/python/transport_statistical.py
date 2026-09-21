@@ -3,6 +3,21 @@
 import antecedent as ant
 
 
+def _slots(result, *, uncertainty: bool) -> None:
+    report = result.inspect()
+    assert report.identification.available
+    assert report.assumptions.available
+    assert report.support.summary
+    assert report.uncertainty.available is uncertainty
+    print(
+        f"identification: {report.identification.summary}",
+        f"support: {report.support.summary}",
+        f"uncertainty: {report.uncertainty.summary}",
+        f"assumptions: {report.assumptions.summary}",
+        sep="\n",
+    )
+
+
 def main() -> None:
     graph = ant.Admg.from_edges(["x", "y"], [("x", "y")])
     evidence = ant.transport.Evidence(
@@ -23,6 +38,7 @@ def main() -> None:
     result = ant.analyze(data, graph=graph, query=query)
     assert result.answer.kind == "response"
     assert [row[0] for row in result.response.values] == [0.5, 0.8]
+    _slots(result, uncertainty=False)
     print(result)
 
     replacement = {
