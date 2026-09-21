@@ -6,8 +6,9 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Delegates its line-2 subproblem to the incomplete ID implementation and therefore is not a complete implementation of the cited IDC algorithm.",
- "When IDC rule 2 moves a conditioning variable into the intervention set, the implementation assigns the concrete placeholder value Int64(0); the resulting functional is wrong for conditioning values other than zero instead of retaining the conditioning value symbolically.",
+ "Delegates its line-2 subproblem to ID; IDC's own completeness is evidenced only on three-node ADMGs (all 64 graphs x 6 role assignments), not on larger graphs.",
+ "When IDC rule 2 moves a conditioning variable into the intervention set, the internal ID sub-query carries the structure-only placeholder Int64(0) for it. Distribution queries bake no levels into factors, so the moved variable stays symbolic in the functional; this is checked at both conditioning values by the three-node sweep.",
+ "Queries whose outcomes, interventions and conditioning set are not pairwise disjoint are refused.",
  "Supports only hard Set interventions and finite-domain symbolic normalization.",
 ]
 
@@ -22,4 +23,5 @@ upstream_implementations_observed = [
 test_sources = [
  "frozen IDC fixture metadata; the executable test consumes only the unconditional reduction case (conformance/identify/idc)",
  "unconditional reduction unit test (crates/antecedent-identify/src/idc.rs)",
+ "exact enumeration of latent binary SCMs on all three-node ADMGs against P_x(y,z)/P_x(z), including post-treatment conditioning variables (crates/antecedent-identify/tests/id_completeness.rs)",
 ]
