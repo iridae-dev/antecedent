@@ -29,6 +29,10 @@ def _confounded_data(seed: int = 7, n: int = 400):
     return names, columns, edges
 
 
+# A sharp design as a graph: the running variable is the treatment's only cause.
+_RD_GRAPH = [("r", "t"), ("t", "y"), ("r", "y")]
+
+
 def _rd_data(seed: int = 25, n: int = 1500):
     """Sharp RD fixture: running variable `r`, cutoff at 0."""
     rng = np.random.default_rng(seed)
@@ -213,7 +217,7 @@ def test_rd_triple_via_estimator_config_matches_loose_kwargs():
     via_loose_kwargs = analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator="rd.sharp",
@@ -228,7 +232,7 @@ def test_rd_triple_via_estimator_config_matches_loose_kwargs():
     via_estimator_config = analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator="rd.sharp",
@@ -250,7 +254,7 @@ def test_rd_triple_conflict_between_loose_and_estimator_config_raises():
         analyze_ate(
             names,
             columns,
-            [],
+            _RD_GRAPH,
             "t",
             "y",
             estimator="rd.sharp",
@@ -281,7 +285,7 @@ def _rd_fit(names, columns, se_kind=None):
     return analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator="rd.sharp",

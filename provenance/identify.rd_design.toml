@@ -10,8 +10,9 @@ papers = [
 ]
 
 implementation_deviations = [
- "Does not search a causal graph. Identification is the declared sharp-RD design (running variable, cutoff, bandwidth) packaged as an RdSharp estimand.",
- "Records continuity and sharp-assignment as algorithm-default assumptions; it does not test density continuity, manipulation, or fuzzy compliance.",
+ "Identifies the average effect for units at the cutoff only. The result's target population is LocalAtCutoff(running, cutoff): an AllObserved request is relabelled with a Scientific warning, any other population is NotIdentified. The stored functional is the difference of the one-sided limits of E[Y | R = r] at the cutoff, written as the boundary contrast E[Y | T=1, R=c] - E[Y | T=0, R=c].",
+ "Does not search a causal graph. The design (running variable, cutoff, bandwidth) is declared by the caller and never inferred; when a graph is supplied the running variable must be the treatment's only parent, otherwise the result is NotIdentified (identify.rd.graph_incompatible). AutoIdentifier uses the design only for a query that targets the cutoff population.",
+ "Records continuity at the cutoff (untestable), no manipulation of the running variable, and sharp assignment as algorithm-default assumptions; it does not test density continuity or manipulation. Sharp assignment is verified by the estimator against the treatment column.",
  "Requires an AverageEffect query with Set (or Soft-constant / Shift reducible to Set) interventions. Fuzzy RD is unsupported.",
  "Bandwidth is a caller-supplied identification parameter, not a data-driven selector.",
 ]
@@ -20,5 +21,6 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-identify/src/rd.rs",
+ "crates/antecedent-identify/src/auto.rs",
  "conformance/estimate/rd_sharp",
 ]

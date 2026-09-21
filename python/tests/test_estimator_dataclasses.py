@@ -57,6 +57,10 @@ def _public_scm(seed: int = 9, n: int = 400):
     return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
+# A sharp design as a graph: the running variable is the treatment's only cause.
+_RD_GRAPH = [("r", "t"), ("t", "y"), ("r", "y")]
+
+
 def _rd_data(seed: int = 25, n: int = 1500):
     """Sharp RD fixture: running variable `r`, cutoff at 0."""
     rng = np.random.default_rng(seed)
@@ -131,7 +135,7 @@ def test_sharp_rd_se_reaches_the_estimator_through_public_analyze():
     def fit(se):
         cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se=se)
         return antecedent.analyze(
-            data, graph=[], query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
+            data, graph=_RD_GRAPH, query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
         ).estimate
 
     default, hc1, homoskedastic = fit(None), fit("hc1"), fit("homoskedastic")
@@ -182,7 +186,7 @@ def test_sharp_rd_wire_round_trips_through_native_analyze_ate():
     via_dataclass = analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator=cfg.estimator_id,
@@ -195,7 +199,7 @@ def test_sharp_rd_wire_round_trips_through_native_analyze_ate():
     via_hand_dict = analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator="rd.sharp",
@@ -227,7 +231,7 @@ def test_sharp_rd_wire_alone_is_sufficient_through_public_analyze():
 
     config_only = antecedent.analyze(
         data,
-        graph=[],
+        graph=_RD_GRAPH,
         query=query,
         seed=26,
         bootstrap=0,
@@ -237,7 +241,7 @@ def test_sharp_rd_wire_alone_is_sufficient_through_public_analyze():
     )
     loose_too = antecedent.analyze(
         data,
-        graph=[],
+        graph=_RD_GRAPH,
         query=query,
         seed=26,
         bootstrap=0,
@@ -261,11 +265,11 @@ def test_typed_estimator_instance_is_accepted_directly():
     cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
 
     direct = antecedent.analyze(
-        data, graph=[], query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
+        data, graph=_RD_GRAPH, query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
     )
     spelled_out = antecedent.analyze(
         data,
-        graph=[],
+        graph=_RD_GRAPH,
         query=query,
         seed=26,
         bootstrap=0,
@@ -278,7 +282,7 @@ def test_typed_estimator_instance_is_accepted_directly():
     with pytest.raises(ValueError, match="already carries its configuration"):
         antecedent.analyze(
             data,
-            graph=[],
+            graph=_RD_GRAPH,
             query=query,
             seed=26,
             estimator=cfg,

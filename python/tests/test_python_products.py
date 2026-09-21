@@ -316,7 +316,8 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
     if options == "rd":
         from antecedent.estimators import SharpRd
 
-        kwargs["graph"] = []
+        # The sharp design as a graph: the running variable is the treatment's only cause.
+        kwargs["graph"] = [("r", "t"), ("t", "y"), ("r", "y")]
         kwargs["estimator"] = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
     return kwargs
 

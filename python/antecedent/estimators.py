@@ -711,7 +711,22 @@ class Iv2Sls:
 
 @dataclass(frozen=True, slots=True)
 class SharpRd:
-    """``rd.sharp`` — sharp regression discontinuity.
+    """``rd.sharp`` — sharp regression discontinuity: the effect at the cutoff.
+
+    The estimand is the average effect for units at the cutoff,
+    ``lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]``. It is not the population
+    average effect and not the average over the bandwidth window. The result's
+    target population is ``local_at_cutoff`` (running variable and cutoff), and
+    the ``identify.rd.local_estimand`` diagnostic states that the population-wide
+    effect is not identified by the design.
+
+    The design is checked where it can be. The graph must make the running
+    variable the treatment's only parent, and the treatment column must equal
+    ``1{running_variable >= cutoff}`` on every complete row; a violation (for
+    example imperfect compliance) is refused with ``rd_assignment_not_sharp``
+    rather than reported as a treatment effect. Continuity of the potential
+    outcomes at the cutoff and no manipulation of the running variable are
+    recorded as assumptions and are not tested.
 
     Unlike every other config in this module, there is no meaningful
     all-defaults instance: ``rd.sharp`` cannot run without a running variable,
