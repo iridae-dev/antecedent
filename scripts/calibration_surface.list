@@ -46,6 +46,7 @@ key estimator.bayesian_mediation estimator temporal.mediation.bayesian
 estimator.conditional crates/antecedent-estimate/src/conditional.rs
 key estimator.conditional estimator conditional.linear.*
 estimator.frontdoor crates/antecedent-estimate/src/frontdoor.rs
+estimator.frontdoor crates/antecedent-estimate/src/frontdoor_functional.rs
 key estimator.frontdoor estimator frontdoor.*
 estimator.functional crates/antecedent-estimate/src/functional_distribution.rs
 key estimator.functional estimator functional.*

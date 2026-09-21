@@ -101,6 +101,19 @@ fn frontdoor_data(seed: u64) -> TabularData {
     table(&[("t", &t), ("y", &y), ("m", &m)])
 }
 
+/// Binary treatment on the same graph; the mediator is binary (`discrete`) or continuous.
+fn frontdoor_functional_data(seed: u64, discrete: bool) -> TabularData {
+    let mut g = gaussian(seed);
+    let (mut t, mut y, mut m) = (vec![0.0; N], vec![0.0; N], vec![0.0; N]);
+    for i in 0..N {
+        let u = f64::from(g() > 0.25);
+        t[i] = f64::from(g() + 0.8 * u > 0.6);
+        m[i] = if discrete { f64::from(g() + t[i] > 0.5) } else { 1.0 + 0.4 * t[i] + g() };
+        y[i] = 2.0 * m[i] * (0.5 + u) + 0.5 * u + 0.6 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("m", &m)])
+}
+
 fn frontdoor_dag() -> Dag {
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(d(0), d(2)).unwrap();
@@ -245,6 +258,17 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                     se_kind,
                     ..FrontDoorTwoStage::new()
                 })
+                .refute(RefuteSuite::None)
+        }
+        "frontdoor_functional_saturated_ci_coverage"
+        | "frontdoor_functional_arm_linear_ci_coverage" => {
+            let discrete = test == "frontdoor_functional_saturated_ci_coverage";
+            Study::tabular(frontdoor_functional_data(14, discrete))
+                .graph(frontdoor_dag())
+                .query(continuous_query())
+                .identifier(IdentifierId::Frontdoor)
+                .estimator(EstimatorId::FrontDoorFunctional)
+                .bootstrap_replicates(0)
                 .refute(RefuteSuite::None)
         }
         "rd_sharp_analytic_ci_coverage" | "rd_sharp_hc1_heteroskedastic_ci_coverage" => {

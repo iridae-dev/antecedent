@@ -51,6 +51,9 @@ use antecedent_kernels::standard_normal;
 use crate::adjustment::LinearAdjustmentAte;
 use crate::aipw::AipwAte;
 use crate::frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace};
+use crate::frontdoor_functional::{
+    ARM_LINEAR_ASSUMPTION_ID, FrontDoorFunctional, SATURATED_ASSUMPTION_ID,
+};
 use crate::iv::{TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 use crate::propensity::{PropensityEstimationWorkspace, PropensityMatching, PropensityWeighting};
 use crate::rd::{RdWorkspace, SharpRegressionDiscontinuity};
@@ -1007,6 +1010,102 @@ fn frontdoor_stacked_hc1_ci_coverage() {
         "frontdoor_stacked_hc1",
         AnalyticSeKind::Hc1,
         38_000,
+    );
+}
+
+// -------------------------------------------------- front-door functional
+
+/// Effect of `T` on `Y` under the outcome equation shared by both front-door functional
+/// designs, `Y = 1 + 2·M·(0.5 + U) + 0.5U + 0.6ε` with `E[U] = 0.4`:
+/// `2 · (E[M|do(1)] − E[M|do(0)]) · (0.5 + E[U])`.
+const fn frontdoor_functional_truth(mediator_shift: f64) -> f64 {
+    2.0 * mediator_shift * 0.9
+}
+
+/// `U ~ Bern(0.4)` unobserved, `P(T=1|U) = 0.2 + 0.4U` (arms 0.64 / 0.36), a mediator that
+/// depends on `T` only, and an outcome in which `U` both shifts `Y` and modifies the
+/// mediator's effect. `E[Y|M,T]` therefore carries a treatment-mediator interaction: the
+/// product of coefficients is biased here and only the functional is consistent. The
+/// mediator is `Bern(0.25 + 0.5T)` (`discrete`) or `1 + 0.4T + (1 + 0.5T)ε`
+/// (heteroskedastic across arms; `E[Y|M,T]` is linear in `M` within an arm). Columns
+/// `t, y, m`.
+fn frontdoor_functional_scm(n: usize, seed: u64, discrete: bool) -> TabularData {
+    let mut rng = CausalRng::from_seed(grid_seed(seed));
+    let (mut t, mut y, mut m) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let u = f64::from(uniform01(&mut rng) < 0.4);
+        t[i] = f64::from(uniform01(&mut rng) < 0.2 + 0.4 * u);
+        m[i] = if discrete {
+            f64::from(uniform01(&mut rng) < 0.25 + 0.5 * t[i])
+        } else {
+            1.0 + 0.4 * t[i] + (1.0 + 0.5 * t[i]) * standard_normal(&mut rng)
+        };
+        y[i] = 1.0 + 2.0 * m[i] * (0.5 + u) + 0.5 * u + 0.6 * standard_normal(&mut rng);
+    }
+    table(&[("t", &t), ("y", &y), ("m", &m)])
+}
+
+fn frontdoor_functional_coverage(test: &'static str, label: &str, discrete: bool, seed: u64) {
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let estimand = IdentifiedEstimand::frontdoor(
+        "frontdoor",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    // `Auto` is what the facade runs: saturated cells for the binary mediator, the per-arm
+    // linear outcome regression for the continuous one.
+    let est = FrontDoorFunctional::new().with_bootstrap_replicates(0);
+    let (dgp, truth, model) = if discrete {
+        (
+            "frontdoor_functional_discrete_scm",
+            frontdoor_functional_truth(0.5),
+            SATURATED_ASSUMPTION_ID,
+        )
+    } else {
+        (
+            "frontdoor_functional_continuous_scm",
+            frontdoor_functional_truth(0.4),
+            ARM_LINEAR_ASSUMPTION_ID,
+        )
+    };
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut tally = Tally::for_record(test, dgp);
+    for s in 0..n_sim() {
+        let data = frontdoor_functional_scm(grid_n(400), seed + u64::from(s), discrete);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        let recorded = effect.assumptions.entries.iter().any(|r| match &r.assumption {
+            antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == model,
+            antecedent_core::Assumption::Custom { id, .. } => id.as_ref() == model,
+            _ => false,
+        });
+        assert!(recorded, "{test}: the design must exercise {model}");
+        tally.bind(grid_n(400), None);
+        tally.record(effect.ate, effect.se_analytic, truth);
+    }
+    tally.assert(label);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frontdoor_functional_saturated_ci_coverage() {
+    frontdoor_functional_coverage(
+        "frontdoor_functional_saturated_ci_coverage",
+        "frontdoor_functional_saturated",
+        true,
+        39_500,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frontdoor_functional_arm_linear_ci_coverage() {
+    frontdoor_functional_coverage(
+        "frontdoor_functional_arm_linear_ci_coverage",
+        "frontdoor_functional_arm_linear",
+        false,
+        40_600,
     );
 }
 
