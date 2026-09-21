@@ -981,13 +981,18 @@ pub fn select_claim(
 /// the target. An estimator that computes a *different* functional of the observed law is
 /// the queried effect only under a restriction on the structural model, and that
 /// restriction is part of the identification claim: the constant-effect (or monotonicity)
-/// restriction of a Wald ratio, recorded by the IV identifier, and the restriction under
-/// which a product of regression coefficients is the front-door effect, recorded here
-/// because the front-door identifier cannot know which estimator will run.
+/// restriction of a Wald ratio, recorded by the IV identifier, the restriction under
+/// which a product of regression coefficients is the front-door effect, and the restriction
+/// under which `total − direct` is the pure natural indirect effect the path-specific
+/// identifier certifies, recorded here because those identifiers cannot know which estimator
+/// will run.
 fn estimator_claim_restriction(estimator: EstimatorId) -> Option<AssumptionRecord> {
     match estimator {
         EstimatorId::FrontDoorTwoStage => {
             Some(antecedent_estimate::linear_path_product_restriction())
+        }
+        EstimatorId::StaticMediationLinear => {
+            Some(antecedent_estimate::linear_no_interaction_restriction())
         }
         _ => None,
     }

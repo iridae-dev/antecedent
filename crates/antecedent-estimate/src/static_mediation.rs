@@ -194,6 +194,29 @@ pub fn estimate_static_mediation(
     })
 }
 
+/// The restriction under which `total − direct` is the pure natural indirect effect.
+///
+/// Identification scope: the path-specific identifier certifies `E[Y(a0, M(a1))] − E[Y(a0)]`,
+/// and this estimator computes a different functional of the observed law, `total − direct`
+/// (the total natural indirect effect `E[Y(a1)] − E[Y(a1, M(a0))]`), that coincides with it
+/// only under this restriction.
+#[must_use]
+pub fn linear_no_interaction_restriction() -> antecedent_core::AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("mediation.linear_no_interaction"),
+            description: Arc::from(
+                "The natural direct and total effects are computed as products of additive linear parent-regression coefficients along direct and full paths, and the indirect estimate is their difference total - direct, the total natural indirect effect E[Y(a1)] - E[Y(a1, M(a0))], not by evaluating the pure natural indirect effect functional E[Y(a0, M(a1))] - E[Y(a0)] the identifier certifies. They coincide only if the structural mechanisms are additive and linear with no treatment-mediator interaction.",
+            ),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.mediation.linear"),
+        },
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    }
+}
+
 /// Mapped prior summaries hydrated independently onto each linear mechanism.
 #[derive(Clone, Copy, Debug)]
 pub struct MediationPriorBridge<'a> {

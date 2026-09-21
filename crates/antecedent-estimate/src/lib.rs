@@ -225,4 +225,5 @@ pub use util::BootstrapSeResult;
 mod static_mediation;
 pub use static_mediation::{
     MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,
+    linear_no_interaction_restriction,
 };

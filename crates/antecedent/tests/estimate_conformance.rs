@@ -422,6 +422,107 @@ fn frontdoor_claim_follows_the_executed_estimator() {
     }
 }
 
+/// Exact population table of a binary chain `T -> M -> Y`, `T -> Y`, `M ~ Bern(.3 + .4T)`,
+/// `Y ~ Bern(.05 + .15M + .15T + .5MT)`: a treatment-mediator interaction on the outcome. No
+/// latent confounder, so the pure natural indirect effect is nonparametrically identified by
+/// the mediation formula and can be enumerated exactly:
+/// `E[Y(0,M(1))] - E[Y(0,M(0))] = .155 - .095 = .06`. `mediation.linear` instead reports
+/// `total - direct` as a product of population OLS slopes: the `T -> M` slope is `Cov(T,M) /
+/// Var(T) = .10 / .25 = .4`, and the partial `M -> Y` slope controlling for `T` (equal to the
+/// partial `T -> Y` slope by the symmetric design) solves
+/// `[.25 .10; .10 .25] [c1;c2] = [.14;.14]`, giving `c2 = .4`; the reported indirect effect is
+/// their product `.4 * .4 = .16`.
+fn mediation_interaction_table() -> TabularData {
+    let (mut t, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());
+    for ti in [0.0_f64, 1.0] {
+        let pm = if ti == 1.0 { 0.7 } else { 0.3 };
+        for mi in [0.0_f64, 1.0] {
+            let m_count = if mi == 1.0 { pm } else { 1.0 - pm };
+            let py = 0.05 + 0.15 * mi + 0.15 * ti + 0.5 * mi * ti;
+            for yi in [0.0_f64, 1.0] {
+                let py_cell = if yi == 1.0 { py } else { 1.0 - py };
+                let count = (0.5 * m_count * py_cell * 4000.0).round() as usize;
+                t.extend(std::iter::repeat_n(ti, count));
+                m.extend(std::iter::repeat_n(mi, count));
+                y.extend(std::iter::repeat_n(yi, count));
+            }
+        }
+    }
+    assert_eq!(t.len(), 4000);
+    tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("m", RoleHint::Context, m),
+    ])
+}
+
+/// Variable ids follow `mediation_interaction_table`'s column order: `t=0, y=1, m=2`.
+fn mediation_interaction_dag() -> Dag {
+    let mut dag = Dag::with_variables(3);
+    for (s, t) in [(0, 1), (0, 2), (2, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+    }
+    dag
+}
+
+/// `mediation.linear`'s indirect estimate is `total - direct`, the total natural indirect
+/// effect, while the path-specific identifier certifies the pure natural indirect effect; they
+/// coincide only without treatment-mediator interaction. On the interaction fixture above the
+/// two truths differ by 0.1, so the plain nonparametric claim the facade used to report was
+/// false: the estimator does not evaluate the certified functional. The claim must be
+/// downgraded to parametric with the restriction recorded, exactly as `frontdoor.linear_two_stage`
+/// is downgraded when it substitutes a coefficient product for the front-door functional.
+#[test]
+fn mediation_linear_claim_is_restricted_under_interaction() {
+    use antecedent_core::{
+        Assumption, AssumptionScope, CausalQuery, IdentificationStatus, MediationContrast,
+        MediationQuery,
+    };
+    let restriction = |set: &antecedent_core::AssumptionSet| {
+        set.entries
+            .iter()
+            .filter(|r| {
+                matches!(&r.assumption, Assumption::ParametricRestriction(p)
+                    if p.id.as_ref() == "mediation.linear_no_interaction")
+            })
+            .map(|r| r.scope.clone())
+            .collect::<Vec<_>>()
+    };
+    let query = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        Arc::from([VariableId::from_raw(2)]),
+        MediationContrast::NaturalIndirect,
+    );
+    let result = Study::tabular(mediation_interaction_table())
+        .graph(mediation_interaction_dag())
+        .query(CausalQuery::Mediation(query))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(53))
+        .unwrap();
+
+    let true_pure_nie = 0.06;
+    let total_minus_direct = 0.16;
+    assert!(
+        (result.estimate.ate - total_minus_direct).abs() < 1e-6,
+        "the estimator still reports total - direct: {}",
+        result.estimate.ate
+    );
+    assert!((result.estimate.ate - true_pure_nie).abs() > 0.05, "{}", result.estimate.ate);
+
+    assert_eq!(
+        result.identification.status,
+        IdentificationStatus::IdentifiedUnderParametricRestrictions
+    );
+    assert_eq!(
+        restriction(&result.identification.required_assumptions),
+        vec![AssumptionScope::Identification]
+    );
+    assert_eq!(restriction(&result.estimate.assumptions), vec![AssumptionScope::Identification]);
+}
+
 fn run_static(
     name: &str,
     data: TabularData,
