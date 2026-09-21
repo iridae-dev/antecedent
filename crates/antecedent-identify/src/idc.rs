@@ -79,6 +79,7 @@ impl IdcIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         match query {
             CausalQuery::Distribution(q) => {
+                crate::id::validate_distribution_query(q)?;
                 if q.conditioning.is_empty() {
                     return self.inner.identify(prepared, query, workspace);
                 }
@@ -118,6 +119,15 @@ impl IdcIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         crate::intervention_support::require_hard_set_interventions(interventions, "IDC")?;
+        // Y, X and Z must be pairwise disjoint: an overlap is not a
+        // conditional interventional law and the rule-2 search below would
+        // silently treat the shared node as two different variables.
+        crate::id::validate_distribution_query(&InterventionalDistributionQuery {
+            outcomes: Arc::from(outcomes.to_vec()),
+            interventions: Arc::from(interventions.to_vec()),
+            conditioning: Arc::from(conditioning.to_vec()),
+            target_population: antecedent_core::TargetPopulation::AllObserved,
+        })?;
         let n = prepared.admg().node_count();
         let mut y = BitSet::with_len(n);
         for &v in outcomes {
