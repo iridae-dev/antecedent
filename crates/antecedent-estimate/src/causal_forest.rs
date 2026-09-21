@@ -1,8 +1,9 @@
 //! Honest causal forest CATE (`CausalForest`).
 //!
-//! Wager–Athey / GRF-style: trees split to maximize treatment-effect
-//! heterogeneity; honesty estimates leaf CATEs on a held-out half of each
-//! subsample. Learners never choose the adjustment set.
+//! Trees split to maximize treatment-effect heterogeneity; honesty estimates
+//! leaf CATEs as an uncentered within-leaf difference in means on a held-out
+//! half of each subsample, then predicts those leaf values in-sample. This is
+//! not GRF local centering. Learners never choose the adjustment set.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -185,11 +186,11 @@ impl CausalForest {
             if hits[i] > 0.0 {
                 cate[i] /= hits[i];
             }
-            // Mean of honest two-sample leaf variances over trees that had both
-            // arms with n≥2. Trees that only return a point (single-observation
-            // arm) contribute to the CATE, not the SE.
+            // Sqrt of the mean of honest two-sample leaf variances over trees
+            // that had both arms with n≥2. Trees that only return a point
+            // (single-observation arm) contribute to the CATE, not the SE.
             if se_hits[i] > 0.0 {
-                cate_se[i] = (se_ss[i].max(0.0)).sqrt() / se_hits[i];
+                cate_se[i] = cate_se_from_leaf_ses(se_ss[i], se_hits[i]);
             } else {
                 se_complete = false;
             }
@@ -531,6 +532,13 @@ fn leaf_stat(y: &[f64], t: &[f64], rows: &[u32]) -> Option<(f64, Option<f64>)> {
     Some((tau, var.is_finite().then_some(var.sqrt())))
 }
 
+/// Pointwise CATE SE from summed leaf SEs: `sqrt(mean of leaf variances)`.
+///
+/// `se_ss` accumulates `leaf_se²` and `se_hits` counts trees that supplied an SE.
+fn cate_se_from_leaf_ses(se_ss: f64, se_hits: f64) -> f64 {
+    (se_ss / se_hits).max(0.0).sqrt()
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -554,6 +562,27 @@ mod tests {
         assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
         fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], Some((2.0, Some(0.5))));
         assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some((2.0, Some(0.5))));
+    }
+
+    #[test]
+    fn cate_se_equals_leaf_se_when_all_trees_agree() {
+        // B identical leaf SEs of s → cate_se = s, not s/√B.
+        let b = 25usize;
+        let s = 0.4;
+        let mut se_ss = 0.0;
+        let mut se_hits = 0.0;
+        for _ in 0..b {
+            se_ss += s * s;
+            se_hits += 1.0;
+        }
+        let got = cate_se_from_leaf_ses(se_ss, se_hits);
+        assert!((got - s).abs() < 1e-12, "expected {s}, got {got}");
+        let divided_by_sqrt_b = se_ss.sqrt() / se_hits;
+        assert!(
+            (divided_by_sqrt_b - s / (b as f64).sqrt()).abs() < 1e-12,
+            "old formula must be s/√B so the regression stays meaningful"
+        );
+        assert!((got - divided_by_sqrt_b).abs() > 1e-6);
     }
 
     fn interaction_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand, Vec<f64>) {
