@@ -11,6 +11,21 @@ pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64])
     accumulate_xtx(x_colmajor, nrows, ncols, xtx);
 }
 
+/// Fill `Xᵀy` (length `ncols`) from column-major `X` and `y`.
+pub fn form_xty(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], xty: &mut [f64]) {
+    debug_assert!(x_colmajor.len() >= nrows * ncols);
+    debug_assert!(y.len() >= nrows);
+    debug_assert!(xty.len() >= ncols);
+    for c in 0..ncols {
+        let col = &x_colmajor[c * nrows..(c + 1) * nrows];
+        let mut acc = 0.0;
+        for r in 0..nrows {
+            acc += col[r] * y[r];
+        }
+        xty[c] = acc;
+    }
+}
+
 /// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
 ///
 /// Used by incremental OLS sufficient statistics.
@@ -225,6 +240,22 @@ mod tests {
         for i in 0..4 {
             assert!((full[i] - row_acc[i]).abs() < 1e-12, "{i}: {} vs {}", full[i], row_acc[i]);
         }
+    }
+
+    #[test]
+    fn form_xty_matches_hand_dot_products_and_the_row_accumulator() {
+        // Columns c0 = [1, 1, 1], c1 = [2, 0, 1]; y = [1, 2, 3]: c0·y = 6, c1·y = 2 + 0 + 3 = 5.
+        let x = [1.0, 1.0, 1.0, 2.0, 0.0, 1.0];
+        let y = [1.0, 2.0, 3.0];
+        let mut xty = [0.0; 2];
+        form_xty(&x, 3, 2, &y, &mut xty);
+        assert_eq!(xty, [6.0, 5.0]);
+        let mut acc_xtx = [0.0; 4];
+        let mut acc_xty = [0.0; 2];
+        for r in 0..3 {
+            accumulate_xtx_xty_row(&[x[r], x[3 + r]], y[r], &mut acc_xtx, &mut acc_xty);
+        }
+        assert_eq!(acc_xty, xty);
     }
 
     #[test]

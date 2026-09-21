@@ -68,5 +68,7 @@ pub use unobserved_common_cause::UnobservedCommonCause;
 pub use validator::{PreparedRefutation, Validator, run_validator};
 
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests;

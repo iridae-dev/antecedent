@@ -13,9 +13,9 @@ papers = [
 ]
 
 implementation_deviations = [
- "Does not compute the closed-form Cinelli-Hazlett robustness value from the treatment coefficient's t statistic and residual degrees of freedom.",
- "Instead injects one seeded synthetic confounder into treatment and outcome at equal partial-R2 grid strengths, or a bounded analogue, refits, and reports the first grid point that explains away the estimate.",
- "The nonparametric path uses repository-defined product-Gaussian Nadaraya-Watson residualization and a fixed normal-reference bandwidth policy before applying the same simulation grid.",
+ "Does not compute the closed-form Cinelli-Hazlett robustness value from the treatment coefficient's t statistic and residual degrees of freedom; the reported robustness value is a simulated tipping partial R2, a different (more conservative) quantity: the simulated confounder perturbs the observed treatment and outcome, and the outcome-side R2 is relative to Var(Y|Z), not Var(Y|T,Z).",
+ "Injects one seeded synthetic confounder into treatment and outcome at equal partial-R2 grid strengths (or a bounded analogue), orthogonalized to the design so the realized partial R2 is the nominal grid value and the OLS tipping point is exactly |rho|/(1+|rho|), refits, and reports the first grid point that explains away the estimate.",
+ "The nonparametric path uses repository-defined product-Gaussian Nadaraya-Watson residualization on covariates standardized to unit SD, Silverman's multivariate normal-reference bandwidth (or a caller bandwidth in SD units), a 20000-row cap, and refuses when the residualized effect has the opposite sign of the published estimate, before applying the same simulation grid.",
  "The fixed partial-R2 grid and pass threshold 0.1 are repository policy.",
 ]
 

@@ -79,7 +79,7 @@ pub use glm::{
 };
 pub use gram::{
     accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd,
-    column_is_constant, form_xtx, invert_square,
+    column_is_constant, form_xtx, form_xty, invert_square,
 };
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,

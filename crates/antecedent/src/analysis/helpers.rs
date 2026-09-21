@@ -1256,14 +1256,12 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
             )
             .map_err(CausalError::from)?;
         Ok((summary, sens))
-    } else if est.prior.is_some() {
-        let sens = PriorSensitivity::standard_resolved_grid();
-        let (summary, _) =
-            sens.evaluate_resolved_prior(est, prep, status, ws, ctx).map_err(CausalError::from)?;
-        Ok((summary, sens))
     } else {
-        let sens = PriorSensitivity::standard_grid();
-        let (summary, _) = sens.evaluate(est, prep, status, ws, ctx).map_err(CausalError::from)?;
+        // An explicit or transferred prior gets its variance-multiplier grid; with none the
+        // isotropic scale grid is the prior in force.
+        let sens = PriorSensitivity::for_estimator(est);
+        let (summary, _) =
+            sens.evaluate_in_force(est, prep, status, ws, ctx).map_err(CausalError::from)?;
         Ok((summary, sens))
     }
 }

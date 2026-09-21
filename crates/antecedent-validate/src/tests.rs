@@ -16,19 +16,6 @@ use antecedent_identify::{IdentifiedEstimand, TemporalBackdoorIdentifier};
 
 use super::*;
 
-/// The comparison class `conformance/validate/refuters/expected.json` declares.
-///
-/// Both pinned point values below are downstream of the same `faer` least-squares
-/// solve, so they are stable-float quantities rather than bitwise-reproducible
-/// ones; comparing through the declared class keeps the fixture, not a bespoke
-/// epsilon at each call site, the single source of tolerance.
-fn tolerance_class(fixture: &serde_json::Value) -> ToleranceClass {
-    match fixture["tolerance_class"].as_str().unwrap() {
-        "StableFloat" => ToleranceClass::StableFloat,
-        other => panic!("unhandled declared tolerance class `{other}`"),
-    }
-}
-
 fn toy_confounded() -> (TabularData, IdentifiedEstimand, f64) {
     // True ATE = 2; Z confounds T and Y.
     let n = 400usize;
@@ -222,10 +209,107 @@ fn unobserved_common_cause_is_robust_to_mild_confounding() {
     let report = UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison >= 0.0);
     assert!(report.passed, "{:?}", report.failure_condition);
-    let expected = fixture["expected"]["unobserved_common_cause_std_delta"].as_f64().unwrap();
+    // With strengths in residual-SD units the expected relative shift is
+    // |a b - rho a^2| / (1 + a^2) / |rho| for a = b = 0.5. Here Y|Z = 2 (T|Z), so rho = 1 and the
+    // expected shift is exactly 0; what remains is the O(1/sqrt(n)) sampling correlation of the
+    // 20 drawn confounders with the design (n = 400), well below the failure threshold of 1.
+    let bound = fixture["expected"]["unobserved_common_cause_max_relative_shift"].as_f64().unwrap();
     assert!(
-        tolerance_class(&fixture).close(report.comparison, expected),
-        "standardized delta={} expected={expected}",
+        report.comparison < bound,
+        "relative shift {} must stay below the analytic bound {bound}",
+        report.comparison
+    );
+}
+
+/// Adversarial case: a weak effect (partial correlation about 0.2) and a strong simulated
+/// confounder (six residual SDs on each of treatment and outcome) must be reported as able to
+/// swamp the estimate. Expected relative shift (a b - rho a^2) / (1 + a^2) / rho with
+/// a = b = 6 is about 0.97 (1 - rho) / rho, roughly 4, far above the threshold of 1.
+#[test]
+fn unobserved_common_cause_fails_when_the_confounder_can_swamp_a_weak_effect() {
+    let n = 400_usize;
+    let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let w = if (i / 2) % 2 == 0 { 1.0 } else { -1.0 };
+            0.2 * t[i] + 0.5 * w + 0.3 * (i % 3) as f64
+        })
+        .collect();
+    let data = crate::test_support::tabular(&[t, y, z]);
+    let estimand = crate::test_support::backdoor(1);
+    let query = crate::test_support::ate_query();
+    let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let refuter = UnobservedCommonCause {
+        effect_on_treatment: 6.0,
+        effect_on_outcome: 6.0,
+        ..UnobservedCommonCause::new()
+    };
+    let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(!report.passed, "comparison={}", report.comparison);
+    assert!(report.comparison > 2.0, "comparison={}", report.comparison);
+}
+
+/// Complete-case rows are fixed across the leave-one-out drops: a covariate with missing rows
+/// must not change the estimation sample when it is dropped.
+#[test]
+fn graph_refute_holds_the_complete_case_sample_fixed_across_drops() {
+    // z1 is missing on rows with i % 4 in {0, 1}; on exactly those rows the outcome carries an
+    // extra 5 t. The full-adjustment fit sees only rows i % 4 in {2, 3}. Dropping z1 must refit on
+    // those same rows, so the estimate barely moves; if the hidden rows re-entered, their +5 t
+    // would shift the treatment effect by a large fraction of itself.
+    let n = 400_usize;
+    let z0: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    let z1: Vec<f64> = (0..n).map(|i| ((i * 7) % 11) as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let hidden = i % 4 < 2;
+            1.0 + 2.0 * t[i]
+                + 3.0 * z0[i]
+                + 0.3 * (i % 3) as f64
+                + if hidden { 5.0 * t[i] } else { 0.0 }
+        })
+        .collect();
+    let complete = crate::test_support::tabular(&[t, y, z0, z1]);
+    let storage = complete.storage();
+    let OwnedColumn::Float64(z1_col) = &storage.columns()[3] else { panic!("float64") };
+    let mut bytes = vec![0u8; n.div_ceil(8)];
+    for i in (0..n).filter(|i| i % 4 >= 2) {
+        bytes[i / 8] |= 1 << (i % 8);
+    }
+    let validity = ValidityBitmap::from_bytes(bytes, n).unwrap();
+    let mut cols = storage.columns().to_vec();
+    cols[3] = OwnedColumn::Float64(
+        Float64Column::new(z1_col.id, z1_col.values.clone(), validity).unwrap(),
+    );
+    let data = TabularData::new(
+        OwnedColumnarStorage::try_new(storage.schema().clone(), cols, None, None).unwrap(),
+    );
+    let estimand = crate::test_support::backdoor(2);
+    let query = crate::test_support::ate_query();
+    let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let report = GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert_eq!(report.replicates, 2);
+    assert!(
+        report.comparison < 0.2,
+        "dropping a covariate re-admitted its missing rows: relative change {}",
         report.comparison
     );
 }
@@ -255,6 +339,35 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
     // T is a deterministic step function of Z (t = 1{z > 0.5}); the diagnostic propensity
     // fit should show near-degenerate propensities, failing the overlap check.
     assert!(!report.passed, "{:?}", report.failure_condition);
+}
+
+/// `t = 1{z > 0.5}` separates the arms completely, so the diagnostic logistic fit flags
+/// separation. The ridge-regularized scores that fit returns would shrink exactly the extreme
+/// values that evidence the violation, so every propensity-based validator reports the
+/// positivity failure itself instead of judging the shrunken scores.
+#[test]
+fn separated_propensity_fit_is_reported_as_a_positivity_failure() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let overlap = OverlapRefuter::new().refute(&problem).unwrap();
+    let rule = OverlapRuleRefuter::new().refute(&problem).unwrap();
+    let riesz = RieszSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap();
+    for report in [&overlap, &rule, &riesz] {
+        assert!(!report.passed, "{report:?}");
+        let message = report.failure_condition.as_deref().unwrap();
+        assert!(message.contains("positivity violation"), "{}: {message}", report.refuter);
+    }
+    // Riesz reports no robustness at all: the representer is unbounded under separation.
+    assert_eq!(riesz.comparison, 0.0);
 }
 
 #[test]
@@ -529,8 +642,12 @@ fn ols_refuters_do_not_earn_a_pass_from_p_equals_one() {
     // Historical bug: NaN replicates collapsed to p=1.0, and pass-only tests treated
     // that as earning the falsifier claim. Earn the opposite: non-finite replicates
     // fail closed, and OLS-gated refuters are non-informative even when p is large.
-    let p_nan = crate::common::replicate_p_value(&[0.1, f64::NAN, 0.2, 0.15], 0.0);
-    assert_eq!(p_nan, 0.0, "NaN replicate must not become p=1.0");
+    // A NaN replicate is an operational error: neither the pass (p = 1) it used to become nor a
+    // refutation (p = 0) it later became.
+    assert!(matches!(
+        crate::common::replicate_p_value(&[0.1, f64::NAN, 0.2, 0.15], 0.0),
+        Err(ValidationError::Estimation(_))
+    ));
 
     let (data, estimand, _) = toy_confounded();
     let mut est = LinearAdjustmentAte::new();
@@ -597,20 +714,41 @@ fn bootstrap_refute_contains_original_ate() {
     assert!(report.comparison > 0.0, "expected a non-degenerate CI width");
 }
 
-#[test]
-fn evalue_passes_moderate_threshold_for_nonnull_effect() {
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
-            .unwrap();
-    let (data, estimand, _) = toy_confounded();
-    let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let prep = est.prepare(&data, &estimand, &query).unwrap();
-    let mut ws = EstimationWorkspace::default();
-    let ctx = ExecutionContext::for_tests(31);
-    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+/// Continuous outcome with noise orthogonal to `[1, t, z]`: `y = 1 + 2t + 3z + e`, where
+/// `e = +-0.5` in the pattern `+ - - +` over each block of four rows. That pattern sums to zero
+/// against the constant, against `t = i % 2`, and against the linear trend `z = i / n` (block
+/// sums `4k - (4k+1) - (4k+2) + (4k+3) = 0`), so least squares recovers the coefficient 2
+/// exactly and the residual is `e`, with `RSS = n * 0.25 = 100` and `n - p = 397` residual
+/// degrees of freedom for `p = 3`.
+fn evalue_continuous_data() -> (TabularData, IdentifiedEstimand) {
+    let n = 400_usize;
+    let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let e = if matches!(i % 4, 0 | 3) { 0.5 } else { -0.5 };
+            1.0 + 2.0 * t[i] + 3.0 * z[i] + e
+        })
+        .collect();
+    (crate::test_support::tabular(&[t, y, z]), crate::test_support::backdoor(1))
+}
 
+/// VanderWeele-Ding E-value of a standardized mean difference `d`, written out independently of
+/// the crate: `RR = exp(0.91 |d|)`, `E = RR + sqrt(RR (RR - 1))`.
+fn evalue_of_smd(d: f64) -> f64 {
+    let rr = (0.91 * d.abs()).exp();
+    rr + (rr * (rr - 1.0)).sqrt()
+}
+
+#[test]
+fn evalue_uses_the_residual_sd_of_the_outcome_regression() {
+    let (data, estimand) = evalue_continuous_data();
+    let query = crate::test_support::ate_query();
+    let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
+    assert!((original.ate - 2.0).abs() < 1e-9, "fixture must recover ATE 2, got {}", original.ate);
+    // Point estimate only: a degenerate interval isolates the point-estimate conversion.
+    original.se_analytic = 0.0;
+    original.se_bootstrap = None;
     let problem = RefutationProblem::new(
         &data,
         &estimand,
@@ -620,28 +758,67 @@ fn evalue_passes_moderate_threshold_for_nonnull_effect() {
         None,
     );
     let report = EValue::new().refute(&problem).unwrap();
-    let expected = fixture["expected"]["evalue_point"].as_f64().unwrap();
+    // sigma = sqrt(RSS / (n - p)) = sqrt(100 / 397); the marginal SD of y (about 1.7) would give a
+    // d less than half as large.
+    let sigma = (100.0_f64 / 397.0).sqrt();
+    let expected = evalue_of_smd(2.0 / sigma);
     assert!(
-        tolerance_class(&fixture).close(report.comparison, expected),
+        (report.comparison - expected).abs() < 1e-7 * expected,
         "e_value={} expected={expected}",
         report.comparison
     );
-    assert!(report.comparison >= DEFAULT_EVALUE_THRESHOLD, "e_value={}", report.comparison);
-    assert!(report.passed, "{:?}", report.failure_condition);
+    assert!(report.passed && report.informative, "{:?}", report.failure_condition);
+}
+
+#[test]
+fn evalue_gates_on_the_confidence_limit_not_only_the_point_estimate() {
+    let (data, estimand) = evalue_continuous_data();
+    let query = crate::test_support::ate_query();
+    let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
+    let sigma = (100.0_f64 / 397.0).sqrt();
+    let problem_with = |original: &antecedent_estimate::EffectEstimate| {
+        EValue::new()
+            .refute(&RefutationProblem::new(
+                &data,
+                &estimand,
+                &query,
+                original,
+                Some("linear.adjustment.ate"),
+                None,
+            ))
+            .unwrap()
+    };
+    // A very imprecise estimate (se 2 against ATE 2): the 95% interval covers the null, so the
+    // interval-limit E-value is 1 and the check fails although the point E-value is large.
+    original.se_analytic = 2.0;
+    original.se_bootstrap = None;
+    let wide = problem_with(&original);
+    assert_eq!(wide.comparison, 1.0);
+    assert!(!wide.passed);
+    // se 0.5: the lower limit 2 - 1.96 * 0.5 = 1.02 does not cover the null; the E-value is that
+    // limit's, smaller than the point estimate's.
+    original.se_analytic = 0.5;
+    let narrow = problem_with(&original);
+    let limit = 2.0 - 1.959_963_984_540_054 * 0.5;
+    let expected = evalue_of_smd(limit / sigma);
+    assert!(
+        (narrow.comparison - expected).abs() < 1e-7 * expected,
+        "e_value={} expected={expected}",
+        narrow.comparison
+    );
+    assert!(narrow.comparison < evalue_of_smd(2.0 / sigma));
+    // No usable standard error: the point E-value is reported but cannot support a pass.
+    original.se_analytic = f64::NAN;
+    let unknown = problem_with(&original);
+    assert!(!unknown.passed && !unknown.informative);
 }
 
 #[test]
 fn evalue_zero_effect_fails_default_threshold() {
-    let (data, estimand, _) = toy_confounded();
-    let mut est = LinearAdjustmentAte::new();
-    est.bootstrap_replicates = 0;
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let prep = est.prepare(&data, &estimand, &query).unwrap();
-    let mut ws = EstimationWorkspace::default();
-    let ctx = ExecutionContext::for_tests(32);
-    let mut original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let (data, estimand) = evalue_continuous_data();
+    let query = crate::test_support::ate_query();
+    let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
     original.ate = 0.0;
-
     let problem = RefutationProblem::new(
         &data,
         &estimand,
@@ -656,8 +833,49 @@ fn evalue_zero_effect_fails_default_threshold() {
     assert!(!report.passed, "null effect must fail default threshold");
 }
 
+/// Binary outcome: the ATE is a risk difference, so the arm risks (not `d / 0.91`) give the risk
+/// ratio. Control risk 0.10 (20 of 200), treated risk 0.20 (40 of 200): RR = 2, E = 2 + sqrt(2).
 #[test]
-fn graph_refute_flags_dropping_the_true_confounder() {
+fn evalue_of_a_binary_outcome_uses_the_arm_risk_ratio() {
+    let n = 400_usize;
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    // Within each arm (rows of equal parity) every 10th row (control) or 5th row (treated) is 1.
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let k = i / 2;
+            let one = if i % 2 == 0 { k % 10 == 0 } else { k % 5 == 0 };
+            f64::from(u8::from(one))
+        })
+        .collect();
+    let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    let data = crate::test_support::tabular(&[t, y, z]);
+    let estimand = crate::test_support::backdoor(1);
+    let query = crate::test_support::ate_query();
+    let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
+    original.ate = 0.10;
+    original.se_analytic = 0.0;
+    original.se_bootstrap = None;
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let report = EValue::new().refute(&problem).unwrap();
+    let expected = 2.0 + 2.0_f64.sqrt();
+    assert!(
+        (report.comparison - expected).abs() < 1e-12,
+        "e_value={} expected={expected}",
+        report.comparison
+    );
+    // The continuous conversion would have given d = 0.1 / sd(y) ~ 0.27, RR ~ 1.28, E ~ 1.9.
+    assert!(report.passed, "{:?}", report.failure_condition);
+}
+
+#[test]
+fn graph_refute_reports_the_confounder_dependence_descriptively() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/validate/overlap_graph_refutation/expected.json"
     ))
@@ -681,7 +899,9 @@ fn graph_refute_flags_dropping_the_true_confounder() {
     );
     let report = GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
     // Z is the only, essential confounder; dropping it biases the estimate by 1.5 of
-    // a true ATE of 2 — a 75% relative change.
+    // a true ATE of 2 — a 75% relative change. A moving estimate is what a confounder does, so
+    // the result is descriptive (`informative: false`) even though `passed` records the move.
+    assert!(!report.informative, "leave-one-out sensitivity is not a falsifier");
     assert!(!report.passed, "{:?}", report.failure_condition);
     let min = fixture["graph_refutation"]["minimum_relative_effect_change"].as_f64().unwrap();
     assert!(report.comparison > min, "relative delta={}", report.comparison);
@@ -712,11 +932,12 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
     );
     let refuter = LinearSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.comparison > 0.0);
+    // Here Y|Z = 2 (T|Z) exactly, so the partial correlation is 1 and the analytic tipping
+    // partial R2 is |rho| / (1 + |rho|) = 0.5: no smaller grid value (0.3 at most) can explain
+    // the effect away. The report is the first grid value at or beyond it.
     assert!(
-        report.comparison.is_infinite()
-            || report.comparison <= *refuter.partial_r2_grid.last().unwrap(),
-        "comparison={} must be a tipping grid point or +∞ if never explained away",
+        report.comparison >= 0.5,
+        "comparison={} is below the analytic tipping partial R2 0.5",
         report.comparison
     );
     assert_eq!(u64::from(report.replicates), fixture["expected"]["replicates"].as_u64().unwrap());
@@ -743,11 +964,10 @@ fn partial_linear_sensitivity_reports_a_bounded_robustness_value() {
     );
     let refuter = PartialLinearSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.comparison > 0.0);
+    // Analytic tipping partial R2 is 0.5 (partial correlation 1, see the linear test).
     assert!(
-        report.comparison.is_infinite()
-            || report.comparison <= *refuter.partial_r2_grid.last().unwrap(),
-        "comparison={} must be a tipping grid point or +∞ if never explained away",
+        report.comparison >= 0.5,
+        "comparison={} is below the analytic tipping partial R2 0.5",
         report.comparison
     );
     assert_eq!(report.replicates as usize, refuter.partial_r2_grid.len());
@@ -775,11 +995,12 @@ fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
     let refuter = NonparametricSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");
-    assert!(report.comparison > 0.0);
+    // Kernel residualization leaves T|Z and Y|Z almost perfectly correlated here (Y|Z = 2 T|Z
+    // up to the smoother's small boundary error), so the tipping partial R2 is near 0.5: at least
+    // the 0.3 grid value below it does not explain the effect away.
     assert!(
-        report.comparison.is_infinite()
-            || report.comparison <= *refuter.partial_r2_grid.last().unwrap(),
-        "comparison={} must be a tipping grid point or +∞ if never explained away",
+        report.comparison >= 0.5,
+        "comparison={} must be at or beyond the analytic tipping value ~0.5",
         report.comparison
     );
 }
@@ -1567,6 +1788,136 @@ fn sensitivity_reports_respect_treatment_contrast_units() {
         assert!((report.1 - reports[0].1).abs() < 1e-12);
         assert!((report.2 - reports[0].2).abs() < 1e-12);
     }
+}
+
+/// Refitter that always returns a fixed estimate (its `ate` may be non-finite).
+#[derive(Debug)]
+struct ConstantRefit(antecedent_estimate::EffectEstimate);
+
+impl crate::common::EffectRefit for ConstantRefit {
+    fn refit(
+        &self,
+        _data: &TabularData,
+        _extra_contemporaneous: &[VariableId],
+        _ctx: &ExecutionContext,
+    ) -> Result<antecedent_estimate::EffectEstimate, ValidationError> {
+        Ok(self.0.clone())
+    }
+}
+
+/// A refit that returns `NaN` is a failed computation: every replicate-based refuter and the
+/// leave-one-out check must surface an error, never a pass (`p = 1`) nor a silent skip.
+#[test]
+fn a_non_finite_refit_effect_is_an_error_in_every_replicate_refuter() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
+    let mut broken = original.clone();
+    broken.ate = f64::NAN;
+    let refit = ConstantRefit(broken);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    )
+    .with_effect_refit(&refit);
+    let is_operational_error = |result: Result<crate::RefutationReport, ValidationError>| {
+        matches!(result, Err(ValidationError::Estimation(_)))
+    };
+    assert!(is_operational_error(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx)));
+    assert!(is_operational_error(DummyOutcome::new().refute(&problem, &mut ws, &ctx)));
+    assert!(is_operational_error(RandomCommonCause::new().refute(&problem, &mut ws, &ctx)));
+    assert!(is_operational_error(DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx)));
+    assert!(is_operational_error(UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx)));
+    assert!(is_operational_error(GraphRefuter::new().refute(&problem, &mut ws, &ctx)));
+    let permute = PlaceboTreatment { mode: PlaceboMode::Permute, ..PlaceboTreatment::new() };
+    assert!(is_operational_error(permute.refute(&problem, &mut ws, &ctx)));
+    // The suite renders the same failure as `Failed`, "not evidence", rather than a verdict.
+    let outcomes =
+        ValidationSuite::new().with(ValidatorId::Placebo).run(&problem, &mut ws, &ctx).unwrap();
+    assert!(matches!(outcomes[0], ValidationOutcome::Failed { .. }), "{:?}", outcomes[0]);
+}
+
+/// Replicate refuters centre on the same estimator's full-sample refit. A published estimate
+/// that differs from the refit (a Bayesian posterior mean shrunk toward its prior, say) must not
+/// make a stability check fail: here the published number is deliberately 0.3 away from the exact
+/// least-squares effect 2, while every perturbed refit reproduces 2.
+#[test]
+fn perturbation_refuters_centre_on_the_full_sample_refit_not_the_published_estimate() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let (mut original, mut ws, ctx) =
+        crate::test_support::linear_original(&data, &estimand, &query);
+    assert!((original.ate - 2.0).abs() < 1e-9);
+    original.ate = 2.3;
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("bayesian.temporal.gcomp"),
+        None,
+    );
+    let rcc = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(rcc.passed, "{:?}", rcc.failure_condition);
+    assert_eq!(rcc.comparison, 1.0);
+    assert_eq!(rcc.original_ate, 2.3, "the report still names the published estimate");
+    let subset = DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
+    assert!(subset.passed, "{:?}", subset.failure_condition);
+}
+
+/// A replicate count beyond the stream-alias bound is refused rather than silently sharing
+/// noise streams between refuters.
+#[test]
+fn replicate_counts_beyond_the_stream_alias_bound_are_refused() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    let placebo = PlaceboTreatment { replicates: 5000, ..PlaceboTreatment::new() };
+    assert!(matches!(
+        placebo.refute(&problem, &mut ws, &ctx),
+        Err(ValidationError::NotApplicable { .. })
+    ));
+}
+
+/// Cancellation is polled inside replicate loops.
+#[test]
+fn replicate_loops_stop_on_cancellation() {
+    let (data, estimand, _) = toy_confounded();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let (original, mut ws, ctx) = crate::test_support::linear_original(&data, &estimand, &query);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    ctx.cancellation.cancel();
+    assert_eq!(
+        PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap_err(),
+        ValidationError::Cancelled
+    );
+    assert_eq!(
+        RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap_err(),
+        ValidationError::Cancelled
+    );
+    assert_eq!(
+        BootstrapRefute::new().refute(&problem, &mut ws, &ctx).unwrap_err(),
+        ValidationError::Cancelled
+    );
 }
 
 /// Composed refitter whose aligned-row refit is a stand-in with a fixed block length.

@@ -12,10 +12,11 @@ papers = [
 ]
 
 implementation_deviations = [
- "Prior and posterior predictive simulations propagate coefficient uncertainty through inverse-link fitted means but do not sample observation noise; their dispersion statistic is cross-row variation in fitted means rather than replicated-outcome dispersion.",
- "Uses repository-defined two-sided Monte Carlo checks on outcome mean and dispersion with an alpha gate.",
- "Prior sensitivity is a finite grid of isotropic prior scales or external-prior alpha multipliers, judged by a maximum relative effect-mean range; it is not specified by the predictive-check papers.",
- "Simulation-based calibration, MCMC diagnostics, and related routing covered by this feature require separate provenance; they are not established by the listed predictive-check citations.",
+ "Replicates are draws from the observation model (Gaussian noise at a residual-variance draw, Bernoulli or Poisson draws); a prior check under a residual prior without a finite mean replicates fitted means only and scores the dispersion axis one-sided.",
+ "Uses repository-defined two-sided Monte Carlo checks on outcome mean and dispersion with an alpha gate. On a posterior check those two axes are matched by the fit (the normal equations reproduce the mean, the replicate SD matches the residual SD) and have power only against a wrong prior or noise level; a realized-discrepancy axis (Gelman, Meng and Stern 1996) over residual skewness, excess kurtosis, curvature against the fitted mean and a variance trend, combined by an omnibus max-departure Monte Carlo p-value, supplies the power against misspecification.",
+ "Posterior predictive draws are spread evenly over the stored draws (chain-concatenated MCMC draws are not truncated to the start of the first chain).",
+ "Prior sensitivity is a finite grid of isotropic prior scales, variance multipliers around a resolved prior, or external-prior alpha multipliers, judged by a maximum relative effect-mean range; it is not specified by the predictive-check papers.",
+ "Simulation-based calibration draws the residual variance and coefficients from the prior the estimator fits with (coefficients conditional on the variance, the conjugate convention), requires n_draws + 1 to be a multiple of the 10 rank bins, at least 50 replicates and independent posterior draws, and refuses a residual prior without a finite mean; it and the MCMC diagnostics gate (the library's own publication predicate with named failing clauses) require separate provenance and are not established by the listed predictive-check citations.",
 ]
 
 upstream_implementations_observed = []

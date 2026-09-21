@@ -18,6 +18,7 @@ use antecedent_discovery::{DiscoveryWorkspace, Pcmci};
 use antecedent_kernels::standard_normal;
 
 use crate::error::ValidationError;
+use crate::stability::{lagged_link_family, null_rate_se};
 
 /// Empirical false-positive calibration under independent noise.
 #[derive(Clone, Debug)]
@@ -26,11 +27,15 @@ pub struct NullCalibrationReport {
     pub alpha: f64,
     /// Simulations run.
     pub n_sim: u32,
-    /// Empirical edge rate (edges per possible directed lag-1 pair per sim, averaged).
+    /// Empirical edge rate: retained links over `n_sim × family` candidate lagged links, where
+    /// the family is every ordered variable pair at each lag of `min_lag..=max_lag`.
     pub empirical_fpr: f64,
-    /// Binomial SE under H0 rate = α (rough guide).
+    /// Standard error of `empirical_fpr`: the larger of the binomial value over all
+    /// `n_sim × family` link trials and the empirical run-to-run spread (links of one run
+    /// share a sample, so their hits are dependent).
     pub se: f64,
-    /// Whether `|empirical_fpr − α| ≤ band_tol * se` (or absolute floor).
+    /// Whether `|empirical_fpr − α| ≤ band_tol * se`. Both a rate that is too high and one that
+    /// is too low (a test that never rejects) leave the band.
     pub within_band: bool,
     /// Tolerance multiplier used for `within_band`.
     pub band_tol: f64,
@@ -82,23 +87,22 @@ impl SyntheticNullCalibration {
         }
         let variables: Vec<VariableId> =
             (0..self.n_vars as u32).map(VariableId::from_raw).collect();
-        // Possible directed lag edges under max_lag (approx family size for FPR).
-        let max_lag = self.pcmci.engine().constraints.temporal.max_lag.raw().max(1);
-        let family = (self.n_vars * self.n_vars.saturating_sub(0) * max_lag as usize).max(1);
+        // Candidate lagged links PCMCI scores under its own lag constraints.
+        let lags = &self.pcmci.engine().constraints.temporal;
+        let family = lagged_link_family(self.n_vars, lags.min_lag.raw(), lags.max_lag.raw())?;
         let mut rng = ctx.rng.stream(0x5011_u64);
-        let mut edge_hits = 0u64;
-        let mut trials = 0u64;
+        let mut hits_per_run = Vec::with_capacity(self.n_sim as usize);
         for _ in 0..self.n_sim {
             let data = independent_noise_series(self.n_obs, self.n_vars, &mut rng)?;
             let result =
                 self.pcmci.run(&data, &variables, workspace, ctx).map_err(ValidationError::from)?;
-            edge_hits += result.evidence.links.len() as u64;
-            trials += family as u64;
+            hits_per_run.push(result.evidence.links.len() as u64);
         }
-        let empirical_fpr = if trials == 0 { 0.0 } else { edge_hits as f64 / trials as f64 };
-        let se = (self.alpha * (1.0 - self.alpha) / f64::from(self.n_sim)).sqrt();
-        let abs_floor = 0.05;
-        let within_band = (empirical_fpr - self.alpha).abs() <= (self.band_tol * se).max(abs_floor);
+        let trials = u64::from(self.n_sim) * family as u64;
+        let edge_hits: u64 = hits_per_run.iter().sum();
+        let empirical_fpr = edge_hits as f64 / trials as f64;
+        let se = null_rate_se(self.alpha, family, &hits_per_run);
+        let within_band = (empirical_fpr - self.alpha).abs() <= self.band_tol * se;
         Ok(NullCalibrationReport {
             alpha: self.alpha,
             n_sim: self.n_sim,
