@@ -260,6 +260,23 @@ pub(crate) fn without_pending<T: Copy + PartialEq>(pending: &[T], item: T) -> st
     pending.iter().copied().filter(|e| *e != item).collect()
 }
 
+/// Pending lists after orienting the undirected edge `{from, to}` as `from -> to`: it leaves the
+/// undirected list (in either spelling) and, unless already there, joins the directed list, where
+/// it still needs acceptance.
+pub(crate) fn orient_pending<T: Copy + PartialEq>(
+    edges: &[(T, T)],
+    undirected: &[(T, T)],
+    from: T,
+    to: T,
+) -> (std::sync::Arc<[(T, T)]>, std::sync::Arc<[(T, T)]>) {
+    let undirected = undirected.iter().copied().filter(|&e| e != (from, to) && e != (to, from));
+    let mut edges = edges.to_vec();
+    if !edges.contains(&(from, to)) {
+        edges.push((from, to));
+    }
+    (edges.into(), undirected.collect())
+}
+
 /// Reject an edge whose source lag is nearer the present than its target lag.
 ///
 /// No-op when either endpoint is not lagged (context nodes, static). Callers
@@ -282,4 +299,20 @@ pub(crate) fn reject_future_to_past(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod pending_tests {
+    use super::orient_pending;
+
+    #[test]
+    fn orienting_moves_the_edge_from_undirected_to_pending_directed_once() {
+        let (edges, undirected) = orient_pending(&[(1, 2)], &[(3, 4), (5, 6)], 4, 3);
+        assert_eq!(&*edges, &[(1, 2), (4, 3)]);
+        assert_eq!(&*undirected, &[(5, 6)]);
+        // Already pending as directed: not duplicated.
+        let (edges, undirected) = orient_pending(&[(4, 3)], &[(3, 4)], 4, 3);
+        assert_eq!(&*edges, &[(4, 3)]);
+        assert!(undirected.is_empty());
+    }
 }

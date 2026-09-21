@@ -951,6 +951,7 @@ impl LpcmciOrientationRule for LpcmciR10 {
 fn node_lag(graph: &TemporalPag, id: DenseNodeId) -> Option<u32> {
     match graph.nodes().get(id.as_usize())? {
         NodeRef::Lagged { lag, .. } => Some(lag.raw()),
+        NodeRef::Unfolded { offset, .. } => u32::try_from(-i64::from(*offset)).ok(),
         NodeRef::Static(_) | NodeRef::Context { .. } => Some(0),
     }
 }

@@ -106,9 +106,7 @@ impl LazyUnfoldedTemporalGraph {
     ///
     /// Indexer / cycle insertion failures.
     pub fn materialize(&self) -> Result<UnfoldedTemporalGraph, GraphError> {
-        let n = self.indexer.dense_len();
-        let n_u32 = u32::try_from(n).map_err(|_| GraphError::TooManyNodes)?;
-        let mut dag = Dag::with_variables(n_u32);
+        let mut dag = Dag::from_unfolding(&self.indexer)?;
 
         for (from_i, _) in self.template.nodes().iter().enumerate() {
             let from = DenseNodeId::try_from_usize(from_i)?;
@@ -303,19 +301,8 @@ impl TemporalCpdagReview {
         let from_id = self.resolve_key(from)?;
         let to_id = self.resolve_key(to)?;
         self.graph.orient_undirected(from_id, to_id)?;
-        let undirected: Vec<_> = self
-            .pending_undirected
-            .iter()
-            .copied()
-            .filter(|&(a, b)| (a, b) != (from, to) && (a, b) != (to, from))
-            .collect();
-        self.pending_undirected = Arc::from(undirected);
-        // Newly directed edge still needs acceptance unless already accepted.
-        if !self.pending_edges.iter().any(|e| *e == (from, to)) {
-            let mut pending = self.pending_edges.to_vec();
-            pending.push((from, to));
-            self.pending_edges = Arc::from(pending);
-        }
+        (self.pending_edges, self.pending_undirected) =
+            crate::types::orient_pending(&self.pending_edges, &self.pending_undirected, from, to);
         Ok(self)
     }
 
@@ -388,6 +375,29 @@ mod tests {
         assert!(lazy.has_edge(from, to).unwrap());
         let unfolded = lazy.materialize().unwrap();
         assert_eq!(unfolded.dag.node_count(), 6);
+    }
+
+    #[test]
+    fn unfolded_nodes_are_window_slots_never_schema_variables() {
+        let mut g = TemporalDag::empty();
+        let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(past, now).unwrap();
+        let indexer = TemporalIndexer::new(2, 1, 3).unwrap();
+        let unfolded = g.unfold(indexer.clone()).unwrap();
+        assert_eq!(unfolded.dag.node_count(), 8);
+        for (dense, node) in unfolded.dag.nodes().iter().enumerate() {
+            let key = indexer.key_of(u32::try_from(dense).unwrap()).unwrap();
+            assert_eq!(*node, NodeRef::Unfolded { variable: key.variable, offset: key.offset });
+            assert!(!matches!(node, NodeRef::Static(_)));
+        }
+        // Positive offsets (the future window) are expressible; `Lagged` could not.
+        assert!(
+            unfolded
+                .dag
+                .nodes()
+                .contains(&NodeRef::Unfolded { variable: VariableId::from_raw(1), offset: 2 })
+        );
     }
 
     #[test]
@@ -540,8 +550,7 @@ mod tests {
 
     /// Reconstruct a DAG by querying every lazy `has_edge` pair in-window.
     fn dag_from_lazy_scan(lazy: &LazyUnfoldedTemporalGraph) -> Dag {
-        let n = lazy.indexer.dense_len();
-        let mut dag = Dag::with_variables(u32::try_from(n).unwrap());
+        let mut dag = Dag::from_unfolding(&lazy.indexer).unwrap();
         let min_off = -(lazy.indexer.history() as i32);
         let max_off = (lazy.indexer.horizon() as i32) - 1;
         let n_vars = lazy.indexer.variable_count();

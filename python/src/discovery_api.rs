@@ -30,6 +30,14 @@ fn node_ref_parts(names: &[String], node: NodeRef) -> (String, u32) {
                 .unwrap_or_else(|| format!("var{}", variable.raw())),
             lag.raw(),
         ),
+        // Discovery graphs are never unfolded; an unfolded slot reads as its history lag.
+        NodeRef::Unfolded { variable, offset } => (
+            names
+                .get(variable.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", variable.raw())),
+            u32::try_from(-i64::from(offset)).unwrap_or(0),
+        ),
         NodeRef::Static(variable) | NodeRef::Context { variable, .. } => (
             names
                 .get(variable.as_usize())

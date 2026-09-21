@@ -419,7 +419,7 @@ fn max_lag_in_request(request: &SampleRequest<'_>) -> u32 {
         .chain(request.z.iter())
         .map(|n| match n {
             NodeRef::Lagged { lag, .. } => lag.raw(),
-            NodeRef::Static(_) | NodeRef::Context { .. } => 0,
+            NodeRef::Static(_) | NodeRef::Unfolded { .. } | NodeRef::Context { .. } => 0,
         })
         .max()
         .unwrap_or(0)
@@ -431,6 +431,9 @@ fn node_to_prepared(node: NodeRef, role: u8) -> Result<PreparedColumn, DataError
             Ok(PreparedColumn { variable, lag: Lag::CONTEMPORANEOUS, role })
         }
         NodeRef::Lagged { variable, lag } => Ok(PreparedColumn { variable, lag, role }),
+        NodeRef::Unfolded { .. } => Err(DataError::InvalidArgument {
+            message: "SampleRequest cannot read an unfolded window slot; use a Lagged node".into(),
+        }),
         NodeRef::Context { variable, environment } => {
             if environment.is_some() {
                 return Err(DataError::InvalidArgument {

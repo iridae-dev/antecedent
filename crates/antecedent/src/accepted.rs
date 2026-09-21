@@ -41,6 +41,7 @@ fn node_ref_name(node: NodeRef) -> String {
         NodeRef::Static(v) | NodeRef::Context { variable: v, .. } => variable_name(v),
         NodeRef::Lagged { variable, lag } if lag.raw() == 0 => format!("{variable}@0"),
         NodeRef::Lagged { variable, lag } => format!("{variable}@-{}", lag.raw()),
+        NodeRef::Unfolded { variable, offset } => format!("{variable}@{offset}"),
     }
 }
 

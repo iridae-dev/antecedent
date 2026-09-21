@@ -69,9 +69,9 @@ impl Cpdag {
     ///
     /// Non-static refs or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
-        if !matches!(node, NodeRef::Static(_)) {
+        if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
-                message: "Cpdag accepts only Static nodes",
+                message: "Cpdag accepts only Static or Unfolded nodes",
             });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
@@ -290,15 +290,8 @@ impl CpdagReview {
         let from_id = self.resolve_var(from)?;
         let to_id = self.resolve_var(to)?;
         self.graph.orient_undirected(from_id, to_id)?;
-        self.pending_undirected =
-            crate::types::without_pending(&self.pending_undirected, (from, to));
-        self.pending_undirected =
-            crate::types::without_pending(&self.pending_undirected, (to, from));
-        if !self.pending_edges.iter().any(|e| *e == (from, to)) {
-            let mut pending = self.pending_edges.to_vec();
-            pending.push((from, to));
-            self.pending_edges = Arc::from(pending);
-        }
+        (self.pending_edges, self.pending_undirected) =
+            crate::types::orient_pending(&self.pending_edges, &self.pending_undirected, from, to);
         Ok(self)
     }
 
@@ -360,7 +353,7 @@ impl TemporalCpdag {
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         match node {
             NodeRef::Lagged { .. } | NodeRef::Context { .. } => {}
-            NodeRef::Static(_) => {
+            NodeRef::Static(_) | NodeRef::Unfolded { .. } => {
                 return Err(GraphError::InvalidEndpoints {
                     message: "TemporalCpdag accepts Lagged or Context nodes (not Static)",
                 });

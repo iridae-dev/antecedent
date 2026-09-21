@@ -534,6 +534,13 @@ pub enum IdentityNodeWire {
         /// Lag magnitude (`0` = contemporaneous).
         lag: u32,
     },
+    /// Slot of a finite unfolding (`variable` at signed `offset` from the analysis origin).
+    Unfolded {
+        /// Variable raw id.
+        variable: u32,
+        /// Signed time offset (negative = history).
+        offset: i32,
+    },
     /// Context / environment node.
     Context {
         /// Variable raw id.
@@ -549,6 +556,9 @@ impl IdentityNodeWire {
             NodeRef::Static(variable) => Self::Static { variable: variable.raw() },
             NodeRef::Lagged { variable, lag } => {
                 Self::Lagged { variable: variable.raw(), lag: lag.raw() }
+            }
+            NodeRef::Unfolded { variable, offset } => {
+                Self::Unfolded { variable: variable.raw(), offset }
             }
             NodeRef::Context { variable, environment } => Self::Context {
                 variable: variable.raw(),

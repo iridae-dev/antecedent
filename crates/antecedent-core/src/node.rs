@@ -18,6 +18,17 @@ pub enum NodeRef {
         /// Non-negative lag (`0` = contemporaneous).
         lag: Lag,
     },
+    /// Slot of a finite unfolding: `variable` at a signed time `offset` from the analysis
+    /// origin (`Lagged { lag }` is `Unfolded { offset: -lag }` restricted to the past).
+    ///
+    /// Unfolded graphs label their nodes with this so that a window slot is never mistaken for
+    /// a schema variable (`Static`) by code generic over `nodes()`.
+    Unfolded {
+        /// Variable.
+        variable: VariableId,
+        /// Signed offset from the analysis origin (negative = history).
+        offset: i32,
+    },
     /// Context-aware node.
     Context {
         /// Variable.
@@ -34,6 +45,7 @@ impl NodeRef {
         match self {
             Self::Static(v)
             | Self::Lagged { variable: v, .. }
+            | Self::Unfolded { variable: v, .. }
             | Self::Context { variable: v, .. } => v,
         }
     }
@@ -43,7 +55,14 @@ impl NodeRef {
     pub const fn lag(self) -> Option<Lag> {
         match self {
             Self::Lagged { lag, .. } => Some(lag),
-            Self::Static(_) | Self::Context { .. } => None,
+            Self::Static(_) | Self::Unfolded { .. } | Self::Context { .. } => None,
         }
+    }
+
+    /// Whether this is a node of a static (non-temporal) graph: a schema variable or a slot of a
+    /// finite unfolding.
+    #[must_use]
+    pub const fn is_static_graph_node(self) -> bool {
+        matches!(self, Self::Static(_) | Self::Unfolded { .. })
     }
 }

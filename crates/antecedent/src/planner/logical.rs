@@ -791,6 +791,7 @@ fn validate_query_vars_in_temporal_nodes(
         // environment is attached; both name a variable the query may reference.
         let variable = match node {
             antecedent_graph::NodeRef::Lagged { variable, .. }
+            | antecedent_graph::NodeRef::Unfolded { variable, .. }
             | antecedent_graph::NodeRef::Context { variable, .. } => *variable,
             antecedent_graph::NodeRef::Static(v) => *v,
         };
