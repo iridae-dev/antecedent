@@ -92,3 +92,7 @@ cargo run -p antecedent --example <name>
 | ATE quickstart | Build and run an average-effect analysis | — | [rust](rust/ate_quickstart.rs) |
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |
+
+`python/transport_meta_grid.py` demonstrates complementary-source identification,
+exact mean responses, retained missing grid points, paired contrasts, and
+independent artifact consumption. It makes no sampling-coverage claim.

@@ -164,3 +164,9 @@ empirical provider does not supply. There is no implicit complete-case deletion.
 Nominal pointwise uncertainty is separate from an execution-specific calibration
 binding; unbound executions report that status explicitly. See the
 [T6 review](../audits/transport-t6-review.md) for fixes and calibration scope.
+
+## Complementary sources and retained grids
+
+The single-source theorem scope above remains unchanged. The shared engine now
+also has an explicitly scoped [multi-source and retained-grid path](transport-meta-grid.md).
+Historical payloads retain their original identities and scientific meanings.

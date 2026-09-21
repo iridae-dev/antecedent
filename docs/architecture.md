@@ -102,3 +102,7 @@ separate top-level modules.
 | ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
 | Conformance fixtures | [conformance/](conformance/README.md) |
 | Security / unsafe / license review | [security_review.md](security_review.md) |
+
+The [multi-source transport and retained-grid architecture](architecture/transport-meta-grid.md)
+describes the μsID theorem scope, provider aliases, common prepared lifecycle,
+pointwise inference, and independent durable-claim verification.
