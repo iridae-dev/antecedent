@@ -1688,6 +1688,12 @@ impl super::Study {
         let mut upper = Vec::with_capacity(temporal.horizons.len());
         let mut horizons = Vec::with_capacity(temporal.horizons.len());
         let mut last_posterior = None;
+        // Every horizon's posterior notes are kept (not just the scalar artifact's),
+        // so a `tempering_capped` / `tempering_inestimable` disclosure raised at an
+        // earlier horizon still reaches the result even when only the last horizon's
+        // posterior is attached as the scalar summary.
+        let mut horizon_posteriors: Vec<CausalPosterior> =
+            Vec::with_capacity(temporal.horizons.len());
         let attach_scalar_posterior = temporal.horizons.len() == 1;
         let mut uncertainty_complete = true;
         let mut bootstrap_cancelled = false;
@@ -1718,6 +1724,9 @@ impl super::Study {
                 let se = effect.se_bootstrap.unwrap_or(effect.se_analytic);
                 (effect.ate, effect.ate - z * se, effect.ate + z * se)
             };
+            if let Some(post) = posterior.as_ref() {
+                horizon_posteriors.push(post.clone());
+            }
             if attach_scalar_posterior {
                 last_posterior = posterior;
             }
@@ -1869,6 +1878,16 @@ impl super::Study {
              identifier remains temporal.backdoor.unfolded; no last-step collapse",
         )];
         diagnostics.extend(response.support.warnings.iter().cloned());
+        // Every horizon's posterior notes feed the same tempering / draw-floor
+        // diagnostics the scalar path derives from `extras.posterior`; a
+        // multi-horizon surface must not lose a disclosure raised at a horizon
+        // other than the last one just because only the last posterior is
+        // attached as the scalar artifact below.
+        let mut seen_diagnostic_codes: std::collections::HashSet<Arc<str>> =
+            diagnostics.iter().map(|d| Arc::clone(&d.code)).collect();
+        for diagnostic in posterior_note_diagnostics(&horizon_posteriors) {
+            push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
+        }
         if !attach_scalar_posterior && matches!(self.inference, InferenceMode::Bayesian(_)) {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal.sequence_posterior_not_attached",
@@ -5350,6 +5369,72 @@ mod tests {
         let w = antecedent_core::TemporalNodeKey { variable: VariableId::from_raw(3), offset: -1 };
         assert!(temporal_prior_designs_match(3, &[z], 3, &[z]));
         assert!(!temporal_prior_designs_match(3, &[z], 3, &[w]));
+    }
+
+    /// A minimal posterior carrying one horizon's inference notes, standing in
+    /// for what `estimate_sequence_mechanisms` returns per horizon.
+    fn posterior_with_notes(notes: Vec<Arc<str>>) -> CausalPosterior {
+        let schema = antecedent_prob::PosteriorSchema {
+            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+                name: Arc::from("test"),
+            }]),
+        };
+        let draws =
+            antecedent_prob::PosteriorDraws::from_column_major(schema, 2, Arc::from([0.0, 0.0]))
+                .unwrap();
+        let summaries = draws.summarize();
+        let mut diagnostics = InferenceDiagnostics::analytic("test.posterior_with_notes");
+        diagnostics.notes = notes;
+        CausalPosterior {
+            draws,
+            summaries,
+            identification: IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics,
+            assumptions: antecedent_core::AssumptionSet::new(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+        }
+    }
+
+    #[test]
+    fn multi_horizon_posterior_notes_all_reach_result_diagnostics() {
+        // A multi-horizon Sequence-overlay response used to keep only the LAST
+        // horizon's posterior (`attach_scalar_posterior = horizons.len() == 1`),
+        // so a disclosure raised at an earlier horizon never reached the
+        // result. This pins the fix: every horizon's notes are fed through
+        // `posterior_note_diagnostics`, regardless of which horizon carries
+        // the disclosure and regardless of the scalar-attachment decision.
+        let inestimable_note: Arc<str> = Arc::from(
+            "serial_dependence.long_run_tempering kappa=1.000000 raw_ratio=1.000000 \
+             ar_ratio=1.000000 df_loss=2.000000 kappa_log_sd=0.000000 hac_ratio=1.000000 \
+             fixed_b=1.000000 score_ar_order=0 residual_ar_order=0 n=6 n_eff=6.000 bandwidth=1 \
+             scope=treatment bounded=false capped=false inestimable=true",
+        );
+        let first_horizon = posterior_with_notes(vec![inestimable_note]);
+        let second_horizon = posterior_with_notes(Vec::new());
+        let horizon_posteriors = vec![first_horizon, second_horizon];
+        let diagnostics = posterior_note_diagnostics(&horizon_posteriors);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.bayesian.temporal.tempering_inestimable"),
+            "the first horizon's inestimable disclosure must reach the diagnostics even though \
+             it is not the last horizon: {:?}",
+            diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
+        );
+        // The old code fed only `extras.posterior` (the last horizon's posterior,
+        // attached only when there is a single horizon) into this helper; with
+        // two horizons and the disclosure on the first, that path saw nothing.
+        let old_behavior = posterior_note_diagnostics(std::iter::empty::<&CausalPosterior>());
+        assert!(
+            old_behavior.is_empty(),
+            "sanity check: the pre-fix input (no posterior attached) discloses nothing"
+        );
     }
 }
 
