@@ -48,7 +48,8 @@ pub mod structure_change;
 pub mod unit_change;
 
 pub use anomaly::{
-    AnomalyScores, ArrowStrength, arrow_strengths, population_do_contrast, score_anomalies,
+    AnomalyScores, ArrowStrength, PopulationDoContrast, arrow_strengths, population_do_contrast,
+    score_anomalies,
 };
 pub use builder::ChangeAttribution;
 pub use coalition::{CoalitionCache, CoalitionKey};

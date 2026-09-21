@@ -116,7 +116,16 @@ impl CausalState {
                 self.suff_stats.lag_indexes.clear();
                 self.suff_stats.graph_scores.clear();
                 self.suff_stats.particle_filters.clear();
-                self.suff_stats.mechanism_diags.clear();
+                // Drain through the budget-aware path so the bytes each slot was charged
+                // are returned, not stranded until the budget is exhausted.
+                let keys: Vec<_> = self.suff_stats.mechanism_diags.keys().cloned().collect();
+                for key in keys {
+                    crate::mechanism_diag::evict_mechanism_diag(
+                        &mut self.suff_stats.mechanism_diags,
+                        &key,
+                        &mut self.cache_budget,
+                    );
+                }
                 self.invalidations.push(v, InvalidationTarget::LagIndexes, "replace_data");
                 self.invalidations.push(v, InvalidationTarget::GraphScores, "replace_data");
                 self.invalidations.push(v, InvalidationTarget::ParticleFilters, "replace_data");
@@ -358,6 +367,28 @@ mod tests {
     use crate::event::StateEvent;
     use crate::store::DataBatchRef;
     use crate::suff_stats::LinearOlsSuffStats;
+
+    /// `ReplaceData` drops every diagnostics slot, so the bytes they were charged must
+    /// come back; clearing the map alone left the budget permanently smaller.
+    #[test]
+    fn replace_data_returns_mechanism_diagnostic_budget() {
+        use crate::mechanism_diag::{RollingMechanismDiagnostics, insert_mechanism_diag};
+
+        let mut state = CausalState::new(CacheBudget::new(1 << 20));
+        for name in ["a", "b"] {
+            insert_mechanism_diag(
+                &mut state.suff_stats.mechanism_diags,
+                Arc::from(name),
+                RollingMechanismDiagnostics::new(2, 4).unwrap(),
+                &mut state.cache_budget,
+            )
+            .unwrap();
+        }
+        assert!(state.cache_budget.used_bytes > 0);
+        state.apply(StateEvent::ReplaceData(DataVersion::default().next())).unwrap();
+        assert!(state.suff_stats.mechanism_diags.is_empty());
+        assert_eq!(state.cache_budget.used_bytes, 0);
+    }
 
     #[test]
     fn append_marks_results_stale_without_autorun() {

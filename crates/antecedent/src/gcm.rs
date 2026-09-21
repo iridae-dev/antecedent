@@ -32,10 +32,10 @@ use crate::error::CausalError;
 pub use antecedent_attribution::{
     AnomalyScores, ArrowStrength, AttributionError, ChangeAttribution, ChangeAttributionResult,
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
-    MechanismChangeMethod, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
-    UnitChangeResult, arrow_strengths, detect_mechanism_changes, distribution_change,
-    distribution_change_robust, feature_relevance, path_decompose, population_do_contrast,
-    root_cause_rank, score_anomalies, structure_change, unit_change,
+    MechanismChangeMethod, PopulationDoContrast, RobustChangeOptions, RootCauseRank,
+    StructureChangeOptions, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
+    distribution_change, distribution_change_robust, feature_relevance, path_decompose,
+    population_do_contrast, root_cause_rank, score_anomalies, structure_change, unit_change,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,

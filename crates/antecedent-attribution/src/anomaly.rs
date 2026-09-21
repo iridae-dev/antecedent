@@ -13,8 +13,24 @@
 //! extreme in their own distributions score differently purely because of the fitted
 //! `σ` — the normalizer contributes `−ln σ`, so the same standardized residual shifts by
 //! `ln(100) ≈ 4.6` nats between `σ = 0.01` and `σ = 1`. A tail probability has none of
-//! those defects: it is in `(0, 1]`, dimensionless, and invariant to any monotone
-//! reparameterization of the target.
+//! those defects: it is in `(0, 1]`, dimensionless, and invariant to affine
+//! (location–scale) changes of the target.
+//!
+//! The invariance is affine only, not "any monotone reparameterization": the tail is a
+//! *Gaussian* tail of a median/MAD z-score, so it is calibrated for roughly symmetric,
+//! light-tailed targets and over-scores the long tail of a skewed or heavy-tailed one (the
+//! upper tail of a log-normal target reads as astronomically rare).
+//!
+//! # Shapley reference
+//!
+//! Budhathoki et al. (2022) average out-of-coalition players over the noise distribution.
+//! This implementation uses the cheaper **point-mass reference**: a player outside the
+//! coalition has its noise term set to `0`, its median for centred additive noise. Shapley
+//! efficiency then gives `Σφ = score(y) − v(∅)`, where `v(∅)` is the score of the target
+//! reconstructed with *every* noise term at the reference; it is published per row as
+//! [`AnomalyScores::baseline_scores`] so the contributions visibly account for the score.
+//! A non-finite target or reconstructed coalition value is an error, never a score of `0`
+//! ("perfectly ordinary").
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -86,19 +102,26 @@ impl OutlierTail {
     ///
     /// Zero for a value sitting at the centre, growing without bound into the tail — and
     /// dimensionless, so rescaling the target leaves it unchanged.
-    fn score(&self, y: f64) -> f64 {
+    ///
+    /// # Errors
+    ///
+    /// A non-finite value (a missing target, or a coalition reconstruction that overflowed):
+    /// its outlierness is unknown, which must not be reported as "not anomalous".
+    fn score(&self, y: f64) -> Result<f64, AttributionError> {
         if !y.is_finite() {
-            return 0.0;
+            return Err(AttributionError::invalid_input(
+                "anomaly score requires finite target and reconstructed values",
+            ));
         }
         let z = ((y - self.center) / self.scale).abs();
         // Two-sided Gaussian tail. `norm_sf` underflows to 0 past z ≈ 38, so switch to the
         // log-space asymptotic `2Φ(−z) ≈ 2φ(z)/z` there instead of returning `+∞`.
         let two_sided = 2.0 * antecedent_kernels::norm_sf(z);
-        if two_sided > f64::MIN_POSITIVE {
+        Ok(if two_sided > f64::MIN_POSITIVE {
             -two_sided.ln()
         } else {
             0.5 * z * z + z.ln() + 0.5 * std::f64::consts::TAU.ln() - std::f64::consts::LN_2
-        }
+        })
     }
 }
 
@@ -118,11 +141,17 @@ pub struct AnomalyScores {
     /// Row indices scored.
     pub rows: Arc<[usize]>,
     /// IT scores: `−log P(|Z| ≥ |z|)` for the standardized deviation of the value from the
-    /// target's robust marginal centre. Higher = more anomalous; `0` at the centre. A tail
-    /// probability, not a density, so the scale of the target does not affect it.
+    /// target's robust marginal centre (Gaussian reference on a median/MAD z-score). Higher
+    /// = more anomalous; `0` at the centre. A tail probability, not a density, so an affine
+    /// change of the target's scale or location does not affect it.
     pub scores: Arc<[f64]>,
-    /// Sum of absolute Shapley IT-score attributions per row.
-    pub residual_abs: Arc<[f64]>,
+    /// Score of the target reconstructed with every noise term at the point-mass reference
+    /// (`0`): `v(∅)` of the Shapley game, per row. Efficiency holds as
+    /// `scores[row] − baseline_scores[row] = Σ_j noise_contributions[row, j]`.
+    pub baseline_scores: Arc<[f64]>,
+    /// Sum of the absolute values of the row's Shapley attributions, `Σ_j |φ_j|`: a measure
+    /// of how much attribution mass the row carries, not a residual.
+    pub abs_contribution_sum: Arc<[f64]>,
     /// Ancestor (incl. target) components used as Shapley players.
     pub noise_components: Arc<[ComponentId]>,
     /// Row-major Shapley attributions: `rows.len() * noise_components.len()`.
@@ -130,13 +159,15 @@ pub struct AnomalyScores {
 }
 
 /// Score anomalies and attribute them to ancestor noise terms via Shapley
-/// (Budhathoki, Minorics, Bloebaum & Janzing 2022): replace noise coordinates outside the coalition with
-/// reference draws (0 for additive noise) and redistribute the target's IT score
-/// (see the module docs for why that is a tail probability and not a density).
+/// (Budhathoki, Minorics, Bloebaum & Janzing 2022): replace noise coordinates outside the
+/// coalition with the point-mass reference `0` and redistribute the target's IT score
+/// (see the module docs for why that is a tail probability and not a density, and for the
+/// reference distribution).
 ///
 /// # Errors
 ///
-/// Size limit, out-of-range `unit_rows`, or data/model failures.
+/// Size limit, out-of-range `unit_rows`, non-finite target or reconstructed values, or
+/// data/model failures.
 pub fn score_anomalies(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -191,10 +222,16 @@ pub fn score_anomalies(
             .iter()
             .map(|&d| ComponentId::from_variable(model.output_layout.variables[d.as_usize()]))
             .collect();
+        // Player membership by dense node, so the per-coalition noise fill is O(nodes).
+        let mut is_player = vec![false; model.n_nodes()];
+        for d in &players_dense {
+            is_player[d.as_usize()] = true;
+        }
 
         let y_all = data.float64_values(target)?;
         let mut scores = Vec::with_capacity(rows.len());
-        let mut resid = Vec::with_capacity(rows.len());
+        let mut baselines = Vec::with_capacity(rows.len());
+        let mut abs_sums = Vec::with_capacity(rows.len());
         let mut contrib = vec![0.0; rows.len() * players.len()];
 
         // Reference distribution for the IT score: the target's own observed marginal.
@@ -205,6 +242,7 @@ pub fn score_anomalies(
                 model,
                 target: dense,
                 players: &players_dense,
+                is_player: &is_player,
                 exo_noise: &exo.noise,
                 n_units: exo.n_units,
                 row,
@@ -214,21 +252,25 @@ pub fn score_anomalies(
                 ws: MechanismWorkspace::default(),
             };
             // Factual IT score: how far into the target's marginal tail this value falls.
-            scores.push(tail.score(y_all[row]));
+            scores.push(tail.score(y_all[row])?);
+            // v(∅): every noise term at the reference. Exact Shapley efficiency makes
+            // score(y) − v(∅) equal Σφ, so publishing v(∅) closes the accounting.
+            baselines.push(payoff.value(0)?);
             let est = estimate_shapley(&players, &shapley, &mut payoff, &ctx)?;
             let mut abs_sum = 0.0;
             for (j, v) in est.values.iter().enumerate() {
                 contrib[ui * players.len() + j] = *v;
                 abs_sum += v.abs();
             }
-            resid.push(abs_sum);
+            abs_sums.push(abs_sum);
         }
 
         out.push(AnomalyScores {
             target,
             rows: Arc::from(rows.clone()),
             scores: Arc::from(scores),
-            residual_abs: Arc::from(resid),
+            baseline_scores: Arc::from(baselines),
+            abs_contribution_sum: Arc::from(abs_sums),
             noise_components: Arc::from(players),
             noise_contributions: Arc::from(contrib),
         });
@@ -256,6 +298,8 @@ struct NoiseShapleyPayoff<'a> {
     model: &'a CompiledCausalModel,
     target: DenseNodeId,
     players: &'a [DenseNodeId],
+    /// `is_player[node]` for every dense node.
+    is_player: &'a [bool],
     exo_noise: &'a [f64],
     n_units: usize,
     row: usize,
@@ -274,8 +318,7 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
             self.noise_buf[node.as_usize()] = if mask & (1u64 << i) != 0 { factual } else { 0.0 };
         }
         for node in 0..n_nodes {
-            let dense = DenseNodeId::from_raw(node as u32);
-            if !self.players.contains(&dense) {
+            if !self.is_player[node] {
                 self.noise_buf[node] = self.exo_noise[node * self.n_units + self.row];
             }
         }
@@ -295,7 +338,7 @@ impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
         // marginal tail as the factual value. Shapley then redistributes the anomaly score
         // itself rather than the reconstructed Y level, and every coalition value is
         // commensurable because they all use one fixed reference distribution.
-        Ok(self.tail.score(self.value_buf[self.target.as_usize()]))
+        self.tail.score(self.value_buf[self.target.as_usize()])
     }
 }
 
@@ -362,8 +405,13 @@ fn model_implied_variances(model: &CompiledCausalModel) -> Result<Vec<f64>, Attr
                     .parents
                     .iter()
                     .enumerate()
-                    .map(|(i, &p)| (p.as_usize(), coeffs.get(i).copied().unwrap_or(0.0)))
-                    .collect(),
+                    .map(|(i, &p)| {
+                        coeffs
+                            .get(i)
+                            .map(|&b| (p.as_usize(), b))
+                            .ok_or(AttributionError::MechanismCoeffMismatch)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
                 sigma * sigma,
             ),
             // Deterministic: contributes no variance and depends on nothing.
@@ -436,7 +484,8 @@ pub fn arrow_strengths(
         };
         for (i, &p) in gather.parents.iter().enumerate() {
             let parent = model.output_layout.variables[p.as_usize()];
-            let beta = coeffs.get(i).copied().unwrap_or(0.0);
+            // A short coefficient vector is a corrupt store, not a zero edge.
+            let beta = coeffs.get(i).copied().ok_or(AttributionError::MechanismCoeffMismatch)?;
             let strength = beta * beta * variances[p.as_usize()];
             out.push(ArrowStrength { parent, child: child_var, strength, coefficient: beta });
         }
@@ -444,7 +493,24 @@ pub fn arrow_strengths(
     Ok(out)
 }
 
-/// Population do-contrast of parent on child: `|E[Y|do(X=μ+δ/2)] − E[Y|do(X=μ−δ/2)]|`.
+/// Population do-contrast of parent on child with its Monte Carlo error.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PopulationDoContrast {
+    /// Signed contrast `E[Y | do(X = μ + δ/2)] − E[Y | do(X = μ − δ/2)]`; the sign is the
+    /// direction of the effect.
+    pub contrast: f64,
+    /// Standard error of [`Self::contrast`] from the paired per-draw differences. Both arms
+    /// replay the same exogenous noise, so it is exactly `0` for additive-noise mechanisms
+    /// and `+∞` when fewer than two draws were made.
+    pub stderr: f64,
+}
+
+/// Population do-contrast of parent on child: `E[Y|do(X=μ+δ/2)] − E[Y|do(X=μ−δ/2)]`.
+///
+/// Both interventional arms replay the same random stream (common random numbers), so the
+/// exogenous noise cancels in every per-draw difference. Independent streams would make a
+/// null edge read `E|N(0, 2σ²/n)| = 2σ/√(πn) > 0` — a phantom influence that shrinks only as
+/// `1/√n`.
 ///
 /// This is **not** intrinsic (noise-based) causal influence.
 ///
@@ -459,9 +525,10 @@ pub fn population_do_contrast(
     delta: f64,
     max_units: usize,
     ctx: &ExecutionContext,
-) -> Result<f64, AttributionError> {
+) -> Result<PopulationDoContrast, AttributionError> {
     use antecedent_core::{Intervention, Value};
     use antecedent_model::sample_interventional;
+    use antecedent_stats::Welford;
 
     let n = data.row_count().min(max_units);
     if data.row_count() > max_units {
@@ -471,7 +538,9 @@ pub fn population_do_contrast(
             max: max_units,
         });
     }
-    let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x1C1_u64);
+    // One identically seeded stream per arm: common random numbers.
+    let mut rng_hi = ctx.rng.stream_for(StreamDomain::Attribution, 0x1C1_u64);
+    let mut rng_lo = ctx.rng.stream_for(StreamDomain::Attribution, 0x1C1_u64);
     let mut ws = MechanismWorkspace::default();
     let child_dense =
         model.dense_of(child).ok_or_else(|| AttributionError::missing_var("child", child))?;
@@ -481,7 +550,7 @@ pub fn population_do_contrast(
         model,
         &[Intervention::set(parent, Value::f64(pmean + 0.5 * delta))],
         n.max(1),
-        &mut rng,
+        &mut rng_hi,
         &mut ws,
         ctx,
     )?;
@@ -489,13 +558,17 @@ pub fn population_do_contrast(
         model,
         &[Intervention::set(parent, Value::f64(pmean - 0.5 * delta))],
         n.max(1),
-        &mut rng,
+        &mut rng_lo,
         &mut ws,
         ctx,
     )?;
-    let hi_m = hi.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
-    let lo_m = lo.column(child_dense.as_usize())?.iter().sum::<f64>() / n.max(1) as f64;
-    Ok((hi_m - lo_m).abs())
+    let hi_col = hi.column(child_dense.as_usize())?;
+    let lo_col = lo.column(child_dense.as_usize())?;
+    let mut diff = Welford::new();
+    for (h, l) in hi_col.iter().zip(lo_col) {
+        diff.push(h - l);
+    }
+    Ok(PopulationDoContrast { contrast: diff.mean(), stderr: diff.stderr_of_mean() })
 }
 
 #[cfg(test)]
@@ -600,6 +673,72 @@ mod tests {
         );
     }
 
+    /// A non-finite target value is an error, not an "ordinary" score of 0.
+    #[test]
+    fn score_refuses_non_finite_values() {
+        let tail = OutlierTail { center: 0.0, scale: 1.0 };
+        assert!(tail.score(f64::NAN).is_err());
+        assert!(tail.score(f64::INFINITY).is_err());
+        // A finite value at the centre is exactly 0, and |z| = 1 has two-sided tail
+        // 2Φ(−1) = 0.317310507862914 → −ln = 1.1481...
+        assert_eq!(tail.score(0.0).unwrap(), 0.0);
+        let expected = -(0.317_310_507_862_914_1_f64).ln();
+        assert!((tail.score(-1.0).unwrap() - expected).abs() < 1e-9);
+    }
+
+    /// Fixture whose fitted outcome mechanism is replaced by `y = slope·x + N(0, 1)`.
+    fn linear_outcome_model(slope: f64) -> (CompiledCausalModel, TabularData) {
+        let (model, data) = scaled_anomaly_fixture(30, 1.0);
+        let store = CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([]), sigma: 1.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([slope]),
+                    sigma: 1.0,
+                },
+            ]),
+        };
+        (model.with_mechanisms(store), data)
+    }
+
+    /// Both arms replay the same noise, so the contrast is exactly `slope · δ` with the
+    /// sign of the effect. Independent arms would read `E|N(0, 2σ²/n)|` (≈ 0.21 at σ = 1,
+    /// n = 30) for a null edge and could flip the sign of a small one.
+    #[test]
+    fn do_contrast_is_signed_and_noise_free_under_crn() {
+        let ctx = ExecutionContext::for_tests(3);
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+
+        let (model, data) = linear_outcome_model(-3.0);
+        let c = population_do_contrast(&model, &data, x, y, 2.0, 100, &ctx).unwrap();
+        assert!((c.contrast - (-6.0)).abs() < 1e-9, "contrast={}", c.contrast);
+        assert!(c.stderr < 1e-9, "stderr={}", c.stderr);
+
+        let (null_model, null_data) = linear_outcome_model(0.0);
+        let c0 = population_do_contrast(&null_model, &null_data, x, y, 2.0, 100, &ctx).unwrap();
+        assert!(c0.contrast.abs() < 1e-12, "null edge read {}", c0.contrast);
+    }
+
+    /// A coefficient vector shorter than the parent list is a corrupt store, not a zero edge.
+    #[test]
+    fn arrow_strength_refuses_short_coefficient_vector() {
+        let (model, _) = scaled_anomaly_fixture(30, 1.0);
+        let store = CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([]), sigma: 1.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([]), // y has one parent
+                    sigma: 1.0,
+                },
+            ]),
+        };
+        let model = model.with_mechanisms(store);
+        assert_eq!(arrow_strengths(&model).unwrap_err(), AttributionError::MechanismCoeffMismatch);
+    }
+
     #[test]
     fn anomaly_and_arrow_strength() {
         let n = 30usize;
@@ -658,14 +797,18 @@ mod tests {
         let y_phi =
             scores[0].noise_contributions[(n - 1) * scores[0].noise_components.len() + y_idx];
         assert!(y_phi.abs() > 0.0, "y attribution={y_phi}");
-        // Efficiency: Σφ redistributes anomaly-score change (signed sum finite; abs sum = residual_abs).
+        // Exact Shapley efficiency: Σφ = score(y) − v(∅), with v(∅) published per row.
         let n_p = scores[0].noise_components.len();
         let row = n - 1;
         let phi_sum: f64 = (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j]).sum();
         let abs_sum: f64 =
             (0..n_p).map(|j| scores[0].noise_contributions[row * n_p + j].abs()).sum();
-        assert!(phi_sum.is_finite());
-        assert!((abs_sum - scores[0].residual_abs[row]).abs() < 1e-9);
+        let accounted = scores[0].scores[row] - scores[0].baseline_scores[row];
+        assert!(
+            (phi_sum - accounted).abs() < 1e-6 * accounted.abs().max(1.0),
+            "Σφ={phi_sum} but score − v(∅) = {accounted}"
+        );
+        assert!((abs_sum - scores[0].abs_contribution_sum[row]).abs() < 1e-9);
         let arrows = arrow_strengths(&model).unwrap();
         assert!(!arrows.is_empty());
         assert!(arrows.iter().any(|a| a.strength > 0.5), "arrows={arrows:?}");

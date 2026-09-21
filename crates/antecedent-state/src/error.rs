@@ -25,6 +25,9 @@ pub enum StateError {
     /// Numerical failure in sufficient statistics.
     #[error("state numerical failure: {0}")]
     Numerical(String),
+    /// A cache was asked to score data other than the data it was filled from.
+    #[error("cache bound to different data: {0}")]
+    StaleCache(String),
     /// Invalid event / configuration.
     #[error("invalid state event: {0}")]
     InvalidEvent(String),

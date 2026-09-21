@@ -31,6 +31,10 @@ papers = []
 # Related citation: see provenance/attribution.distribution_change.toml for the
 # mechanism-parameter variant that Budhathoki et al. 2021 genuinely does cover.
 
+implementation_deviations = [
+ "A structure player swaps the node's parent set together with its mechanism refit on the comparison population; nodes whose parent sets agree keep their baseline fit. total_change is therefore the change the players explain, and the change measured directly on the two populations is reported separately as observed_change (unexplained_change is the remainder).",
+]
+
 upstream_implementations_observed = []
 # Both backing fixtures (conformance/attribution/structure_change_grid,
 # conformance/attribution/structure_change_parent_swap) are closed-form / clean-room

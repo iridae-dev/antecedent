@@ -715,13 +715,8 @@ mod tests {
             let mut xv = Vec::with_capacity(n);
             let mut yv = Vec::with_capacity(n);
             for _ in 0..n {
-                let u1 = rng.next_f64().clamp(1e-12, 1.0);
-                let u2 = rng.next_f64();
-                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-                let x = z;
-                let u1 = rng.next_f64().clamp(1e-12, 1.0);
-                let u2 = rng.next_f64();
-                let e = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                let x = antecedent_kernels::standard_normal(&mut rng);
+                let e = antecedent_kernels::standard_normal(&mut rng);
                 xv.push(x);
                 yv.push(1.0 + 2.0 * x + 0.25 * e);
             }
@@ -819,13 +814,8 @@ mod tests {
                 let mut xv = Vec::with_capacity(n);
                 let mut yv = Vec::with_capacity(n);
                 for _ in 0..n {
-                    let u1 = rng.next_f64().clamp(1e-12, 1.0);
-                    let u2 = rng.next_f64();
-                    let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-                    let x = z;
-                    let u1 = rng.next_f64().clamp(1e-12, 1.0);
-                    let u2 = rng.next_f64();
-                    let e = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                    let x = antecedent_kernels::standard_normal(&mut rng);
+                    let e = antecedent_kernels::standard_normal(&mut rng);
                     xv.push(x);
                     yv.push(1.0 + 2.0 * x + 0.25 * e);
                 }
