@@ -71,6 +71,14 @@ pub use adjustment::{
     BlockResampling, CandidateSelectionRecord, EffectEstimate, EstimationWorkspace,
     LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
+pub mod learned_trial;
+pub use learned_trial::{
+    TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
+    validate_trial_aipw, validate_trial_query,
+};
+mod fitted_effect;
+pub use fitted_effect::FittedEffect;
+
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;
 pub use antecedent_learn::{

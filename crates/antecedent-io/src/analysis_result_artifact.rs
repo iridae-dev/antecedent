@@ -378,6 +378,9 @@ pub struct AnalysisResultWire {
     /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<Vec<f64>>,
+    /// Portable fitted effect, bound into the result body identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
     /// Licensed pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
@@ -542,6 +545,16 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     use crate::causal_artifact::{
         validate_query_ids, validate_response_result, validate_variable_names,
     };
+    if let Some(model) = &result.fitted_effect {
+        // Unsupported optional prediction codecs do not erase the scientific claim.
+        // The sealed body still binds their bytes; prediction loading rejects them.
+        if model.version == 1 && model.predictor.version == 1 {
+            model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+        }
+        if model.features.iter().any(|v| *v as usize >= variable_names.len()) {
+            return Err(IoError::Convert("fitted effect names an unknown feature".into()));
+        }
+    }
     validate_variable_names(variable_names)?;
     validate_query_ids(&result.query, variable_names.len())?;
     crate::causal_query_from_wire(&result.query)?;

@@ -99,6 +99,18 @@ impl FittedPredictor for LogisticPredictor {
         Ok(())
     }
 
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        Ok(crate::PortablePredictor {
+            version: 1,
+            columns: self.fit.coefficients.len(),
+            provenance: self.provenance(),
+            model: crate::PredictionMap::Linear {
+                coefficients: self.fit.coefficients.clone(),
+                logistic: true,
+            },
+        })
+    }
+
     fn provenance(&self) -> LearnerProvenance {
         LearnerProvenance {
             spec: "logistic".into(),

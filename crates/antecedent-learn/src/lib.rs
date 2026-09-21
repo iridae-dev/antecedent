@@ -10,7 +10,9 @@
 #![deny(missing_docs)]
 
 pub mod auto;
+pub mod categorical;
 pub mod crossfit;
+pub use categorical::FiniteJoint;
 mod dense;
 pub mod design;
 pub mod elastic_net;
@@ -20,6 +22,8 @@ pub mod forest;
 #[cfg(feature = "ml-gbdt")]
 pub mod gbt;
 pub mod learner;
+pub mod portable;
+pub use portable::{PortablePredictor, PredictionMap, PredictionNode};
 pub mod linear;
 pub mod logistic;
 #[cfg(feature = "ml-gpu")]
@@ -29,6 +33,7 @@ pub mod spec;
 pub mod transform;
 
 pub use auto::resolve_auto;
+pub use crossfit::cross_fit_selected;
 pub use crossfit::{CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, diagnose};
 pub use design::{
     DenseDesign, DesignStorage, DesignView, Layout, RowSelection, SparseDesignView, TargetView,

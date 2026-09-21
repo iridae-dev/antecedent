@@ -30,6 +30,7 @@ mod graph_build;
 mod graph_io;
 mod graphs;
 mod identification_details;
+mod learned_trial_api;
 mod observation_api;
 mod prepared_api;
 mod prepared_options;
@@ -2451,6 +2452,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transport_exact_api::register(m)?;
     transport_grid_api::register(m)?;
     transport_statistical_api::register(m)?;
+    learned_trial_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;

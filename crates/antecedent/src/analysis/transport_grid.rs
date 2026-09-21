@@ -1,9 +1,9 @@
 //! Retained finite transport grids. A local coverage failure is a point, not a deleted row.
-use super::statistical::{SampleSummary, StatisticalOptionsWire};
 use super::{
     ExactPreparedState, ExactStudyResult, PreparedStudy, StatisticalPreparedState,
     StatisticalStudyResult, StudyBuilder,
 };
+pub use antecedent_core::TransportGridFailure;
 use antecedent_core::{ExecutionContext, IdentityDomain, NodeRef, VariableDomain, VariableId};
 use antecedent_estimate::{EmpiricalTableOptions, StatisticalTransportInput};
 use antecedent_expr::{
@@ -11,6 +11,10 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
+use antecedent_io::transport_grid_wire::TransportGridFailureWire;
+use antecedent_io::transport_grid_wire::{
+    GridPointWire, GridWire, SampleSummary, StatisticalOptionsWire,
+};
 use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
@@ -53,27 +57,7 @@ pub struct TransportGridQuery {
     /// Global numerical limits, partitioned conservatively across points.
     pub limits: ExactEvaluationLimits,
 }
-/// Located point-local missing evidence or support outcome.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct TransportGridFailure {
-    /// Stable kind: missing_evidence or support_failure.
-    pub kind: String,
-    /// Located provider/denominator explanation.
-    pub detail: String,
-    /// Stable provider/support failure code.
-    pub code: String,
-    /// Original variables whose provider support is required.
-    pub variables: Vec<u32>,
-    /// Original expression coordinate for a failed ratio.
-    pub expression: Option<u32>,
-    /// Located original variable assignments.
-    pub assignment: Vec<(u32, ValueWire)>,
-    /// Population/regime dependencies of the failing factor.
-    pub bindings: Vec<(String, Option<u32>)>,
-    /// Concrete intervention world required by this factor.
-    pub interventions: Vec<(u32, ValueWire)>,
-}
+
 fn local_failure(
     error: EvalError,
     functional: &BoundTransportFunctional,
@@ -115,22 +99,17 @@ fn local_failure(
         EvalError::ExactLaw(e) => {
             failure.code = e.kind.into();
             failure.variables = e.variables.iter().map(|v| v.raw()).collect();
-            failure.assignment =
-                e.conditioning.iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
+            failure.assignment = e.conditioning.iter().map(|(v, x)| (v.raw(), x.clone())).collect();
             failure
                 .bindings
                 .push((e.population.to_string(), e.regime.map(antecedent_core::RegimeId::raw)));
-            failure.interventions = e
-                .interventions
-                .iter()
-                .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                .collect();
+            failure.interventions =
+                e.interventions.iter().map(|a| (a.variable.raw(), a.value.clone())).collect();
         }
         EvalError::ExactRatioSupport { expression, assignment, bindings } => {
             failure.code = "zero_ratio_denominator".into();
             failure.expression = Some(expression.raw());
-            failure.assignment =
-                assignment.iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
+            failure.assignment = assignment.iter().map(|(v, x)| (v.raw(), x.clone())).collect();
             failure.bindings = bindings
                 .iter()
                 .map(|b| (b.population.to_string(), b.regime.map(antecedent_core::RegimeId::raw)))
@@ -161,6 +140,27 @@ impl TransportGridPoint {
         }
     }
 }
+fn point_evidence(point: &TransportGridPoint) -> Result<String, IoError> {
+    match point {
+        TransportGridPoint::Exact(_, r) => {
+            antecedent_io::transport_grid_wire::point_evidence_identity(
+                &r.identities().execution,
+                r.distribution(),
+                None,
+            )
+        }
+        TransportGridPoint::Statistical(_, r) => {
+            antecedent_io::transport_grid_wire::point_evidence_identity(
+                &r.identities().execution,
+                r.distribution(),
+                Some(r.estimate()),
+            )
+        }
+        TransportGridPoint::Unavailable(failure) => {
+            digest(&TransportGridFailureWire::from_failure(failure))
+        }
+    }
+}
 /// Retained common prepared-study state for a finite grid.
 #[derive(Clone, Debug)]
 pub struct TransportGridState {
@@ -168,6 +168,7 @@ pub struct TransportGridState {
     input: Option<TransportGridData>,
     data: ExactTransportData,
     seed: u64,
+    plans: Vec<Result<antecedent_expr::ExactEvaluationPlan, TransportGridFailure>>,
     template: GridWire,
 }
 /// A checked curve whose requested coordinates and local failures are durable.
@@ -185,8 +186,40 @@ impl TransportGridResult {
     }
     /// All four durable reasoning slots; per-point inference is retained in each point.
     #[must_use]
-    pub fn reasoning(&self) -> &antecedent_io::contract_section::ReasoningSectionWire {
-        &self.wire.reasoning
+    pub fn reasoning(&self) -> antecedent_core::ReasoningView {
+        use antecedent_core::{
+            AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
+            IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
+            SlotAvailability, SupportSlot,
+        };
+        let unavailable =
+            self.points.iter().filter(|p| matches!(p, TransportGridPoint::Unavailable(_))).count();
+        ReasoningView::new(
+            SlotAvailability::Available(IdentificationSlot::identified_singleton(
+                IdentificationStatus::NonparametricallyIdentified,
+            )),
+            SlotAvailability::Available(SupportSlot::new(
+                "stage_contract",
+                Some(Arc::from("transport.response_grid")),
+                SlotAvailability::Available(Arc::from(format!(
+                    "{} executable; {unavailable} unavailable; population positivity assumed",
+                    self.points.len() - unavailable
+                ))),
+            )),
+            SlotAvailability::unavailable(if self.wire.statistical {
+                "pointwise_components_in_retained_points; calibration_not_bound"
+            } else {
+                "exact_supplied_law_no_sampling_uncertainty"
+            }),
+            SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
+                "transport.population_selection_graph",
+                ObligationScope::Program,
+                AssumptionSource::UserDeclared,
+                ObligationKind::UserAssertion,
+                AssumptionStatus::Declared,
+                "The accepted graph and source-specific mechanism selections describe the declared populations.",
+            )])),
+        )
     }
     /// Complete family, evidence, provider and inference identity.
     #[must_use]
@@ -248,51 +281,28 @@ impl TransportGridResult {
     /// # Errors
     /// Serialization or container validation failure.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
-        use antecedent_io::container::{
-            ArtifactManifest, CompressPolicy, EncodedArtifact, pack_section,
-        };
-        use antecedent_io::wire::{ArtifactKind, FormatVersion, ProvenanceWire, SemanticVersion};
-        let (descriptor, section) = pack_section(
-            "transport_grid_v1",
-            "application/cbor",
-            antecedent_io::to_cbor(&self.wire)?,
-            CompressPolicy::Never,
-        );
-        let artifact=EncodedArtifact { manifest:ArtifactManifest {format_version:FormatVersion {major:1,minor:0},minimum_reader_version:FormatVersion {major:1,minor:0},artifact_kind:ArtifactKind::Other("transport_grid".into()),library_version:SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION")).map_err(err)?,artifact_id:self.identity.clone(),sections:vec![descriptor],provenance:ProvenanceWire {note:"checked finite transport grid; pointwise uncertainty; no new calibration claim".into()}},sections:vec![section]};
-        let mut bytes = Vec::new();
-        artifact.write_to(&mut bytes)?;
-        Ok(bytes)
+        let mut wire = self.wire.clone();
+        if wire.version == 2 {
+            wire.points = self
+                .points
+                .iter()
+                .map(|point| match point {
+                    TransportGridPoint::Exact(study, result) => {
+                        study.export(result).map(GridPointWire::Exact)
+                    }
+                    TransportGridPoint::Statistical(study, result) => {
+                        study.export(result).map(GridPointWire::Statistical)
+                    }
+                    TransportGridPoint::Unavailable(failure) => Ok(GridPointWire::Unavailable(
+                        TransportGridFailureWire::from_failure(&failure),
+                    )),
+                })
+                .collect::<Result<_, _>>()?;
+        }
+        wire.export(&self.identity)
     }
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct GridWire {
-    version: u32,
-    required_features: Vec<String>,
-    nodes: Vec<u32>,
-    directed: Vec<(u32, u32)>,
-    bidirected: Vec<(u32, u32)>,
-    selections: Vec<u32>,
-    proof: TransportProofWire,
-    catalog: EvidenceCatalogWire,
-    laws: Vec<ExactLawWire>,
-    at: Vec<Vec<(u32, ValueWire)>>,
-    operations: usize,
-    depth: usize,
-    seed: u64,
-    statistical: bool,
-    samples: Vec<SampleSummary>,
-    options: Option<StatisticalOptionsWire>,
-    points: Vec<GridPointWire>,
-    reasoning: antecedent_io::contract_section::ReasoningSectionWire,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-enum GridPointWire {
-    Exact(Vec<u8>),
-    Statistical(Vec<u8>),
-    Unavailable(TransportGridFailure),
-}
+
 fn grid_reasoning(
     proof: &TransportProofWire,
     points: &[GridPointWire],
@@ -413,6 +423,33 @@ fn validate_grid(
     }
     Ok(())
 }
+fn compile_grid(
+    query: &TransportGridQuery,
+    data: &ExactTransportData,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Result<antecedent_expr::ExactEvaluationPlan, TransportGridFailure>>, IoError> {
+    let limits = ExactEvaluationLimits {
+        operations: query.limits.operations / query.at.len() / 8,
+        depth: query.limits.depth,
+    };
+    query
+        .at
+        .iter()
+        .map(|at| {
+            match antecedent_estimate::prepare_exact_transport(
+                &query.functional,
+                data.clone(),
+                at.clone(),
+                limits,
+                ctx,
+            ) {
+                Ok(plan) => Ok(Ok(plan)),
+                Err(error) => local_failure(error, &query.functional).map(Err),
+            }
+        })
+        .collect()
+}
+
 impl StudyBuilder {
     /// Prepare a finite mean-response grid without discarding unsupported assignments.
     /// # Errors
@@ -457,13 +494,14 @@ impl StudyBuilder {
                 let summaries = input
                     .samples
                     .iter()
-                    .map(super::statistical::SampleSummary::from_sample)
+                    .map(SampleSummary::from_sample)
                     .collect::<Result<Vec<_>, _>>()?;
                 (
                     antecedent_estimate::empirical_table::assemble_grid_point_laws(
                         input,
                         &query.functional,
                         options,
+                        ctx,
                     )
                     .map_err(err)?,
                     summaries,
@@ -487,13 +525,14 @@ impl StudyBuilder {
         {
             return Err(err("transport grid memory budget"));
         }
+        let plans = compile_grid(&query, &data, ctx)?;
         let graph = query.diagram.causal_graph();
         let edges = antecedent_io::admg_to_wire(graph)?;
         let template = GridWire {
-            version: 1,
+            version: 2,
             required_features: vec![
                 "checked_transport_proof_v1".into(),
-                "retained_transport_grid_v1".into(),
+                "retained_transport_grid_v2".into(),
             ],
             nodes: graph
                 .nodes()
@@ -517,6 +556,7 @@ impl StudyBuilder {
             samples,
             options,
             points: vec![],
+            point_evidence: vec![],
             reasoning: grid_reasoning(
                 &TransportProofWire::from_checked(query.functional.derivation())?,
                 &[],
@@ -530,6 +570,7 @@ impl StudyBuilder {
                 data,
                 seed: ctx.rng.master_seed(),
                 template,
+                plans,
             },
         })
     }
@@ -570,33 +611,32 @@ impl PreparedStudy<TransportGridState> {
             ctx.memory.hard_limit_bytes.map(|n| n / query.at.len() as u64);
         let mut failures = Vec::new();
         let mut eligible = Vec::new();
-        for at in &query.at {
-            let evaluated = antecedent_estimate::prepare_exact_transport(
-                &query.functional,
-                self.state.data.clone(),
-                at.clone(),
-                limits,
-                &ctx,
-            )
-            .and_then(|plan| plan.evaluate(&ctx));
+        for (at, plan) in query.at.iter().zip(&self.state.plans) {
+            let evaluated = match plan {
+                Ok(plan) => plan.evaluate(&ctx).map_err(|e| local_failure(e, &query.functional)),
+                Err(failure) => Err(Ok(failure.clone())),
+            };
             match evaluated {
                 Ok(_) => {
                     failures.push(None);
                     eligible.push(at.clone());
                 }
-                Err(e) => failures.push(Some(local_failure(e, &query.functional)?)),
+                Err(e) => failures.push(Some(e?)),
             }
         }
         let mut statistical = if let TransportGridData::Statistical(input, options) = input {
             if let Some(first) = eligible.first() {
-                let study = StudyBuilder::statistical_transport(
+                let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
                     query.diagram.clone(),
                     query.functional.clone(),
                     input.clone(),
+                    self.state.data.clone(),
+                    self.state.template.samples.clone(),
                     first.clone(),
                     limits,
                     *options,
                     &ctx,
+                    false,
                 )?;
                 study.estimate_grid(&eligible, &ctx)?.into_iter()
             } else {
@@ -607,30 +647,38 @@ impl PreparedStudy<TransportGridState> {
         };
         let mut points = Vec::new();
         let mut wire = self.state.template.clone();
-        for (at, failure) in query.at.iter().zip(failures) {
+        wire.version = 2;
+        wire.required_features =
+            vec!["checked_transport_proof_v1".into(), "retained_transport_grid_v2".into()];
+        wire.points.clear();
+        wire.point_evidence.clear();
+        for ((at, failure), plan) in query.at.iter().zip(failures).zip(&self.state.plans) {
             if let Some(failure) = failure {
-                wire.points.push(GridPointWire::Unavailable(failure.clone()));
+                wire.points.push(GridPointWire::Unavailable(
+                    TransportGridFailureWire::from_failure(&failure),
+                ));
                 points.push(TransportGridPoint::Unavailable(failure));
                 continue;
             }
             match input {
                 TransportGridData::Exact(_) => {
-                    let study = StudyBuilder::exact_transport(
+                    let study = PreparedStudy::<ExactPreparedState>::from_checked_plan(
                         query.diagram.clone(),
                         query.functional.clone(),
                         self.state.data.clone(),
                         at.clone(),
                         limits,
-                        &ctx,
+                        plan.as_ref().map_err(|_| err("missing compiled grid point"))?.clone(),
+                        false,
                     )?;
                     let result = study.estimate(&ctx)?;
-                    wire.points.push(GridPointWire::Exact(study.export(&result)?));
+                    wire.points.push(GridPointWire::Exact(vec![]));
                     points.push(TransportGridPoint::Exact(study, Box::new(result)));
                 }
                 TransportGridData::Statistical(..) => {
                     let (study, result) =
                         statistical.next().ok_or_else(|| err("missing joint grid result"))?;
-                    wire.points.push(GridPointWire::Statistical(study.export(&result)?));
+                    wire.points.push(GridPointWire::Statistical(vec![]));
                     points.push(TransportGridPoint::Statistical(study, Box::new(result)));
                 }
             }
@@ -639,7 +687,12 @@ impl PreparedStudy<TransportGridState> {
             return Err(err("transport.cancelled"));
         }
         wire.reasoning = grid_reasoning(&wire.proof, &wire.points, wire.statistical);
-        Ok(TransportGridResult { identity: digest(&wire)?, wire, points })
+        wire.point_evidence = points.iter().map(point_evidence).collect::<Result<_, _>>()?;
+        Ok(TransportGridResult {
+            identity: antecedent_io::transport_grid_wire::grid_identity(&wire)?,
+            wire,
+            points,
+        })
     }
     /// Explicit atomic refresh, retaining the previous state if any global check fails.
     /// # Errors
@@ -823,9 +876,18 @@ impl PreparedStudy<TransportGridState> {
             return Err(err("unsupported transport grid artifact"));
         }
         let wire: GridWire = antecedent_io::from_cbor(&artifact.sections[0].data)?;
-        if wire.version != 1
+        if !matches!(wire.version, 1 | 2)
             || wire.required_features
-                != ["checked_transport_proof_v1", "retained_transport_grid_v1"]
+                != [
+                    "checked_transport_proof_v1",
+                    if wire.version == 1 {
+                        "retained_transport_grid_v1"
+                    } else {
+                        "retained_transport_grid_v2"
+                    },
+                ]
+            || (wire.version == 1 && !wire.point_evidence.is_empty())
+            || (wire.version == 2 && wire.point_evidence.len() != wire.points.len())
             || wire.operations > limits.operations
             || wire.depth > limits.depth
             || wire.at.is_empty()
@@ -837,7 +899,9 @@ impl PreparedStudy<TransportGridState> {
         if wire.reasoning != grid_reasoning(&wire.proof, &wire.points, wire.statistical) {
             return Err(err("grid reasoning mismatch"));
         }
-        if digest(&wire)? != artifact.manifest.artifact_id {
+        if antecedent_io::transport_grid_wire::grid_identity(&wire)?
+            != artifact.manifest.artifact_id
+        {
             return Err(err("transport grid identity mismatch"));
         }
         let mut graph = Admg::empty();
@@ -949,7 +1013,7 @@ impl PreparedStudy<TransportGridState> {
                         evaluated.err().ok_or_else(|| err("claimed grid failure is executable"))?,
                         &functional,
                     )?;
-                    if &actual != expected {
+                    if actual != expected.to_failure() {
                         return Err(err("grid support claim mismatch"));
                     }
                     points.push(TransportGridPoint::Unavailable(actual));
@@ -994,9 +1058,34 @@ impl PreparedStudy<TransportGridState> {
                 }
             }
         }
+        if wire.version == 2
+            && points.iter().map(point_evidence).collect::<Result<Vec<_>, _>>()?
+                != wire.point_evidence
+        {
+            return Err(err("grid point evidence mismatch"));
+        }
+        let mut wire = wire;
+        if wire.version == 2 {
+            for point in &mut wire.points {
+                match point {
+                    GridPointWire::Exact(bytes) | GridPointWire::Statistical(bytes) => {
+                        bytes.clear()
+                    }
+                    GridPointWire::Unavailable(_) => {}
+                }
+            }
+        }
         let input =
             if wire.statistical { None } else { Some(TransportGridData::Exact(data.clone())) };
+        let compiled_query = TransportGridQuery {
+            diagram: diagram.clone(),
+            functional: functional.clone(),
+            at: at.clone(),
+            limits: ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
+        };
+        let plans = compile_grid(&compiled_query, &data, ctx)?;
         let state = TransportGridState {
+            plans,
             query: TransportGridQuery {
                 diagram,
                 functional,
@@ -1116,40 +1205,62 @@ mod tests {
         .unwrap();
         assert_eq!(result.identity(), loaded.identity());
         assert!(matches!(loaded.points()[0], TransportGridPoint::Unavailable(_)));
+        assert!(result.wire.points.iter().all(|point| match point {
+            GridPointWire::Exact(bytes) | GridPointWire::Statistical(bytes) => bytes.is_empty(),
+            GridPointWire::Unavailable(_) => true,
+        }));
+        let artifact = antecedent_io::transport_certificate::read_bounded_transport_artifact(
+            &result.export().unwrap(),
+            &ctx,
+        )
+        .unwrap();
+        let encoded: GridWire = antecedent_io::from_cbor(&artifact.sections[0].data).unwrap();
+        let mut legacy = encoded.clone();
+        legacy.version = 1;
+        legacy.point_evidence.clear();
+        legacy.required_features =
+            vec!["checked_transport_proof_v1".into(), "retained_transport_grid_v1".into()];
+        let legacy_bytes = legacy.export(&digest(&legacy).unwrap()).unwrap();
+        let (_, legacy_result) = PreparedStudy::<TransportGridState>::consume(
+            &legacy_bytes,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(legacy_result.export().unwrap(), legacy_bytes);
         let reject = |mutated: GridWire| {
-            let forged = TransportGridResult {
-                identity: digest(&mutated).unwrap(),
-                wire: mutated,
-                points: result.points.clone(),
-            };
+            let id = antecedent_io::transport_grid_wire::grid_identity(&mutated).unwrap();
             assert!(
                 PreparedStudy::<TransportGridState>::consume(
-                    &forged.export().unwrap(),
+                    &mutated.export(&id).unwrap(),
                     ExactEvaluationLimits::default(),
                     &ctx
                 )
                 .is_err()
             );
         };
-        let mut wire = result.wire.clone();
+        let mut wire = encoded.clone();
         wire.required_features.push("future_required_feature".into());
         reject(wire);
-        let mut wire = result.wire.clone();
+        let mut wire = encoded.clone();
         wire.at[0][0].1 = ValueWire::from_value(&Value::Int64(1));
         reject(wire);
-        let mut wire = result.wire.clone();
+        let mut wire = encoded.clone();
         wire.points.swap(0, 1);
         reject(wire);
-        let mut wire = result.wire.clone();
+        let mut wire = encoded.clone();
+        wire.point_evidence[1] = "changed".into();
+        reject(wire);
+        let mut wire = encoded.clone();
         wire.laws[0].axes[0].0 = 0;
         reject(wire);
-        let mut wire = result.wire.clone();
+        let mut wire = encoded.clone();
         wire.proof.proof.target = "substituted".into();
         reject(wire);
-        let mut wire = result.wire.clone();
+        let mut wire = encoded.clone();
         wire.catalog.regimes[0].population = "wrong_population".into();
         reject(wire);
-        let mut wire = result.wire.clone();
+        let mut wire = encoded;
         if let GridPointWire::Unavailable(failure) = &mut wire.points[0] {
             failure.kind = "support_failure".into();
         }

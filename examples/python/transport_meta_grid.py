@@ -10,9 +10,7 @@ def main():
     graph = Admg.from_edges(
         ["x", "z", "y"], [("x", "z"), ("z", "y")], bidirected=[("x", "z"), ("x", "y")]
     )
-    variables = [
-        transport.VariableCoordinate(name, "binary") for name in ("x", "z", "y")
-    ]
+    variables = [transport.VariableCoordinate(name, "binary") for name in ("x", "z", "y")]
     catalog = transport.EvidenceCatalog(
         environments=[
             transport.Environment("a", variables, selection_targets=["y"]),
@@ -50,9 +48,7 @@ def main():
     data = transport.ExactTransportData(tuple(laws))
     study = prepare(
         data,
-        query=transport.TransportResponseGridQuery(
-            proof, catalog, ({"x": 0.0}, {"x": 1.0})
-        ),
+        query=transport.TransportResponseGridQuery(proof, catalog, ({"x": 0.0}, {"x": 1.0})),
     )
     print(study.inspect().identification)
     result = study.estimate()

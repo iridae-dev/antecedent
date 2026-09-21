@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
+    from ..prediction import FittedEffectModel
     from .response import CausalResponseView
 
 from .._api import describe_refusal
@@ -544,6 +545,13 @@ class ResultAPI:
             with_portable_evidence(report, portable_evidence(section, decoded.payload)),
             contract=section,
         )
+
+    @property
+    def fitted_model(self) -> FittedEffectModel:
+        """Verified portable CATE predictor for this exact retained execution."""
+        from ..prediction import FittedEffectModel
+
+        return FittedEffectModel.load(self.export())
 
     @describe_refusal
     def export(self, *, artifact_id: str = "analysis-result") -> bytes:

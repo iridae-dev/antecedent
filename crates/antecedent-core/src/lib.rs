@@ -51,6 +51,8 @@ pub mod provenance;
 pub mod query;
 pub mod reason_code;
 pub mod reasoning;
+pub mod transport_result;
+pub use transport_result::TransportGridFailure;
 pub mod response;
 pub mod schema;
 pub mod temporal;

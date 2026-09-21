@@ -26,21 +26,33 @@ pub const EMPIRICAL_TABLE_PLUGIN: &str = "transport.empirical_table_plugin";
 pub const EMPIRICAL_TABLE_DIRICHLET: &str = "transport.empirical_table_dirichlet";
 
 /// Explicit statistical-provider choice. Defaults never hide empty cells.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EmpiricalTableEstimator {
     /// Frequencies from fully observed samples, no pseudocounts.
     Plugin,
     /// Named Dirichlet / pseudocount smoother. Not licensed in T6.1.
     Dirichlet,
+    /// Model-based finite categorical joint; independently uncalibrated.
+    Learned(crate::LearnerSpec),
 }
 
 impl EmpiricalTableEstimator {
+    /// Stable provider identity including every learned hyperparameter.
+    #[must_use]
+    pub fn identity(self) -> String {
+        match self {
+            Self::Learned(spec) => format!("{}:{}", self.as_str(), spec.identity()),
+            _ => self.as_str().into(),
+        }
+    }
+
     /// Stable estimator id.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Plugin => EMPIRICAL_TABLE_PLUGIN,
             Self::Dirichlet => EMPIRICAL_TABLE_DIRICHLET,
+            Self::Learned(_) => "transport.learned_categorical_plugin",
         }
     }
 }
@@ -48,7 +60,7 @@ impl EmpiricalTableEstimator {
 /// Inference settings for the empirical-table path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EmpiricalTableOptions {
-    /// Estimator. Only [`EmpiricalTableEstimator::Plugin`] is licensed.
+    /// Estimator. Plugin and learned categorical are licensed; Dirichlet is not.
     pub estimator: EmpiricalTableEstimator,
     /// Outer bootstrap replicates. Zero withholds the interval.
     pub bootstrap_replicates: u32,
@@ -300,6 +312,64 @@ pub fn fit_empirical_joint(
     .map_err(|e| EstimationError::data_msg(e.to_string()))
 }
 
+fn fit_statistical_joint(
+    sample: &RegimeSample,
+    axes: &[DiscreteAxis],
+    options: &EmpiricalTableOptions,
+    rows: Option<&[u32]>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ExactDiscreteLaw, EstimationError> {
+    let EmpiricalTableEstimator::Learned(learner) = options.estimator else {
+        return fit_empirical_joint(sample, axes, options, rows);
+    };
+    let empirical = fit_empirical_joint(
+        sample,
+        axes,
+        &EmpiricalTableOptions { estimator: EmpiricalTableEstimator::Plugin, ..*options },
+        rows,
+    )?;
+    let indexes: Vec<usize> =
+        rows.map_or_else(|| (0..sample.n()).collect(), |r| r.iter().map(|v| *v as usize).collect());
+    let columns = axes
+        .iter()
+        .map(|axis| {
+            indexes
+                .iter()
+                .map(|row| {
+                    let value = sample.columns[&axis.variable][*row]
+                        .ok_or_else(|| EstimationError::data_msg("missing categorical value"))?;
+                    axis.values.iter().position(|v| v.as_f64() == Some(value)).ok_or_else(|| {
+                        EstimationError::data_msg("categorical value outside declared domain")
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if axes.is_empty() {
+        return Ok(empirical);
+    }
+    let model = antecedent_learn::FiniteJoint::fit(
+        &columns,
+        &axes.iter().map(|a| a.values.len()).collect::<Vec<_>>(),
+        learner,
+        options.max_joint_cells,
+        ctx,
+    )
+    .map_err(crate::learn_nuisance::learn_err)?;
+    let probabilities = model.probabilities(ctx).map_err(crate::learn_nuisance::learn_err)?;
+    ExactDiscreteLaw::try_new(
+        sample.population.clone(),
+        sample.regime,
+        sample.interventions.clone(),
+        axes.to_vec(),
+        probabilities,
+        sample.snapshot_identity.clone(),
+        LawTolerance::default(),
+    )
+    .and_then(|law| law.with_empirical_counts(model.counts().to_vec()))
+    .map_err(|e| EstimationError::data_msg(e.to_string()))
+}
+
 /// Assemble supplied + fitted joints after checking provider coverage.
 ///
 /// # Errors
@@ -309,8 +379,9 @@ pub fn assemble_statistical_laws(
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
     row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
-    assemble_laws(input, functional, options, row_indexes, true)
+    assemble_laws(input, functional, options, row_indexes, true, ctx)
 }
 fn assemble_laws(
     input: &StatisticalTransportInput,
@@ -318,8 +389,9 @@ fn assemble_laws(
     options: &EmpiricalTableOptions,
     row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
     require_coverage: bool,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
-    if options.estimator != EmpiricalTableEstimator::Plugin {
+    if options.estimator == EmpiricalTableEstimator::Dirichlet {
         return Err(EstimationError::Refused {
             code: antecedent_core::reason_code!("transport_unsupported_evaluator"),
             message: format!("{} is not licensed", options.estimator.as_str()),
@@ -372,7 +444,7 @@ fn assemble_laws(
                     "forwarded aliases have different measured domains",
                 ));
             }
-            ExactDiscreteLaw::try_empirical(
+            let alias = ExactDiscreteLaw::try_empirical(
                 sample.population.clone(),
                 sample.regime,
                 sample.interventions.clone(),
@@ -381,13 +453,21 @@ fn assemble_laws(
                 sample.snapshot_identity.clone(),
                 joint.tolerance(),
             )
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            if let Some(counts) = joint.empirical_counts() {
+                alias
+                    .with_empirical_counts(counts.to_vec())
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?
+            } else {
+                alias
+            }
         } else {
-            let joint = fit_empirical_joint(
+            let joint = fit_statistical_joint(
                 sample,
                 &axes,
                 options,
                 row_indexes.get(&key).map(Vec::as_slice),
+                ctx,
             )?;
             fitted_joints.insert(key, joint.clone());
             joint
@@ -409,8 +489,9 @@ pub fn assemble_point_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
-    assemble_statistical_laws(input, functional, options, &BTreeMap::new())
+    assemble_statistical_laws(input, functional, options, &BTreeMap::new(), ctx)
 }
 
 /// Assemble available grid providers, leaving missing factors to located per-point preflight.
@@ -420,8 +501,9 @@ pub fn assemble_grid_point_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ExactTransportData, EstimationError> {
-    assemble_laws(input, functional, options, &BTreeMap::new(), false)
+    assemble_laws(input, functional, options, &BTreeMap::new(), false, ctx)
 }
 
 /// Catalog-declared finite axes for one sample's measured non-intervention coordinates.

@@ -45,7 +45,7 @@ fn require_dahabreh_compatible_formula(
 }
 
 /// Overlap diagnostics for one transport nuisance mechanism.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TransportOverlapDiagnostic {
     /// Minimum probability.
     pub probability_min: f64,
@@ -59,7 +59,7 @@ pub struct TransportOverlapDiagnostic {
 }
 
 /// Separate overlap reports for trial selection and randomized treatment.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TransportOverlapReport {
     /// Trial participation / selection overlap.
     pub selection: TransportOverlapDiagnostic,

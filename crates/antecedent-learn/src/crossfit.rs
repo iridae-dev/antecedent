@@ -273,3 +273,64 @@ mod tests {
         }
     }
 }
+
+/// Cross-fit a nuisance trained only on declared eligible rows, predicting all
+/// held-out rows. Fold assignment is shared across nuisance roles.
+/// # Errors
+/// Misaligned inputs, invalid folds, empty training roles, or provider failure.
+pub fn cross_fit_selected(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    fold_assignment: &[u16],
+    eligible: &[bool],
+    ctx: &ExecutionContext,
+) -> Result<CrossFittedPrediction, LearnError> {
+    let n = x.physical_nrows();
+    if x.row_selection().is_some()
+        || n == 0
+        || n > u32::MAX as usize
+        || y.len() != n
+        || fold_assignment.len() != n
+        || eligible.len() != n
+    {
+        return Err(LearnError::Shape { message: "misaligned selected cross-fit inputs" });
+    }
+    let folds = usize::from(*fold_assignment.iter().max().unwrap()) + 1;
+    if folds < 2 || (0..folds).any(|f| !fold_assignment.iter().any(|v| usize::from(*v) == f)) {
+        return Err(LearnError::Shape { message: "invalid selected cross-fit folds" });
+    }
+    let parts = ctx.map_indexed(folds, |fold, inner| {
+        let train: Vec<u32> = (0..n)
+            .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
+            .map(|i| i as u32)
+            .collect();
+        let valid: Vec<u32> =
+            (0..n).filter(|i| usize::from(fold_assignment[*i]) == fold).map(|i| i as u32).collect();
+        if train.is_empty() {
+            return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
+        }
+        let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
+        let mut preds = vec![0.0; valid.len()];
+        fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
+        Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
+    })?;
+    let mut predictions = vec![0.0; n];
+    let mut model_provenance = Vec::new();
+    for part in parts {
+        model_provenance.push(part.provenance);
+        for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
+            predictions[row as usize] = value;
+        }
+    }
+    let observed: Vec<_> =
+        y.values().iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
+    let predicted: Vec<_> =
+        predictions.iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
+    Ok(CrossFittedPrediction {
+        validation: diagnose(factory.task(), &observed, &predicted),
+        predictions,
+        model_provenance,
+        fold_assignment: fold_assignment.to_vec(),
+    })
+}

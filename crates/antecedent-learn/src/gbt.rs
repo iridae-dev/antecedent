@@ -89,11 +89,12 @@ impl LearnerFactory for GbtLearner {
         } else {
             model.fit_unweighted(&matrix, &gathered_y, None).map_err(forust_err)?;
         }
-        Ok(Box::new(GbtPredictor { model, task: self.task }))
+        Ok(Box::new(GbtPredictor { model, task: self.task, columns: x.ncols() }))
     }
 }
 
 struct GbtPredictor {
+    columns: usize,
     model: GradientBooster,
     task: PredictionTask,
 }
@@ -126,6 +127,53 @@ impl FittedPredictor for GbtPredictor {
             }
         }
         Ok(())
+    }
+
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        use crate::{PortablePredictor, PredictionMap, PredictionNode};
+        if !self.model.missing.is_nan() {
+            return Err(LearnError::Unsupported {
+                message: "non-NaN missing sentinel has no portable codec",
+            });
+        }
+        let trees = self
+            .model
+            .trees
+            .iter()
+            .map(|tree| {
+                tree.nodes
+                    .iter()
+                    .map(|n| {
+                        if n.is_leaf {
+                            PredictionNode::Leaf { value: Some(f64::from(n.weight_value)) }
+                        } else {
+                            PredictionNode::Split {
+                                feature: n.split_feature,
+                                threshold: n.split_value,
+                                inclusive: false,
+                                left: n.left_child,
+                                right: n.right_child,
+                                missing: n.missing_node,
+                            }
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+        let result = PortablePredictor {
+            version: 1,
+            columns: self.columns,
+            provenance: self.provenance(),
+            model: PredictionMap::Trees {
+                trees,
+                base: self.model.base_score,
+                average: false,
+                logistic: self.task == PredictionTask::BinaryProbability,
+                probability: false,
+            },
+        };
+        result.validate()?;
+        Ok(result)
     }
 
     fn provenance(&self) -> LearnerProvenance {

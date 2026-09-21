@@ -100,6 +100,39 @@ pub fn evaluate_statistical_transport_grid(
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
+    evaluate_grid(functional, input, requests, limits, options, ctx, None)
+}
+
+/// Evaluate retained point laws without fitting their original samples again.
+///
+/// The caller must retain laws fitted to exactly these immutable inputs and
+/// settings. This numerical primitive creates no compiler or artifact authority.
+/// Bootstrap datasets are still refitted jointly for every outer replicate.
+/// # Errors
+/// Invalid requests, support failure, cancellation, or exceeded resources.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_statistical_transport_grid_with_point_laws(
+    functional: &BoundTransportFunctional,
+    input: &StatisticalTransportInput,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    options: &EmpiricalTableOptions,
+    ctx: &ExecutionContext,
+    point_laws: &antecedent_expr::ExactTransportData,
+) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
+    evaluate_grid(functional, input, requests, limits, options, ctx, Some(point_laws))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_grid(
+    functional: &BoundTransportFunctional,
+    input: &StatisticalTransportInput,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    options: &EmpiricalTableOptions,
+    ctx: &ExecutionContext,
+    point_laws: Option<&antecedent_expr::ExactTransportData>,
+) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
     if requests.is_empty() {
         return Err(EstimationError::data_msg("empty treatment grid"));
     }
@@ -127,8 +160,11 @@ pub fn evaluate_statistical_transport_grid(
         .filter(|n| *n > 0)
         .ok_or_else(|| EstimationError::data_msg("statistical operation budget exceeded"))?;
     let limits = ExactEvaluationLimits { operations, ..limits };
-    let data = assemble_point_laws(input, functional, options)?
-        .with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 });
+    let data = match point_laws {
+        Some(laws) => laws.clone(),
+        None => assemble_point_laws(input, functional, options, &budget_ctx)?,
+    }
+    .with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 });
     let distributions = requests
         .iter()
         .map(|request| {
@@ -433,14 +469,17 @@ fn outer_bootstrap(
             failed = failed.saturating_add(1);
             continue;
         }
-        let assembled = match assemble_statistical_laws(input, functional, options, &row_indexes) {
-            Ok(data) => data.with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 }),
-            Err(error) if error.to_string().contains("empty_empirical_sample") => {
-                failed = failed.saturating_add(1);
-                continue;
-            }
-            Err(error) => return Err(error),
-        };
+        let assembled =
+            match assemble_statistical_laws(input, functional, options, &row_indexes, ctx) {
+                Ok(data) => {
+                    data.with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 })
+                }
+                Err(error) if error.to_string().contains("empty_empirical_sample") => {
+                    failed = failed.saturating_add(1);
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
         let mut complete = Vec::with_capacity(requests.len());
         for request in requests {
             match prepare_exact_transport(

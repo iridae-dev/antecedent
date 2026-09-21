@@ -20,6 +20,8 @@ pub enum LawOrigin {
     SuppliedExact,
     /// Frequency plug-in from a finite sample. Zero cells are unobserved, not structural.
     EmpiricalPlugin,
+    /// Coherent learned finite law with retained empirical counts.
+    LearnedPlugin,
 }
 
 impl LawOrigin {
@@ -29,6 +31,7 @@ impl LawOrigin {
         match self {
             Self::SuppliedExact => "supplied_exact",
             Self::EmpiricalPlugin => "empirical_plugin",
+            Self::LearnedPlugin => "learned_plugin",
         }
     }
 
@@ -38,6 +41,7 @@ impl LawOrigin {
         match name {
             "supplied_exact" | "" => Some(Self::SuppliedExact),
             "empirical_plugin" => Some(Self::EmpiricalPlugin),
+            "learned_plugin" => Some(Self::LearnedPlugin),
             _ => None,
         }
     }
@@ -128,6 +132,7 @@ pub struct ExactDiscreteLaw {
     snapshot_identity: Arc<str>,
     tolerance: LawTolerance,
     origin: LawOrigin,
+    empirical_counts: Option<Arc<[u64]>>,
 }
 
 impl ExactDiscreteLaw {
@@ -157,6 +162,7 @@ impl ExactDiscreteLaw {
             snapshot_identity: snapshot_identity.into(),
             tolerance,
             origin: LawOrigin::SuppliedExact,
+            empirical_counts: None,
         };
         if law.population.is_empty() || law.snapshot_identity.is_empty() || !tolerance.valid() {
             return Err(law.error("invalid_law_metadata"));
@@ -230,6 +236,25 @@ impl ExactDiscreteLaw {
         law.origin = LawOrigin::EmpiricalPlugin;
         Ok(law)
     }
+    /// Mark a fitted law as model-based and retain its observed support.
+    /// # Errors
+    /// Counts with wrong shape, no observations, or overflow.
+    pub fn with_empirical_counts(mut self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
+        if counts.len() != self.probabilities.len()
+            || counts.iter().try_fold(0u64, |n, k| n.checked_add(*k)).is_none_or(|n| n == 0)
+        {
+            return Err(self.error("invalid_empirical_support"));
+        }
+        self.origin = LawOrigin::LearnedPlugin;
+        self.empirical_counts = Some(counts.into());
+        Ok(self)
+    }
+    /// Observed cell counts for a model-based law; fitted mass never certifies support.
+    #[must_use]
+    pub fn empirical_counts(&self) -> Option<&[u64]> {
+        self.empirical_counts.as_deref()
+    }
+
     /// Population identity.
     #[must_use]
     pub fn population(&self) -> &str {
@@ -551,9 +576,20 @@ impl ExactTransportData {
                 return Ok(*value);
             }
         }
+        if let Some(counts) = &law.empirical_counts {
+            let observed = counts.iter().enumerate().any(|(i, count)| {
+                *count > 0
+                    && conditions.iter().all(|(axis, level)| {
+                        (i / law.strides[*axis]) % law.axes[*axis].values.len() == *level
+                    })
+            });
+            if !observed {
+                return Err(locate(law.error("sampling_zero")));
+            }
+        }
         let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
         if denominator == 0.0 {
-            return Err(locate(law.error(if law.origin == LawOrigin::EmpiricalPlugin {
+            return Err(locate(law.error(if law.origin != LawOrigin::SuppliedExact {
                 "sampling_zero"
             } else {
                 "zero_conditioning_mass"
@@ -700,6 +736,23 @@ mod tests {
         .unwrap();
         assert_eq!(table.origin(), LawOrigin::EmpiricalPlugin);
         let data = ExactTransportData::try_new([table], 16).unwrap();
+        let outcomes = [v(1)];
+        let conditions = [v(0)];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outcomes, &conditions, &[], DomainRef::Observational)
+        };
+        let assignment = Assignment::from_pairs([(v(0), Value::Int64(0)), (v(1), Value::Int64(1))]);
+        assert_eq!(data.probability_checked(&spec, &assignment).unwrap_err().kind, "sampling_zero");
+    }
+    #[test]
+    fn positive_learned_probabilities_do_not_authorize_empty_empirical_conditioners() {
+        let predicted = law("target", &[0.25, 0.25, 0.25, 0.25])
+            .unwrap()
+            .with_empirical_counts(vec![0, 0, 3, 7])
+            .unwrap();
+        let data = ExactTransportData::try_new([predicted], 16).unwrap();
         let outcomes = [v(1)];
         let conditions = [v(0)];
         let spec = FactorSpec {

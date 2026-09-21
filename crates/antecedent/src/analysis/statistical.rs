@@ -12,11 +12,12 @@ use antecedent_core::{
 };
 use antecedent_estimate::{
     EmpiricalTableOptions, StatisticalTransportEstimate, StatisticalTransportInput,
-    TransportUncertaintyRow, assemble_point_laws, evaluate_statistical_transport,
+    TransportUncertaintyRow, assemble_point_laws,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
+use antecedent_io::transport_grid_wire::{SampleSummary, StatisticalOptionsWire};
 use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
@@ -274,7 +275,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             ctx,
         )
         .map_err(err)?;
-        let data = assemble_point_laws(&input, &functional, &options).map_err(err)?;
+        let data = assemble_point_laws(&input, &functional, &options, ctx).map_err(err)?;
         let samples =
             input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
         Self::build_fitted(
@@ -283,7 +284,7 @@ impl PreparedStudy<StatisticalPreparedState> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn build_fitted(
+    pub(super) fn build_fitted(
         diagram: SelectionDiagram,
         functional: BoundTransportFunctional,
         input: StatisticalTransportInput,
@@ -335,7 +336,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         let inference_binding = digest(
             IdentityDomain::InferenceBinding,
             &(
-                options.estimator.as_str(),
+                options.estimator.identity(),
                 options.bootstrap_replicates,
                 options.coverage_level.to_bits(),
                 options.max_joint_cells,
@@ -496,7 +497,12 @@ impl PreparedStudy<StatisticalPreparedState> {
             factors: statistical_requirements(&self.state.functional),
             bindings: statistical_bindings(&self.state.input, &self.state.data),
             reasoning: self.reasoning(false, None),
-            theorem_scope: if self.state.functional.derivation().sources().is_empty() {
+            theorem_scope: if matches!(
+                self.state.options.estimator,
+                antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+            ) {
+                "checked_transport; learned_categorical_plugin; uncalibrated"
+            } else if self.state.functional.derivation().sources().is_empty() {
                 TheoremScope::statistical_table_inspect_label()
             } else {
                 "classical_meta_all_source_experiments_v1; empirical_table_plugin_iid"
@@ -549,7 +555,16 @@ impl PreparedStudy<StatisticalPreparedState> {
             )),
             SlotAvailability::Available(SupportSlot::new(
                 "stage_contract",
-                Some(Arc::from("transport.empirical_table")),
+                Some(Arc::from(
+                    if matches!(
+                        self.state.options.estimator,
+                        antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+                    ) {
+                        "transport.learned_categorical"
+                    } else {
+                        "transport.empirical_table"
+                    },
+                )),
                 if evaluated {
                     SlotAvailability::Available(Arc::from("empirical_factor_support_checked"))
                 } else {
@@ -563,7 +578,14 @@ impl PreparedStudy<StatisticalPreparedState> {
                 AssumptionSource::UserDeclared,
                 ObligationKind::Uncheckable,
                 AssumptionStatus::Untestable,
-                "Accepted causal graph, mechanism selections, and empirical-table regularity describe the declared populations.",
+                if matches!(
+                    self.state.options.estimator,
+                    antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+                ) {
+                    "Accepted graph and selections; coherent categorical chain model with declared ordering. Model-based cell predictions can extrapolate beyond observed cells; conditioning support is checked against empirical counts. Pointwise bootstrap is nominal and uncalibrated; no double-robustness claim."
+                } else {
+                    "Accepted causal graph, mechanism selections, and empirical-table regularity describe the declared populations."
+                },
             )])),
         )
     }
@@ -607,15 +629,16 @@ impl PreparedStudy<StatisticalPreparedState> {
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
         let estimate = if self.state.grid.is_empty() {
-            evaluate_statistical_transport(
+            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
                 &self.state.functional,
                 &self.state.input,
-                self.state.request.clone(),
+                &[self.state.request.clone()],
                 self.state.limits,
                 &self.state.options,
                 &frozen_ctx,
+                &self.state.data,
             )
-            .map_err(err)?
+            .map_err(err)?.remove(0)
         } else {
             let requests: Vec<_> = self
                 .state
@@ -633,13 +656,14 @@ impl PreparedStudy<StatisticalPreparedState> {
                 .iter()
                 .position(|request| *request == statistical_assignments(&self.state.request))
                 .ok_or_else(|| err("retained target missing from grid"))?;
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid(
+            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
                 &self.state.functional,
                 &self.state.input,
                 &requests,
                 self.state.limits,
                 &self.state.options,
                 &frozen_ctx,
+                &self.state.data,
             )
             .map_err(err)?
             .remove(index)
@@ -665,13 +689,14 @@ impl PreparedStudy<StatisticalPreparedState> {
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
         let estimates =
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid(
+            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
                 &self.state.functional,
                 &self.state.input,
                 requests,
                 self.state.limits,
                 &self.state.options,
                 &frozen_ctx,
+                &self.state.data,
             )
             .map_err(err)?;
         requests
@@ -761,6 +786,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         let mut laws: Vec<_> = input.supplied.iter().map(ExactLawWire::metadata).collect();
         for sample in &input.samples {
             laws.push(ExactLawWire {
+                empirical_counts: None,
                 population: sample.population.to_string(),
                 regime: sample.regime.raw(),
                 interventions: sample
@@ -780,7 +806,15 @@ impl PreparedStudy<StatisticalPreparedState> {
                     .collect(),
                 probabilities: Vec::new(),
                 snapshot: String::new(),
-                origin: "empirical_plugin".into(),
+                origin: if matches!(
+                    self.state.options.estimator,
+                    antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+                ) {
+                    "learned_plugin"
+                } else {
+                    "empirical_plugin"
+                }
+                .into(),
                 absolute_tolerance: 0.0,
                 relative_tolerance: 0.0,
             });
@@ -796,7 +830,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         if !self.preview_snapshot(&input)? {
             return Err(err("transport.reprepare_required"));
         }
-        let data = assemble_point_laws(&input, &self.state.functional, &self.state.options)
+        let data = assemble_point_laws(&input, &self.state.functional, &self.state.options, ctx)
             .map_err(err)?;
         let mut catalog = self.state.functional.catalog().clone();
         let mut bindings = catalog.bindings.to_vec();
@@ -1149,41 +1183,6 @@ fn statistical_assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct StatisticalOptionsWire {
-    estimator: String,
-    bootstrap_replicates: u32,
-    coverage_level: f64,
-    max_joint_cells: usize,
-}
-
-impl StatisticalOptionsWire {
-    pub(super) fn from_options(options: &EmpiricalTableOptions) -> Self {
-        Self {
-            estimator: options.estimator.as_str().into(),
-            bootstrap_replicates: options.bootstrap_replicates,
-            coverage_level: options.coverage_level,
-            max_joint_cells: options.max_joint_cells,
-        }
-    }
-    pub(super) fn to_options(&self) -> Result<EmpiricalTableOptions, IoError> {
-        if self.estimator != antecedent_estimate::EMPIRICAL_TABLE_PLUGIN {
-            return Err(err("unknown or unlicensed empirical estimator"));
-        }
-        Ok(EmpiricalTableOptions {
-            estimator: if self.estimator == antecedent_estimate::EMPIRICAL_TABLE_DIRICHLET {
-                antecedent_estimate::EmpiricalTableEstimator::Dirichlet
-            } else {
-                antecedent_estimate::EmpiricalTableEstimator::Plugin
-            },
-            bootstrap_replicates: self.bootstrap_replicates,
-            coverage_level: self.coverage_level,
-            max_joint_cells: self.max_joint_cells,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
 struct UncertaintyRowWire {
     estimator: String,
     method: String,
@@ -1265,36 +1264,6 @@ struct StatisticalExecutionWire {
     reasoning: antecedent_io::ReasoningSectionWire,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub(super) struct SampleSummary {
-    population: String,
-    regime: u32,
-    snapshot: String,
-    interventions: Vec<(u32, ValueWire)>,
-    n: u32,
-    content_digest: String,
-}
-impl SampleSummary {
-    pub(super) fn from_sample(sample: &antecedent_estimate::RegimeSample) -> Result<Self, IoError> {
-        let columns: Vec<_> = sample.columns.iter().map(|(v, xs)| (v.raw(), xs)).collect();
-        let mut interventions: Vec<_> = sample
-            .interventions
-            .iter()
-            .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-            .collect();
-        interventions.sort_by_key(|a| a.0);
-        Ok(Self {
-            population: sample.population.to_string(),
-            regime: sample.regime.raw(),
-            snapshot: sample.snapshot_identity.to_string(),
-            interventions,
-            n: u32::try_from(sample.n()).map_err(err)?,
-            content_digest: digest(IdentityDomain::DataSnapshot, &columns)?,
-        })
-    }
-}
-
 pub(super) fn validate_sample_summaries(
     samples: &[SampleSummary],
     data: &ExactTransportData,
@@ -1318,7 +1287,7 @@ pub(super) fn validate_sample_summaries(
                     && wire.interventions == sample.interventions
             })
             .ok_or_else(|| err("sample summary has no fitted joint"))?;
-        if law.origin() != antecedent_expr::LawOrigin::EmpiricalPlugin
+        if law.origin() == antecedent_expr::LawOrigin::SuppliedExact
             || law.snapshot_identity() != sample.snapshot
         {
             return Err(err("sample summary origin/snapshot mismatch"));
@@ -1327,6 +1296,12 @@ pub(super) fn validate_sample_summaries(
             b.regime.raw() == sample.regime && b.snapshot_identity.as_ref() != sample.snapshot
         }) {
             return Err(err("sample summary binding mismatch"));
+        }
+        if let Some(counts) = law.empirical_counts() {
+            if counts.iter().sum::<u64>() != u64::from(sample.n) {
+                return Err(err("learned support/sample size mismatch"));
+            }
+            continue;
         }
         for p in law.probabilities() {
             let count = p * f64::from(sample.n);
@@ -1355,7 +1330,7 @@ pub(super) fn validate_sample_summaries(
     let empirical = data
         .laws()
         .iter()
-        .filter(|law| law.origin() == antecedent_expr::LawOrigin::EmpiricalPlugin)
+        .filter(|law| law.origin() != antecedent_expr::LawOrigin::SuppliedExact)
         .count();
     if empirical != samples.len() {
         return Err(err("fitted joints lack sample provenance"));

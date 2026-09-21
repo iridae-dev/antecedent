@@ -93,6 +93,18 @@ impl FittedPredictor for RidgePredictor {
         predict_linear(&self.fit.coefficients, x, out)
     }
 
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        Ok(crate::PortablePredictor {
+            version: 1,
+            columns: self.fit.coefficients.len(),
+            provenance: self.provenance(),
+            model: crate::PredictionMap::Linear {
+                coefficients: self.fit.coefficients.clone(),
+                logistic: false,
+            },
+        })
+    }
+
     fn provenance(&self) -> LearnerProvenance {
         LearnerProvenance {
             spec: "ridge".into(),

@@ -317,6 +317,28 @@ impl PreparedStudy<ExactPreparedState> {
             ctx,
         )
         .map_err(err)?;
+        Self::from_checked_plan(
+            diagram,
+            functional,
+            data,
+            request,
+            limits,
+            plan,
+            legacy_law_identity,
+        )
+    }
+
+    // Only the facade calls this after graph verification and compilation against these inputs.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn from_checked_plan(
+        diagram: SelectionDiagram,
+        functional: BoundTransportFunctional,
+        data: ExactTransportData,
+        request: Assignment,
+        limits: ExactEvaluationLimits,
+        plan: ExactEvaluationPlan,
+        legacy_law_identity: bool,
+    ) -> Result<Self, IoError> {
         let proof = TransportProofWire::from_checked(functional.derivation())?;
         let catalog = functional.catalog().canonicalized().map_err(err)?;
         let mut contract = EvidenceCatalogWire::from_catalog(&catalog);

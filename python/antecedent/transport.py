@@ -9,15 +9,25 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args, overload
+
+if TYPE_CHECKING:
+    from .estimation import PreparedAnalysis
 
 import numpy as np
 
 from ._native import estimate_trial_transport as _estimate_trial_transport
 from ._native import identify_transport as _identify_transport
 from ._native import roundtrip_expr_arena as _roundtrip_expr_arena
+from ._transport_results import (
+    TransportContrast,
+    TransportGridPoint,
+    TransportSupport,
+    TransportUncertainty,
+)
 from .errors import CausalTypeError, CausalValueError
 from .graph import Admg
+from .learners import LearnerSpec, Logistic, Ridge, _learner_wire
 from .query import (
     AverageDerivative,
     DirectionalDerivative,
@@ -996,7 +1006,7 @@ class StatisticalTransportDistribution:
     probabilities: tuple[float, ...]
     formula: str
     rules: tuple[str, ...]
-    uncertainty: dict[str, Any] | None = None
+    uncertainty: TransportUncertainty | None = None
     _execution: Any = field(default=None, repr=False, compare=False)
 
     def inspect(self) -> Any:
@@ -1015,7 +1025,7 @@ class StatisticalTransportDistribution:
             "probabilities": self.probabilities,
             "formula": self.formula,
             "rules": self.rules,
-            "uncertainty": self.uncertainty,
+            "uncertainty": self.uncertainty.to_dict() if self.uncertainty is not None else None,
             "reasoning": self.inspect().to_dict(),
         }
 
@@ -1033,7 +1043,9 @@ class StatisticalTransportDistribution:
             atom[coordinate] * p for atom, p in zip(self.atoms, self.probabilities, strict=True)
         )
 
-    def contrast(self, reference: StatisticalTransportDistribution, outcome: str) -> dict[str, Any]:
+    def contrast(
+        self, reference: StatisticalTransportDistribution, outcome: str
+    ) -> TransportContrast:
         """Difference of means with paired bootstrap draws from compatible native runs."""
         if self._execution is None or reference._execution is None:
             raise ValueError("Contrast requires native execution authority")
@@ -1042,12 +1054,35 @@ class StatisticalTransportDistribution:
         result = dict(json.loads(self._execution.contrast(reference._execution, outcome)))
         if result["interval"] is not None:
             result["interval"] = tuple(result["interval"])
-        return result
+        return TransportContrast(result)
 
     def export(self) -> bytes:
         if self._execution is None:
             raise ValueError("This display object has no native execution authority")
         return bytes(self._execution.export())
+
+
+@dataclass(frozen=True, slots=True)
+class EmpiricalTable:
+    """Unsmoothed empirical joint; empty cells retain sampling-zero semantics."""
+
+    def _wire(self) -> dict[str, object]:
+        return {"kind": "empirical_table"}
+
+
+@dataclass(frozen=True, slots=True)
+class LearnedCategorical:
+    """Coherent finite categorical chain model, with empirical support checks.
+
+    Model probabilities may extrapolate into empty joint cells. Such probabilities
+    do not establish positivity; conditionals on unobserved strata still refuse.
+    Bootstrap intervals are nominal and uncalibrated, not doubly robust.
+    """
+
+    learner: LearnerSpec | str = Logistic()
+
+    def _wire(self) -> dict[str, object]:
+        return {"kind": "learned_categorical", "learner": _learner_wire(self.learner)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -1059,7 +1094,7 @@ class StatisticalTransportQuery:
     at: Mapping[str, float]
     bootstrap: int = 199
     coverage_level: float = 0.95
-    estimator: str = "plugin"
+    estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
     seed: int = 1
 
     def __post_init__(self) -> None:
@@ -1081,9 +1116,9 @@ def prepare_statistical(
     cancel: Any = None,
     bootstrap: int = 199,
     coverage_level: float = 0.95,
-    estimator: str = "plugin",
+    estimator: EmpiricalTable | LearnedCategorical | str = "plugin",
     seed: int = 1,
-) -> Any:
+) -> PreparedAnalysis[StatisticalTransportDistribution]:
     """Prepare the empirical-table modality of the common PreparedAnalysis lifecycle."""
     from ._native import prepare_statistical_transport
     from .estimation import PreparedAnalysis, _Controls
@@ -1133,7 +1168,7 @@ def consume_statistical(
     max_depth: int = 256,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> Any:
+) -> PreparedAnalysis[StatisticalTransportDistribution]:
     """Verify portable proof and recomputed plug-in point; do not re-bootstrap."""
     from . import _native
     from .estimation import PreparedAnalysis, _Controls
@@ -1148,16 +1183,196 @@ def consume_statistical(
     return PreparedAnalysis(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
 
 
+@overload
 def prepare(
-    identification: ClassicalTransportIdentification,
+    request: TrialAipwQuery,
+    catalog: TrialAipwData,
+    *,
+    provider: TrialAipw | None = None,
+    inference: TransportInference | None = None,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[LearnedTrialEstimate]: ...
+
+
+@overload
+def prepare(
+    request: ExactTransportQuery,
+    catalog: ExactTransportData,
+    *,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[ExactTransportDistribution]: ...
+
+
+@overload
+def prepare(
+    request: StatisticalTransportQuery,
+    catalog: StatisticalTransportData,
+    *,
+    provider: EmpiricalTable | LearnedCategorical | str | None = None,
+    inference: TransportInference | None = None,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[StatisticalTransportDistribution]: ...
+
+
+@overload
+def prepare(
+    request: TransportResponseGridQuery,
+    catalog: ExactTransportData | StatisticalTransportData,
+    *,
+    provider: EmpiricalTable | LearnedCategorical | str | None = None,
+    inference: TransportInference | None = None,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[TransportResponseGrid]: ...
+
+
+@overload
+def prepare(
+    request: ClassicalTransportIdentification,
     catalog: EvidenceCatalog,
-    data: ExactTransportData | StatisticalTransportData,
-    **kwargs: Any,
-) -> Any:
-    """Dispatch exact-law or empirical-table preparation on the common handle."""
+    data: ExactTransportData,
+    *,
+    at: Mapping[str, float],
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[ExactTransportDistribution]: ...
+
+
+@overload
+def prepare(
+    request: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    data: StatisticalTransportData,
+    *,
+    at: Mapping[str, float],
+    provider: EmpiricalTable | LearnedCategorical | str | None = None,
+    inference: TransportInference | None = None,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[StatisticalTransportDistribution]: ...
+
+
+def prepare(
+    request: ClassicalTransportIdentification
+    | ExactTransportQuery
+    | StatisticalTransportQuery
+    | TransportResponseGridQuery
+    | TrialAipwQuery,
+    catalog: EvidenceCatalog
+    | ExactTransportData
+    | StatisticalTransportData
+    | TrialAipwData
+    | None = None,
+    data: ExactTransportData | StatisticalTransportData | TrialAipwData | None = None,
+    *,
+    at: Mapping[str, float] | None = None,
+    provider: EmpiricalTable | LearnedCategorical | TrialAipw | str | None = None,
+    inference: TransportInference | None = None,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[
+    ExactTransportDistribution
+    | StatisticalTransportDistribution
+    | TransportResponseGrid
+    | LearnedTrialEstimate
+]:
+    """Prepare a typed scalar, grid, or binary trial request on one lifecycle.
+
+    Pass ``prepare(request, data, provider=..., inference=..., controls=...)``.
+    The legacy ``prepare(identification, catalog, data, at=...)`` form remains.
+    """
+    provider_requested = provider is not None
+    inference_requested = inference is not None
+    controls = controls or TransportControls()
+    if data is None and isinstance(
+        catalog, (ExactTransportData, StatisticalTransportData, TrialAipwData)
+    ):
+        data, catalog = catalog, None
+    if isinstance(request, TrialAipwQuery):
+        if not isinstance(data, TrialAipwData) or (
+            provider is not None and not isinstance(provider, TrialAipw)
+        ):
+            raise TypeError("TrialAipwQuery requires TrialAipwData and a TrialAipw provider")
+        if catalog is not None or at is not None:
+            raise ValueError(
+                "The binary trial request already declares its populations and contrast"
+            )
+        return prepare_trial(
+            request,
+            data,
+            provider=provider or TrialAipw(),
+            inference=inference or TransportInference(),
+            controls=controls,
+        )
+    if isinstance(
+        request, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
+    ):
+        if catalog is not None or at is not None:
+            raise ValueError("The typed request already owns its catalog and coordinates")
+        catalog = request.catalog
+        if isinstance(request, (StatisticalTransportQuery, TransportResponseGridQuery)):
+            inference = inference or TransportInference(
+                request.bootstrap, request.coverage_level, request.seed
+            )
+            provider = provider or (
+                EmpiricalTable() if request.estimator == "plugin" else request.estimator
+            )
+        if isinstance(request, TransportResponseGridQuery):
+            if isinstance(data, ExactTransportData) and (
+                provider_requested
+                or inference_requested
+                or not (
+                    isinstance(request.estimator, EmpiricalTable) or request.estimator == "plugin"
+                )
+            ):
+                raise ValueError(
+                    "Exact grid laws do not accept learner or sampling inference settings"
+                )
+            if not isinstance(data, (ExactTransportData, StatisticalTransportData)) or isinstance(
+                provider, TrialAipw
+            ):
+                raise TypeError("Grid requests require exact or categorical-law data/providers")
+            settings = inference or TransportInference()
+            return prepare_response_grid(
+                request.identification,
+                catalog,
+                data,
+                at=request.at,
+                estimator=provider or EmpiricalTable(),
+                bootstrap=settings.bootstrap,
+                coverage_level=settings.coverage_level,
+                seed=settings.seed,
+                max_operations=controls.max_operations,
+                max_depth=controls.max_depth,
+                max_support_rows=controls.max_support_rows,
+                memory_bytes=controls.memory_bytes,
+                cancel=controls.cancel,
+            )
+        at = request.at
+        request = request.identification
+    if not isinstance(catalog, EvidenceCatalog) or at is None:
+        raise TypeError("Scalar transport requires a catalog and intervention coordinates")
+    limits = dict(
+        max_operations=controls.max_operations,
+        max_depth=controls.max_depth,
+        max_support_rows=controls.max_support_rows,
+        memory_bytes=controls.memory_bytes,
+        cancel=controls.cancel,
+    )
     if isinstance(data, ExactTransportData):
-        return prepare_exact(identification, catalog, data, **kwargs)
-    return prepare_statistical(identification, catalog, data, **kwargs)
+        if provider is not None or inference is not None:
+            raise ValueError("Exact laws do not accept learner or sampling inference settings")
+        return prepare_exact(request, catalog, data, at=at, **limits)
+    if not isinstance(data, StatisticalTransportData) or isinstance(provider, TrialAipw):
+        raise TypeError("Statistical transport requires categorical-law data/providers")
+    settings = inference or TransportInference()
+    return prepare_statistical(
+        request,
+        catalog,
+        data,
+        at=at,
+        estimator=provider or EmpiricalTable(),
+        bootstrap=settings.bootstrap,
+        coverage_level=settings.coverage_level,
+        seed=settings.seed,
+        **limits,
+    )
 
 
 def _statistical_distribution(native: Any, payload: Any) -> StatisticalTransportDistribution:
@@ -1171,7 +1386,7 @@ def _statistical_distribution(native: Any, payload: Any) -> StatisticalTransport
         tuple(probabilities),
         formula,
         tuple(rules),
-        uncertainty=parsed,
+        uncertainty=TransportUncertainty(parsed),
         _execution=native.freeze(),
     )
 
@@ -1199,7 +1414,7 @@ def prepare_exact(
     max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> Any:
+) -> PreparedAnalysis[ExactTransportDistribution]:
     """Prepare the exact-law modality of the common PreparedAnalysis lifecycle."""
     from .estimation import PreparedAnalysis, _Controls
 
@@ -1223,7 +1438,7 @@ def consume_exact(
     max_depth: int = 256,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> Any:
+) -> PreparedAnalysis[ExactTransportDistribution]:
     """Verify portable proof, bindings, exact claims and all four reasoning slots.
 
     Uses embedded immutable laws; never fits models or fetches providers.
@@ -1303,6 +1518,7 @@ class TransportResponseGridQuery:
     bootstrap: int = 199
     coverage_level: float = 0.95
     seed: int = 1
+    estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
 
     def __post_init__(self) -> None:
         from types import MappingProxyType
@@ -1314,7 +1530,7 @@ class TransportResponseGridQuery:
 class TransportResponseGrid:
     """Native-authorized response family with explicit point-local failures."""
 
-    points: tuple[Mapping[str, Any], ...]
+    points: tuple[TransportGridPoint, ...]
     execution_id: str
     _execution: Any = field(repr=False, compare=False)
 
@@ -1324,14 +1540,14 @@ class TransportResponseGrid:
             raise ValueError(f"Grid point {point} is unavailable: {row['detail']}")
         return float(row["means"][outcome])
 
-    def contrast(self, left: int, right: int, outcome: str) -> dict[str, Any]:
+    def contrast(self, left: int, right: int, outcome: str) -> TransportContrast:
         """Transform two points using native paired draws and retained parent identity."""
         import json
 
         result = dict(json.loads(self._execution.contrast(left, right, outcome)))
         if result["interval"] is not None:
             result["interval"] = tuple(result["interval"])
-        return result
+        return TransportContrast(result)
 
     def scalar_projection(self, point: int, outcome: str) -> dict[str, Any]:
         """Return a scalar and loss receipt; this projection cannot impersonate the full grid."""
@@ -1352,18 +1568,12 @@ class TransportResponseGrid:
 
 def _response_grid(native: Any, payload: str) -> TransportResponseGrid:
     import json
-    from types import MappingProxyType
-
-    def freeze(value: Any) -> Any:
-        if isinstance(value, dict):
-            return MappingProxyType({key: freeze(item) for key, item in value.items()})
-        if isinstance(value, list):
-            return tuple(freeze(item) for item in value)
-        return value
 
     parsed = json.loads(payload)
     return TransportResponseGrid(
-        tuple(freeze(point) for point in parsed["points"]), parsed["execution_id"], native.freeze()
+        tuple(TransportGridPoint(point) for point in parsed["points"]),
+        parsed["execution_id"],
+        native.freeze(),
     )
 
 
@@ -1373,6 +1583,7 @@ def prepare_response_grid(
     data: ExactTransportData | StatisticalTransportData,
     *,
     at: Sequence[Mapping[str, float]],
+    estimator: EmpiricalTable | LearnedCategorical | str = "plugin",
     bootstrap: int = 199,
     coverage_level: float = 0.95,
     seed: int = 1,
@@ -1381,7 +1592,7 @@ def prepare_response_grid(
     max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> Any:
+) -> PreparedAnalysis[TransportResponseGrid]:
     """Prepare exact or empirical finite responses on the common study lifecycle."""
     from . import _native
     from .estimation import PreparedAnalysis, _Controls
@@ -1394,6 +1605,7 @@ def prepare_response_grid(
         data,
         [dict(point) for point in at],
         statistical=isinstance(data, StatisticalTransportData),
+        estimator=estimator,
         bootstrap=bootstrap,
         coverage_level=coverage_level,
         seed=seed,
@@ -1413,7 +1625,7 @@ def consume_response_grid(
     max_depth: int = 256,
     memory_bytes: int | None = None,
     cancel: Any = None,
-) -> Any:
+) -> PreparedAnalysis[TransportResponseGrid]:
     """Verify a grid without fetching, fitting, or rebuilding raw samples."""
     from . import _native
     from .estimation import PreparedAnalysis, _Controls
@@ -1436,3 +1648,212 @@ __all__ += [
 ]
 
 __all__ += ["consume_identification"]
+
+__all__ += ["EmpiricalTable", "LearnedCategorical"]
+
+
+@dataclass(frozen=True, slots=True)
+class TrialAipwData:
+    """IID trial and target rows with known source randomization probabilities.
+
+    For ``nested_cohort``, target rows are cohort nonparticipants. For
+    ``independent_samples``, target rows are a separately sampled representative
+    target population. Target outcomes/treatments are ignored; use finite placeholders.
+    """
+
+    covariates: Mapping[str, Sequence[float]]
+    outcome: Sequence[float]
+    treatment: Sequence[bool]
+    source: Sequence[bool]
+    randomization: Sequence[float]
+    sampling: Literal["nested_cohort", "independent_samples"]
+
+    def _json(self, names: Sequence[str]) -> str:
+        import json
+
+        unknown = set(self.covariates) - set(names)
+        if unknown:
+            raise ValueError(f"Unknown baseline covariates: {sorted(unknown)}")
+        features = [i for i, name in enumerate(names) if name in self.covariates]
+        return json.dumps(
+            dict(
+                features=features,
+                covariates=[list(map(float, self.covariates[names[i]])) for i in features],
+                outcome=list(map(float, self.outcome)),
+                treatment=list(self.treatment),
+                source=list(self.source),
+                randomization=list(map(float, self.randomization)),
+                sampling=self.sampling,
+            ),
+            allow_nan=False,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TrialAipw:
+    """Nuisance configuration for the certified binary trial contrast."""
+
+    outcome: LearnerSpec = Ridge()
+    membership: LearnerSpec = Logistic()
+    folds: int = 5
+
+
+@dataclass(frozen=True, slots=True)
+class TrialAipwQuery:
+    graph: Admg
+    diagram: SelectionDiagram
+    treatment: str
+    outcome: str
+
+
+@dataclass(frozen=True, slots=True)
+class TransportInference:
+    """Frozen joint outer bootstrap; intervals remain nominal and uncalibrated."""
+
+    bootstrap: int = 199
+    coverage_level: float = 0.95
+    seed: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class TransportControls:
+    """Physical resource limits, separate from scientific inference settings."""
+
+    max_operations: int = 10_000_000
+    max_depth: int = 256
+    max_support_rows: int = 1_000_000
+    memory_bytes: int | None = None
+    cancel: Any = None
+
+
+@dataclass(frozen=True, slots=True)
+class TrialNuisanceDiagnostics:
+    """Held-out role losses; these do not establish causal identification."""
+
+    membership_logloss: float
+    outcome_rmse: tuple[float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class LearnedTrialEstimate:
+    estimate: float
+    interval: tuple[float, float] | None
+    uncertainty_reason: str | None
+    replicates: tuple[tuple[int, float], ...]
+    failures: int
+    overlap: Mapping[str, Any]
+    diagnostics: TrialNuisanceDiagnostics
+    _execution: Any = field(repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "estimate": self.estimate,
+            "interval": list(self.interval) if self.interval is not None else None,
+            "uncertainty_reason": self.uncertainty_reason,
+            "replicates": [list(row) for row in self.replicates],
+            "failures": self.failures,
+            "overlap": {k: dict(v) for k, v in self.overlap.items()},
+            "diagnostics": {
+                "membership_logloss": self.diagnostics.membership_logloss,
+                "outcome_rmse": list(self.diagnostics.outcome_rmse),
+            },
+            "reasoning": self.inspect().to_dict(),
+        }
+
+    def export(self) -> bytes:
+        return bytes(self._execution.export())
+
+    def inspect(self) -> Any:
+        import json
+
+        from .results._report import InspectionReport
+
+        return InspectionReport(**json.loads(self._execution.inspection_json()))
+
+
+def _learned_trial(native: Any, payload: str) -> LearnedTrialEstimate:
+    import json
+    from types import MappingProxyType
+
+    raw = json.loads(payload)
+    return LearnedTrialEstimate(
+        raw["estimate"],
+        tuple(raw["interval"]) if raw["interval"] else None,
+        raw["uncertainty_reason"],
+        tuple((i, v) for i, v in raw["replicates"]),
+        raw["failures"],
+        MappingProxyType({k: MappingProxyType(v) for k, v in raw["overlap"].items()}),
+        TrialNuisanceDiagnostics(
+            raw["diagnostics"]["membership_logloss"], tuple(raw["diagnostics"]["outcome_rmse"])
+        ),
+        native.freeze(),
+    )
+
+
+def prepare_trial(
+    query: TrialAipwQuery,
+    data: TrialAipwData,
+    *,
+    provider: TrialAipw | None = None,
+    inference: TransportInference | None = None,
+    controls: TransportControls | None = None,
+) -> PreparedAnalysis[LearnedTrialEstimate]:
+    """Prepare a checked binary contrast; baseline covariates must match its certificate."""
+    import json
+
+    from . import _native
+    from .estimation import PreparedAnalysis, _Controls
+
+    provider = provider or TrialAipw()
+    inference = inference or TransportInference()
+    controls = controls or TransportControls()
+    if (controls.max_operations, controls.max_depth, controls.max_support_rows) != (
+        10_000_000,
+        256,
+        1_000_000,
+    ):
+        raise ValueError(
+            "Discrete evaluator limits do not apply to trial AIPW; use memory_bytes and cancel"
+        )
+    options = dict(
+        outcome=_learner_wire(provider.outcome),
+        membership=_learner_wire(provider.membership),
+        folds=provider.folds,
+        bootstrap=inference.bootstrap,
+        coverage_level=inference.coverage_level,
+    )
+    native = _native.prepare_learned_trial(
+        query.graph,
+        list(query.diagram.selections),
+        query.diagram.source,
+        query.diagram.target,
+        query.treatment,
+        query.outcome,
+        data,
+        json.dumps(options),
+        seed=inference.seed,
+        memory_bytes=controls.memory_bytes,
+        cancel=controls.cancel,
+    )
+    return PreparedAnalysis(
+        native, kind="learned_trial", controls=_Controls(cancel=controls.cancel)
+    )
+
+
+__all__ += [
+    "EmpiricalTable",
+    "LearnedCategorical",
+    "TrialAipw",
+    "TrialAipwData",
+    "TrialAipwQuery",
+    "TransportInference",
+    "TransportControls",
+    "LearnedTrialEstimate",
+    "prepare_trial",
+]
+
+__all__ += ["TransportContrast", "TransportUncertainty"]
+
+__all__ += ["TrialNuisanceDiagnostics"]
+
+__all__ += ["TransportGridPoint", "TransportSupport"]

@@ -34,6 +34,7 @@ antecedent-learn = { version = "1.11.0", path = "../antecedent-learn" }
 antecedent-prob = { version = "1.11.0", path = "../antecedent-prob" }
 antecedent-stats = { version = "1.11.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
