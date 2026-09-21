@@ -30,4 +30,6 @@ def test_causal_forest_returns_cate():
     assert result.estimate.estimator_id == "causal.forest"
     assert result.estimate.cate is not None
     assert len(result.estimate.cate) == n
+    assert result.estimate.cate_se is not None
+    assert len(result.estimate.cate_se) == n
     assert abs(result.ate - 1.0) < 0.4

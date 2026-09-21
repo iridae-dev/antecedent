@@ -59,6 +59,8 @@ def test_drlearner_returns_cate():
     assert result.estimate.estimator_id == "dr.learner"
     assert result.estimate.cate is not None
     assert len(result.estimate.cate) == n
+    assert result.estimate.cate_se is not None
+    assert len(result.estimate.cate_se) == n
     assert abs(result.ate - float(np.mean(result.estimate.cate))) < 1e-9
 
 
@@ -83,4 +85,6 @@ def test_staged_learner_artifact_roundtrip(estimator):
         assert payload[field] == getattr(result.estimate, field)
     cate = payload.get("cate")
     assert (tuple(cate) if cate is not None else None) == result.estimate.cate
+    cate_se = payload.get("cate_se")
+    assert (tuple(cate_se) if cate_se is not None else None) == result.estimate.cate_se
     assert restored.as_point() == result.as_point()

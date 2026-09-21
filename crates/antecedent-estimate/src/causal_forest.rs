@@ -165,17 +165,33 @@ impl CausalForest {
         })?;
         let mut cate = vec![0.0; n];
         let mut hits = vec![0.0; n];
+        let mut se_ss = vec![0.0; n];
+        let mut se_hits = vec![0.0; n];
         for tree in &trees {
             for i in 0..n {
-                if let Some(tau) = tree.predict_row(&x, n, p, i) {
+                if let Some((tau, se)) = tree.predict_leaf(&x, n, p, i) {
                     cate[i] += tau;
                     hits[i] += 1.0;
+                    if let Some(leaf_se) = se {
+                        se_ss[i] += leaf_se * leaf_se;
+                        se_hits[i] += 1.0;
+                    }
                 }
             }
         }
+        let mut cate_se = vec![0.0; n];
+        let mut se_complete = true;
         for i in 0..n {
             if hits[i] > 0.0 {
                 cate[i] /= hits[i];
+            }
+            // Mean of honest two-sample leaf variances over trees that had both
+            // arms with n≥2. Trees that only return a point (single-observation
+            // arm) contribute to the CATE, not the SE.
+            if se_hits[i] > 0.0 {
+                cate_se[i] = (se_ss[i].max(0.0)).sqrt() / se_hits[i];
+            } else {
+                se_complete = false;
             }
         }
         // Variation across fitted CATEs is heterogeneity, not sampling
@@ -186,29 +202,37 @@ impl CausalForest {
                 "CausalForest has no honest two-arm estimate for a row; increase tree count or sample size",
             ));
         }
-        Ok(effect.with_cate(Some(Arc::from(cate))))
+        Ok(effect
+            .with_cate(Some(Arc::from(cate)))
+            .with_cate_se(se_complete.then_some(Arc::from(cate_se))))
     }
 }
 
 #[derive(Clone, Debug)]
 enum Node {
-    Leaf { cate: Option<f64> },
+    Leaf { cate: Option<f64>, se: Option<f64> },
     Split { feature: usize, threshold: f64, left: Box<Node>, right: Box<Node> },
 }
 
 impl Node {
-    fn predict_row(&self, x: &[f64], n: usize, p: usize, row: usize) -> Option<f64> {
+    fn predict_leaf(
+        &self,
+        x: &[f64],
+        n: usize,
+        p: usize,
+        row: usize,
+    ) -> Option<(f64, Option<f64>)> {
         match self {
-            Self::Leaf { cate } => *cate,
+            Self::Leaf { cate, se } => cate.map(|tau| (tau, *se)),
             Self::Split { feature, threshold, left, right } => {
                 if *feature >= p {
                     return None;
                 }
                 let v = x[*feature * n + row];
                 if v <= *threshold {
-                    left.predict_row(x, n, p, row)
+                    left.predict_leaf(x, n, p, row)
                 } else {
-                    right.predict_row(x, n, p, row)
+                    right.predict_leaf(x, n, p, row)
                 }
             }
         }
@@ -228,7 +252,7 @@ fn grow_tree(
 ) -> Node {
     let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng);
     if sample.len() < min_leaf.saturating_mul(2) {
-        return Node::Leaf { cate: leaf_tau(y, t, &sample) };
+        return Node::Leaf { cate: leaf_tau(y, t, &sample), se: leaf_se(y, t, &sample) };
     }
     let (split_idx, est_idx) = if honesty {
         let mid = sample.len() / 2;
@@ -267,12 +291,12 @@ fn grow_from(
     rng: &mut CausalRng,
 ) -> Node {
     if depth >= max_depth || rows.len() < min_leaf.saturating_mul(2) || p == 0 {
-        return Node::Leaf { cate: leaf_tau(y, t, rows) };
+        return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     }
     let Some((feature, threshold, left_rows, right_rows)) =
         best_split(rows, x, n, p, y, t, min_leaf, rng)
     else {
-        return Node::Leaf { cate: leaf_tau(y, t, rows) };
+        return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     };
     Node::Split {
         feature,
@@ -389,21 +413,22 @@ fn fill_cate(
     p: usize,
     y: &[f64],
     t: &[f64],
-    parent: Option<f64>,
+    parent: Option<(f64, Option<f64>)>,
 ) {
-    let honest_tau = leaf_tau(y, t, rows).or(parent);
+    let honest = leaf_stat(y, t, rows).or(parent);
     match node {
-        Node::Leaf { cate } => {
+        Node::Leaf { cate, se } => {
             // Empty/single-arm estimation leaves must never reuse split outcomes.
-            *cate = honest_tau;
+            *cate = honest.map(|h| h.0);
+            *se = honest.and_then(|h| h.1);
         }
         Node::Split { feature, threshold, left, right } => {
             if *feature >= p {
                 return;
             }
             let (l, r) = partition(rows, x, n, *feature, *threshold);
-            fill_cate(left, &l, x, n, p, y, t, honest_tau);
-            fill_cate(right, &r, x, n, p, y, t, honest_tau);
+            fill_cate(left, &l, x, n, p, y, t, honest);
+            fill_cate(right, &r, x, n, p, y, t, honest);
         }
     }
 }
@@ -424,7 +449,33 @@ fn tau_from_sums([s1, n1, s0, n0]: [f64; 4]) -> Option<f64> {
 }
 
 fn leaf_tau(y: &[f64], t: &[f64], rows: &[u32]) -> Option<f64> {
-    tau_from_sums(arm_sums(y, t, rows))
+    leaf_stat(y, t, rows).map(|s| s.0)
+}
+
+fn leaf_se(y: &[f64], t: &[f64], rows: &[u32]) -> Option<f64> {
+    leaf_stat(y, t, rows).and_then(|s| s.1)
+}
+
+fn leaf_stat(y: &[f64], t: &[f64], rows: &[u32]) -> Option<(f64, Option<f64>)> {
+    let [s1, n1, s0, n0] = arm_sums(y, t, rows);
+    let tau = tau_from_sums([s1, n1, s0, n0])?;
+    if n1 < 2.0 || n0 < 2.0 {
+        return Some((tau, None));
+    }
+    let mut q1 = 0.0;
+    let mut q0 = 0.0;
+    for &i in rows {
+        let i = i as usize;
+        if t[i] > 0.5 {
+            q1 += y[i] * y[i];
+        } else {
+            q0 += y[i] * y[i];
+        }
+    }
+    let v1 = (q1 - s1 * s1 / n1) / (n1 - 1.0);
+    let v0 = (q0 - s0 * s0 / n0) / (n0 - 1.0);
+    let var = v1.max(0.0) / n1 + v0.max(0.0) / n0;
+    Some((tau, var.is_finite().then_some(var.sqrt())))
 }
 
 #[cfg(test)]
@@ -445,11 +496,11 @@ mod tests {
 
     #[test]
     fn honest_leaf_never_reuses_split_outcomes() {
-        let mut node = Node::Leaf { cate: Some(999.0) };
+        let mut node = Node::Leaf { cate: Some(999.0), se: None };
         fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], None);
-        assert!(node.predict_row(&[], 1, 0, 0).is_none());
-        fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], Some(2.0));
-        assert_eq!(node.predict_row(&[], 1, 0, 0), Some(2.0));
+        assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
+        fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], Some((2.0, Some(0.5))));
+        assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some((2.0, Some(0.5))));
     }
 
     fn interaction_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand, Vec<f64>) {
@@ -551,5 +602,9 @@ mod tests {
         let lo = pairs[..q].iter().map(|p| p.1).sum::<f64>() / q as f64;
         let hi = pairs[3 * q..].iter().map(|p| p.1).sum::<f64>() / (pairs.len() - 3 * q) as f64;
         assert!(hi > lo + 0.15, "cate should rise with z: lo={lo} hi={hi}");
+        let se = effect.cate_se.as_ref().expect("honest leaf SEs");
+        assert_eq!(se.len(), cate.len());
+        assert!(se.iter().all(|&s| s.is_finite() && s >= 0.0));
+        assert!(se.iter().any(|&s| s > 0.0));
     }
 }

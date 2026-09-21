@@ -1254,6 +1254,9 @@ pub(crate) struct EstimateSection {
     /// Per-row CATE when a heterogeneous-effect estimator produced one.
     #[pyo3(get)]
     cate: Option<Vec<f64>>,
+    /// Licensed pointwise CATE standard errors, when computed.
+    #[pyo3(get)]
+    cate_se: Option<Vec<f64>>,
     /// Actual fitted learner spec, implementation and version, in fit order.
     #[pyo3(get)]
     outcome_oof_r2: Option<f64>,
@@ -1560,6 +1563,7 @@ pub(crate) fn shared_study_sections(
         distribution_atoms,
         mean_interval,
         cate: result.estimate.cate.as_ref().map(|c| c.to_vec()),
+        cate_se: result.estimate.cate_se.as_ref().map(|c| c.to_vec()),
         outcome_oof_r2: result.estimate.outcome_oof_r2,
         treatment_oof_logloss: result.estimate.treatment_oof_logloss,
         crossfit_folds: result.estimate.crossfit_folds,

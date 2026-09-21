@@ -171,6 +171,12 @@ pub struct EffectEstimate {
     pub block_family: Option<crate::temporal_block::CircularBlockFamily>,
     /// Per-row CATE when a heterogeneous-effect estimator produced one.
     pub cate: Option<Arc<[f64]>>,
+    /// Per-row CATE standard errors, when a licensed pointwise formula produced them.
+    ///
+    /// Linear DR-Learner finals use the HC0 sandwich of the orthogonal scores.
+    /// Honest forests use the mean of two-sample leaf variances. Nonlinear or
+    /// penalized CATE regressions withhold this field rather than inventing an SE.
+    pub cate_se: Option<Arc<[f64]>>,
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
@@ -254,6 +260,7 @@ impl EffectEstimate {
             se_kind: None,
             block_family: None,
             cate: None,
+            cate_se: None,
         }
     }
 
@@ -320,6 +327,7 @@ impl EffectEstimate {
             se_kind: None,
             block_family: None,
             cate: None,
+            cate_se: None,
         }
     }
 
@@ -407,6 +415,13 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_cate(mut self, cate: Option<Arc<[f64]>>) -> Self {
         self.cate = cate;
+        self
+    }
+
+    /// Attach licensed per-row CATE standard errors, or withhold them.
+    #[must_use]
+    pub fn with_cate_se(mut self, cate_se: Option<Arc<[f64]>>) -> Self {
+        self.cate_se = cate_se;
         self
     }
 
