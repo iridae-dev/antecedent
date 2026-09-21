@@ -675,8 +675,7 @@ mod tests {
         // record with a drifted SHA is not calibrated.
         let drifted = record("cov.drifted");
         assert!(!record_attests_current_code(&drifted));
-        let drifted_slot =
-            calibration_slot_with(&basis(), &[drifted], record_attests_current_code);
+        let drifted_slot = calibration_slot_with(&basis(), &[drifted], record_attests_current_code);
         assert_ne!(drifted_slot.status, "calibrated");
         assert_eq!(drifted_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
     }

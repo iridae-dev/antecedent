@@ -742,10 +742,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let err = alg.run(&data, &vars, &mut ws, &ctx).expect_err("NaN must refuse");
         let msg = err.to_string();
-        assert!(
-            msg.contains("non-finite") || msg.contains("NaN"),
-            "unexpected error: {msg}"
-        );
+        assert!(msg.contains("non-finite") || msg.contains("NaN"), "unexpected error: {msg}");
     }
 
     #[test]

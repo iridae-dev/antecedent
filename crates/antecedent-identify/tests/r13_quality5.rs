@@ -41,10 +41,8 @@ const fn bit(word: usize, index: usize) -> usize {
 }
 
 fn fixture() -> Json {
-    serde_json::from_str(include_str!(
-        "../../../conformance/identify/r13_quality5/expected.json"
-    ))
-    .unwrap()
+    serde_json::from_str(include_str!("../../../conformance/identify/r13_quality5/expected.json"))
+        .unwrap()
 }
 
 fn case<'a>(fixture: &'a Json, id: &str) -> &'a Json {
@@ -152,7 +150,12 @@ impl DistributionProvider for JointProvider {
 
 /// Evaluate a scalar functional, requiring every free-variable assignment to
 /// agree (napkin-style free pre-treatment variables; ATE contrasts).
-fn evaluate_constant(res: &IdentificationResult, provider: &JointProvider, truth: f64, context: &str) {
+fn evaluate_constant(
+    res: &IdentificationResult,
+    provider: &JointProvider,
+    truth: f64,
+    context: &str,
+) {
     let functional = res.estimands[0].functional;
     let mut arena = res.arena.clone();
     let free = arena.free_variables(functional);
@@ -329,12 +332,8 @@ fn treatment_with_observed_parent_changes_functional_and_matches_scm_ate() {
     let mut ws = IdentificationWorkspace::default();
 
     let mut parent_free = Admg::with_variables(2);
-    let parent_free_edges: Vec<&str> = pin["parent_free_edges"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|e| e.as_str().unwrap())
-        .collect();
+    let parent_free_edges: Vec<&str> =
+        pin["parent_free_edges"].as_array().unwrap().iter().map(|e| e.as_str().unwrap()).collect();
     insert_admg_edges(&mut parent_free, &parent_free_edges, |name| match name {
         "X" => 0,
         "Y" => 1,
@@ -394,10 +393,7 @@ fn treatment_with_observed_parent_changes_functional_and_matches_scm_ate() {
         let res = id.identify(&prep, &query, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         let pretty = res.arena.pretty(res.estimands[0].functional);
-        assert_ne!(
-            pretty, free_pretty,
-            "observed parent must change the identifying functional"
-        );
+        assert_ne!(pretty, free_pretty, "observed parent must change the identifying functional");
         assert!(
             pretty.contains('Σ') && pretty.contains("V0"),
             "expected adjustment over Z (=V0), got {pretty}"
@@ -550,12 +546,7 @@ fn discriminating_path_visibility_matches_enumerated_effect() {
         let res = &env.cases[0].result;
         let truth = mass(&discriminating_joint(Some(t)), &[(index("Y"), 1)]);
         assert!((truth - expected).abs() < 1e-12, "SCM do mean t={t}");
-        evaluate_constant(
-            res,
-            &provider,
-            expected,
-            &format!("discriminating-path E[Y|do(T={t})]"),
-        );
+        evaluate_constant(res, &provider, expected, &format!("discriminating-path E[Y|do(T={t})]"));
     }
     evaluate_constant(
         &identify_pag_response_general(&mag, &query(1.0)).unwrap().cases[0].result,
@@ -569,7 +560,9 @@ fn discriminating_path_visibility_matches_enumerated_effect() {
         expected_do[0],
         "discriminating-path control mean",
     );
-    assert!((expected_do[1] - expected_do[0] - pin["expected_ate"].as_f64().unwrap()).abs() < 1e-12);
+    assert!(
+        (expected_do[1] - expected_do[0] - pin["expected_ate"].as_f64().unwrap()).abs() < 1e-12
+    );
 
     // Without A the collider spine never leaves a vertex non-adjacent to Y.
     let without_nodes: Vec<&str> = pin["without_witness_nodes"]
@@ -595,10 +588,7 @@ fn discriminating_path_visibility_matches_enumerated_effect() {
         &invisible,
         &ResponseQuery::new(ResponseFunctional::InterventionResponse {
             outcome: v(without_index("Y")),
-            interventions: Arc::from([Intervention::set(
-                v(without_index("T")),
-                Value::f64(1.0),
-            )]),
+            interventions: Arc::from([Intervention::set(v(without_index("T")), Value::f64(1.0))]),
         }),
     )
     .unwrap();

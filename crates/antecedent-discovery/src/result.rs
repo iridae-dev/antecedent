@@ -221,9 +221,7 @@ pub(crate) fn discovery_assumptions(algorithm: &str, causal_sufficiency: bool) -
 fn algorithm_default(algorithm: &str, assumption: Assumption) -> AssumptionRecord {
     AssumptionRecord {
         assumption,
-        source: AssumptionSource::AlgorithmDefault {
-            algorithm: Arc::from(algorithm),
-        },
+        source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(algorithm) },
         scope: AssumptionScope::Discovery,
         status: AssumptionStatus::Declared,
     }
