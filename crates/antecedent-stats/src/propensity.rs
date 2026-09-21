@@ -55,10 +55,24 @@ pub fn fit_propensity(
     workspace: &mut PropensityWorkspace,
     options: &GlmOptions,
 ) -> Result<PropensityFit, StatsError> {
-    let fit =
-        fit_propensity_inner(x_colmajor, nrows, ncols, treatment, backend, workspace, options)?;
+    let fit = fit_propensity_inner(
+        x_colmajor,
+        nrows,
+        ncols,
+        treatment,
+        backend,
+        workspace,
+        &without_separation_ridge(options),
+    )?;
     fit.glm.require_ok()?;
     Ok(fit)
+}
+
+/// Estimation paths refuse every separated fit ([`GlmFit::require_ok`]), so the ridge refit
+/// that [`GlmOptions::ridge_on_separation`] triggers would be computed and then discarded.
+/// Only the diagnostic path, which keeps the ridge fit's scores, uses the caller's option.
+fn without_separation_ridge(options: &GlmOptions) -> GlmOptions {
+    GlmOptions { ridge_on_separation: None, ..*options }
 }
 
 /// Fit propensity scores into `workspace.scores` without allocating a per-fit vector.
@@ -80,16 +94,14 @@ pub fn fit_propensity_in_place(
     workspace: &mut PropensityWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
-    if treatment.len() != nrows {
-        return Err(StatsError::Shape { message: "treatment length != nrows" });
-    }
-    workspace.prepare(nrows);
-    let glm = fit_glm(
-        GlmFamily::BinomialLogit,
-        GlmDesignRef { x_colmajor, nrows, ncols, y: treatment },
+    let glm = fit_propensity_glm(
+        x_colmajor,
+        nrows,
+        ncols,
+        treatment,
         backend,
-        &mut workspace.ols,
-        options,
+        workspace,
+        &without_separation_ridge(options),
     )?;
     glm.require_ok()?;
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;
@@ -117,6 +129,28 @@ pub fn fit_propensity_diagnostic(
     fit_propensity_inner(x_colmajor, nrows, ncols, treatment, backend, workspace, options)
 }
 
+fn fit_propensity_glm(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut PropensityWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    if treatment.len() != nrows {
+        return Err(StatsError::Shape { message: "treatment length != nrows" });
+    }
+    workspace.prepare(nrows);
+    fit_glm(
+        GlmFamily::BinomialLogit,
+        GlmDesignRef { x_colmajor, nrows, ncols, y: treatment },
+        backend,
+        &mut workspace.ols,
+        options,
+    )
+}
+
 fn fit_propensity_inner(
     x_colmajor: &[f64],
     nrows: usize,
@@ -126,17 +160,7 @@ fn fit_propensity_inner(
     workspace: &mut PropensityWorkspace,
     options: &GlmOptions,
 ) -> Result<PropensityFit, StatsError> {
-    if treatment.len() != nrows {
-        return Err(StatsError::Shape { message: "treatment length != nrows" });
-    }
-    workspace.prepare(nrows);
-    let glm = fit_glm(
-        GlmFamily::BinomialLogit,
-        GlmDesignRef { x_colmajor, nrows, ncols, y: treatment },
-        backend,
-        &mut workspace.ols,
-        options,
-    )?;
+    let glm = fit_propensity_glm(x_colmajor, nrows, ncols, treatment, backend, workspace, options)?;
     let mut scores = vec![0.0; nrows];
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut scores)?;
     Ok(PropensityFit { coefficients: glm.coefficients.clone(), scores, glm })

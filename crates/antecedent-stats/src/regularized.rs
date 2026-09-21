@@ -5,11 +5,13 @@
 #![allow(clippy::needless_range_loop, clippy::too_many_lines)]
 
 use crate::error::StatsError;
-use crate::gram::{form_xtx, invert_square};
+use crate::gram::{column_is_constant, form_xtx, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 
-/// Minimum positive feature scale accepted after centering / RMS.
-const MIN_SCALE: f64 = 1e-12;
+/// Relative spread below which a (centered) column is treated as constant: its standard
+/// deviation must exceed this fraction of the column's own RMS. Relative, so a genuinely
+/// varying column in small units (sd `1e-8`) is fitted rather than silently zeroed.
+const MIN_REL_SCALE: f64 = 1e-12;
 
 /// Options for [`fit_lasso`] / elastic net.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -69,7 +71,7 @@ pub fn ridge_gram_inverse(
 ) -> Option<Vec<f64>> {
     let mut xtx = vec![0.0; ncols * ncols];
     form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
+    let unpenalize0 = column_is_constant(x_colmajor, nrows, 0);
     for c in 0..ncols {
         if c == 0 && unpenalize0 {
             continue;
@@ -101,6 +103,10 @@ pub fn fit_ridge(
     }
     if !(lambda.is_finite() && lambda >= 0.0) {
         return Err(StatsError::Shape { message: "ridge lambda must be finite and ≥ 0" });
+    }
+
+    if ncols == 0 {
+        return Err(StatsError::Shape { message: "ridge needs at least one column" });
     }
 
     let mut xty = vec![0.0; ncols];
@@ -194,15 +200,21 @@ pub fn fit_lasso(
         means[c] = mean;
 
         let mut sum_sq = 0.0;
+        let mut raw_sq = 0.0;
         for r in 0..nrows {
-            let v = x_colmajor[base + r] - mean;
+            let raw = x_colmajor[base + r];
+            let v = raw - mean;
             xc[base + r] = v;
             sum_sq += v * v;
+            raw_sq += raw * raw;
         }
+        // Constant (or all-zero) after centering, judged against the column's own magnitude.
+        let degenerate = !(sum_sq.is_finite() && raw_sq.is_finite())
+            || sum_sq <= MIN_REL_SCALE * MIN_REL_SCALE * raw_sq;
 
         let scale = if options.standardize {
             let s = (sum_sq / n).sqrt();
-            if !(s.is_finite() && s > MIN_SCALE) {
+            if degenerate || !(s.is_finite() && s > 0.0) {
                 return Err(StatsError::Shape {
                     message: "lasso feature scale must be positive (constant or zero column)",
                 });
@@ -226,8 +238,8 @@ pub fn fit_lasso(
 
         // Constant columns after centering (no standardization) stay at zero; CD leaves β=0.
         // A raw zero column with fit_intercept=false cannot identify a slope.
-        if sum_sq <= MIN_SCALE {
-            if !options.fit_intercept && col_all_near_zero(x_colmajor, nrows, c) {
+        if degenerate {
+            if !options.fit_intercept && raw_sq == 0.0 {
                 return Err(StatsError::Shape {
                     message: "lasso feature scale must be positive (constant or zero column)",
                 });
@@ -250,7 +262,7 @@ pub fn fit_lasso(
         iterations = iter;
         let mut max_delta = 0.0_f64;
         for c in 0..ncols {
-            if col_ss[c] <= MIN_SCALE {
+            if col_ss[c] == 0.0 {
                 continue;
             }
             let beta_c = beta_std[c];
@@ -397,26 +409,12 @@ fn soft_threshold(z: f64, gamma: f64) -> f64 {
     }
 }
 
-fn col_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
-    if nrows == 0 {
-        return true;
-    }
-    let base = col * nrows;
-    let v0 = x_colmajor[base];
-    x_colmajor[base..base + nrows].iter().all(|&v| (v - v0).abs() < 1e-12)
-}
-
 fn first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool {
     // Exact bit pattern required so all-twos (etc.) are never treated as intercept.
     #[allow(clippy::float_cmp)]
     {
         nrows > 0 && x_colmajor.len() >= nrows && x_colmajor[..nrows].iter().all(|&v| v == 1.0)
     }
-}
-
-fn col_all_near_zero(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
-    let base = col * nrows;
-    x_colmajor[base..base + nrows].iter().all(|&v| v.abs() <= MIN_SCALE)
 }
 
 #[cfg(test)]
@@ -890,5 +888,43 @@ mod tests {
                 assert!(grad.abs() <= lambda * alpha + 1e-6, "col={col} grad={grad}");
             }
         }
+    }
+
+    #[test]
+    fn lasso_fits_a_column_measured_in_small_units() {
+        // sd(x) ~ 1e-8 makes the centered sum of squares ~1e-14, under the old absolute
+        // 1e-12 cut, so the column was treated as constant and its coefficient pinned at 0.
+        // With no penalty the fit is exact: y = 2 + 3e8 x.
+        let n = 50usize;
+        let x: Vec<f64> = (0..n).map(|i| 1e-8 * (i as f64 / n as f64 - 0.5)).collect();
+        let y: Vec<f64> = x.iter().map(|v| 2.0 + 3e8 * v).collect();
+        let options = LassoOptions { lambda: 0.0, tol: 1e-12, ..LassoOptions::default() };
+        let fit = fit_lasso(&x, n, 1, &y, &options).unwrap();
+        assert!((fit.coefficients[0] / 3e8 - 1.0).abs() < 1e-9, "{}", fit.coefficients[0]);
+        assert!((fit.intercept - 2.0).abs() < 1e-6, "{}", fit.intercept);
+        // A genuinely constant column is still skipped (coefficient 0).
+        let constant = vec![7.0; n];
+        let fit = fit_lasso(&constant, n, 1, &y, &options).unwrap();
+        assert_eq!(fit.coefficients[0], 0.0);
+    }
+
+    #[test]
+    fn ridge_penalizes_a_varying_first_column_in_small_units_and_refuses_no_columns() {
+        // First column varies at 1e-13 scale: it is not an intercept and must be penalized.
+        // One column gives beta = Sxy / (Sxx + lambda). The old absolute tolerance called it
+        // "constant", left it unpenalized and returned beta = Sxy / Sxx ~ 1e13.
+        let n = 20usize;
+        let x: Vec<f64> = (0..n).map(|i| 1e-13 * (i as f64)).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1e13 * v).collect();
+        let lambda = 1.0;
+        let sxx: f64 = x.iter().map(|v| v * v).sum();
+        let sxy: f64 = x.iter().zip(&y).map(|(a, b)| a * b).sum();
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_ridge(&x, n, 1, &y, lambda, &FaerBackend, &mut ws).unwrap();
+        let expected = sxy / (sxx + lambda);
+        assert!((fit.coefficients[0] - expected).abs() <= 1e-9 * expected.abs());
+        assert!(fit.coefficients[0] < 1e-9, "penalized coefficient must be shrunk to ~0");
+        // ncols == 0 used to index x_colmajor[0] and panic.
+        assert!(fit_ridge(&[], 5, 0, &[0.0; 5], 1.0, &FaerBackend, &mut ws).is_err());
     }
 }

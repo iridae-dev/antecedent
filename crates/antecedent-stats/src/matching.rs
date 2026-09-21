@@ -38,7 +38,9 @@ impl MatchingIndex {
     ///
     /// # Errors
     ///
-    /// Shape mismatch or donor count exceeding [`EXACT_MATCHING_ROW_LIMIT`].
+    /// Shape mismatch, donor count exceeding [`EXACT_MATCHING_ROW_LIMIT`], or a non-finite
+    /// donor feature (a NaN distance compares false against everything, so such a donor
+    /// could never be matched and would silently corrupt every nearest-neighbour scan).
     pub fn exact(
         features_rowmajor: &[f64],
         dim: usize,
@@ -59,6 +61,9 @@ impl MatchingIndex {
         }
         if distance == MatchingDistance::Absolute && dim != 1 {
             return Err(StatsError::Shape { message: "Absolute distance requires dim == 1" });
+        }
+        if features_rowmajor.iter().any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape { message: "matching features must be finite" });
         }
         Ok(Self {
             dim,
@@ -91,11 +96,13 @@ impl MatchingIndex {
     /// Find the nearest donor to `query` (length `dim`).
     ///
     /// Returns `(donor_original_row, distance)`. If `caliper` is `Some(c)`, returns
-    /// `None` when the nearest distance exceeds `c`.
+    /// `None` when the nearest distance exceeds `c`. Returns `None` as well when no donor
+    /// is at a finite distance (the squared differences overflowed): there is no nearest
+    /// donor to report.
     ///
     /// # Errors
     ///
-    /// Query length mismatch or empty index.
+    /// Query length mismatch, empty index, or a non-finite query.
     pub fn nearest(
         &self,
         query: &[f64],
@@ -106,6 +113,9 @@ impl MatchingIndex {
         }
         if self.donor_rows.is_empty() {
             return Err(StatsError::Shape { message: "empty matching index" });
+        }
+        if query.iter().any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape { message: "matching query must be finite" });
         }
         let mut best_i = 0usize;
         let mut best_d = f64::INFINITY;
@@ -120,6 +130,9 @@ impl MatchingIndex {
                 best_i = i;
             }
         }
+        if !best_d.is_finite() {
+            return Ok(None);
+        }
         if let Some(c) = caliper {
             if best_d > c {
                 return Ok(None);
@@ -131,14 +144,15 @@ impl MatchingIndex {
     /// `k`-th self-distances of a matrix against itself without building an index.
     ///
     /// Equivalent to `MatchingIndex::exact(features, dim, &(0..n).collect(), distance)`
-    /// followed by [`Self::kth_distances`] with the same matrix as queries — the loop
-    /// body is identical, so results match bit for bit — but with no feature/donor
-    /// copies. `dist_scratch` is a reused per-query distance buffer. Permutation-null
+    /// followed by [`Self::kth_self_distances_of_donors`] — the loop body is identical, so
+    /// results match bit for bit — but with no feature/donor copies. Each row is excluded
+    /// from its own neighbour set by index; other rows at distance zero (duplicates) count. `dist_scratch` is a reused per-query distance buffer. Permutation-null
     /// loops that vary one column of `features_rowmajor` between calls use this form.
     ///
     /// # Errors
     ///
-    /// Shape mismatch, `k == 0`, `n <= k`, or `n` over [`EXACT_MATCHING_ROW_LIMIT`].
+    /// Shape mismatch, `k == 0`, `n <= k`, non-finite features, or `n` over
+    /// [`EXACT_MATCHING_ROW_LIMIT`].
     pub fn kth_self_distances(
         features_rowmajor: &[f64],
         n: usize,
@@ -171,36 +185,30 @@ impl MatchingIndex {
         if n <= k {
             return Err(StatsError::Shape { message: "not enough donors for k" });
         }
+        if features_rowmajor.iter().any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape { message: "matching features must be finite" });
+        }
         if dist_scratch.len() < n {
             dist_scratch.resize(n, 0.0);
         }
         let dists = &mut dist_scratch[..n];
         for q in 0..n {
             let query = &features_rowmajor[q * dim..(q + 1) * dim];
-            for i in 0..n {
-                let row = &features_rowmajor[i * dim..(i + 1) * dim];
-                dists[i] = match distance {
-                    MatchingDistance::Euclidean => euclidean(query, row),
-                    MatchingDistance::Absolute => (query[0] - row[0]).abs(),
-                };
-            }
-            // Skip self-match at distance 0 when query is a donor; k-th among others ≈ index k
-            // when self is present as exact 0.
-            let min = dists.iter().copied().fold(f64::INFINITY, f64::min);
-            let idx = (if min < 1e-15 { k } else { k - 1 }).min(dists.len() - 1);
-            let (_, kth, _) = dists.select_nth_unstable_by(idx, |a, b| {
-                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
-            });
-            out[q] = *kth;
+            fill_distances(dists, query, features_rowmajor, dim, distance);
+            out[q] = kth_excluding_self(dists, q, k);
         }
         Ok(())
     }
 
-    /// Mean distance to the `k`-th nearest donor for each query row (row-major queries).
+    /// Distance to the `k`-th nearest donor for each query row (row-major queries), where
+    /// the queries are **external** to the donor set: no donor is skipped, so a query that
+    /// coincides with a donor value matches it at distance zero.
+    ///
+    /// For queries that *are* the donor rows use [`Self::kth_self_distances_of_donors`].
     ///
     /// # Errors
     ///
-    /// Shape mismatch or `k == 0`.
+    /// Shape mismatch, `k == 0`, too few donors, or a non-finite query.
     pub fn kth_distances(
         &self,
         queries_rowmajor: &[f64],
@@ -218,30 +226,54 @@ impl MatchingIndex {
             return Err(StatsError::Shape { message: "output too short" });
         }
         let n_donors = self.donor_rows.len();
-        if n_donors <= k {
+        if n_donors < k {
             return Err(StatsError::Shape { message: "not enough donors for k" });
+        }
+        if queries_rowmajor.iter().any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape { message: "matching query must be finite" });
         }
         let mut dists = vec![0.0; n_donors];
         for q in 0..n_queries {
             let query = &queries_rowmajor[q * self.dim..(q + 1) * self.dim];
-            for (i, _) in self.donor_rows.iter().enumerate() {
-                let row = &self.features[i * self.dim..(i + 1) * self.dim];
-                dists[i] = match self.distance {
-                    MatchingDistance::Euclidean => euclidean(query, row),
-                    MatchingDistance::Absolute => (query[0] - row[0]).abs(),
-                };
-            }
-            // Skip self-match at distance 0 when query is a donor; k-th among others ≈ index k
-            // when self is present as exact 0.
-            let min = dists.iter().copied().fold(f64::INFINITY, f64::min);
-            let idx = (if min < 1e-15 { k } else { k - 1 }).min(dists.len() - 1);
-            let (_, kth, _) = dists.select_nth_unstable_by(idx, |a, b| {
-                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            fill_distances(&mut dists, query, &self.features, self.dim, self.distance);
+            let (_, kth, _) = dists.select_nth_unstable_by(k - 1, f64::total_cmp);
             out[q] = *kth;
         }
         Ok(())
     }
+
+    /// Distance to the `k`-th nearest *other* donor for every donor row: donor `i` is
+    /// excluded from its own neighbour set by index (never by a distance threshold), while
+    /// other donors at distance zero count as neighbours.
+    ///
+    /// # Errors
+    ///
+    /// `k == 0`, `len() <= k`, or `out` shorter than the donor count.
+    pub fn kth_self_distances_of_donors(
+        &self,
+        k: usize,
+        out: &mut [f64],
+    ) -> Result<(), StatsError> {
+        if k == 0 {
+            return Err(StatsError::Shape { message: "k must be > 0" });
+        }
+        let n = self.donor_rows.len();
+        if out.len() < n {
+            return Err(StatsError::Shape { message: "output too short" });
+        }
+        if n <= k {
+            return Err(StatsError::Shape { message: "not enough donors for k" });
+        }
+        let mut dists = vec![0.0; n];
+        for q in 0..n {
+            let query = &self.features[q * self.dim..(q + 1) * self.dim];
+            fill_distances(&mut dists, query, &self.features, self.dim, self.distance);
+            out[q] = kth_excluding_self(&mut dists, q, k);
+        }
+        Ok(())
+    }
+
+    /// Match every query row to its nearest donor.
     ///
     /// `queries_rowmajor` length = `n_queries * dim`.
     ///
@@ -276,6 +308,32 @@ impl MatchingIndex {
         }
         Ok(matched)
     }
+}
+
+/// Distances from `query` to every row of row-major `features`.
+fn fill_distances(
+    dists: &mut [f64],
+    query: &[f64],
+    features: &[f64],
+    dim: usize,
+    distance: MatchingDistance,
+) {
+    for (i, d) in dists.iter_mut().enumerate() {
+        let row = &features[i * dim..(i + 1) * dim];
+        *d = match distance {
+            MatchingDistance::Euclidean => euclidean(query, row),
+            MatchingDistance::Absolute => (query[0] - row[0]).abs(),
+        };
+    }
+}
+
+/// `k`-th smallest distance (1-based) among all entries except `self_index`.
+fn kth_excluding_self(dists: &mut [f64], self_index: usize, k: usize) -> f64 {
+    // Parking the excluded entry below every real distance makes 0-based rank `k` among the
+    // rest exactly the `k`-th nearest other donor.
+    dists[self_index] = f64::NEG_INFINITY;
+    let (_, kth, _) = dists.select_nth_unstable_by(k, f64::total_cmp);
+    *kth
 }
 
 fn euclidean(a: &[f64], b: &[f64]) -> f64 {
@@ -347,7 +405,7 @@ mod tests {
         let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean).unwrap();
         for k in [1usize, 3, 7] {
             let mut via_index = vec![0.0; n];
-            idx.kth_distances(&feats, n, k, &mut via_index).unwrap();
+            idx.kth_self_distances_of_donors(k, &mut via_index).unwrap();
             let mut direct = vec![0.0; n];
             let mut scratch = Vec::new();
             MatchingIndex::kth_self_distances(
@@ -364,6 +422,69 @@ mod tests {
                 assert!(a.to_bits() == b.to_bits(), "k={k} query {q}: {a:?} vs {b:?}");
             }
         }
+    }
+
+    #[test]
+    fn nan_and_infinite_features_are_refused_not_matched() {
+        assert!(
+            MatchingIndex::exact(&[0.0, f64::NAN], 1, &[0, 1], MatchingDistance::Absolute).is_err()
+        );
+        assert!(
+            MatchingIndex::exact(&[f64::INFINITY, 1.0], 1, &[0, 1], MatchingDistance::Absolute)
+                .is_err()
+        );
+        let idx =
+            MatchingIndex::exact(&[0.0, 1.0], 1, &[7, 8], MatchingDistance::Absolute).unwrap();
+        // A NaN query used to compare false against every donor and match donor 0 at +inf.
+        assert!(idx.nearest(&[f64::NAN], None).is_err());
+        let mut rows = [0usize; 1];
+        let mut dist = [0.0; 1];
+        assert!(idx.match_all(&[f64::NAN], 1, None, &mut rows, &mut dist).is_err());
+        // Squared differences overflow: no donor is at a finite distance, so no match.
+        let far = MatchingIndex::exact(&[1e200], 1, &[3], MatchingDistance::Euclidean).unwrap();
+        assert_eq!(far.nearest(&[-1e200], None).unwrap(), None);
+    }
+
+    #[test]
+    fn external_query_equal_to_a_donor_matches_it_at_distance_zero() {
+        // Queries that are not the donor set must not have "their" zero-distance donor
+        // skipped: the 1st neighbour of a query sitting on donor value 1.0 is at 0, not 1.
+        let idx = MatchingIndex::exact(
+            &[0.0, 1.0, 2.0, 3.0],
+            1,
+            &[0, 1, 2, 3],
+            MatchingDistance::Absolute,
+        )
+        .unwrap();
+        let mut out = [f64::NAN; 1];
+        idx.kth_distances(&[1.0], 1, 1, &mut out).unwrap();
+        assert_eq!(out[0], 0.0);
+        idx.kth_distances(&[1.0], 1, 2, &mut out).unwrap();
+        assert_eq!(out[0], 1.0);
+        // Unit-free: the old absolute 1e-15 test misclassified small-unit queries.
+        let tiny =
+            MatchingIndex::exact(&[0.0, 1e-20], 1, &[0, 1], MatchingDistance::Absolute).unwrap();
+        tiny.kth_distances(&[3e-21], 1, 1, &mut out).unwrap();
+        assert!((out[0] - 3e-21).abs() < 1e-33, "{}", out[0]);
+    }
+
+    #[test]
+    fn self_distances_exclude_by_index_and_count_duplicates() {
+        // Donors 0, 1, 1, 3. For donor 1 (index 1): others are 0, 1, 3 at distances 1, 0, 2,
+        // so its 1st nearest other is the duplicate at 0 and its 2nd is at 1.
+        let idx = MatchingIndex::exact(
+            &[0.0, 1.0, 1.0, 3.0],
+            1,
+            &[0, 1, 2, 3],
+            MatchingDistance::Absolute,
+        )
+        .unwrap();
+        let mut k1 = [0.0; 4];
+        idx.kth_self_distances_of_donors(1, &mut k1).unwrap();
+        assert_eq!(k1, [1.0, 0.0, 0.0, 2.0]);
+        let mut k2 = [0.0; 4];
+        idx.kth_self_distances_of_donors(2, &mut k2).unwrap();
+        assert_eq!(k2, [1.0, 1.0, 1.0, 2.0]);
     }
 
     #[test]
