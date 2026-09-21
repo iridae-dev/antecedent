@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
 use antecedent_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
 use antecedent_stats::{
@@ -47,6 +47,7 @@ use crate::pipeline::{
 };
 use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, ScoredLink,
+    discovery_assumptions,
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
@@ -464,7 +465,7 @@ impl JpcmciPlus {
             evidence,
             review,
             algorithm,
-            assumptions: AssumptionSet::new(),
+            assumptions: discovery_assumptions("jpcmci_plus", true),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {

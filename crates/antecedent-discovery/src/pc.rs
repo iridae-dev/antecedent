@@ -20,7 +20,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, CpdagReview, DenseNodeId};
 use antecedent_stats::{
@@ -40,6 +40,7 @@ use crate::orientation::{
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
     EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    discovery_assumptions,
 };
 
 /// Static PC discovery result (`Cpdag` evidence + review).
@@ -421,7 +422,7 @@ impl Pc {
                 "pc",
                 format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("pc", true),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
@@ -558,8 +559,8 @@ mod tests {
     use std::sync::Arc;
 
     use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
-        ValueType, VariableId,
+        Assumption, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType, VariableId,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -613,6 +614,25 @@ mod tests {
         assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
         assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn pc_success_records_nonempty_assumption_set() {
+        let data = tabular_n(3, 40);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let oracle = OracleCi::new([(0usize, 1usize), (1usize, 2usize)]);
+        let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle));
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+        assert!(
+            !result.assumptions.is_empty(),
+            "successful PC must record algorithm assumptions (discovery-7)"
+        );
+        let kinds: Vec<_> = result.assumptions.entries.iter().map(|e| &e.assumption).collect();
+        assert!(kinds.iter().any(|a| matches!(a, Assumption::Faithfulness)));
+        assert!(kinds.iter().any(|a| matches!(a, Assumption::CausalMarkov)));
+        assert!(kinds.iter().any(|a| matches!(a, Assumption::CausalSufficiency)));
     }
 
     #[test]

@@ -16,7 +16,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_blocks_for_frame};
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::{
@@ -29,7 +29,7 @@ use crate::error::DiscoveryError;
 use crate::evidence::graph_evidence_from_scored_with_sepsets;
 use crate::result::{
     AlgorithmRecord, DagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord,
-    LaggedLink, PcSepsets, ScoredLink,
+    LaggedLink, PcSepsets, ScoredLink, discovery_assumptions,
 };
 
 /// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
@@ -518,7 +518,7 @@ impl PcmciEngine {
             evidence,
             review,
             algorithm,
-            assumptions: AssumptionSet::new(),
+            assumptions: discovery_assumptions("pcmci", true),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {

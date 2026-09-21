@@ -17,7 +17,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, NodeRef};
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
@@ -33,7 +33,7 @@ use crate::orientation::{
 use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink, discovery_assumptions,
 };
 
 /// Chickering GES over tabular data → CPDAG.
@@ -309,7 +309,7 @@ impl Ges {
                 "ges",
                 format!("family=gaussian_bic screen_pc={} score={total_score:.6}", self.screen_pc),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("ges", true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: Vec::<DiscoveryDiagnostic>::new(),
             performance: DiscoveryPerformanceRecord {

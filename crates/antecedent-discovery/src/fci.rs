@@ -21,7 +21,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag, PagReview};
 use antecedent_stats::{
@@ -39,6 +39,7 @@ use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
     EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    discovery_assumptions,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
@@ -485,7 +486,7 @@ impl Fci {
                     self.pds_max_nodes
                 ),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("fci", false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {

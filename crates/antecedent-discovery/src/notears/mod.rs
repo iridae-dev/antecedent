@@ -31,7 +31,7 @@ mod solver;
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
@@ -44,6 +44,7 @@ use crate::pc::collect_float_columns;
 use crate::result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    discovery_assumptions,
 };
 
 use solver::{NotearsWorkspace, SolverConfig, solve_notears};
@@ -339,7 +340,7 @@ impl Notears {
                     self.lambda, self.threshold, self.standardize, self.max_iter, self.h_tol
                 )),
             },
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("notears", true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: vec![DiscoveryDiagnostic {
                 code: Arc::from("notears.hard_threshold"),

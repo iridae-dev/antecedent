@@ -20,7 +20,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Endpoint, Pag, PagReview};
 use antecedent_stats::{
@@ -43,6 +43,7 @@ use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pair
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
     EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    discovery_assumptions,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
@@ -456,7 +457,7 @@ impl Rfci {
                 "rfci",
                 format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("rfci", false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {

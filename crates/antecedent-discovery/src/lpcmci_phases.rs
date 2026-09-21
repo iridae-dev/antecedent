@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{
     DenseNodeId, Endpoint, MiddleMark, NodeRef, TemporalPag, TemporalPagReview,
@@ -28,7 +28,7 @@ use crate::orientation::OrientationState;
 use crate::pipeline::{algorithm_record, push_diagnostic};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, LaggedParent,
-    PagDiscoveryResult, PcSepsets, ScoredLink, SepsetKey,
+    PagDiscoveryResult, PcSepsets, ScoredLink, SepsetKey, discovery_assumptions,
 };
 use crate::rule_scheduling::{default_lpcmci_rules, prelim_lpcmci_rules, run_lpcmci_orientation};
 use crate::weakly_minimal::{make_sepset_weakly_minimal, store_weakly_minimal_sepset};
@@ -1000,7 +1000,7 @@ pub fn run_lpcmci_algorithm(
         evidence,
         review,
         algorithm,
-        assumptions: AssumptionSet::new(),
+        assumptions: discovery_assumptions("lpcmci", false),
         iterations,
         diagnostics,
         performance: DiscoveryPerformanceRecord {
