@@ -34,9 +34,11 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, LeastSquaresWorkspace,
-    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, fit_gam_weighted, gaussian_density,
-    gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
+    DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, GaussianMixtureDensity,
+    LeastSquaresWorkspace, LocalQuadraticWorkspace, QuantileRule, SmoothSpec, StatsError,
+    equal_tail_interval_sorted, fit_gam, fit_gam_weighted, gauss_hermite_standard_normal,
+    gaussian_density, gaussian_local_quadratic_influence_prechecked, mad_sigma, median_sorted,
+    normal_ppf, quantile_sorted, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -85,9 +87,6 @@ fn local_design_refusal(
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
 /// surfaced as a positivity diagnostic rather than absorbed silently.
 const CONDITIONAL_DENSITY_FLOOR: f64 = 1e-8;
-
-/// Gaussian-consistency constant converting MAD to a scale: 1 / Φ^{-1}(3/4).
-const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// `max |Y − median| / (1.4826 MAD)` above which least-squares Kennedy nuisances
 /// are outside their regularity. Gaussian samples stay near sqrt(2 log n)
@@ -594,22 +593,25 @@ impl ContinuousResponseEstimator {
                     CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
                 let (_, _, support) =
                     self.average_derivative(data, *outcome, *treatment, weighting)?;
-                let mut rng = ctx.rng.stream_for(StreamDomain::Bayesian, 0xADEB_0001);
-                let mut values = Vec::with_capacity(draws_n);
-                for _ in 0..draws_n {
+                // One RNG stream per draw: draws are independent, so they run across
+                // the context's thread budget and return in draw order.
+                let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
                     }
+                    let mut rng = ctx
+                        .rng
+                        .stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
                     let weights = bootstrap_weights(sample.len(), &mut rng);
-                    values.push(self.weighted_plugin_ade(&sample, &weights)?);
-                }
+                    self.weighted_cross_fitted_ade(&sample, &weights)
+                })?;
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 (
                     ResponseValue::Scalar(mean),
                     scalar_uncertainty(sd, level, lo, hi),
                     support,
-                    "bayesian.derivative.riesz_weighted_plugin",
-                    "Each Rubin Bayesian-bootstrap draw refits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights, then evaluates the weighted Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w). This is not a frozen-score reweight of the first-fit φ_i. Estimator identity stays response.riesz_ade",
+                    "bayesian.derivative.riesz_weighted_cross_fit",
+                    "Each Rubin Bayesian-bootstrap draw cross-fits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights: every fold refits both nuisances on its weighted training rows and scores its held-out rows with the Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w), and the draw is the weighted mean of the held-out scores. This is not a frozen-score reweight of the first-fit φ_i. Held fixed: fold assignment, spline knots, and penalty. Estimator identity stays response.riesz_ade",
                     "estimate.response.riesz_ade",
                 )
             }
@@ -658,7 +660,6 @@ impl ContinuousResponseEstimator {
                 });
                 let point_derivative =
                     matches!(query.functional, ResponseFunctional::PointDerivative { .. });
-                let mut rng = ctx.rng.stream_for(StreamDomain::Bayesian, 0xADEB_0002);
                 // Every draw refits its nuisances: point draws rebuild the
                 // cross-fitted Kennedy pseudo-outcome under the draw's row weights
                 // (the bandwidth is the caller's fixed value, never data-selected);
@@ -690,18 +691,25 @@ impl ContinuousResponseEstimator {
                     _ => unreachable!(),
                 };
                 let n = samples[0].len();
-                // Point draws: (local-quadratic coordinate, bias-corrected coordinate).
-                let mut scalars = Vec::with_capacity(draws_n);
-                let mut corrected_scalars = Vec::with_capacity(draws_n);
-                let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(draws_n);
-                // Per-sample effective degrees of freedom of the GAM draws, for
-                // the HC1-type spread correction (`inflate_draws_by_edf`).
-                let mut edf_sum = vec![0.0; samples.len()];
-                for _ in 0..draws_n {
+                // One RNG stream per draw: draws are independent, so they run across the
+                // context's thread budget and return in draw order. Each draw yields its
+                // point coordinates (local-quadratic, bias-corrected) or its GAM vector,
+                // plus the GAM fits' effective degrees of freedom for the HC1-type spread
+                // correction (`inflate_draws_by_edf`).
+                let draws = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
                     }
+                    let mut rng = ctx
+                        .rng
+                        .stream_for(StreamDomain::Bayesian, (0xADEB_0002_u64 << 32) | draw as u64);
                     let weights = bootstrap_weights(n, &mut rng);
+                    let mut out = DerivativeDraw {
+                        scalar: 0.0,
+                        corrected: 0.0,
+                        vector: Vec::new(),
+                        edf: vec![0.0; samples.len()],
+                    };
                     match &query.functional {
                         ResponseFunctional::PointDerivative { at, order, scale, .. } => {
                             let pseudo = self
@@ -717,14 +725,14 @@ impl ContinuousResponseEstimator {
                             .map_err(|err| {
                                 local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
                             })?;
-                            scalars.push(transform_point_derivative(
+                            out.scalar = transform_point_derivative(
                                 p.value,
                                 p.first_derivative,
                                 p.second_derivative,
                                 *at,
                                 *order,
                                 *scale,
-                            )?);
+                            )?;
                             let c = antecedent_stats::gaussian_local_quadratic_bias_corrected(
                                 &samples[0].treatments,
                                 &pseudo,
@@ -735,46 +743,53 @@ impl ContinuousResponseEstimator {
                             .map_err(|err| {
                                 local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
                             })?;
-                            corrected_scalars.push(transform_point_derivative(
+                            out.corrected = transform_point_derivative(
                                 c.value,
                                 c.first_derivative,
                                 c.second_derivative,
                                 *at,
                                 *order,
                                 *scale,
-                            )?);
+                            )?;
                         }
                         ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
-                            let mut values = Vec::with_capacity(samples.len());
                             for (s, sample) in samples.iter().enumerate() {
                                 let fit =
                                     self.fit_outcome_target_weighted(sample, Some(&weights))?;
-                                edf_sum[s] += fit.edf_approx;
+                                out.edf[s] += fit.edf_approx;
                                 let (_, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
-                                values.push(
+                                out.vector.push(
                                     gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
                                 );
                             }
-                            vectors.push(values);
                         }
-                        ResponseFunctional::Jacobian { at, scale, treatments, outcomes } => {
-                            let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
+                        ResponseFunctional::Jacobian { at, scale, .. } => {
                             for (s, sample) in samples.iter().enumerate() {
                                 let fit =
                                     self.fit_outcome_target_weighted(sample, Some(&weights))?;
-                                edf_sum[s] += fit.edf_approx;
+                                out.edf[s] += fit.edf_approx;
                                 let (level, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
                                 for (j, raw) in gradient.into_iter().enumerate() {
-                                    values.push(transform_derivative(raw, at[j], level, *scale)?);
+                                    out.vector
+                                        .push(transform_derivative(raw, at[j], level, *scale)?);
                                 }
                             }
-                            vectors.push(values);
                         }
                         _ => unreachable!(),
                     }
+                    Ok(out)
+                })?;
+                let scalars: Vec<f64> = draws.iter().map(|d| d.scalar).collect();
+                let corrected_scalars: Vec<f64> = draws.iter().map(|d| d.corrected).collect();
+                let mut edf_sum = vec![0.0; samples.len()];
+                for draw in &draws {
+                    for (total, edf) in edf_sum.iter_mut().zip(&draw.edf) {
+                        *total += edf;
+                    }
                 }
+                let vectors: Vec<Vec<f64>> = draws.into_iter().map(|d| d.vector).collect();
                 let (value, uncertainty) = if point_derivative {
                     // Reported value: posterior mean of the local-quadratic estimator.
                     // Interval and SD: the bias-corrected draws on the same weights.
@@ -1169,25 +1184,11 @@ impl ContinuousResponseEstimator {
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
-        let row_means = if interventions.iter().any(intervention_needs_monte_carlo) {
-            let draws = 256;
-            let mut means = vec![0.0; sample.len()];
-            let mut factual = vec![0.0; sample.raw_cols];
-            let mut row = vec![0.0; sample.raw_cols];
-            for (row_index, mean) in means.iter_mut().enumerate() {
-                sample.write_raw_row(row_index, &mut factual);
-                let mut total = 0.0;
-                for draw in 0..draws {
-                    row.copy_from_slice(&factual);
-                    for (column, intervention) in interventions.iter().enumerate() {
-                        row[column] =
-                            intervention_level(intervention, factual[column], draw, column)?;
-                    }
-                    total += predict_one(&fit, &row)?;
-                }
-                *mean = total / draws as f64;
-            }
-            means
+        // Gaussian policies are integrated by Gauss–Hermite quadrature: the outcome
+        // model is additive, so E[μ(A_1, …, A_k, X)] depends only on each policy's own
+        // marginal law and the same rule serves every row, with no sampling error.
+        let row_means = if interventions.iter().any(intervention_needs_quadrature) {
+            additive_policy_rows(&fit, &sample, interventions)?
         } else {
             exact_discrete_intervention_rows(&fit, &sample, interventions)?
         };
@@ -1525,37 +1526,7 @@ impl ContinuousResponseEstimator {
                     let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
                     (outcome_fit, treatment_fit, sigma)
                 }
-                Some(w) => {
-                    let y: Vec<f64> = train.iter().map(|&i| sample.outcome[i]).collect();
-                    let outcome_fit = fit_additive_weighted(
-                        &sample.raw_subset(&train),
-                        train.len(),
-                        sample.raw_cols,
-                        &y,
-                        w,
-                        self.options.nuisance_basis,
-                        self.options.nuisance_lambda,
-                        &mut gam_ws,
-                    )?;
-                    let treatment_fit = if sample.adjustment_cols == 0 {
-                        None
-                    } else {
-                        let a: Vec<f64> = train.iter().map(|&i| sample.treatments[i]).collect();
-                        Some(fit_additive_weighted(
-                            &sample.adjustment_subset(&train),
-                            train.len(),
-                            sample.adjustment_cols,
-                            &a,
-                            w,
-                            self.options.nuisance_basis,
-                            self.options.nuisance_lambda,
-                            &mut gam_ws,
-                        )?)
-                    };
-                    let sigma =
-                        treatment_sigma_train_weighted(sample, &train, w, treatment_fit.as_ref())?;
-                    (outcome_fit, treatment_fit, sigma)
-                }
+                Some(w) => self.fit_train_nuisances_weighted(sample, &train, w, &mut gam_ws)?,
             };
             // The training-row treatment means do not depend on the validation row;
             // computing them once per fold avoids |valid| x |train| spline expansions.
@@ -1597,6 +1568,18 @@ impl ContinuousResponseEstimator {
                     train_weight(position) * (outcome_fit.fitted[position] - treat_partial);
             }
             covariate_offset /= train_weight_sum;
+            // The marginal treatment density is the (weighted) Gaussian mixture of the
+            // training-row means at bandwidth σ; without a treatment model every
+            // mean is the same constant and the mixture is one Gaussian.
+            let marginal_mixture = if treatment_fit.is_none() {
+                GaussianMixtureDensity::new(&[constant_treatment_mean], None, sigma)?
+            } else {
+                GaussianMixtureDensity::new(
+                    &train_treatment_means,
+                    train_weights.as_deref(),
+                    sigma,
+                )?
+            };
             for &i in &valid {
                 sample.write_raw_row(i, &mut raw_row);
                 let mu_observed = predict_one(&outcome_fit, &raw_row)?;
@@ -1613,21 +1596,7 @@ impl ContinuousResponseEstimator {
                     density_floor_rows += 1;
                 }
                 let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
-                let mut marginal_density = 0.0;
-                if treatment_fit.is_none() {
-                    // Every training mean is the same constant; the mixture is one Gaussian.
-                    marginal_density = gaussian_density(
-                        sample.treatment_matrix[i],
-                        constant_treatment_mean,
-                        sigma,
-                    );
-                } else {
-                    for (position, &train_mean) in train_treatment_means.iter().enumerate() {
-                        marginal_density += train_weight(position)
-                            * gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
-                    }
-                    marginal_density /= train_weight_sum;
-                }
+                let marginal_density = marginal_mixture.density(sample.treatment_matrix[i]);
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
                 pseudo[i] = marginal_mu
@@ -1682,91 +1651,106 @@ impl ContinuousResponseEstimator {
         Ok(AverageDerivativeScores { scores, riesz_weights })
     }
 
-    /// Weighted-plugin ADE: refit outcome and treatment nuisances under
-    /// Dirichlet/Exp(1) row weights, then evaluate the weighted Riesz score
-    /// mean (derivative plus score times residual).
-    fn weighted_plugin_ade(
+    /// Outcome GAM, treatment GAM (absent without adjusters) and treatment scale
+    /// fitted on the `train` rows under their row weights `w`.
+    fn fit_train_nuisances_weighted(
+        &self,
+        sample: &CompleteSample,
+        train: &[usize],
+        w: &[f64],
+        gam_ws: &mut GamWorkspace,
+    ) -> Result<(antecedent_stats::GamFit, Option<antecedent_stats::GamFit>, f64), EstimationError>
+    {
+        let y: Vec<f64> = train.iter().map(|&i| sample.outcome[i]).collect();
+        let outcome_fit = fit_additive_weighted(
+            &sample.raw_subset(train),
+            train.len(),
+            sample.raw_cols,
+            &y,
+            w,
+            self.options.nuisance_basis,
+            self.options.nuisance_lambda,
+            gam_ws,
+        )?;
+        let treatment_fit = if sample.adjustment_cols == 0 {
+            None
+        } else {
+            let a: Vec<f64> = train.iter().map(|&i| sample.treatments[i]).collect();
+            Some(fit_additive_weighted(
+                &sample.adjustment_subset(train),
+                train.len(),
+                sample.adjustment_cols,
+                &a,
+                w,
+                self.options.nuisance_basis,
+                self.options.nuisance_lambda,
+                gam_ws,
+            )?)
+        };
+        let sigma = treatment_sigma_train_weighted(sample, train, w, treatment_fit.as_ref())?;
+        Ok((outcome_fit, treatment_fit, sigma))
+    }
+
+    /// One Bayesian-bootstrap draw of the cross-fitted Riesz ADE: every fold refits
+    /// the outcome and treatment nuisances on its training rows under the draw's row
+    /// weights and scores only its held-out rows, then the weighted mean of the
+    /// held-out scores `∂_a μ̂ + α̂ (Y − μ̂)` is returned. Held-out scoring keeps the
+    /// draws on the same footing as the cross-fitted point estimate, without the
+    /// leverage shrinkage of in-sample residuals.
+    fn weighted_cross_fitted_ade(
         &self,
         sample: &CompleteSample,
         weights: &[f64],
     ) -> Result<f64, EstimationError> {
-        if weights.len() != sample.len() {
+        let n = sample.len();
+        if weights.len() != n {
             return Err(EstimationError::stats_msg("ADE weights length must match complete rows"));
         }
+        ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         let mut gam_ws = GamWorkspace::default();
-        let outcome_fit = self.fit_outcome_weighted(sample, weights, &mut gam_ws)?;
-        let treatment_fit = self.fit_treatment_weighted(sample, weights, &mut gam_ws)?;
-        let sigma = treatment_sigma_weighted(sample, weights, treatment_fit.as_ref())?;
-        let treatment_mean_constant = weighted_mean(&sample.treatments, weights)?;
-        let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
-            EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
-        })?;
         let mut row = vec![0.0; sample.raw_cols];
         let mut adj_row = vec![0.0; sample.adjustment_cols];
         let mut num = 0.0;
         let mut den = 0.0;
-        for (i, &weight) in weights.iter().enumerate() {
-            sample.write_raw_row(i, &mut row);
-            let mu = predict_one(&outcome_fit, &row)?;
-            let derivative = outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
-            let treatment_mean = match treatment_fit.as_ref() {
-                Some(fit) => {
-                    sample.write_adjustment_row(i, &mut adj_row);
-                    predict_one(fit, &adj_row)?
-                }
-                None => treatment_mean_constant,
-            };
-            let alpha = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
-            let phi = derivative + alpha * (sample.outcome[i] - mu);
-            num += weight * phi;
-            den += weight;
+        for fold in 0..self.options.folds {
+            let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
+            let train_weights: Vec<f64> = train.iter().map(|&i| weights[i]).collect();
+            let train_weight_sum: f64 = train_weights.iter().sum();
+            if !train_weight_sum.is_finite() || train_weight_sum <= 0.0 {
+                return Err(EstimationError::stats_msg("fold training weights are degenerate"));
+            }
+            let (outcome_fit, treatment_fit, sigma) =
+                self.fit_train_nuisances_weighted(sample, &train, &train_weights, &mut gam_ws)?;
+            let treatment_mean_constant = train
+                .iter()
+                .zip(&train_weights)
+                .map(|(&i, w)| w * sample.treatments[i])
+                .sum::<f64>()
+                / train_weight_sum;
+            let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+            })?;
+            for i in (0..n).filter(|i| i % self.options.folds == fold) {
+                sample.write_raw_row(i, &mut row);
+                let mu = predict_one(&outcome_fit, &row)?;
+                let derivative =
+                    outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
+                let treatment_mean = match treatment_fit.as_ref() {
+                    Some(fit) => {
+                        sample.write_adjustment_row(i, &mut adj_row);
+                        predict_one(fit, &adj_row)?
+                    }
+                    None => treatment_mean_constant,
+                };
+                let alpha = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
+                num += weights[i] * (derivative + alpha * (sample.outcome[i] - mu));
+                den += weights[i];
+            }
         }
         if !den.is_finite() || den <= 0.0 || !num.is_finite() {
-            return Err(EstimationError::stats_msg("weighted ADE plugin was non-finite"));
+            return Err(EstimationError::stats_msg("weighted ADE draw was non-finite"));
         }
         Ok(num / den)
-    }
-
-    fn fit_outcome_weighted(
-        &self,
-        sample: &CompleteSample,
-        weights: &[f64],
-        workspace: &mut GamWorkspace,
-    ) -> Result<antecedent_stats::GamFit, EstimationError> {
-        let x = sample.raw_all();
-        fit_additive_weighted(
-            &x,
-            sample.len(),
-            sample.raw_cols,
-            &sample.outcome,
-            weights,
-            self.options.nuisance_basis,
-            self.options.nuisance_lambda,
-            workspace,
-        )
-    }
-
-    fn fit_treatment_weighted(
-        &self,
-        sample: &CompleteSample,
-        weights: &[f64],
-        workspace: &mut GamWorkspace,
-    ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
-        if sample.adjustment_cols == 0 {
-            return Ok(None);
-        }
-        let x = sample.adjustment_all();
-        fit_additive_weighted(
-            &x,
-            sample.len(),
-            sample.adjustment_cols,
-            &sample.treatments,
-            weights,
-            self.options.nuisance_basis,
-            self.options.nuisance_lambda,
-            workspace,
-        )
-        .map(Some)
     }
 
     fn plugin_gradient(
@@ -2046,19 +2030,8 @@ fn summarize_scalar_draws(
         (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let quantile = |p: f64| exchangeable_rank_quantile(&sorted, p);
-    Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
-}
-
-/// Type-6 quantile of `sorted` (see [`summarize_scalar_draws`]): linear
-/// interpolation at one-based rank `p·(D + 1)`, clamped to `[1, D]`.
-fn exchangeable_rank_quantile(sorted: &[f64], p: f64) -> f64 {
-    let d = sorted.len();
-    let rank = (p * (d + 1) as f64).clamp(1.0, d as f64);
-    let lo = rank.floor() as usize;
-    let hi = rank.ceil() as usize;
-    let frac = rank - lo as f64;
-    sorted[lo - 1] + (sorted[hi - 1] - sorted[lo - 1]) * frac
+    let (lower, upper) = equal_tail_interval_sorted(&sorted, level, QuantileRule::ExchangeableRank);
+    Ok((mean, lower, upper, sd))
 }
 
 /// Inflate `draws` around their mean by `sqrt(n / (n − edf))`, the
@@ -2254,17 +2227,6 @@ impl CompleteSample {
     fn treatment_column_range(&self, col: usize) -> (f64, f64) {
         range(&self.treatment_matrix[col * self.len()..(col + 1) * self.len()])
     }
-
-    fn raw_all(&self) -> Vec<f64> {
-        let mut out = Vec::with_capacity(self.len() * self.raw_cols);
-        out.extend_from_slice(&self.treatment_matrix);
-        out.extend_from_slice(&self.adjustment);
-        out
-    }
-
-    fn adjustment_all(&self) -> Vec<f64> {
-        self.adjustment.clone()
-    }
 }
 
 fn fit_additive(
@@ -2332,24 +2294,20 @@ fn fit_additive_weighted(
     Ok(fit)
 }
 
-fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, EstimationError> {
-    if values.len() != weights.len() || values.is_empty() {
-        return Err(EstimationError::stats_msg("weighted mean requires matching nonempty slices"));
-    }
-    let mut num = 0.0;
-    let mut den = 0.0;
-    for (value, weight) in values.iter().zip(weights) {
-        num += *weight * *value;
-        den += *weight;
-    }
-    if !den.is_finite() || den <= 0.0 || !num.is_finite() {
-        return Err(EstimationError::stats_msg("weighted mean was non-finite"));
-    }
-    Ok(num / den)
-}
-
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
     Ok(fit.predict_row(raw_row)?)
+}
+
+/// One Bayesian-bootstrap draw of a derivative functional.
+struct DerivativeDraw {
+    /// Local-quadratic point coordinate (point derivatives).
+    scalar: f64,
+    /// Robust bias-corrected point coordinate (point derivatives).
+    corrected: f64,
+    /// Plug-in gradient coordinates (directional derivative / Jacobian).
+    vector: Vec<f64>,
+    /// Effective degrees of freedom of each sample's GAM fit.
+    edf: Vec<f64>,
 }
 
 fn treatment_sigma(
@@ -2374,39 +2332,6 @@ fn treatment_sigma(
     if !sigma.is_finite() || sigma <= f64::EPSILON {
         return Err(EstimationError::unsupported(
             "Gaussian treatment nuisance has degenerate residual variance",
-        ));
-    }
-    Ok(sigma)
-}
-
-fn treatment_sigma_weighted(
-    sample: &CompleteSample,
-    weights: &[f64],
-    fit: Option<&antecedent_stats::GamFit>,
-) -> Result<f64, EstimationError> {
-    let n_eff: f64 = weights.iter().sum();
-    let (rss, denominator) = if let Some(fit) = fit {
-        let rss = fit
-            .residuals
-            .iter()
-            .zip(weights)
-            .map(|(residual, weight)| weight * residual * residual)
-            .sum::<f64>();
-        (rss, (n_eff - fit.edf_approx).max(1.0))
-    } else {
-        let mean = weighted_mean(&sample.treatments, weights)?;
-        let rss = sample
-            .treatments
-            .iter()
-            .zip(weights)
-            .map(|(treatment, weight)| weight * (treatment - mean).powi(2))
-            .sum::<f64>();
-        (rss, (n_eff - 1.0).max(1.0))
-    };
-    let sigma = (rss / denominator).sqrt();
-    if !sigma.is_finite() || sigma <= f64::EPSILON {
-        return Err(EstimationError::unsupported(
-            "weighted Gaussian treatment nuisance has degenerate residual variance",
         ));
     }
     Ok(sigma)
@@ -2470,19 +2395,75 @@ fn ensure_crossfit_size(n: usize, folds: usize, basis: usize) -> Result<(), Esti
     Ok(())
 }
 
-pub(super) fn splitmix64(mut state: u64) -> u64 {
-    state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let mut value = state;
-    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    value ^ (value >> 31)
-}
+/// Nodes of the Gauss–Hermite rule applied to a Gaussian intervention policy. The
+/// dose-response smooths are cubic B-splines, so the integrand is piecewise cubic;
+/// 48 nodes resolve every knot interval a policy spans to well below the SE.
+const POLICY_QUADRATURE_NODES: usize = 48;
 
-fn intervention_needs_monte_carlo(intervention: &Intervention) -> bool {
+fn intervention_needs_quadrature(intervention: &Intervention) -> bool {
     matches!(
         intervention,
         Intervention::Stochastic { policy: StochasticPolicy::Gaussian { .. }, .. }
     )
+}
+
+/// Atoms of an intervention's law: the exact support for discrete policies and a
+/// Gauss–Hermite rule for a Gaussian policy.
+fn policy_support(intervention: &Intervention) -> Result<Vec<DiscreteAtom>, EstimationError> {
+    if let Intervention::Stochastic {
+        policy: StochasticPolicy::Gaussian { mean, variance }, ..
+    } = intervention
+    {
+        if !mean.is_finite() || !variance.is_finite() || *variance < 0.0 {
+            return Err(EstimationError::unsupported(
+                "Gaussian intervention needs a finite mean and a finite non-negative variance",
+            ));
+        }
+        let (nodes, weights) = gauss_hermite_standard_normal(POLICY_QUADRATURE_NODES);
+        let sd = variance.sqrt();
+        return Ok(nodes
+            .into_iter()
+            .zip(weights)
+            .map(|(node, weight)| DiscreteAtom::Level { value: mean + sd * node, weight })
+            .collect());
+    }
+    discrete_intervention_support(intervention)
+}
+
+/// Policy expectation of the additive outcome model for every row.
+///
+/// With `μ(a, x) = α + Σ_k f_k(a_k) + g(x)`, `E[μ] = Σ_k E[μ(A_k, others factual)]
+/// − (k − 1)·μ(factual)`: each policy is integrated over its own support and the
+/// joint support is never formed, so cost is `n · Σ_k |support_k|`.
+fn additive_policy_rows(
+    fit: &antecedent_stats::GamFit,
+    sample: &CompleteSample,
+    interventions: &[Intervention],
+) -> Result<Vec<f64>, EstimationError> {
+    let supports: Vec<Vec<DiscreteAtom>> =
+        interventions.iter().map(policy_support).collect::<Result<_, _>>()?;
+    let extra_terms = supports.len().saturating_sub(1) as f64;
+    let mut factual = vec![0.0; sample.raw_cols];
+    let mut row = vec![0.0; sample.raw_cols];
+    let mut out = Vec::with_capacity(sample.len());
+    for row_index in 0..sample.len() {
+        sample.write_raw_row(row_index, &mut factual);
+        row.copy_from_slice(&factual);
+        let mut total = -extra_terms * predict_one(fit, &factual)?;
+        for (column, support) in supports.iter().enumerate() {
+            for atom in support {
+                let (level, weight) = match *atom {
+                    DiscreteAtom::Level { value, weight } => (value, weight),
+                    DiscreteAtom::Shift { delta } => (factual[column] + delta, 1.0),
+                };
+                row[column] = level;
+                total += weight * predict_one(fit, &row)?;
+            }
+            row[column] = factual[column];
+        }
+        out.push(total);
+    }
+    Ok(out)
 }
 
 /// One atom of a discrete intervention law: absolute level, or additive shift of the factual.
@@ -2544,7 +2525,6 @@ fn intervention_plugin_influence(
     let mut design = vec![1.0; n];
     let mut gradient = vec![1.0];
     let mut penalty = vec![0.0; p * p];
-    let monte_carlo = interventions.iter().any(intervention_needs_monte_carlo);
     let mut offset = 1;
     for raw_col in 0..sample.raw_cols {
         let smooth = &fit.smooths[fit.smooth_for_raw_col(raw_col).ok_or_else(|| {
@@ -2563,23 +2543,15 @@ fn intervention_plugin_influence(
             antecedent_stats::expand_bspline(&observed, smooth.n_basis, Some(&smooth.knots))?;
         design.extend_from_slice(&basis[..n * (smooth.n_basis - 1)]);
         let (points, weights): (Vec<f64>, Vec<f64>) = if let Some(iv) = interventions.get(raw_col) {
-            if let Intervention::Shift { .. } = iv {
-                (
-                    observed
-                        .iter()
-                        .map(|&v| intervention_level(iv, v, 0, raw_col))
-                        .collect::<Result<Vec<_>, _>>()?,
-                    vec![1.0 / nf; n],
-                )
-            } else if monte_carlo {
-                (
-                    (0..256)
-                        .map(|draw| intervention_level(iv, 0.0, draw, raw_col))
-                        .collect::<Result<Vec<_>, _>>()?,
-                    vec![1.0 / 256.0; 256],
-                )
+            if let Intervention::Shift { delta, .. } = iv {
+                let delta = delta.as_f64().filter(|d| d.is_finite()).ok_or_else(|| {
+                    EstimationError::unsupported(
+                        "intervention response requires finite numeric values",
+                    )
+                })?;
+                (observed.iter().map(|&v| v + delta).collect(), vec![1.0 / nf; n])
             } else {
-                discrete_intervention_support(iv)?
+                policy_support(iv)?
                     .into_iter()
                     .map(|atom| match atom {
                         DiscreteAtom::Level { value, weight } => (value, weight),
@@ -2791,84 +2763,6 @@ fn static_bayesian_policy(
     Ok((target, level, shift))
 }
 
-fn intervention_level(
-    intervention: &Intervention,
-    factual: f64,
-    draw: usize,
-    policy_index: usize,
-) -> Result<f64, EstimationError> {
-    let numeric = |value: &antecedent_core::Value| {
-        value.as_f64().filter(|number| number.is_finite()).ok_or_else(|| {
-            EstimationError::unsupported("intervention response requires finite numeric values")
-        })
-    };
-    let value = match intervention {
-        Intervention::Set { value, .. } => numeric(value)?,
-        Intervention::Shift { delta, .. } => factual + numeric(delta)?,
-        Intervention::Stochastic { policy, .. } => {
-            // A distinct deterministic SplitMix64 stream coordinate for every
-            // (Monte Carlo draw, policy) pair avoids silently imposing a shared
-            // rank/comonotone coupling across joint stochastic interventions.
-            let state = (draw as u64)
-                .wrapping_mul(0xD2B7_4407_B1CE_6E93)
-                .wrapping_add((policy_index as u64).wrapping_mul(0xCA5A_8263_9512_1157))
-                .wrapping_add(0xA17E_CEDE_0500_0001);
-            let random = splitmix64(state);
-            let quantile = ((random >> 11) as f64 + 0.5) * (1.0 / 9_007_199_254_740_992.0);
-            match policy {
-                StochasticPolicy::Bernoulli { p } => {
-                    if quantile < *p {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                }
-                StochasticPolicy::Gaussian { mean, variance } => {
-                    if !mean.is_finite() {
-                        return Err(EstimationError::unsupported(
-                            "Gaussian intervention mean must be finite",
-                        ));
-                    }
-                    mean + variance.sqrt() * normal_ppf(quantile)
-                }
-                StochasticPolicy::Categorical { probs } => {
-                    let total: f64 = probs.iter().sum();
-                    let threshold = quantile * total;
-                    let mut cumulative = 0.0;
-                    let mut category = probs.len() - 1;
-                    for (index, probability) in probs.iter().enumerate() {
-                        cumulative += probability;
-                        if threshold < cumulative {
-                            category = index;
-                            break;
-                        }
-                    }
-                    category as f64
-                }
-                _ => {
-                    return Err(EstimationError::unsupported(
-                        "unsupported stochastic intervention policy",
-                    ));
-                }
-            }
-        }
-        Intervention::Soft { .. } | Intervention::Sequence(_) => {
-            return Err(EstimationError::unsupported(
-                "soft and sequenced intervention responses require a structural model",
-            ));
-        }
-        _ => {
-            return Err(EstimationError::unsupported("unsupported intervention-response policy"));
-        }
-    };
-    if !value.is_finite() {
-        return Err(EstimationError::unsupported(
-            "intervention response produced a non-finite treatment value",
-        ));
-    }
-    Ok(value)
-}
-
 fn transform_derivative(
     derivative: f64,
     treatment: f64,
@@ -2984,25 +2878,8 @@ fn sort_finite(values: &[f64]) -> Vec<f64> {
     sorted
 }
 
-fn median_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return 0.0;
-    }
-    let mid = n / 2;
-    if n % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] }
-}
-
 fn mad_scale(values: &[f64]) -> f64 {
-    if values.is_empty() {
-        return 0.0;
-    }
-    let sorted = sort_finite(values);
-    let center = median_sorted(&sorted);
-    let abs_dev: Vec<f64> = values.iter().map(|v| (v - center).abs()).collect();
-    let mut abs_sorted = abs_dev;
-    abs_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    MAD_TO_SIGMA * median_sorted(&abs_sorted)
+    mad_sigma(values).unwrap_or(0.0)
 }
 
 fn outcome_tail_ratio(values: &[f64]) -> f64 {
@@ -3023,12 +2900,11 @@ fn outcome_tail_ratio(values: &[f64]) -> f64 {
 fn winsorize(values: &[f64], p: f64) -> Vec<f64> {
     let sorted = sort_finite(values);
     // An empty sample has no tail quantiles to clamp to; leave the values as they are.
-    let (Some(lo), Some(hi)) = (
-        antecedent_stats::quantile_type7(&sorted, p),
-        antecedent_stats::quantile_type7(&sorted, 1.0 - p),
-    ) else {
+    if sorted.is_empty() {
         return values.to_vec();
-    };
+    }
+    let lo = quantile_sorted(&sorted, p, QuantileRule::Interpolated);
+    let hi = quantile_sorted(&sorted, 1.0 - p, QuantileRule::Interpolated);
     let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
     values.iter().map(|&v| v.clamp(lo, hi)).collect()
 }
@@ -3256,23 +3132,6 @@ mod tests {
             z ^= z >> 31;
             (z >> 11) as f64 / 9_007_199_254_740_992.0
         }
-    }
-
-    #[test]
-    #[allow(clippy::float_cmp)] // Exact ranks land on exact draws.
-    fn exchangeable_rank_quantile_sits_at_p_times_d_plus_one() {
-        let sorted: Vec<f64> = (1..=9).map(f64::from).collect();
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.5), 5.0);
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.1), 1.0);
-        assert!((exchangeable_rank_quantile(&sorted, 0.25) - 2.5).abs() < 1e-12);
-        // Ranks outside [1, D] clamp to the extreme draws.
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.01), 1.0);
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.99), 9.0);
-        // Wider than the sample-quantile (type 7) rule on both sides.
-        let ramp: Vec<f64> = (0..200).map(f64::from).collect();
-        let type7 = |p: f64| p * 199.0;
-        assert!(exchangeable_rank_quantile(&ramp, 0.05) < type7(0.05));
-        assert!(exchangeable_rank_quantile(&ramp, 0.95) > type7(0.95));
     }
 
     #[test]
@@ -3622,55 +3481,61 @@ mod tests {
     fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
         // The O(n) covariate-offset form must agree with the definitional
         // |valid|×|train| double loop (full counterfactual prediction per pair)
-        // up to floating-point re-association.
-        let (data, a, y, x) = confounded_curve(160);
-        let estimator = ContinuousResponseEstimator::new([x]);
-        let sample = CompleteSample::read(&data, y, &[a], &estimator.adjustment_set).unwrap();
-        let fast = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
+        // up to floating-point re-association. 160 rows sums the marginal density
+        // term by term; 900 rows (720 training rows per fold) takes the binned
+        // Gauss-transform path, which must agree with the same definitional sum.
+        for rows in [160, 900] {
+            let (data, a, y, x) = confounded_curve(rows);
+            let estimator = ContinuousResponseEstimator::new([x]);
+            let sample = CompleteSample::read(&data, y, &[a], &estimator.adjustment_set).unwrap();
+            let fast = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
 
-        let n = sample.len();
-        let folds = estimator.options.folds;
-        let mut brute = vec![0.0; n];
-        for fold in 0..folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
-            let mut gam_ws = GamWorkspace::default();
-            let outcome_fit = estimator.fit_outcome(&sample, &train, &mut gam_ws).unwrap();
-            let treatment_fit = estimator.fit_treatment(&sample, &train, &mut gam_ws).unwrap();
-            let sigma = treatment_sigma(&sample, &train, treatment_fit.as_ref()).unwrap();
-            let constant_mean = sample.train_treatment_mean(&train);
-            for &i in &valid {
-                let mu_observed = predict_one(&outcome_fit, &sample.raw_row(i)).unwrap();
-                let treatment_mean = match treatment_fit.as_ref() {
-                    Some(fit) => predict_one(fit, &sample.adjustment_row(i)).unwrap(),
-                    None => constant_mean,
-                };
-                let raw_density =
-                    gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
-                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
-                let mut marginal_density = 0.0;
-                let mut marginal_mu = 0.0;
-                for &j in &train {
-                    let mean_j = match treatment_fit.as_ref() {
-                        Some(fit) => predict_one(fit, &sample.adjustment_row(j)).unwrap(),
+            let n = sample.len();
+            let folds = estimator.options.folds;
+            let mut brute = vec![0.0; n];
+            for fold in 0..folds {
+                let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
+                let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
+                let mut gam_ws = GamWorkspace::default();
+                let outcome_fit = estimator.fit_outcome(&sample, &train, &mut gam_ws).unwrap();
+                let treatment_fit = estimator.fit_treatment(&sample, &train, &mut gam_ws).unwrap();
+                let sigma = treatment_sigma(&sample, &train, treatment_fit.as_ref()).unwrap();
+                let constant_mean = sample.train_treatment_mean(&train);
+                for &i in &valid {
+                    let mu_observed = predict_one(&outcome_fit, &sample.raw_row(i)).unwrap();
+                    let treatment_mean = match treatment_fit.as_ref() {
+                        Some(fit) => predict_one(fit, &sample.adjustment_row(i)).unwrap(),
                         None => constant_mean,
                     };
-                    marginal_density += gaussian_density(sample.treatment_matrix[i], mean_j, sigma);
-                    let mut row = sample.raw_row(j);
-                    row[0] = sample.treatment_matrix[i];
-                    marginal_mu += predict_one(&outcome_fit, &row).unwrap();
+                    let raw_density =
+                        gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
+                    let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
+                    let mut marginal_density = 0.0;
+                    let mut marginal_mu = 0.0;
+                    for &j in &train {
+                        let mean_j = match treatment_fit.as_ref() {
+                            Some(fit) => predict_one(fit, &sample.adjustment_row(j)).unwrap(),
+                            None => constant_mean,
+                        };
+                        marginal_density +=
+                            gaussian_density(sample.treatment_matrix[i], mean_j, sigma);
+                        let mut row = sample.raw_row(j);
+                        row[0] = sample.treatment_matrix[i];
+                        marginal_mu += predict_one(&outcome_fit, &row).unwrap();
+                    }
+                    marginal_density /= train.len() as f64;
+                    marginal_mu /= train.len() as f64;
+                    brute[i] = marginal_mu
+                        + (sample.outcome[i] - mu_observed) * marginal_density
+                            / conditional_density;
                 }
-                marginal_density /= train.len() as f64;
-                marginal_mu /= train.len() as f64;
-                brute[i] = marginal_mu
-                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
             }
-        }
-        for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {
-            assert!(
-                (fast_i - brute_i).abs() <= 1e-9 * brute_i.abs().max(1.0),
-                "row {i}: fast={fast_i} brute={brute_i}"
-            );
+            for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {
+                assert!(
+                    (fast_i - brute_i).abs() <= 1e-9 * brute_i.abs().max(1.0),
+                    "row {i}: fast={fast_i} brute={brute_i}"
+                );
+            }
         }
     }
 
@@ -3791,6 +3656,54 @@ mod tests {
         let codes: Vec<_> = set.support.warnings.iter().map(|w| w.code.as_ref()).collect();
         assert!(codes.contains(&"response.intervention_plugin_model_dependent"));
         assert!(!codes.contains(&"response.intervention_target_penalized_fallback"));
+    }
+
+    #[test]
+    fn gaussian_policy_expectation_is_exact_for_a_quadratic_dose_effect() {
+        // y = 1 + 2a + a² + 0.8z is a quadratic in the treatment, which the
+        // unpenalized cubic treatment smooth reproduces exactly, and z is centred.
+        // Under A ~ N(0.25, 0.05²): E[y] = 1 + 2(0.25) + (0.25² + 0.05²) = 1.565 —
+        // no sampling error and no fixed policy-integration bias.
+        let n = 500;
+        let mut a = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut x = Vec::with_capacity(n);
+        for i in 0..n {
+            let z = -1.0 + 2.0 * i as f64 / (n - 1) as f64;
+            let noise = ((i * 37 % 101) as f64 / 100.0 - 0.5) * 0.3;
+            let treatment = 0.7 * z + noise;
+            x.push(z);
+            a.push(treatment);
+            y.push(1.0 + 2.0 * treatment + treatment * treatment + 0.8 * z);
+        }
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let (a, y, x) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::stochastic(
+                a,
+                StochasticPolicy::gaussian(0.25, 0.0025),
+            )]),
+        });
+        let response = ContinuousResponseEstimator::new([x])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            &response.estimate
+        else {
+            panic!("expected scalar");
+        };
+        assert!((value - 1.565).abs() < 1e-5, "value={value}");
     }
 
     #[test]
@@ -4075,7 +3988,7 @@ mod tests {
         for (i, weight) in weights.iter_mut().enumerate() {
             *weight = if i < sample.len() / 5 { 8.0 } else { 0.2 };
         }
-        let plugin = estimator.weighted_plugin_ade(&sample, &weights).unwrap();
+        let plugin = estimator.weighted_cross_fitted_ade(&sample, &weights).unwrap();
         let frozen_mean =
             frozen.scores.iter().zip(&weights).map(|(score, weight)| score * weight).sum::<f64>()
                 / weights.iter().sum::<f64>();

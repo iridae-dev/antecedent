@@ -579,8 +579,11 @@ result = antecedent.analyze(data, graph=dag, query=query)
 Under Frequentist inference, `Set`, `Shift`, `Bernoulli`, `Gaussian`, and
 `Categorical` evaluate plug-in mean responses. A sequence of specifications requests a joint intervention. The
 estimator fits an additive outcome model and averages predictions under the
-requested policy; stochastic laws use fixed-seed independent-coordinate
-inverse-CDF Monte Carlo integration. Its canonical strategy is
+requested policy. `Bernoulli` and `Categorical` laws are summed exactly over
+their support; a `Gaussian` law is integrated by 48-node Gauss-Hermite
+quadrature per policy (deterministic, exact for polynomial dose effects of
+degree up to 95), which is valid because the outcome model is additive, so each
+policy enters only through its own marginal law. Its canonical strategy is
 `response.intervention_gcomp`, distinct from the Kennedy curve estimator. The result is deliberately
 marked extrapolative: observed marginal bounds are reported, but joint policy
 support and statistical uncertainty are not certified. Soft mechanism

@@ -295,7 +295,9 @@ pub fn fit_empirical_joint(
         complete += 1.0;
     }
     if complete == 0.0 {
-        return Err(law_err(sample, "empty_empirical_sample"));
+        return Err(EstimationError::EmptyEmpiricalSample {
+            message: law_error(sample, "empty_empirical_sample").to_string(),
+        });
     }
     for count in &mut counts {
         *count /= complete;
@@ -778,18 +780,19 @@ fn same_world(left: &[InterventionAssignment], right: &[InterventionAssignment])
         })
 }
 
+fn law_error(sample: &RegimeSample, kind: &'static str) -> ExactLawError {
+    ExactLawError {
+        kind,
+        population: sample.population.clone(),
+        regime: Some(sample.regime),
+        variables: Arc::from([]),
+        conditioning: Arc::from([]),
+        interventions: sample.interventions.clone(),
+    }
+}
+
 fn law_err(sample: &RegimeSample, kind: &'static str) -> EstimationError {
-    EstimationError::data_msg(
-        ExactLawError {
-            kind,
-            population: sample.population.clone(),
-            regime: Some(sample.regime),
-            variables: Arc::from([]),
-            conditioning: Arc::from([]),
-            interventions: sample.interventions.clone(),
-        }
-        .to_string(),
-    )
+    EstimationError::data_msg(law_error(sample, kind).to_string())
 }
 
 #[cfg(test)]
@@ -911,6 +914,31 @@ mod tests {
         let error = fit_empirical_joint(&input, &axes, &EmpiricalTableOptions::default(), None)
             .unwrap_err();
         assert!(error.to_string().contains("equal, nonzero"));
+    }
+
+    #[test]
+    fn an_empty_resample_is_a_typed_error_not_a_message_match() {
+        let axes = [DiscreteAxis {
+            variable: v(0),
+            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+        }];
+        let error = fit_empirical_joint(
+            &sample(2, 1, 1, 2),
+            &axes,
+            &EmpiricalTableOptions::default(),
+            Some(&[]),
+        )
+        .unwrap_err();
+        assert!(matches!(error, EstimationError::EmptyEmpiricalSample { .. }), "{error}");
+        // Any other data error stays an ordinary error.
+        let other = fit_empirical_joint(
+            &sample(2, 1, 1, 2),
+            &axes,
+            &EmpiricalTableOptions::default(),
+            Some(&[u32::MAX]),
+        )
+        .unwrap_err();
+        assert!(!matches!(other, EstimationError::EmptyEmpiricalSample { .. }));
     }
 
     #[test]

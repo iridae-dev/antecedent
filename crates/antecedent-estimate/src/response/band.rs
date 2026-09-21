@@ -3,13 +3,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::ResponseUncertainty;
+use antecedent_core::{CausalRng, ResponseUncertainty};
 use antecedent_stats::normal_ppf;
 
 use crate::EstimationError;
 use crate::util::monte_carlo_critical;
-
-use super::splitmix64;
 
 pub(super) fn simultaneous_multiplier_band(
     mean: &[f64],
@@ -35,13 +33,12 @@ pub(super) fn simultaneous_multiplier_band(
             "simultaneous bands require finite non-degenerate influence standard errors",
         ));
     }
-    let mut state = seed;
+    let mut rng = CausalRng::from_seed(seed);
     let mut maxima = Vec::with_capacity(replicates as usize);
     let mut multipliers = vec![0.0; sample_size];
     for _ in 0..replicates {
         for multiplier in &mut multipliers {
-            state = splitmix64(state);
-            *multiplier = if state & 1 == 0 { -1.0 } else { 1.0 };
+            *multiplier = if rng.next_u64() & 1 == 0 { -1.0 } else { 1.0 };
         }
         let maximum = (0..grid_len)
             .zip(standard_errors)

@@ -78,7 +78,6 @@ pub(crate) fn linear_response_draws(
 }
 
 /// `(mean, lower, upper, sd)` of linear-functional draws at an equal-tailed `level`.
-#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
 pub(crate) fn summarize_linear_response_draws(
     mut values: Vec<f64>,
     level: f64,
@@ -92,8 +91,14 @@ pub(crate) fn summarize_linear_response_draws(
     let sd =
         (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
     values.sort_by(f64::total_cmp);
-    let quantile = |p: f64| antecedent_stats::quantile_type7(&values, p).unwrap_or(f64::NAN);
-    Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
+    // Exchangeable-rank (type-6) ranks so a finite-draw interval covers at its level;
+    // the same rule as every other posterior-draw interval in the crate.
+    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+        &values,
+        level,
+        antecedent_stats::QuantileRule::ExchangeableRank,
+    );
+    Ok((mean, lower, upper, sd))
 }
 
 /// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
@@ -1721,7 +1726,7 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         posterior: PosteriorBatch<'_>,
         output: &mut EffectBatch,
         workspace: &mut PosteriorEvalWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<(), EstimationError> {
         let n_draws = posterior.len;
         workspace.prepare(n_draws, self.ncols);
@@ -1734,12 +1739,11 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
             coef_cols.push(col);
         }
 
-        for d in 0..n_draws {
-            for c in 0..self.ncols {
-                workspace.row[c] = coef_cols[c][d];
-            }
-            let beta = &workspace.row[..self.ncols];
-            output.values[d] = gcomp_mean_contrast(
+        // Non-identity links average over every row per draw (O(draws × n × p)); the
+        // draws are independent and draw-order results are kept, so the pass is spread
+        // over the context's thread budget once it is large enough to repay the spawn.
+        let contrast = |beta: &[f64]| {
+            gcomp_mean_contrast(
                 self.family,
                 &self.matrix,
                 self.nrows,
@@ -1748,7 +1752,23 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
                 beta,
                 self.active,
                 self.control,
-            );
+            )
+        };
+        const PARALLEL_WORK_FLOOR: usize = 1 << 16;
+        let nonlinear = !matches!(self.family, GlmFamily::GaussianIdentity);
+        if nonlinear && n_draws * self.nrows * self.ncols >= PARALLEL_WORK_FLOOR {
+            let values = ctx.map_indexed(n_draws, |d, _| {
+                let beta: Vec<f64> = coef_cols.iter().map(|col| col[d]).collect();
+                Ok::<f64, EstimationError>(contrast(&beta))
+            })?;
+            output.values[..n_draws].copy_from_slice(&values);
+            return Ok(());
+        }
+        for d in 0..n_draws {
+            for c in 0..self.ncols {
+                workspace.row[c] = coef_cols[c][d];
+            }
+            output.values[d] = contrast(&workspace.row[..self.ncols]);
         }
         Ok(())
     }
@@ -1870,16 +1890,29 @@ fn coefficient_only_draws(draws: &PosteriorDraws) -> Result<PosteriorDraws, Esti
 
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).
 ///
-/// Samples prior-predictive draws for a scalar effect mean (isotropic Gaussian / weakly
-/// informative scale from `prior`) so Bayesian envelopes can surface uncertainty without
-/// inventing identification. Status remains [`IdentificationStatus::NotIdentified`].
-#[must_use]
+/// Samples prior-predictive draws of the scalar effect from the explicit effect prior
+/// `N(effect_mean, effect_sd²)` so Bayesian envelopes can surface uncertainty without
+/// inventing identification; `prior` is recorded as assumptions. The effect prior is
+/// passed explicitly because a design-shaped [`PriorSet`] has no single effect
+/// coefficient (its first entry is the intercept) and its Gaussian variances are
+/// σ²-relative, not an effect SD. Status remains [`IdentificationStatus::NotIdentified`].
+///
+/// # Errors
+///
+/// A non-finite `effect_mean` or a non-finite / non-positive `effect_sd`.
 pub fn nonidentified_with_prior(
     prior: &PriorSet,
+    effect_mean: f64,
+    effect_sd: f64,
     diagnostics: InferenceDiagnostics,
     n_draws: usize,
     seed: u64,
-) -> CausalPosterior {
+) -> Result<CausalPosterior, EstimationError> {
+    if !effect_mean.is_finite() || !effect_sd.is_finite() || effect_sd <= 0.0 {
+        return Err(EstimationError::unsupported(
+            "non-identified prior-predictive effect needs a finite mean and a positive finite sd",
+        ));
+    }
     let mut assumptions = AssumptionSet::new();
     for spec in &prior.specs {
         assumptions.push(AssumptionRecord {
@@ -1892,7 +1925,7 @@ pub fn nonidentified_with_prior(
     let schema = PosteriorSchema {
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate") }]),
     };
-    let (mean, scale) = prior_predictive_effect_params(prior);
+    let (mean, scale) = (effect_mean, effect_sd);
     let n = n_draws.max(1);
     let mut values = vec![0.0; n];
     let mut rng =
@@ -1909,7 +1942,7 @@ pub fn nonidentified_with_prior(
             values: Arc::from([]),
         });
     let summaries = draws.summarize();
-    CausalPosterior {
+    Ok(CausalPosterior {
         subsampled_out_mass: 0.0,
         unevaluable_mass: 0.0,
         draws,
@@ -1922,16 +1955,7 @@ pub fn nonidentified_with_prior(
         unidentified_mass: 1.0,
         early_stopped: false,
         treatment_contrast: None,
-    }
-}
-
-fn prior_predictive_effect_params(prior: &PriorSet) -> (f64, f64) {
-    if let Some(g) = prior.gaussian_coefficients() {
-        let mean = g.mean.first().copied().unwrap_or(0.0);
-        let var = g.variance.first().copied().unwrap_or(100.0).max(1e-12);
-        return (mean, var.sqrt());
-    }
-    (0.0, 10.0)
+    })
 }
 
 #[cfg(test)]
@@ -2173,11 +2197,61 @@ mod tests {
     #[test]
     fn prior_does_not_create_identification() {
         let prior = PriorSet::weakly_informative(3);
-        let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"), 64, 1);
+        let post = nonidentified_with_prior(
+            &prior,
+            0.0,
+            10.0,
+            InferenceDiagnostics::analytic("none"),
+            64,
+            1,
+        )
+        .unwrap();
         assert_eq!(post.identification, IdentificationStatus::NotIdentified);
         assert!(!post.assumptions.is_empty());
         assert!((post.unidentified_mass - 1.0).abs() < 1e-12);
         assert!(post.draws.n_draws > 0, "prior-predictive draws required");
+    }
+
+    #[test]
+    fn prior_predictive_effect_follows_the_explicit_effect_prior_not_the_intercept() {
+        // The design-shaped prior's first coefficient (the intercept) is N(50, 0.1²);
+        // the effect prior is N(-3, 0.5²). The draws must follow the effect prior.
+        let mut prior = PriorSet::weakly_informative(2);
+        if let Some(antecedent_prob::PriorSpec::GaussianCoefficients(g)) = prior.specs.first_mut() {
+            *g = antecedent_prob::GaussianCoefficientPrior {
+                mean: Arc::from(vec![50.0, 0.0]),
+                variance: Arc::from(vec![0.01, 4.0]),
+            };
+        }
+        let post = nonidentified_with_prior(
+            &prior,
+            -3.0,
+            0.5,
+            InferenceDiagnostics::analytic("none"),
+            4000,
+            9,
+        )
+        .unwrap();
+        let draws = post.draws.column(0).unwrap();
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        let sd = (draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (draws.len() - 1) as f64)
+            .sqrt();
+        // Monte Carlo error of the mean is 0.5/sqrt(4000) = 0.008; of the sd about 0.006.
+        assert!((mean + 3.0).abs() < 0.04, "mean={mean}");
+        assert!((sd - 0.5).abs() < 0.03, "sd={sd}");
+        for (mean, sd) in [(f64::NAN, 1.0), (0.0, 0.0), (0.0, f64::INFINITY), (0.0, -1.0)] {
+            assert!(
+                nonidentified_with_prior(
+                    &prior,
+                    mean,
+                    sd,
+                    InferenceDiagnostics::analytic("none"),
+                    8,
+                    1
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

@@ -10,6 +10,54 @@
     clippy::many_single_char_names
 )]
 
+/// Gauss–Hermite rule for the standard normal: `(nodes, weights)` with
+/// `E[g(Z)] ≈ Σ w_i g(z_i)`, exact for polynomials of degree up to `2n − 1`.
+///
+/// Nodes are the roots of the physicists' Hermite polynomial `H_n`, found by Newton
+/// iteration on the orthonormal three-term recurrence (asymptotic starting values),
+/// rescaled by `√2` and the weights by `1/√π`. Nodes are returned in descending order.
+/// `n = 0` returns empty vectors.
+#[must_use]
+pub fn gauss_hermite_standard_normal(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut nodes = vec![0.0; n];
+    let mut weights = vec![0.0; n];
+    let nf = n as f64;
+    let mut z = 0.0_f64;
+    for i in 0..n.div_ceil(2) {
+        z = match i {
+            0 => (2.0 * nf + 1.0).sqrt() - 1.855_75 * (2.0 * nf + 1.0).powf(-1.0 / 6.0),
+            1 => z - 1.14 * nf.powf(0.426) / z,
+            2 => 1.86 * z - 0.86 * nodes[0] / std::f64::consts::SQRT_2,
+            3 => 1.91 * z - 0.91 * nodes[1] / std::f64::consts::SQRT_2,
+            _ => 2.0 * z - nodes[i - 2] / std::f64::consts::SQRT_2,
+        };
+        let mut derivative = 1.0;
+        for _ in 0..100 {
+            let mut p1 = std::f64::consts::PI.powf(-0.25);
+            let mut p2 = 0.0;
+            for j in 0..n {
+                let p3 = p2;
+                p2 = p1;
+                let jf = j as f64;
+                p1 = z * (2.0 / (jf + 1.0)).sqrt() * p2 - (jf / (jf + 1.0)).sqrt() * p3;
+            }
+            derivative = (2.0 * nf).sqrt() * p2;
+            let step = p1 / derivative;
+            z -= step;
+            if step.abs() < 1e-15 * z.abs().max(1.0) {
+                break;
+            }
+        }
+        nodes[i] = z * std::f64::consts::SQRT_2;
+        weights[i] = 2.0 / (derivative * derivative * std::f64::consts::PI.sqrt());
+        if n - 1 - i != i {
+            nodes[n - 1 - i] = -nodes[i];
+            weights[n - 1 - i] = weights[i];
+        }
+    }
+    (nodes, weights)
+}
+
 /// Standard-normal PPF: Acklam's rational approximation refined by one Halley step.
 ///
 /// Acklam's approximation alone has relative error ~1.6e-9 at p=0.975, rising to ~7.6e-9
@@ -342,6 +390,44 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gauss_hermite_reproduces_normal_moments_exactly() {
+        // E[Z^{2k}] = (2k − 1)!!, odd moments vanish; an n-point rule is exact to degree 2n − 1.
+        for n in [1_usize, 2, 5, 8, 31, 32] {
+            let (nodes, weights) = gauss_hermite_standard_normal(n);
+            assert_eq!(nodes.len(), n);
+            assert!((weights.iter().sum::<f64>() - 1.0).abs() < 1e-12, "n={n}");
+            let mut double_factorial = 1.0;
+            for k in 0..=6_usize {
+                if k > 0 {
+                    double_factorial *= (2 * k - 1) as f64;
+                }
+                if 2 * k > 2 * n - 1 {
+                    break;
+                }
+                let even: f64 = nodes
+                    .iter()
+                    .zip(&weights)
+                    .map(|(z, w)| w * z.powi(i32::try_from(2 * k).unwrap()))
+                    .sum();
+                assert!(
+                    (even - double_factorial).abs() <= 1e-10 * double_factorial,
+                    "n={n} k={k}: {even} vs {double_factorial}"
+                );
+            }
+            let odd: f64 = nodes.iter().zip(&weights).map(|(z, w)| w * z.powi(3)).sum();
+            assert!(odd.abs() < 1e-10, "n={n}");
+        }
+        assert!(gauss_hermite_standard_normal(0).0.is_empty());
+    }
+
+    #[test]
+    fn gauss_hermite_two_point_rule_is_plus_minus_one() {
+        let (nodes, weights) = gauss_hermite_standard_normal(2);
+        assert!((nodes[0] - 1.0).abs() < 1e-13 && (nodes[1] + 1.0).abs() < 1e-13);
+        assert!((weights[0] - 0.5).abs() < 1e-13 && (weights[1] - 0.5).abs() < 1e-13);
+    }
 
     #[test]
     fn normal_ppf_pins_common_quantiles() {

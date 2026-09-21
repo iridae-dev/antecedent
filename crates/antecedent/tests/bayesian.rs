@@ -153,7 +153,9 @@ fn shared_functional_ate() {
 fn nonidentified_prior() {
     let expected = load_expected("nonidentified_prior");
     let prior = PriorSet::weakly_informative(3);
-    let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"), 64, 1);
+    let post =
+        nonidentified_with_prior(&prior, 0.0, 10.0, InferenceDiagnostics::analytic("none"), 64, 1)
+            .unwrap();
     assert_eq!(format!("{:?}", post.identification), expected["identification"].as_str().unwrap());
     assert!(
         (post.unidentified_mass - expected["unidentified_mass"].as_f64().unwrap()).abs() < 1e-12

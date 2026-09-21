@@ -324,15 +324,15 @@ fn confounded_ipw_weights(
     Ok((values, weights, dropped_nonfinite, bw))
 }
 
+/// Silverman bandwidth of a sampled outcome margin, from the shared rule in
+/// `antecedent-stats`. A sample too short for a spread estimate gets unit width;
+/// a degenerate (constant or non-finite) sample gets a spike-sized width so the KDE
+/// stays concentrated where the samples are instead of being smeared.
 fn silverman_bandwidth(x: &[f64]) -> f64 {
-    let n = x.len() as f64;
-    if n < 2.0 {
+    if x.len() < 2 {
         return 1.0;
     }
-    let mean = x.iter().sum::<f64>() / n;
-    let var = x.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
-    let sd = var.sqrt().max(1e-8);
-    1.06 * sd * n.powf(-0.2)
+    antecedent_stats::silverman_bandwidth(x).unwrap_or(1e-8)
 }
 
 /// Random-walk Metropolis–Hastings on the **outcome margin**.
