@@ -818,6 +818,15 @@ test = "python/tests/test_transport_interference_lifecycle.py::test_route_transp
 # stays byte-compatible.
 
 [[route]]
+kind = "transport"
+data = "tabular"
+structure = "explicit"
+options = "day1"
+retains = true
+reason = ""
+test = "python/tests/test_transport_day1.py::test_route_transport_tabular_explicit_day1"
+
+[[route]]
 kind = "interference"
 data = "tabular"
 structure = "explicit"

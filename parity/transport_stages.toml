@@ -78,6 +78,12 @@ functional = "pointwise_percentile_intervals_of_the_plugin_functional"
 observation = "shared_dataset_replicates_with_failure_accounting"
 guarantee = "joint_outer_bootstrap_or_explicitly_unavailable"
 limits = "IID independent studies only. Unknown, linked-unit, and clustered dependence keep identification and withhold the interval. Failed replicates are counted; fail_frac>0.5 or <2 successes withhold the interval. Intervals are nominal and pointwise, not simultaneous. Recorded calibration is limited to named 95% mean-interval designs; unbound executions make no execution-specific coverage claim."
+coverage = [
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.recursive_frontdoor_nominal_coverage",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.shared_factor_target_observational_nominal_coverage",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary",
+]
 evidence_test = "python/tests/test_transport_statistical.py"
 evidence_assertion = "test_joint_grid_and_contrasts_preserve_shared_replicates"
 
@@ -269,6 +275,11 @@ evidence = "binary_randomized_source_and_explicit_IID_target_sampling"
 functional = "target_mean_treatment_contrast"
 guarantee = "cross_fitted_augmented_inverse_odds_score"
 limits = "Known randomized treatment probabilities; nested-cohort nonparticipants or separately sampled representative target. Joint outer refit intervals remain nominal and uncalibrated. No recursive-factor or dependent-sampling license."
+coverage = [
+  "cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage",
+  "cov.transport_query.admg.frequentist.analytic_se.l95.transport_admg_trial_ipw_frequentist_nominal_coverage",
+]
+calibration_reason = "nominal_uncalibrated_learned_trial"
 evidence_test = "python/tests/test_learned_transport.py"
 evidence_assertion = "test_trial_lifecycle_retains_paired_score_and_atomic_refresh"
 
@@ -293,6 +304,7 @@ evidence = "embedded_sample_snapshot_and_out_of_fold_score_inputs"
 functional = "target_binary_treatment_contrast"
 guarantee = "identification_and_score_replay_with_interval_bookkeeping"
 limits = "Does not rerun nuisance training or establish nuisance consistency, calibration, or bootstrap coverage."
+calibration_reason = "nominal_uncalibrated_learned_trial"
 evidence_test = "crates/antecedent/src/analysis/learned_trial.rs"
 evidence_assertion = "trial_result_is_replayed_and_refresh_is_atomic"
 
@@ -309,7 +321,7 @@ role = "positive"
 evidence_class = "external_parity"
 evidence_test = "crates/antecedent-identify/tests/causaleffect_transport_subset.rs"
 evidence_assertion = "matches_frozen_causaleffect_supported_sid_subset"
-limits = "Frozen causaleffect 1.3.15 direct/standardize structure only; no numeric or interval claim."
+limits = "Frozen causaleffect 1.3.15 direct/standardize structure; numeric law compare is the enumerated SCM companion, not recursive completeness."
 
 [[fixture_evidence]]
 id = "transport_direct_regression.counterexample"
@@ -318,7 +330,7 @@ role = "counterexample"
 evidence_class = "external_parity"
 evidence_test = "crates/antecedent-identify/src/transport.rs"
 evidence_assertion = "outcome_as_selection_target_is_never_standardized_over"
-limits = "Frozen causaleffect 1.3.15 direct/standardize structure only; no numeric or interval claim."
+limits = "Frozen causaleffect 1.3.15 direct/standardize structure; numeric law compare is the enumerated SCM companion, not recursive completeness."
 
 [[fixture_evidence]]
 id = "transport_standardize_regression.positive"
@@ -363,6 +375,8 @@ role = "positive"
 evidence_class = "exact_scm_truth"
 evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
 evidence_assertion = "three_node_selection_graphs_agree_with_full_experimental_oracle"
+scm = "three_node_admg_64x8_selection_x_2_binary_laws"
+tolerance = "exact"
 limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 2 binary parameterizations; four-node coverage is branch conformance, not numeric truth."
 
 [[fixture_evidence]]
@@ -372,6 +386,8 @@ role = "counterexample"
 evidence_class = "exact_scm_truth"
 evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
 evidence_assertion = "two_population_district_recursion_fails_truth_under_kernel_population_substitution"
+scm = "three_node_admg_64x8_selection_x_2_binary_laws"
+tolerance = "exact"
 limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 2 binary parameterizations; four-node coverage is branch conformance, not numeric truth."
 
 [[fixture_evidence]]
