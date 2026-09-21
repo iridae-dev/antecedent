@@ -1,23 +1,31 @@
-//! Front-door two-stage (product-of-coefficients) regression estimator.
+//! Linear front-door two-stage (product-of-coefficients) regression estimator.
 //!
 //! Requires a `"frontdoor"` estimand with a non-empty [`IdentifiedEstimand::mediators`] set
-//! (see `antecedent_identify::frontdoor`). Supports one or more mediators `M₁…Mₖ`; the front-door
-//! criterion for a valid mediator set guarantees:
+//! (see `antecedent_identify::frontdoor`). Supports one or more mediators `M₁…Mₖ`. The
+//! identifier only emits mediator sets that satisfy the front-door criterion in the supplied
+//! graph:
 //!
 //! 1. The mediators intercept every directed path from `T` to `Y`.
 //! 2. No unblocked backdoor path from `T` to the mediators.
 //! 3. Every backdoor path from the mediators to `Y` is blocked by conditioning on `T`.
 //!
-//! For a linear SEM the nonparametric front-door formula collapses to a **path-sum** of
-//! product-of-coefficients terms:
+//! The criterion licenses the nonparametric functional
+//! `E[Y|do(t)] = Σ_m P(m|t) Σ_{t'} E[Y|m,t'] P(t')`; it says nothing about this estimator.
+//! [`crate::frontdoor_functional::FrontDoorFunctional`] estimates that functional. This module
+//! is the **linear shortcut**: a path-sum of product-of-coefficients terms,
 //!
 //! - **Stage 1** (per mediator): OLS of `Mⱼ` on `[1, T]` → `β_{T→Mⱼ}`.
 //! - **Stage 2**: OLS of `Y` on `[1, T, M₁…Mₖ]` → `β_{Mⱼ→Y}` (holding `T` and other mediators).
 //!
 //! `ATE = (Σⱼ β_{T→Mⱼ} · β_{Mⱼ→Y}) · (active − control)`.
 //!
-//! This assumes no direct `T → Y` edge (all of the treatment effect flows through the mediators,
-//! as the front-door criterion requires) and linear structural equations.
+//! The shortcut equals the functional only when `E[Mⱼ|T]` is linear in `T` and `E[Y|M,T]` is
+//! additive and linear in the mediators with **no treatment–mediator interaction**. A latent
+//! `T`–`Y` confounder that modifies a mediator's effect on `Y` (the very setting front-door
+//! exists for) puts such an interaction into `E[Y|M,T]`, and the product of coefficients then
+//! converges to a variance-weighted slope rather than the identified effect. Every fit
+//! therefore records [`LINEAR_PATH_PRODUCT_ASSUMPTION_ID`] as an estimation-scope parametric
+//! restriction on the result.
 //!
 //! The analytic standard error is a stacked M-estimator sandwich: every stage-1 mediator
 //! regression and the stage-2 outcome regression share one score vector per row so that
@@ -49,6 +57,9 @@ use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, require_clusters};
 use crate::util::{BootstrapSeResult, stats_err};
 
+/// Stable id of the functional-form restriction the product-of-coefficients shortcut relies on.
+pub const LINEAR_PATH_PRODUCT_ASSUMPTION_ID: &str = "frontdoor.linear_path_product";
+
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;
 /// Stage-1 column index of the treatment coefficient (`β_{T→M}`).
@@ -78,9 +89,13 @@ pub struct PreparedFrontDoorProblem {
     pub overlap: OverlapPolicy,
     /// Active − control treatment contrast used for the ATE scaling.
     pub treatment_delta: f64,
+    /// Active treatment level.
+    pub active: f64,
+    /// Control treatment level.
+    pub control: f64,
 }
 
-fn prepare_frontdoor_problem(
+pub(crate) fn prepare_frontdoor_problem(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
@@ -88,28 +103,28 @@ fn prepare_frontdoor_problem(
 ) -> Result<PreparedFrontDoorProblem, EstimationError> {
     crate::util::require_explicit_override(
         overlap,
-        "FrontDoorTwoStage requires ExplicitOverride overlap policy (not propensity-based)",
+        "front-door estimators require ExplicitOverride overlap policy (not propensity-based)",
     )?;
     if estimand.method_kind().ok() != Some(antecedent_expr::EstimandMethod::FrontDoor) {
         return Err(EstimationError::IncompatibleEstimand {
-            message: "FrontDoorTwoStage expects a \"frontdoor\" estimand",
+            message: "front-door estimators expect a \"frontdoor\" estimand",
         });
     }
     if estimand.mediators.is_empty() {
         return Err(EstimationError::IncompatibleEstimand {
-            message: "FrontDoorTwoStage requires a non-empty mediator set",
+            message: "front-door estimators require a non-empty mediator set",
         });
     }
     query.validate()?;
     if !query.effect_modifiers.is_empty() {
         return Err(EstimationError::unsupported(
-            "FrontDoorTwoStage does not support effect modifiers",
+            "front-door estimators do not support effect modifiers",
         ));
     }
     if query.target_population != TargetPopulation::AllObserved {
         return Err(EstimationError::refused(
             antecedent_core::reason_code!("population_not_estimable"),
-            "FrontDoorTwoStage only supports TargetPopulation::AllObserved",
+            "front-door estimators only support TargetPopulation::AllObserved",
         ));
     }
     let treatment = query.treatment;
@@ -146,6 +161,8 @@ fn prepare_frontdoor_problem(
         mediator_ids: Arc::clone(&estimand.mediators),
         overlap,
         treatment_delta,
+        active,
+        control,
     })
 }
 
@@ -259,9 +276,10 @@ impl FrontDoorTwoStage {
         problem: &PreparedFrontDoorProblem,
         workspace: &mut FrontDoorWorkspace,
         ctx: &ExecutionContext,
-        assumptions: AssumptionSet,
+        mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let (ate, se_analytic) = self.point_estimate(problem, workspace)?;
+        assumptions.push(linear_path_product_assumption());
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -407,6 +425,24 @@ impl FrontDoorTwoStage {
     }
 }
 
+fn linear_path_product_assumption() -> antecedent_core::AssumptionRecord {
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from(LINEAR_PATH_PRODUCT_ASSUMPTION_ID),
+                description: Arc::from(
+                    "The front-door effect is computed as a sum of products of OLS coefficients (T -> M_j times M_j -> Y given T and the other mediators), not by evaluating the front-door functional. It equals the identified effect only if E[M_j | T] is linear in T and E[Y | M, T] is linear and additive in the mediators with no treatment-mediator interaction; a latent treatment-outcome confounder that modifies a mediator's effect violates this. Use frontdoor.functional to estimate the functional itself.",
+                ),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("frontdoor.linear_two_stage"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
+}
+
 /// Build the column-major `[1, T]` stage-1 design.
 fn stage1_matrix(treatment: &[f64]) -> Vec<f64> {
     let n = treatment.len();
@@ -533,13 +569,7 @@ fn stacked_theta_cov_and_grad(
         AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 => {
             let mut meat = stacked_hc_meat(stages, cross_stage);
             if matches!(se_kind, AnalyticSeKind::Hc1) {
-                if n_rows <= n_params {
-                    return Err(EstimationError::stats_msg("non-positive residual df for HC1"));
-                }
-                let scale = n_rows as f64 / (n_rows as f64 - n_params as f64);
-                for v in &mut meat {
-                    *v *= scale;
-                }
+                scale_meat_by_equation_df(&mut meat, stages, |n, p| n / (n - p))?;
             }
             meat
         }
@@ -634,6 +664,39 @@ fn zero_cross_blocks(meat: &mut [f64], n_params: usize, n_mediators: usize, stag
     }
 }
 
+/// Apply a small-sample factor `factor(n, p)` equation by equation.
+///
+/// Each stacked regression has its own residual degrees of freedom (`p = 2` for a stage-1
+/// `M ~ 1 + T` fit, `p = 2 + k` for stage 2), so its scores are scaled by the square root of
+/// its own factor: meat entry `(i, j)` is multiplied by `sqrt(f_i · f_j)`. This keeps "HC1" and
+/// the cluster correction equal to their single-equation definitions on the diagonal blocks
+/// instead of charging every coefficient for the parameters of the other regressions.
+fn scale_meat_by_equation_df(
+    meat: &mut [f64],
+    stages: &StackedStageViews<'_>,
+    factor: impl Fn(f64, f64) -> f64,
+) -> Result<(), EstimationError> {
+    let n_mediators = stages.stage1_resid.len();
+    let n_rows = stages.stage2_resid.len();
+    let n_params = n_mediators * STAGE1_NCOLS + stages.stage2_ncols;
+    if n_rows <= STAGE1_NCOLS.max(stages.stage2_ncols) {
+        return Err(EstimationError::stats_msg("non-positive residual df for stacked SE"));
+    }
+    let root: Vec<f64> = (0..n_params)
+        .map(|param| {
+            let p =
+                if param < n_mediators * STAGE1_NCOLS { STAGE1_NCOLS } else { stages.stage2_ncols };
+            factor(n_rows as f64, p as f64).sqrt()
+        })
+        .collect();
+    for i in 0..n_params {
+        for j in 0..n_params {
+            meat[i * n_params + j] *= root[i] * root[j];
+        }
+    }
+    Ok(())
+}
+
 fn stacked_hc_meat(stages: &StackedStageViews<'_>, cross_stage: CrossStagePolicy) -> Vec<f64> {
     let n_mediators = stages.stage1_resid.len();
     let n_rows = stages.stage2_resid.len();
@@ -677,9 +740,6 @@ fn stacked_cluster_meat(
             "cluster-robust variance requires at least 2 clusters",
         ));
     }
-    if n_rows <= n_params {
-        return Err(EstimationError::stats_msg("non-positive residual df for cluster SE"));
-    }
     let mut meat = vec![0.0; n_params * n_params];
     for score_g in totals.values() {
         for i in 0..n_params {
@@ -691,17 +751,14 @@ fn stacked_cluster_meat(
     if cross_stage == CrossStagePolicy::IndependentPaths {
         zero_cross_blocks(&mut meat, n_params, n_mediators, stages.stage2_ncols);
     }
-    let scale = (n_clusters as f64 / (n_clusters as f64 - 1.0))
-        * ((n_rows as f64 - 1.0) / (n_rows as f64 - n_params as f64));
-    for v in &mut meat {
-        *v *= scale;
-    }
+    let g = n_clusters as f64 / (n_clusters as f64 - 1.0);
+    scale_meat_by_equation_df(&mut meat, stages, |n, p| g * (n - 1.0) / (n - p))?;
     Ok(meat)
 }
 
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -740,7 +797,7 @@ mod tests {
         (build_frontdoor_data(n, t, y, m), frontdoor_estimand())
     }
 
-    fn frontdoor_estimand() -> IdentifiedEstimand {
+    pub(crate) fn frontdoor_estimand() -> IdentifiedEstimand {
         IdentifiedEstimand::frontdoor(
             "frontdoor",
             Arc::from([VariableId::from_raw(2)]),
@@ -748,7 +805,12 @@ mod tests {
         )
     }
 
-    fn build_frontdoor_data(n: usize, t: Vec<f64>, y: Vec<f64>, m: Vec<f64>) -> TabularData {
+    pub(crate) fn build_frontdoor_data(
+        n: usize,
+        t: Vec<f64>,
+        y: Vec<f64>,
+        m: Vec<f64>,
+    ) -> TabularData {
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "t",
@@ -808,11 +870,11 @@ mod tests {
         TabularData::new(storage)
     }
 
-    fn query() -> AverageEffectQuery {
+    pub(crate) fn query() -> AverageEffectQuery {
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0)
     }
 
-    fn ctx() -> ExecutionContext {
+    pub(crate) fn ctx() -> ExecutionContext {
         ExecutionContext::for_tests(41)
     }
 
@@ -1213,6 +1275,61 @@ mod tests {
     }
 
     #[test]
+    fn hc1_and_cluster_df_factors_are_per_equation() {
+        // With cross-stage blocks zeroed the path-product variance is
+        // b²·Var(a) + a²·Var(b), and each coefficient's small-sample factor must be that of
+        // its own regression: n/(n−2) for `M ~ 1 + T`, n/(n−3) for `Y ~ 1 + T + M`.
+        let (data, estimand) = frontdoor_scm(40, 5);
+        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let prep = est.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let n = prep.nrows;
+        let x1 = stage1_matrix(&prep.treatment);
+        let s1 = est.fit_stage1(&prep.treatment, &prep.mediators[0], &mut ws).unwrap();
+        let s2 = est.fit_stage2(&prep.treatment, &prep.mediators, &prep.outcome, &mut ws).unwrap();
+        let x2 = stage2_matrix(&prep.treatment, &prep.mediators);
+        let stage1_resid = [s1.residuals.clone()];
+        let stage1_coefs = [s1.coefficients.clone()];
+        let stages = StackedStageViews {
+            x1: &x1,
+            stage1_resid: &stage1_resid,
+            stage1_coefs: &stage1_coefs,
+            x2: &x2,
+            stage2_ncols: 3,
+            stage2_resid: &s2.residuals,
+            stage2_coefs: &s2.coefficients,
+            treatment_delta: prep.treatment_delta,
+        };
+        let a = s1.coefficients[STAGE1_TREATMENT_COL];
+        let b = s2.coefficients[STAGE2_FIRST_MEDIATOR_COL];
+        let idx_a = STAGE1_TREATMENT_COL;
+        let idx_b = STAGE1_NCOLS + STAGE2_FIRST_MEDIATOR_COL;
+        let policy = CrossStagePolicy::IndependentPaths;
+        let (hc0, _) =
+            stacked_theta_cov_and_grad(&stages, AnalyticSeKind::Hc0, None, policy).unwrap();
+        let nf = n as f64;
+        let expected = (b * b * hc0[idx_a * 5 + idx_a] * nf / (nf - 2.0)
+            + a * a * hc0[idx_b * 5 + idx_b] * nf / (nf - 3.0))
+            .sqrt();
+        let hc1 = stacked_path_sum_se(&stages, AnalyticSeKind::Hc1, None, policy).unwrap();
+        assert!((hc1 - expected).abs() < 1e-12 * expected, "hc1={hc1} expected={expected}");
+
+        // One row per cluster: the cluster meat is the HC0 meat, so only the factor differs.
+        let singletons: Vec<u32> = (0..n as u32).collect();
+        let g = nf / (nf - 1.0);
+        let expected = (b * b * hc0[idx_a * 5 + idx_a] * g * (nf - 1.0) / (nf - 2.0)
+            + a * a * hc0[idx_b * 5 + idx_b] * g * (nf - 1.0) / (nf - 3.0))
+            .sqrt();
+        let cluster =
+            stacked_path_sum_se(&stages, AnalyticSeKind::Cluster, Some(&singletons), policy)
+                .unwrap();
+        assert!(
+            (cluster - expected).abs() < 1e-12 * expected,
+            "cluster={cluster} expected={expected}"
+        );
+    }
+
+    #[test]
     fn clustered_stacked_se_invariant_to_cluster_relabel() {
         let (data, estimand) = frontdoor_scm(800, 31);
         let prep = FrontDoorTwoStage::new().prepare(&data, &estimand, &query()).unwrap();
@@ -1240,6 +1357,69 @@ mod tests {
         let se2 = est2.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().se_analytic;
         assert!((se1 - se2).abs() < 1e-12, "relabel changed SE: {se1} vs {se2}");
         assert!(se1.is_finite() && se1 > 0.0);
+    }
+
+    /// Exact population table of the binary SCM `U ~ Bern(.5)`, `P(T=1|U) = .1 + .5U`,
+    /// `P(M=1|T) = .1 + .7T`, `P(Y=1|M,U) = .05 + .9·M·U`, with `U` dropped: every cell
+    /// probability is a multiple of `1/4000`, so 4000 rows reproduce the observed law exactly.
+    /// The latent `U` modifies the `M → Y` effect, so `E[Y|M,T]` has a `T×M` interaction.
+    pub(crate) fn interaction_scm_exact_table() -> (TabularData, f64) {
+        let (mut t, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());
+        let mut truth = [0.0_f64; 2];
+        for u in 0..2_u32 {
+            let pu = 0.5;
+            let uf = f64::from(u);
+            for (arm, slot) in truth.iter_mut().enumerate() {
+                // E[Y | do(T=arm)] = Σ_u P(u) Σ_m P(m | arm) E[Y | m, u].
+                let pm1 = 0.1 + 0.7 * arm as f64;
+                *slot += pu * ((1.0 - pm1) * 0.05 + pm1 * (0.05 + 0.9 * uf));
+            }
+            for ti in 0..2_u32 {
+                let pt1 = 0.1 + 0.5 * uf;
+                let pt = if ti == 1 { pt1 } else { 1.0 - pt1 };
+                for mi in 0..2_u32 {
+                    let pm1 = 0.1 + 0.7 * f64::from(ti);
+                    let pm = if mi == 1 { pm1 } else { 1.0 - pm1 };
+                    for yi in 0..2_u32 {
+                        let py1 = 0.05 + 0.9 * f64::from(mi) * uf;
+                        let py = if yi == 1 { py1 } else { 1.0 - py1 };
+                        let count = (pu * pt * pm * py * 4000.0).round() as usize;
+                        assert!((count as f64 - pu * pt * pm * py * 4000.0).abs() < 1e-9);
+                        for _ in 0..count {
+                            t.push(f64::from(ti));
+                            m.push(f64::from(mi));
+                            y.push(f64::from(yi));
+                        }
+                    }
+                }
+            }
+        }
+        let n = t.len();
+        assert_eq!(n, 4000);
+        (build_frontdoor_data(n, t, y, m), truth[1] - truth[0])
+    }
+
+    #[test]
+    fn linear_path_product_misses_truth_when_latent_modifies_mediator_effect() {
+        let (data, truth) = interaction_scm_exact_table();
+        assert!((truth - 0.315).abs() < 1e-12, "enumerated truth={truth}");
+        let est = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
+        let prep = est.prepare(&data, &frontdoor_estimand(), &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        // On the exact population table the product of coefficients is its own probability
+        // limit: 0.7 times the variance-weighted within-arm slope, not the functional.
+        assert!((effect.ate - 0.363).abs() < 2e-3, "linear ate={}", effect.ate);
+        assert!((effect.ate - truth).abs() > 0.04);
+        // The shortcut must therefore say what it assumes.
+        assert!(
+            effect.assumptions.entries.iter().any(|r| matches!(
+                &r.assumption,
+                antecedent_core::Assumption::ParametricRestriction(p)
+                    if p.id.as_ref() == LINEAR_PATH_PRODUCT_ASSUMPTION_ID
+            )),
+            "linear front-door result must record its linearity restriction"
+        );
     }
 
     #[test]
