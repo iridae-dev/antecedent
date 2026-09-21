@@ -989,7 +989,26 @@ impl StudyResult {
         &self,
         query: &antecedent_core::CausalQuery,
     ) -> Result<AnalysisResultWire, CausalError> {
-        body_for(&body_frame(query, None, None, None)?, self)
+        self.analysis_result_wire_with_context(query, None, None)
+    }
+
+    /// [`Self::analysis_result_wire`], threading the originating study's population
+    /// registry and cached temporal identification. Callers that hold both the
+    /// prepared study and its executed result (the composite artifact path) use
+    /// this instead of re-deriving the body from the result alone, so the scalar,
+    /// identification and every other field come from the one place that builds
+    /// the contracted artifact.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn analysis_result_wire_with_context(
+        &self,
+        query: &antecedent_core::CausalQuery,
+        registry: Option<&antecedent_core::PopulationRegistry>,
+        temporal: Option<&CachedTemporalIdentification>,
+    ) -> Result<AnalysisResultWire, CausalError> {
+        body_for(&body_frame(query, temporal, None, registry)?, self)
     }
 }
 

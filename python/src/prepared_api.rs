@@ -3458,13 +3458,13 @@ impl PyPreparedAnalysis {
             || result.structural_response.is_some()
             || (result.posterior.is_some() && result.response.is_some())
         {
-            let wire = composite_result_wire(
-                result,
-                self.inner.query(),
-                self.inner.population_registry(),
-                self.inner.temporal_identification(),
-                artifact_id,
-            )?;
+            let wire = result
+                .analysis_result_wire_with_context(
+                    self.inner.query(),
+                    self.inner.population_registry(),
+                    self.inner.temporal_identification(),
+                )
+                .map_err(py_err)?;
             let artifact = antecedent_io::encode_analysis_result_artifact(
                 &wire,
                 self.names.clone(),
@@ -3808,117 +3808,6 @@ fn hard_value(intervention: &Intervention) -> Option<f64> {
         Intervention::Set { value, .. } => value.as_f64(),
         _ => None,
     }
-}
-
-fn composite_result_wire(
-    result: &antecedent::StudyResult,
-    query: &CausalQuery,
-    registry: Option<&antecedent_core::PopulationRegistry>,
-    temporal: Option<&antecedent::analysis::CachedTemporalIdentification>,
-    artifact_id: &str,
-) -> PyResult<antecedent_io::AnalysisResultWire> {
-    let identification =
-        antecedent_io::identification_to_wire_with_registry(&result.identification, registry)
-            .map_err(py_err)?;
-    let temporal_identification = temporal
-        .into_iter()
-        .flat_map(|cache| cache.by_horizon.iter())
-        .map(|entry| {
-            let variables = (0..entry.indexer.dense_len())
-                .map(|dense| {
-                    let key = entry
-                        .indexer
-                        .key_of(
-                            u32::try_from(dense)
-                                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-                        )
-                        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                    Ok(antecedent_io::HorizonAdjustmentNodeWire {
-                        variable: key.variable.raw(),
-                        offset: key.offset,
-                    })
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            Ok(antecedent_io::TemporalIdentificationWire {
-                horizon: entry.horizon,
-                variables,
-                identification: antecedent_io::identification_to_wire_with_registry(
-                    &entry.identification,
-                    registry,
-                )
-                .map_err(py_err)?,
-            })
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    let mut identification_variables = temporal_identification
-        .iter()
-        .find(|entry| entry.identification.query == identification.query)
-        .map(|entry| entry.variables.clone());
-    if identification_variables.is_none() {
-        if let Some(antecedent::AnalysisIdentification {
-            identification: antecedent::Identification::TemporalEnvelope { envelope, .. },
-            ..
-        }) = result.certificate.as_ref()
-        {
-            if let Some((_, indexer)) =
-                envelope.envelope.cases.iter().zip(&envelope.indexers).find(|(case, _)| {
-                    case.result.estimands.iter().any(|estimand| {
-                        estimand.method == result.estimand.method
-                            && estimand.adjustment_set == result.estimand.adjustment_set
-                    })
-                })
-            {
-                identification_variables = Some(
-                    (0..indexer.dense_len())
-                        .map(|dense| {
-                            let key = indexer
-                                .key_of(u32::try_from(dense).map_err(py_msg)?)
-                                .map_err(py_msg)?;
-                            Ok(antecedent_io::HorizonAdjustmentNodeWire {
-                                variable: key.variable.raw(),
-                                offset: key.offset,
-                            })
-                        })
-                        .collect::<PyResult<Vec<_>>>()?,
-                );
-            }
-        }
-    }
-    let published = antecedent::PublishedScalarUncertainty::select(&result.estimate);
-    let mut wire = antecedent_io::AnalysisResultWire {
-        query: antecedent_io::causal_query_to_wire_with_registry(query, registry)
-            .map_err(py_err)?,
-        identification,
-        identification_variables,
-        temporal_identification,
-        estimate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        standard_error: published.standard_error,
-        interval_lower: published.lower,
-        interval_upper: published.upper,
-        assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
-        diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
-        refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
-        response: None,
-        posterior_artifact: None,
-        mediation_grid: None,
-        structural_response: None,
-        unit_effects: None,
-        cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
-        fitted_effect: result.estimate.fitted_effect.as_deref().cloned(),
-        cate_se: result.estimate.cate_se.as_ref().map(|v| v.to_vec()),
-        outcome_oof_r2: result.estimate.outcome_oof_r2,
-        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
-        crossfit_folds: result.estimate.crossfit_folds,
-        crossfit_seed: result.estimate.crossfit_seed,
-        learner_provenance: result
-            .estimate
-            .learner_provenance
-            .iter()
-            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
-            .collect(),
-    };
-    result.fill_analysis_result_payloads(&mut wire, artifact_id).map_err(py_err)?;
-    Ok(wire)
 }
 
 pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_core::TransformIntent> {
