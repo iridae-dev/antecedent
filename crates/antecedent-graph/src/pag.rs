@@ -288,9 +288,11 @@ impl Pag {
 ///
 /// A non-endpoint `V` between `A` and `B` is a definite collider when both path
 /// edges have an arrowhead at `V`. It is a definite non-collider when a path
-/// edge has a tail at `V`, or when both have a circle at `V` and `A`, `B` are
-/// not adjacent (Zhang 2008): an unshielded triple that is not marked as a
-/// collider is a collider in no member of the class. A conflict mark records
+/// edge has a tail at `V`, or when the marks at `V` are not both arrowheads and
+/// `A`, `B` are not adjacent (Zhang 2008 states this for circle-circle; a
+/// remaining circle beside an arrowhead is covered by the same argument): an
+/// unshielded triple that is not marked as a collider is a collider in no
+/// member of the class. A conflict mark records
 /// that the orientation is unknown, so it never yields a definite status.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DefiniteStatusPath {
@@ -393,11 +395,13 @@ impl Pag {
                 return false;
             };
             let definite_collider = from_pred == Endpoint::Arrow && from_succ == Endpoint::Arrow;
+            // Members keep the PAG's unshielded colliders and add none, so an
+            // unshielded triple without two arrowheads is a non-collider in all
+            // of them even when only one mark at `V` is a circle.
+            let conflict = from_pred == Endpoint::Conflict || from_succ == Endpoint::Conflict;
             let definite_noncollider = from_pred == Endpoint::Tail
                 || from_succ == Endpoint::Tail
-                || (from_pred == Endpoint::Circle
-                    && from_succ == Endpoint::Circle
-                    && !self.has_edge(w[0], w[2]));
+                || (!conflict && !definite_collider && !self.has_edge(w[0], w[2]));
             definite_collider || definite_noncollider
         })
     }
