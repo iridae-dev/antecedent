@@ -116,7 +116,7 @@ fn rd_data(seed: u64) -> TabularData {
         let centered = -1.0 + 2.0 * (i as f64) / (N as f64);
         let treated = f64::from(centered >= 0.0);
         r[i] = centered;
-        t[i] = 0.0;
+        t[i] = treated;
         y[i] = 1.0 + 0.5 * centered + 2.0 * treated - 0.8 * treated * centered + 0.3 * g();
     }
     table(&[("t", &t), ("y", &y), ("r", &r)])
@@ -253,8 +253,13 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             } else {
                 AnalyticSeKind::Homoskedastic
             };
+            // The sharp design as a graph: r -> t -> y and r -> y.
+            let mut design = Dag::with_variables(3);
+            design.insert_directed(d(2), d(0)).unwrap();
+            design.insert_directed(d(0), d(1)).unwrap();
+            design.insert_directed(d(2), d(1)).unwrap();
             Study::tabular(rd_data(13))
-                .graph(Dag::with_variables(3))
+                .graph(design)
                 .query(ate_query())
                 .identifier(IdentifierId::RdSharp)
                 .estimator(EstimatorId::RdSharp)
