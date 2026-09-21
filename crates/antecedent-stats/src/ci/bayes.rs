@@ -19,7 +19,7 @@
 )]
 
 use antecedent_core::{CausalRng, ExecutionContext};
-use antecedent_kernels::standard_normal;
+use antecedent_kernels::{sample_inv_gamma, standard_normal};
 
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -545,39 +545,6 @@ fn pearson_abs(x: &[f64], y: &[f64]) -> Option<f64> {
         return Some(0.0);
     }
     Some((cxy / denom).abs())
-}
-
-fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
-    let g = sample_gamma(shape, scale, rng);
-    1.0 / g.max(f64::MIN_POSITIVE)
-}
-
-fn sample_gamma(shape: f64, rate: f64, rng: &mut CausalRng) -> f64 {
-    if shape < 1.0 {
-        let u = rng.next_f64().max(f64::EPSILON);
-        return sample_gamma(shape + 1.0, rate, rng) * u.powf(1.0 / shape);
-    }
-    let d = shape - 1.0 / 3.0;
-    let c = 1.0 / (9.0 * d).sqrt();
-    loop {
-        let mut x;
-        let mut v;
-        loop {
-            x = standard_normal(rng);
-            v = 1.0 + c * x;
-            if v > 0.0 {
-                break;
-            }
-        }
-        v = v * v * v;
-        let u = rng.next_f64();
-        if u < 1.0 - 0.0331 * (x * x) * (x * x) {
-            return d * v / rate;
-        }
-        if u.ln() < 0.5 * x * x + d * (1.0 - v + v.ln()) {
-            return d * v / rate;
-        }
-    }
 }
 
 /// Independent empty-Z NIG reference via explicit 1×1 / 2×2 algebra (no Cholesky).

@@ -18,7 +18,9 @@ use antecedent_estimate::{
     SerialDependence, tempering_kappa_from_notes,
 };
 use antecedent_identify::IdentificationStatus;
-use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
+use antecedent_kernels::{
+    PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws, standard_normal,
+};
 use antecedent_prob::{
     ExternalPriorSource, GaussianVarianceModel, HessianFactorization, PriorSensitivityFamily,
     PriorSensitivitySummary, PriorSet, PriorSpec, compose_external_priors_with_alphas,
@@ -2382,9 +2384,9 @@ impl PosteriorCalibrationOnSyntheticScm {
                 .effect_column()
                 .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
             let mut draws = post.draws.column(col).map_err(ValidationError::from)?.to_vec();
-            draws.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let lo = quantile_sorted(&draws, alpha);
-            let hi = quantile_sorted(&draws, 1.0 - alpha);
+            draws.sort_by(f64::total_cmp);
+            let lo = quantile_type7_sorted(&draws, alpha);
+            let hi = quantile_type7_sorted(&draws, 1.0 - alpha);
             let mean = reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy)
                 .unwrap_or(0.0);
             abs_err += (mean - true_ate).abs();
@@ -2398,21 +2400,4 @@ impl PosteriorCalibrationOnSyntheticScm {
             n_reps: self.n_reps,
         })
     }
-}
-
-fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let max_idx = sorted.len() - 1;
-    let rank = (max_idx as f64 * q.clamp(0.0, 1.0)).round();
-    let idx = (0..=max_idx)
-        .min_by(|&a, &b| {
-            (a as f64 - rank)
-                .abs()
-                .partial_cmp(&(b as f64 - rank).abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(0);
-    sorted[idx]
 }

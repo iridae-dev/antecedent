@@ -4,16 +4,18 @@
 
 use std::sync::Arc;
 
+/// Largest Cholesky condition lower bound at which a Laplace covariance is
+/// still published. Beyond ~1/ε the inverse Hessian carries no correct digits.
+pub const MAX_HESSIAN_CONDITION: f64 = 1e14;
+
 /// Factorization used for the Laplace covariance / MCMC marker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum HessianFactorization {
     /// Cholesky of the negative Hessian.
     Cholesky,
-    /// Structured LDLT fallback.
-    Ldlt,
     /// Analytic conjugate (exact posterior; no Hessian).
     Analytic,
-    /// Multi-chain MCMC (HMC / SMC); curvature from sampling, not Hessian.
+    /// Multi-chain MCMC (HMC); curvature from sampling, not Hessian.
     Mcmc,
 }
 
@@ -100,14 +102,48 @@ impl InferenceDiagnostics {
         match self.factorization {
             HessianFactorization::Analytic => true,
             HessianFactorization::Mcmc => self.converged && self.mcmc_publication_ok(),
-            HessianFactorization::Cholesky | HessianFactorization::Ldlt => {
-                self.converged
-                    && !self.separation_warning
-                    && self.grad_inf_norm.is_finite()
-                    && self.hessian_condition.is_finite()
-                    && self.hessian_condition > 0.0
-            }
+            HessianFactorization::Cholesky => self.curvature_refusal().is_none(),
         }
+    }
+
+    /// Why a Laplace (Cholesky) posterior is refused, or `None` when its
+    /// convergence and curvature diagnostics allow publication.
+    ///
+    /// Names the actual cause so a separation refusal is not reported as
+    /// missing diagnostics. The condition ceiling applies to the Cholesky
+    /// lower bound on κ(−Hessian), so a factor at working-precision singularity
+    /// is refused rather than published with a finite-looking covariance.
+    #[must_use]
+    pub fn curvature_refusal(&self) -> Option<String> {
+        if !self.converged {
+            return Some("Laplace posterior refused: the mode search did not converge".into());
+        }
+        if self.separation_warning {
+            return Some(
+                "Laplace posterior refused: at least one observation is fitted within 1e-8 of \
+                 certainty at the mode (possible separation), so the Gaussian approximation is \
+                 not a publication-grade posterior"
+                    .into(),
+            );
+        }
+        if !self.grad_inf_norm.is_finite() {
+            return Some("Laplace posterior refused: non-finite gradient at the mode".into());
+        }
+        if !(self.hessian_condition > 0.0 && self.hessian_condition.is_finite()) {
+            return Some(
+                "Laplace posterior refused: the negative Hessian at the mode has no finite \
+                 condition estimate"
+                    .into(),
+            );
+        }
+        if self.hessian_condition > MAX_HESSIAN_CONDITION {
+            return Some(format!(
+                "Laplace posterior refused: negative Hessian condition lower bound {:.3e} exceeds \
+                 {MAX_HESSIAN_CONDITION:.0e} (numerically singular curvature)",
+                self.hessian_condition
+            ));
+        }
+        None
     }
 
     /// Full MATH-002 MCMC publication predicate (independent of `converged`).
@@ -268,6 +304,27 @@ mod tests {
         assert!(d.allows_posterior());
         d.separation_warning = true;
         assert!(!d.allows_posterior());
+    }
+
+    #[test]
+    fn laplace_refusal_names_its_cause() {
+        let mut d = mcmc_ok_base();
+        d.factorization = HessianFactorization::Cholesky;
+        d.hessian_condition = 10.0;
+        assert!(d.curvature_refusal().is_none());
+        d.separation_warning = true;
+        assert!(d.curvature_refusal().unwrap().contains("separation"));
+        d.separation_warning = false;
+        d.hessian_condition = f64::NAN;
+        assert!(d.curvature_refusal().unwrap().contains("condition"));
+        assert!(!d.allows_posterior());
+        d.hessian_condition = 1e15;
+        assert!(d.curvature_refusal().unwrap().contains("exceeds"));
+        assert!(!d.allows_posterior());
+        d.hessian_condition = 1e13;
+        assert!(d.allows_posterior());
+        d.converged = false;
+        assert!(d.curvature_refusal().unwrap().contains("converge"));
     }
 
     #[test]

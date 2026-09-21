@@ -52,33 +52,13 @@ pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f
 
 /// Lower-triangular Cholesky of an SPD matrix (row-major `n×n`).
 ///
-/// Returns `None` on a non-positive pivot.
+/// Returns `None` on a NaN, non-positive, or numerically singular pivot. The
+/// factorization is [`antecedent_kernels::cholesky_spd_into`], shared with the
+/// Bayesian backends.
 #[must_use]
 pub fn cholesky_spd(a: &[f64], n: usize) -> Option<Vec<f64>> {
-    if a.len() < n * n {
-        return None;
-    }
-    let mut l = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = a[i * n + j];
-            for k in 0..j {
-                sum -= l[i * n + k] * l[j * n + k];
-            }
-            if i == j {
-                if sum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-                    return None;
-                }
-                l[i * n + j] = sum.sqrt();
-            } else {
-                let diag = l[j * n + j];
-                if diag.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-                    return None;
-                }
-                l[i * n + j] = sum / diag;
-            }
-        }
-    }
+    let mut l = vec![0.0; n.checked_mul(n)?];
+    antecedent_kernels::cholesky_spd_into(a, n, &mut l).ok()?;
     Some(l)
 }
 

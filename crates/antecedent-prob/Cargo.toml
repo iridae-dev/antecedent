@@ -21,13 +21,6 @@ antecedent-core = { version = "1.11.0", path = "../antecedent-core" }
 antecedent-kernels = { version = "1.11.0", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 
-[features]
-default = ["hmc"]
-# Native HMC sampling backend. Empty feature flag; always compiled when enabled.
-hmc = []
-# Reserved for SMC; not yet implemented as a separate backend.
-smc = []
-
 [dev-dependencies]
 criterion = { workspace = true }
 serde_json = { workspace = true }

@@ -584,7 +584,7 @@ fn quantity_moments(
 pub struct BayesianGlmMechanism {
     /// Fitted coefficient draws (columnar).
     pub coefficient_draws: PosteriorDraws,
-    /// MAP / posterior mode coefficients.
+    /// Point-estimate coefficients: posterior mode (Laplace) or posterior mean (conjugate, HMC).
     pub map: Vec<f64>,
     /// Likelihood used.
     pub likelihood: BayesLikelihood,

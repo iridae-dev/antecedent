@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 use antecedent_core::KernelPolicy;
 
@@ -76,6 +76,29 @@ fn sample_sd(population_variance: f64, n: usize) -> Option<f64> {
     Some((population_variance * n / (n - 1.0)).sqrt())
 }
 
+/// Sample quantile of an ascending-sorted column by Hyndman–Fan type 7
+/// (linear interpolation between order statistics, `h = (n − 1)p`).
+///
+/// `sorted` must be ordered by [`f64::total_cmp`]; that order puts NaN at
+/// either end, so the endpoints alone detect it. A column containing NaN, an
+/// empty column, or a `p` outside `[0, 1]` yields NaN rather than a finite
+/// value read off an arbitrarily ordered array.
+#[must_use]
+pub fn quantile_type7_sorted(sorted: &[f64], p: f64) -> f64 {
+    let n = sorted.len();
+    if n == 0 || !(0.0..=1.0).contains(&p) || sorted[0].is_nan() || sorted[n - 1].is_nan() {
+        return f64::NAN;
+    }
+    let h = (n - 1) as f64 * p;
+    let lo = h.floor() as usize;
+    let hi = (h.ceil() as usize).min(n - 1);
+    if lo == hi {
+        return sorted[lo];
+    }
+    let w = h - lo as f64;
+    sorted[lo] * (1.0 - w) + sorted[hi] * w
+}
+
 fn reduce_scalar(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> {
     match op {
         PosteriorReduceOp::Mean => scalar::masked_mean(view, None),
@@ -133,5 +156,37 @@ mod tests {
         let portable =
             reduce_posterior_draws(&[1.0, 3.0], PosteriorReduceOp::Std, &policy).unwrap();
         assert!((portable - 2.0_f64.sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn type7_matches_hand_interpolation() {
+        let s = [1.0, 2.0, 4.0, 8.0, 16.0];
+        // h = 4 * 0.25 = 1.0 -> exactly the 2nd order statistic.
+        assert_eq!(quantile_type7_sorted(&s, 0.25), 2.0);
+        // h = 4 * 0.6 = 2.4 -> 4 + 0.4 * (8 - 4) = 5.6.
+        assert!((quantile_type7_sorted(&s, 0.6) - 5.6).abs() < 1e-12);
+        assert_eq!(quantile_type7_sorted(&s, 0.0), 1.0);
+        assert_eq!(quantile_type7_sorted(&s, 1.0), 16.0);
+        // n = 1001, p = 0.975 -> h = 975 exactly (order statistic 975).
+        let ramp: Vec<f64> = (0..=1000).map(f64::from).collect();
+        assert!((quantile_type7_sorted(&ramp, 0.025) - 25.0).abs() < 1e-12);
+        assert!((quantile_type7_sorted(&ramp, 0.975) - 975.0).abs() < 1e-12);
+        // n = 40, p = 0.975 -> h = 38.025 -> 38 + 0.025 * 1 on a unit ramp.
+        let r40: Vec<f64> = (0..40).map(f64::from).collect();
+        assert!((quantile_type7_sorted(&r40, 0.975) - 38.025).abs() < 1e-12);
+    }
+
+    #[test]
+    fn type7_is_nan_for_undefined_inputs() {
+        assert!(quantile_type7_sorted(&[], 0.5).is_nan());
+        assert!(quantile_type7_sorted(&[1.0, 2.0], 1.5).is_nan());
+        assert!(quantile_type7_sorted(&[1.0, 2.0], f64::NAN).is_nan());
+        // total_cmp sorts +NaN last and -NaN first; both poison the quantile.
+        let mut a = vec![3.0, f64::NAN, 1.0, 2.0];
+        a.sort_by(f64::total_cmp);
+        assert!(quantile_type7_sorted(&a, 0.5).is_nan());
+        let mut b = vec![3.0, -f64::NAN, 1.0, 2.0];
+        b.sort_by(f64::total_cmp);
+        assert!(quantile_type7_sorted(&b, 0.5).is_nan());
     }
 }

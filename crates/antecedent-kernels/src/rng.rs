@@ -191,3 +191,89 @@ mod tests {
         assert!((z - bound).abs() < 1e-12, "{z} vs {bound}");
     }
 }
+
+/// One draw from `Gamma(shape, rate)` (Marsaglia–Tsang; `shape < 1` via the
+/// `G(shape + 1) · U^{1/shape}` boost).
+///
+/// Returns NaN when `shape` or `rate` is not a positive finite number: no
+/// gamma law exists there, and the rejection loop would otherwise spin or
+/// recurse without bound.
+#[must_use]
+pub fn sample_gamma(shape: f64, rate: f64, rng: &mut CausalRng) -> f64 {
+    if !(shape.is_finite() && shape > 0.0 && rate.is_finite() && rate > 0.0) {
+        return f64::NAN;
+    }
+    if shape < 1.0 {
+        let u = rng.next_f64().max(f64::EPSILON);
+        return sample_gamma(shape + 1.0, rate, rng) * u.powf(1.0 / shape);
+    }
+    let d = shape - 1.0 / 3.0;
+    let c = 1.0 / (9.0 * d).sqrt();
+    loop {
+        let mut x;
+        let mut v;
+        loop {
+            x = standard_normal(rng);
+            v = 1.0 + c * x;
+            if v > 0.0 {
+                break;
+            }
+        }
+        v = v * v * v;
+        let u = rng.next_f64();
+        if u < 1.0 - 0.0331 * (x * x) * (x * x) {
+            return d * v / rate;
+        }
+        if u.ln() < 0.5 * x * x + d * (1.0 - v + v.ln()) {
+            return d * v / rate;
+        }
+    }
+}
+
+/// One draw from `InvGamma(shape, scale)` (`1 / Gamma(shape, rate = scale)`; mean
+/// `scale / (shape − 1)` for `shape > 1`).
+///
+/// NaN for invalid parameters (see [`sample_gamma`]); `+∞` only if the gamma
+/// draw underflows to zero, never a clamped finite stand-in.
+#[must_use]
+pub fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
+    1.0 / sample_gamma(shape, scale, rng)
+}
+
+#[cfg(test)]
+mod gamma_tests {
+    use super::*;
+
+    #[test]
+    fn invalid_gamma_parameters_are_nan_not_a_hang() {
+        let mut rng = CausalRng::from_seed(1);
+        for (shape, rate) in [
+            (f64::NAN, 1.0),
+            (f64::NEG_INFINITY, 1.0),
+            (f64::INFINITY, 1.0),
+            (0.0, 1.0),
+            (-2.0, 1.0),
+            (2.0, 0.0),
+            (2.0, -1.0),
+            (2.0, f64::NAN),
+        ] {
+            assert!(sample_gamma(shape, rate, &mut rng).is_nan(), "shape={shape} rate={rate}");
+            assert!(sample_inv_gamma(shape, rate, &mut rng).is_nan(), "shape={shape} rate={rate}");
+        }
+    }
+
+    #[test]
+    fn gamma_mean_and_variance_match_closed_form() {
+        // Gamma(shape 3, rate 2): mean 3/2, variance 3/4. n = 40 000 -> SE(mean) ~ 0.0043.
+        let mut rng = CausalRng::from_seed(7);
+        let n = 40_000usize;
+        let draws: Vec<f64> = (0..n).map(|_| sample_gamma(3.0, 2.0, &mut rng)).collect();
+        let mean = draws.iter().sum::<f64>() / n as f64;
+        let var = draws.iter().map(|g| (g - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+        assert!((mean - 1.5).abs() < 0.03, "mean {mean}");
+        assert!((var - 0.75).abs() < 0.04, "var {var}");
+        // shape < 1 boost: Gamma(0.5, rate 1) has mean 0.5.
+        let m: f64 = (0..n).map(|_| sample_gamma(0.5, 1.0, &mut rng)).sum::<f64>() / n as f64;
+        assert!((m - 0.5).abs() < 0.02, "shape<1 mean {m}");
+    }
+}

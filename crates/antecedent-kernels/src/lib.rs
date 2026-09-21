@@ -10,6 +10,7 @@
 #![allow(unsafe_code)]
 #![cfg_attr(test, allow(clippy::cast_precision_loss))]
 
+pub mod cholesky;
 pub mod dispatch;
 pub mod parcorr;
 pub mod portable;
@@ -19,6 +20,7 @@ pub mod scalar;
 pub mod special;
 pub mod view;
 
+pub use cholesky::{CholeskyError, cholesky_condition_lower_bound, cholesky_spd_into};
 pub use dispatch::{
     KernelImpl, accumulate_contingency, accumulate_contingency_rows, arch_simd_available, copy_vec,
     gather, masked_covariance, masked_mean, masked_sum, masked_variance, pairwise_l1_fill,
@@ -28,10 +30,10 @@ pub use dispatch::{
 pub use parcorr::{
     ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson,
 };
-pub use posterior_reduce::{PosteriorReduceOp, reduce_posterior_draws};
+pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
-    box_muller, categorical_from_u, fill_standard_normal, sample_categorical, shuffle,
-    standard_normal, standard_normal_pair, unbiased_index,
+    box_muller, categorical_from_u, fill_standard_normal, sample_categorical, sample_gamma,
+    sample_inv_gamma, shuffle, standard_normal, standard_normal_pair, unbiased_index,
 };
 pub use scalar::sanitize_weight;
 pub use special::{erf, erfc, norm_cdf, norm_inv, norm_pdf, norm_sf};
