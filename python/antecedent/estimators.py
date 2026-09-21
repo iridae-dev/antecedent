@@ -645,7 +645,17 @@ class FrontdoorLinearTwoStage:
 
 @dataclass(frozen=True, slots=True)
 class IvWald:
-    """``iv.wald`` — single-instrument Wald IV estimator."""
+    """``iv.wald`` — single binary-instrument Wald ratio.
+
+    The ratio ``(E[Y|Z=1] - E[Y|Z=0]) / (E[T|Z=1] - E[T|Z=0])`` is the average
+    treatment effect only when the treatment's effect on the outcome is the same
+    constant, linear effect for every unit. When effects differ across units it is,
+    for a binary treatment and under monotonicity (no defiers), the local average
+    treatment effect for compliers, not the population average. The instrument
+    cannot tell which case holds; the result is reported as identified under
+    parametric restrictions and carries
+    ``iv.constant_linear_effect_or_monotonicity`` among its assumptions.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -682,7 +692,15 @@ class IvWald:
 
 @dataclass(frozen=True, slots=True)
 class Iv2Sls:
-    """``iv.2sls`` — two-stage least squares, multi-instrument IV estimator."""
+    """``iv.2sls`` — two-stage least squares with one or more instruments.
+
+    The coefficient on the instrumented treatment is the average treatment effect
+    only under a constant linear structural effect. With heterogeneous effects it
+    is an instrument-weighted average of complier effects (for one binary
+    instrument and a binary treatment, the complier local average treatment
+    effect under monotonicity), not the population average. The result carries
+    ``iv.constant_linear_effect_or_monotonicity`` among its assumptions.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None

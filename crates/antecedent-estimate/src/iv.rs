@@ -10,6 +10,24 @@
 //! instrument. [`TwoStageLeastSquares`] handles one or more instruments (continuous or binary)
 //! and optional exogenous covariates via `antecedent_stats::fit_2sls`.
 //!
+//! # What is estimated
+//!
+//! Neither estimator targets the population average treatment effect without a further
+//! restriction, which the identification side records as
+//! `iv.constant_linear_effect_or_monotonicity` (`antecedent_identify::iv`):
+//!
+//! - under a constant linear structural effect of the treatment on the outcome, the Wald
+//!   ratio and the 2SLS coefficient equal that effect, which is then also the average effect;
+//! - with effects that differ across units, a binary instrument and a binary treatment, the
+//!   Wald ratio is the local average treatment effect for compliers, and only under
+//!   monotonicity (no defiers); 2SLS with several or continuous instruments is an
+//!   instrument-weighted average of such complier effects.
+//!
+//! Neither case is the population average effect under heterogeneity. The `ate` field of
+//! the returned [`EffectEstimate`] holds the estimate scaled to the queried contrast; the
+//! field name is shared by every estimator and does not assert which of the two readings
+//! applies.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -65,7 +83,7 @@ pub struct PreparedIvProblem {
     pub adjustment_set: Arc<[VariableId]>,
     /// Overlap policy applied.
     pub overlap: OverlapPolicy,
-    /// Active − control treatment contrast used for the ATE scaling.
+    /// Active − control treatment contrast that scales the per-unit IV effect.
     pub treatment_delta: f64,
 }
 
@@ -169,7 +187,12 @@ fn prepare_iv_problem(
 
 /// Wald (ratio-of-differences) IV estimator for a single binary instrument:
 ///
-/// `ATE = (E[Y|Z=1] − E[Y|Z=0]) / (E[T|Z=1] − E[T|Z=0])`
+/// `(E[Y|Z=1] − E[Y|Z=0]) / (E[T|Z=1] − E[T|Z=0])`
+///
+/// The ratio is the constant treatment effect under a constant linear structural effect, and
+/// otherwise, for a binary treatment under monotonicity, the local average treatment effect
+/// for compliers. It is not the population average effect when effects are heterogeneous
+/// (see the module docs).
 ///
 /// Use [`TwoStageLeastSquares`] for continuous or multiple instruments.
 #[derive(Clone, Debug)]
@@ -269,7 +292,7 @@ impl WaldIv {
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
-    /// Compute the Wald ratio ATE.
+    /// Compute the Wald ratio (constant effect, or complier LATE; see [`WaldIv`]).
     ///
     /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
     /// [`EffectEstimate::first_stage_diagnostics`]. Wald analytic and bootstrap
@@ -487,6 +510,10 @@ pub struct TwoStageLeastSquaresWorkspace {
 
 /// Two-stage least squares IV estimator.
 ///
+/// The treatment coefficient is the constant structural effect under linearity; with
+/// heterogeneous effects it is an instrument-weighted average of complier effects, not the
+/// population average effect (see the module docs).
+///
 /// Stage 1 regresses the endogenous treatment on the FULL instrument set
 /// `[instruments… | 1 | adjustment_set…]` (included exogenous regressors instrument
 /// themselves); stage 2 regresses the outcome on `[fitted_T | 1 | adjustment_set…]`.
@@ -600,7 +627,8 @@ impl TwoStageLeastSquares {
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
-    /// Fit 2SLS and compute the ATE.
+    /// Fit 2SLS and report the instrumented treatment coefficient (constant effect, or an
+    /// instrument-weighted complier effect; see the module docs).
     ///
     /// Licensed uncertainty is the homoskedastic Anderson–Rubin set attached to
     /// [`EffectEstimate::first_stage_diagnostics`]. Wald analytic and bootstrap
