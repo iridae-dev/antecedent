@@ -92,10 +92,13 @@ else:
     block = init_text[q_start:q_end]
     live_queries = re.findall(r'"([A-Za-z][A-Za-z0-9]+)"', block)
 
-if sorted(queries) != sorted(live_queries):
+# TransportQuery stays on the support-matrix query axis (licensed trial-IPW
+# cell) but lives on `antecedent.transport.advanced`, not root `__all__`.
+root_queries = [q for q in queries if q != "TransportQuery"]
+if sorted(root_queries) != sorted(live_queries):
     fail.append(
         "parity/support_axes.toml queries != python __all__ query names: "
-        f"axes={sorted(queries)} live={sorted(live_queries)}"
+        f"axes={sorted(root_queries)} live={sorted(live_queries)}"
     )
 
 for name in ["Frequentist", "Bayesian"]:
@@ -103,10 +106,13 @@ for name in ["Frequentist", "Bayesian"]:
         fail.append(f"{name} is an inference axis value but is not in python __all__")
 
 for name in stage_queries:
-    module = "transport" if name == "TransportQuery" else "interference"
-    src = (root / "python/antecedent" / f"{module}.py").read_text()
+    if name == "TransportQuery":
+        src_path = root / "python/antecedent/transport/_impl.py"
+    else:
+        src_path = root / "python/antecedent/interference.py"
+    src = src_path.read_text() if src_path.is_file() else ""
     if f"class {name}" not in src:
-        fail.append(f"{name}: no class {name} in python/antecedent/{module}.py")
+        fail.append(f"{name}: no class {name} in {src_path.relative_to(root)}")
 
 # --- live GraphClass variants ------------------------------------------------
 accepted = (root / "crates/antecedent/src/accepted.rs").read_text()

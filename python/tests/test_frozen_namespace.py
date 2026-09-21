@@ -121,9 +121,11 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "inference",
     "interference",
     "intervention",
+    "learners",
     "model",
     "observation",
     "population",
+    "prediction",
     "query",
     "results",
     "transport",
@@ -132,8 +134,8 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
 
 # The twelve root-exported stage modules are public surfaces too.  Freezing only
 # the package root would still let a refactor silently add or remove names from
-# ``antecedent.discovery`` (or any sibling) while the advertised 0.9 API freeze
-# continued to pass.  Keep these lists literal: changing one is an API decision.
+# ``antecedent.discovery`` (or any sibling) while the root freeze continued
+# to pass.  Keep these lists literal: changing one is an API decision.
 _EXPECTED_STAGE_ALL = {
     "attribution": {
         "AnomalyScores",

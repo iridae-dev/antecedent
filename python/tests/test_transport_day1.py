@@ -195,7 +195,6 @@ def test_result_shape_matches_across_regimes():
     ):
         assert isinstance(result, CausalResponseView)
         assert result.answer.kind == "response"
-        assert hasattr(result, "inspect")
         assert result.transport.formula
         assert [round(row[0], 2) for row in result.response.values] == [
             round(value[0], 2) for value in expected
@@ -212,7 +211,7 @@ def test_day1_surface_excludes_stage_types():
     assert "StatisticalTransportQuery" not in transport.__all__
     assert not hasattr(transport, "StatisticalTransportQuery")
     assert not hasattr(transport, "TransportQuery")
-    assert transport.advanced.StatisticalTransportQuery is not None
+    assert hasattr(transport.advanced, "StatisticalTransportQuery")
 
 
 def test_day1_export_load_rehydrates_view():

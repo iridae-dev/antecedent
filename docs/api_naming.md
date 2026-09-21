@@ -58,7 +58,7 @@ Each of those twelve modules has an explicit, separately frozen `__all__`
 surface. The 56-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**15** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**17** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -72,7 +72,7 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other ten are left off because they're a narrower surface than the twelve stage
+The other twelve are left off because they're a narrower surface than the twelve stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
@@ -87,6 +87,8 @@ directly:
   the adapter refuses front-door, IV, general ID, partial ID, and
   graph-posterior results rather than inventing a set. Temporal results export
   certified offsets and trim boundaries.
+- ``antecedent.learners`` — typed nuisance learners shared by estimators and
+  transport providers.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for
@@ -96,6 +98,8 @@ directly:
   scientific outcomes.
 - ``antecedent.population`` — named predicates and custom target-distribution
   weights for `analyze()`.
+- ``antecedent.prediction`` — portable fitted CATE predictions bound to a
+  parent claim; no interval is implied.
 - ``antecedent.transport`` — single-source graphical transportability
   specifications.
 

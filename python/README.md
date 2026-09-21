@@ -3,9 +3,10 @@
 > **2.0 release preparation:** installable package metadata remains 1.11.0
 > until the release cut.
 
-Antecedent exposes the same causal contract as the Rust facade. Start with a
-query and graph, identify it, estimate on data, inspect the claim, and export
-or refresh the study when appropriate.
+Antecedent exposes the same causal contract as the Rust facade. The root
+namespace contains 56 names; see [the naming dictionary](../docs/api_naming.md).
+Start with a query and graph, identify it, estimate on data, inspect the
+claim, and export or refresh the study when appropriate.
 
 ```python
 import antecedent as ant
