@@ -44,6 +44,7 @@ pub mod reader;
 pub mod response_wire;
 pub mod trace;
 pub mod transport_catalog_wire;
+pub mod transport_certificate;
 pub mod transport_interference_wire;
 pub mod transport_proof;
 pub mod wire;
