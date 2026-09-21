@@ -188,6 +188,64 @@ fn contemp_meek_r1_orients_contemporaneous_chain() {
 }
 
 #[test]
+fn contemp_meek_r1_skips_ambiguous_triple() {
+    // Same a → b — c pattern as the definite non-collider case, but the triple is
+    // marked ambiguous: R1 must not orient b → c.
+    let mut g = TemporalCpdag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_undirected(b, c).unwrap();
+    let mut state = OrientationState::default();
+    state.mark_ambiguous_triple(a, b, c);
+    let mut queue = OrientationQueue::new();
+    queue.push(b);
+    let d = ContempMeekR1.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    assert!(g.edge_between(b, c).unwrap().is_undirected());
+}
+
+#[test]
+fn meek_r1_skips_ambiguous_triple() {
+    let mut g = Cpdag::with_variables(3);
+    let a = DenseNodeId::from_raw(0);
+    let b = DenseNodeId::from_raw(1);
+    let c = DenseNodeId::from_raw(2);
+    g.insert_directed(a, b).unwrap();
+    g.insert_undirected(b, c).unwrap();
+    let mut state = OrientationState::default();
+    state.mark_ambiguous_triple(a, b, c);
+    let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 1] = [&MeekR1];
+    let d = run_static_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    assert!(g.edge_between(b, c).unwrap().is_undirected());
+}
+
+#[test]
+fn orient_collider_marks_missing_sepset_ambiguous() {
+    // Unshielded a — c — b with no Sep(a,b): collider status unknown.
+    let mut g = TemporalCpdag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_undirected(a, c).unwrap();
+    g.insert_undirected(c, b).unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let _ = OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+        &OrientCollider,
+        &mut g,
+        &mut state,
+        &mut queue,
+    )
+    .unwrap();
+    assert!(state.is_ambiguous_triple(a, c, b));
+    assert!(g.edge_between(a, c).unwrap().is_undirected());
+    assert!(g.edge_between(c, b).unwrap().is_undirected());
+}
+
+#[test]
 fn contemp_meek_r4_orients_discriminating_path() {
     // a — b, a — c → d → b, adj(a,d), not adj(c,b) → a → b (all contemporaneous).
     let mut g = TemporalCpdag::empty();
