@@ -230,8 +230,15 @@ Implemented identification strategies:
 * front-door identification;
 * instrumental variables;
 * sharp regression discontinuity;
-* an explicitly scoped, incomplete ID/IDC implementation for DAGs and ADMGs;
-* line-5 hedge node-set diagnostics (not fully validated C-forest certificates);
+* Shpitser–Pearl ID/IDC for DAGs and ADMGs with hard `Set` interventions on
+  finite domains. Every valid ID query ends either in a functional or in a
+  hedge; this is checked exhaustively against enumerated SCMs on all ADMGs of
+  up to four nodes (single treatment and outcome) and on a sample of larger
+  joint queries, not proved. Napkin-type functionals keep a free pre-treatment
+  variable: the identity holds at every supported value of it;
+* line-5 hedge node-set certificates, checkable against the hedge definition
+  with `HedgeCertificate::verify` (existential over the C-forest edge subsets,
+  which the certificate does not store);
 * bounded path-specific identification by selected-edge graph reduction;
 * generalized adjustment for partial graphs;
 * unfolded temporal backdoor;
