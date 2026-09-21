@@ -5436,6 +5436,27 @@ mod tests {
             "sanity check: the pre-fix input (no posterior attached) discloses nothing"
         );
     }
+
+    #[test]
+    fn repeated_inestimable_notes_do_not_read_as_one_fit() {
+        // Five fits raise the identical inestimable note. De-duplicating the notes by text must not
+        // leave a message that claims the condition hit a single fit.
+        let note: Arc<str> = Arc::from(
+            "serial_dependence.long_run_tempering kappa=1.000000 raw_ratio=1.000000 \
+             ar_ratio=1.000000 df_loss=2.000000 kappa_log_sd=0.000000 hac_ratio=1.000000 \
+             fixed_b=1.000000 score_ar_order=0 residual_ar_order=0 n=6 n_eff=6.000 bandwidth=1 \
+             scope=treatment bounded=false capped=false inestimable=true",
+        );
+        let posteriors: Vec<CausalPosterior> =
+            (0..5).map(|_| posterior_with_notes(vec![Arc::clone(&note)])).collect();
+        let diagnostics = posterior_note_diagnostics(&posteriors);
+        let inestimable = diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "estimate.bayesian.temporal.tempering_inestimable")
+            .expect("inestimable disclosure");
+        assert!(!inestimable.message.contains("1 fit"), "{}", inestimable.message);
+        assert!(inestimable.message.contains("at least one fit"), "{}", inestimable.message);
+    }
 }
 
 #[cfg(test)]

@@ -190,6 +190,11 @@ impl super::Study {
         for record in &designs[0].estimate().effect.assumptions.entries {
             assumptions.push(record.clone());
         }
+        let family = if designs.len() == 1 {
+            antecedent_estimate::CircularBlockFamily::Mediation
+        } else {
+            antecedent_estimate::CircularBlockFamily::Mixture
+        };
         let estimate = EffectEstimate::from_parts(
             point,
             f64::NAN,
@@ -202,7 +207,8 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
             None,
             None,
-        );
+        )
+        .with_block_family(family);
         let mediation = TemporalMediationEstimate {
             effect: estimate.clone(),
             total: mix(|m| m.total),
@@ -254,11 +260,6 @@ impl super::Study {
                  horizon; sets are not unioned across atoms",
             ));
         }
-        let family = if designs.len() == 1 {
-            antecedent_estimate::CircularBlockFamily::Mediation
-        } else {
-            antecedent_estimate::CircularBlockFamily::Mixture
-        };
         match shared.as_ref() {
             Some(s) if replicates_requested && requested_se.is_some() => {
                 diagnostics.push(Diagnostic::new(

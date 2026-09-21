@@ -1928,7 +1928,10 @@ fn attach_response_influence(
     let cols: Vec<&[f64]> = scores.columns.iter().map(Vec::as_slice).collect();
     match antecedent_estimate::joint_influence_covariance(&cols, None) {
         Ok(cov) => {
-            if estimate.se_analytic.is_nan() {
+            // Column 0's SE describes the reported scalar only. A surface response publishes no
+            // scalar (`ate` is NaN), so a standard error here would sit beside no estimate and
+            // describe one unnamed grid cell; the joint covariance below carries every cell.
+            if estimate.se_analytic.is_nan() && estimate.ate.is_finite() {
                 estimate.se_analytic = cov.se(0);
             }
             estimate.joint_covariance = Some(cov);
@@ -2151,6 +2154,39 @@ pub(super) fn estimate_general_id_response(
 #[cfg(test)]
 mod influence_review_tests {
     use super::*;
+
+    fn influence(columns: Vec<Vec<f64>>) -> antecedent_estimate::ResponseInfluence {
+        antecedent_estimate::ResponseInfluence { columns, row_index: Arc::from([0, 1, 2, 3]) }
+    }
+
+    #[test]
+    fn surface_response_influence_attaches_no_scalar_standard_error() {
+        let scores = influence(vec![vec![1.0, -1.0, 2.0, -2.0], vec![0.5, 0.5, -0.5, -0.5]]);
+        let mut surface = EffectEstimate::new(
+            f64::NAN,
+            f64::NAN,
+            antecedent_core::AssumptionSet::new(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        attach_response_influence(&mut surface, Some(&scores)).unwrap();
+        assert!(surface.se_analytic.is_nan(), "se {}", surface.se_analytic);
+        assert!(surface.joint_covariance.is_some());
+    }
+
+    #[test]
+    fn scalar_response_influence_still_attaches_its_standard_error() {
+        let scores = influence(vec![vec![1.0, -1.0, 2.0, -2.0]]);
+        let mut scalar = EffectEstimate::new(
+            0.3,
+            f64::NAN,
+            antecedent_core::AssumptionSet::new(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        attach_response_influence(&mut scalar, Some(&scores)).unwrap();
+        let expected = scalar.joint_covariance.as_ref().unwrap().se(0);
+        assert!(expected.is_finite() && expected > 0.0, "se {expected}");
+        assert_eq!(scalar.se_analytic, expected);
+    }
 
     #[test]
     fn response_mixture_aligns_original_row_ids() {

@@ -1379,11 +1379,7 @@ pub(super) fn run_envelope_effect_refuters(
     if matches!(suite, RefuteSuite::None) && custom.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let mut order = Vec::new();
-    let mut by_refuter: std::collections::HashMap<
-        Arc<str>,
-        Vec<(f64, antecedent_validate::RefutationReport)>,
-    > = std::collections::HashMap::new();
+    let mut per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> = Vec::new();
     let mut na_weight: std::collections::HashMap<
         antecedent_validate::ValidatorId,
         (f64, Arc<str>),
@@ -1419,13 +1415,7 @@ pub(super) fn run_envelope_effect_refuters(
             custom,
             temporal,
         )?;
-        for report in ValidationSuite::reports_only(&outcomes) {
-            let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
-                order.push(Arc::clone(&report.refuter));
-                Vec::new()
-            });
-            bucket.push((atom.weight, report));
-        }
+        per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
         for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
             na_weight
                 .entry(validator)
@@ -1433,17 +1423,8 @@ pub(super) fn run_envelope_effect_refuters(
                 .or_insert((atom.weight, reason));
         }
     }
-    let mut reports = Vec::with_capacity(order.len());
-    for id in order {
-        let Some(items) = by_refuter.get(&id) else {
-            continue;
-        };
-        let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
-            items.iter().map(|(w, r)| (*w, r)).collect();
-        if let Some(mixed) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed) {
-            reports.push(mixed);
-        }
-    }
+    let (reports, coverage) = mix_atom_refutation_reports(&per_atom);
+    diagnostics.extend(coverage);
     if contributing > 0.0 {
         for (validator, (weight, reason)) in na_weight {
             if weight / contributing >= 1.0 - 1e-12 {
@@ -1465,6 +1446,64 @@ pub(super) fn run_envelope_effect_refuters(
         ),
     ));
     Ok((reports, diagnostics))
+}
+
+/// Mix per-atom refutation reports by refuter id (weights are envelope / graph-posterior mass).
+///
+/// A refuter that ran on only some of the contributing mass is mixed over the atoms that reported
+/// it, so its `passed` says nothing about the rest. The returned diagnostics name each such
+/// refuter with the mass it covered (`refute.envelope.partial_coverage`, Warning): a mixed
+/// "passed" is never left to read as covering atoms the refuter did not check.
+pub(super) fn mix_atom_refutation_reports(
+    per_atom: &[(f64, Vec<antecedent_validate::RefutationReport>)],
+) -> (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>) {
+    let mut order: Vec<Arc<str>> = Vec::new();
+    let mut by_refuter: std::collections::HashMap<
+        Arc<str>,
+        Vec<(f64, &antecedent_validate::RefutationReport)>,
+    > = std::collections::HashMap::new();
+    let mut total_mass = 0.0;
+    for (weight, reports) in per_atom {
+        if *weight <= 0.0 {
+            continue;
+        }
+        total_mass += *weight;
+        for report in reports {
+            by_refuter
+                .entry(Arc::clone(&report.refuter))
+                .or_insert_with(|| {
+                    order.push(Arc::clone(&report.refuter));
+                    Vec::new()
+                })
+                .push((*weight, report));
+        }
+    }
+    let mut mixed = Vec::with_capacity(order.len());
+    let mut diagnostics = Vec::new();
+    for id in order {
+        let Some(items) = by_refuter.get(&id) else {
+            continue;
+        };
+        let Some(report) = antecedent_validate::RefutationReport::mixture_weighted(items) else {
+            continue;
+        };
+        let covered: f64 = items.iter().map(|(w, _)| *w).sum();
+        if total_mass > 0.0 && covered / total_mass < 1.0 - 1e-12 {
+            diagnostics.push(Diagnostic::new(
+                "refute.envelope.partial_coverage",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "refuter `{id}` ran on {:.6} of the contributing envelope mass; the other \
+                     atoms were not applicable or produced no report, so its mixed verdict does \
+                     not cover them",
+                    covered / total_mass
+                ),
+            ));
+        }
+        mixed.push(report);
+    }
+    (mixed, diagnostics)
 }
 
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
@@ -1828,7 +1867,18 @@ pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
     admg.has_bidirected()
 }
 
-pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
+/// The directed part of an ADMG as a DAG.
+///
+/// Only an ADMG without bidirected edges is a DAG: dropping a bidirected edge would present a
+/// latent-confounded graph as causally sufficient, so it is refused here rather than left to
+/// every caller's pre-check.
+pub(super) fn admg_without_latents_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
+    if admg.has_bidirected() {
+        return Err(CausalError::Unsupported {
+            message: "an ADMG with bidirected edges (latent confounding) is not a DAG; \
+                      dropping them would assume causal sufficiency",
+        });
+    }
     let n = u32::try_from(admg.node_count())
         .map_err(|_| CausalError::Compile { message: "ADMG too large".into() })?;
     let mut dag = Dag::with_variables(n);
@@ -1840,6 +1890,24 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
         }
     }
     Ok(dag)
+}
+
+#[cfg(test)]
+mod admg_dag_coercion_tests {
+    use super::*;
+
+    #[test]
+    fn bidirected_edge_is_refused_and_directed_only_graph_converts() {
+        let mut admg = Admg::with_variables(3);
+        let (a, b, c) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        admg.insert_directed(a, b).unwrap();
+        admg.insert_directed(b, c).unwrap();
+        let dag = admg_without_latents_to_dag(&admg).unwrap();
+        assert!(dag.reaches(a, c));
+        admg.insert_bidirected(a, c).unwrap();
+        assert!(matches!(admg_without_latents_to_dag(&admg), Err(CausalError::Unsupported { .. })));
+    }
 }
 
 /// Copy inference notes from `sources` onto `target` (deduplicated), so a mixture or
@@ -1859,6 +1927,10 @@ pub(super) fn merge_posterior_notes<'a>(
 
 /// Result diagnostics derived from posterior inference notes.
 ///
+/// Notes are de-duplicated by text (an envelope mixture re-carries its atoms' notes), so the same
+/// text raised by several fits is one note here: the messages state that a condition occurred and
+/// never a count of fits, which the de-duplication cannot recover.
+///
 /// - `estimate.bayesian.temporal.dependence_correction`: the likelihood was tempered
 ///   for serial dependence (R-9); lists every fitted `κ̂`.
 /// - `estimate.bayesian.hmc_draw_floor`: the HMC draw floor raised the requested
@@ -1868,8 +1940,8 @@ pub(super) fn posterior_note_diagnostics<'a>(
 ) -> Vec<Diagnostic> {
     let mut kappas = Vec::new();
     let mut floors = Vec::new();
-    let mut capped = 0usize;
-    let mut inestimable = 0usize;
+    let mut capped = false;
+    let mut inestimable = false;
     let mut seen = std::collections::HashSet::new();
     for post in posteriors {
         for note in &post.diagnostics.notes {
@@ -1881,10 +1953,10 @@ pub(super) fn posterior_note_diagnostics<'a>(
                 kappas.push(kappa);
             }
             if antecedent_estimate::tempering_capped_from_notes(single) {
-                capped += 1;
+                capped = true;
             }
             if antecedent_estimate::tempering_inestimable_from_notes(single) {
-                inestimable += 1;
+                inestimable = true;
             }
             if let Some(floor) = antecedent_estimate::hmc_draw_floor_from_notes(single) {
                 floors.push(floor);
@@ -1904,32 +1976,32 @@ pub(super) fn posterior_note_diagnostics<'a>(
                  larger of the autoregressive-prewhitened Newey-West long-run-variance ratio of \
                  the targeted slope score (scaled by its squared fixed-b factor) and the \
                  autoregressive-residual variance ratio given the design (AR(1), plus a \
-                 BIC-selected AR(q) up to order 4), floored at 1 (kappa = [{list}] over {} \
-                 fit(s)); this corrects short-memory serial dependence in the outcome residual, \
-                 not long memory, heteroskedasticity or a misspecified mean",
-                kappas.len()
+                 BIC-selected AR(q) up to order 4), floored at 1 (kappa = [{list}], one entry \
+                 per distinct fitted tempering note); this corrects short-memory serial \
+                 dependence in the outcome residual, not long memory, heteroskedasticity or a \
+                 misspecified mean",
             ),
         ));
     }
-    if inestimable > 0 {
+    if inestimable {
         out.push(Diagnostic::new(
             "estimate.bayesian.temporal.tempering_inestimable",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             format!(
-                "long-run-variance tempering could not be estimated on {inestimable} fit(s) \
-                 (n < max(8, p+2)); the published credible interval is the iid posterior and \
-                 is likely too narrow"
+                "long-run-variance tempering could not be estimated on at least one fit \
+                 (n < max(8, p+2)); the published credible interval for it is the iid posterior \
+                 and is likely too narrow"
             ),
         ));
     }
-    if capped > 0 {
+    if capped {
         out.push(Diagnostic::new(
             "estimate.bayesian.temporal.tempering_capped",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             format!(
-                "long-run-variance tempering hit the n/(p+2) cap on {capped} fit(s); kappa is \
+                "long-run-variance tempering hit the n/(p+2) cap on at least one fit; kappa is \
                  known to be too small and the published credible interval is still too narrow"
             ),
         ));
@@ -2408,6 +2480,46 @@ mod bootstrap_success_floor_tests {
         // Majority-failure policy still binds above the floor.
         assert!(!bootstrap_has_enough_successes(min, min * 2 + 1));
         assert!(bootstrap_has_enough_successes(min, min * 2));
+    }
+}
+
+#[cfg(test)]
+mod refutation_mixture_coverage_tests {
+    use super::mix_atom_refutation_reports;
+    use antecedent_validate::RefutationReport;
+
+    fn report(id: &str, passed: bool) -> RefutationReport {
+        RefutationReport::new(id, 1.0, 1.0, 0.5, true, passed, None, 10)
+    }
+
+    #[test]
+    fn refuter_run_on_part_of_the_mass_reports_its_coverage() {
+        // Atom A (0.6) ran the placebo; atom B (0.4) had it not applicable. The mixed placebo
+        // "passed" covers 0.6 of the mass and the result must say so.
+        let per_atom = vec![(0.6, vec![report("placebo", true)]), (0.4, Vec::new())];
+        let (reports, diagnostics) = mix_atom_refutation_reports(&per_atom);
+        assert_eq!(reports.len(), 1);
+        assert!(reports[0].passed);
+        let partial: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.code.as_ref() == "refute.envelope.partial_coverage")
+            .collect();
+        assert_eq!(partial.len(), 1, "{diagnostics:?}");
+        assert!(partial[0].message.contains("`placebo`"), "{}", partial[0].message);
+        assert!(partial[0].message.contains("0.600000"), "{}", partial[0].message);
+    }
+
+    #[test]
+    fn fully_covering_refuter_and_zero_weight_atoms_raise_no_coverage_warning() {
+        let per_atom = vec![
+            (0.5, vec![report("placebo", true)]),
+            (0.5, vec![report("placebo", false)]),
+            (0.0, Vec::new()),
+        ];
+        let (reports, diagnostics) = mix_atom_refutation_reports(&per_atom);
+        assert_eq!(reports.len(), 1);
+        assert!(!reports[0].passed);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 }
 

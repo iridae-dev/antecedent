@@ -111,14 +111,24 @@ impl super::Study {
         // Uncertainty: bootstrap fills (real work when replicates > 0).
         // IV and NN matching must not refill with the facade bootstrap: that
         // bypasses the weak-instrument gate (Wald/2SLS) and publishes an
-        // Abadie–Imbens-invalid matching bootstrap SE.
+        // Abadie–Imbens-invalid matching bootstrap SE. A configured estimator owns its
+        // replicate count and already ran it in the point fit, and the double-ML, DR-learner
+        // and causal-forest fits take no replicate count: refitting any of them here would
+        // reproduce the same estimate at the cost of a second full nuisance fit.
         let skip_bootstrap_refill = self.bootstrap_replicates == 0
+            || self
+                .estimator_spec
+                .as_ref()
+                .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
             || matches!(
                 estimator_id,
                 EstimatorId::IvWald
                     | EstimatorId::Iv2Sls
                     | EstimatorId::PropensityMatching
                     | EstimatorId::DistanceMatching
+                    | EstimatorId::Dml
+                    | EstimatorId::DrLearner
+                    | EstimatorId::CausalForest
             );
         let estimate = if skip_bootstrap_refill {
             if ctx.cancellation.is_cancelled() {
@@ -144,17 +154,11 @@ impl super::Study {
                 point
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                // Reuse the caller's configured estimator when there is one, so the
-                // warm-workspace bootstrap path cannot silently diverge from the
-                // point-estimate path above.
-                let est = if let EstimatorSpec::LinearAdjustmentAte(cfg) = &estimator_spec {
-                    (**cfg).clone()
-                } else {
-                    let mut est = LinearAdjustmentAte::new();
-                    est.bootstrap_replicates = self.bootstrap_replicates;
-                    est.overlap = OverlapPolicy::ExplicitOverride;
-                    est
-                };
+                // A configured linear estimator never reaches here (it bootstrapped in the
+                // point fit), so this is the id-selected default the point stage also used.
+                let mut est = LinearAdjustmentAte::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.overlap = OverlapPolicy::ExplicitOverride;
                 let prep =
                     est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
                 let filled = est

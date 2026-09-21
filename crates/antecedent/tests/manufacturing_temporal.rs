@@ -1036,6 +1036,15 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     assert_eq!((set.lower[0], set.upper[0]), (lower, upper));
     let se = result.estimate.se_bootstrap.expect("mixture SE");
     assert!(se.is_finite() && se > 0.0);
+    // The shared-block mixture SE is a circular-block construction, not an iid bootstrap: the
+    // interval label (and the calibration record it keys) must say so.
+    assert_eq!(
+        result.estimate.block_family,
+        Some(antecedent_estimate::CircularBlockFamily::Mixture)
+    );
+    let binding = result.primary_interval_binding(false);
+    assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
+    assert_eq!(binding.dependence, "circular_block:mixture");
     match &result.mediation_grid.as_ref().unwrap().slices[0].uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
             requested,

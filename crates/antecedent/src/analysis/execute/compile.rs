@@ -103,7 +103,7 @@ impl super::Study {
                 if admg_has_bidirected(admg) {
                     compile_logical_admg_response(data, q, self.validation_suite_id(), self)
                 } else {
-                    let dag = admg_to_dag(admg)?;
+                    let dag = admg_without_latents_to_dag(admg)?;
                     let (identifier, estimator) = self.resolve_response_pair(q);
                     compile_logical_static_response(StaticResponseCompileInput {
                         data,
@@ -699,7 +699,7 @@ impl super::Study {
                 if admg_has_bidirected(admg) {
                     self.compile_logical()?.compile_physical(ctx)
                 } else {
-                    let dag = admg_to_dag(admg)?;
+                    let dag = admg_without_latents_to_dag(admg)?;
                     self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(dag))
                 }
             }
@@ -733,7 +733,7 @@ impl super::Study {
                     logical.validate()?;
                     logical.compile_physical(ctx)
                 } else {
-                    let dag = admg_to_dag(admg)?;
+                    let dag = admg_without_latents_to_dag(admg)?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let logical = compile_logical_static_ate(StaticAteCompileInput {
