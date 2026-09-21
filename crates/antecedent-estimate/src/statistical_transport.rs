@@ -101,7 +101,7 @@ pub fn evaluate_statistical_transport_grid(
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    evaluate_grid(functional, input, requests, limits, options, ctx, None)
+    evaluate_grid(functional, input, requests, limits, options, ctx, None, None)
 }
 
 /// Evaluate retained point laws without fitting their original samples again.
@@ -121,7 +121,43 @@ pub fn evaluate_statistical_transport_grid_with_point_laws(
     ctx: &ExecutionContext,
     point_laws: &antecedent_expr::ExactTransportData,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    evaluate_grid(functional, input, requests, limits, options, ctx, Some(point_laws))
+    evaluate_grid(functional, input, requests, limits, options, ctx, Some(point_laws), None)
+}
+
+/// [`evaluate_statistical_transport_grid_with_point_laws`] for a caller that has already
+/// evaluated every request's plan on exactly `point_laws` (its eligibility pass): those
+/// distributions are the points' estimates and are not computed a second time. Bootstrap
+/// datasets are still refitted jointly for every outer replicate.
+///
+/// `distributions[i]` must be the exact evaluation of `requests[i]` on `point_laws`.
+/// # Errors
+/// A length mismatch, invalid requests, cancellation, or exceeded resources.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
+    functional: &BoundTransportFunctional,
+    input: &StatisticalTransportInput,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    options: &EmpiricalTableOptions,
+    ctx: &ExecutionContext,
+    point_laws: &antecedent_expr::ExactTransportData,
+    distributions: Vec<ExactDistribution>,
+) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
+    if distributions.len() != requests.len() {
+        return Err(EstimationError::data_msg(
+            "evaluated point laws do not align with the treatment grid",
+        ));
+    }
+    evaluate_grid(
+        functional,
+        input,
+        requests,
+        limits,
+        options,
+        ctx,
+        Some(point_laws),
+        Some(distributions),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -133,6 +169,7 @@ fn evaluate_grid(
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
     point_laws: Option<&antecedent_expr::ExactTransportData>,
+    evaluated: Option<Vec<ExactDistribution>>,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
     if requests.is_empty() {
         return Err(EstimationError::data_msg("empty treatment grid"));
@@ -166,14 +203,23 @@ fn evaluate_grid(
         None => assemble_point_laws(input, functional, options, &budget_ctx)?,
     }
     .with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 });
-    let distributions = requests
-        .iter()
-        .map(|request| {
-            prepare_exact_transport(functional, data.clone(), request.clone(), limits, &budget_ctx)
+    let distributions = match evaluated {
+        Some(distributions) => distributions,
+        None => requests
+            .iter()
+            .map(|request| {
+                prepare_exact_transport(
+                    functional,
+                    data.clone(),
+                    request.clone(),
+                    limits,
+                    &budget_ctx,
+                )
                 .and_then(|plan| plan.evaluate(&budget_ctx))
                 .map_err(|e| EstimationError::data_msg(e.to_string()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    };
     let draws = if bootstrapping {
         Some(outer_bootstrap(functional, input, requests, limits, options, &budget_ctx)?)
     } else {

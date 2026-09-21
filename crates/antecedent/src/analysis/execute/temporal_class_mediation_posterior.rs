@@ -116,11 +116,10 @@ impl super::Study {
         let (replicates_ok, replicates_attempted) = shared
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
-        let family = if designs.len() == 1 {
-            antecedent_estimate::CircularBlockFamily::Mediation
-        } else {
-            antecedent_estimate::CircularBlockFamily::Mixture
-        };
+        let family = shared.as_ref().map_or_else(
+            || antecedent_estimate::CircularBlockFamily::for_mediation_atoms(designs.len()),
+            |s| s.family,
+        );
         let mut estimate = mixed.estimate.with_block_family(family);
         estimate.se_analytic = f64::NAN;
         estimate.se_bootstrap = requested_se;

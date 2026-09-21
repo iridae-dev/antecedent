@@ -182,14 +182,30 @@ impl FrontDoorFunctional {
 
         assumptions.push(model_assumption(model));
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, model, ctx)?)
-        };
-        Ok(EffectEstimate::new(fitted.ate, se_analytic, assumptions, problem.overlap)
-            .with_n_obs(problem.nrows as u64)
-            .with_bootstrap(boot))
+        let point = EffectEstimate::new(fitted.ate, se_analytic, assumptions, problem.overlap)
+            .with_n_obs(problem.nrows as u64);
+        self.attach_bootstrap(problem, ctx, point)
+    }
+
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage). Equal to what `fit` publishes when `bootstrap_replicates > 0`,
+    /// without refitting the point model.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedFrontDoorProblem,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let model = resolve_model(self.outcome_model, &problem.mediators);
+        let boot = self.bootstrap_se(problem, model, ctx)?;
+        Ok(point.with_bootstrap(Some(boot)))
     }
 
     fn bootstrap_se(

@@ -282,16 +282,30 @@ impl FrontDoorTwoStage {
     ) -> Result<EffectEstimate, EstimationError> {
         let (ate, se_analytic) = self.point_estimate(problem, workspace)?;
         assumptions.extend_unique(&[linear_path_product_restriction()]);
+        let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind);
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, workspace, ctx)?)
-        };
-
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
-            .with_se_kind(self.se_kind)
-            .with_bootstrap(boot))
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage). Equal to what `fit` publishes when `bootstrap_replicates > 0`,
+    /// without refitting the point model.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedFrontDoorProblem,
+        workspace: &mut FrontDoorWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let boot = self.bootstrap_se(problem, workspace, ctx)?;
+        Ok(point.with_bootstrap(Some(boot)))
     }
 
     fn point_estimate(
@@ -887,6 +901,23 @@ pub(crate) mod tests {
 
     pub(crate) fn ctx() -> ExecutionContext {
         ExecutionContext::for_tests(41)
+    }
+
+    #[test]
+    fn frontdoor_attached_bootstrap_equals_the_one_shot_fit() {
+        let (data, estimand) = frontdoor_scm(600, 2);
+        let boot = FrontDoorTwoStage { bootstrap_replicates: 30, ..FrontDoorTwoStage::new() };
+        let prep = boot.prepare(&data, &estimand, &query()).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let point_only = FrontDoorTwoStage { bootstrap_replicates: 0, ..boot.clone() };
+        let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(point.se_bootstrap.is_none());
+        let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+        assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+        assert!(full.se_bootstrap.is_some());
+        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
     }
 
     #[test]

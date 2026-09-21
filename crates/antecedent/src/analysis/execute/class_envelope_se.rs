@@ -112,25 +112,26 @@ impl TemporalAtomDesign {
         let (prep, rows) = estimator
             .prepare_aligned(data, estimand, query, indexer, split, &ctx.kernel_policy)
             .map_err(CausalError::from)?;
-        let point = estimator
+        // The point fit's own OLS residuals give the nuisance scores: no second solve.
+        let (point, residuals) = estimator
             .inner
-            .fit_point(
+            .fit_point_with_ols_residuals(
                 &prep,
                 &mut EstimationWorkspace::default(),
                 antecedent_core::AssumptionSet::default(),
             )
             .map_err(CausalError::from)?;
-        let normal_scores = antecedent_estimate::normal_equation_scores(
+        // Without the nuisance scores the block length silently falls back to the
+        // influence-only rule, which under-sizes blocks for a persistent residual.
+        let residuals = residuals.ok_or_else(|| CausalError::Compile {
+            message: "normal-equation scores of the atom's regression could not be computed".into(),
+        })?;
+        let normal_scores = antecedent_estimate::normal_equation_scores_of_residuals(
             &prep.design.matrix,
             prep.design.nrows,
             prep.design.ncols,
-            &prep.design.outcome,
-        )
-        // Without the nuisance scores the block length silently falls back to the
-        // influence-only rule, which under-sizes blocks for a persistent residual.
-        .ok_or_else(|| CausalError::Compile {
-            message: "normal-equation scores of the atom's regression could not be computed".into(),
-        })?;
+            &residuals,
+        );
         Ok(Self::Linear {
             prep: Box::new(prep),
             rows,

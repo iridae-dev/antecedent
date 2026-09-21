@@ -586,9 +586,10 @@ impl PreparedStudy<TransportGridState> {
             ctx.memory.hard_limit_bytes.map(|n| n / query.at.len() as u64);
         let mut failures = Vec::new();
         let mut eligible = Vec::new();
-        // An exact point's eligibility pass already computes its distribution; keep it
-        // rather than evaluating the same plan again.
-        let mut evaluated_exact = Vec::new();
+        // A point's eligibility pass already computes its distribution on the retained point
+        // laws; keep it rather than evaluating the same plan again (an exact point publishes
+        // it, a statistical point uses it as its point estimate under the joint bootstrap).
+        let mut evaluated_points = Vec::new();
         for (at, plan) in query.at.iter().zip(&self.state.plans) {
             let evaluated = match plan {
                 Ok(plan) => plan.evaluate(&ctx).map_err(|e| local_failure(e, &query.functional)),
@@ -598,14 +599,12 @@ impl PreparedStudy<TransportGridState> {
                 Ok(distribution) => {
                     failures.push(None);
                     eligible.push(at.clone());
-                    if matches!(input, TransportGridData::Exact(_)) {
-                        evaluated_exact.push(distribution);
-                    }
+                    evaluated_points.push(distribution);
                 }
                 Err(e) => failures.push(Some(e?)),
             }
         }
-        let mut evaluated_exact = evaluated_exact.into_iter();
+        let mut evaluated_points = Some(evaluated_points);
         let mut statistical = if let TransportGridData::Statistical(input, options) = input {
             if let Some(first) = eligible.first() {
                 let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
@@ -620,13 +619,20 @@ impl PreparedStudy<TransportGridState> {
                     &ctx,
                     false,
                 )?;
-                study.estimate_grid(&eligible, &ctx)?.into_iter()
+                study
+                    .estimate_grid_evaluated(
+                        &eligible,
+                        evaluated_points.take().unwrap_or_default(),
+                        &ctx,
+                    )?
+                    .into_iter()
             } else {
                 vec![].into_iter()
             }
         } else {
             vec![].into_iter()
         };
+        let mut evaluated_exact = evaluated_points.unwrap_or_default().into_iter();
         let mut points = Vec::new();
         let mut wire = self.state.template.clone();
         wire.version = 2;

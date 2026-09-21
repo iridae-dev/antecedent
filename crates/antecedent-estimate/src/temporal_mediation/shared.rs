@@ -11,8 +11,9 @@ use super::{
     mediation_design_max_lag, ols_three_col, ols_two_col,
 };
 use crate::temporal_block::{
-    AlignedRows, aligned_block_bootstrap, common_time_window, dependence_block_length,
-    kernel_bias_scale, normal_equation_scores_of_residuals, score_effective_rows,
+    AlignedRows, CircularBlockFamily, aligned_block_bootstrap, common_time_window,
+    dependence_block_length, kernel_bias_scale, normal_equation_scores_of_residuals,
+    score_effective_rows,
 };
 
 /// One temporal mediation atom prepared once on the original series, so a
@@ -131,6 +132,9 @@ pub struct SharedMediationBlockSe {
     pub requested: Option<f64>,
     /// Structural lag span (deepest design lag + 1) over every atom.
     pub structural_span: usize,
+    /// Circular-block family the replicates belong to, which selects the short-series
+    /// threshold and labels the dependence of the estimate that publishes this SE.
+    pub family: CircularBlockFamily,
 }
 
 /// Shared circular-block bootstrap of a frozen-weight mixture over mediation atoms.
@@ -161,6 +165,7 @@ pub fn shared_mediation_block_bootstrap(
     if atoms.is_empty() || atoms.len() != weights.len() || total.is_nan() || total <= 0.0 {
         return None;
     }
+    let family = CircularBlockFamily::for_mediation_atoms(atoms.len());
     let designs: Vec<AlignedRows> = atoms.iter().map(|atom| atom.aligned).collect();
     let (start, len) = common_time_window(&designs)?;
     let window = |series: &[f64], design: AlignedRows| -> Option<Vec<f64>> {
@@ -246,7 +251,7 @@ pub fn shared_mediation_block_bootstrap(
         kernel_bias,
     };
     if replicates == 0 {
-        return Some(SharedMediationBlockSe { block, requested: None, structural_span });
+        return Some(SharedMediationBlockSe { block, requested: None, structural_span, family });
     }
     let draws =
         aligned_block_bootstrap(&designs, block_length, replicates, stream_base, ctx, |maps| {
@@ -268,7 +273,7 @@ pub fn shared_mediation_block_bootstrap(
     block.replicates_attempted = draws.attempted;
     block.block_length = draws.block_length;
     let requested = [block.total, block.direct, block.mediated][contrast_index(contrast)];
-    Some(SharedMediationBlockSe { block, requested, structural_span })
+    Some(SharedMediationBlockSe { block, requested, structural_span, family })
 }
 
 #[cfg(test)]

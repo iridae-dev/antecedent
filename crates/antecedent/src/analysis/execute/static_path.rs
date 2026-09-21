@@ -95,7 +95,7 @@ impl super::Study {
             &data_est,
             &estimand_est,
             &query_est,
-            assumptions.clone(),
+            assumptions,
             0, // point stage: no bootstrap
             self.overlap_policy,
             self.population_registry.as_ref(),
@@ -177,7 +177,8 @@ impl super::Study {
                 filled
             }
         } else {
-            // Non-linear static estimators: re-run with bootstrap for uncertainty fills.
+            // Weighting, stratification, AIPW, GLM and front-door: their `fit` is the point fit
+            // plus `attach_bootstrap`, so the uncertainty stage reuses the point estimate.
             let cancelled_before = ctx.cancellation.is_cancelled();
             if cancelled_before {
                 clock.mark_cancelled();
@@ -187,12 +188,12 @@ impl super::Study {
                 point
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                let filled = estimate_static_effect(
-                    &estimator_spec,
+                let filled = crate::strategy_table::attach_static_bootstrap(
+                    estimator_id,
                     &data_est,
                     &estimand_est,
                     &query_est,
-                    assumptions,
+                    point,
                     self.bootstrap_replicates,
                     self.overlap_policy,
                     self.population_registry.as_ref(),

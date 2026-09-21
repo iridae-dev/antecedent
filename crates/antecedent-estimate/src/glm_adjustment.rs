@@ -316,6 +316,41 @@ impl GlmAdjustmentAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let point = self.fit_point(problem, workspace, assumptions)?;
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage). Equal to what `fit` publishes when `bootstrap_replicates > 0`,
+    /// without refitting the point model.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedGlmProblem,
+        workspace: &mut GlmAdjustmentWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let t_col = problem
+            .design
+            .treatment_column()
+            .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
+        let boot = self.bootstrap_se(problem, workspace, ctx, t_col)?;
+        Ok(point.with_bootstrap(Some(boot)))
+    }
+
+    fn fit_point(
+        &self,
+        problem: &PreparedGlmProblem,
+        workspace: &mut GlmAdjustmentWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
         let t_col = problem
             .design
             .treatment_column()
@@ -390,15 +425,8 @@ impl GlmAdjustmentAte {
             )?,
         };
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, workspace, ctx, t_col)?)
-        };
-
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
-            .with_se_kind(self.se_kind)
-            .with_bootstrap(boot))
+            .with_se_kind(self.se_kind))
     }
 
     fn bootstrap_se(
@@ -1071,6 +1099,25 @@ mod tests {
             ExprId::from_raw(0),
         );
         (data, estimand)
+    }
+
+    #[test]
+    fn glm_attached_bootstrap_equals_the_one_shot_fit() {
+        let (data, estimand) = binary_scm(300, 5);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let boot = GlmAdjustmentAte { bootstrap_replicates: 30, ..GlmAdjustmentAte::new() };
+        let prep = boot.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = GlmAdjustmentWorkspace::default();
+        let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let point_only = GlmAdjustmentAte { bootstrap_replicates: 0, ..boot.clone() };
+        let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(point.se_bootstrap.is_none());
+        let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+        assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+        assert!(full.se_bootstrap.is_some());
+        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
     }
 
     #[test]

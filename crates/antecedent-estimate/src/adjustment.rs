@@ -743,7 +743,24 @@ impl LinearAdjustmentAte {
         workspace: &mut EstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let fit = self.fit_coefficients(problem, workspace)?;
+        self.fit_point_with_ols_residuals(problem, workspace, assumptions).map(|(point, _)| point)
+    }
+
+    /// [`Self::fit_point`] that also hands back the OLS residuals of the fit it ran, so a
+    /// caller that needs the normal-equation scores does not solve the regression again.
+    /// `None` when the configured fit is not ordinary least squares (ridge, lasso and Huber
+    /// residuals are not the OLS normal-equation residuals).
+    ///
+    /// # Errors
+    ///
+    /// Fit / SE failure.
+    pub fn fit_point_with_ols_residuals(
+        &self,
+        problem: &PreparedEstimationProblem,
+        workspace: &mut EstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, Option<Vec<f64>>), EstimationError> {
+        let mut fit = self.fit_coefficients(problem, workspace)?;
         let t_col = problem
             .design
             .treatment_column()
@@ -753,10 +770,13 @@ impl LinearAdjustmentAte {
         let (se_coef, influence) = self.coefficient_se_and_influence(problem, &fit, t_col)?;
         let se_analytic = se_coef * problem.treatment_delta.abs();
 
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+        let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
             .with_se_kind(self.se_kind)
-            .with_influence(influence.map(Arc::from)))
+            .with_influence(influence.map(Arc::from));
+        let residuals =
+            matches!(fit.variance, FitVariance::Ols).then(|| std::mem::take(&mut fit.residuals));
+        Ok((point, residuals))
     }
 
     /// Treatment-coefficient SE and influence function of the estimator that actually ran.
@@ -1445,6 +1465,50 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Overlap { .. }));
+    }
+
+    /// The residuals the point fit hands back are the ones a separate least-squares solve of
+    /// the same design produces, so the normal-equation scores built from them are identical
+    /// and no second solve is needed; a shrinkage fit publishes no OLS residuals at all.
+    #[test]
+    fn point_fit_residuals_give_the_normal_equation_scores_without_a_second_solve() {
+        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + ((i * i) % 7) as f64 - 3.0);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let (point, residuals) = est
+            .fit_point_with_ols_residuals(
+                &prep,
+                &mut EstimationWorkspace::default(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let residuals = residuals.expect("OLS fit carries residuals");
+        let (m, n, p) = (&prep.design.matrix, prep.design.nrows, prep.design.ncols);
+        let from_residuals = crate::normal_equation_scores_of_residuals(m, n, p, &residuals);
+        let refit = crate::normal_equation_scores(m, n, p, &prep.design.outcome).unwrap();
+        assert_eq!(from_residuals.len(), refit.len());
+        for (a, b) in from_residuals.iter().flatten().zip(refit.iter().flatten()) {
+            assert!((a - b).abs() < 1e-12, "{a} vs {b}");
+        }
+        // The residuals are non-trivial, so the comparison above is not 0 == 0.
+        assert!(residuals.iter().any(|e| e.abs() > 0.5));
+        assert_eq!(point.n_obs, Some(n as u64));
+
+        let ridge = LinearAdjustmentAte {
+            fit_kind: LinearFitKind::Ridge { lambda: 1.0 },
+            bootstrap_replicates: 0,
+            ..LinearAdjustmentAte::new()
+        };
+        let (_, none) = ridge
+            .fit_point_with_ols_residuals(
+                &prep,
+                &mut EstimationWorkspace::default(),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(none.is_none());
     }
 
     #[test]

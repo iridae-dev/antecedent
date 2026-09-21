@@ -203,6 +203,48 @@ mod tests {
     }
 
     #[test]
+    fn weighting_attached_bootstrap_equals_the_one_shot_fit() {
+        let (data, estimand) = confounded_scm(400, 3);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let boot = PropensityWeighting { bootstrap_replicates: 30, ..PropensityWeighting::new() };
+        let prep = boot.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let point_only = PropensityWeighting { bootstrap_replicates: 0, ..boot.clone() };
+        let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(point.se_bootstrap.is_none());
+        let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+        assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+        assert_eq!(attached.se_analytic.to_bits(), full.se_analytic.to_bits());
+        assert!(full.se_bootstrap.is_some());
+        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+    }
+
+    #[test]
+    fn stratification_attached_bootstrap_equals_the_one_shot_fit() {
+        let (data, estimand) = confounded_scm(400, 4);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let boot = PropensityStratification {
+            bootstrap_replicates: 30,
+            ..PropensityStratification::new()
+        };
+        let prep = boot.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let point_only = PropensityStratification { bootstrap_replicates: 0, ..boot.clone() };
+        let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(point.se_bootstrap.is_none());
+        let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+        assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+        assert!(full.se_bootstrap.is_some());
+        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+    }
+
+    #[test]
     fn weighting_recovers_ate_two() {
         let (data, estimand) = confounded_scm(800, 1);
         let query =
