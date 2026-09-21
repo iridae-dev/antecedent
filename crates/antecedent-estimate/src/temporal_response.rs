@@ -35,7 +35,8 @@ use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_kappa_from_notes,
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
+    tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::temporal_block::{
@@ -837,6 +838,13 @@ fn block_bootstrap_assumption(
 /// Support diagnostic carrying the per-horizon tempering factor `κ̂_h` of
 /// `response.temporal.bayesian` (one value per requested horizon, in order).
 pub const TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC: &str = "response.temporal_bayesian.tempering";
+/// Warning code: at least one horizon's `κ̂` could not be estimated (`n` below
+/// `max(8, p+2)`); that horizon's posterior is the untempered iid fit.
+pub const TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE: &str =
+    "response.temporal_bayesian.tempering_inestimable";
+/// Warning code: at least one horizon's `κ̂` hit the `n/(p+2)` cap; the
+/// correction there is incomplete and the posterior is still too narrow.
+pub const TEMPORAL_BAYESIAN_TEMPERING_CAPPED: &str = "response.temporal_bayesian.tempering_capped";
 
 fn is_tempering_record(record: &AssumptionRecord) -> bool {
     matches!(
@@ -845,27 +853,82 @@ fn is_tempering_record(record: &AssumptionRecord) -> bool {
     )
 }
 
+/// One horizon's likelihood-tempering result, read off the posterior inference notes
+/// (see [`crate::serial_dependence::TemperingFactor`]) so a capped or inestimable
+/// factor cannot be dropped on the way to the response.
+#[derive(Clone, Copy, Debug)]
+struct HorizonTempering {
+    kappa: f64,
+    capped: bool,
+    inestimable: bool,
+}
+
+impl HorizonTempering {
+    fn from_notes(notes: &[Arc<str>]) -> Self {
+        Self {
+            kappa: tempering_kappa_from_notes(notes).unwrap_or(1.0),
+            capped: tempering_capped_from_notes(notes),
+            inestimable: tempering_inestimable_from_notes(notes),
+        }
+    }
+
+    /// `h=<horizon>: <kappa>` with a trailing ` capped` / ` inestimable` tag so the
+    /// per-horizon summary cannot silently drop either disclosure.
+    fn label(&self, horizon: u32) -> String {
+        let flag = if self.inestimable {
+            " inestimable"
+        } else if self.capped {
+            " capped"
+        } else {
+            ""
+        };
+        format!("h={horizon}: {:.4}{flag}", self.kappa)
+    }
+}
+
 /// One serial-dependence record for the whole surface (each horizon's fit records its own
 /// factor; only the first horizon's assumptions were ever forwarded).
-fn temporal_bayesian_tempering_assumption(horizons: &[u32], kappas: &[f64]) -> AssumptionRecord {
-    let per_horizon = horizons
-        .iter()
-        .zip(kappas)
-        .map(|(h, k)| format!("h={h}: {k:.4}"))
-        .collect::<Vec<_>>()
-        .join(", ");
+fn temporal_bayesian_tempering_assumption(
+    horizons: &[u32],
+    tempering: &[HorizonTempering],
+) -> AssumptionRecord {
+    let per_horizon =
+        horizons.iter().zip(tempering).map(|(&h, t)| t.label(h)).collect::<Vec<_>>().join(", ");
+    let any_capped = tempering.iter().any(|t| t.capped);
+    let any_inestimable = tempering.iter().any(|t| t.inestimable);
+    let caveat = match (any_inestimable, any_capped) {
+        (true, true) => {
+            "; a horizon marked inestimable keeps its untempered iid posterior (likely too \
+             narrow), and a horizon marked capped has an incomplete correction (still too \
+             narrow)"
+        }
+        (true, false) => {
+            "; a horizon marked inestimable keeps its untempered iid posterior, which is \
+             likely too narrow"
+        }
+        (false, true) => {
+            "; a horizon marked capped has an incomplete correction, so its posterior is \
+             still too narrow"
+        }
+        (false, false) => "",
+    };
     AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from(DEPENDENCE_ASSUMPTION_ID),
             description: Arc::from(format!(
                 "generalized (power) posterior with a serial-dependence correction at every \
                  horizon: each horizon's Gaussian likelihood on time-ordered lag-aligned rows is \
-                 tempered by 1/kappa_h, kappa_h = the largest autoregressive-prewhitened (AR(1), plus a \
-                 BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's grid-cell level scores, floored at 1 \
-                 ({per_horizon}). At h >= 2 the unfolded regression omits intermediate \
-                 treatments and innovations, so its residuals are MA(h-1) whenever the outcome \
-                 or treatment is persistent; the prior keeps full weight; heteroskedasticity and \
-                 mean misspecification are not corrected"
+                 tempered by 1/kappa_h, kappa_h = the variance ratio of that horizon's driving \
+                 grid-cell-level combination under a REML-fitted autoregressive residual (BIC \
+                 order <= 4) given the design, times the residual-scale factor n/(n - tr(HR)) \
+                 for the rows the projection removes, times exp(tau^2/2) for the delta-method \
+                 spread of log kappa_h; bounded by three times the autoregressive-prewhitened \
+                 (AR(1), plus a BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of \
+                 the driving score, scaled by its squared fixed-b factor; floored at 1 and capped \
+                 at n/(p+2) ({per_horizon}){caveat}. At h >= 2 the unfolded regression omits \
+                 intermediate treatments and innovations, so its residuals are MA(h-1) whenever \
+                 the outcome or treatment is persistent; the prior keeps full weight; \
+                 heteroskedasticity and mean misspecification are not corrected"
             )),
         }),
         source: AssumptionSource::AlgorithmDefault {
@@ -1054,7 +1117,7 @@ impl TemporalResponseEstimator {
         let mut ranges = Vec::new();
         let mut horizons = Vec::new();
         let mut levels = Vec::new();
-        let mut tempering = Vec::new();
+        let mut tempering: Vec<HorizonTempering> = Vec::new();
         for (h, (&horizon_steps, &(estimand, indexer))) in
             temporal.horizons.iter().zip(identifications).enumerate()
         {
@@ -1128,7 +1191,7 @@ impl TemporalResponseEstimator {
                         .cloned(),
                 );
             }
-            tempering.push(tempering_kappa_from_notes(&posterior.diagnostics.notes).unwrap_or(1.0));
+            tempering.push(HorizonTempering::from_notes(&posterior.diagnostics.notes));
             if intervention.is_some() {
                 levels.push(grid[0]);
             }
@@ -1187,13 +1250,55 @@ impl TemporalResponseEstimator {
         );
         support.diagnostics.push(SupportDiagnostic {
             id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
-            values: Arc::from(tempering.clone()),
+            values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
             detail: Arc::from(
                 "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
-                 largest autoregressive-prewhitened (AR(1), plus a BIC-selected AR(q <= 4)) \
-                 Newey-West long-run-variance ratio of the grid-cell level scores at that horizon, floored at 1",
+                 variance ratio of that horizon's driving grid-cell-level combination under a \
+                 REML-fitted autoregressive residual, scaled by the residual-scale and \
+                 delta-method spread factors, bounded by three times the prewhitened Newey-West \
+                 long-run-variance ratio of the driving score, floored at 1 and capped at \
+                 n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
+                 _inestimable disclose which horizons hit either bound)",
             ),
         });
+        let capped_horizons: Vec<u32> = temporal
+            .horizons
+            .iter()
+            .zip(&tempering)
+            .filter(|(_, t)| t.capped)
+            .map(|(&h, _)| h)
+            .collect();
+        let inestimable_horizons: Vec<u32> = temporal
+            .horizons
+            .iter()
+            .zip(&tempering)
+            .filter(|(_, t)| t.inestimable)
+            .map(|(&h, _)| h)
+            .collect();
+        if !inestimable_horizons.is_empty() {
+            support.warnings.push(Diagnostic::new(
+                TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the long-run-variance tempering factor could not be estimated at horizon(s) \
+                     {inestimable_horizons:?} (n below max(8, p+2)); those cells keep the \
+                     untempered iid posterior and their credible interval is likely too narrow"
+                ),
+            ));
+        }
+        if !capped_horizons.is_empty() {
+            support.warnings.push(Diagnostic::new(
+                TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the long-run-variance tempering factor hit the n/(p+2) cap at horizon(s) \
+                     {capped_horizons:?}; kappa is known to be too small there and the published \
+                     credible interval is still too narrow"
+                ),
+            ));
+        }
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.temporal_response.linear_additive"),
                 description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon, fit separately per horizon. Pointwise posterior intervals and the simultaneous credible band (support diagnostics response.simultaneous_band.*) are conditional on the observed adjustment and treatment distribution: they describe the level at the sample covariate average, not the population average. The simultaneous band pairs independent per-horizon draws, so across horizons it is a product-posterior band, not a joint horizon posterior.") }),
@@ -3825,5 +3930,35 @@ mod tests {
             (0..99).map(|r| vec![f64::from(r) - 49.0, 10.0 + f64::from(r) - 49.0]).collect();
         let floored = max_deviation_band(&center, &uniform, 0.95).unwrap();
         assert!((floored.critical - normal_ppf(0.975)).abs() < 1e-12, "{}", floored.critical);
+    }
+
+    #[test]
+    fn bayesian_tempering_assumption_discloses_capped_and_inestimable_horizons() {
+        let horizons = [1u32, 2u32, 3u32];
+        let tempering = vec![
+            HorizonTempering { kappa: 1.0, capped: false, inestimable: true },
+            HorizonTempering { kappa: 7.5, capped: true, inestimable: false },
+            HorizonTempering { kappa: 2.0, capped: false, inestimable: false },
+        ];
+        let record = temporal_bayesian_tempering_assumption(&horizons, &tempering);
+        let Assumption::ParametricRestriction(p) = &record.assumption else {
+            panic!("expected a parametric restriction");
+        };
+        let text = p.description.as_ref();
+        assert!(text.contains("h=1: 1.0000 inestimable"), "{text}");
+        assert!(text.contains("h=2: 7.5000 capped"), "{text}");
+        assert!(text.contains("h=3: 2.0000"), "{text}");
+        assert!(
+            text.contains("REML") && text.contains("n/(p+2)"),
+            "must describe the actual fitted formula (REML AR(q), capped at n/(p+2)): {text}"
+        );
+        assert!(
+            !text.contains(
+                "the largest autoregressive-prewhitened (AR(1), plus a \
+                 BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's \
+                 grid-cell level scores, floored at 1"
+            ),
+            "must not keep the wrong pre-REML formula text: {text}"
+        );
     }
 }
