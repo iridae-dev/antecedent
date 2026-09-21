@@ -13,7 +13,9 @@ list. [Capabilities](capabilities.md) explains what exists. A successful run
 still requires a defensible causal model, relevant data, and interpretation of
 the result's support, uncertainty, and assumptions.
 
-Calibration has the same discipline: a reported interval is calibrated only
-within the scope of matching evidence. The 2.0 preparation line has not run its
-long calibration measurement program; existing records keep their own stated
-scope.
+Calibration has the same discipline: a reported interval is `calibrated` only
+when a matching coverage record still attests the current code and the
+execution lies inside that record's measured scope. The 2.0 preparation line
+has not run its long calibration measurement program; existing records keep
+their stated scope but do not attest this tree, so they are not reported as
+`calibrated`.

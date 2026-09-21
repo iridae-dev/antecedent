@@ -37,5 +37,7 @@ An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
 The long-running 2.0 calibration measurement remains planned, not completed.
-Read `result.calibration` and the [draft release notes](release-notes/v2.0.0.md)
-for the scope of interval evidence.
+Read `result.calibration`: status `calibrated` requires a coverage record that
+still attests the current code. Existing records are retained for scope and
+provenance, but with drifted facets they are not `calibrated`. See the
+[draft release notes](release-notes/v2.0.0.md).
