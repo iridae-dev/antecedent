@@ -34,6 +34,7 @@ echo "== gate self-tests (broken inputs must fail) =="
 bash scripts/gate_parity_schema.sh --self-test
 bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
+bash scripts/gate_transport.sh --self-test
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
 bash scripts/gate_coverage_citations.sh --self-test
@@ -82,6 +83,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_causal_artifacts.sh
   bash scripts/gate_estimate_reuse.sh
   bash scripts/gate_composition.sh
+  bash scripts/gate_transport.sh
 fi
 
 python3 - <<'PY'

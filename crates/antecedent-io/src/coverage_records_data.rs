@@ -2101,7 +2101,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::frontdoor_binary_scm",
         test: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::recursive_frontdoor_nominal_coverage",
-        calibration_sha: "9bedc2863b98d62e0c223b771993d4b471c8c5cc",
+        calibration_sha: "7bf07a1653693589c35ac175169855a8d2f68715",
     },
     CoverageRecord {
         id: "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.shared_factor_target_observational_nominal_coverage",
@@ -2134,7 +2134,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::xy_shared_joint",
         test: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::shared_factor_target_observational_nominal_coverage",
-        calibration_sha: "9bedc2863b98d62e0c223b771993d4b471c8c5cc",
+        calibration_sha: "7bf07a1653693589c35ac175169855a8d2f68715",
     },
     CoverageRecord {
         id: "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage",
@@ -2167,7 +2167,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::standardize_imbalance",
         test: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::source_target_imbalance_standardize_nominal_coverage",
-        calibration_sha: "9bedc2863b98d62e0c223b771993d4b471c8c5cc",
+        calibration_sha: "7bf07a1653693589c35ac175169855a8d2f68715",
     },
     CoverageRecord {
         id: "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary",
@@ -2200,7 +2200,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::xy_rare_treatment",
         test: "crates/antecedent/tests/v20_transport_statistical_calibration.rs::weak_overlap_near_empty_conditioner_boundary",
-        calibration_sha: "9bedc2863b98d62e0c223b771993d4b471c8c5cc",
+        calibration_sha: "7bf07a1653693589c35ac175169855a8d2f68715",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_bayesian_default_nominal_coverage",
