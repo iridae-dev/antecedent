@@ -1,0 +1,140 @@
+{
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "python": "3.13.0",
+  "cpu_count": 10,
+  "ml_threads": 1,
+  "transport_threads": "ExecutionContext.production_default",
+  "extension_profile": "release (build separately with maturin develop --release)",
+  "comparison": "current working tree only; no speedup estimate",
+  "workloads": {
+    "ml_prepare_fit_export_load": {
+      "median_ms": 1.807666,
+      "p95_ms": 2.064708,
+      "python_peak_bytes": 63536,
+      "python_retained_allocations": 117,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "ml_cold_preparation": {
+      "median_ms": 0.07675,
+      "p95_ms": 0.088666,
+      "python_peak_bytes": 13512,
+      "python_retained_allocations": 8,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "grid_cold_preparation": {
+      "median_ms": 0.059167,
+      "p95_ms": 0.129625,
+      "python_peak_bytes": 7526,
+      "python_retained_allocations": 47,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "grid_repeated_evaluation": {
+      "median_ms": 0.128042,
+      "p95_ms": 0.182708,
+      "python_peak_bytes": 9837,
+      "python_retained_allocations": 15,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "grid_inspection": {
+      "median_ms": 0.053167,
+      "p95_ms": 0.059541,
+      "python_peak_bytes": 12576,
+      "python_retained_allocations": 1,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "grid_export": {
+      "median_ms": 0.156875,
+      "p95_ms": 0.159292,
+      "python_peak_bytes": 30970,
+      "python_retained_allocations": 1,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "grid_load": {
+      "median_ms": 0.590208,
+      "p95_ms": 0.721667,
+      "python_peak_bytes": 44383,
+      "python_retained_allocations": 15,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "ml_repeated_estimation_nuisance_reuse": {
+      "median_ms": 0.613875,
+      "p95_ms": 0.81,
+      "python_peak_bytes": 62202,
+      "python_retained_allocations": 112,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "ml_inspection": {
+      "median_ms": 0.071333,
+      "p95_ms": 0.097042,
+      "python_peak_bytes": 16034,
+      "python_retained_allocations": 21,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "loaded_model_prediction": {
+      "median_ms": 0.02175,
+      "p95_ms": 0.031583,
+      "python_peak_bytes": 22068,
+      "python_retained_allocations": 102,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "model_load": {
+      "median_ms": 0.136959,
+      "p95_ms": 0.146542,
+      "python_peak_bytes": 288,
+      "python_retained_allocations": 1,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "trial_prepare_and_bootstrap": {
+      "median_ms": 2.6095,
+      "p95_ms": 2.804833,
+      "python_peak_bytes": 54388,
+      "python_retained_allocations": 111,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "trial_repeated_joint_bootstrap": {
+      "median_ms": 2.197708,
+      "p95_ms": 2.374583,
+      "python_peak_bytes": 31020,
+      "python_retained_allocations": 103,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "trial_inspection": {
+      "median_ms": 0.011375,
+      "p95_ms": 0.013333,
+      "python_peak_bytes": 4034,
+      "python_retained_allocations": 4,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "trial_export": {
+      "median_ms": 0.043458,
+      "p95_ms": 0.045333,
+      "python_peak_bytes": 6699,
+      "python_retained_allocations": 1,
+      "native_allocations": null,
+      "repeats": 15
+    },
+    "trial_load": {
+      "median_ms": 0.248584,
+      "p95_ms": 0.28975,
+      "python_peak_bytes": 39079,
+      "python_retained_allocations": 103,
+      "native_allocations": null,
+      "repeats": 15
+    }
+  },
+  "process_peak_rss_bytes": 69435392
+}
