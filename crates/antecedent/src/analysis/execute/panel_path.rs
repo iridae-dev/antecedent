@@ -768,6 +768,7 @@ impl super::Study {
                         &query.target_population,
                         EstimatorId::TemporalResponseGcomp,
                         None,
+                        crate::analysis::prepared::single_step_dose(query)?,
                     )?),
                     false,
                 )
