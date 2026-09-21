@@ -86,8 +86,10 @@ The [Python workflow](docs/python-workflow.md), [supported analyses](docs/suppor
 2.0 retains conformance fixtures, provenance, compatibility migrations, and
 machine-checked support boundaries. The full calibration sweep is still a
 roadmapped release requirement and has deliberately not been rerun for this
-preparation tree. Read `result.calibration` rather than inferring a universal
-coverage guarantee.
+preparation tree. Read `result.calibration`: `calibrated` means a coverage
+record matches the execution, the execution is inside that record's scope, and
+the record still attests the current code. Existing records have drifted facets
+and do not attest this tree, so a `calibrated` slot is not expected here.
 
 See the [2.0 draft release notes](docs/release-notes/v2.0.0.md),
 [architecture](docs/architecture.md), [artifacts](docs/artifacts.md), and

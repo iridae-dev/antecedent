@@ -35,4 +35,7 @@ removed from the working tree and remains available in Git history.
 
 - Does not claim a new calibration attestation. The long-running measurement
   program remains a release-roadmap item; existing records retain only their
-  recorded scope.
+  recorded scope and do not attest this tree.
+- Runtime `calibrated` requires a covering record that still attests the
+  current code; matching but stale or non-attesting records are
+  `scope_not_assessed` (`coverage_record_not_attesting`), not calibrated.
