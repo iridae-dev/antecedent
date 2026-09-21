@@ -119,6 +119,13 @@ pub enum QueryError {
     /// Distribution conditioning overlaps an outcome or intervention target.
     #[error("distribution conditioning overlaps outcome or intervention")]
     ConditioningOverlapsOutcomeOrIntervention,
+    /// A distribution outcome is also an intervention target: `P(A | do(A))`
+    /// is a point mass fixed by the query, not an identification problem.
+    #[error("distribution outcome {id} is also an intervention target")]
+    OutcomeIsInterventionTarget {
+        /// Shared id.
+        id: VariableId,
+    },
     /// Named / custom population requires a [`super::PopulationRegistry`].
     #[error("named predicate / custom distribution requires a PopulationRegistry")]
     PopulationRegistryRequired,
