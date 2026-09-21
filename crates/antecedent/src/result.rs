@@ -390,6 +390,124 @@ fn positive_finite(value: f64) -> bool {
     value.is_finite() && value > 0.0
 }
 
+/// Published scalar standard error and the label of its normal interval.
+///
+/// One owner of the facade's SE / `± z·SE` rule. Wire `standard_error`,
+/// [`StudyResult::primary_interval_binding`], the Uncertainty slot, and the
+/// Python copies all read this; they do not prefer `se_bootstrap` on their own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PublishedScalarUncertainty {
+    /// The one scalar SE the facade publishes, when licensed and positive-finite.
+    pub standard_error: Option<f64>,
+    /// Interval method for the normal interval formed from [`Self::standard_error`]:
+    /// [`IntervalMethod::AnalyticSe`], [`IntervalMethod::BootstrapSe`], or
+    /// [`IntervalMethod::None`]. Circular-block labeling is applied by
+    /// [`StudyResult::primary_interval_binding`] when a block family is recorded.
+    pub method: antecedent_core::IntervalMethod,
+    /// Nominal level of the normal interval, or `NaN` when nothing was published.
+    pub level: f64,
+    /// Why a scalar SE was withheld, when the estimate is an IV result that
+    /// cannot publish a Wald or bootstrap SE.
+    pub withheld_reason: Option<&'static str>,
+}
+
+impl PublishedScalarUncertainty {
+    /// Select the one published scalar SE for an [`EffectEstimate`].
+    ///
+    /// Rules:
+    /// 1. Only a positive-finite SE is published (`Some` alone is not enough).
+    /// 2. When first-stage diagnostics are present and `se_analytic` is
+    ///    non-finite, do not fall through to `se_bootstrap` — withhold (weak
+    ///    instrument / IV uncertainty not licensed as a Wald or bootstrap SE).
+    ///    A later integration prefers an Anderson–Rubin interval when
+    ///    `FirstStageDiagnostics` carries one; until that field exists this
+    ///    still withholds rather than publishing `± 1.96·se_bootstrap`.
+    /// 3. Otherwise prefer a positive-finite bootstrap SE over a positive-finite
+    ///    analytic SE (AIPW and peers keep today's preference). IV and NN
+    ///    matching are expected not to emit a competing finite pair after their
+    ///    estimator-side fixes.
+    #[must_use]
+    pub fn select(estimate: &EffectEstimate) -> Self {
+        use antecedent_core::IntervalMethod as M;
+
+        if let Some(diagnostics) = &estimate.first_stage_diagnostics {
+            // Prefer Anderson–Rubin when diagnostics carry one (sibling adds
+            // `anderson_rubin: Option<(f64, f64, f64)>`). Until that field
+            // exists, `anderson_rubin_interval` is always `None` and a
+            // non-finite analytic SE withholds rather than publishing bootstrap.
+            if let Some((_lower, _upper, level)) = anderson_rubin_interval(diagnostics) {
+                return Self {
+                    standard_error: None,
+                    method: M::None,
+                    level,
+                    withheld_reason: Some(
+                        "Anderson–Rubin interval preferred; Wald/bootstrap SE not licensed",
+                    ),
+                };
+            }
+            if !estimate.se_analytic.is_finite() {
+                return Self::withhold_iv();
+            }
+            if positive_finite(estimate.se_analytic) {
+                return Self {
+                    standard_error: Some(estimate.se_analytic),
+                    method: M::AnalyticSe,
+                    level: REPORTED_SE_INTERVAL_LEVEL,
+                    withheld_reason: None,
+                };
+            }
+            return Self::withhold_iv();
+        }
+
+        if estimate.se_bootstrap.is_some_and(positive_finite) {
+            return Self {
+                standard_error: estimate.se_bootstrap,
+                method: M::BootstrapSe,
+                level: REPORTED_SE_INTERVAL_LEVEL,
+                withheld_reason: None,
+            };
+        }
+        if positive_finite(estimate.se_analytic) {
+            return Self {
+                standard_error: Some(estimate.se_analytic),
+                method: M::AnalyticSe,
+                level: REPORTED_SE_INTERVAL_LEVEL,
+                withheld_reason: None,
+            };
+        }
+        Self {
+            standard_error: None,
+            method: M::None,
+            level: f64::NAN,
+            withheld_reason: None,
+        }
+    }
+
+    const fn withhold_iv() -> Self {
+        Self {
+            standard_error: None,
+            method: antecedent_core::IntervalMethod::None,
+            level: f64::NAN,
+            withheld_reason: Some(
+                "Wald/bootstrap SE not licensed (weak instrument or IV uncertainty withheld)",
+            ),
+        }
+    }
+}
+
+/// Anderson–Rubin interval `(lower, upper, level)` when first-stage diagnostics
+/// carry one. Sibling work adds the field; until it exists this always returns
+/// `None` so the selector withholds instead of publishing a bootstrap SE.
+fn anderson_rubin_interval(
+    diagnostics: &antecedent_estimate::FirstStageDiagnostics,
+) -> Option<(f64, f64, f64)> {
+    // When `FirstStageDiagnostics.anderson_rubin` lands, return it here
+    // (and set it explicitly in tests). Keep the diagnostics borrow so the
+    // integration site stays typed against the live struct.
+    let _ = diagnostics;
+    None
+}
+
 fn draws_u32(n: usize) -> Option<u32> {
     u32::try_from(n).ok()
 }
@@ -454,10 +572,15 @@ impl StudyResult {
     /// 2. An interventional distribution with a binary outcome reports its
     ///    bounded mean interval.
     /// 3. A posterior reports its `q025` / `q975` interval.
-    /// 4. A standard error reports `estimate ± 1.96·SE`: the bootstrap SE when
-    ///    one was reported (circular-block when a family is recorded), else the
-    ///    analytic SE with the estimator's recorded kind. A requested bootstrap
-    ///    that reported no SE is not a bootstrap interval.
+    /// 4. A standard error reports `estimate ± 1.96·SE` from
+    ///    [`PublishedScalarUncertainty::select`]: the published bootstrap SE
+    ///    when that is the selected SE (circular-block when a family is
+    ///    recorded), else the published analytic SE with the estimator's
+    ///    recorded kind. A bootstrap interval here is a normal interval from
+    ///    the bootstrap SE, not a percentile interval (replicates are not
+    ///    retained). A requested bootstrap that reported no positive-finite SE
+    ///    is not a bootstrap interval; an IV result that withheld Wald/bootstrap
+    ///    uncertainty is [`IntervalMethod::None`](antecedent_core::IntervalMethod::None).
     /// 5. When no finite scalar interval exists, a reported identified-set
     ///    interval is the primary interval; otherwise nothing was reported.
     #[must_use]
@@ -518,22 +641,27 @@ impl StudyResult {
         }
         let estimate = &self.estimate;
         if estimate.ate.is_finite() {
-            if estimate.se_bootstrap.is_some_and(positive_finite) {
-                let (method, dependence) = match estimate.block_family {
-                    Some(family) => (M::CircularBlockSe, circular_block_dependence(family)),
-                    None => (M::BootstrapSe, base),
-                };
-                let mut binding =
-                    IntervalBinding::new(method, REPORTED_SE_INTERVAL_LEVEL, dependence);
-                binding.replicates_ok = estimate.bootstrap_replicates_ok;
-                binding.replicates_failed = estimate.bootstrap_replicates_failed;
-                return binding;
-            }
-            if positive_finite(estimate.se_analytic) {
-                let mut binding =
-                    IntervalBinding::new(M::AnalyticSe, REPORTED_SE_INTERVAL_LEVEL, base);
-                binding.se_kind = estimate.se_kind;
-                return binding;
+            let published = PublishedScalarUncertainty::select(estimate);
+            match published.method {
+                M::BootstrapSe => {
+                    let (method, dependence) = match estimate.block_family {
+                        Some(family) => (M::CircularBlockSe, circular_block_dependence(family)),
+                        None => (M::BootstrapSe, base),
+                    };
+                    let mut binding = IntervalBinding::new(method, published.level, dependence);
+                    binding.replicates_ok = estimate.bootstrap_replicates_ok;
+                    binding.replicates_failed = estimate.bootstrap_replicates_failed;
+                    return binding;
+                }
+                M::AnalyticSe => {
+                    let mut binding = IntervalBinding::new(M::AnalyticSe, published.level, base);
+                    binding.se_kind = estimate.se_kind;
+                    return binding;
+                }
+                M::None if published.withheld_reason.is_some() => {
+                    return IntervalBinding::none(base);
+                }
+                _ => {}
             }
         }
         self.identified_set_interval_binding().unwrap_or_else(|| IntervalBinding::none(base))
@@ -723,5 +851,58 @@ mod weight_basis_tests {
             let wire = antecedent_io::StructuralWeightBasisWire::from(basis);
             assert_eq!(serde_json::to_value(wire).unwrap(), basis.as_str());
         }
+    }
+}
+
+#[cfg(test)]
+mod published_scalar_uncertainty_tests {
+    use antecedent_core::{AssumptionSet, IntervalMethod};
+    use antecedent_estimate::{EffectEstimate, FirstStageDiagnostics, OverlapPolicy};
+
+    use super::PublishedScalarUncertainty;
+
+    fn estimate(ate: f64, se_analytic: f64, se_bootstrap: Option<f64>) -> EffectEstimate {
+        let mut estimate =
+            EffectEstimate::new(ate, se_analytic, AssumptionSet::default(), OverlapPolicy::ExplicitOverride);
+        estimate.se_bootstrap = se_bootstrap;
+        estimate
+    }
+
+    fn weak_first_stage() -> FirstStageDiagnostics {
+        // When `anderson_rubin` appears on this struct, set it explicitly here.
+        FirstStageDiagnostics {
+            f_statistic: 5.0,
+            df1: 1,
+            df2: 98,
+            partial_r2: 0.05,
+        }
+    }
+
+    #[test]
+    fn weak_iv_non_finite_analytic_withholds_bootstrap() {
+        let estimate = estimate(1.0, f64::NAN, Some(0.2))
+            .with_first_stage_diagnostics(Some(weak_first_stage()));
+        let published = PublishedScalarUncertainty::select(&estimate);
+        assert!(published.standard_error.is_none());
+        assert_eq!(published.method, IntervalMethod::None);
+        assert!(published.withheld_reason.is_some());
+    }
+
+    #[test]
+    fn finite_analytic_without_bootstrap_publishes_analytic() {
+        let estimate = estimate(1.0, 0.15, None);
+        let published = PublishedScalarUncertainty::select(&estimate);
+        assert_eq!(published.standard_error, Some(0.15));
+        assert_eq!(published.method, IntervalMethod::AnalyticSe);
+        assert!(published.withheld_reason.is_none());
+    }
+
+    #[test]
+    fn both_finite_without_first_stage_prefers_bootstrap() {
+        let estimate = estimate(1.0, 0.15, Some(0.2));
+        let published = PublishedScalarUncertainty::select(&estimate);
+        assert_eq!(published.standard_error, Some(0.2));
+        assert_eq!(published.method, IntervalMethod::BootstrapSe);
+        assert!(published.withheld_reason.is_none());
     }
 }

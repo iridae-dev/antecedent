@@ -2340,19 +2340,23 @@ fn result_reasoning(
 ) -> Result<ReasoningView, CausalError> {
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
-    if result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0 {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            "analytic_se",
-            false,
-        ));
-    }
-    if result.estimate.se_bootstrap.is_some() {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            "bootstrap_se",
-            false,
-        ));
+    let published = crate::PublishedScalarUncertainty::select(&result.estimate);
+    match published.method {
+        antecedent_core::IntervalMethod::AnalyticSe => {
+            components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling,
+                "analytic_se",
+                false,
+            ));
+        }
+        antecedent_core::IntervalMethod::BootstrapSe => {
+            components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling,
+                "bootstrap_se",
+                false,
+            ));
+        }
+        _ => {}
     }
     if result.posterior.is_some() {
         components.push(UncertaintyComponent::new(
@@ -2473,9 +2477,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         identification_variables,
         temporal_identification,
         estimate: executed_scalar(result),
-        standard_error: result.estimate.se_bootstrap.or_else(|| {
-            result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
-        }),
+        standard_error: crate::PublishedScalarUncertainty::select(&result.estimate).standard_error,
         assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),

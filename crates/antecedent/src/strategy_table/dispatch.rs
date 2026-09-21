@@ -509,7 +509,8 @@ fn estimate_static_effect_default(
         }
         EstimatorId::PropensityMatching => {
             let mut est = PropensityMatching::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // NN matching bootstrap is not a valid CI (Abadie–Imbens 2008).
+            est.bootstrap_replicates = 0;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -529,7 +530,8 @@ fn estimate_static_effect_default(
         }
         EstimatorId::DistanceMatching => {
             let mut est = DistanceMatching::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // NN matching bootstrap is not a valid CI (Abadie–Imbens 2008).
+            est.bootstrap_replicates = 0;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -563,13 +565,15 @@ fn estimate_static_effect_default(
         }
         EstimatorId::IvWald => {
             let mut est = WaldIv::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // Do not arm IV with the facade bootstrap; that bypasses the weak-instrument gate.
+            est.bootstrap_replicates = 0;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             est.fit(&prep, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::Iv2Sls => {
             let mut est = TwoStageLeastSquares::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // Do not arm IV with the facade bootstrap; that bypasses the weak-instrument gate.
+            est.bootstrap_replicates = 0;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
