@@ -93,7 +93,7 @@ pub fn fit_conjugate_gaussian(
         (mean, draws, false)
     } else {
         let (mean, scale_chol, alpha_n, beta_n) =
-            posterior_nig(ncols, &coef_prior, xtx, xty, ig, yty, n_eff)?;
+            posterior_nig(ncols, &coef_prior, xtx, xty, ig, yty, n_eff, Some(design))?;
         let draws = draw_nig(
             &mean,
             &scale_chol,
@@ -233,10 +233,12 @@ fn posterior_nig(
     ig: InvGammaPrior,
     yty: f64,
     n_eff: f64,
+    design: Option<BayesDesignRef<'_>>,
 ) -> Result<(Vec<f64>, Vec<f64>, f64, f64), ProbError> {
-    // Use prior precision on coefficients as if σ²=1 scaling in the NIG location update:
     // Vn^{-1} = V0^{-1} + X'X ; mn = Vn (V0^{-1} m0 + X'y)
-    // Then αn = α0 + n/2, βn = β0 + 0.5 (m0' V0^{-1} m0 + y'y - mn' Vn^{-1} mn)
+    // βn = β0 + ½ [ ‖y − X mn‖² + (mn − m0)' Λ0 (mn − m0) ]
+    // Prefer residual RSS from the design (stable on uncentred y); fall back to
+    // the three-term Gram form when only moments are available.
     let mut vn_inv = vec![0.0; ncols * ncols];
     let prec = prior.precision();
     for i in 0..ncols {
@@ -259,19 +261,18 @@ fn posterior_nig(
         mean[i] = acc;
     }
 
-    let mut m0_term = 0.0;
+    let rss = match design {
+        Some(d) => residual_ss_from_design(d, &mean),
+        None => residual_ss_from_moments(ncols, &mean, xtx, xty, yty),
+    };
+    let mut prior_quad = 0.0;
     for i in 0..ncols {
-        m0_term += prec[i] * prior.mean[i] * prior.mean[i];
-    }
-    let mut mn_term = 0.0;
-    for i in 0..ncols {
-        for j in 0..ncols {
-            mn_term += mean[i] * vn_inv[i * ncols + j] * mean[j];
-        }
+        let d = mean[i] - prior.mean[i];
+        prior_quad += prec[i] * d * d;
     }
     let alpha_n = ig.shape + 0.5 * n_eff;
-    let beta_n = ig.scale + 0.5 * (m0_term + yty - mn_term);
-    if !(beta_n > 0.0) || !(alpha_n > 0.0) {
+    let beta_n = ig.scale + 0.5 * (rss + prior_quad);
+    if !(beta_n > 0.0) || !(alpha_n > 0.0) || !beta_n.is_finite() || !alpha_n.is_finite() {
         return Err(ProbError::Numerical {
             message: format!("invalid NIG posterior: alpha={alpha_n} beta={beta_n}"),
         });
@@ -280,6 +281,51 @@ fn posterior_nig(
     // Cholesky of Vn (scale matrix for β | σ²): cov(β|σ²) = σ² Vn
     let chol = cholesky_spd(&vn, ncols)?;
     Ok((mean, chol, alpha_n, beta_n))
+}
+
+/// Weighted residual sum of squares `Σ w_i (y_i − offset_i − x_i' m)²`.
+fn residual_ss_from_design(design: BayesDesignRef<'_>, mean: &[f64]) -> f64 {
+    let nrows = design.nrows;
+    let ncols = mean.len();
+    let mut rss = 0.0;
+    for r in 0..nrows {
+        let w = design.weights.map_or(1.0, |ww| ww[r]);
+        if w == 0.0 {
+            continue;
+        }
+        let offset = design.offsets.map_or(0.0, |oo| oo[r]);
+        let mut pred = offset;
+        for c in 0..ncols {
+            pred += design.x_colmajor[c * nrows + r] * mean[c];
+        }
+        let resid = design.y[r] - pred;
+        rss += w * resid * resid;
+    }
+    rss.max(0.0)
+}
+
+/// RSS = ‖y − X m‖² from Gram moments: `y'y − 2 m'X'y + m'(X'X)m`.
+///
+/// Subtracts the cross term in two passes. Prefer [`residual_ss_from_design`]
+/// when `y` and `X` are available — this form still loses digits for huge `|y|`.
+fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64], yty: f64) -> f64 {
+    let mut mn_xty = 0.0;
+    for i in 0..ncols {
+        mn_xty += mean[i] * xty[i];
+    }
+    let mut mn_xtx_mn = 0.0;
+    for i in 0..ncols {
+        let mut row = 0.0;
+        for j in 0..ncols {
+            row += xtx[i * ncols + j] * mean[j];
+        }
+        mn_xtx_mn += mean[i] * row;
+    }
+    let mut rss = yty;
+    rss -= mn_xty;
+    rss -= mn_xty;
+    rss += mn_xtx_mn;
+    rss.max(0.0)
 }
 
 fn draw_mvn_known_sigma(
@@ -613,5 +659,158 @@ mod tests {
         }
         let mean = sum / n as f64;
         assert!((mean - 1.0).abs() < 0.05, "empirical mean {mean} far from 1.0");
+    }
+
+    /// Closed-form NIG on an uncentred intercept-only design with non-zero prior mean.
+    ///
+    /// Earns `prob-1`: the old `m0'Λ0 m0 + y'y − mn'Vn^{-1} mn` scale cancelled on
+    /// large-mean outcomes; the residual-plus-prior-quadratic form must match the
+    /// analytic `(αn, βn)` and the Student-t marginal half-width.
+    #[test]
+    fn nig_scale_matches_analytic_on_uncentred_design() {
+        for &sigma in &[0.1_f64, 10.0] {
+            let n = 64usize;
+            let true_mu = 1.0e6;
+            let mut y = vec![0.0; n];
+            // Deterministic residuals so the Gram moments are exact.
+            for r in 0..n {
+                let e = ((r as f64 + 0.5) / n as f64 - 0.5) * sigma * 12.0_f64.sqrt();
+                y[r] = true_mu + e;
+            }
+            let x = vec![1.0; n];
+            let m0 = 1.0e6 + 3.0;
+            let v0 = 4.0;
+            let alpha0 = 3.0;
+            let beta0 = 2.0 * sigma * sigma; // prior scale near the true σ²
+            let prior = PriorSet {
+                specs: vec![
+                    PriorSpec::GaussianCoefficients(
+                        GaussianCoefficientPrior::shared(1, m0, v0).unwrap(),
+                    ),
+                    PriorSpec::ResidualInvGamma(InvGammaPrior { shape: alpha0, scale: beta0 }),
+                ],
+                contrast: None,
+                categorical: Vec::new(),
+                restrictions: Vec::new(),
+            };
+
+            let yty: f64 = y.iter().map(|&yi| yi * yi).sum();
+            let xty = y.iter().sum::<f64>();
+            let xtx = n as f64;
+            let lam0 = 1.0 / v0;
+            let vn_inv = lam0 + xtx;
+            let vn = 1.0 / vn_inv;
+            let mn = vn * (lam0 * m0 + xty);
+            let rss: f64 = y.iter().map(|&yi| {
+                let d = yi - mn;
+                d * d
+            }).sum();
+            let prior_quad = (mn - m0) * (mn - m0) * lam0;
+            let alpha_n = alpha0 + 0.5 * n as f64;
+            let beta_n = beta0 + 0.5 * (rss + prior_quad);
+            // Marginal Var(β) under NIG: (βn / (αn − 1)) · Vn
+            let marg_var = (beta_n / (alpha_n - 1.0)) * vn;
+            let half_width = 1.96 * marg_var.sqrt();
+
+            let (post_mean, _chol, post_alpha, post_beta) = super::posterior_nig(
+                1,
+                prior.gaussian_coefficients().unwrap(),
+                &[xtx],
+                &[xty],
+                InvGammaPrior { shape: alpha0, scale: beta0 },
+                yty,
+                n as f64,
+                Some(BayesDesignRef {
+                    x_colmajor: &x,
+                    nrows: n,
+                    ncols: 1,
+                    y: &y,
+                    weights: None,
+                    offsets: None,
+                }),
+            )
+            .unwrap();
+            assert!(
+                (post_mean[0] - mn).abs() < 1e-9,
+                "sigma={sigma}: mean {} vs analytic {mn}",
+                post_mean[0]
+            );
+            assert!(
+                (post_alpha - alpha_n).abs() < 1e-12,
+                "sigma={sigma}: alpha {post_alpha} vs {alpha_n}"
+            );
+            assert!(
+                (post_beta - beta_n).abs() / beta_n < 1e-10,
+                "sigma={sigma}: beta {post_beta} vs analytic {beta_n}"
+            );
+
+            let mut ws = LaplaceWorkspace::default();
+            let fit = fit_conjugate_gaussian(
+                BayesDesignRef {
+                    x_colmajor: &x,
+                    nrows: n,
+                    ncols: 1,
+                    y: &y,
+                    weights: None,
+                    offsets: None,
+                },
+                &prior,
+                &BayesFitOptions { n_draws: 8_000, seed: 11, ..BayesFitOptions::default() },
+                &mut ws,
+            )
+            .unwrap();
+            let s = fit.draws.summarize();
+            // coefficient column 0; residual variance column 1
+            assert!(
+                (s.mean[0] - mn).abs() < 0.05 * marg_var.sqrt().max(1e-6),
+                "sigma={sigma}: draw mean {} vs {mn}",
+                s.mean[0]
+            );
+            let emp_half = 1.96 * s.sd[0];
+            assert!(
+                (emp_half - half_width).abs() / half_width < 0.15,
+                "sigma={sigma}: credible half-width {emp_half} vs analytic {half_width}"
+            );
+            let sig_mean = beta_n / (alpha_n - 1.0);
+            assert!(
+                (s.mean[1] - sig_mean).abs() / sig_mean < 0.1,
+                "sigma={sigma}: sigma2 mean {} vs analytic {sig_mean}",
+                s.mean[1]
+            );
+        }
+    }
+
+    #[test]
+    fn nig_scale_stable_when_outcome_mean_is_huge() {
+        // Would cancel under m0'Λ0 m0 + y'y − mn'Vn^{-1} mn when |y| ~ 1e8.
+        let n = 32usize;
+        let mu = 1.0e8;
+        let y: Vec<f64> = (0..n).map(|r| mu + (r as f64 - 15.5) * 0.01).collect();
+        let x = vec![1.0; n];
+        let yty: f64 = y.iter().map(|&yi| yi * yi).sum();
+        let xty = y.iter().sum::<f64>();
+        let xtx = n as f64;
+        let prior = GaussianCoefficientPrior::shared(1, mu, 1.0).unwrap();
+        let ig = InvGammaPrior { shape: 2.0, scale: 1.0 };
+        let (_m, _c, alpha_n, beta_n) = super::posterior_nig(
+            1,
+            &prior,
+            &[xtx],
+            &[xty],
+            ig,
+            yty,
+            n as f64,
+            Some(BayesDesignRef {
+                x_colmajor: &x,
+                nrows: n,
+                ncols: 1,
+                y: &y,
+                weights: None,
+                offsets: None,
+            }),
+        )
+        .unwrap();
+        assert!(alpha_n.is_finite() && alpha_n > 0.0);
+        assert!(beta_n.is_finite() && beta_n > 0.0 && beta_n < 1e6, "beta_n={beta_n}");
     }
 }

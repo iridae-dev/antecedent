@@ -205,7 +205,8 @@ pub fn fit_hmc_glm(
         );
     }
 
-    let prec = coef_prior.precision();
+    // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
+    let prec = coef_prior.absolute_precision(1.0)?;
     let n_keep = fit_opts.n_draws;
     let total_draws = n_keep.saturating_mul(hmc.n_chains);
     workspace.prepare(nrows, ncols, total_draws.max(ncols));

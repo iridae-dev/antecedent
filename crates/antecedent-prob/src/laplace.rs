@@ -82,7 +82,8 @@ pub fn fit_laplace_glm(
         return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
     }
     coef_prior.validate()?;
-    let prec = coef_prior.precision();
+    // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
+    let prec = coef_prior.absolute_precision(1.0)?;
 
     // Initialize at prior mean (often 0).
     for i in 0..ncols {

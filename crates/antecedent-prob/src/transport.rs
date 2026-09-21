@@ -401,18 +401,23 @@ pub fn apply_transport(
                     extra.push_str("; alpha_forced=0 reason=missing_propensity_weights");
                 }
                 (_, Some(adj)) => {
-                    let (mean, var) = adj.weighted_moments();
-                    let n_coef = prepared
+                    let (mean, _het_var) = adj.weighted_moments();
+                    let coef = prepared
                         .prior
                         .gaussian_coefficients()
                         .ok_or(TransportError::InvalidWeights {
                             message: "source prior missing GaussianCoefficients for transport reweight",
-                        })?
-                        .len();
+                        })?;
+                    let n_coef = coef.len();
                     let idx = ctx.coef_index.unwrap_or(n_coef.saturating_sub(1));
-                    replace_coef_moments(&mut prepared.prior, idx, mean, var)?;
+                    // Heterogeneity updates the prior *mean* under the invariance.
+                    // Coefficient V0 stays the source posterior scale (already in
+                    // conjugate units) — never the weighted unit-effect variance,
+                    // which collapses to the 1e-12 floor when effects are homogeneous.
+                    let source_v0 = coef.variance[idx];
+                    replace_coef_moments(&mut prepared.prior, idx, mean, source_v0)?;
                     extra.push_str(&format!(
-                        "; reweighted mean={mean:.6} var={var:.6} ess={:.3}",
+                        "; reweighted mean={mean:.6} kept_v0={source_v0:.6} ess={:.3}",
                         adj.kish_ess()
                     ));
                 }
@@ -584,10 +589,11 @@ mod tests {
         let adj = TransportAdjustment::new([0.0, 0.0, 10.0], [0.0, 0.0, 1.0]).unwrap();
         let (mean, var) = adj.weighted_moments();
         assert!((mean - 10.0).abs() < 1e-12);
+        // Heterogeneity variance floors when weights concentrate — diagnostic only.
         assert!(var >= REWEIGHT_VAR_FLOOR);
 
+        // Source prior V0 = 1.0; transport must keep it (not write the floor).
         let sources = [source("a", 0.0, 1.0)];
-        let baseline = gauss(0.0, 100.0);
         let ctx = TransportContext {
             source_populations: &[Some("us")],
             target_population: Some("eu"),
@@ -595,10 +601,46 @@ mod tests {
             adjustment: Some(&adj),
             coef_index: Some(0),
         };
+        let (prepared, _) = apply_transport(&sources, &ctx).unwrap();
+        let coef = prepared[0].prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[0] - 10.0).abs() < 1e-12, "mean {}", coef.mean[0]);
+        assert!(
+            (coef.variance[0] - 1.0).abs() < 1e-12,
+            "transport must keep source V0, got {}",
+            coef.variance[0]
+        );
+        assert!(coef.variance[0] > REWEIGHT_VAR_FLOOR * 1e3);
+
+        let baseline = gauss(0.0, 100.0);
         let (composed, _) = compose_with_transport(&sources, &baseline, &ctx).unwrap();
-        let coef = composed.prior.gaussian_coefficients().unwrap();
+        let ccoef = composed.prior.gaussian_coefficients().unwrap();
         // Power-add with α=1: prior mean pulled toward 10 from reweighted source.
-        assert!(coef.mean[0] > 5.0, "mean {}", coef.mean[0]);
+        assert!(ccoef.mean[0] > 5.0, "composed mean {}", ccoef.mean[0]);
+    }
+
+    #[test]
+    fn homogeneous_reweight_does_not_dogmatize_v0() {
+        let adj = TransportAdjustment::new([2.0, 2.0, 2.0], [1.0, 1.0, 1.0]).unwrap();
+        let (mean, het) = adj.weighted_moments();
+        assert!((mean - 2.0).abs() < 1e-12);
+        assert!((het - REWEIGHT_VAR_FLOOR).abs() < 1e-18);
+
+        let sources = [source("a", 0.5, 1.0)]; // V0 = 1
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: Some(TransportPolicy::InvariantConditionalOutcome),
+            adjustment: Some(&adj),
+            coef_index: Some(0),
+        };
+        let (prepared, _) = apply_transport(&sources, &ctx).unwrap();
+        let coef = prepared[0].prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[0] - 2.0).abs() < 1e-12);
+        assert!(
+            (coef.variance[0] - 1.0).abs() < 1e-12,
+            "homogeneous effects must not replace V0 with REWEIGHT_VAR_FLOOR; got {}",
+            coef.variance[0]
+        );
     }
 
     #[test]
