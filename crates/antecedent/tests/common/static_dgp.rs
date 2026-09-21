@@ -212,3 +212,80 @@ pub fn envelope_pag() -> Pag {
     g.insert_directed(d(5), d(1)).unwrap();
     g
 }
+
+// ------------------------------------------------------------------ adversarial
+// Cells the calibration gate will enrol after the harness precision layer is
+// remesured. Each law sits *outside* an estimator's comfort zone so a coverage
+// pass is evidence the interval survives that stress, not that the DGP was
+// chosen to make the estimator look calibrated.
+
+/// Weak first-stage IV (columns `t, y, z`): `z ∈ {0,1}`,
+/// `t = 0.15 z + u + 0.1 e`, `y = 2t + u + 0.1 e`. Stock–Yogo F is routinely
+/// below 10 at a few hundred rows — the regime a Wald SE must not claim.
+#[must_use]
+pub fn weak_iv_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = (i % 2) as f64;
+        let u = g();
+        t[i] = 0.15 * z[i] + u + 0.1 * g();
+        y[i] = 2.0 * t[i] + u + 0.1 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+/// Weak overlap (columns `t, y, z`): `z ~ N(0,1)`,
+/// `t ~ Bern(σ(−2.5 + 3.0 z))` so propensities crowd 0/1,
+/// `y = 2t + z + e`. ATE 2; IPW / matching weights are unstable.
+#[must_use]
+pub fn weak_overlap_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(-2.5 + 3.0 * z[i]));
+        y[i] = 2.0 * t[i] + z[i] + g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+/// Curved, heterogeneous sharp RD (columns `t, y, r`): running variable with
+/// density `2(r+1)/9` on `[−1, 2]` (`r = 3√u − 1`), baseline
+/// `1 + 0.5r + 0.8r² + r³`, effect `τ(r) = 2 + 6r`. Cutoff effect is 2; a
+/// conventional local-linear interval ignores the cubic bias.
+#[must_use]
+pub fn curved_rd_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut r) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        r[i] = 3.0 * u().sqrt() - 1.0;
+        t[i] = f64::from(r[i] >= 0.0);
+        y[i] = 1.0
+            + 0.5 * r[i]
+            + 0.8 * r[i] * r[i]
+            + r[i] * r[i] * r[i]
+            + t[i] * (2.0 + 6.0 * r[i])
+            + 0.3 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("r", &r)])
+}
+
+/// Heteroskedastic matching stress (columns `t, y, z`): logistic treatment in
+/// `z`, outcome `y = 2t + z + (0.3 + 1.2|z|)·e` so residual variance grows
+/// with the propensity score. Homoskedastic Abadie–Imbens SEs are wrong here.
+#[must_use]
+pub fn heteroskedastic_matching_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(0.8 * z[i]));
+        let s = 0.3 + 1.2 * z[i].abs();
+        y[i] = 2.0 * t[i] + z[i] + s * g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}

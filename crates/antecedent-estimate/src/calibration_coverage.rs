@@ -3,22 +3,24 @@
 //! These tests are `#[ignore]` so every-PR `cargo test` stays fast. Run via
 //! `scripts/gate_calibration.sh`.
 //!
-//! The band, the floor, the recheck rule and the normal quantile are the
-//! shared harness's (`crates/antecedent/tests/common/calibration.rs`), used
-//! here rather than restated: two-sided `0.95 ± 3·MCSE` with
+//! The band, the floor, the ceiling, the recheck rule and the normal quantile
+//! are the shared harness's (`crates/antecedent/tests/common/calibration.rs`),
+//! used here rather than restated: two-sided `0.95 ± 3·MCSE` with
 //! `MCSE = √(0.95·0.05/N)` — `[0.917, 0.983]` at `N = 400`, so both an
 //! under-covering interval and a conservative one fail; below
-//! `PRECISION_N_SIM` replicates a rate more than `RECHECK_SHORTFALL` under the
-//! level prints a `calibration-recheck` line and the gate re-runs the test at
-//! `ANTECEDENT_CALIBRATION_NSIM=RECHECK_N_SIM`; from `PRECISION_N_SIM`
-//! replicates the rate must also reach the one-sided floor `0.95 − 2·MCSE`
-//! (0.940 at 2000). There is no estimator-specific exemption; each test prints
-//! a `calibration ...` line with the rate, MCSE, band, mean interval length,
-//! mean SE, and the Monte Carlo SD of the point estimate.
+//! `PRECISION_N_SIM` replicates a rate more than `RECHECK_SHORTFALL` from the
+//! level in either direction prints a `calibration-recheck` line and the gate
+//! re-runs the test at `ANTECEDENT_CALIBRATION_NSIM=RECHECK_N_SIM`; from
+//! `PRECISION_N_SIM` replicates the rate must also lie in
+//! `[0.95 − 2·MCSE, 0.95 + 2·MCSE]` (about `[0.940, 0.960]` at 2000). There is
+//! no estimator-specific exemption and no halved replicate count to widen the
+//! band; each test prints a `calibration ...` line with the rate, MCSE, band,
+//! mean interval length, mean SE, and the Monte Carlo SD of the point estimate.
 //!
-//! Every DGP here is inside the estimator's stated assumptions (correct
-//! nuisance families, the SE kind's variance model). Out-of-assumption probes
-//! print their coverage through [`Tally::report`] and are not gated.
+//! In-assumption DGPs gate the estimators under their stated models. Adversarial
+//! cells (weak IV, weak overlap, curved RD, heteroskedastic matching) live in
+//! [`static_dgp`] and as ignored tests below; the gate enrols them after the
+//! next full remesurement.
 //!
 //! **Coverage records.** Each gated test measures a construction the facade
 //! reports when a study selects that estimator configuration on a `Dag`
@@ -63,10 +65,13 @@ use crate::se::AnalyticSeKind;
 mod calibration;
 #[path = "../../antecedent/tests/common/estimator_level.rs"]
 mod estimator_level;
+#[path = "../../antecedent/tests/common/static_dgp.rs"]
+mod static_dgp;
 
 use calibration::{
-    CoverageTally, RECHECK_N_SIM, RecordKey, ScopeFacts, Z95, coverage_band, coverage_mcse, grid_n,
-    grid_seed, n_sim, needs_recheck, precision_floor,
+    CoverageTally, RECHECK_N_SIM, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, coverage_band,
+    coverage_mcse, grid_n, grid_seed, n_sim, needs_recheck, passes_precision, precision_ceiling,
+    precision_floor,
 };
 
 const TRUE_ATE: f64 = 2.0;
@@ -84,12 +89,6 @@ const BOOT_REPS: u32 = 60;
 
 /// Nominal level of every interval in this file.
 const LEVEL: f64 = 0.95;
-
-/// Bootstrap IPW is heavier: half the replicates (200 by default, a band of
-/// `[0.904, 0.996]`).
-fn n_sim_boot() -> u32 {
-    (n_sim() / 2).max(2)
-}
 
 /// Coverage count plus mean interval length and Monte Carlo spread of the point.
 ///
@@ -249,13 +248,13 @@ impl Tally {
     }
 
     /// Print and gate nominal coverage: the two-sided band, plus the precision
-    /// floor from `PRECISION_N_SIM` replicates or a `calibration-recheck` line
-    /// below it.
+    /// floor and ceiling from `PRECISION_N_SIM` replicates or a
+    /// `calibration-recheck` line below that count.
     fn assert(&self, label: &str) {
         assert!(self.scored > 0, "{label}: no replicates scored");
         self.report(label);
         if let Some((tally, _)) = self.record.as_ref() {
-            // Same band, floor and recheck rule; also emits the record.
+            // Same band, floor, ceiling and recheck rule; also emits the record.
             tally.assert();
             return;
         }
@@ -276,10 +275,21 @@ impl Tally {
                 self.covered,
                 self.scored
             );
+        }
+        if let Some(ceiling) = precision_ceiling(self.scored, LEVEL) {
+            assert!(
+                rate <= ceiling,
+                "{label}: coverage={rate:.3} above the precision ceiling {ceiling:.3} \
+                 (level + 2 MCSE at {} replicates; {}/{})",
+                self.scored,
+                self.covered,
+                self.scored
+            );
         } else if needs_recheck(self.scored, LEVEL, rate) {
+            let side = if rate < LEVEL { "below" } else { "above" };
             eprintln!(
                 "calibration-recheck {label}: coverage={rate:.3} is more than \
-                 {:.2} below {LEVEL:.2} at {} replicates; re-run at \
+                 {:.2} {side} {LEVEL:.2} at {} replicates; re-run at \
                  ANTECEDENT_CALIBRATION_NSIM={RECHECK_N_SIM}",
                 calibration::RECHECK_SHORTFALL,
                 self.scored
@@ -423,8 +433,7 @@ fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
     let mut tally = Tally::for_record("ipw_hajek_bootstrap_ci_coverage", "confounded_scm");
-    let mut skipped = 0u32;
-    for s in 0..n_sim_boot() {
+    for s in 0..n_sim() {
         // One context per simulation: a shared context would hand every
         // simulation the same bootstrap resample indices.
         let ctx = ExecutionContext::for_tests(2000 + u64::from(s));
@@ -433,17 +442,15 @@ fn ipw_hajek_bootstrap_ci_coverage() {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         let Some(se_b) = effect.se_bootstrap else {
-            skipped += 1;
+            // Missing SE is a miss in the coverage rate, not a dropped replicate.
+            if let Some((record, _)) = tally.record.as_mut() {
+                record.skip();
+            }
             continue;
         };
         tally.bind(grid_n(500), effect.bootstrap_replicates_ok);
         tally.record(effect.ate, se_b, TRUE_ATE);
     }
-    assert!(
-        skipped * 20 <= n_sim_boot(),
-        "ipw bootstrap: too many missing se_bootstrap ({skipped}/{})",
-        n_sim_boot()
-    );
     tally.assert("ipw_hajek_bootstrap");
 }
 
@@ -1263,4 +1270,172 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     }
     probe.report("rd_sharp_homoskedastic_se_heteroskedastic_probe");
     tally.assert("rd_sharp_hc1_heteroskedastic");
+}
+
+// ---------------------------------------------------------- adversarial cells
+// Fixtures the gate will enrol after the next full remesurement. Each sits
+// outside the estimator's comfort zone; they are ignored and not yet listed in
+// scripts/gate_calibration.sh so this commit does not start a 15–30 h run.
+
+/// Weak-IV Anderson–Rubin coverage on [`static_dgp::weak_iv_data`].
+#[test]
+#[ignore = "calibration: adversarial cell; enrol after remesurement"]
+fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let est = WaldIv {
+        bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Homoskedastic,
+        ..WaldIv::new()
+    };
+    let ctx = ExecutionContext::for_tests(71);
+    let mut tally = Tally::default();
+    let mut weak_f = 0u32;
+    for s in 0..n_sim() {
+        let data = static_dgp::weak_iv_data(n_obs(), 71_000 + u64::from(s));
+        let estimand = IdentifiedEstimand::instrumental(
+            "iv",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
+        if diag.f_statistic.is_finite() && diag.f_statistic < 10.0 {
+            weak_f += 1;
+        }
+        let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
+        tally.record_ar(effect.ate, interval, TRUE_ATE);
+    }
+    let weak_share = f64::from(weak_f) / f64::from(n_sim().max(1));
+    assert!(
+        weak_share > 0.2,
+        "weak_iv adversarial DGP must leave a large F<10 share, got {weak_share}"
+    );
+    tally.report("wald_iv_weak_first_stage_adversarial");
+}
+
+/// IPW analytic SE under [`static_dgp::weak_overlap_data`].
+#[test]
+#[ignore = "calibration: adversarial cell; enrol after remesurement"]
+fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
+    let ctx = ExecutionContext::for_tests(72);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let data = static_dgp::weak_overlap_data(grid_n(500), 72_000 + u64::from(s));
+        let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+    }
+    tally.report("ipw_hajek_weak_overlap_adversarial");
+}
+
+/// Sharp-RD HC1 under [`static_dgp::curved_rd_data`] (cubic bias + heterogeneous τ).
+#[test]
+#[ignore = "calibration: adversarial cell; enrol after remesurement"]
+fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
+    const CUTOFF_EFFECT: f64 = 2.0;
+    let query = rd_cutoff_query(0.0);
+    let est = SharpRegressionDiscontinuity {
+        bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Hc1,
+        ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 0.8)
+    };
+    let ctx = ExecutionContext::for_tests(73);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let data = static_dgp::curved_rd_data(10 * n_obs(), 73_000 + u64::from(s));
+        // Map r → z column expected by table_tyz / rd estimator (ids t,y,r as 0,1,2).
+        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = RdWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
+    }
+    tally.report("rd_sharp_hc1_curved_adversarial");
+}
+
+/// Matching (homoskedastic SE) under [`static_dgp::heteroskedastic_matching_data`].
+#[test]
+#[ignore = "calibration: adversarial cell; enrol after remesurement"]
+fn matching_heteroskedastic_adversarial_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_target_population(TargetPopulation::Treated);
+    let est = PropensityMatching {
+        bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Homoskedastic,
+        ..PropensityMatching::new()
+    };
+    let ctx = ExecutionContext::for_tests(74);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let data = static_dgp::heteroskedastic_matching_data(n_obs(), 74_000 + u64::from(s));
+        let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+    }
+    tally.report("matching_heteroskedastic_adversarial");
+}
+
+// --------------------------------------------- precision-layer unit tests (R13)
+
+/// A reported-level (0.95) rate below the precision floor fails the pass predicate.
+#[test]
+fn reported_level_below_precision_floor_fails() {
+    let floor = precision_floor(RECHECK_N_SIM, REPORTED_LEVEL).expect("floor at recheck n");
+    let (lo, hi) = coverage_band(RECHECK_N_SIM, REPORTED_LEVEL);
+    let rate = floor - 0.001;
+    assert!(rate > lo && rate < hi, "fixture rate {rate} must sit inside [{lo}, {hi}]");
+    assert!(
+        !passes_precision(RECHECK_N_SIM, REPORTED_LEVEL, rate),
+        "rate {rate} must fail below floor {floor}"
+    );
+    let mut tally = CoverageTally::new("reported_level_below_floor", REPORTED_LEVEL);
+    // 0.939 at 2000: inside the ±3·MCSE band, under the floor (~0.940).
+    for i in 0..RECHECK_N_SIM {
+        let truth = if i < 1878 { 0.5 } else { 2.0 };
+        tally.record(Some((0.0, 1.0)), truth);
+    }
+    assert!((tally.rate() - 0.939).abs() < 1e-12);
+    assert!(tally.rate() < floor);
+    assert!(std::panic::catch_unwind(|| tally.assert()).is_err());
+}
+
+/// A rate above the precision ceiling fails the pass predicate.
+#[test]
+fn coverage_above_precision_ceiling_fails() {
+    let ceiling = precision_ceiling(RECHECK_N_SIM, REPORTED_LEVEL).expect("ceiling at recheck n");
+    let (lo, hi) = coverage_band(RECHECK_N_SIM, REPORTED_LEVEL);
+    let rate = ceiling + 0.001;
+    assert!(rate > lo && rate < hi, "fixture rate {rate} must sit inside [{lo}, {hi}]");
+    assert!(
+        !passes_precision(RECHECK_N_SIM, REPORTED_LEVEL, rate),
+        "rate {rate} must fail above ceiling {ceiling}"
+    );
+    let mut tally = CoverageTally::new("above_ceiling", REPORTED_LEVEL);
+    // 0.961 at 2000: inside the ±3·MCSE band, over the ceiling (~0.960).
+    for i in 0..RECHECK_N_SIM {
+        let truth = if i < 1922 { 0.5 } else { 2.0 };
+        tally.record(Some((0.0, 1.0)), truth);
+    }
+    assert!((tally.rate() - 0.961).abs() < 1e-12);
+    assert!(tally.rate() > ceiling);
+    assert!(std::panic::catch_unwind(|| tally.assert()).is_err());
+}
+
+/// A skip leaves the coverage denominator and counts as a miss.
+#[test]
+fn skip_counts_as_coverage_miss() {
+    let mut tally = CoverageTally::new("skip_miss", REPORTED_LEVEL);
+    tally.record(Some((0.0, 1.0)), 0.5);
+    tally.skip();
+    assert_eq!(tally.attempts(), 2);
+    assert!((tally.rate() - 0.5).abs() < 1e-12, "skip must dilute coverage, got {}", tally.rate());
+    assert!(needs_recheck(400, REPORTED_LEVEL, 0.925));
+    assert!(needs_recheck(400, REPORTED_LEVEL, 0.975), "recheck is symmetric on the high side");
+    assert!(!needs_recheck(400, REPORTED_LEVEL, 0.95));
 }

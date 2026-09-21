@@ -57,11 +57,12 @@ grid_group() {
 # Run one gate group; record it as failed instead of aborting the gate.
 #
 # A coverage cell that passes its 400-replicate band but lands more than 2
-# points under its level prints a `calibration-recheck` line. The group is then
-# re-run at RECHECK_NSIM replicates, where the harness also enforces the
-# one-sided precision floor (level − 2·MCSE), and that run's verdict stands.
+# points away from its level (either side) prints a `calibration-recheck`
+# line — including `reported_level` (0.95) emits. The group is then re-run at
+# RECHECK_NSIM replicates, where the harness also enforces the precision floor
+# and ceiling (level ± 2·MCSE), and that run's verdict stands.
 # A grid group runs, logs and rechecks each grid point on its own
-# (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands low is
+# (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands off is
 # rechecked at that point, and its verdict never borrows another point's.
 check() {
   local label="$1"
@@ -128,7 +129,9 @@ run_ignored() {
 }
 
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
-# Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), no floor or exemption.
+# Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), plus symmetric
+# recheck and precision floor/ceiling. Bootstrap-IPW uses the full replicate
+# count (skips count as misses, cap 1%); no halved-n band widening.
 run_ignored antecedent-estimate linear_adjustment_analytic_ci_coverage
 run_ignored antecedent-estimate linear_adjustment_hc1_ci_coverage
 run_ignored antecedent-estimate ipw_hajek_bootstrap_ci_coverage
@@ -152,6 +155,13 @@ run_ignored antecedent-estimate frontdoor_functional_saturated_ci_coverage
 run_ignored antecedent-estimate frontdoor_functional_arm_linear_ci_coverage
 run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
 run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage
+# Adversarial cells (weak IV / weak overlap / curved RD / heteroskedastic
+# matching): fixtures in static_dgp.rs + ignored tests in calibration_coverage.rs.
+# Enrol after the next full remesurement — do not uncomment until then.
+# run_ignored antecedent-estimate wald_iv_weak_first_stage_adversarial_ci_coverage
+# run_ignored antecedent-estimate ipw_hajek_weak_overlap_adversarial_ci_coverage
+# run_ignored antecedent-estimate rd_sharp_hc1_curved_adversarial_ci_coverage
+# run_ignored antecedent-estimate matching_heteroskedastic_adversarial_ci_coverage
 
 run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage
