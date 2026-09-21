@@ -57,6 +57,11 @@ use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
 
+/// Diagnostic code: path enumeration stopped at its budget before the recanting-witness
+/// check could run over the complete path set. The `NotIdentified` it accompanies is a
+/// search bound, not a statement about the graph.
+pub const SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.path_specific.search_bounded";
+
 /// Path-restricted natural-effect identifier.
 #[derive(Clone, Debug, Default)]
 pub struct PathSpecificIdentifier {
@@ -166,12 +171,23 @@ impl PathSpecificIdentifier {
                     q.max_paths, q.max_len
                 ),
             );
-            return Ok(IdentificationResult::not_identified(
+            let mut out = IdentificationResult::not_identified(
                 query,
                 derivation,
                 prepared.declared_assumptions().clone(),
                 perf,
+            );
+            out.diagnostics.push(antecedent_core::Diagnostic::new(
+                SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+                antecedent_core::DiagnosticKind::Execution,
+                antecedent_core::DiagnosticSeverity::Warning,
+                format!(
+                    "path enumeration stopped at max_paths={} / max_len={} before the path set \
+                     was complete; identifiability is undecided, not refuted — raise the budget",
+                    q.max_paths, q.max_len
+                ),
             ));
+            return Ok(out);
         }
 
         // π and its complement come from one enumeration: re-running it would only repeat the
@@ -585,6 +601,48 @@ mod tests {
             "full enumeration should cite the recanting witness, got {:?}",
             res.derivation.steps
         );
+    }
+
+    /// Four layers of three fully connected nodes give 3^4 = 81 directed t→y paths, more
+    /// than the default 64-path budget. The effect along the first-layer node is
+    /// identified (every path through it starts with a distinct first edge), so the
+    /// refusal is a budget exit and must be marked as one.
+    #[test]
+    fn budget_exit_is_marked_as_a_bounded_search_not_a_scientific_negative() {
+        // 0=t, 1..=12 four layers of three, 13=y.
+        let mut dag = Dag::with_variables(14);
+        let layer = |k: u32| (1 + 3 * k)..(4 + 3 * k);
+        for v in layer(0) {
+            dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(v)).unwrap();
+        }
+        for k in 0..3 {
+            for u in layer(k) {
+                for v in layer(k + 1) {
+                    dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v))
+                        .unwrap();
+                }
+            }
+        }
+        for u in layer(3) {
+            dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(13)).unwrap();
+        }
+        let bounded = identify_on(&dag, &path_query(0, 13, &[1]));
+        assert_eq!(bounded.status, IdentificationStatus::NotIdentified);
+        let marker = bounded
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == SEARCH_BOUNDED_DIAGNOSTIC_CODE)
+            .expect("bounded-search diagnostic");
+        assert_eq!(marker.kind, antecedent_core::DiagnosticKind::Execution);
+
+        // With room for all 81 paths the same query is identified, so the refusal above
+        // was never a statement about the graph.
+        let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(13))
+            .with_path_nodes([VariableId::from_raw(1)])
+            .with_max_paths(128);
+        let full = identify_on(&dag, &CausalQuery::PathSpecific(q));
+        assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SEARCH_BOUNDED_DIAGNOSTIC_CODE));
     }
 
     fn has_rule(res: &IdentificationResult, rule: &str) -> bool {
