@@ -383,6 +383,179 @@ fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
     }
 }
 
+/// Laws for X -> M -> Y with X <-> M, where only Y's mechanism differs in the target.
+/// Returns the source `do(x)` worlds over (M, Y) and one observational joint over (X, M, Y).
+fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactDiscreteLaw> {
+    let binary =
+        |i| DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0), Value::Int64(1)]) };
+    let m_given = |m, x: usize, u: usize| bernoulli(m, 0.15 + 0.5 * x as f64 + 0.2 * u as f64);
+    let y_given = |y, m: usize, shift: f64| bernoulli(y, 0.1 + 0.6 * m as f64 + shift);
+    let mut laws = Vec::new();
+    for x in 0..2usize {
+        let mut world = vec![0.0; 4];
+        for u in 0..2 {
+            for m in 0..2 {
+                for y in 0..2 {
+                    world[m * 2 + y] += 0.5 * m_given(m, x, u) * y_given(y, m, 0.0);
+                }
+            }
+        }
+        laws.push(
+            ExactDiscreteLaw::try_new(
+                "source",
+                RegimeId::from_raw(1),
+                [antecedent_expr::InterventionAssignment {
+                    variable: v(0),
+                    value: Value::Int64(x as i64),
+                }],
+                [binary(1), binary(2)],
+                world,
+                "oracle",
+                LawTolerance::default(),
+            )
+            .unwrap(),
+        );
+    }
+    let mut joint = vec![0.0; 8];
+    for u in 0..2 {
+        for x in 0..2 {
+            for m in 0..2 {
+                for y in 0..2 {
+                    joint[x * 4 + m * 2 + y] += 0.5
+                        * bernoulli(x, 0.2 + 0.6 * u as f64)
+                        * m_given(m, x, u)
+                        * y_given(y, m, y_shift);
+                }
+            }
+        }
+    }
+    laws.push(
+        ExactDiscreteLaw::try_new(
+            observational_population,
+            RegimeId::from_raw(2),
+            [],
+            [binary(0), binary(1), binary(2)],
+            joint,
+            "oracle",
+            LawTolerance::default(),
+        )
+        .unwrap(),
+    );
+    laws
+}
+
+#[test]
+fn two_population_district_recursion_fails_truth_under_kernel_population_substitution() {
+    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
+    const TARGET_Y_SHIFT: f64 = 0.25;
+    let mut graph = Admg::with_variables(3);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_directed(d(1), d(2)).unwrap();
+    graph.insert_bidirected(d(0), d(1)).unwrap();
+    let diagram = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(2)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let regimes = [
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [v(0)],
+            [],
+            [v(1), v(2)],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap(),
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(2),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [v(0), v(1), v(2)],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap(),
+    ];
+    let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
+    let ctx = ExecutionContext::for_tests(3);
+    let CatalogTransportResult::Identified(bound) =
+        identify_catalog_transport(&diagram, &query, &catalog, SidLimits::default(), &ctx).unwrap()
+    else {
+        panic!("the bow on M needs the source experiment and the selected Y needs the target");
+    };
+    let populations: std::collections::BTreeSet<_> = bound
+        .arena()
+        .leaf_bindings(bound.root())
+        .iter()
+        .map(|binding| binding.population.to_string())
+        .collect();
+    assert_eq!(populations.into_iter().collect::<Vec<_>>(), ["source", "target"]);
+
+    let mean = |laws: Vec<ExactDiscreteLaw>, x: i64| {
+        ExactEvaluationPlan::compile(
+            bound.arena(),
+            bound.root(),
+            ExactTransportData::try_new(laws, 1000).unwrap(),
+            [v(2)],
+            Assignment::from_pairs([(v(0), Value::Int64(x))]),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .and_then(|plan| plan.evaluate(&ctx))
+        .map(|result| result.mean(v(2)).unwrap())
+    };
+    for x in 0..2usize {
+        // Target truth: M keeps the shared mechanism, Y uses the target mechanism.
+        let p_m1 = 0.15 + 0.5 * x as f64 + 0.2 * 0.5;
+        let truth = 0.1 + 0.6 * p_m1 + TARGET_Y_SHIFT;
+        let actual = mean(mediator_bow_laws("target", TARGET_Y_SHIFT), x as i64).unwrap();
+        assert!((actual - truth).abs() < 1e-12, "{actual} != {truth}");
+        // The source's Y kernel filed under the target's identity is a different law.
+        let substituted = mean(mediator_bow_laws("target", 0.0), x as i64).unwrap();
+        assert!((substituted - truth).abs() > 0.2, "population substitution went unnoticed");
+        // An honestly labelled source observation cannot stand in for the target leaf.
+        assert!(mean(mediator_bow_laws("source", 0.0), x as i64).is_err());
+    }
+}
+
+#[test]
+fn exhausted_identification_budget_is_an_error_never_a_negative_witness() {
+    let mut graph = Admg::with_variables(2);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_bidirected(d(0), d(1)).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(1)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let ctx = ExecutionContext::for_tests(5);
+    let starved = SidLimits { steps: 1, depth: 1 };
+    // The same budget starves an obstructed and an identifiable diagram alike, so the
+    // refusal carries no information about transportability.
+    for selected in [vec![v(1)], vec![]] {
+        let diagram = SelectionDiagram::try_new(graph.clone(), selected.clone()).unwrap();
+        let error = identify_classical_transport(&diagram, &query, starved, &ctx)
+            .expect_err("a starved search has no result");
+        assert!(error.to_string().contains("transport.identification_budget"), "{error}");
+        let full =
+            identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap();
+        if selected.is_empty() {
+            assert!(matches!(full, ClassicalTransportResult::Identified(_)));
+        } else {
+            assert!(matches!(full, ClassicalTransportResult::ProvenNonTransportable(_)));
+        }
+    }
+}
+
 #[test]
 fn original_coordinates_and_intervention_enlargement_are_preserved() {
     let mut graph = Admg::empty();
