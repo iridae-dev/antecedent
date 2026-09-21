@@ -2093,11 +2093,18 @@ def self_test() -> int:
         if est.startswith("gcm."):
             continue
         got = [f for f in record_facets(rec, base) if f.startswith("estimator.")]
-        if len(got) != 1:
+        # Empirical transport intentionally carries both the shared transport
+        # surface and its empirical fitting/bootstrap surface. Keep both
+        # attestation obligations; an exact-one assertion predates this route.
+        if est == "transport.empirical_table_plugin":
+            if set(got) != {"estimator.transport", "estimator.transport_empirical"}:
+                split.append((est, got))
+        elif len(got) != 1:
             split.append((est, got))
     expect(
         split == [],
-        "every non-mechanism estimator maps to exactly one estimator facet",
+        "non-mechanism estimators carry their expected estimator facets "
+        "(shared and empirical facets for empirical transport)",
     )
     counterfactual |= {"id": "cf", "calibration_sha": "a" * 40}
     temporal_rec |= {"id": "tp", "calibration_sha": "a" * 40}

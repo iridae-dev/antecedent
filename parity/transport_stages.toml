@@ -295,3 +295,243 @@ guarantee = "identification_and_score_replay_with_interval_bookkeeping"
 limits = "Does not rerun nuisance training or establish nuisance consistency, calibration, or bootstrap coverage."
 evidence_test = "crates/antecedent/src/analysis/learned_trial.rs"
 evidence_assertion = "trial_result_is_replayed_and_refresh_is_atomic"
+
+# T10 fixture families. Each family needs an executing positive and an executing
+# counterexample, so a blanket refusal cannot make the family green.
+# `evidence_class` keeps external parity, exact SCM truth, internal cross-checks,
+# theoretical witnesses, and statistical calibration apart; `limits` states what
+# the pair does not establish. scripts/gate_transport.sh executes every row.
+
+[[fixture_evidence]]
+id = "transport_direct_regression.positive"
+family = "transport_direct_regression"
+role = "positive"
+evidence_class = "external_parity"
+evidence_test = "crates/antecedent-identify/tests/causaleffect_transport_subset.rs"
+evidence_assertion = "matches_frozen_causaleffect_supported_sid_subset"
+limits = "Frozen causaleffect 1.3.15 direct/standardize structure only; no numeric or interval claim."
+
+[[fixture_evidence]]
+id = "transport_direct_regression.counterexample"
+family = "transport_direct_regression"
+role = "counterexample"
+evidence_class = "external_parity"
+evidence_test = "crates/antecedent-identify/src/transport.rs"
+evidence_assertion = "outcome_as_selection_target_is_never_standardized_over"
+limits = "Frozen causaleffect 1.3.15 direct/standardize structure only; no numeric or interval claim."
+
+[[fixture_evidence]]
+id = "transport_standardize_regression.positive"
+family = "transport_standardize_regression"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_exact.py"
+evidence_assertion = "test_catalog_standardization_uses_only_supplied_target_covariate_marginal"
+limits = "One hand-computed standardized law; the counterexample is structural, not numeric."
+
+[[fixture_evidence]]
+id = "transport_standardize_regression.counterexample"
+family = "transport_standardize_regression"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "crates/antecedent-identify/src/transport.rs"
+evidence_assertion = "post_treatment_selected_mediator_is_never_a_standardizer"
+limits = "One hand-computed standardized law; the counterexample is structural, not numeric."
+
+[[fixture_evidence]]
+id = "transport_target_only.positive"
+family = "transport_target_only"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_catalog.py"
+evidence_assertion = "test_empty_catalog_target_only_identify_succeeds"
+limits = "Target DAG g-formula without any source regime."
+
+[[fixture_evidence]]
+id = "transport_target_only.counterexample"
+family = "transport_target_only"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_catalog.py"
+evidence_assertion = "test_target_only_formula_does_not_require_irrelevant_measurements"
+limits = "Target DAG g-formula without any source regime."
+
+[[fixture_evidence]]
+id = "transport_recursive_district.positive"
+family = "transport_recursive_district"
+role = "positive"
+evidence_class = "exact_scm_truth"
+evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
+evidence_assertion = "three_node_selection_graphs_agree_with_full_experimental_oracle"
+limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 2 binary parameterizations; four-node coverage is branch conformance, not numeric truth."
+
+[[fixture_evidence]]
+id = "transport_recursive_district.counterexample"
+family = "transport_recursive_district"
+role = "counterexample"
+evidence_class = "exact_scm_truth"
+evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
+evidence_assertion = "two_population_district_recursion_fails_truth_under_kernel_population_substitution"
+limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 2 binary parameterizations; four-node coverage is branch conformance, not numeric truth."
+
+[[fixture_evidence]]
+id = "transport_negative_witness.positive"
+family = "transport_negative_witness"
+role = "positive"
+evidence_class = "theoretical_witness"
+evidence_test = "python/tests/test_transport_exact.py"
+evidence_assertion = "test_classical_negative_is_scoped_to_selected_source"
+limits = "s-hedge witnesses in the classical complete-source evidence scope only."
+
+[[fixture_evidence]]
+id = "transport_negative_witness.counterexample"
+family = "transport_negative_witness"
+role = "counterexample"
+evidence_class = "theoretical_witness"
+evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
+evidence_assertion = "negative_witness_mutations_and_evidence_substitution_fail"
+limits = "s-hedge witnesses in the classical complete-source evidence scope only."
+
+[[fixture_evidence]]
+id = "transport_catalog_binding.positive"
+family = "transport_catalog_binding"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_exact.py"
+evidence_assertion = "test_catalog_search_uses_available_source_when_target_formula_cannot_bind"
+limits = "Bounded catalog alternatives; arbitrary finite-catalog completeness stays closed."
+
+[[fixture_evidence]]
+id = "transport_catalog_binding.counterexample"
+family = "transport_catalog_binding"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_joint_regimes_do_not_come_from_separate_experiments"
+limits = "Bounded catalog alternatives; arbitrary finite-catalog completeness stays closed."
+
+[[fixture_evidence]]
+id = "transport_complementary_sources.positive"
+family = "transport_complementary_sources"
+role = "positive"
+evidence_class = "exact_scm_truth"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_complementary_sources_exact_grid_and_independent_consume"
+limits = "Two-source classical meta-transport; each source alone is proven insufficient and a changed selection premise fails the proof check."
+
+[[fixture_evidence]]
+id = "transport_complementary_sources.counterexample"
+family = "transport_complementary_sources"
+role = "counterexample"
+evidence_class = "exact_scm_truth"
+evidence_test = "crates/antecedent-identify/src/sid/meta.rs"
+evidence_assertion = "complementary_sources_require_both_and_proof_is_checked"
+limits = "Two-source classical meta-transport; each source alone is proven insufficient and a changed selection premise fails the proof check."
+
+[[fixture_evidence]]
+id = "transport_support_local.positive"
+family = "transport_support_local"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_exact.py"
+evidence_assertion = "test_checked_irrelevant_zero_in_standardization_and_relevant_zero_failure"
+limits = "Finite-discrete supplied laws; empirical empty cells are covered by the statistical routes."
+
+[[fixture_evidence]]
+id = "transport_support_local.counterexample"
+family = "transport_support_local"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_retained_support_failure_and_checked_irrelevant_zero"
+limits = "Finite-discrete supplied laws; empirical empty cells are covered by the statistical routes."
+
+[[fixture_evidence]]
+id = "transport_grid_joint_inference.positive"
+family = "transport_grid_joint_inference"
+role = "positive"
+evidence_class = "statistical_calibration"
+evidence_test = "python/tests/test_transport_statistical.py"
+evidence_assertion = "test_joint_grid_and_contrasts_preserve_shared_replicates"
+limits = "Pointwise percentile intervals on shared replicates; simultaneous bands remain closed (transport.simultaneous_grid_bands)."
+
+[[fixture_evidence]]
+id = "transport_grid_joint_inference.counterexample"
+family = "transport_grid_joint_inference"
+role = "counterexample"
+evidence_class = "statistical_calibration"
+evidence_test = "crates/antecedent/tests/statistical_transport_numeric.rs"
+evidence_assertion = "independent_leaf_resamples_overstate_precision_against_one_joint"
+limits = "Pointwise percentile intervals on shared replicates; simultaneous bands remain closed (transport.simultaneous_grid_bands)."
+
+[[fixture_evidence]]
+id = "transport_multisample_inference.positive"
+family = "transport_multisample_inference"
+role = "positive"
+evidence_class = "statistical_calibration"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_bounded_multisource_calibration_fixture"
+limits = "Bounded named designs only; general multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
+
+[[fixture_evidence]]
+id = "transport_multisample_inference.counterexample"
+family = "transport_multisample_inference"
+role = "counterexample"
+evidence_class = "statistical_calibration"
+evidence_test = "crates/antecedent/tests/statistical_transport_numeric.rs"
+evidence_assertion = "holding_target_fixed_narrows_the_joint_bootstrap"
+limits = "Bounded named designs only; general multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
+
+[[fixture_evidence]]
+id = "transport_prepared_lifecycle.positive"
+family = "transport_prepared_lifecycle"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_exact.py"
+evidence_assertion = "test_common_prepared_lifecycle_export_consume_atomic_refresh"
+limits = "Exact prepared path; statistical and grid refresh are evidenced on their own routes."
+
+[[fixture_evidence]]
+id = "transport_prepared_lifecycle.counterexample"
+family = "transport_prepared_lifecycle"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_exact.py"
+evidence_assertion = "test_changed_evidence_contract_cannot_use_stale_preparation"
+limits = "Exact prepared path; statistical and grid refresh are evidenced on their own routes."
+
+[[fixture_evidence]]
+id = "transport_artifact_acceptance.positive"
+family = "transport_artifact_acceptance"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_structural_positive_and_negative_round_trips"
+limits = "Same-build round trips and one frozen v1 artifact; no independent-implementation consumer yet."
+
+[[fixture_evidence]]
+id = "transport_artifact_acceptance.counterexample"
+family = "transport_artifact_acceptance"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_frozen_rust_not_certified_consumes_without_upgrade"
+limits = "Same-build round trips and one frozen v1 artifact; no independent-implementation consumer yet."
+
+[[fixture_evidence]]
+id = "transport_budget_refusal.positive"
+family = "transport_budget_refusal"
+role = "positive"
+evidence_class = "internal_cross_check"
+evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
+evidence_assertion = "four_node_branch_conformance_has_no_unchecked_obstructions"
+limits = "Identification step/depth budgets; evaluation budgets are asserted by the exact and grid route evidence."
+
+[[fixture_evidence]]
+id = "transport_budget_refusal.counterexample"
+family = "transport_budget_refusal"
+role = "counterexample"
+evidence_class = "internal_cross_check"
+evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
+evidence_assertion = "exhausted_identification_budget_is_an_error_never_a_negative_witness"
+limits = "Identification step/depth budgets; evaluation budgets are asserted by the exact and grid route evidence."

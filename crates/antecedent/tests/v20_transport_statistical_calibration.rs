@@ -210,6 +210,16 @@ fn xy_sample(n: usize, seed: u64, px: f64, py0: f64, py1: f64, snapshot: &str) -
     )
 }
 
+/// Shared target joint: `P(X=1)=0.5`, `P(Y=1|X)=0.3 + 0.4 X`.
+fn xy_shared_joint(n: usize, seed: u64) -> RegimeSample {
+    xy_sample(n, seed, 0.5, 0.3, 0.7, "obs")
+}
+
+/// Rare-treatment boundary with the same outcome mechanism and `P(X=1)=0.04`.
+fn xy_rare_treatment(n: usize, seed: u64) -> RegimeSample {
+    xy_sample(n, seed, 0.04, 0.3, 0.7, "obs")
+}
+
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn shared_factor_target_observational_nominal_coverage() {
@@ -218,7 +228,7 @@ fn shared_factor_target_observational_nominal_coverage() {
     let mut tally = keyed("shared_factor_target_observational_nominal_coverage", "xy_shared_joint");
     for (rep, input) in map_replicates(n_sim(), |rep| StatisticalTransportInput {
         supplied: Vec::new(),
-        samples: vec![xy_sample(n, rep.wrapping_mul(1_000_003), 0.5, 0.3, 0.7, "obs")],
+        samples: vec![xy_shared_joint(n, rep.wrapping_mul(1_000_003))],
     })
     .into_iter()
     .enumerate()
@@ -245,7 +255,7 @@ fn weak_overlap_near_empty_conditioner_boundary() {
     let mut tally = keyed("weak_overlap_near_empty_conditioner_boundary", "xy_rare_treatment");
     for (rep, input) in map_replicates(n_sim(), |rep| StatisticalTransportInput {
         supplied: Vec::new(),
-        samples: vec![xy_sample(n, rep.wrapping_mul(1_000_019), 0.04, 0.3, 0.7, "obs")],
+        samples: vec![xy_rare_treatment(n, rep.wrapping_mul(1_000_019))],
     })
     .into_iter()
     .enumerate()
@@ -317,7 +327,7 @@ fn standardize_functional() -> (antecedent_identify::BoundTransportFunctional, A
 }
 
 /// `Y | do(X=1), Z ~ Bern(0.25 + 0.4 Z)`, target `P(Z=1)=0.3` ⇒ `E[Y|do(X=1)]=0.37`.
-fn imbalance_input(n_target: usize, seed: u64) -> StatisticalTransportInput {
+fn standardize_imbalance(n_target: usize, seed: u64) -> StatisticalTransportInput {
     let n_source = (n_target / 4).max(20);
     let mut z_s = Vec::with_capacity(n_source);
     let mut y_s = Vec::with_capacity(n_source);
@@ -360,7 +370,7 @@ fn source_target_imbalance_standardize_nominal_coverage() {
     let mut tally =
         keyed("source_target_imbalance_standardize_nominal_coverage", "standardize_imbalance");
     for (rep, input) in
-        map_replicates(n_sim(), |rep| imbalance_input(n, rep.wrapping_mul(1_000_037)))
+        map_replicates(n_sim(), |rep| standardize_imbalance(n, rep.wrapping_mul(1_000_037)))
             .into_iter()
             .enumerate()
     {
@@ -416,7 +426,7 @@ fn frontdoor_functional() -> (antecedent_identify::BoundTransportFunctional, Ass
     (proof.bind_catalog(&catalog).unwrap(), Assignment::from_pairs([(v(0), Value::Int64(1))]))
 }
 
-fn frontdoor_sample(n: usize, seed: u64) -> RegimeSample {
+fn frontdoor_binary_scm(n: usize, seed: u64) -> RegimeSample {
     let mut x = Vec::with_capacity(n);
     let mut m = Vec::with_capacity(n);
     let mut y = Vec::with_capacity(n);
@@ -446,7 +456,7 @@ fn recursive_frontdoor_nominal_coverage() {
     let mut tally = keyed("recursive_frontdoor_nominal_coverage", "frontdoor_binary_scm");
     for (rep, input) in map_replicates(n_sim(), |rep| StatisticalTransportInput {
         supplied: Vec::new(),
-        samples: vec![frontdoor_sample(n, rep.wrapping_mul(1_000_049))],
+        samples: vec![frontdoor_binary_scm(n, rep.wrapping_mul(1_000_049))],
     })
     .into_iter()
     .enumerate()

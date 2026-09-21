@@ -7,7 +7,9 @@ import tomllib
 from test_evidence import resolve_python_test, resolve_rust_test
 
 root = Path(__file__).resolve().parents[1]
-registry = tomllib.loads((root / "parity/transport_stages.toml").read_text())
+# An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
+registry_path = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
+registry = tomllib.loads(registry_path.read_text())
 errors = []
 if registry.get("version") != 1 or registry.get("default") != "closed":
     errors.append("transport stages require version 1 and default=closed")
@@ -69,6 +71,43 @@ for route in registry.get("routes", []):
                 errors.extend(problems)
     elif route.get("status") != "closed" or not route.get("reason_code"):
         errors.append(f"{name}: expected licensed or a reason-backed closed contract")
+FAMILIES = {
+    f"transport_{name}"
+    for name in (
+        "direct_regression", "standardize_regression", "target_only", "recursive_district",
+        "negative_witness", "catalog_binding", "complementary_sources", "support_local",
+        "grid_joint_inference", "multisample_inference", "prepared_lifecycle",
+        "artifact_acceptance", "budget_refusal",
+    )
+}
+EVIDENCE_CLASSES = {
+    "external_parity", "exact_scm_truth", "internal_cross_check",
+    "theoretical_witness", "statistical_calibration",
+}
+roles: dict[str, dict[str, tuple[str, str]]] = {}
+for row in registry.get("fixture_evidence", []):
+    rid, family, role = row.get("id"), row.get("family"), row.get("role")
+    if family not in FAMILIES or role not in {"positive", "counterexample"}:
+        errors.append(f"{rid}: unknown fixture family or role")
+        continue
+    if rid != f"{family}.{role}" or role in roles.setdefault(family, {}):
+        errors.append(f"{rid}: id must be the unique <family>.<role>")
+    if row.get("evidence_class") not in EVIDENCE_CLASSES or not row.get("limits"):
+        errors.append(f"{rid}: requires a known evidence_class and stated limits")
+    path, assertion = row.get("evidence_test", ""), row.get("evidence_assertion", "")
+    roles[family][role] = (path, assertion)
+    if path.endswith(".rs"):
+        errors.extend(resolve_rust_test(root / path, assertion)[1])
+    elif path.endswith(".py"):
+        errors.extend(resolve_python_test(root / path, assertion))
+    else:
+        errors.append(f"{rid}: evidence must be a collected Rust or Python test")
+for family in sorted(FAMILIES):
+    pair = roles.get(family, {})
+    if set(pair) != {"positive", "counterexample"}:
+        errors.append(f"{family}: requires a positive and a counterexample row")
+    elif pair["positive"] == pair["counterexample"]:
+        errors.append(f"{family}: one assertion cannot be both positive and counterexample")
 required = {
     "antecedent.transport.identify",
     "antecedent.transport.reload_lowered_expression",

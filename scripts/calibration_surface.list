@@ -195,6 +195,11 @@ allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttributionR
 # CausalQuery::ChangeAttribution / a `unit_change` field: core names the facet shares.
 allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution unit_change
 allow mechanism crates/antecedent/src/support.rs ChangeAttribution
+# Reviewed transport-only name collision: these private `assignments` helpers
+# encode antecedent_expr::Assignment values into (u32, ValueWire) records. They
+# neither import nor call mechanism fitting; both paths remain in the core facet.
+allow mechanism crates/antecedent/src/analysis/exact.rs assignments
+allow mechanism crates/antecedent/src/analysis/transport_grid.rs assignments
 # `From` conversions of the facet crates' error types.
 allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualError ModelError antecedent_attribution antecedent_counterfactual antecedent_model
 # `pub mod gcm;`.
