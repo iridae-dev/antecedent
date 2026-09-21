@@ -1,5 +1,5 @@
 //! Provider-frozen memoized elimination with checked zero-mass extensions.
-use crate::eval::{with_scoped_bindings, EvalOp};
+use crate::eval::{EvalOp, with_scoped_bindings};
 use crate::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, EvalContext, EvalError,
     FactorSpec,
@@ -282,7 +282,7 @@ impl<'a> ExactSession<'a> {
             joint.iter().copied().filter(|v| outcomes.binary_search(v).is_err()).collect();
         let mut assignments = self.arena.intervention_assignments(intervention).to_vec();
         for a in &mut assignments {
-            if matches!(a.value, Value::Float64(x) if x.is_nan()) {
+            if a.is_symbolic() {
                 a.value =
                     env.get(a.variable).cloned().ok_or(EvalError::MissingBinding(a.variable))?;
             }

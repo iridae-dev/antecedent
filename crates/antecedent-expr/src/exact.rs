@@ -688,16 +688,18 @@ mod tests {
         let probabilities = [0.1, 0.2, 0.3, 0.400_000_000_001];
         let table = law("source", &probabilities).unwrap();
         assert_eq!(table.probabilities(), &probabilities);
-        assert!(ExactDiscreteLaw::try_new(
-            "p",
-            RegimeId::from_raw(0),
-            [],
-            [axis(0), axis(0)],
-            [0.25; 4],
-            "s",
-            LawTolerance::default()
-        )
-        .is_err());
+        assert!(
+            ExactDiscreteLaw::try_new(
+                "p",
+                RegimeId::from_raw(0),
+                [],
+                [axis(0), axis(0)],
+                [0.25; 4],
+                "s",
+                LawTolerance::default()
+            )
+            .is_err()
+        );
     }
     #[test]
     fn conditions_and_marginalizes_by_axis_coordinate() {

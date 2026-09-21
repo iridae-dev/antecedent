@@ -218,11 +218,7 @@ pub fn expr_arena_from_wire(w: &ExprArenaWire) -> Result<CausalExprArena, IoErro
         }
         let id = arena.intern_intervention_assignments(iv.iter().map(|a| InterventionAssignment {
             variable: VariableId::from_raw(a.variable),
-            value: if a.symbolic {
-                Value::symbolic_intervention()
-            } else {
-                a.value.to_value()
-            },
+            value: if a.symbolic { Value::symbolic_intervention() } else { a.value.to_value() },
         }));
         if id.raw() as usize != index {
             return Err(IoError::Convert("duplicate intervention table entry".into()));

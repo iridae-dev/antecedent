@@ -1168,7 +1168,7 @@ mod robustness_value {
             Some("linear.adjustment.ate"),
             None,
         );
-        let grid = vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5, 0.8, 0.95, 0.99];
         let probe = LinearSensitivity {
             partial_r2_grid: grid.clone(),
             pass_threshold: 0.0,
@@ -1207,7 +1207,7 @@ mod robustness_value {
             Some("linear.adjustment.ate"),
             None,
         );
-        let grid = vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5, 0.8, 0.95, 0.99];
         let probe = LinearSensitivity {
             partial_r2_grid: grid.clone(),
             pass_threshold: 0.0,
@@ -1286,7 +1286,7 @@ mod robustness_value {
             Some("linear.adjustment.ate"),
             None,
         );
-        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5];
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5, 0.8, 0.95, 0.99];
         let tip = NonparametricSensitivity {
             partial_r2_grid: grid.clone(),
             pass_threshold: 0.0,

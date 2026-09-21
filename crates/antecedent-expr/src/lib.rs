@@ -431,9 +431,7 @@ impl CausalExprArena {
         &mut self,
         vars: impl IntoIterator<Item = VariableId>,
     ) -> InterventionSetId {
-        self.intern_intervention_assignments(
-            vars.into_iter().map(InterventionAssignment::symbolic),
-        )
+        self.intern_intervention_assignments(vars.into_iter().map(InterventionAssignment::symbolic))
     }
 
     /// Empty var set.

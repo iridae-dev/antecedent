@@ -779,10 +779,8 @@ mod tests {
         let t = v(0);
         let y = v(1);
         let regime = RegimeId::from_raw(0);
-        let axis_y = DiscreteAxis {
-            variable: y,
-            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
-        };
+        let axis_y =
+            DiscreteAxis { variable: y, values: Arc::from([Value::Int64(0), Value::Int64(1)]) };
         // E[Y|do(0)] = 0.2, E[Y|do(1)] = 0.8 as P(Y=1|do(t)).
         let law0 = ExactDiscreteLaw::try_new(
             "target",
