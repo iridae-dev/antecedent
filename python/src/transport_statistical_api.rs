@@ -9,7 +9,7 @@ use antecedent_estimate::{
 use antecedent_expr::{
     Assignment, ExactDiscreteLaw, ExactEvaluationLimits, InterventionAssignment, LawTolerance,
 };
-use antecedent_identify::{SidLimits, identify_catalog_transport};
+use antecedent_identify::SidLimits;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
@@ -359,16 +359,20 @@ fn prepare_statistical_transport(
         if let Some(cancel) = cancel {
             ctx.cancellation = cancel.inner;
         }
-        let functional = match proof.bind_catalog(&catalog) {
+        let functional = match proof.bind_catalog_with_context(
+            &catalog,
+            antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+            &ctx,
+        ) {
             Ok(bound) => bound,
-            Err(_) => match identify_catalog_transport(
-                &diagram,
-                proof.query(),
-                &catalog,
-                SidLimits { steps: max_operations, depth: max_depth },
-                &ctx,
-            )
-            .map_err(error)?
+            Err(_) => match proof
+                .search_catalog(
+                    &diagram,
+                    &catalog,
+                    SidLimits { steps: max_operations, depth: max_depth },
+                    &ctx,
+                )
+                .map_err(error)?
             {
                 antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
                 other => return Err(error(format!("bounded catalog search failed: {other:?}"))),
@@ -433,6 +437,10 @@ fn consume_statistical_transport(
                 &ctx,
             )
             .map_err(error)?;
+        crate::transport_exact_api::validate_artifact_names(
+            &names,
+            inner.diagram().causal_graph(),
+        )?;
         if names.len() != inner.diagram().causal_graph().node_count()
             || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
         {
@@ -460,7 +468,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn parse_statistical_input(
+pub(crate) fn parse_statistical_input(
     payload: &Bound<'_, PyAny>,
     catalog: &antecedent_core::EvidenceCatalog,
     graph: &Admg,

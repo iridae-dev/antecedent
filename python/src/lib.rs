@@ -40,6 +40,7 @@ mod state_api;
 mod temporal_api;
 mod temporal_license;
 mod transport_exact_api;
+mod transport_grid_api;
 mod transport_interference_api;
 mod transport_statistical_api;
 
@@ -2448,6 +2449,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     temporal_license::register(m)?;
     transport_interference_api::register(m)?;
     transport_exact_api::register(m)?;
+    transport_grid_api::register(m)?;
     transport_statistical_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;

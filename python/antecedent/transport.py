@@ -168,10 +168,13 @@ class RegimeBinding:
     sampling: SamplingDesignName = "unknown"
     dependence: DependenceGroupName = "unknown_dependence"
     weights_snapshot: str | None = None
+    dataset_identity: str | None = None
 
     def __post_init__(self) -> None:
         if not self.regime.strip() or not self.snapshot_identity.strip():
             raise CausalValueError("regime binding requires regime and snapshot identity")
+        if self.dataset_identity is not None and not self.dataset_identity.strip():
+            raise CausalValueError("dataset identity, when supplied, must be a non-empty name")
         if self.weights_snapshot is not None and self.weights_snapshot != self.snapshot_identity:
             raise CausalValueError("weights must be licensed for the bound snapshot")
         if self.sampling not in get_args(SamplingDesignName):
@@ -735,8 +738,10 @@ class ExactTransportDistribution:
 
     def __repr__(self) -> str:
         state = "checked" if self._execution is not None else "unavailable"
-        return (f"ExactTransportDistribution(outcomes={self.outcomes!r}, probabilities={self.probabilities!r}, "
-            f"identification={state}, support={state}, uncertainty=not_applicable_exact_law, assumptions=declared)")
+        return (
+            f"ExactTransportDistribution(outcomes={self.outcomes!r}, probabilities={self.probabilities!r}, "
+            f"identification={state}, support={state}, uncertainty=not_applicable_exact_law, assumptions=declared)"
+        )
 
     def inspect(self) -> Any:
         """Native four-slot reasoning and factor-level support for this execution."""
@@ -749,9 +754,14 @@ class ExactTransportDistribution:
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"outcomes": self.outcomes, "atoms": self.atoms,
-            "probabilities": self.probabilities, "formula": self.formula,
-            "rules": self.rules, "reasoning": self.inspect().to_dict()}
+        return {
+            "outcomes": self.outcomes,
+            "atoms": self.atoms,
+            "probabilities": self.probabilities,
+            "formula": self.formula,
+            "rules": self.rules,
+            "reasoning": self.inspect().to_dict(),
+        }
 
     def export(self) -> bytes:
         """Export the immutable native execution, independent of edited display fields."""
@@ -768,7 +778,9 @@ class ExactTransportDistribution:
     def mean(self, outcome: str) -> float:
         """Derive a numeric outcome mean from the full evaluated distribution."""
         coordinate = self.outcomes.index(outcome)
-        return math.fsum(atom[coordinate] * p for atom, p in zip(self.atoms, self.probabilities, strict=True))
+        return math.fsum(
+            atom[coordinate] * p for atom, p in zip(self.atoms, self.probabilities, strict=True)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -784,6 +796,65 @@ class ClassicalTransportIdentification:
     rules: tuple[str, ...]
     outcomes: tuple[str, ...]
     _native: Any = field(repr=False, compare=False)
+
+    def export(self) -> bytes:
+        """Export the retained checked proof or conservative/negative certificate."""
+        return bytes(self._native.export())
+
+    def inspect(self) -> dict[str, Any]:
+        """Structural certificate and all four reasoning slots; no provider access."""
+        import json
+
+        return dict(json.loads(self._native.certificate_json()))
+
+
+def consume_identification(artifact: bytes, **limits: Any) -> ClassicalTransportIdentification:
+    """Independently verify a structural certificate, without rerunning identification."""
+    from ._native import consume_transport_certificate
+
+    native = consume_transport_certificate(artifact, **limits)
+    return ClassicalTransportIdentification(
+        native.outcome, native.formula, tuple(native.rules), tuple(native.outcomes), native
+    )
+
+
+def identify_meta(
+    graph: Admg,
+    catalog: EvidenceCatalog,
+    *,
+    target: str,
+    outcomes: Sequence[str],
+    treatments: Sequence[str],
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> ClassicalTransportIdentification:
+    """Identify with classical μsID and source-specific catalog selections.
+
+    Completeness concerns full source experimental families; finite catalog
+    binding remains a separate bounded search. No provider data are inspected.
+    """
+    from ._native import identify_meta_transport_stage
+
+    native = identify_meta_transport_stage(
+        graph,
+        catalog,
+        target,
+        list(outcomes),
+        list(treatments),
+        max_steps=max_steps,
+        max_depth=max_depth,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+    )
+    return ClassicalTransportIdentification(
+        native.outcome,
+        native.formula,
+        tuple(native.rules),
+        tuple(native.outcomes),
+        native,
+    )
 
 
 def identify_classical(
@@ -818,7 +889,7 @@ def identify_classical(
         cancel=cancel,
     )
     return ClassicalTransportIdentification(
-        native.outcome, native.formula, tuple(native.rules), tuple(outcomes), native
+        native.outcome, native.formula, tuple(native.rules), tuple(native.outcomes), native
     )
 
 
@@ -839,9 +910,17 @@ def evaluate_exact(
     Missing catalog factors describe this derivation, not an impossibility
     proof. This stage does not fit models or estimate sampling uncertainty.
     """
-    return prepare_exact(identification, catalog, data, at=at, max_operations=max_operations,
-        max_depth=max_depth, max_support_rows=max_support_rows, memory_bytes=memory_bytes, cancel=cancel).estimate()
-
+    return prepare_exact(
+        identification,
+        catalog,
+        data,
+        at=at,
+        max_operations=max_operations,
+        max_depth=max_depth,
+        max_support_rows=max_support_rows,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+    ).estimate()
 
 
 __all__ += [
@@ -850,14 +929,21 @@ __all__ += [
     "ExactTransportData",
     "ExactTransportDistribution",
     "identify_classical",
+    "identify_meta",
     "evaluate_exact",
 ]
 
 
 def _exact_distribution(native: Any, payload: Any) -> Any:
     atoms, probabilities, formula, rules = payload
-    return ExactTransportDistribution(tuple(native.outcomes), tuple(tuple(row) for row in atoms),
-        tuple(probabilities), formula, tuple(rules), _execution=native.freeze())
+    return ExactTransportDistribution(
+        tuple(native.outcomes),
+        tuple(tuple(row) for row in atoms),
+        tuple(probabilities),
+        formula,
+        tuple(rules),
+        _execution=native.freeze(),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -873,10 +959,19 @@ class RegimeSample:
     def __post_init__(self) -> None:
         from types import MappingProxyType
 
-        object.__setattr__(self, "columns", MappingProxyType({
-            name: tuple(None if value is None or value != value else float(value) for value in values)
-            for name, values in self.columns.items()
-        }))
+        object.__setattr__(
+            self,
+            "columns",
+            MappingProxyType(
+                {
+                    name: tuple(
+                        None if value is None or value != value else float(value)
+                        for value in values
+                    )
+                    for name, values in self.columns.items()
+                }
+            ),
+        )
         object.__setattr__(self, "interventions", tuple(tuple(item) for item in self.interventions))
 
 
@@ -914,20 +1009,29 @@ class StatisticalTransportDistribution:
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"outcomes": self.outcomes, "atoms": self.atoms,
-                "probabilities": self.probabilities, "formula": self.formula,
-                "rules": self.rules, "uncertainty": self.uncertainty,
-                "reasoning": self.inspect().to_dict()}
+        return {
+            "outcomes": self.outcomes,
+            "atoms": self.atoms,
+            "probabilities": self.probabilities,
+            "formula": self.formula,
+            "rules": self.rules,
+            "uncertainty": self.uncertainty,
+            "reasoning": self.inspect().to_dict(),
+        }
 
     def __repr__(self) -> str:
         state = "checked" if self._execution is not None else "unavailable"
         available = self._execution is not None and self.inspect().uncertainty.available
-        return (f"StatisticalTransportDistribution(outcomes={self.outcomes!r}, probabilities={self.probabilities!r}, "
-                f"identification={state}, support={state}, uncertainty={'pointwise_bootstrap' if available else 'unavailable'}, assumptions=declared)")
+        return (
+            f"StatisticalTransportDistribution(outcomes={self.outcomes!r}, probabilities={self.probabilities!r}, "
+            f"identification={state}, support={state}, uncertainty={'pointwise_bootstrap' if available else 'unavailable'}, assumptions=declared)"
+        )
 
     def mean(self, outcome: str) -> float:
         coordinate = self.outcomes.index(outcome)
-        return math.fsum(atom[coordinate] * p for atom, p in zip(self.atoms, self.probabilities, strict=True))
+        return math.fsum(
+            atom[coordinate] * p for atom, p in zip(self.atoms, self.probabilities, strict=True)
+        )
 
     def contrast(self, reference: StatisticalTransportDistribution, outcome: str) -> dict[str, Any]:
         """Difference of means with paired bootstrap draws from compatible native runs."""
@@ -985,17 +1089,30 @@ def prepare_statistical(
     from .estimation import PreparedAnalysis, _Controls
 
     native = prepare_statistical_transport(
-        identification._native, catalog, data, dict(at),
-        max_operations=max_operations, max_depth=max_depth,
-        max_support_rows=max_support_rows, memory_bytes=memory_bytes, cancel=cancel,
-        bootstrap=bootstrap, coverage_level=coverage_level, estimator=estimator, seed=seed,
+        identification._native,
+        catalog,
+        data,
+        dict(at),
+        max_operations=max_operations,
+        max_depth=max_depth,
+        max_support_rows=max_support_rows,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+        bootstrap=bootstrap,
+        coverage_level=coverage_level,
+        estimator=estimator,
+        seed=seed,
     )
     return PreparedAnalysis(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
 
 
 def evaluate_statistical_grid(
-    identification: ClassicalTransportIdentification, catalog: EvidenceCatalog,
-    data: StatisticalTransportData, *, at: Sequence[Mapping[str, float]], **kwargs: Any,
+    identification: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    data: StatisticalTransportData,
+    *,
+    at: Sequence[Mapping[str, float]],
+    **kwargs: Any,
 ) -> tuple[StatisticalTransportDistribution, ...]:
     """Evaluate a grid using shared dataset refits and shared successful replicate IDs.
 
@@ -1010,16 +1127,23 @@ def evaluate_statistical_grid(
 
 
 def consume_statistical(
-    artifact: bytes, *, max_operations: int = 10_000_000, max_depth: int = 256,
-    memory_bytes: int | None = None, cancel: Any = None,
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
 ) -> Any:
     """Verify portable proof and recomputed plug-in point; do not re-bootstrap."""
     from . import _native
     from .estimation import PreparedAnalysis, _Controls
 
     native = _native.consume_statistical_transport(
-        artifact, max_operations=max_operations, max_depth=max_depth,
-        memory_bytes=memory_bytes, cancel=cancel,
+        artifact,
+        max_operations=max_operations,
+        max_depth=max_depth,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
     )
     return PreparedAnalysis(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
 
@@ -1042,8 +1166,11 @@ def _statistical_distribution(native: Any, payload: Any) -> StatisticalTransport
     atoms, probabilities, formula, rules, uncertainty = payload
     parsed = json.loads(uncertainty) if isinstance(uncertainty, str) else uncertainty
     return StatisticalTransportDistribution(
-        tuple(native.outcomes), tuple(tuple(row) for row in atoms),
-        tuple(probabilities), formula, tuple(rules),
+        tuple(native.outcomes),
+        tuple(tuple(row) for row in atoms),
+        tuple(probabilities),
+        formula,
+        tuple(rules),
         uncertainty=parsed,
         _execution=native.freeze(),
     )
@@ -1062,23 +1189,40 @@ __all__ += [
 
 
 def prepare_exact(
-    identification: ClassicalTransportIdentification, catalog: EvidenceCatalog,
-    data: ExactTransportData, *, at: Mapping[str, float],
-    max_operations: int = 10_000_000, max_depth: int = 256,
-    max_support_rows: int = 1_000_000, memory_bytes: int | None = None, cancel: Any = None,
+    identification: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    data: ExactTransportData,
+    *,
+    at: Mapping[str, float],
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
 ) -> Any:
     """Prepare the exact-law modality of the common PreparedAnalysis lifecycle."""
     from .estimation import PreparedAnalysis, _Controls
 
-    native = identification._native.prepare_exact(catalog, data.laws, dict(at),
-        max_operations=max_operations, max_depth=max_depth,
-        max_support_rows=max_support_rows, memory_bytes=memory_bytes, cancel=cancel)
+    native = identification._native.prepare_exact(
+        catalog,
+        data.laws,
+        dict(at),
+        max_operations=max_operations,
+        max_depth=max_depth,
+        max_support_rows=max_support_rows,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+    )
     return PreparedAnalysis(native, kind="exact_transport", controls=_Controls(cancel=cancel))
 
 
 def consume_exact(
-    artifact: bytes, *, max_operations: int = 10_000_000, max_depth: int = 256,
-    memory_bytes: int | None = None, cancel: Any = None,
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
 ) -> Any:
     """Verify portable proof, bindings, exact claims and all four reasoning slots.
 
@@ -1087,8 +1231,13 @@ def consume_exact(
     from . import _native
     from .estimation import PreparedAnalysis, _Controls
 
-    native = _native.consume_exact_transport(artifact, max_operations=max_operations,
-        max_depth=max_depth, memory_bytes=memory_bytes, cancel=cancel)
+    native = _native.consume_exact_transport(
+        artifact,
+        max_operations=max_operations,
+        max_depth=max_depth,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+    )
     return PreparedAnalysis(native, kind="exact_transport", controls=_Controls(cancel=cancel))
 
 
@@ -1113,9 +1262,13 @@ __all__ += ["ExactTransportQuery"]
 
 
 def inspect_catalog(
-    identification: ClassicalTransportIdentification, catalog: EvidenceCatalog, *,
-    max_steps: int = 100_000, max_depth: int = 256,
-    memory_bytes: int | None = None, cancel: Any = None,
+    identification: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
 ) -> dict[str, Any]:
     """Inspect bounded alternatives and unmet evidence without fetching providers.
 
@@ -1124,7 +1277,162 @@ def inspect_catalog(
     """
     import json
 
-    return dict(json.loads(identification._native.catalog_search(catalog, max_steps=max_steps, max_depth=max_depth, memory_bytes=memory_bytes, cancel=cancel)))
+    return dict(
+        json.loads(
+            identification._native.catalog_search(
+                catalog,
+                max_steps=max_steps,
+                max_depth=max_depth,
+                memory_bytes=memory_bytes,
+                cancel=cancel,
+            )
+        )
+    )
 
 
 __all__ += ["inspect_catalog"]
+
+
+@dataclass(frozen=True, slots=True)
+class TransportResponseGridQuery:
+    """Finite mean-response request; unsupported coordinates remain in the result."""
+
+    identification: ClassicalTransportIdentification
+    catalog: EvidenceCatalog
+    at: Sequence[Mapping[str, float]]
+    bootstrap: int = 199
+    coverage_level: float = 0.95
+    seed: int = 1
+
+    def __post_init__(self) -> None:
+        from types import MappingProxyType
+
+        object.__setattr__(self, "at", tuple(MappingProxyType(dict(point)) for point in self.at))
+
+
+@dataclass(frozen=True, slots=True)
+class TransportResponseGrid:
+    """Native-authorized response family with explicit point-local failures."""
+
+    points: tuple[Mapping[str, Any], ...]
+    execution_id: str
+    _execution: Any = field(repr=False, compare=False)
+
+    def mean(self, point: int, outcome: str) -> float:
+        row = self.points[point]
+        if row["status"] != "available":
+            raise ValueError(f"Grid point {point} is unavailable: {row['detail']}")
+        return float(row["means"][outcome])
+
+    def contrast(self, left: int, right: int, outcome: str) -> dict[str, Any]:
+        """Transform two points using native paired draws and retained parent identity."""
+        import json
+
+        result = dict(json.loads(self._execution.contrast(left, right, outcome)))
+        if result["interval"] is not None:
+            result["interval"] = tuple(result["interval"])
+        return result
+
+    def scalar_projection(self, point: int, outcome: str) -> dict[str, Any]:
+        """Return a scalar and loss receipt; this projection cannot impersonate the full grid."""
+        import json
+
+        return dict(json.loads(self._execution.scalar_projection(point, outcome)))
+
+    def inspect(self) -> Any:
+        import json
+
+        from .results._report import InspectionReport
+
+        return InspectionReport(**json.loads(self._execution.inspection_json()))
+
+    def export(self) -> bytes:
+        return bytes(self._execution.export())
+
+
+def _response_grid(native: Any, payload: str) -> TransportResponseGrid:
+    import json
+    from types import MappingProxyType
+
+    def freeze(value: Any) -> Any:
+        if isinstance(value, dict):
+            return MappingProxyType({key: freeze(item) for key, item in value.items()})
+        if isinstance(value, list):
+            return tuple(freeze(item) for item in value)
+        return value
+
+    parsed = json.loads(payload)
+    return TransportResponseGrid(
+        tuple(freeze(point) for point in parsed["points"]), parsed["execution_id"], native.freeze()
+    )
+
+
+def prepare_response_grid(
+    identification: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    data: ExactTransportData | StatisticalTransportData,
+    *,
+    at: Sequence[Mapping[str, float]],
+    bootstrap: int = 199,
+    coverage_level: float = 0.95,
+    seed: int = 1,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> Any:
+    """Prepare exact or empirical finite responses on the common study lifecycle."""
+    from . import _native
+    from .estimation import PreparedAnalysis, _Controls
+
+    if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
+        raise TypeError("Grid data must be exact laws or explicit statistical providers")
+    native = _native.prepare_transport_grid(
+        identification._native,
+        catalog,
+        data,
+        [dict(point) for point in at],
+        statistical=isinstance(data, StatisticalTransportData),
+        bootstrap=bootstrap,
+        coverage_level=coverage_level,
+        seed=seed,
+        max_operations=max_operations,
+        max_depth=max_depth,
+        max_support_rows=max_support_rows,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+    )
+    return PreparedAnalysis(native, kind="transport_grid", controls=_Controls(cancel=cancel))
+
+
+def consume_response_grid(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> Any:
+    """Verify a grid without fetching, fitting, or rebuilding raw samples."""
+    from . import _native
+    from .estimation import PreparedAnalysis, _Controls
+
+    native = _native.consume_transport_grid(
+        artifact,
+        max_operations=max_operations,
+        max_depth=max_depth,
+        memory_bytes=memory_bytes,
+        cancel=cancel,
+    )
+    return PreparedAnalysis(native, kind="transport_grid", controls=_Controls(cancel=cancel))
+
+
+__all__ += [
+    "TransportResponseGridQuery",
+    "TransportResponseGrid",
+    "prepare_response_grid",
+    "consume_response_grid",
+]
+
+__all__ += ["consume_identification"]

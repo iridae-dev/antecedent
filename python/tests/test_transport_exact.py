@@ -253,7 +253,7 @@ def test_catalog_diagnostics_distinguish_missing_evidence_and_future_experiments
         transport.EvidenceRegime("future", "source", kind="experimental", interventions=["x"], measured=["y"], evidence_kind="proposed"),
     ])
     report = transport.inspect_catalog(identified, catalog)
-    assert report["outcome"] == "not_certified"
+    assert report["outcome"] == "missing_evidence"
     assert report["exhausted"]
     assert not report["finite_catalog_complete"]
     assert report["future_experiments"] == ["future"]

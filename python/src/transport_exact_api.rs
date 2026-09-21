@@ -21,6 +21,7 @@ pub(crate) struct ClassicalTransportStage {
     result: ClassicalTransportResult,
     graph: Admg,
     diagram: SelectionDiagram,
+    certificate: antecedent_io::transport_certificate::TransportCertificateWire,
 }
 impl ClassicalTransportStage {
     pub(crate) fn identified(&self) -> PyResult<antecedent_identify::ClassicalTransportDerivation> {
@@ -51,6 +52,15 @@ fn resolve(names: &[String], name: &str) -> PyResult<VariableId> {
 }
 #[pymethods]
 impl ClassicalTransportStage {
+    fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
+        let artifact = self.certificate.export().map_err(error)?;
+        let mut bytes = b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01".to_vec();
+        bytes.extend(antecedent_io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?);
+        Ok(pyo3::types::PyBytes::new(py, &bytes).unbind())
+    }
+    fn certificate_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.certificate).map_err(error)
+    }
     #[getter]
     fn outcome(&self) -> &'static str {
         match &self.result {
@@ -61,15 +71,7 @@ impl ClassicalTransportStage {
     }
     #[getter]
     fn outcomes(&self) -> Vec<String> {
-        match &self.result {
-            ClassicalTransportResult::Identified(proof) => proof
-                .query()
-                .outcomes
-                .iter()
-                .map(|v| self.graph.names[v.as_usize()].clone())
-                .collect(),
-            _ => Vec::new(),
-        }
+        self.certificate.outcomes.iter().map(|v| self.graph.names[*v as usize].clone()).collect()
     }
     #[getter]
     fn formula(&self) -> Option<String> {
@@ -100,7 +102,7 @@ impl ClassicalTransportStage {
         let ClassicalTransportResult::Identified(proof) = &self.result else {
             return Err(error("catalog search requires an identified theorem query"));
         };
-        let query = proof.query().clone();
+        let proof = proof.clone();
         let diagram = self.diagram.clone();
         let catalog = parse_catalog(catalog, &self.graph)?;
         crate::detach_catch(py, move || {
@@ -109,14 +111,14 @@ impl ClassicalTransportStage {
             if let Some(cancel) = cancel {
                 ctx.cancellation = cancel.inner;
             }
-            let result = antecedent_identify::identify_catalog_transport(
-                &diagram,
-                &query,
-                &catalog,
-                SidLimits { steps: max_steps, depth: max_depth },
-                &ctx,
-            )
-            .map_err(error)?;
+            let result = proof
+                .search_catalog(
+                    &diagram,
+                    &catalog,
+                    SidLimits { steps: max_steps, depth: max_depth },
+                    &ctx,
+                )
+                .map_err(error)?;
             let future: Vec<_> = catalog
                 .regimes
                 .iter()
@@ -132,8 +134,11 @@ impl ClassicalTransportStage {
                 antecedent_identify::CatalogTransportResult::MissingEvidence {
                     searched,
                     obligations,
-                }
-                | antecedent_identify::CatalogTransportResult::NotCertified {
+                } => serde_json::json!({
+                    "outcome":"missing_evidence", "searched":searched.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+                    "missing_factors":obligations.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"future_experiments":future,
+                    "exhausted":!obligations.iter().any(|note|note.contains("capped")),"finite_catalog_complete":false}),
+                antecedent_identify::CatalogTransportResult::NotCertified {
                     searched,
                     obligations,
                 } => serde_json::json!({
@@ -202,16 +207,20 @@ impl ClassicalTransportStage {
             if let Some(cancel) = cancel {
                 ctx.cancellation = cancel.inner;
             }
-            let functional = match proof.bind_catalog(&catalog) {
+            let functional = match proof.bind_catalog_with_context(
+                &catalog,
+                antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+                &ctx,
+            ) {
                 Ok(bound) => bound,
-                Err(_) => match antecedent_identify::identify_catalog_transport(
-                    &diagram,
-                    proof.query(),
-                    &catalog,
-                    SidLimits { steps: max_operations, depth: max_depth },
-                    &ctx,
-                )
-                .map_err(error)?
+                Err(_) => match proof
+                    .search_catalog(
+                        &diagram,
+                        &catalog,
+                        SidLimits { steps: max_operations, depth: max_depth },
+                        &ctx,
+                    )
+                    .map_err(error)?
                 {
                     antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
                     antecedent_identify::CatalogTransportResult::MissingEvidence {
@@ -291,19 +300,163 @@ fn identify_classical_transport_stage(
             &ctx,
         )
         .map_err(error)?;
-        Ok(ClassicalTransportStage { result, graph: named, diagram })
+        let certificate =
+            antecedent_io::transport_certificate::TransportCertificateWire::from_result(
+                &diagram,
+                &query,
+                vec![],
+                &result,
+                SidLimits { steps: max_steps, depth: max_depth },
+                &ctx,
+            )
+            .map_err(error)?;
+        Ok(ClassicalTransportStage { result, graph: named, diagram, certificate })
     })
+}
+
+#[pyfunction]
+#[pyo3(signature=(graph, catalog, target, outcomes, treatments, *, max_steps=100_000,max_depth=256,memory_bytes=None,cancel=None))]
+fn identify_meta_transport_stage(
+    py: Python<'_>,
+    graph: PyRef<'_, Admg>,
+    catalog: &Bound<'_, PyAny>,
+    target: String,
+    outcomes: Vec<String>,
+    treatments: Vec<String>,
+    max_steps: usize,
+    max_depth: usize,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<ClassicalTransportStage> {
+    let catalog = parse_catalog(catalog, &graph)?;
+    let coordinates = |names: Vec<String>| {
+        names
+            .iter()
+            .map(|name| resolve(&graph.names, name))
+            .collect::<PyResult<Arc<[VariableId]>>>()
+    };
+    let query = antecedent_identify::MetaTransportQuery::from_catalog(
+        coordinates(outcomes)?,
+        coordinates(treatments)?,
+        target.into(),
+        &catalog,
+    )
+    .map_err(error)?;
+    let aligned = graph.aligned_to_names(&graph.names)?;
+    let first = query
+        .sources
+        .iter()
+        .min_by(|a, b| a.population.cmp(&b.population))
+        .ok_or_else(|| error("meta transport requires a source"))?;
+    let diagram = SelectionDiagram::try_new(
+        aligned.clone(),
+        first.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+    )
+    .map_err(error)?;
+    let named = Admg { admg: graph.admg.clone(), names: graph.names.clone() };
+    crate::detach_catch(py, move || {
+        let mut ctx = ExecutionContext::production_default(0);
+        ctx.memory.hard_limit_bytes = memory_bytes;
+        if let Some(cancel) = cancel {
+            ctx.cancellation = cancel.inner;
+        }
+        let result = antecedent_identify::identify_meta_transport(
+            &aligned,
+            &query,
+            SidLimits { steps: max_steps, depth: max_depth },
+            &ctx,
+        )
+        .map_err(error)?;
+        let mut sources = query.sources.clone();
+        sources.sort_by(|a, b| a.population.cmp(&b.population));
+        for source in &mut sources {
+            source.selections.sort_unstable();
+        }
+        let classical = ClassicalTransportQuery {
+            outcomes: query.outcomes.clone(),
+            treatments: query.treatments.clone(),
+            source: Arc::from(sources[0].population.as_str()),
+            target: query.target.clone(),
+        };
+        let certificate =
+            antecedent_io::transport_certificate::TransportCertificateWire::from_result(
+                &diagram,
+                &classical,
+                sources,
+                &result,
+                SidLimits { steps: max_steps, depth: max_depth },
+                &ctx,
+            )
+            .map_err(error)?;
+        Ok(ClassicalTransportStage { result, graph: named, diagram, certificate })
+    })
+}
+
+#[pyfunction]
+#[pyo3(signature=(artifact,*,max_steps=100_000,max_depth=256,memory_bytes=None,cancel=None))]
+fn consume_transport_certificate(
+    py: Python<'_>,
+    artifact: &[u8],
+    max_steps: usize,
+    max_depth: usize,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<ClassicalTransportStage> {
+    let bytes = artifact
+        .strip_prefix(b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01")
+        .ok_or_else(|| error("invalid certificate framing"))?;
+    if memory_bytes.is_some_and(|n| bytes.len() as u64 > n) {
+        return Err(error("certificate memory budget"));
+    }
+    let (names, bytes): (Vec<String>, Vec<u8>) = antecedent_io::from_cbor(bytes).map_err(error)?;
+    crate::detach_catch(py, move || {
+        let mut ctx = ExecutionContext::production_default(0);
+        ctx.memory.hard_limit_bytes = memory_bytes;
+        if let Some(token) = cancel {
+            ctx.cancellation = token.inner;
+        }
+        let limits = SidLimits { steps: max_steps, depth: max_depth };
+        let certificate = antecedent_io::transport_certificate::TransportCertificateWire::consume(
+            &bytes, limits, &ctx,
+        )
+        .map_err(error)?;
+        let (diagram, _, result) = certificate.check(limits, &ctx).map_err(error)?;
+        validate_artifact_names(&names, diagram.causal_graph())?;
+        if names.len() != diagram.causal_graph().node_count()
+            || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
+        {
+            return Err(error("invalid certificate names"));
+        }
+        Ok(ClassicalTransportStage {
+            graph: Admg { admg: diagram.causal_graph().clone(), names },
+            diagram,
+            result,
+            certificate,
+        })
+    })
+}
+
+pub(crate) fn validate_artifact_names(
+    names: &[String],
+    graph: &antecedent_graph::Admg,
+) -> PyResult<()> {
+    if names.len() != graph.node_count() || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len() || graph.nodes().iter().any(|node| !matches!(node, antecedent_core::NodeRef::Static(v) if v.as_usize() < names.len())) {
+        return Err(error("invalid artifact coordinate names"));
+    }
+    Ok(())
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ClassicalTransportStage>()?;
+    m.add_function(wrap_pyfunction!(consume_transport_certificate, m)?)?;
+    m.add_function(wrap_pyfunction!(identify_meta_transport_stage, m)?)?;
     m.add_class::<PreparedExactStage>()?;
     m.add_function(wrap_pyfunction!(consume_exact_transport, m)?)?;
     m.add_function(wrap_pyfunction!(identify_classical_transport_stage, m)?)?;
     Ok(())
 }
 
-fn parse_exact_data(
+pub(crate) fn parse_exact_data(
     laws: &Bound<'_, PyAny>,
     catalog: &antecedent_core::EvidenceCatalog,
     graph: &Admg,
@@ -560,6 +713,7 @@ fn consume_exact_transport(
         {
             return Err(error("artifact coordinate names"));
         }
+        validate_artifact_names(&names, inner.diagram().causal_graph())?;
         let graph = Admg { admg: inner.diagram().causal_graph().clone(), names };
         let catalog = inner.evidence_catalog().clone();
         Ok(PreparedExactStage {
