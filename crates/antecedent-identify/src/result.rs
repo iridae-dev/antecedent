@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic};
+use antecedent_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+};
 use antecedent_expr::CausalExprArena;
 
 use crate::hedge::HedgeCertificate;
@@ -42,6 +44,21 @@ pub struct IdentificationPerformanceRecord {
     pub candidates_examined: u64,
     /// Adjustment sets returned.
     pub sets_returned: u64,
+}
+
+/// Execution diagnostic of a search that stopped at its work budget before it could decide.
+///
+/// How far a search ran is a fact about the run, not about the graph, so the diagnostic is
+/// [`DiagnosticKind::Execution`]: a `NotIdentified` carrying it is undecided, not refuted.
+/// `code` must end in `.search_bounded`, the suffix [`crate::envelope::search_truncated`]
+/// and the Auto strategy recognise; every bounded search builds its diagnostic here so none
+/// can be typed as a scientific negative.
+pub(crate) fn search_bounded_diagnostic(
+    code: &'static str,
+    detail: impl Into<Arc<str>>,
+) -> Diagnostic {
+    debug_assert!(code.ends_with(".search_bounded"), "bounded-search code `{code}`");
+    Diagnostic::new(code, DiagnosticKind::Execution, DiagnosticSeverity::Warning, detail)
 }
 
 /// Identification claim of one estimand in a result that lists alternatives.
@@ -280,6 +297,25 @@ mod tests {
     use antecedent_expr::ExprId;
 
     use super::*;
+
+    #[test]
+    fn search_bounded_diagnostic_is_an_execution_warning_the_envelope_recognises() {
+        let diagnostic = search_bounded_diagnostic("identify.example.search_bounded", "stopped");
+        assert_eq!(diagnostic.kind, DiagnosticKind::Execution);
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+        let mut result = IdentificationResult::not_identified(
+            CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            )),
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        );
+        assert!(!crate::envelope::search_truncated(&result));
+        result.diagnostics.push(diagnostic);
+        assert!(crate::envelope::search_truncated(&result));
+    }
 
     #[test]
     fn backdoor_roles_default_empty() {

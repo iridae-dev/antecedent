@@ -12,14 +12,14 @@ use crate::error::IdentificationError;
 
 /// Prepared semi-Markovian graph for ID/IDC.
 ///
-/// Owns one [`Admg`] and caches district labels, topological order, and
+/// Owns one [`Admg`] and caches the topological order, the variable-to-node index, and
 /// ancestral closures so recursive ID does not clone the graph per step.
 #[derive(Clone, Debug)]
 pub struct PreparedAdmg {
     admg: Admg,
     declared_assumptions: AssumptionSet,
-    /// District id per dense node over the full graph (`0..n_districts-1`).
-    district_of: Arc<[u32]>,
+    /// Dense node of each static variable.
+    var_index: Arc<HashMap<VariableId, DenseNodeId>>,
     /// Topological order of all nodes (directed edges).
     topo: Arc<[DenseNodeId]>,
     /// Memo of ancestral closures keyed by (seed-set, active-set).
@@ -46,9 +46,24 @@ impl PreparedAdmg {
         declared_assumptions: AssumptionSet,
     ) -> Result<Self, IdentificationError> {
         admg.validate().map_err(IdentificationError::from)?;
-        let district_of: Arc<[u32]> = Arc::from(admg.districts());
-        let topo = Arc::from(topological_order(&admg)?);
-        Ok(Self { admg, declared_assumptions, district_of, topo, ancestor_memo: HashMap::new() })
+        let topo: Arc<[DenseNodeId]> = Arc::from(admg.topological_order().ok_or_else(|| {
+            IdentificationError::msg("ADMG topological order incomplete (cycle?)")
+        })?);
+        let mut var_index = HashMap::with_capacity(admg.node_count());
+        for (i, node) in admg.nodes().iter().enumerate() {
+            if let NodeRef::Static(v) = node {
+                var_index
+                    .entry(*v)
+                    .or_insert_with(|| DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+            }
+        }
+        Ok(Self {
+            admg,
+            declared_assumptions,
+            var_index: Arc::new(var_index),
+            topo,
+            ancestor_memo: HashMap::new(),
+        })
     }
 
     /// Embed a DAG as an ADMG (directed edges only; no bidirected).
@@ -84,18 +99,6 @@ impl PreparedAdmg {
         &self.declared_assumptions
     }
 
-    /// District label of `id` in the full graph.
-    #[must_use]
-    pub fn district_of(&self, id: DenseNodeId) -> u32 {
-        self.district_of[id.as_usize()]
-    }
-
-    /// Full-graph district labels.
-    #[must_use]
-    pub fn districts(&self) -> &[u32] {
-        &self.district_of
-    }
-
     /// Topological order over all nodes.
     #[must_use]
     pub fn topo(&self) -> &[DenseNodeId] {
@@ -108,14 +111,7 @@ impl PreparedAdmg {
     ///
     /// Unknown variable.
     pub fn var_to_dense(&self, id: VariableId) -> Result<DenseNodeId, IdentificationError> {
-        for (i, node) in self.admg.nodes().iter().enumerate() {
-            if let NodeRef::Static(v) = node {
-                if *v == id {
-                    return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
-                }
-            }
-        }
-        Err(IdentificationError::UnknownVariable { id })
+        self.var_index.get(&id).copied().ok_or(IdentificationError::UnknownVariable { id })
     }
 
     /// Dense node → variable id.
@@ -145,7 +141,7 @@ impl PreparedAdmg {
         if let Some(cached) = self.ancestor_memo.get(&key) {
             return cached.clone();
         }
-        let computed = ancestors_in_admg(&self.admg, &key.0, active, None, ws);
+        let computed = self.admg.ancestors_within(&key.0, active, None, ws);
         self.ancestor_memo.insert(key, computed.clone());
         computed
     }
@@ -160,36 +156,13 @@ impl PreparedAdmg {
         intervene: &BitSet,
         ws: &mut GraphWorkspace,
     ) -> BitSet {
-        ancestors_in_admg(&self.admg, seeds, active, Some(intervene), ws)
+        self.admg.ancestors_within(seeds, active, Some(intervene), ws)
     }
 
     /// C-components (districts) of the subgraph induced by `nodes` under bidirected edges.
     #[must_use]
     pub fn c_components(&self, nodes: &BitSet) -> Vec<BitSet> {
-        let n = self.admg.node_count();
-        let mut seen = BitSet::with_len(n);
-        let mut comps = Vec::new();
-        for id in nodes.to_dense_ids() {
-            if seen.contains(id) {
-                continue;
-            }
-            let mut comp = BitSet::with_len(n);
-            let mut stack = vec![id];
-            seen.insert(id);
-            comp.insert(id);
-            while let Some(u) = stack.pop() {
-                for &v in self.admg.bidirected_neighbors(u) {
-                    if !nodes.contains(v) || seen.contains(v) {
-                        continue;
-                    }
-                    seen.insert(v);
-                    comp.insert(v);
-                    stack.push(v);
-                }
-            }
-            comps.push(comp);
-        }
-        comps
+        self.admg.districts_within(nodes)
     }
 
     /// Whether the induced subgraph on `nodes` is a single C-component covering all of `nodes`.
@@ -201,6 +174,25 @@ impl PreparedAdmg {
         let comps = self.c_components(nodes);
         comps.len() == 1 && comps[0].equal_set(nodes)
     }
+}
+
+/// Dense index of the static node labelled `id` in `nodes`.
+///
+/// The one place that maps a variable to its position in a graph's node list; node order
+/// is a property of the graph, never assumed to equal the variable's raw id.
+///
+/// # Errors
+///
+/// No static node carries `id`.
+pub(crate) fn dense_of_static(
+    nodes: &[NodeRef],
+    id: VariableId,
+) -> Result<DenseNodeId, IdentificationError> {
+    nodes
+        .iter()
+        .position(|node| *node == NodeRef::Static(id))
+        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
+        .ok_or(IdentificationError::UnknownVariable { id })
 }
 
 /// Convert a static DAG into an ADMG (no bidirected edges).
@@ -220,72 +212,6 @@ pub fn dag_to_admg(dag: &Dag) -> Result<Admg, IdentificationError> {
     Ok(admg)
 }
 
-fn topological_order(admg: &Admg) -> Result<Vec<DenseNodeId>, IdentificationError> {
-    let n = admg.node_count();
-    let mut indeg = vec![0u32; n];
-    for i in 0..n {
-        let u = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &c in admg.children(u) {
-            indeg[c.as_usize()] = indeg[c.as_usize()].saturating_add(1);
-        }
-    }
-    let mut queue: Vec<DenseNodeId> = (0..n)
-        .filter(|&i| indeg[i] == 0)
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-        .collect();
-    let mut order = Vec::with_capacity(n);
-    while let Some(u) = queue.pop() {
-        order.push(u);
-        for &c in admg.children(u) {
-            let i = c.as_usize();
-            indeg[i] = indeg[i].saturating_sub(1);
-            if indeg[i] == 0 {
-                queue.push(c);
-            }
-        }
-    }
-    if order.len() != n {
-        return Err(IdentificationError::msg("ADMG topological order incomplete (cycle?)"));
-    }
-    Ok(order)
-}
-
-/// Ancestors of `seeds` within `active`. When `bar_x` is set, skip parents of those nodes.
-fn ancestors_in_admg(
-    admg: &Admg,
-    seeds: &BitSet,
-    active: &BitSet,
-    bar_x: Option<&BitSet>,
-    ws: &mut GraphWorkspace,
-) -> BitSet {
-    let n = admg.node_count();
-    let mut out = BitSet::with_len(n);
-    ws.prepare(n);
-    for id in seeds.to_dense_ids() {
-        if !active.contains(id) {
-            continue;
-        }
-        if !out.contains(id) {
-            out.insert(id);
-            ws.frontier.push(id);
-        }
-    }
-    while let Some(u) = ws.frontier.pop() {
-        // In G_{\bar X}, intervened nodes have no incoming edges.
-        if bar_x.is_some_and(|bx| bx.contains(u)) {
-            continue;
-        }
-        for &p in admg.parents(u) {
-            if !active.contains(p) || out.contains(p) {
-                continue;
-            }
-            out.insert(p);
-            ws.frontier.push(p);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,6 +229,35 @@ mod tests {
             b.insert(DenseNodeId::from_raw(1));
             b
         }));
+    }
+
+    #[test]
+    fn var_to_dense_follows_node_labels_not_raw_ids() {
+        let mut g = Admg::empty();
+        g.add_node(NodeRef::Static(VariableId::from_raw(7))).unwrap();
+        g.add_node(NodeRef::Static(VariableId::from_raw(3))).unwrap();
+        let prep = PreparedAdmg::new(g).unwrap();
+        assert_eq!(prep.var_to_dense(VariableId::from_raw(7)).unwrap(), DenseNodeId::from_raw(0));
+        assert_eq!(prep.var_to_dense(VariableId::from_raw(3)).unwrap(), DenseNodeId::from_raw(1));
+        assert!(matches!(
+            prep.var_to_dense(VariableId::from_raw(0)),
+            Err(IdentificationError::UnknownVariable { .. })
+        ));
+        assert_eq!(
+            dense_of_static(prep.admg().nodes(), VariableId::from_raw(3)).unwrap(),
+            DenseNodeId::from_raw(1)
+        );
+    }
+
+    #[test]
+    fn topo_matches_graph_topological_order() {
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(3, 1), (1, 0), (3, 2)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let expected = g.topological_order().unwrap();
+        let prep = PreparedAdmg::new(g).unwrap();
+        assert_eq!(prep.topo(), expected.as_slice());
     }
 
     #[test]

@@ -16,6 +16,11 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+# Frozen-oracle DOT parser (`oracle_dot`) for tests and parity fixtures. It panics on
+# malformed input by design, so it is not part of the default public API.
+test-util = []
+
 [dependencies]
 antecedent-core = { version = "1.11.0", path = "../antecedent-core" }
 antecedent-data = { version = "1.11.0", path = "../antecedent-data" }

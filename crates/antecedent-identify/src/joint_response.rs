@@ -4,6 +4,12 @@
 //! of any target in Z, and each target's back-door paths blocked by Z plus
 //! the other targets. This is sufficient, not complete general response ID.
 //!
+//! The subset search is exhaustive by size and bounded by
+//! [`crate::GeneralizedAdjustmentConfig::max_examinations`]. There is no one-test existence
+//! shortcut as for a single treatment: each treatment is separated in its own proper
+//! back-door graph, so no single ancestral set decides the common one. A search the budget
+//! stops is `identify.joint.search_bounded` (undecided), never a refutation.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -54,7 +60,7 @@ impl GeneralizedAdjustmentIdentifier {
                 mag.nodes(),
                 query,
                 self.config.max_candidates,
-                JOINT_MAX_EXAMINATIONS,
+                self.config.max_examinations,
                 |from, to| visible(mag, from, to),
             )
         })
@@ -99,7 +105,7 @@ impl GeneralizedAdjustmentIdentifier {
             graph.nodes(),
             query,
             self.config.max_candidates,
-            JOINT_MAX_EXAMINATIONS,
+            self.config.max_examinations,
             |_, _| true,
         )
     }
@@ -175,13 +181,7 @@ pub(crate) fn prepare_joint_response(
         .functional
         .primary_pair()
         .ok_or_else(|| IdentificationError::unsupported("joint response has no outcome"))?;
-    let dense = |variable| {
-        nodes
-            .iter()
-            .position(|n| *n == NodeRef::Static(variable))
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
-            .ok_or(IdentificationError::UnknownVariable { id: variable })
-    };
+    let dense = |variable| crate::prepared::dense_of_static(nodes, variable);
     let targets: Vec<_> = treatments.iter().copied().map(dense).collect::<Result<_, _>>()?;
     let y = dense(outcome)?;
     Ok(PreparedJointResponse {
@@ -218,54 +218,36 @@ fn identify_joint(
         .iter()
         .map(|&target| backdoor_graph(graph, target, &visible_edge))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut examined = 0u64;
-    let mut budget_exhausted = false;
-    let mut found = None;
+    // Unlike the single-treatment search there is no one-test existence shortcut here: each
+    // treatment is separated from the outcome in its own proper back-door graph while the
+    // other treatments are conditioned on, so the ancestral sets of the individual
+    // separations differ and no single ancestral set is known to decide the common one.
+    // The search is therefore exhaustive by size, and a budget that stops it is reported as
+    // undecided.
     let mut workspace = DSeparationWorkspace::default();
-    for size in 0..=candidates.len() {
-        let mut error = None;
-        crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
-            if examined >= max_examinations {
-                budget_exhausted = true;
-                return true;
+    let search = crate::enum_masks::first_set_by_size(&candidates, 0, max_examinations, |z| {
+        for (index, &target) in targets.iter().enumerate() {
+            let mut conditioned = z.to_vec();
+            conditioned.extend(targets.iter().copied().filter(|&v| v != target));
+            if !backdoor_graphs[index]
+                .is_m_separated(target, y, &conditioned, &mut workspace)
+                .map_err(IdentificationError::from)?
+            {
+                return Ok(false);
             }
-            examined += 1;
-            for (index, &target) in targets.iter().enumerate() {
-                let mut conditioned = z.to_vec();
-                conditioned.extend(targets.iter().copied().filter(|&v| v != target));
-                match backdoor_graphs[index].is_m_separated(target, y, &conditioned, &mut workspace)
-                {
-                    Ok(true) => {}
-                    Ok(false) => return false,
-                    Err(e) => {
-                        error = Some(IdentificationError::from(e));
-                        return true;
-                    }
-                }
-            }
-            found = Some(z.to_vec());
-            true
-        });
-        if let Some(e) = error {
-            return Err(e);
         }
-        if found.is_some() {
-            break;
+        Ok(true)
+    })?;
+    let Some(z) = search.found else {
+        if search.budget_exhausted {
+            return Ok(joint_search_bounded(query, search.examined, max_examinations));
         }
-    }
-    let Some(z) = found else {
-        if budget_exhausted {
-            return Ok(joint_search_bounded(query, examined, max_examinations));
-        }
-        return Ok(joint_scientifically_unidentified(query, examined));
+        return Ok(joint_scientifically_unidentified(query, search.examined));
     };
-    Ok(joint_result(query, nodes, &z, &treatments, outcome, examined))
+    Ok(joint_result(query, nodes, &z, &treatments, outcome, search.examined))
 }
 
-/// Separation tests one joint search may run before it stops undecided.
-pub(crate) const JOINT_MAX_EXAMINATIONS: u64 = 1_000_000;
-
-/// Diagnostic code of a joint search that spent [`JOINT_MAX_EXAMINATIONS`] before it
+/// Diagnostic code of a joint search that spent its `max_examinations` before it
 /// finished: identifiability is undecided, not refuted.
 pub const JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.joint.search_bounded";
 
@@ -280,10 +262,8 @@ fn joint_search_bounded(
         "joint generalized back-door search stopped at its examination budget; undecided",
     );
     result.performance.candidates_examined = examined;
-    result.diagnostics.push(Diagnostic::new(
+    result.diagnostics.push(crate::result::search_bounded_diagnostic(
         JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-        DiagnosticKind::Execution,
-        DiagnosticSeverity::Warning,
         format!(
             "joint adjustment search ran {examined} separation tests (budget \
              {max_examinations}) without finding a set and without exhausting the candidate \
@@ -487,11 +467,15 @@ mod tests {
             schema.id_of("t2").unwrap(),
             schema.id_of("y").unwrap(),
         );
-        let mag_path =
-            identify_joint(&admg, pag.nodes(), &query, 16, JOINT_MAX_EXAMINATIONS, |from, to| {
-                visible(&pag, from, to)
-            })
-            .unwrap();
+        let mag_path = identify_joint(
+            &admg,
+            pag.nodes(),
+            &query,
+            16,
+            crate::GeneralizedAdjustmentConfig::default().max_examinations,
+            |from, to| visible(&pag, from, to),
+        )
+        .unwrap();
         assert_eq!(
             mag_path.status,
             IdentificationStatus::NotIdentified,
@@ -578,9 +562,15 @@ mod tests {
             "a class envelope must count this completion as undecided, not as refuted"
         );
 
-        let full =
-            identify_joint(&admg, admg.nodes(), &query, 40, JOINT_MAX_EXAMINATIONS, |_, _| true)
-                .unwrap();
+        let full = identify_joint(
+            &admg,
+            admg.nodes(),
+            &query,
+            40,
+            crate::GeneralizedAdjustmentConfig::default().max_examinations,
+            |_, _| true,
+        )
+        .unwrap();
         assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(full.estimands[0].adjustment_set.len(), 17);
     }
