@@ -137,6 +137,42 @@ impl AutoIdentifier {
                 let active = set_value(&active_do)?;
                 let control = set_value(&control_do)?;
                 if let Some(scale) = bernoulli_scale {
+                    // `scale = w_a - w_c` is exactly 1 only when the pair already *is*
+                    // the hard do(1)/do(0) contrast (e.g. a degenerate Bernoulli(1)
+                    // matched with Set(0)): the functional every strategy below builds
+                    // is then already the requested estimand. For any other weight the
+                    // true stochastic contrast is `scale * (hard ATE)`, and nothing in
+                    // the expression algebra can multiply a functional by a free-standing
+                    // scalar, so shipping the hard functional under an "identified" status
+                    // would silently return the wrong number. Refuse instead of guessing.
+                    if (scale - 1.0).abs() > 1e-9 {
+                        diagnostics.push(Diagnostic::new(
+                            "auto.stochastic.bernoulli_scale_unsupported",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Warning,
+                            format!(
+                                "Bernoulli / binary mixture ATE: the true effect is \
+                                 scale * E[Y|do(1)] − E[Y|do(0)] with scale = {scale}, but no \
+                                 returned functional can carry that scalar factor; refusing \
+                                 rather than returning the unscaled hard contrast as if it \
+                                 were the requested stochastic effect"
+                            ),
+                        ));
+                        derivation.push(
+                            "auto.stochastic",
+                            format!(
+                                "bernoulli mixture scale={scale}: not applied to any functional, refusing"
+                            ),
+                        );
+                        let mut out = IdentificationResult::not_identified(
+                            query.clone(),
+                            derivation,
+                            assumptions,
+                            perf,
+                        );
+                        out.diagnostics = diagnostics;
+                        return Ok(out);
+                    }
                     diagnostics.push(Diagnostic::new(
                         "auto.stochastic.bernoulli_scale",
                         DiagnosticKind::Execution,
@@ -1147,5 +1183,197 @@ mod tests {
         assert!(
             res.diagnostics.iter().any(|d| d.code.as_ref() == "identify.rd.graph_incompatible")
         );
+    }
+
+    /// Exact law of a binary `T -> Y` SCM with no confounding: `P(T=1) = p_t`,
+    /// `P(Y=1 | T=t) = f(t)`. Used to pin the true stochastic-intervention
+    /// estimand against the functional Auto actually returns.
+    struct BinaryTyLaw {
+        p_t: f64,
+        f: [f64; 2],
+    }
+
+    impl BinaryTyLaw {
+        fn bit(assignment: &antecedent_expr::Assignment, var: VariableId) -> f64 {
+            assignment.get(var).and_then(Value::as_f64).expect("bound")
+        }
+    }
+
+    #[allow(
+        clippy::float_cmp,
+        clippy::map_unwrap_or,
+        clippy::cast_possible_truncation,
+        clippy::cast_lossless,
+        clippy::precedence
+    )]
+    impl antecedent_expr::DistributionProvider for BinaryTyLaw {
+        fn probability(
+            &self,
+            spec: &antecedent_expr::FactorSpec<'_>,
+            assignment: &antecedent_expr::Assignment,
+            _ctx: &antecedent_expr::EvalContext,
+        ) -> Result<f64, antecedent_expr::EvalError> {
+            let t = VariableId::from_raw(0);
+            let y = VariableId::from_raw(1);
+            // The empty-adjustment marginal `P(\emptyset)` used by backdoor's
+            // Z-marginal factor when the adjustment set is empty.
+            if spec.variables.is_empty() {
+                return Ok(1.0);
+            }
+            // Every leaf here is either the marginal of T or the conditional of Y
+            // given T (the only two factors a backdoor/general-ID functional on
+            // this graph can ask for).
+            if spec.variables.contains(&t) {
+                let tv = Self::bit(assignment, t);
+                return Ok(if tv == 1.0 { self.p_t } else { 1.0 - self.p_t });
+            }
+            if spec.variables.contains(&y) {
+                let tv = spec
+                    .conditioned_on
+                    .iter()
+                    .copied()
+                    .chain(spec.intervention.iter().map(|a| a.variable))
+                    .find(|&v| v == t)
+                    .map(|_| Self::bit(assignment, t))
+                    .unwrap_or(self.p_t);
+                let yv = Self::bit(assignment, y);
+                let p1 = self.f[usize::from(tv == 1.0)];
+                return Ok(if yv == 1.0 { p1 } else { 1.0 - p1 });
+            }
+            Err(antecedent_expr::EvalError::MissingBinding(t))
+        }
+
+        fn support(
+            &self,
+            vars: &[VariableId],
+            _ctx: &antecedent_expr::EvalContext,
+        ) -> Result<Arc<[Arc<[Value]>]>, antecedent_expr::EvalError> {
+            Ok((0..1usize << vars.len())
+                .map(|row| {
+                    (0..vars.len())
+                        .map(|i| Value::f64(f64::from((row >> i & 1) as u8)))
+                        .collect::<Arc<[_]>>()
+                })
+                .collect())
+        }
+
+        fn outcome(
+            &self,
+            var: VariableId,
+            assignment: &antecedent_expr::Assignment,
+            _ctx: &antecedent_expr::EvalContext,
+        ) -> Result<f64, antecedent_expr::EvalError> {
+            assignment
+                .get(var)
+                .and_then(Value::as_f64)
+                .ok_or(antecedent_expr::EvalError::MissingBinding(var))
+        }
+
+        fn n_draws(&self) -> Option<usize> {
+            None
+        }
+    }
+
+    #[test]
+    fn auto_bernoulli_mixture_ate_matches_the_true_stochastic_contrast() {
+        // T -> Y, no confounding: Y = T exactly (f(0)=0, f(1)=1), so the true
+        // hard contrast E[Y|do(1)] - E[Y|do(0)] is 1. A genuine Bernoulli
+        // mixture active=Bernoulli(0.7) vs control=Bernoulli(0.2) has true
+        // contrast (0.7-0.2)*1 = 0.5 (E[Y|do(Bernoulli(p))] = p, linear in p),
+        // not the unscaled hard contrast 1.0.
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            Arc::from([]),
+            Intervention::stochastic(
+                VariableId::from_raw(0),
+                antecedent_core::StochasticPolicy::Bernoulli { p: 0.2 },
+            ),
+            Intervention::stochastic(
+                VariableId::from_raw(0),
+                antecedent_core::StochasticPolicy::Bernoulli { p: 0.7 },
+            ),
+            antecedent_core::TargetPopulation::AllObserved,
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+
+        let law = BinaryTyLaw { p_t: 0.5, f: [0.0, 1.0] };
+        let ctx = antecedent_expr::EvalContext::default();
+        let true_contrast = 0.5;
+        let tol = 1e-9;
+
+        // The identification must not silently ship the unscaled hard
+        // contrast as if it were the stochastic estimand: whatever the
+        // status, no returned estimand may evaluate to the wrong number.
+        for estimand in &res.estimands {
+            let plan = res.arena.compile(estimand.functional).unwrap();
+            let value = plan.evaluate(&res.arena, &law, &ctx).unwrap();
+            assert!(
+                (value - true_contrast).abs() < tol,
+                "estimand {} evaluated to {value}, true stochastic contrast is {true_contrast}",
+                estimand.method
+            );
+        }
+        // The crate cannot yet scale a functional by the mixture weight, so it
+        // must refuse rather than mislabel the unscaled hard contrast as the
+        // requested stochastic effect.
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(res.estimands.is_empty());
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "auto.stochastic.bernoulli_scale_unsupported"),
+            "{:?}",
+            res.diagnostics
+        );
+    }
+
+    #[test]
+    fn auto_degenerate_bernoulli_pair_still_identifies_the_hard_contrast() {
+        // active=Bernoulli(1), control=Bernoulli(0) is exactly do(1) vs do(0)
+        // in disguise (scale = 1 - 0 = 1): the existing hard-contrast path
+        // must keep working without the new refusal firing.
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::new(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            Arc::from([]),
+            Intervention::stochastic(
+                VariableId::from_raw(0),
+                antecedent_core::StochasticPolicy::Bernoulli { p: 0.0 },
+            ),
+            Intervention::stochastic(
+                VariableId::from_raw(0),
+                antecedent_core::StochasticPolicy::Bernoulli { p: 1.0 },
+            ),
+            antecedent_core::TargetPopulation::AllObserved,
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(!res.estimands.is_empty());
+        assert!(
+            res.diagnostics.iter().any(|d| d.code.as_ref() == "auto.stochastic.bernoulli_scale")
+        );
+
+        let law = BinaryTyLaw { p_t: 0.5, f: [0.0, 1.0] };
+        let ctx = antecedent_expr::EvalContext::default();
+        for estimand in &res.estimands {
+            let plan = res.arena.compile(estimand.functional).unwrap();
+            let value = plan.evaluate(&res.arena, &law, &ctx).unwrap();
+            assert!(
+                (value - 1.0).abs() < 1e-9,
+                "estimand {} evaluated to {value}",
+                estimand.method
+            );
+        }
     }
 }
