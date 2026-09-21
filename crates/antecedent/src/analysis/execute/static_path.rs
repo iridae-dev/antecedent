@@ -110,7 +110,18 @@ impl super::Study {
         );
 
         // Uncertainty: bootstrap fills (real work when replicates > 0).
-        let estimate = if self.bootstrap_replicates == 0 {
+        // IV and NN matching must not refill with the facade bootstrap: that
+        // bypasses the weak-instrument gate (Wald/2SLS) and publishes an
+        // Abadie–Imbens-invalid matching bootstrap SE.
+        let skip_bootstrap_refill = self.bootstrap_replicates == 0
+            || matches!(
+                estimator_id,
+                EstimatorId::IvWald
+                    | EstimatorId::Iv2Sls
+                    | EstimatorId::PropensityMatching
+                    | EstimatorId::DistanceMatching
+            );
+        let estimate = if skip_bootstrap_refill {
             if ctx.cancellation.is_cancelled() {
                 clock.mark_cancelled();
                 point

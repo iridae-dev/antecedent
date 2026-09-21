@@ -3504,9 +3504,8 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?,
                 estimate: result.estimate.ate,
-                standard_error: result.estimate.se_bootstrap.or_else(|| {
-                    result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
-                }),
+                standard_error: antecedent::PublishedScalarUncertainty::select(&result.estimate)
+                    .standard_error,
                 assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
                 support: result
                     .diagnostics
@@ -3890,9 +3889,8 @@ fn composite_result_wire(
         identification_variables,
         temporal_identification,
         estimate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        standard_error: result.estimate.se_bootstrap.or_else(|| {
-            result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
-        }),
+        standard_error: antecedent::PublishedScalarUncertainty::select(&result.estimate)
+            .standard_error,
         assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),

@@ -101,8 +101,8 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
 pub use result::{
-    AnalysisIdentification, ExecutedContract, RowWeightsBinding, StructuralAggregationPolicy,
-    StructuralWeightBasis, StudyResult,
+    AnalysisIdentification, ExecutedContract, PublishedScalarUncertainty, RowWeightsBinding,
+    StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
 };
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,
