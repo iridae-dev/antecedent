@@ -177,6 +177,11 @@ pub enum EvalError {
     /// Provider cannot answer a conditional query (non-empty `conditioned_on`) —
     /// e.g. an independent-factor provider that only models unconditional marginals.
     UnsupportedConditioning(&'static str),
+    /// A provider parameter is outside its valid range (for example a non-positive variance).
+    InvalidParameter(&'static str),
+    /// A ratio evaluated to a non-finite value: the denominator is nonzero but so small (or a
+    /// term so large) that the quotient overflows.
+    NonFiniteRatio,
 }
 
 impl fmt::Display for EvalError {
@@ -203,7 +208,10 @@ impl fmt::Display for EvalError {
             Self::SupportShape { expected, actual } => {
                 write!(f, "support row arity {actual} != expected {expected}")
             }
-            Self::ProviderKind(msg) | Self::UnsupportedConditioning(msg) => write!(f, "{msg}"),
+            Self::NonFiniteRatio => write!(f, "ratio evaluated to a non-finite value"),
+            Self::ProviderKind(msg)
+            | Self::UnsupportedConditioning(msg)
+            | Self::InvalidParameter(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -288,6 +296,10 @@ struct FactorKey {
     conditioned_on: Arc<[VariableId]>,
     intervention: Arc<[InterventionAssignment]>,
     domain: DomainRef,
+    /// A factor cites its population and regime: `P^source(y|x)` and `P^target(y|x)` are
+    /// different table rows even when every other component agrees.
+    population: Arc<str>,
+    regime: Option<RegimeId>,
     /// Concatenation of values for `variables` then `conditioned_on`.
     values: Arc<[Value]>,
 }
@@ -304,6 +316,8 @@ struct FactorKeyView<'a> {
     conditioned_on: &'a [VariableId],
     intervention: &'a [InterventionAssignment],
     domain: DomainRef,
+    population: &'a str,
+    regime: Option<RegimeId>,
     /// Concatenation of values for `variables` then `conditioned_on`.
     values: &'a [Value],
 }
@@ -322,6 +336,8 @@ impl FactorKeyLookup for FactorKey {
             conditioned_on: &self.conditioned_on,
             intervention: &self.intervention,
             domain: self.domain,
+            population: &self.population,
+            regime: self.regime,
             values: &self.values,
         }
     }
@@ -346,6 +362,8 @@ fn hash_factor_view<H: Hasher>(v: &FactorKeyView<'_>, state: &mut H) {
     v.conditioned_on.hash(state);
     v.intervention.hash(state);
     v.domain.hash(state);
+    v.population.hash(state);
+    v.regime.hash(state);
     v.values.hash(state);
 }
 
@@ -380,6 +398,8 @@ fn factor_views_eq(a: &FactorKeyView<'_>, b: &FactorKeyView<'_>) -> bool {
         && a.conditioned_on == b.conditioned_on
         && a.intervention == b.intervention
         && a.domain == b.domain
+        && a.population == b.population
+        && a.regime == b.regime
         && a.values == b.values
 }
 
@@ -391,9 +411,38 @@ fn factor_values(spec: &FactorSpec<'_>, assignment: &Assignment) -> Result<Vec<V
         let Some(val) = assignment.get(v) else {
             return Err(EvalError::MissingBinding(v));
         };
-        values.push(val.clone());
+        values.push(canonical_level(val));
     }
     Ok(values)
+}
+
+/// `0.0` and `-0.0` are one numeric level, but `Value` compares floats bitwise, so a table keyed
+/// by both spellings would hold two rows for one cell. Tables and lookups use `0.0`.
+fn canonical_level(value: &Value) -> Value {
+    match value {
+        Value::Float64(x) if *x == 0.0 => Value::Float64(0.0),
+        other => other.clone(),
+    }
+}
+
+/// Intervention levels with `-0.0` spelled `0.0`; borrowed unchanged in the common case.
+fn canonical_interventions(
+    assignments: &[InterventionAssignment],
+) -> std::borrow::Cow<'_, [InterventionAssignment]> {
+    let negative_zero = |a: &InterventionAssignment| matches!(a.value, Value::Float64(x) if x == 0.0 && x.is_sign_negative());
+    if assignments.iter().any(negative_zero) {
+        std::borrow::Cow::Owned(
+            assignments
+                .iter()
+                .map(|a| InterventionAssignment {
+                    variable: a.variable,
+                    value: canonical_level(&a.value),
+                })
+                .collect(),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(assignments)
+    }
 }
 
 /// Owned key for table inserts (cold path; lookups use [`FactorKeyView`]).
@@ -402,8 +451,10 @@ fn factor_key(spec: &FactorSpec<'_>, assignment: &Assignment) -> Result<FactorKe
     Ok(FactorKey {
         variables: Arc::from(spec.variables),
         conditioned_on: Arc::from(spec.conditioned_on),
-        intervention: Arc::from(spec.intervention.to_vec()),
+        intervention: Arc::from(canonical_interventions(spec.intervention).into_owned()),
         domain: spec.domain,
+        population: Arc::from(spec.population),
+        regime: spec.regime,
         values: Arc::from(values),
     })
 }
@@ -447,7 +498,10 @@ impl EmpiricalTableProvider {
     /// Declare discrete domain for a variable.
     pub fn set_domain(&mut self, var: VariableId, values: impl IntoIterator<Item = Value>) {
         let mut v: Vec<Value> = values.into_iter().collect();
-        // Stable unique by hash equality.
+        // Stable unique per numeric level: `-0.0` and `0.0` are one level.
+        for x in &mut v {
+            *x = canonical_level(x);
+        }
         let mut seen = std::collections::HashSet::new();
         v.retain(|x| seen.insert(x.clone()));
         self.domains.insert(var, Arc::from(v));
@@ -483,11 +537,14 @@ impl DistributionProvider for EmpiricalTableProvider {
         // Borrowed-key lookup: no owned `FactorKey` (and its per-field `Arc`
         // allocations) on the hot path — only the value row is assembled.
         let values = factor_values(spec, assignment)?;
+        let intervention = canonical_interventions(spec.intervention);
         let key = FactorKeyView {
             variables: spec.variables,
             conditioned_on: spec.conditioned_on,
-            intervention: spec.intervention,
+            intervention: &intervention,
             domain: spec.domain,
+            population: spec.population,
+            regime: spec.regime,
             values: &values,
         };
         self.tables.get(&key as &dyn FactorKeyLookup).copied().ok_or(EvalError::MissingTableEntry)
@@ -640,14 +697,23 @@ impl GaussianDensityProvider {
 
     /// Declare an independent Gaussian for `var` with mean `mean` and variance `variance`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Never panics; non-positive variance is rejected by returning early no-op... actually
-    /// we clamp: variance must be > 0 or the insert is skipped. Prefer validating at call sites.
-    pub fn set_gaussian(&mut self, var: VariableId, mean: f64, variance: f64) {
-        if variance > 0.0 && variance.is_finite() && mean.is_finite() {
-            self.params.insert(var, (mean, variance));
+    /// [`EvalError::InvalidParameter`] unless `mean` is finite and `variance` is finite and
+    /// positive; nothing is stored then.
+    pub fn set_gaussian(
+        &mut self,
+        var: VariableId,
+        mean: f64,
+        variance: f64,
+    ) -> Result<(), EvalError> {
+        if !(variance > 0.0 && variance.is_finite() && mean.is_finite()) {
+            return Err(EvalError::InvalidParameter(
+                "Gaussian mean must be finite and variance finite and positive",
+            ));
         }
+        self.params.insert(var, (mean, variance));
+        Ok(())
     }
 }
 
@@ -681,6 +747,20 @@ impl DistributionProvider for GaussianDensityProvider {
             return Err(EvalError::UnsupportedConditioning(
                 "GaussianDensityProvider models independent Gaussians and cannot answer \
                  conditional queries; conditioned_on must be empty",
+            ));
+        }
+        // Nor can it answer a factor under `do(.)`, or one that a population / regime tag asks a
+        // specific study for: the marginal of y is not `P(y | do(t))`.
+        if !spec.intervention.is_empty() || spec.domain == DomainRef::Interventional {
+            return Err(EvalError::ProviderKind(
+                "GaussianDensityProvider models observational marginals and cannot answer \
+                 interventional factors",
+            ));
+        }
+        if !spec.population.is_empty() || spec.regime.is_some() {
+            return Err(EvalError::ProviderKind(
+                "GaussianDensityProvider is untagged and cannot serve population- or \
+                 regime-tagged factors",
             ));
         }
         let mut dens = 1.0;
@@ -859,8 +939,8 @@ mod tests {
         let mut p = GaussianDensityProvider::new();
         let y = v(0);
         let z = v(1);
-        p.set_gaussian(y, 0.0, 1.0);
-        p.set_gaussian(z, 0.0, 1.0);
+        p.set_gaussian(y, 0.0, 1.0).unwrap();
+        p.set_gaussian(z, 0.0, 1.0).unwrap();
         let spec = FactorSpec {
             variables: &[y],
             conditioned_on: &[z],
@@ -872,5 +952,118 @@ mod tests {
         let assignment = Assignment::from_pairs([(y, f(0.5)), (z, f(0.2))]);
         let err = p.probability(&spec, &assignment, &EvalContext::default()).unwrap_err();
         assert!(matches!(err, EvalError::UnsupportedConditioning(_)));
+    }
+
+    #[test]
+    fn table_rows_are_keyed_by_population_and_regime() {
+        // P^source(y) and P^target(y) share variables, domain and level; the table must keep
+        // them apart instead of letting the last insert answer both.
+        let mut p = EmpiricalTableProvider::new();
+        let y = v(0);
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        let ys = [y];
+        let tagged = |population, regime| FactorSpec {
+            variables: &ys,
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+            population,
+            regime,
+        };
+        let assign = Assignment::from_pairs([(y, f(1.0))]);
+        let ctx = EvalContext::default();
+        let (r0, r1) = (Some(RegimeId::from_raw(0)), Some(RegimeId::from_raw(1)));
+        p.insert_probability(&tagged("source", r0), &assign, 0.2).unwrap();
+        p.insert_probability(&tagged("target", r0), &assign, 0.9).unwrap();
+        assert_eq!(p.probability(&tagged("source", r0), &assign, &ctx), Ok(0.2));
+        assert_eq!(p.probability(&tagged("target", r0), &assign, &ctx), Ok(0.9));
+        assert_eq!(
+            p.probability(&tagged("source", r1), &assign, &ctx),
+            Err(EvalError::MissingTableEntry)
+        );
+        assert_eq!(
+            p.probability(&tagged("", None), &assign, &ctx),
+            Err(EvalError::MissingTableEntry)
+        );
+    }
+
+    #[test]
+    fn negative_zero_is_the_same_level_as_zero() {
+        let mut p = EmpiricalTableProvider::new();
+        let y = v(0);
+        p.set_domain(y, [f(0.0), f(-0.0), f(1.0)]);
+        let rows = p.support(&[y], &EvalContext::default()).unwrap();
+        assert_eq!(rows.len(), 2, "0.0 and -0.0 are one level");
+        let ys = [y];
+        let spec = FactorSpec::new(&ys, &[], &[], DomainRef::Observational);
+        p.insert_probability(&spec, &Assignment::from_pairs([(y, f(-0.0))]), 0.5).unwrap();
+        let ctx = EvalContext::default();
+        assert_eq!(p.probability(&spec, &Assignment::from_pairs([(y, f(0.0))]), &ctx), Ok(0.5));
+        assert_eq!(p.probability(&spec, &Assignment::from_pairs([(y, f(-0.0))]), &ctx), Ok(0.5));
+        // The same holds for an intervention level.
+        let t = v(1);
+        let neg = [InterventionAssignment { variable: t, value: f(-0.0) }];
+        let pos = [InterventionAssignment { variable: t, value: f(0.0) }];
+        let spec_neg = FactorSpec {
+            variables: &[],
+            conditioned_on: &[],
+            intervention: &neg,
+            domain: DomainRef::Interventional,
+            population: "",
+            regime: None,
+        };
+        let spec_pos = FactorSpec { intervention: &pos, ..spec_neg.clone() };
+        p.insert_probability(&spec_neg, &Assignment::new(), 0.25).unwrap();
+        assert_eq!(p.probability(&spec_pos, &Assignment::new(), &ctx), Ok(0.25));
+    }
+
+    #[test]
+    fn gaussian_provider_refuses_interventional_and_tagged_factors() {
+        let mut p = GaussianDensityProvider::new();
+        let (y, t) = (v(0), v(1));
+        p.set_gaussian(y, 0.0, 1.0).unwrap();
+        let assign = Assignment::from_pairs([(y, f(0.0))]);
+        let ctx = EvalContext::default();
+        let ys = [y];
+        let interv = [InterventionAssignment { variable: t, value: f(1.0) }];
+        let under_do = FactorSpec {
+            variables: &ys,
+            conditioned_on: &[],
+            intervention: &interv,
+            domain: DomainRef::Interventional,
+            population: "",
+            regime: None,
+        };
+        assert!(matches!(p.probability(&under_do, &assign, &ctx), Err(EvalError::ProviderKind(_))));
+        let tagged = FactorSpec {
+            population: "target",
+            ..FactorSpec::new(&ys, &[], &[], DomainRef::Observational)
+        };
+        assert!(matches!(p.probability(&tagged, &assign, &ctx), Err(EvalError::ProviderKind(_))));
+        // The untagged observational marginal is still the standard normal density at 0.
+        let plain = FactorSpec::new(&ys, &[], &[], DomainRef::Observational);
+        let density = p.probability(&plain, &assign, &ctx).unwrap();
+        assert!((density - 1.0 / (2.0 * std::f64::consts::PI).sqrt()).abs() < 1e-15);
+    }
+
+    #[test]
+    fn set_gaussian_rejects_invalid_parameters_and_stores_nothing() {
+        let mut p = GaussianDensityProvider::new();
+        let y = v(0);
+        for (mean, variance) in
+            [(0.0, 0.0), (0.0, -1.0), (0.0, f64::NAN), (f64::NAN, 1.0), (0.0, f64::INFINITY)]
+        {
+            assert!(matches!(
+                p.set_gaussian(y, mean, variance),
+                Err(EvalError::InvalidParameter(_))
+            ));
+        }
+        let ys = [y];
+        let spec = FactorSpec::new(&ys, &[], &[], DomainRef::Observational);
+        let assign = Assignment::from_pairs([(y, f(0.0))]);
+        assert_eq!(
+            p.probability(&spec, &assign, &EvalContext::default()),
+            Err(EvalError::EmptySupport(y))
+        );
     }
 }

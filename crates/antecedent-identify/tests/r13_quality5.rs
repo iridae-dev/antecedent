@@ -157,7 +157,7 @@ fn evaluate_constant(
     context: &str,
 ) {
     let functional = res.estimands[0].functional;
-    let mut arena = res.arena.clone();
+    let arena = res.arena.clone();
     let free = arena.free_variables(functional);
     let plan = res.arena.compile(functional).unwrap();
     for row in 0..1usize << free.len().max(0) {
@@ -182,7 +182,7 @@ fn evaluate_free(
     context: &str,
 ) {
     let functional = res.estimands[0].functional;
-    let mut arena = res.arena.clone();
+    let arena = res.arena.clone();
     let free = arena.free_variables(functional);
     let plan = res.arena.compile(functional).unwrap();
     for row in 0..1usize << free.len() {
@@ -472,7 +472,7 @@ fn napkin_identified_expression_matches_enumerated_interventional_ate() {
         pretty.contains('/') || pretty.contains("Σ"),
         "napkin must surface the ratio-of-marginals form, got {pretty}"
     );
-    let mut arena = dist.arena.clone();
+    let arena = dist.arena.clone();
     assert!(
         arena.free_variables(dist.estimands[0].functional).contains(&v(index("Z"))),
         "napkin keeps z free: {pretty}"

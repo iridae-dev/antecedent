@@ -15,7 +15,8 @@ use antecedent_core::{ExecutionContext, Value, VariableId};
 /// Explicit exact execution limits. Memory and cancellation also use `ExecutionContext`.
 #[derive(Clone, Copy, Debug)]
 pub struct ExactEvaluationLimits {
-    /// Maximum expanded expression operations and provider row inspections.
+    /// Maximum expanded expression operations and provider row inspections, one budget shared
+    /// by both.
     pub operations: usize,
     /// Maximum nested expression depth.
     pub depth: usize,
@@ -154,12 +155,7 @@ impl ExactEvaluationPlan {
         {
             return Err(EvalError::ProviderKind("invalid exact outcome coordinates"));
         }
-        let mut arena = arena.clone();
-        for v in arena.free_variables(root) {
-            if !outcomes.contains(&v) && request.get(v).is_none() {
-                return Err(EvalError::MissingBinding(v));
-            }
-        }
+        let arena = arena.clone();
         let mut preflight = Preflight {
             arena: &arena,
             data: &data,
@@ -171,9 +167,16 @@ impl ExactEvaluationPlan {
             remaining_checks: Cell::new(limits.operations),
         };
         let atoms = preflight.cardinality(&outcomes)?;
+        // The depth-bounded preflight walk runs before any unbounded recursion (free-variable
+        // analysis, compilation), so a deep expression is refused rather than overflowing the stack.
         let cost = preflight.visit(root, 0)?;
         if cost.checked_mul(atoms).is_none_or(|n| n > limits.operations) {
             return Err(EvalError::ProviderKind("exact operation budget exceeded"));
+        }
+        for v in arena.free_variables(root) {
+            if !outcomes.contains(&v) && request.get(v).is_none() {
+                return Err(EvalError::MissingBinding(v));
+            }
         }
         let evaluator = arena.compile(root)?;
         check_cache_memory(
@@ -222,8 +225,9 @@ impl ExactEvaluationPlan {
             preflight.intermediate_bytes.get(),
             ctx,
         )?;
-        let provider =
-            BoundedProvider { data: &self.data, ctx, remaining: Cell::new(self.limits.operations) };
+        // One budget covers expression operations and provider row inspections alike.
+        let budget = Cell::new(self.limits.operations);
+        let provider = BoundedProvider { data: &self.data, ctx, remaining: &budget };
         let eval = EvalContext::default();
         let atoms = provider.support(&self.outcomes, &eval)?;
         let mut probabilities = Vec::with_capacity(atoms.len());
@@ -232,7 +236,7 @@ impl ExactEvaluationPlan {
             &self.evaluator,
             &provider,
             ctx,
-            self.limits.operations,
+            &budget,
         );
         let mut assignment = self.request.clone();
         for atom in atoms.iter() {
@@ -504,7 +508,7 @@ impl Preflight<'_> {
 struct BoundedProvider<'a> {
     data: &'a ExactTransportData,
     ctx: &'a ExecutionContext,
-    remaining: Cell<usize>,
+    remaining: &'a Cell<usize>,
 }
 impl BoundedProvider<'_> {
     fn charge(&self, cost: usize) -> Result<(), EvalError> {
@@ -865,5 +869,204 @@ mod tests {
             nan_err.is_err(),
             "concrete NaN must not expand over do(T) support; got {nan_err:?}"
         );
+    }
+
+    /// Three binary axes `(v0, v1, v2)`, last fastest. `P(v0=0) = 0` is a structural zero.
+    fn three_axis_data(origin_empirical: bool, counts: Option<Vec<u64>>) -> ExactTransportData {
+        let axes = [0, 1, 2].map(|i| DiscreteAxis {
+            variable: v(i),
+            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+        });
+        let probabilities = [0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4];
+        let mut law = if origin_empirical {
+            ExactDiscreteLaw::try_empirical(
+                "target",
+                RegimeId::from_raw(0),
+                [],
+                axes,
+                probabilities,
+                "s",
+                LawTolerance::default(),
+            )
+        } else {
+            ExactDiscreteLaw::try_new(
+                "target",
+                RegimeId::from_raw(0),
+                [],
+                axes,
+                probabilities,
+                "s",
+                LawTolerance::default(),
+            )
+        }
+        .unwrap();
+        if let Some(counts) = counts {
+            law = law.with_empirical_counts(counts).unwrap();
+        }
+        ExactTransportData::try_new([law], 100).unwrap()
+    }
+
+    /// `P(v0) · Σ_{v2} k / Σ_{v1,v2} k` = `P(v0) · P(v1 | v0)` over the joint leaf `k`, with the
+    /// conditional written the way a district factor is: marginals of one joint whose
+    /// numerator is itself a marginal (not the joint).
+    fn marginal_ratio_product() -> (CausalExprArena, ExprId) {
+        let mut arena = CausalExprArena::new();
+        let all = arena.intern_var_set([v(0), v(1), v(2)]);
+        let empty = arena.empty_var_set();
+        let none = arena.intern_intervention_set([]);
+        let population = arena.intern_population("target");
+        let joint = arena.intern(ExprNode::Distribution {
+            variables: all,
+            conditioned_on: empty,
+            intervention: none,
+            population,
+            domain: DomainRef::Observational,
+            regime: Some(RegimeId::from_raw(0)),
+        });
+        let s2 = arena.intern_var_set([v(2)]);
+        let s12 = arena.intern_var_set([v(1), v(2)]);
+        let numerator = arena.intern(ExprNode::SumOut { variables: s2, expr: joint });
+        let denominator = arena.intern(ExprNode::SumOut { variables: s12, expr: joint });
+        let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
+        let list = arena.intern_list([denominator, ratio]);
+        let root = arena.intern(ExprNode::Product(list));
+        (arena, root)
+    }
+
+    fn evaluate_three_axis(
+        arena: &CausalExprArena,
+        root: ExprId,
+        data: ExactTransportData,
+    ) -> Result<ExactDistribution, EvalError> {
+        let ctx = ExecutionContext::for_tests(0);
+        ExactEvaluationPlan::compile(
+            arena,
+            root,
+            data,
+            [v(0), v(1)],
+            Assignment::new(),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )?
+        .evaluate(&ctx)
+    }
+
+    #[test]
+    fn zero_weight_extension_covers_conditionals_over_partial_marginals() {
+        // At v0 = 0 the conditional is 0/0, multiplied by the explicit zero P(v0=0). The
+        // conditional's numerator is Σ_{v2} k, not k, so only the semantic marginal-ratio
+        // shape (not `denominator == SumOut(numerator)`) certifies the extension.
+        let (arena, root) = marginal_ratio_product();
+        let result = evaluate_three_axis(&arena, root, three_axis_data(false, None)).unwrap();
+        // Atoms (v0, v1): P(0,·) = 0; P(1,0) = 0.1 + 0.2, P(1,1) = 0.3 + 0.4.
+        let expected = [0.0, 0.0, 0.3, 0.7];
+        for (got, want) in result.probabilities.iter().zip(expected) {
+            assert!((got - want).abs() < 1e-12, "{:?}", result.probabilities);
+        }
+        assert!(result.support.iter().any(|record| record.status == "checked_zero_mass_extension"));
+    }
+
+    #[test]
+    fn partial_marginal_conditionals_keep_the_empirical_support_guard() {
+        // The same expression over an empirical law that never observed v0 = 0: the zero is a
+        // sampling zero, so the conditional must refuse rather than be extended as structural.
+        let (arena, root) = marginal_ratio_product();
+        let data = three_axis_data(true, None);
+        let EvalError::ExactLaw(error) = evaluate_three_axis(&arena, root, data).unwrap_err()
+        else {
+            panic!("an unobserved conditioning stratum must be located");
+        };
+        assert_eq!(error.kind, "sampling_zero");
+        // ... and likewise when a learned law has positive fitted mass there.
+        let learned = ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(0),
+            [],
+            [0, 1, 2].map(|i| DiscreteAxis {
+                variable: v(i),
+                values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+            }),
+            [0.125; 8],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap()
+        .with_empirical_counts(vec![0, 0, 0, 0, 1, 2, 3, 4])
+        .unwrap();
+        let data = ExactTransportData::try_new([learned], 100).unwrap();
+        let EvalError::ExactLaw(error) = evaluate_three_axis(&arena, root, data).unwrap_err()
+        else {
+            panic!("fitted mass must not certify support");
+        };
+        assert_eq!(error.kind, "sampling_zero");
+    }
+
+    #[test]
+    fn expression_operations_and_provider_rows_share_one_budget() {
+        // Evaluate the same plan once against a provider that charges row inspections to the
+        // session's budget and once against one that charges nothing. The difference is what the
+        // provider drew, which is only visible in the session's cell if there is one budget.
+        let (arena, root) = conditional();
+        let plan = arena.compile(root).unwrap();
+        let ctx = ExecutionContext::for_tests(0);
+        let consumed = |charged: bool| {
+            let data = law();
+            let budget = Cell::new(1_000_000);
+            let mut assignment =
+                Assignment::from_pairs([(v(0), Value::Int64(1)), (v(1), Value::Int64(0))]);
+            let bounded = BoundedProvider { data: &data, ctx: &ctx, remaining: &budget };
+            let provider: &dyn DistributionProvider = if charged { &bounded } else { &data };
+            let mut session =
+                crate::exact_engine::ExactSession::new(&arena, &plan, provider, &ctx, &budget);
+            let value = session.evaluate(&mut assignment).unwrap();
+            assert!((value - 0.3).abs() < 1e-12, "P(v1=0 | v0=1) = 0.3/1.0, got {value}");
+            1_000_000 - budget.get()
+        };
+        let expression_only = consumed(false);
+        let with_rows = consumed(true);
+        assert!(expression_only > 0);
+        assert!(with_rows > expression_only, "{with_rows} vs {expression_only}");
+    }
+
+    #[test]
+    fn deep_expression_is_refused_before_unbounded_recursion() {
+        // A chain of kernels far deeper than the depth budget. The depth-limited preflight
+        // must reject it before free-variable analysis or compilation recurse over it.
+        let mut arena = CausalExprArena::new();
+        let vars = arena.intern_var_set([v(1)]);
+        let empty = arena.empty_var_set();
+        let none = arena.intern_intervention_set([]);
+        let population = arena.intern_population("target");
+        let mut node = arena.intern(ExprNode::Distribution {
+            variables: vars,
+            conditioned_on: empty,
+            intervention: none,
+            population,
+            domain: DomainRef::Observational,
+            regime: Some(RegimeId::from_raw(0)),
+        });
+        for i in 0..20_000u32 {
+            let bound = arena.intern_var_set([v(1_000 + i)]);
+            node = arena.intern(ExprNode::Kernel {
+                body: node,
+                bound,
+                population,
+                regime: Some(RegimeId::from_raw(0)),
+            });
+        }
+        let ctx = ExecutionContext::for_tests(0);
+        let refused = ExactEvaluationPlan::compile(
+            &arena,
+            node,
+            law(),
+            [v(1)],
+            Assignment::new(),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap_err();
+        assert_eq!(refused, EvalError::ProviderKind("exact recursion budget exceeded"));
     }
 }

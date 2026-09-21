@@ -229,7 +229,7 @@ fn assert_matches_truth(
     context: &str,
 ) {
     let functional = res.estimands[0].functional;
-    let mut arena = res.arena.clone();
+    let arena = res.arena.clone();
     let free = arena.free_variables(functional);
     let plan = res.arena.compile(functional).unwrap();
     for row in 0..1usize << free.len() {
@@ -308,7 +308,7 @@ fn napkin_distribution_matches_exact_intervention_for_every_z() {
         "napkin",
     );
     // The functional must actually range over z for the independence check to bite.
-    let mut arena = res.arena.clone();
+    let arena = res.arena.clone();
     assert!(arena.free_variables(res.estimands[0].functional).contains(&v(1)));
 }
 

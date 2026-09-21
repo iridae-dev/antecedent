@@ -84,6 +84,11 @@ pub struct DiscreteAxis {
     pub values: Arc<[Value]>,
 }
 
+/// Failure kind of a conditional on an event the law gives zero mass. For a supplied law this
+/// is a structural null event, which an exact evaluation may extend across; for a fitted or
+/// empirical law the same situation is reported as `sampling_zero` instead.
+pub(crate) const ZERO_CONDITIONING_MASS: &str = "zero_conditioning_mass";
+
 /// Located failure to validate or use an exact law.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExactLawError {
@@ -99,6 +104,15 @@ pub struct ExactLawError {
     pub conditioning: Arc<[(VariableId, Value)]>,
     /// Concrete intervention world.
     pub interventions: Arc<[InterventionAssignment]>,
+}
+
+impl ExactLawError {
+    /// Whether this is a conditional on a structurally null event (see
+    /// `ZERO_CONDITIONING_MASS`), the only failure an exact evaluation may extend across.
+    #[must_use]
+    pub fn is_null_conditioning_event(&self) -> bool {
+        self.kind == ZERO_CONDITIONING_MASS
+    }
 }
 
 impl std::fmt::Display for ExactLawError {
@@ -133,7 +147,17 @@ pub struct ExactDiscreteLaw {
     tolerance: LawTolerance,
     origin: LawOrigin,
     empirical_counts: Option<Arc<[u64]>>,
+    /// Marginal mass tables per sorted axis subset, built on first use. The probabilities are
+    /// immutable, so a table never goes stale and is shared by clones of the law.
+    marginals: Arc<MarginalTables>,
 }
+
+/// Most axis subsets whose marginal table one law retains; further subsets are computed
+/// without being kept.
+const MAX_MARGINAL_TABLES: usize = 256;
+
+#[derive(Debug, Default)]
+struct MarginalTables(Mutex<HashMap<Vec<usize>, Arc<[f64]>>>);
 
 impl ExactDiscreteLaw {
     /// Validate a complete observational or hard-intervention law.
@@ -163,6 +187,7 @@ impl ExactDiscreteLaw {
             tolerance,
             origin: LawOrigin::SuppliedExact,
             empirical_counts: None,
+            marginals: Arc::default(),
         };
         if law.population.is_empty() || law.snapshot_identity.is_empty() || !tolerance.valid() {
             return Err(law.error("invalid_law_metadata"));
@@ -351,12 +376,47 @@ impl ExactDiscreteLaw {
                 constraints.iter().map(|(axis, level)| self.strides[*axis] * level).sum::<usize>();
             return self.probabilities[index];
         }
-        sum(self.probabilities.iter().enumerate().filter_map(|(i, p)| {
-            constraints
-                .iter()
-                .all(|(a, level)| (i / self.strides[*a]) % self.axes[*a].values.len() == *level)
-                .then_some(*p)
-        }))
+        let mut by_axis: Vec<(usize, usize)> = constraints.to_vec();
+        by_axis.sort_unstable();
+        if by_axis.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            // One axis constrained twice (possibly to different levels): scan.
+            return sum(self.probabilities.iter().enumerate().filter_map(|(i, p)| {
+                constraints
+                    .iter()
+                    .all(|(a, level)| (i / self.strides[*a]) % self.axes[*a].values.len() == *level)
+                    .then_some(*p)
+            }));
+        }
+        let axes: Vec<usize> = by_axis.iter().map(|(axis, _)| *axis).collect();
+        let table = self.marginal_table(&axes);
+        let index = by_axis
+            .iter()
+            .fold(0usize, |index, (axis, level)| index * self.axes[*axis].values.len() + level);
+        table[index]
+    }
+    /// Mass of every level combination of the distinct, ascending `axes`, summed in table order
+    /// exactly as a filtered scan would, so a lookup equals the scan it replaces.
+    fn marginal_table(&self, axes: &[usize]) -> Arc<[f64]> {
+        if let Some(table) =
+            self.marginals.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(axes)
+        {
+            return Arc::clone(table);
+        }
+        let cells: usize = axes.iter().map(|a| self.axes[*a].values.len()).product();
+        let mut sums = vec![CompensatedSum::default(); cells];
+        for (i, p) in self.probabilities.iter().enumerate() {
+            let cell = axes.iter().fold(0usize, |cell, a| {
+                let len = self.axes[*a].values.len();
+                cell * len + (i / self.strides[*a]) % len
+            });
+            sums[cell].add(*p);
+        }
+        let table: Arc<[f64]> = sums.into_iter().map(CompensatedSum::total).collect();
+        let mut cache = self.marginals.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if cache.len() < MAX_MARGINAL_TABLES {
+            cache.insert(axes.to_vec(), Arc::clone(&table));
+        }
+        table
     }
 }
 
@@ -364,19 +424,36 @@ fn finite(v: &Value) -> bool {
     !matches!(v, Value::Float64(x) if !x.is_finite())
 }
 
-// Compensated summation avoids normalization drift on large, valid domains.
-pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
-    let (mut total, mut correction) = (0.0, 0.0);
-    for value in values {
-        let next = total + value;
-        correction += if total.abs() >= value.abs() {
-            (total - next) + value
+/// Neumaier compensated accumulator: avoids normalization drift on large, valid domains and is
+/// order-stable, so incremental use equals summing the same sequence in one call.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct CompensatedSum {
+    total: f64,
+    correction: f64,
+}
+
+impl CompensatedSum {
+    pub(crate) fn add(&mut self, value: f64) {
+        let next = self.total + value;
+        self.correction += if self.total.abs() >= value.abs() {
+            (self.total - next) + value
         } else {
-            (value - next) + total
+            (value - next) + self.total
         };
-        total = next;
+        self.total = next;
     }
-    total + correction
+
+    pub(crate) fn total(self) -> f64 {
+        self.total + self.correction
+    }
+}
+
+pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
+    let mut acc = CompensatedSum::default();
+    for value in values {
+        acc.add(value);
+    }
+    acc.total()
 }
 
 type WorldIndex = HashMap<Arc<str>, HashMap<RegimeId, HashMap<Vec<InterventionAssignment>, usize>>>;
@@ -592,7 +669,7 @@ impl ExactTransportData {
             return Err(locate(law.error(if law.origin != LawOrigin::SuppliedExact {
                 "sampling_zero"
             } else {
-                "zero_conditioning_mass"
+                ZERO_CONDITIONING_MASS
             })));
         }
         conditions.extend(outputs);
@@ -881,5 +958,48 @@ mod tests {
         };
         assert!(data.require_factor(&spec).is_err());
         assert!(data.support(&[v(1)], &EvalContext::default()).is_err());
+    }
+
+    #[test]
+    fn marginal_tables_agree_with_brute_force_enumeration() {
+        // Three binary axes, an asymmetric joint. Every subset of axes and every level
+        // combination must equal the sum of the joint cells that satisfy it, enumerated
+        // independently of the strides/table machinery.
+        let axes: Vec<DiscreteAxis> = [0, 1, 2].iter().map(|i| axis(*i)).collect();
+        let probabilities = [0.01, 0.04, 0.05, 0.10, 0.20, 0.09, 0.26, 0.25];
+        let table = ExactDiscreteLaw::try_new(
+            "p",
+            RegimeId::from_raw(0),
+            [],
+            axes,
+            probabilities,
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        // Cell index = 4*a0 + 2*a1 + a2.
+        let brute = |constraints: &[(usize, usize)]| -> f64 {
+            (0..8usize)
+                .filter(|cell| {
+                    constraints.iter().all(|(axis, level)| (cell >> (2 - axis)) & 1 == *level)
+                })
+                .map(|cell| probabilities[cell])
+                .sum()
+        };
+        for subset in 0..8usize {
+            let axes: Vec<usize> = (0..3).filter(|a| subset >> a & 1 == 1).collect();
+            for levels in 0..(1usize << axes.len()) {
+                let constraints: Vec<(usize, usize)> =
+                    axes.iter().enumerate().map(|(k, a)| (*a, levels >> k & 1)).collect();
+                let want = brute(&constraints);
+                assert!((table.mass(&constraints) - want).abs() < 1e-15, "{constraints:?}");
+                // Order of the constraints does not matter, and repeated queries hit the cache.
+                let mut reversed = constraints.clone();
+                reversed.reverse();
+                assert_eq!(table.mass(&reversed).to_bits(), table.mass(&constraints).to_bits());
+            }
+        }
+        // One axis pinned to two different levels is the empty event.
+        assert_eq!(table.mass(&[(0, 0), (0, 1)]), 0.0);
     }
 }

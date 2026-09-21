@@ -189,7 +189,11 @@ impl InstrumentalVariableIdentifier {
                     });
                 }
             };
-            let functional = arena.iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control);
+            let functional = arena
+                .iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control)
+                .map_err(|_| IdentificationError::UnsupportedQuery {
+                    message: "IV requires a single instrument distinct from the treatment",
+                })?;
             estimands.push(IdentifiedEstimand::instrumental("iv", Arc::from([z_var]), functional));
             derivation.push("iv.instrument", format!("Z={}", z_var.raw()));
         }

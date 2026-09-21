@@ -18,15 +18,17 @@ pub(crate) fn pretty_expr(arena: &CausalExprArena, id: ExprId) -> String {
         } => {
             let vars = fmt_vars(arena.var_set(*variables));
             let cond = fmt_vars(arena.var_set(*conditioned_on));
-            let interv = fmt_assignments(arena.intervention_assignments(*intervention));
+            let assignments = arena.intervention_assignments(*intervention);
+            let interv = fmt_assignments(assignments);
+            let observed_cond = fmt_conditioning(arena.var_set(*conditioned_on), assignments);
             let head = fmt_p_head(arena, *population);
             let tail = fmt_regime(*regime);
             match domain {
                 DomainRef::Observational => {
-                    if cond.is_empty() {
+                    if observed_cond.is_empty() {
                         format!("{head}({vars}{tail})")
                     } else {
-                        format!("{head}({vars}|{cond}{tail})")
+                        format!("{head}({vars}|{observed_cond}{tail})")
                     }
                 }
                 DomainRef::Interventional => {
@@ -96,6 +98,27 @@ fn fmt_assignments(assignments: &[InterventionAssignment]) -> String {
         .map(|a| format!("V{}:={}", a.variable.raw(), fmt_value(&a.value)))
         .collect::<Vec<_>>()
         .join(",")
+}
+
+/// Conditioning list of an observational leaf. A conditioner bound by the leaf's assignment set
+/// prints its level (`V2=1`), as does a binder outside the conditioners, so leaves that differ
+/// only in the level they are bound to print differently.
+fn fmt_conditioning(
+    conditioned_on: &[VariableId],
+    assignments: &[InterventionAssignment],
+) -> String {
+    let item = |variable: VariableId| match assignments.iter().find(|a| a.variable == variable) {
+        Some(a) if !a.is_symbolic() => format!("V{}={}", variable.raw(), fmt_value(&a.value)),
+        _ => format!("V{}", variable.raw()),
+    };
+    let mut items: Vec<String> = conditioned_on.iter().map(|v| item(*v)).collect();
+    items.extend(
+        assignments
+            .iter()
+            .filter(|a| !conditioned_on.contains(&a.variable))
+            .map(|a| item(a.variable)),
+    );
+    items.join(",")
 }
 
 fn fmt_value(v: &Value) -> String {

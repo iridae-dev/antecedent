@@ -686,8 +686,11 @@ fn rebuild_estimand(
             ))
         }
         EstimandMethod::Iv => {
-            let functional =
-                arena.iv_wald(q.treatment, q.outcome, e.instruments.as_ref(), active, control);
+            // A Wald ratio conditions on one instrument; a set that is not exactly one cannot
+            // be rebuilt as an IV functional.
+            let functional = arena
+                .iv_wald(q.treatment, q.outcome, e.instruments.as_ref(), active, control)
+                .ok()?;
             Some(IdentifiedEstimand::instrumental(
                 e.method.clone(),
                 Arc::clone(&e.instruments),

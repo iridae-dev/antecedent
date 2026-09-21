@@ -38,7 +38,7 @@ pub use provider::{
 pub use simplify::SimplifyError;
 
 mod scope;
-pub use scope::LeafBinding;
+pub use scope::{LeafBinding, LeafSignature};
 
 use latex::latex_expr;
 use pretty::pretty_expr;
@@ -296,6 +296,10 @@ pub enum ExprError {
     FreeVariableMismatch,
     /// Certificate leaf set does not match the lowered expression.
     CertificateBindFailed,
+    /// A Wald IV functional needs exactly one instrument: the ratio conditions on a single
+    /// instrument, and substituting the treatment (no instrument) or dropping all but the
+    /// first (several) would label a different estimand as IV.
+    InvalidInstrumentSet,
 }
 
 impl fmt::Display for ExprError {
@@ -304,15 +308,20 @@ impl fmt::Display for ExprError {
             Self::RegimeDomainMismatch => {
                 write!(f, "regime kind disagrees with the distribution domain")
             }
-            Self::CaptureOrConflict => {
-                write!(f, "substitution would capture a bound variable or conflict")
-            }
+            Self::CaptureOrConflict => write!(
+                f,
+                "substitution would capture a bound variable, or one intervention target was \
+                 given two different levels"
+            ),
             Self::MissingBinding => write!(f, "required binding is absent"),
             Self::FreeVariableMismatch => {
                 write!(f, "expression free variables disagree with the certified target")
             }
             Self::CertificateBindFailed => {
                 write!(f, "certificate does not bind the lowered expression")
+            }
+            Self::InvalidInstrumentSet => {
+                write!(f, "a Wald IV functional requires exactly one instrument")
             }
         }
     }
@@ -409,21 +418,53 @@ impl CausalExprArena {
     }
 
     /// Intern a hard-intervention assignment set (sorted by variable id).
-    pub fn intern_intervention_assignments(
+    ///
+    /// Repeating an identical assignment is idempotent.
+    ///
+    /// # Errors
+    ///
+    /// [`ExprError::CaptureOrConflict`] when one variable is assigned two different levels: keeping
+    /// either would silently answer a different interventional query.
+    pub fn try_intern_intervention_assignments(
         &mut self,
         assignments: impl IntoIterator<Item = InterventionAssignment>,
-    ) -> InterventionSetId {
-        let mut v: Vec<InterventionAssignment> = assignments.into_iter().collect();
-        v.sort_by_key(|a| a.variable.raw());
-        v.dedup_by_key(|a| a.variable.raw());
+    ) -> Result<InterventionSetId, ExprError> {
+        let mut sorted: Vec<InterventionAssignment> = assignments.into_iter().collect();
+        sorted.sort_by_key(|a| a.variable.raw());
+        let mut v: Vec<InterventionAssignment> = Vec::with_capacity(sorted.len());
+        for a in sorted {
+            match v.last() {
+                Some(last) if last.variable == a.variable => {
+                    if last.value != a.value {
+                        return Err(ExprError::CaptureOrConflict);
+                    }
+                }
+                _ => v.push(a),
+            }
+        }
         if let Some(id) = self.intervention_index.get(v.as_slice()) {
-            return *id;
+            return Ok(*id);
         }
         let key: Arc<[InterventionAssignment]> = Arc::from(v);
         let id = InterventionSetId(u32::try_from(self.interventions.len()).expect("id"));
         self.interventions.push(Arc::clone(&key));
         self.intervention_index.insert(key, id);
-        id
+        Ok(id)
+    }
+
+    /// Intern a hard-intervention assignment set whose targets are distinct by construction.
+    ///
+    /// # Panics
+    ///
+    /// If one variable is assigned two different levels; use
+    /// [`Self::try_intern_intervention_assignments`] for assignments that are not known to be
+    /// distinct.
+    pub fn intern_intervention_assignments(
+        &mut self,
+        assignments: impl IntoIterator<Item = InterventionAssignment>,
+    ) -> InterventionSetId {
+        self.try_intern_intervention_assignments(assignments)
+            .expect("intervention targets must not be assigned two different levels")
     }
 
     /// Intern an intervention over variables only (symbolic / unspecified level).
@@ -613,7 +654,7 @@ impl CausalExprArena {
     ///
     /// # Errors
     ///
-    /// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds a variable absent from its
+    /// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds any variable absent from its
     /// body's free variables — an ill-formed estimand. See [`SimplifyError`] docs.
     pub fn simplify(&mut self, root: ExprId) -> Result<ExprId, SimplifyError> {
         simplify::simplify(self, root)
@@ -831,11 +872,16 @@ impl CausalExprArena {
         })
     }
 
-    /// Build the Wald IV functional for binary instrument `Z`:
+    /// Build the Wald IV functional for one binary instrument `Z` coded `0`/`1`:
     /// `(E[Y|Z=1] − E[Y|Z=0]) / (E[T|Z=1] − E[T|Z=0])`.
     ///
-    /// `active` / `control` are recorded in derivation metadata (treatment contrast
-    /// scaling); the ratio itself conditions on instrument levels 1 and 0.
+    /// The ratio is the effect per unit of treatment. `active` / `control` are recorded in
+    /// derivation metadata; the estimator scales the per-unit effect by `active − control`.
+    ///
+    /// # Errors
+    ///
+    /// [`ExprError::InvalidInstrumentSet`] unless `instruments` holds exactly one variable that
+    /// differs from the treatment.
     pub fn iv_wald(
         &mut self,
         treatment: VariableId,
@@ -843,8 +889,13 @@ impl CausalExprArena {
         instruments: &[VariableId],
         active: &Value,
         control: &Value,
-    ) -> ExprId {
-        let z = instruments.first().copied().unwrap_or(treatment);
+    ) -> Result<ExprId, ExprError> {
+        let &[z] = instruments else {
+            return Err(ExprError::InvalidInstrumentSet);
+        };
+        if z == treatment {
+            return Err(ExprError::InvalidInstrumentSet);
+        }
         let z1 = Value::f64(1.0);
         let z0 = Value::f64(0.0);
         let outcome_given_z1 = self.observational_conditional_mean(outcome, z, z1.clone());
@@ -867,12 +918,13 @@ impl CausalExprArena {
             DerivationMeta::rule(
                 "iv.wald",
                 Some(Arc::from(format!(
-                    "Wald IV ratio using {} instrument(s); treatment contrast [{active:?}, {control:?}]",
-                    instruments.len()
+                    "Wald IV ratio on instrument V{}; per-unit effect, scaled to the treatment \
+                     contrast [{active:?}, {control:?}] by the estimator",
+                    z.raw()
                 ))),
             ),
         );
-        ratio
+        Ok(ratio)
     }
 
     /// Sharp regression-discontinuity functional: the effect for units at the cutoff,
@@ -1100,13 +1152,15 @@ mod tests {
     #[test]
     fn iv_wald_is_ratio_of_instrument_contrasts() {
         let mut a = CausalExprArena::new();
-        let id = a.iv_wald(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            &[VariableId::from_raw(2)],
-            &Value::f64(1.0),
-            &Value::f64(0.0),
-        );
+        let id = a
+            .iv_wald(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                &[VariableId::from_raw(2)],
+                &Value::f64(1.0),
+                &Value::f64(0.0),
+            )
+            .unwrap();
         let meta = a.derivation(id).unwrap();
         assert_eq!(&*meta.rule, "iv.wald");
         let ExprNode::Ratio { numerator, denominator } = a.node(id) else {
@@ -1165,5 +1219,53 @@ mod tests {
             x.value,
             Value::Float64(v) if v.is_nan()
         )));
+    }
+
+    #[test]
+    fn iv_wald_refuses_missing_or_ambiguous_instruments() {
+        let (t, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut a = CausalExprArena::new();
+        let (one, zero) = (Value::f64(1.0), Value::f64(0.0));
+        // No instrument would otherwise fall back to the treatment: the naive contrast.
+        assert_eq!(a.iv_wald(t, y, &[], &one, &zero), Err(ExprError::InvalidInstrumentSet));
+        assert_eq!(a.iv_wald(t, y, &[t], &one, &zero), Err(ExprError::InvalidInstrumentSet));
+        // Several instruments would otherwise silently use only the first.
+        let two = [VariableId::from_raw(2), VariableId::from_raw(3)];
+        assert_eq!(a.iv_wald(t, y, &two, &one, &zero), Err(ExprError::InvalidInstrumentSet));
+        assert!(a.iv_wald(t, y, &two[..1], &one, &zero).is_ok());
+    }
+
+    #[test]
+    fn conflicting_intervention_levels_are_refused_not_dropped() {
+        let t = VariableId::from_raw(0);
+        let mut arena = CausalExprArena::new();
+        let at = |x: f64| InterventionAssignment::concrete(t, Value::f64(x));
+        assert_eq!(
+            arena.try_intern_intervention_assignments([at(1.0), at(0.0)]),
+            Err(ExprError::CaptureOrConflict)
+        );
+        // Repeating the same level is idempotent and hash-conses with the single assignment.
+        let once = arena.try_intern_intervention_assignments([at(1.0)]).unwrap();
+        let twice = arena.try_intern_intervention_assignments([at(1.0), at(1.0)]).unwrap();
+        assert_eq!(once, twice);
+        assert_eq!(arena.intervention_assignments(twice).len(), 1);
+    }
+
+    #[test]
+    fn observational_leaves_print_the_level_they_are_bound_to() {
+        // E[Y|Z=1] and E[Y|Z=0] in the Wald estimand must not print identically.
+        let mut a = CausalExprArena::new();
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let id = a.iv_wald(t, y, &[z], &Value::f64(1.0), &Value::f64(0.0)).unwrap();
+        let pretty = a.pretty(id);
+        assert!(pretty.contains("V1|V2=1") && pretty.contains("V1|V2=0"), "{pretty}");
+        let latex = a.latex(id);
+        assert!(latex.contains("V2=1") && latex.contains("V2=0"), "{latex}");
+    }
+
+    #[test]
+    fn compile_refuses_a_foreign_expression_id() {
+        let arena = CausalExprArena::new();
+        assert!(arena.compile(ExprId::from_raw(7)).is_err());
     }
 }
