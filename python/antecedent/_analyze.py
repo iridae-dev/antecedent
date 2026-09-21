@@ -256,4 +256,7 @@ def analyze(
             result,
             posterior=copy_model(result.posterior, artifact=prepared.export_artifact()),
         )
-    return result
+    # This facade accepts only the legacy analysis query family.
+    from typing import cast
+
+    return cast(Analysis, result)

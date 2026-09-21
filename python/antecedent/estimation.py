@@ -116,9 +116,12 @@ from .results.response import SupportStatus, UncertaintyKind
 from .transport import (
     ExactTransportQuery,
     OverlapDiagnostic,
+    StatisticalTransportDistribution,
     StatisticalTransportQuery,
     TransportOverlapReport,
     TransportQuery,
+    TransportResponseGrid,
+    TransportResponseGridQuery,
 )
 
 # Preferred name for the native temporal DTO.
@@ -1477,6 +1480,7 @@ _PreparedQuery = (
     | TransportQuery
     | ExactTransportQuery
     | StatisticalTransportQuery
+    | TransportResponseGridQuery
     | InterferenceQuery
     | AnomalyAttribution
     | ChangeAttribution
@@ -2858,7 +2862,7 @@ class PreparedAnalysis:
         self,
         native: Any,
         *,
-        kind: Literal["average", "response_curve", "intervention_response", "exact_transport", "statistical_transport"] = "average",
+        kind: Literal["average", "response_curve", "intervention_response", "exact_transport", "statistical_transport", "transport_grid"] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
         threads: int | None = None,
@@ -2893,7 +2897,7 @@ class PreparedAnalysis:
     @property
     def validator_names(self) -> tuple[str, ...]:
         """Attested custom-validator names frozen at prepare (their claim identity)."""
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             return ()
         return tuple(self._native.validator_names())
 
@@ -2904,7 +2908,7 @@ class PreparedAnalysis:
         results, never the callables. The names must equal
         :attr:`validator_names`; otherwise the rebind is refused.
         """
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             if validators:
                 raise ValueError("Transport studies do not fit or invoke sampled-data validators")
             return
@@ -3003,10 +3007,24 @@ class PreparedAnalysis:
             ExactTransportQuery,
             StatisticalTransportData,
             StatisticalTransportQuery,
+            TransportResponseGridQuery,
             prepare_exact,
+            prepare_response_grid,
             prepare_statistical,
         )
-
+        if isinstance(query, TransportResponseGridQuery):
+            if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
+                raise ValueError("Transport grid requires explicit exact or statistical providers")
+            if any(option is not None for option in (
+                graph, discovery, inference, identifier, estimator, estimator_config,
+                refute, bootstrap, threads, latency, class_prior, max_completions,
+                population_registry, on_progress, on_stage, validators, regimes,
+                running_variable, cutoff, bandwidth,
+            )) or seed != 1 or not accept_discovered:
+                raise ValueError("Transport grids use their retained graph, catalog, and inference settings")
+            return prepare_response_grid(query.identification, query.catalog, data, at=query.at,
+                                         bootstrap=query.bootstrap, coverage_level=query.coverage_level,
+                                         seed=query.seed, cancel=cancel)
         if isinstance(query, StatisticalTransportQuery) or isinstance(data, StatisticalTransportData):
             if not isinstance(query, StatisticalTransportQuery) or not isinstance(
                 data, StatisticalTransportData
@@ -3198,7 +3216,7 @@ class PreparedAnalysis:
         artifacts also retain support and assumptions; retain the analysis result
         separately for posterior assumptions and validation reports.
         """
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             if payload != "result":
                 raise ValueError("Transport artifacts export a checked execution and its full proof")
             return self._native.export()
@@ -3212,7 +3230,7 @@ class PreparedAnalysis:
                 "Cancelled estimate produced no claim.",
                 reason_code="cancelled_no_claim",
             )
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             return self._native.export()
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
 
@@ -3245,7 +3263,7 @@ class PreparedAnalysis:
         its ``calibration`` is unavailable (``not_executed``) until an estimate
         runs. :meth:`preflight` is the cheap structural-only view.
         """
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             return InspectionReport(**json.loads(self._native.inspection_json()))
 
         from dataclasses import replace
@@ -3265,7 +3283,7 @@ class PreparedAnalysis:
         """Cheap structural-only inspection; identification and fitting are not run."""
         from .results._report import as_inspection
 
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             return self.inspect()
         return as_inspection(ReasoningSlots.from_contract(self._native.inspect()))
 
@@ -3306,7 +3324,7 @@ class PreparedAnalysis:
         if self._kind == "exact_transport":
             self._native.replace_snapshot(data.laws, cancel=self._controls.cancel if cancel is _UNSET else cancel)
             return
-        if self._kind == "statistical_transport":
+        if self._kind in {"statistical_transport", "transport_grid"}:
             self._native.replace_snapshot(data, cancel=self._controls.cancel if cancel is _UNSET else cancel)
             return
         raise ValueError("Use refresh for this sampled-data modality")
@@ -3344,7 +3362,7 @@ class PreparedAnalysis:
                 return names, columns, None
         return _frame_payload(data)
 
-    def _wrap(self, raw: Any) -> AnalysisResult | CausalResponseView:
+    def _wrap(self, raw: Any) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
         if self._kind in ("response_curve", "intervention_response"):
             query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
@@ -3358,7 +3376,19 @@ class PreparedAnalysis:
         seed: int | None,
         threads: int | None,
         controls: dict[str, Any],
-    ) -> AnalysisResult | CausalResponseView:
+    ) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
+        if self._kind == "transport_grid":
+            from .transport import _response_grid
+
+            if seed is not None or threads is not None or any(controls.get(name) is not None for name in ("on_progress", "on_stage")):
+                raise ValueError("Transport grids retain inference settings; only cancellation can change per execution")
+            if refresh:
+                raw = self._native.refresh(data, cancel=controls.get("cancel"))
+            elif data is None:
+                raw = self._native.estimate(cancel=controls.get("cancel"))
+            else:
+                raise ValueError("Use refresh for a grid snapshot change")
+            return _response_grid(self._native, raw)
         if self._kind == "exact_transport":
             from .transport import _exact_distribution
 
@@ -3455,7 +3485,7 @@ class PreparedAnalysis:
         cancel: Any = _UNSET,
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
-    ) -> AnalysisResult | CausalResponseView:
+    ) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
         """Re-estimate without recompiling.
 
         With no ``data`` this re-executes the prepared program on the retained
@@ -3489,7 +3519,7 @@ class PreparedAnalysis:
         descendant closure can be checked. Nonconstant weights require a
         nonempty ``depends_on``.
         """
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             raise CausalUnsupportedError(
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",
@@ -3520,7 +3550,7 @@ class PreparedAnalysis:
         ``reason_code="row_weights_bound_to_snapshot"`` instead of silently
         reweighting other rows.
         """
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             raise CausalUnsupportedError(
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",
@@ -3538,7 +3568,7 @@ class PreparedAnalysis:
         cancel: Any = _UNSET,
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
-    ) -> AnalysisResult | CausalResponseView:
+    ) -> AnalysisResult | CausalResponseView | StatisticalTransportDistribution | TransportResponseGrid:
         """Replace retained data and re-estimate (controls as in :meth:`estimate`)."""
         return self._click(
             data,
@@ -3564,7 +3594,7 @@ class PreparedAnalysis:
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         ``seed`` / ``threads`` / ``cancel`` default to the study's own.
         """
-        if self._kind in {"exact_transport", "statistical_transport"}:
+        if self._kind in {"exact_transport", "statistical_transport", "transport_grid"}:
             raise CausalUnsupportedError(
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",

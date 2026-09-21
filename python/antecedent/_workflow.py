@@ -14,7 +14,12 @@ from .inference import Bayesian, ClassPrior, Frequentist
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._report import InspectionReport, as_inspection
 from .results._slots import ReasoningSlots
-from .transport import ExactTransportDistribution, StatisticalTransportDistribution
+from .transport import (
+    ClassicalTransportIdentification,
+    ExactTransportDistribution,
+    StatisticalTransportDistribution,
+    TransportResponseGrid,
+)
 
 
 def prepare(
@@ -147,7 +152,7 @@ class LoadedResult(ResultAPI):
 
 
 @describe_refusal
-def load(data: bytes) -> LoadedResult | ExactTransportDistribution | StatisticalTransportDistribution:
+def load(data: bytes) -> LoadedResult | ExactTransportDistribution | StatisticalTransportDistribution | TransportResponseGrid | ClassicalTransportIdentification:
     """Load a contracted result through the Rust semantic consumer.
 
     Missing/unknown contracts remain explicitly unavailable and can still be
@@ -166,6 +171,15 @@ def load(data: bytes) -> LoadedResult | ExactTransportDistribution | Statistical
 
         prepared = consume_statistical(encoded)
         return _statistical_distribution(prepared._native, prepared._native.last_result())
+    if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
+        from .transport import _response_grid, consume_response_grid
+
+        prepared = consume_response_grid(encoded)
+        return _response_grid(prepared._native, prepared._native.last_result())
+    if encoded.startswith(b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01"):
+        from .transport import consume_identification
+
+        return consume_identification(encoded)
     receipt = artifacts.accept(encoded)
     artifact = artifacts.loads(encoded)
     return LoadedResult(
