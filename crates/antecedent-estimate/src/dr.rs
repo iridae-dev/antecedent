@@ -51,7 +51,7 @@ impl DrLearner {
         Self {
             folds: 5,
             outcome: LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }),
-            treatment: LearnerSpec::Logistic(LogisticSpec {}),
+            treatment: LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 }),
             final_learner: LearnerSpec::Linear(LinearSpec {}),
             overlap: default_propensity_overlap(),
         }

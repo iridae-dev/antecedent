@@ -72,6 +72,11 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Test optional learner and Gaussian-process features
+        run: |
+          cargo test -p antecedent-learn --features ml-full,ml-neural
+          cargo test -p antecedent-model --features gaussian-process
+
       - name: crates.io publish dry-run
         if: github.event_name == 'pull_request'
         env:
@@ -122,15 +127,15 @@ jobs:
           cargo check -p antecedent --features ml-forest
           cargo check -p antecedent --features ml-full
           cargo check -p antecedent-data --no-default-features
-          cargo check -p antecedent-learn --features ml-gpu
-          cargo check -p antecedent-estimate --features ml-gpu
+          cargo check -p antecedent-learn --features ml-neural
+          cargo check -p antecedent-estimate --features ml-neural
           cargo check -p antecedent-model --features gaussian-process
 
       - name: Lint the feature-gated code
         run: |
           set -euo pipefail
           cargo clippy -p antecedent-model --features gaussian-process --all-targets -- -D warnings
-          cargo clippy -p antecedent-learn --features ml-gpu --all-targets -- -D warnings
+          cargo clippy -p antecedent-learn --features ml-neural --all-targets -- -D warnings
           cargo clippy -p antecedent-data --no-default-features --all-targets -- -D warnings
 
   # Relative performance regression, on pull requests labelled `perf`. Base and

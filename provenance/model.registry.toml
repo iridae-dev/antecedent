@@ -7,8 +7,8 @@ copied_tests = false
 
 implementation_deviations = [
  "The MultinomialLogit family is baseline-category multinomial label regression with quantized outcome levels, not an alternative-specific conditional-logit choice model with choice sets and alternative attributes.",
- "The LGSSM family is scalar and uses a fixed 25-iteration EM procedure; the Gaussian-process family uses an exact RBF kernel only up to 2000 rows, fixes signal variance, and chooses length scale from a 20-point grid rather than general marginal-likelihood optimization.",
- "Hierarchical linear and GLM, Minnesota-style BVAR, automatic family assignment, and score-based family selection are not supported by the papers listed in this record.",
+ "The LGSSM family is scalar and uses a fixed 25-iteration EM procedure; the Gaussian-process family uses an exact RBF kernel only up to 1000 rows and chooses its length scale and noise level from a 25-point grid on the data's own scale (signal variance and prior mean are the outcome's variance and sample mean) rather than general marginal-likelihood optimization.",
+ "Hierarchical linear and GLM, Minnesota-style BVAR, automatic family assignment, and score-based family selection are not supported by the papers listed in this record. The BVAR is a conjugate ridge on scale-standardized parents (prior variance phi times the error variance, intercept unpenalized) without Minnesota lag decay, because parents carry no lag metadata. Family selection scores every family by mean held-out predictive log-likelihood on a shared seeded 5-fold partition less a BIC-scaled parameter-count penalty.",
 ]
 
 # Mechanism auto-assignment: hierarchical/linear-Gaussian fits, baseline-category
@@ -23,7 +23,7 @@ papers = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-model/tests/scm_oracle.rs (discrete_and_hierarchical_glm_match_their_independent_oracles, minnesota_bvar_matches_independent_augmented_ridge_solve, kalman_filter_and_rts_smoother_match_clean_room_recursion)",
+ "crates/antecedent-model/tests/scm_oracle.rs (discrete_and_hierarchical_glm_match_their_independent_oracles, minnesota_bvar_matches_independent_standardized_ridge_solve, kalman_filter_and_rts_smoother_match_clean_room_recursion)",
  "conformance/gcm/discrete_hierarchical_glm",
  "conformance/gcm/gaussian_process",
  "conformance/gcm/minnesota_bvar",

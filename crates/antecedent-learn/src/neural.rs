@@ -62,6 +62,9 @@ impl LearnerFactory for NeuralNetLearner {
         }
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
+        if matches!(self.task, PredictionTask::BinaryProbability) {
+            crate::dense::require_binary_labels(&gathered_y)?;
+        }
         let mut rng = ctx.rng.stream_for(StreamDomain::Learner, 0x4E45_5500);
         let seed = rng.next_u64();
         let binary = matches!(self.task, PredictionTask::BinaryProbability);

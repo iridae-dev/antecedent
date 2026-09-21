@@ -25,4 +25,4 @@ the semantic graph per draw. forbid both on the hot path.
 ## Consequences
 
 Batch simulation and CF benches exercise overlay reuse. Streaming CF summaries
-must match retained-draw aggregates (`streaming_matches_retained`).
+must match retained-draw aggregates (tested by comparing an outcomes-only result with the full-retention column).

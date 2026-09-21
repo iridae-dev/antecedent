@@ -43,7 +43,7 @@ fn select_auto(
     }
     let parametric = match task {
         PredictionTask::Regression => LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }),
-        PredictionTask::BinaryProbability => LearnerSpec::Logistic(LogisticSpec {}),
+        PredictionTask::BinaryProbability => LearnerSpec::Logistic(LogisticSpec::default()),
     };
     let gbdt = if n < LARGE_N {
         LearnerSpec::GradientBoostedTrees(SHALLOW_GBT)
@@ -64,6 +64,7 @@ fn select_auto(
     }
     let mut best: Option<(f64, LearnerSpec, Box<dyn LearnerFactory>, NuisanceDiagnostics)> = None;
     let mut challenger_loss = None;
+    let mut non_finite: Vec<&'static str> = Vec::new();
     for spec in candidates {
         let factory = match resolve_for(spec, task) {
             Ok(f) => f,
@@ -72,8 +73,15 @@ fn select_auto(
         };
         let oof = cross_fit(factory.as_ref(), x, y, folds, ctx, None)?;
         let loss = match task {
-            PredictionTask::Regression => oof.validation.rmse.unwrap_or(f64::INFINITY),
-            PredictionTask::BinaryProbability => oof.validation.logloss.unwrap_or(f64::INFINITY),
+            PredictionTask::Regression => oof.validation.rmse,
+            PredictionTask::BinaryProbability => oof.validation.logloss,
+        };
+        // A candidate whose held-out loss is missing or non-finite (NaN predictions from a
+        // diverged fit) is a failed candidate, not a contender: `loss < best` is false
+        // against NaN, so admitting one first would let it win by never being replaced.
+        let Some(loss) = admissible_loss(loss) else {
+            non_finite.push(spec.name());
+            continue;
         };
         match &best {
             None => best = Some((loss, spec, factory, oof.validation)),
@@ -87,6 +95,12 @@ fn select_auto(
             }
         }
     }
+    if best.is_none() && !non_finite.is_empty() {
+        return Err(LearnError::Backend(format!(
+            "auto selection: every candidate produced a non-finite out-of-fold loss ({})",
+            non_finite.join(", ")
+        )));
+    }
     let Some((_, spec, factory, mut validation)) = best else {
         return Err(LearnError::ProviderUnavailable {
             spec: "auto",
@@ -96,6 +110,11 @@ fn select_auto(
     validation.winner = Some(spec.name());
     validation.challenger_loss = challenger_loss;
     Ok((factory, validation))
+}
+
+/// The held-out loss of a candidate that may compete: present and finite.
+fn admissible_loss(loss: Option<f64>) -> Option<f64> {
+    loss.filter(|l| l.is_finite())
 }
 
 fn auto_candidates(
@@ -194,6 +213,16 @@ mod audit_tests {
         b.predict(view, &mut pb, &ctx).unwrap();
         assert_eq!(a.provenance(), b.provenance());
         assert_eq!(pa, pb);
+    }
+
+    /// A NaN loss compares false against everything, so a NaN first candidate would never
+    /// be displaced; a missing diagnostic used to read as `+inf` and hide the same defect.
+    #[test]
+    fn missing_or_non_finite_losses_cannot_compete() {
+        assert_eq!(admissible_loss(Some(0.25)), Some(0.25));
+        assert_eq!(admissible_loss(Some(f64::NAN)), None);
+        assert_eq!(admissible_loss(Some(f64::INFINITY)), None);
+        assert_eq!(admissible_loss(None), None);
     }
 
     #[test]

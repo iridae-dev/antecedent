@@ -74,7 +74,7 @@ pub fn unit_change(
         parents.iter().copied().map(ComponentId::from_variable).collect();
 
     let engine = CounterfactualEngine::from_ref(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
 
     // Reference parent means.
     let mut parent_means = Vec::with_capacity(parents.len());

@@ -69,6 +69,21 @@ pub(crate) fn predict_linear(
     if coefficients.len() != x.ncols() {
         return Err(LearnError::Shape { message: "coefficient length != ncols" });
     }
+    if matches!(x.storage(), DesignStorage::Dense(_)) {
+        // Materialize once (borrowed when already column-major) and accumulate column by
+        // column: contiguous reads instead of a bounds-checked accessor per element. The
+        // per-row summation order (ascending column) is unchanged, so results are
+        // bit-identical to the elementwise loop below.
+        let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
+        out.fill(0.0);
+        for (c, beta) in coefficients.iter().enumerate().take(ncols) {
+            let col = &design[c * nrows..(c + 1) * nrows];
+            for (slot, v) in out.iter_mut().zip(col) {
+                *slot += v * beta;
+            }
+        }
+        return Ok(());
+    }
     for (r, slot) in out.iter_mut().enumerate() {
         let mut pred = 0.0;
         for (c, beta) in coefficients.iter().enumerate() {

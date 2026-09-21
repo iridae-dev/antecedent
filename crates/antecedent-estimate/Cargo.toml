@@ -21,7 +21,7 @@ default = []
 ml-gbdt = ["antecedent-learn/ml-gbdt"]
 ml-forest = ["antecedent-learn/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
-ml-gpu = ["antecedent-learn/ml-gpu"]
+ml-neural = ["antecedent-learn/ml-neural"]
 
 [dependencies]
 antecedent-graph = { version = "1.11.0", path = "../antecedent-graph" }

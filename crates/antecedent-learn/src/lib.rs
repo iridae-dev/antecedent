@@ -26,7 +26,7 @@ pub mod portable;
 pub use portable::{PortablePredictor, PredictionMap, PredictionNode};
 pub mod linear;
 pub mod logistic;
-#[cfg(feature = "ml-gpu")]
+#[cfg(feature = "ml-neural")]
 pub mod neural;
 pub mod ridge;
 pub mod spec;
@@ -47,11 +47,11 @@ pub use learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
 };
 pub use linear::LinearLearner;
-pub use logistic::LogisticLearner;
+pub use logistic::{LogisticLearner, RidgeLogisticLearner};
 pub use ridge::RidgeLearner;
 pub use spec::{
-    ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
-    RidgeSpec, require_task, resolve, resolve_for,
+    ElasticNetSpec, FOREST_PROBABILITY_MIN_LEAF, ForestSpec, GbtSpec, LearnerSpec, LinearSpec,
+    LogisticSpec, NeuralSpec, RidgeSpec, require_task, resolve, resolve_for,
 };
 pub use transform::{FittedTransformer, Identity, Log1p, TransformerFactory};
 
@@ -143,13 +143,13 @@ mod tests {
         let logistic = resolve(LearnerSpec::Logistic(LogisticSpec::default())).unwrap();
         assert_eq!(logistic.task(), PredictionTask::BinaryProbability);
         match resolve(LearnerSpec::NeuralNet(NeuralSpec::default())) {
-            #[cfg(feature = "ml-gpu")]
+            #[cfg(feature = "ml-neural")]
             Ok(factory) => assert_eq!(factory.task(), PredictionTask::Regression),
-            #[cfg(not(feature = "ml-gpu"))]
+            #[cfg(not(feature = "ml-neural"))]
             Ok(_) => panic!("neural_net should be unresolved"),
-            #[cfg(feature = "ml-gpu")]
+            #[cfg(feature = "ml-neural")]
             Err(e) => panic!("neural_net should resolve: {e}"),
-            #[cfg(not(feature = "ml-gpu"))]
+            #[cfg(not(feature = "ml-neural"))]
             Err(e) => {
                 assert!(matches!(e, LearnError::ProviderUnavailable { spec: "neural_net", .. }))
             }
@@ -241,6 +241,84 @@ mod tests {
         assert!(LogisticLearner::for_task(PredictionTask::Regression).is_err());
     }
 
+    /// A ridge spec asked for on a probability nuisance must fit a *penalized* logistic
+    /// model, not silently drop its `lambda`. On perfectly separated data the unpenalized
+    /// MLE diverges (and is refused), while the ridge fit exists and has a bounded slope
+    /// (the penalized objective at the solution cannot exceed its value at zero,
+    /// `20 ln 2`, so `λβ²/2 ≤ 20 ln 2` and `|β| ≤ sqrt(40 ln 2 / λ)` = 5.3 at λ = 1).
+    #[test]
+    fn ridge_spec_maps_to_a_penalized_logistic_model() {
+        let n = 20usize;
+        let mut x = vec![1.0; n];
+        x.extend((0..n).map(|i| i as f64));
+        let y: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i >= 10))).collect();
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+
+        let spec = LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 });
+        let mapped = spec.for_task(PredictionTask::BinaryProbability);
+        assert_eq!(mapped, LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 1.0 }));
+        assert_ne!(mapped.identity(), LearnerSpec::Logistic(LogisticSpec::default()).identity());
+
+        assert!(LogisticLearner.fit(view, TargetView::new(&y), None, &ctx).is_err());
+        let factory = resolve_for(mapped, PredictionTask::BinaryProbability).unwrap();
+        let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
+        assert_eq!(fitted.provenance().implementation, "faer_ridge");
+        let portable = fitted.portable().unwrap();
+        let PredictionMap::Linear { coefficients, .. } = portable.model else {
+            panic!("logistic exports a linear map");
+        };
+        assert!(coefficients[1] > 0.0 && coefficients[1] < 5.4, "slope {}", coefficients[1]);
+        let mut out = vec![0.0; n];
+        fitted.predict(view, &mut out, &ctx).unwrap();
+        assert!(out[0] < 0.5 && out[n - 1] > 0.5);
+
+        // An elastic net with an L1 part has no probability counterpart: it is left as an
+        // elastic net and resolving it for the probability task refuses.
+        let net = LearnerSpec::ElasticNet(ElasticNetSpec { l1_ratio: 0.5, lambda: 1.0 });
+        assert_eq!(net.for_task(PredictionTask::BinaryProbability), net);
+        assert!(matches!(
+            resolve_for(net, PredictionTask::BinaryProbability),
+            Err(LearnError::TaskMismatch { .. })
+        ));
+    }
+
+    /// The forest's size and leaf size are public hyperparameters that belong to its
+    /// identity (two forests that differ in either are different estimators), and the
+    /// probability task defaults to a leaf size that keeps leaf means off 0 and 1.
+    #[test]
+    fn forest_spec_exposes_trees_and_leaf_size_in_identity() {
+        let base = ForestSpec::default();
+        assert_eq!(base.n_trees, 64);
+        assert_eq!(
+            base.resolved_min_samples_leaf(PredictionTask::BinaryProbability),
+            FOREST_PROBABILITY_MIN_LEAF
+        );
+        assert_eq!(base.resolved_min_samples_leaf(PredictionTask::Regression), 1);
+        let explicit = ForestSpec { min_samples_leaf: Some(3), ..base };
+        assert_eq!(explicit.resolved_min_samples_leaf(PredictionTask::BinaryProbability), 3);
+        let ids: Vec<String> = [
+            base,
+            ForestSpec { n_trees: 128, ..base },
+            explicit,
+            ForestSpec { extra_trees: true, ..base },
+        ]
+        .into_iter()
+        .map(|spec| LearnerSpec::RandomForest(spec).identity())
+        .collect();
+        for (i, a) in ids.iter().enumerate() {
+            for b in &ids[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+        assert!(LearnerSpec::RandomForest(ForestSpec { n_trees: 0, ..base }).validate().is_err());
+        assert!(
+            LearnerSpec::RandomForest(ForestSpec { min_samples_leaf: Some(0), ..base })
+                .validate()
+                .is_err()
+        );
+    }
+
     #[test]
     fn ols_fit_predict_and_provenance() {
         let n = 20usize;
@@ -324,7 +402,12 @@ mod tests {
         assert_eq!(fitted.provenance().implementation, "forust-ml");
         let mut out = vec![0.0; n];
         fitted.predict(view, &mut out, &ctx).unwrap();
-        assert!(out.iter().any(|v| v.is_finite()));
+        // The target is the line 3 + 4i (range 116): every prediction is finite, the fit
+        // tracks the line to within a leaf width, and it spans most of the range.
+        assert!(out.iter().all(|v| v.is_finite()));
+        let mae = out.iter().zip(&y).map(|(p, t)| (p - t).abs()).sum::<f64>() / n as f64;
+        assert!(mae < 8.0, "mean absolute error {mae}");
+        assert!(out[n - 1] - out[0] > 90.0, "span {}", out[n - 1] - out[0]);
 
         let mut t = vec![0.0; n];
         for i in 0..n {
@@ -336,6 +419,9 @@ mod tests {
         let fitted = clf.fit(view, TargetView::new(&t), None, &ctx).unwrap();
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().all(|p| *p > 0.0 && *p < 1.0));
+        // Labels are 0 for i < 15 and 1 from 15 on: the classes are recovered.
+        assert!(out[..10].iter().all(|p| *p < 0.5), "{:?}", &out[..10]);
+        assert!(out[20..].iter().all(|p| *p > 0.5), "{:?}", &out[20..]);
 
         let even: Vec<u32> = (0..n as u32).step_by(2).collect();
         let train = view.with_rows(RowSelection::new(&even)).unwrap();
@@ -345,7 +431,7 @@ mod tests {
         assert_eq!(fold_out.len(), even.len());
     }
 
-    #[cfg(feature = "ml-gpu")]
+    #[cfg(feature = "ml-neural")]
     #[test]
     fn neural_net_fits_line_and_probabilities() {
         let n = 24usize;

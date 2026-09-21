@@ -33,7 +33,7 @@ pub use parcorr::{
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
     box_muller, categorical_from_u, fill_standard_normal, sample_categorical, sample_gamma,
-    sample_inv_gamma, shuffle, standard_normal, standard_normal_pair, unbiased_index,
+    sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal, standard_normal_pair, unbiased_index,
 };
 pub use scalar::sanitize_weight;
 pub use special::{erf, erfc, norm_cdf, norm_inv, norm_pdf, norm_sf};

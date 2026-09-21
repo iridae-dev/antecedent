@@ -40,15 +40,16 @@ pub use antecedent_attribution::{
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
     CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
-    nested_counterfactual, nested_hard_counterfactual, simultaneous_hard_counterfactual,
-    streaming_matches_retained,
+    RANK_PRESERVING_ASSUMPTION, nested_counterfactual, nested_hard_counterfactual,
+    simultaneous_hard_counterfactual,
 };
 pub use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
     InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
-    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismWorkspace, ModelCollection,
-    ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy, StructuralCausalModel,
-    WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
+    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismTyping, MechanismWorkspace,
+    ModelCollection, ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy,
+    StructuralCausalModel, WeightingDoSampler, interventional_mean, sample_interventional,
+    sample_observational,
 };
 
 /// Fitted GCM plus per-node assignment records.
@@ -143,7 +144,7 @@ pub fn counterfactual_ite(
     ctx: &ExecutionContext,
 ) -> Result<IteResult, CausalError> {
     let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error).map_err(map_cf)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx).map_err(map_cf)?;
     let mut ws = MechanismWorkspace::default();
     let ite = engine
         .individual_treatment_effect(

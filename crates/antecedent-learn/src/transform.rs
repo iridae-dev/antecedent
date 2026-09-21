@@ -69,7 +69,12 @@ impl FittedTransformer for IdentityTransform {
     }
 }
 
-/// Stateless `ln(1 + ·)` applied to every entry. Does not fit on data.
+/// Stateless `ln(1 + ·)` applied to every entry except an exact all-ones first column.
+/// Does not fit on data.
+///
+/// A constant first column of exactly `1.0` is the design's intercept: it passes through
+/// unchanged. Transforming it would turn it into `ln 2`, after which no learner recognises
+/// an intercept column and an elastic net would penalize it as a slope.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Log1p;
 
@@ -93,13 +98,16 @@ impl FittedTransformer for Log1pTransform {
         _ctx: &ExecutionContext,
     ) -> Result<(Vec<f64>, usize, usize), LearnError> {
         let (mut values, nrows, ncols) = copy_logical_colmajor(x)?;
-        for v in &mut values {
-            if *v < 0.0 {
+        let skip = usize::from(antecedent_stats::first_col_is_exact_ones(&values, nrows));
+        for v in values.iter_mut().skip(skip * nrows) {
+            // NaN must be refused explicitly: `v < 0` alone lets it through.
+            if v.is_nan() || *v < 0.0 {
                 return Err(LearnError::Unsupported {
-                    message: "log1p requires non-negative entries",
+                    message: "log1p requires non-negative, non-NaN entries",
                 });
             }
-            *v = (*v + 1.0).ln();
+            // `ln_1p` keeps precision for small entries where `(v + 1).ln()` rounds to 0.
+            *v = v.ln_1p();
         }
         Ok((values, nrows, ncols))
     }
@@ -115,4 +123,36 @@ fn copy_logical_colmajor(x: DesignView<'_>) -> Result<(Vec<f64>, usize, usize), 
         }
     }
     Ok((out, nrows, ncols))
+}
+
+#[cfg(test)]
+#[allow(clippy::float_cmp)]
+mod tests {
+    use super::*;
+
+    fn transform_all(values: &[f64], nrows: usize, ncols: usize) -> Result<Vec<f64>, LearnError> {
+        let view = DesignView::from_column_major(values, nrows, ncols).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        Log1pTransform.transform(view, &ctx).map(|(v, _, _)| v)
+    }
+
+    /// The intercept survives, small entries keep their precision, and NaN is refused.
+    #[test]
+    fn log1p_keeps_the_intercept_uses_ln_1p_and_refuses_nan() {
+        // Column 0 is all ones (intercept); column 1 holds a tiny entry, where
+        // `(1e-20 + 1).ln()` is exactly 0 but `ln_1p(1e-20)` is 1e-20.
+        let values = [1.0, 1.0, 1.0, 1e-20, 3.0, 0.0];
+        let out = transform_all(&values, 3, 2).unwrap();
+        assert_eq!(&out[..3], &[1.0, 1.0, 1.0]);
+        assert_eq!(out[3], 1e-20);
+        assert!((out[4] - 4.0_f64.ln()).abs() < 1e-15);
+        assert_eq!(out[5], 0.0);
+
+        // Without an intercept every column is transformed.
+        let no_intercept = transform_all(&[2.0, 2.0], 2, 1).unwrap();
+        assert!((no_intercept[0] - 3.0_f64.ln()).abs() < 1e-15);
+
+        assert!(transform_all(&[1.0, f64::NAN], 2, 1).is_err());
+        assert!(transform_all(&[1.0, -0.5], 2, 1).is_err());
+    }
 }

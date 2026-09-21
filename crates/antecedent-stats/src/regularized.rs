@@ -409,7 +409,12 @@ fn soft_threshold(z: f64, gamma: f64) -> f64 {
     }
 }
 
-fn first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool {
+/// Whether column 0 of a column-major design is an exact all-ones intercept.
+///
+/// The single owner of this test: [`fit_lasso_with_ones_column`] and every learner that
+/// decides whether to strip an intercept column must agree on it bit for bit.
+#[must_use]
+pub fn first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool {
     // Exact bit pattern required so all-twos (etc.) are never treated as intercept.
     #[allow(clippy::float_cmp)]
     {

@@ -11,7 +11,7 @@ use antecedent_core::{
     Value, ValueType, VariableId,
 };
 use antecedent_counterfactual::{
-    AbductionMissingPolicy, CounterfactualEngine, CounterfactualWorld, streaming_matches_retained,
+    AbductionMissingPolicy, CounterfactualEngine, CounterfactualWorld,
 };
 use antecedent_data::column::{Float64Column, ValidityBitmap};
 use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
@@ -66,7 +66,8 @@ fn engine() -> (CounterfactualEngine, TabularData) {
 
 fn bench_cf(c: &mut Criterion) {
     let (eng, data) = engine();
-    let exo = eng.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+    let exo =
+        eng.abduct(&data, AbductionMissingPolicy::Error, &ExecutionContext::for_tests(1)).unwrap();
     let ctx = ExecutionContext::for_tests(1);
     c.bench_function("counterfactual_predict_n100", |b| {
         b.iter(|| {
@@ -81,7 +82,7 @@ fn bench_cf(c: &mut Criterion) {
             let res = eng
                 .predict(&exo, &worlds, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
                 .unwrap();
-            assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
+            assert!(res.finite_outcome_count(0, DenseNodeId::from_raw(1)) > 0);
             res
         });
     });
@@ -99,7 +100,7 @@ fn bench_cf(c: &mut Criterion) {
             let res = eng
                 .predict(&exo, &worlds, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
                 .unwrap();
-            assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
+            assert!(res.finite_outcome_count(0, DenseNodeId::from_raw(1)) > 0);
             res
         });
     });

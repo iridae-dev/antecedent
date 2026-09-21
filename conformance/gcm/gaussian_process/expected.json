@@ -2,18 +2,32 @@
   "schema_version": 1,
   "oracle": {
     "project": "SciPy exact Gaussian-process log marginal likelihood",
-    "versions": {"python": "3.12.7", "numpy": "2.1.3", "scipy": "1.14.1"},
-    "installed_metadata_sha256": {"numpy": "56f003c44b0ee98d6adb1cb49f292d2ef07daaab7c7ba409ab2679c846fe6bf8", "scipy": "dd4e8542e7e319158dfab943b04eb811ee99566a1911241f1a3226e07bfbae57"},
-    "algorithm": "exact Cholesky NLML over the repository's fixed hyperparameter grid",
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_scm_closure_oracle.py", "generator_retained": false,
-    "generation_location": "temporary external harness; deleted after artifact import"
+    "versions": {"python": "3.11.5", "numpy": "2.4.6", "scipy": "1.17.0"},
+    "installed_metadata_sha256": {"numpy": "b082c52ccbe3b880bae177c35171b52ed6c947f3ad71e3762f2723f60a411de0", "scipy": "61d2715100413b0959352e1c638ebc3e54d96dd6ae0858026cf5f5e5dc8eb41e"},
+    "algorithm": "exact Cholesky NLML (scipy.linalg.cho_factor/cho_solve) over the data-scaled hyperparameter grid, on the mean-centred outcome",
+    "command": "python3 <scratch script: numpy/scipy exact NLML over the grid below>", "generator_retained": false,
+    "generation_location": "temporary external harness; not retained"
   },
   "data": {
     "n": 24,
     "parent": "linspace(-2.4,2.4,24)",
     "outcome": "sin(1.3*x)+0.18*cos(3.1*x)"
   },
-  "grid": {"length_scale": [0.25, 0.5, 1.0, 2.0, 4.0], "noise_std": [0.05, 0.1, 0.2, 0.5], "variance": 1.0},
-  "reference": {"length_scale": 1.0, "noise_std": 0.05, "nlml": -23.653010155689028},
+  "grid": {
+    "length_scale_multipliers_of_parent_rms_sd": [0.25, 0.5, 1.0, 2.0, 4.0],
+    "noise_std_multipliers_of_outcome_sd": [0.05, 0.1, 0.2, 0.5, 1.0],
+    "variance": "outcome population variance",
+    "prior_mean": "outcome sample mean",
+    "parent_rms_sd": 1.4446302370292303,
+    "outcome_sd": 0.7058816654781036
+  },
+  "reference": {
+    "length_scale": 0.7223151185146152,
+    "noise_std": 0.03529408327390518,
+    "variance": 0.49826892565814135,
+    "mean": 0.02349825792945398,
+    "nlml": -27.089213024431206,
+    "runner_up_nlml": -17.433947366794808
+  },
   "acceptance": {"hyperparameters_exact": true}
 }
