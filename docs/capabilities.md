@@ -343,8 +343,13 @@ at runtime:
   coefficients equals it only when `E[M|T]` is linear and `E[Y|M,T]` has no
   treatment-mediator interaction. A latent treatment-outcome confounder that
   modifies the mediator's effect breaks this (a binary example converges to 0.363
-  against a true 0.315), so every result records the
-  `frontdoor.linear_path_product` restriction. For a discrete treatment use
+  against a true 0.315), so a result produced by this estimator is reported as
+  identified under parametric restrictions, with `frontdoor.linear_path_product`
+  in its identification assumptions, exactly as a Wald estimate carries the IV
+  restriction; this holds under the `frontdoor` and the `auto` identifier alike.
+  A `frontdoor.functional` result keeps the nonparametric claim: it evaluates the
+  identified functional, and its per-arm linear outcome regression is a model of
+  an observable regression, recorded at estimation scope. For a discrete treatment use
   `frontdoor.functional`, which estimates the functional itself: saturated cell
   means for discrete mediators (nothing assumed; refused when a mediator value is
   missing from an arm), or a per-arm linear outcome regression for continuous

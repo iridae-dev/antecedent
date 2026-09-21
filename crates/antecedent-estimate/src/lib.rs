@@ -120,7 +120,10 @@ pub use envelope::{
 };
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
-pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
+pub use frontdoor::{
+    FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem,
+    linear_path_product_restriction,
+};
 pub use frontdoor_functional::{FrontDoorFunctional, FrontDoorOutcomeModel};
 pub use functional_distribution::{
     AtomUncertainty, DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace,

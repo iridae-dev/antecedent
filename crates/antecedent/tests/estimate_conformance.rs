@@ -364,6 +364,64 @@ fn estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_doe
     assert!(records_assumption(&shortcut, "frontdoor.linear_path_product"));
 }
 
+/// The claim a front-door result carries follows the estimator that produced the number.
+/// The product of coefficients is a different functional of the observed law; it equals the
+/// effect only when the latent confounder does not modify the mediator's effect, so that
+/// restriction is part of the identification claim (as the Wald restriction is for IV). The
+/// plug-in of the front-door functional keeps the nonparametric claim.
+#[test]
+fn frontdoor_claim_follows_the_executed_estimator() {
+    use antecedent_core::{Assumption, AssumptionScope, IdentificationStatus};
+    let path_product = |set: &antecedent_core::AssumptionSet| {
+        set.entries
+            .iter()
+            .filter(|r| {
+                matches!(&r.assumption, Assumption::ParametricRestriction(p)
+                    if p.id.as_ref() == "frontdoor.linear_path_product")
+            })
+            .map(|r| r.scope.clone())
+            .collect::<Vec<_>>()
+    };
+    for identifier in [IdentifierId::Frontdoor, IdentifierId::Auto] {
+        let run = |estimator: EstimatorId| {
+            Study::tabular(frontdoor_interaction_table())
+                .graph(frontdoor_dag())
+                .query(frontdoor_query())
+                .identifier(identifier)
+                .estimator(estimator)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(47))
+                .unwrap()
+        };
+        let linear = run(EstimatorId::FrontDoorTwoStage);
+        assert_eq!(
+            linear.identification.status,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            "{identifier:?}"
+        );
+        assert_eq!(
+            path_product(&linear.identification.required_assumptions),
+            vec![AssumptionScope::Identification]
+        );
+        // Recorded once: the estimate inherits the claim's record, it does not add a second.
+        assert_eq!(
+            path_product(&linear.estimate.assumptions),
+            vec![AssumptionScope::Identification]
+        );
+
+        let functional = run(EstimatorId::FrontDoorFunctional);
+        assert_eq!(
+            functional.identification.status,
+            IdentificationStatus::NonparametricallyIdentified,
+            "{identifier:?}"
+        );
+        assert!(path_product(&functional.identification.required_assumptions).is_empty());
+        assert!((functional.estimate.ate - 0.315).abs() < 1e-12);
+    }
+}
+
 fn run_static(
     name: &str,
     data: TabularData,
