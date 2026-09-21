@@ -179,9 +179,9 @@ impl CompiledEvaluator {
             } => {
                 let original = arena.intervention_assignments(*intervention);
                 let mut assignments = std::borrow::Cow::Borrowed(original);
-                if original.iter().any(|a| matches!(a.value, Value::Float64(v) if v.is_nan())) {
+                if original.iter().any(|a| a.is_symbolic()) {
                     for assignment in assignments.to_mut() {
-                        if matches!(assignment.value, Value::Float64(v) if v.is_nan()) {
+                        if assignment.is_symbolic() {
                             assignment.value = env
                                 .get(assignment.variable)
                                 .filter(|v| v.as_f64().is_none_or(f64::is_finite))
@@ -524,18 +524,11 @@ fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Variab
                 let mut vars = arena.var_set(*variables).to_vec();
                 let bound = arena.intervention_assignments(*intervention);
                 for &v in arena.var_set(*conditioned_on) {
-                    if !bound.iter().any(|a| {
-                        a.variable == v && !matches!(a.value, Value::Float64(x) if x.is_nan())
-                    }) {
+                    if !bound.iter().any(|a| a.variable == v && !a.is_symbolic()) {
                         vars.push(v);
                     }
                 }
-                vars.extend(
-                    bound
-                        .iter()
-                        .filter(|a| matches!(a.value, Value::Float64(x) if x.is_nan()))
-                        .map(|a| a.variable),
-                );
+                vars.extend(bound.iter().filter(|a| a.is_symbolic()).map(|a| a.variable));
                 vars
             }
             EvalOp::Kernel { body, .. } => out[*body].to_vec(),
@@ -1282,6 +1275,69 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, EvalError::DivisionByZero);
     }
+
+    /// A genuine `do(T=NaN)` must not alias the symbolic wildcard. Wrapped in
+    /// `SumOut(T, ·)`, a symbolic coordinate becomes `Σ_t E[Y|do(T=t)]`; a
+    /// concrete NaN must not evaluate to that sum.
+    #[test]
+    fn nan_intervention_does_not_sum_over_treatment_support() {
+        let mut arena = CausalExprArena::new();
+        let (t, y) = (v(0), v(1));
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(t, [f(0.0), f(1.0)]);
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        for (tlev, ey) in [(0.0, 0.2), (1.0, 0.8)] {
+            let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+            for (yval, prob) in [(1.0, ey), (0.0, 1.0 - ey)] {
+                let spec = FactorSpec {
+                    variables: &[y],
+                    conditioned_on: &[],
+                    intervention: &interv,
+                    domain: DomainRef::Interventional,
+                    population: "",
+                    regime: None,
+                };
+                let assign = Assignment::from_pairs([(y, f(yval))]);
+                p.insert_probability(&spec, &assign, prob).unwrap();
+            }
+        }
+
+        let ys = arena.intern_var_set([y]);
+        let ts = arena.intern_var_set([t]);
+        let empty = arena.empty_var_set();
+        let ctx = EvalContext::default();
+
+        // Σ_t E[Y|do(T=t)] via symbolic coordinate under SumOut.
+        let do_sym = arena.intern_intervention_set([t]);
+        let sym_dist = arena.intern_distribution(ys, empty, do_sym, DomainRef::Interventional);
+        let sym_mean = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: sym_dist,
+        });
+        let sym_sum = arena.intern(ExprNode::SumOut { variables: ts, expr: sym_mean });
+        let sum_over_t = arena.compile(sym_sum).unwrap().evaluate(&arena, &p, &ctx).unwrap();
+        assert!(
+            (sum_over_t - 1.0).abs() < 1e-12,
+            "symbolic Σ_t E[Y|do(t)] = {sum_over_t}"
+        );
+
+        // Same SumOut shape with concrete NaN must not yield that sum.
+        let do_nan = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t,
+            value: f(f64::NAN),
+        }]);
+        assert!(!arena.intervention_assignments(do_nan)[0].is_symbolic());
+        let nan_dist = arena.intern_distribution(ys, empty, do_nan, DomainRef::Interventional);
+        let nan_mean = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: nan_dist,
+        });
+        let nan_sum = arena.intern(ExprNode::SumOut { variables: ts, expr: nan_mean });
+        let nan_result = arena.compile(nan_sum).unwrap().evaluate(&arena, &p, &ctx);
+        assert_ne!(nan_result, Ok(sum_over_t), "NaN intervention aliased sum-over-T");
+        assert_eq!(nan_result, Err(EvalError::MissingTableEntry));
+    }
+
     #[test]
     fn simplification_preserves_overlapping_binding_multiplicity() {
         // The inner x shadows the outer x: summing over outer (x,y)
