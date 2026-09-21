@@ -87,8 +87,10 @@ impl Admg {
     ///
     /// Non-static node or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
-        if !matches!(node, NodeRef::Static(_)) {
-            return Err(GraphError::InvalidEndpoints { message: "Admg accepts only Static nodes" });
+        if !node.is_static_graph_node() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "Admg accepts only Static or Unfolded nodes",
+            });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
@@ -324,27 +326,12 @@ impl Admg {
     #[must_use]
     pub fn district_components_within(&self, nodes: &BitSet) -> Vec<BitSet> {
         let n = self.node_count();
-        let mut seen = BitSet::with_len(n);
-        let mut comps = Vec::new();
+        let mut label = Vec::new();
+        let count = self.districts_into(Some(nodes), &mut label, &mut Vec::new());
+        // Labels are handed out in ascending order of each component's smallest member.
+        let mut comps = vec![BitSet::with_len(n); count as usize];
         for id in nodes.to_dense_ids() {
-            if seen.contains(id) {
-                continue;
-            }
-            let mut comp = BitSet::with_len(n);
-            let mut stack = vec![id];
-            seen.insert(id);
-            comp.insert(id);
-            while let Some(u) = stack.pop() {
-                for &v in self.bidirected_neighbors(u) {
-                    if !nodes.contains(v) || seen.contains(v) {
-                        continue;
-                    }
-                    seen.insert(v);
-                    comp.insert(v);
-                    stack.push(v);
-                }
-            }
-            comps.push(comp);
+            comps[label[id.as_usize()] as usize].insert(id);
         }
         comps
     }

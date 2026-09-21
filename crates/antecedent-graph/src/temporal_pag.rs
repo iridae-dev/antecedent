@@ -332,11 +332,21 @@ impl TemporalPag {
 
     /// View as static [`Pag`] for algorithms that only need adjacency/marks.
     ///
-    /// Nodes become `Static(VariableId::from_raw(dense))` — only for algorithm reuse.
+    /// Nodes keep their identity as [`NodeRef::Unfolded`] slots (`variable` at `-lag`), never
+    /// as schema variables — only for algorithm reuse.
     #[must_use]
     pub fn as_static_pag_for_alg(&self) -> Pag {
-        let n = u32::try_from(self.node_count()).expect("node fit");
-        let mut p = Pag::with_variables(n);
+        let mut p = Pag::empty();
+        for node in self.nodes() {
+            let slot = match *node {
+                NodeRef::Lagged { variable, lag } => NodeRef::Unfolded {
+                    variable,
+                    offset: -i32::try_from(lag.raw()).expect("lag fits i32"),
+                },
+                other => other,
+            };
+            p.add_node(slot).expect("static-graph node");
+        }
         for i in 0..self.node_count() {
             let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             for e in &self.adj[i] {

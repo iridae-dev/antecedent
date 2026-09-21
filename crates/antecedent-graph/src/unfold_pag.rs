@@ -32,8 +32,7 @@ impl TemporalPag {
                 });
             }
         }
-        let count = u32::try_from(indexer.dense_len()).map_err(|_| GraphError::TooManyNodes)?;
-        let mut pag = Pag::with_variables(count);
+        let mut pag = Pag::from_unfolding(&indexer)?;
         for edge in self.edges() {
             let (a_variable, a_offset) = template_key(self, edge.a)?;
             let (b_variable, b_offset) = template_key(self, edge.b)?;
