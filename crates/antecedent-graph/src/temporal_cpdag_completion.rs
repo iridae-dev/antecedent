@@ -4,12 +4,21 @@
 //! oriented without new unshielded colliders. Conflict marks are refused.
 //! Future→past orientations are rejected by [`TemporalCpdag::orient_undirected`].
 //!
+//! Enumeration is exhaustive over `2^k` masks; construction refuses when `k`
+//! exceeds [`MAX_TEMPORAL_UNDIRECTED_EDGES`] rather than hanging on a blind scan.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::cpdag::TemporalCpdag;
 use crate::error::GraphError;
 use crate::temporal::TemporalDag;
 use crate::types::DenseNodeId;
+
+/// Hard cap on undirected edges the temporal mask enumerator will accept.
+///
+/// Matches [`crate::cpdag_completion::MAX_UNDIRECTED_EDGES`]: past this bound
+/// construction returns [`GraphError::InvalidEndpoints`] immediately.
+pub const MAX_TEMPORAL_UNDIRECTED_EDGES: usize = 16;
 
 /// One [`TemporalDag`] completion of a [`TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -35,7 +44,8 @@ impl TemporalCpdagCompletionSampler {
     ///
     /// # Errors
     ///
-    /// Conflict edges, or more than 63 undirected edges.
+    /// Conflict edges, or more than [`MAX_TEMPORAL_UNDIRECTED_EDGES`] undirected
+    /// edges (exhaustive `2^k` mask enumeration would not finish promptly).
     pub fn new(cpdag: TemporalCpdag, max_completions: usize) -> Result<Self, GraphError> {
         if cpdag.conflict_edge_count() > 0 {
             return Err(GraphError::InvalidEndpoints {
@@ -51,9 +61,9 @@ impl TemporalCpdagCompletionSampler {
         }
         undirected.sort_by_key(|(a, b)| (a.raw(), b.raw()));
         undirected.dedup();
-        if undirected.len() > 63 {
+        if undirected.len() > MAX_TEMPORAL_UNDIRECTED_EDGES {
             return Err(GraphError::InvalidEndpoints {
-                message: "too many undirected edges for TemporalCpdagCompletionSampler mask",
+                message: "TemporalCpdagCompletionSampler supports at most 16 undirected edges",
             });
         }
         Ok(Self { base: cpdag, undirected, max_completions, next_index: 0, assign: 0 })
@@ -253,5 +263,35 @@ mod tests {
         g.insert_undirected(a, b).unwrap();
         g.mark_conflict(a, b).unwrap();
         assert!(TemporalCpdagCompletionSampler::new(g, 4).is_err());
+    }
+
+    #[test]
+    fn refuses_above_undirected_edge_bound() {
+        // 25 contemporaneous undirected edges: refuse before a 2^25 scan.
+        let mut g = TemporalCpdag::empty();
+        let mut nodes = Vec::with_capacity(26);
+        for i in 0..26u32 {
+            nodes.push(lagged(&mut g, i, 0));
+        }
+        for w in nodes.windows(2) {
+            g.insert_undirected(w[0], w[1]).unwrap();
+        }
+        assert_eq!(g.undirected_edge_count(), 25);
+        let err = TemporalCpdagCompletionSampler::new(g, 4).unwrap_err();
+        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+    }
+
+    #[test]
+    fn small_completable_temporal_cpdag_still_completes() {
+        let mut g = TemporalCpdag::empty();
+        let a = lagged(&mut g, 0, 0);
+        let b = lagged(&mut g, 1, 0);
+        g.insert_undirected(a, b).unwrap();
+        let collected: Vec<_> =
+            TemporalCpdagCompletionSampler::new(g.clone(), 8).unwrap().collect();
+        assert_eq!(collected.len(), 2);
+        for completion in &collected {
+            assert!(is_temporal_mec_member(&g, &completion.graph));
+        }
     }
 }
