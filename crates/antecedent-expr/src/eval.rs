@@ -186,7 +186,7 @@ impl CompiledEvaluator {
             } => {
                 let original = arena.intervention_assignments(*intervention);
                 let mut assignments = std::borrow::Cow::Borrowed(original);
-                if original.iter().any(|a| a.is_symbolic()) {
+                if original.iter().any(super::InterventionAssignment::is_symbolic) {
                     for assignment in assignments.to_mut() {
                         if assignment.is_symbolic() {
                             assignment.value = env
@@ -1422,7 +1422,8 @@ mod tests {
                         .unwrap();
                 }
             }
-            for expr in [root] {
+            {
+                let expr = root;
                 let value = arena
                     .compile(expr)
                     .unwrap()

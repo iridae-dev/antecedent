@@ -21,7 +21,7 @@ pub struct StatisticalOptionsWire {
 }
 
 impl StatisticalOptionsWire {
-    pub fn from_options(options: &EmpiricalTableOptions) -> Self {
+    #[must_use] pub fn from_options(options: &EmpiricalTableOptions) -> Self {
         Self {
             estimator: options.estimator.as_str().into(),
             learner: match options.estimator {
@@ -87,7 +87,7 @@ impl SampleSummary {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TransportGridFailureWire {
-    /// Stable kind: missing_evidence or support_failure.
+    /// Stable kind: `missing_evidence` or `support_failure`.
     pub kind: String,
     /// Located provider/denominator explanation.
     pub detail: String,
@@ -106,7 +106,7 @@ pub struct TransportGridFailureWire {
 }
 
 impl TransportGridFailureWire {
-    pub fn from_failure(f: &antecedent_core::TransportGridFailure) -> Self {
+    #[must_use] pub fn from_failure(f: &antecedent_core::TransportGridFailure) -> Self {
         Self {
             kind: f.kind.clone(),
             detail: f.detail.clone(),
@@ -122,7 +122,7 @@ impl TransportGridFailureWire {
                 .collect(),
         }
     }
-    pub fn to_failure(&self) -> antecedent_core::TransportGridFailure {
+    #[must_use] pub fn to_failure(&self) -> antecedent_core::TransportGridFailure {
         antecedent_core::TransportGridFailure {
             kind: self.kind.clone(),
             detail: self.detail.clone(),
@@ -266,7 +266,7 @@ pub fn point_evidence_identity(
             mean_intervals,
             estimate
                 .and_then(|e| e.atom_replicates.as_deref())
-                .map(|rows| rows.iter().map(|r| r.as_ref()).collect::<Vec<_>>()),
+                .map(|rows| rows.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>()),
             estimate.and_then(|e| e.replicate_ids.as_deref()),
             estimate.and_then(|e| e.uncertainty_reason.as_deref()),
         ),

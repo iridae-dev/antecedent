@@ -414,20 +414,17 @@ pub(crate) fn cached_aipw_nuisances(
     {
         return Err(EstimationError::data_msg("invalid retained nuisance fold count"));
     }
-    let fold_ids: Vec<u16> = match problem.fold_assignment.as_deref() {
-        Some(raw) => {
-            if raw.len() != problem.nrows || raw.iter().any(|f| *f as usize >= folds) {
-                return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
-            }
-            raw.iter().map(|&f| f as u16).collect()
+    let fold_ids: Vec<u16> = if let Some(raw) = problem.fold_assignment.as_deref() {
+        if raw.len() != problem.nrows || raw.iter().any(|f| *f as usize >= folds) {
+            return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
         }
-        None => {
-            let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
-            crossfit_fold_plan(&arms, &problem.row_index, folds, ctx.rng.master_seed())?
-                .into_iter()
-                .map(|f| f as u16)
-                .collect()
-        }
+        raw.iter().map(|&f| f as u16).collect()
+    } else {
+        let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
+        crossfit_fold_plan(&arms, &problem.row_index, folds, ctx.rng.master_seed())?
+            .into_iter()
+            .map(|f| f as u16)
+            .collect()
     };
     let result = Arc::new(cross_fit_aipw_nuisances(
         outcome,

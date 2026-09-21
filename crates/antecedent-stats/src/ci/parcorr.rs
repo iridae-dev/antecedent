@@ -331,6 +331,7 @@ mod tests {
         assert_eq!(alone.results[0].p_value.to_bits(), second.results[1].p_value.to_bits());
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn min_attainable_p_reports_permutation_resolution() {
         let pc = PartialCorrelation::new();

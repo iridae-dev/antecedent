@@ -259,7 +259,7 @@ impl TransportGridResult {
                         study.export(result).map(GridPointWire::Statistical)
                     }
                     TransportGridPoint::Unavailable(failure) => Ok(GridPointWire::Unavailable(
-                        TransportGridFailureWire::from_failure(&failure),
+                        TransportGridFailureWire::from_failure(failure),
                     )),
                 })
                 .collect::<Result<_, _>>()?;

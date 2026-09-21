@@ -552,6 +552,9 @@ pub struct EvidenceCatalog {
     pub target_sampling: Option<TargetSampling>,
 }
 
+/// Domain and unit declared for each variable id across a catalog's environments.
+type VariableDomains<'a> = BTreeMap<u32, (&'a VariableDomain, Option<&'a Arc<str>>)>;
+
 impl EvidenceCatalog {
     /// Canonical ordering for new semantic identities. Numeric regime identities
     /// and physical schema column order are preserved. Historical artifact readers
@@ -624,52 +627,7 @@ impl EvidenceCatalog {
     ///
     /// [`QueryError::InvalidTransport`].
     pub fn validate(&self) -> Result<(), QueryError> {
-        let mut identities = BTreeSet::new();
-        let mut domains: BTreeMap<u32, (&VariableDomain, Option<&Arc<str>>)> = BTreeMap::new();
-        for environment in self.environments.iter() {
-            Environment::try_new(
-                Arc::clone(&environment.identity),
-                Arc::clone(&environment.variables),
-                Arc::clone(&environment.selection_targets),
-            )?;
-            if !identities.insert(environment.identity.as_ref()) {
-                return Err(QueryError::InvalidTransport(
-                    "catalog environments must have distinct identities".into(),
-                ));
-            }
-            for coordinate in environment.variables.iter() {
-                if let Some((existing_domain, existing_unit)) =
-                    domains.get_mut(&coordinate.variable.raw())
-                {
-                    if !existing_domain.compatible_with(&coordinate.domain) {
-                        return Err(QueryError::InvalidTransport(
-                            "catalog environments declare incompatible domains for the same variable"
-                                .into(),
-                        ));
-                    }
-                    if *existing_unit != coordinate.unit.as_ref()
-                        && existing_unit.is_some()
-                        && coordinate.unit.is_some()
-                    {
-                        return Err(QueryError::InvalidTransport(
-                            "catalog environments declare incompatible units for the same variable"
-                                .into(),
-                        ));
-                    }
-                    if matches!(existing_domain, VariableDomain::Unspecified) {
-                        *existing_domain = &coordinate.domain;
-                    }
-                    if existing_unit.is_none() {
-                        *existing_unit = coordinate.unit.as_ref();
-                    }
-                } else {
-                    domains.insert(
-                        coordinate.variable.raw(),
-                        (&coordinate.domain, coordinate.unit.as_ref()),
-                    );
-                }
-            }
-        }
+        let (identities, domains) = self.validate_environments()?;
         let mut regime_ids = BTreeSet::new();
         let mut labels = BTreeSet::new();
         let declared_variables: BTreeSet<u32> = domains.keys().copied().collect();
@@ -733,6 +691,57 @@ impl EvidenceCatalog {
             }
         }
         self.validate_bindings()
+    }
+
+    /// Environment identities and the merged domain and unit of each declared variable.
+    fn validate_environments(&self) -> Result<(BTreeSet<&str>, VariableDomains<'_>), QueryError> {
+        let mut identities = BTreeSet::new();
+        let mut domains: VariableDomains<'_> = BTreeMap::new();
+        for environment in self.environments.iter() {
+            Environment::try_new(
+                Arc::clone(&environment.identity),
+                Arc::clone(&environment.variables),
+                Arc::clone(&environment.selection_targets),
+            )?;
+            if !identities.insert(environment.identity.as_ref()) {
+                return Err(QueryError::InvalidTransport(
+                    "catalog environments must have distinct identities".into(),
+                ));
+            }
+            for coordinate in environment.variables.iter() {
+                if let Some((existing_domain, existing_unit)) =
+                    domains.get_mut(&coordinate.variable.raw())
+                {
+                    if !existing_domain.compatible_with(&coordinate.domain) {
+                        return Err(QueryError::InvalidTransport(
+                            "catalog environments declare incompatible domains for the same variable"
+                                .into(),
+                        ));
+                    }
+                    if *existing_unit != coordinate.unit.as_ref()
+                        && existing_unit.is_some()
+                        && coordinate.unit.is_some()
+                    {
+                        return Err(QueryError::InvalidTransport(
+                            "catalog environments declare incompatible units for the same variable"
+                                .into(),
+                        ));
+                    }
+                    if matches!(existing_domain, VariableDomain::Unspecified) {
+                        *existing_domain = &coordinate.domain;
+                    }
+                    if existing_unit.is_none() {
+                        *existing_unit = coordinate.unit.as_ref();
+                    }
+                } else {
+                    domains.insert(
+                        coordinate.variable.raw(),
+                        (&coordinate.domain, coordinate.unit.as_ref()),
+                    );
+                }
+            }
+        }
+        Ok((identities, domains))
     }
 
     fn validate_bindings(&self) -> Result<(), QueryError> {

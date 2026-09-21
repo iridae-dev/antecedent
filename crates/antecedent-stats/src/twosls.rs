@@ -456,6 +456,9 @@ enum QuadraticAcceptance {
     },
 }
 
+/// Confidence band `(estimate, lower, upper)` and, when none exists, the reason code.
+type AndersonRubinBand = (Option<(f64, f64, f64)>, Option<&'static str>);
+
 /// Invert the homoskedastic Anderson–Rubin test at `level` by solving the exact
 /// quadratic inequality in β after residualizing on the exogenous block (including
 /// the intercept).
@@ -479,7 +482,7 @@ pub fn anderson_rubin_confidence_set(
     level: f64,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
-) -> Result<(Option<(f64, f64, f64)>, Option<&'static str>), StatsError> {
+) -> Result<AndersonRubinBand, StatsError> {
     if z_ncols == 0 {
         return Ok((None, Some("anderson_rubin_requires_excluded_instruments")));
     }
@@ -721,6 +724,7 @@ mod tests {
         assert!((ar - expected).abs() < 1e-10, "AR={ar} reduced-form k·F={expected}");
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn anderson_rubin_confidence_set_covers_true_beta_on_strong_fixture() {
         let n = 200usize;
@@ -746,6 +750,7 @@ mod tests {
         assert!(lo.is_finite() && hi.is_finite());
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn anderson_rubin_quadratic_recovers_narrow_interval_off_mesh() {
         // True β = 2.05 with a strong first stage and tiny residual noise so the 95%

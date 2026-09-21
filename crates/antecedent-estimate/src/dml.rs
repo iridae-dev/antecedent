@@ -184,7 +184,7 @@ impl DmlAte {
         let mut ehat = raw_e.clone();
         clip_propensity(&mut ehat, clip_of(problem.overlap));
         let phi =
-            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, &mu0, &mu1);
+            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
         let yhat: Vec<f64> = problem
             .treatment
             .iter()

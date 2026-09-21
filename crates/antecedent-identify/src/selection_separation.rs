@@ -177,6 +177,7 @@ pub(crate) fn independently_separated(
     let live = |i: usize| v.contains(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
     let mut parents = vec![Vec::new(); total];
     let mut siblings = vec![Vec::new(); total];
+    #[allow(clippy::needless_range_loop)] // `from` is a node id used to index several tables
     for from in 0..n {
         if !live(from) {
             continue;
@@ -344,7 +345,7 @@ mod tests {
             let v = all(n);
             for x_mask in 0..(1u32 << n) {
                 let mut x = BitSet::with_len(n as usize);
-                for i in (0..n).filter(|i| x_mask >> i & 1 == 1) {
+                for i in (0..n).filter(|i| (x_mask >> i) & 1 == 1) {
                     x.insert(d(i));
                 }
                 if x.contains(d(1)) {
@@ -354,7 +355,7 @@ mod tests {
                 for outcome in (0..n).filter(|i| !x.contains(d(*i)) && *i != 1) {
                     for z_mask in 0..(1u32 << n) {
                         let given: Vec<_> = (0..n)
-                            .filter(|i| z_mask >> i & 1 == 1)
+                            .filter(|i| (z_mask >> i) & 1 == 1)
                             .filter(|i| !x.contains(d(*i)) && *i != outcome)
                             .map(d)
                             .collect();

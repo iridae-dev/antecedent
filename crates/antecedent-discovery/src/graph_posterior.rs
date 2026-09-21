@@ -1292,6 +1292,7 @@ mod tests {
     }
 
     /// The MCSE of an indicator is `sqrt(p(1-p)/ESS)`; a constant indicator has none.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn mcse_is_zero_for_constant_and_positive_for_varying_indicators() {
         let (n_chains, n_draws, n_params) = (2usize, 64usize, 2usize);
@@ -1299,7 +1300,7 @@ mod tests {
         for c in 0..n_chains {
             for d in 0..n_draws {
                 traces[(c * n_draws + d) * n_params] = 1.0;
-                traces[(c * n_draws + d) * n_params + 1] = ((d * 7 + c * 3) % 5 < 2) as u8 as f64;
+                traces[(c * n_draws + d) * n_params + 1] = f64::from(u8::from((d * 7 + c * 3) % 5 < 2));
             }
         }
         let s = graph_chain_summary(&traces, n_chains, n_draws, n_params);

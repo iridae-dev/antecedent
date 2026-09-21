@@ -210,7 +210,7 @@ mod tests {
         }
         assert_eq!(counts[1], 0, "the negative-weight category must never be drawn");
         // P(2) = 1/4; the binomial sd at n = 20000 is 0.0031.
-        let freq = counts[2] as f64 / n as f64;
+        let freq = counts[2] as f64 / f64::from(n);
         assert!((freq - 0.25).abs() < 0.02, "freq {freq}");
     }
 

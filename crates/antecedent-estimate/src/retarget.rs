@@ -41,7 +41,7 @@ pub(crate) fn overlap_gate(
     !n_eff_by_arm.is_empty()
         && n_eff_by_arm.iter().all(|&n| n >= min_n_eff)
         && (!range_required || range.is_some())
-        && range.map_or(true, |(lo, hi)| lo > 1e-6 && hi < 1.0 - 1e-6)
+        && range.is_none_or(|(lo, hi)| lo > 1e-6 && hi < 1.0 - 1e-6)
         && extreme_share <= MAX_EXTREME_PROPENSITY_SHARE
 }
 

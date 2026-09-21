@@ -366,6 +366,7 @@ mod tests {
     /// A cache filled from one dataset must refuse another (the `(node, parents)` key says
     /// nothing about which rows the score was computed on), accept equal data, and accept
     /// new data after `clear()`.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn cache_refuses_different_data() {
         let a = chain_data();

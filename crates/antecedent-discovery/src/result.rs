@@ -193,9 +193,9 @@ pub type PagGraphEvidence = GraphEvidence<TemporalPag>;
 ///
 /// Records faithfulness and the causal Markov condition for every algorithm.
 /// Causal sufficiency is included only when the method assumes no latent
-/// confounders (PC, GES, NOTEARS, LiNGAM, PCMCI / PCMCI+ / J-PCMCI+). FCI,
+/// confounders (PC, GES, NOTEARS, `LiNGAM`, PCMCI / PCMCI+ / J-PCMCI+). FCI,
 /// RFCI, and LPCMCI omit sufficiency but implement no selection-bias rules (Zhang R5–R7),
-/// so they record `NoSelectionBias`. LiNGAM additionally records non-Gaussian exogenous
+/// so they record `NoSelectionBias`. `LiNGAM` additionally records non-Gaussian exogenous
 /// errors.
 #[must_use]
 pub(crate) fn discovery_assumptions(algorithm: &str, causal_sufficiency: bool) -> AssumptionSet {

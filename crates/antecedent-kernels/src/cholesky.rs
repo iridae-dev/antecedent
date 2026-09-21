@@ -87,6 +87,7 @@ pub fn cholesky_condition_lower_bound(chol: &[f64], n: usize) -> f64 {
 mod tests {
     use super::*;
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn factors_hand_matrix() {
         // [[4, 2], [2, 5]] = L L' with L = [[2, 0], [1, 2]].
@@ -134,6 +135,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn condition_bound_matches_hand_and_rejects_nan() {
         // Diagonals 4 and 1 -> (4/1)² = 16.

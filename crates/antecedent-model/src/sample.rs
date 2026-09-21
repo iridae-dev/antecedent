@@ -346,6 +346,7 @@ pub fn sample_conditional_interventional(
     )
 }
 
+#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 fn sample_conditional_interventional_lw(
     model: &CompiledCausalModel,
     interventions: &[Intervention],

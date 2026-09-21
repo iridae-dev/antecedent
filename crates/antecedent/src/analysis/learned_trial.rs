@@ -57,7 +57,7 @@ impl LearnedTrialResult {
     }
 }
 fn trial_reasoning(unavailable: Option<&str>) -> antecedent_core::ReasoningView {
-    use antecedent_core::*;
+    use antecedent_core::{AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot, IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView, SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot, UncertaintySource};
     ReasoningView::new(
         SlotAvailability::Available(IdentificationSlot::identified_singleton(
             IdentificationStatus::NonparametricallyIdentified,
@@ -276,7 +276,7 @@ mod tests {
             features: vec![],
             covariates: vec![],
             outcome: (0..200)
-                .map(|i| if i < 120 { 1. + 2. * (i % 2) as f64 } else { 0. })
+                .map(|i| if i < 120 { 1. + 2. * f64::from(i % 2) } else { 0. })
                 .collect(),
             treatment: (0..200).map(|i| i % 2 == 1).collect(),
             source: (0..200).map(|i| i < 120).collect(),

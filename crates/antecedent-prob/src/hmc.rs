@@ -239,7 +239,7 @@ fn fit_hmc_impl(
     } else {
         None
     };
-    let include_sigma2 = gaussian_model.is_some_and(|m| m.include_sigma2());
+    let include_sigma2 = gaussian_model.is_some_and(super::prior::GaussianVarianceModel::include_sigma2);
     let dim = ncols + usize::from(include_sigma2);
     // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
     let prec =

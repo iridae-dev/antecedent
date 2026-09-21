@@ -1988,11 +1988,9 @@ pub(super) fn posterior_note_diagnostics<'a>(
             "estimate.bayesian.temporal.tempering_inestimable",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
-            format!(
-                "long-run-variance tempering could not be estimated on at least one fit \
+            "long-run-variance tempering could not be estimated on at least one fit \
                  (n < max(8, p+2)); the published credible interval for it is the iid posterior \
-                 and is likely too narrow"
-            ),
+                 and is likely too narrow".to_string(),
         ));
     }
     if capped {
@@ -2000,10 +1998,8 @@ pub(super) fn posterior_note_diagnostics<'a>(
             "estimate.bayesian.temporal.tempering_capped",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
-            format!(
-                "long-run-variance tempering hit the n/(p+2) cap on at least one fit; kappa is \
-                 known to be too small and the published credible interval is still too narrow"
-            ),
+            "long-run-variance tempering hit the n/(p+2) cap on at least one fit; kappa is \
+                 known to be too small and the published credible interval is still too narrow".to_string(),
         ));
     }
     if let Some(&(requested, used)) = floors.first() {

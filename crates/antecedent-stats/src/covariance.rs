@@ -274,7 +274,15 @@ fn hc_meat(
             // is undefined there. Clamping `h` would inflate rounding-noise residuals by
             // `1/(1−h)²`, so refuse instead and name the rows.
             let saturated: Vec<usize> =
-                (0..nrows).filter(|&i| !(hat[i] <= 1.0 - LEVERAGE_SATURATION)).collect();
+                (0..nrows)
+                    // An unordered (NaN) leverage is as undefined as a saturated one.
+                    .filter(|&i| {
+                        !matches!(
+                            hat[i].partial_cmp(&(1.0 - LEVERAGE_SATURATION)),
+                            Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+                        )
+                    })
+                    .collect();
             if !saturated.is_empty() {
                 let shown: Vec<String> =
                     saturated.iter().take(5).map(ToString::to_string).collect();

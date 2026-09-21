@@ -2558,7 +2558,7 @@ fn mag_general_id_law(keep: impl Fn(f64, f64) -> bool) -> (TabularData, [f64; 2]
     let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 5];
     let mut truth = [0.0; 2];
     for world in 0..1usize << 7 {
-        let bit = |i: usize| world >> i & 1;
+        let bit = |i: usize| (world >> i) & 1;
         let (l1, l2, t, a, m, b, y) = (bit(0), bit(1), bit(2), bit(3), bit(4), bit(5), bit(6));
         let p_t = bern(quarter(1 + 2 * l1), t);
         let rest = 0.25

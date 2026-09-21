@@ -219,6 +219,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn exactly_fitted_data_reports_zero_scale_without_fallback() {
         let n = 20usize;

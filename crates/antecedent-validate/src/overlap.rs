@@ -73,20 +73,17 @@ impl OverlapRefuter {
         if let Some(report) = self.continuous_report(problem)? {
             return Ok(report);
         }
-        let (report, replicates) = match &problem.original.overlap_report {
-            Some(r) => (r.clone(), 0),
-            None => {
-                let fit = crate::common::diagnostic_overlap_report_with(
-                    problem,
-                    &self.glm_options,
-                    OverlapPolicy::require_diagnostics(),
-                    propensity,
-                )?;
-                if let Some(defect) = fit.defect {
-                    return Ok(self.separated_report(problem, defect));
-                }
-                (fit.report, 1)
+        let (report, replicates) = if let Some(r) = &problem.original.overlap_report { (r.clone(), 0) } else {
+            let fit = crate::common::diagnostic_overlap_report_with(
+                problem,
+                &self.glm_options,
+                OverlapPolicy::require_diagnostics(),
+                propensity,
+            )?;
+            if let Some(defect) = fit.defect {
+                return Ok(self.separated_report(problem, defect));
             }
+            (fit.report, 1)
         };
         self.binary_report(problem, &report, replicates)
     }

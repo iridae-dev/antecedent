@@ -2,7 +2,7 @@
 #![allow(missing_docs, clippy::too_many_lines)]
 use antecedent::analysis::{TransportGridData, TransportGridQuery, TransportGridState};
 use antecedent::{PreparedStudy, StudyBuilder};
-use antecedent_core::*;
+use antecedent_core::{AssumptionSet, AverageEffectQuery, ContinuousDomain, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext, GridSpec, RegimeId, RegimeKind, ResponseFunctional, ResponseQuery, TransportQuery, Value, VariableCoordinate, VariableDomain, VariableId};
 use antecedent_estimate::{DrLearner, TrialAipwInput, TrialAipwOptions, TrialSampling};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData, ExprId,
@@ -198,7 +198,7 @@ fn main() {
             features: vec![],
             covariates: vec![],
             outcome: (0..200)
-                .map(|i| if i < 120 { 1. + 2. * (i % 2) as f64 } else { 0. })
+                .map(|i| if i < 120 { 1. + 2. * f64::from(i % 2) } else { 0. })
                 .collect(),
             treatment: (0..200).map(|i| i % 2 == 1).collect(),
             source: (0..200).map(|i| i < 120).collect(),

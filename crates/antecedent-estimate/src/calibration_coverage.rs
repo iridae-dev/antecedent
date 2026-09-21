@@ -1314,26 +1314,23 @@ fn score_learner_replicate(
     result: Result<crate::adjustment::EffectEstimate, crate::error::EstimationError>,
     skipped: &mut u32,
 ) {
-    match result {
-        Ok(effect) => {
-            tally.bind(
-                construction,
-                ScopeFacts {
-                    row_count: rows as u64,
-                    replicates_ok: None,
-                    posterior_draws: None,
-                    unidentified_mass: 0.0,
-                },
-            );
-            let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some(
-                (effect.ate - Z95 * effect.se_analytic, effect.ate + Z95 * effect.se_analytic),
-            );
-            tally.record(interval, TRUE_ATE);
-        }
-        Err(_) => {
-            *skipped += 1;
-            tally.skip();
-        }
+    if let Ok(effect) = result {
+        tally.bind(
+            construction,
+            ScopeFacts {
+                row_count: rows as u64,
+                replicates_ok: None,
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some(
+            (effect.ate - Z95 * effect.se_analytic, effect.ate + Z95 * effect.se_analytic),
+        );
+        tally.record(interval, TRUE_ATE);
+    } else {
+        *skipped += 1;
+        tally.skip();
     }
 }
 

@@ -64,6 +64,7 @@ impl Fenwick {
 }
 
 /// `Σ_{i,j} |x_i − x_j| |y_i − y_j|` over ordered pairs.
+#[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 fn cross_abs_diff_sum(x: &[f64], y: &[f64], order_x: &[usize]) -> f64 {
     let n = x.len();
     // Dense ranks of `y` (1-based); equal values share a rank so ties count as neither
@@ -185,7 +186,7 @@ mod tests {
     fn series(n: usize, seed: u64, ties: bool) -> (Vec<f64>, Vec<f64>) {
         let mut state = seed;
         let mut next = move || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
             ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
         };
         let x: Vec<f64> = (0..n)
@@ -216,6 +217,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn self_correlation_is_one_and_constant_is_zero() {
         let (x, _) = series(30, 9, false);

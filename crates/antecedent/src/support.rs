@@ -217,7 +217,7 @@ pub fn classify(cell: SupportCell) -> CellStatus {
 /// a calibration-record token named an estimator (do not guess one).
 #[must_use]
 pub fn licensed_estimators(cell: SupportCell) -> &'static [&'static str] {
-    licensed_row(cell).map(|row| row.estimators).unwrap_or(&[])
+    licensed_row(cell).map_or(&[], |row| row.estimators)
 }
 
 /// Compiler-plan estimator for this geometric cell (`parity/licensed_routes.toml`).

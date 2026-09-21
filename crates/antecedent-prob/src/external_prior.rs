@@ -517,6 +517,7 @@ fn composition_assumption(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transport::TransportAdjustment;
     use crate::prior::GaussianCoefficientPrior;
 
     fn gauss(mean: f64, var: f64) -> PriorSet {
@@ -808,7 +809,6 @@ mod tests {
         assert!((kish_ess(&[3.0, 3.0, 3.0, 3.0]) - 4.0).abs() < 1e-12);
         assert!((kish_ess(&[1.0, 0.0, 0.0]) - 1.0).abs() < 1e-12);
         // The transport adjustment reports the same hand value.
-        use crate::transport::TransportAdjustment;
         let adj = TransportAdjustment::new([1.0, 2.0, 3.0], [0.5, 0.25, 0.25]).unwrap();
         assert!((adj.kish_ess() - expected).abs() < 1e-12);
     }

@@ -123,6 +123,7 @@ impl GlmOptions {
 
 /// Convergence / iteration diagnostics from a GLM fit.
 #[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)] // independent diagnostic flags, each a distinct verdict
 pub struct GlmFit {
     /// Coefficient vector.
     pub coefficients: Vec<f64>,
@@ -1181,7 +1182,7 @@ fn multinomial_diagnostics_at(
     for r in 0..nrows {
         softmax_row(design, beta_free, r, &mut eta, &mut pi);
         for &p in &pi {
-            if p < 1e-8 || p > 1.0 - 1e-8 {
+            if !(1e-8..=1.0 - 1e-8).contains(&p) {
                 separated = true;
             }
         }

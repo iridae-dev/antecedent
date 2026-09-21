@@ -558,7 +558,7 @@ mod tests {
             1.0,
         )
         .unwrap();
-        assert!((ll - (-37.496_387_817_470_645)).abs() < 1e-9, "{ll}");
+        assert!((ll - (-37.496_387_817_470_65)).abs() < 1e-9, "{ll}");
         // Mirror image below the mean.
         let ll = gaussian_observation_log_likelihood(
             &[GaussianObservation::IntervalCensored { lower: -9.0, upper: -8.3 }],
@@ -566,7 +566,7 @@ mod tests {
             1.0,
         )
         .unwrap();
-        assert!((ll - (-37.496_387_817_470_645)).abs() < 1e-9, "{ll}");
+        assert!((ll - (-37.496_387_817_470_65)).abs() < 1e-9, "{ll}");
 
         // Right-censoring at 45 sigma: Φ̄(45) underflows; ln Φ̄(45) = −1017.2260942419524
         // from a 50-digit evaluation.
@@ -576,7 +576,7 @@ mod tests {
             1.0,
         )
         .unwrap();
-        assert!((ll - (-1017.226_094_241_952_4)).abs() < 1e-8, "{ll}");
+        assert!((ll - (-1_017.226_094_241_952_4)).abs() < 1e-8, "{ll}");
         // Left-censoring at −45 sigma is the mirror image.
         let ll = gaussian_observation_log_likelihood(
             &[GaussianObservation::LeftCensored(-45.0)],
@@ -584,7 +584,7 @@ mod tests {
             1.0,
         )
         .unwrap();
-        assert!((ll - (-1017.226_094_241_952_4)).abs() < 1e-8, "{ll}");
+        assert!((ll - (-1_017.226_094_241_952_4)).abs() < 1e-8, "{ll}");
     }
 
     /// The original O(n · distinct censor times) implementation, kept as the reference.
