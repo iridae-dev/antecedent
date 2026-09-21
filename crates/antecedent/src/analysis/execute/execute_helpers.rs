@@ -2318,9 +2318,45 @@ impl super::Study {
 }
 
 /// Match the estimator failure policy without counting unattempted, cancelled
-/// replicates as fitting failures.
+/// replicates as fitting failures, and require enough successes to earn a
+/// nominal 0.95 band under the usual (B+1) order-statistic floor.
+///
+/// Cancellation that stops after two successes must not publish a 0.95 pointwise
+/// or simultaneous band: `bootstrap_has_enough_successes(2, attempted)` is false
+/// whenever `attempted > 2`, and also when `completed` is below
+/// [`PERCENTILE_95_BAND_MIN_SUCCESSES`]. Adaptive early-stop that actually reaches
+/// that floor with a majority of successes still passes.
 pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize) -> bool {
-    completed >= 2 && completed >= attempted.saturating_sub(completed)
+    completed >= PERCENTILE_95_BAND_MIN_SUCCESSES
+        && completed >= attempted.saturating_sub(completed)
+}
+
+/// Fewest successful replicates that may license a facade-published nominal 0.95
+/// pointwise / simultaneous band. Same (B+1)·α/2 > 1 floor as the statistical
+/// transport percentile licence (`α = 0.05` ⇒ B ≥ 40).
+const PERCENTILE_95_BAND_MIN_SUCCESSES: usize = 40;
+
+#[cfg(test)]
+mod bootstrap_success_floor_tests {
+    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
+
+    #[test]
+    fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {
+        assert!(!bootstrap_has_enough_successes(2, 2));
+        assert!(!bootstrap_has_enough_successes(2, 3));
+        assert!(!bootstrap_has_enough_successes(2, 199));
+        assert!(!bootstrap_has_enough_successes(2, PERCENTILE_95_BAND_MIN_SUCCESSES));
+    }
+
+    #[test]
+    fn completed_budget_at_earned_minimum_licenses_band() {
+        let min = PERCENTILE_95_BAND_MIN_SUCCESSES;
+        assert!(bootstrap_has_enough_successes(min, min));
+        assert!(!bootstrap_has_enough_successes(min - 1, min - 1));
+        // Majority-failure policy still binds above the floor.
+        assert!(!bootstrap_has_enough_successes(min, min * 2 + 1));
+        assert!(bootstrap_has_enough_successes(min, min * 2));
+    }
 }
 
 // Aggregation consumes only effect draws. Keep each contributing model's

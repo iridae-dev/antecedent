@@ -5367,12 +5367,22 @@ mod observation_bootstrap_tests {
         let band = summarize_observation_bootstrap(&[vec![1.0], vec![3.0]], &[2.5], 2, true);
         assert!(band.cancelled);
         assert_eq!(band.completed, 2);
-        // center ± z·SD with SD = sqrt(2) around the full-sample point, not the draw mean.
-        let half = crate::result::reported_se_interval_z() * 2f64.sqrt();
-        assert!((band.lower[0] - (2.5 - half)).abs() < 1e-12);
-        assert!((band.upper[0] - (2.5 + half)).abs() < 1e-12);
+        assert_eq!(band.attempted, 2);
+        // Two successes cannot earn a nominal 0.95 band under the (B+1) floor.
+        assert!(band.lower.is_empty());
+        assert!(band.upper.is_empty());
         let empty = summarize_observation_bootstrap(&[], &[], 0, true);
         assert!(empty.cancelled && empty.lower.is_empty());
+    }
+
+    #[test]
+    fn earned_minimum_successes_publish_pointwise_band() {
+        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![i as f64]).collect();
+        let band = summarize_observation_bootstrap(&draws, &[19.5], 40, false);
+        assert!(!band.lower.is_empty());
+        assert!(!band.upper.is_empty());
+        assert_eq!(band.completed, 40);
+        assert_eq!(band.attempted, 40);
     }
 }
 
