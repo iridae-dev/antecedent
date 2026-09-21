@@ -11,9 +11,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::shuffle;
 
 use crate::common::{
-    NoiseReplaceTarget, RefutationProblem, RefutationReport, complete_case_rows, float64_full,
-    linear_estimator_no_bootstrap, noise_replace_refute, refit_effect, replicate_p_value,
-    with_replaced_float,
+    NoiseReplaceTarget, RefutationProblem, RefutationReport, check_cancelled,
+    check_replicate_count, complete_case_rows, float64_full, linear_estimator_no_bootstrap,
+    noise_replace_refute, refit_effect, replicate_mean, replicate_p_value, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -98,11 +98,7 @@ impl PlaceboTreatment {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if self.replicates < 2 {
-            return Err(ValidationError::NotApplicable {
-                message: "placebo permute refuter requires replicates >= 2",
-            });
-        }
+        check_replicate_count(self.replicates)?;
         let treatment = problem.treatment();
         let factual = float64_full(problem.data, treatment)?;
         // Shuffle only the observed analysis population: invalid or masked payloads
@@ -117,6 +113,7 @@ impl PlaceboTreatment {
         let observed: Vec<f64> = eligible.iter().map(|&row| factual[row]).collect();
         let mut ates = Vec::with_capacity(self.replicates as usize);
         for r in 0..self.replicates {
+            check_cancelled(ctx)?;
             let mut perm = factual.clone();
             let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
             let mut shuffled = observed.clone();
@@ -136,8 +133,8 @@ impl PlaceboTreatment {
             )?;
             ates.push(est.ate);
         }
-        let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);
-        let p_value = replicate_p_value(&ates, 0.0);
+        let mean_ate = replicate_mean(&ates);
+        let p_value = replicate_p_value(&ates, 0.0)?;
         let passed = p_value >= self.alpha;
         Ok(RefutationReport {
             refuter: Arc::from("placebo.treatment.permute"),

@@ -10,8 +10,8 @@ papers = [
 ]
 
 implementation_deviations = [
- "Adds one standard-normal draw directly to both observed treatment and outcome in marginal-SD units, then refits without adding the simulated variable to the adjustment set.",
- "Uses 20 Monte Carlo perturbations and a repository-defined standardized mean absolute ATE-shift threshold.",
+ "Adds one standard-normal draw directly to both observed treatment and outcome in units of the residual SDs SD(T|Z) and SD(Y|Z), then refits without adding the simulated variable to the adjustment set.",
+ "Uses 20 Monte Carlo perturbations and a repository-defined verdict: the mean absolute ATE shift as a multiple of the published effect's own magnitude, failing at 1.",
  "It does not implement Imbens's binary-confounder treatment-assignment/outcome model, partial-R parameterization, observed-covariate benchmarking, or treatment-effect contour analysis.",
 ]
 

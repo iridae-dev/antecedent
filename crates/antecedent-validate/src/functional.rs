@@ -34,17 +34,21 @@ pub fn refute_path(
     extra.extend(query.path_nodes.iter().copied());
     let estimator = FunctionalEffect::new();
     let mut reports = Vec::new();
-    for &(fraction, id) in if full {
+    for (slot, &(fraction, id)) in (if full {
         &[(0.8, "path.subset"), (0.5, "path.half_sample")][..]
     } else {
         &[(0.8, "path.subset")][..]
-    } {
+    })
+    .iter()
+    .enumerate()
+    {
         let mut values = Vec::new();
         for replicate in 0..20_u64 {
             if ctx.cancellation.is_cancelled() {
                 return Err(ValidationError::Cancelled);
             }
-            let subset = with_row_subset(data, fraction, ctx, 0xF012_0000 + replicate)?;
+            let subset =
+                with_row_subset(data, fraction, ctx, subset_stream(0xF012_0000, slot, replicate))?;
             let prepared = estimator.prepare(
                 &subset,
                 estimand,
@@ -58,7 +62,7 @@ pub fn refute_path(
                     .ate,
             );
         }
-        let p = replicate_p_value(&values, original);
+        let p = replicate_p_value(&values, original)?;
         reports.push(RefutationReport::new(
             id,
             original,
@@ -110,17 +114,21 @@ pub fn refute_distribution(
         1,
     )];
     let estimator = FunctionalDistribution::new();
-    for &(fraction, id) in if full {
+    for (slot, &(fraction, id)) in (if full {
         &[(0.8, "distribution.subset_tv"), (0.5, "distribution.half_sample_tv")][..]
     } else {
         &[(0.8, "distribution.subset_tv")][..]
-    } {
+    })
+    .iter()
+    .enumerate()
+    {
         let mut distances = Vec::new();
         for replicate in 0..20_u64 {
             if ctx.cancellation.is_cancelled() {
                 return Err(ValidationError::Cancelled);
             }
-            let subset = with_row_subset(data, fraction, ctx, 0xF013_0000 + replicate)?;
+            let subset =
+                with_row_subset(data, fraction, ctx, subset_stream(0xF013_0000, slot, replicate))?;
             let prepared = estimator.prepare(
                 &subset,
                 query,
@@ -152,6 +160,13 @@ pub fn refute_distribution(
         ));
     }
     Ok(reports)
+}
+
+/// RNG stream of replicate `replicate` of subset-fraction `slot`. Each fraction gets its own
+/// 2^16-stream block so the 50% subsets are drawn from uniforms independent of the 80% subsets
+/// (sharing streams would nest `u < 0.5` inside `u < 0.8`). Slot 0 keeps the historical stream.
+fn subset_stream(base: u64, slot: usize, replicate: u64) -> u64 {
+    base + ((slot as u64) << 16) + replicate
 }
 
 fn max_conditional_tv(
@@ -198,6 +213,16 @@ mod tests {
     use super::*;
     use antecedent_core::{Value, VariableId};
     use antecedent_estimate::DistributionAtom;
+
+    #[test]
+    fn subset_fractions_draw_from_disjoint_streams() {
+        // 20 replicates per fraction: no stream id is shared between the 80% and 50% slots.
+        let a: Vec<u64> = (0..20).map(|r| subset_stream(0xF012_0000, 0, r)).collect();
+        let b: Vec<u64> = (0..20).map(|r| subset_stream(0xF012_0000, 1, r)).collect();
+        assert!(a.iter().all(|s| !b.contains(s)));
+        // The historical 80% streams are unchanged.
+        assert_eq!(a[3], 0xF012_0003);
+    }
 
     #[test]
     fn full_table_distance_detects_equal_mean_distributions_and_lost_strata() {

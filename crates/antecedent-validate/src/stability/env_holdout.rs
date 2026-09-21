@@ -20,10 +20,23 @@ pub struct EnvironmentHoldoutReport {
     pub discovery_links: Arc<[LaggedLink]>,
     /// Links discovered on holdout environments.
     pub holdout_links: Arc<[LaggedLink]>,
-    /// Fraction of discovery links also present on holdout.
+    /// Fraction of discovery links also present on holdout; `NaN` when no link was discovered
+    /// (there is nothing to agree with, which is not perfect agreement).
     pub shared_frequency: f64,
-    /// Jaccard index of the two link sets.
+    /// Jaccard index of the two link sets; `NaN` when neither environment set has a link.
     pub jaccard: f64,
+}
+
+/// `(shared_frequency, jaccard)` of two link sets; `NaN` where the ratio has an empty
+/// denominator, so "nothing discovered" is never reported as full agreement.
+#[allow(clippy::cast_precision_loss)]
+fn agreement(train: &BTreeSet<LaggedLink>, holdout: &BTreeSet<LaggedLink>) -> (f64, f64) {
+    let shared = train.intersection(holdout).count();
+    let union = train.union(holdout).count();
+    let shared_frequency =
+        if train.is_empty() { f64::NAN } else { shared as f64 / train.len() as f64 };
+    let jaccard = if union == 0 { f64::NAN } else { shared as f64 / union as f64 };
+    (shared_frequency, jaccard)
 }
 
 /// Environment-holdout discovery agreement under [`JpcmciPlus`].
@@ -64,11 +77,7 @@ impl EnvironmentHoldout {
             train_res.evidence.links.iter().map(|s| s.link).collect();
         let hold_set: BTreeSet<LaggedLink> =
             hold_res.evidence.links.iter().map(|s| s.link).collect();
-        let shared = train_set.intersection(&hold_set).count();
-        let union = train_set.union(&hold_set).count();
-        let shared_frequency =
-            if train_set.is_empty() { 1.0 } else { shared as f64 / train_set.len() as f64 };
-        let jaccard = if union == 0 { 1.0 } else { shared as f64 / union as f64 };
+        let (shared_frequency, jaccard) = agreement(&train_set, &hold_set);
         Ok(EnvironmentHoldoutReport {
             discovery_links: Arc::from(train_set.into_iter().collect::<Vec<_>>()),
             holdout_links: Arc::from(hold_set.into_iter().collect::<Vec<_>>()),
@@ -177,7 +186,38 @@ mod tests {
         let ctx = ExecutionContext::for_tests(4);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
         let report = hold.run(&multi, &vars, &mut ws, &ctx).unwrap();
-        assert!(report.jaccard >= 0.0 && report.jaccard <= 1.0);
-        assert!(report.shared_frequency >= 0.0 && report.shared_frequency <= 1.0);
+        let train: BTreeSet<_> = report.discovery_links.iter().copied().collect();
+        let holdout: BTreeSet<_> = report.holdout_links.iter().copied().collect();
+        let (shared_frequency, jaccard) = agreement(&train, &holdout);
+        assert_eq!(report.shared_frequency.to_bits(), shared_frequency.to_bits());
+        assert_eq!(report.jaccard.to_bits(), jaccard.to_bits());
+        if !train.is_empty() {
+            assert!((0.0..=1.0).contains(&report.shared_frequency));
+        }
+    }
+
+    #[test]
+    fn nothing_discovered_is_undefined_agreement_not_perfect_agreement() {
+        let link = |source, target| LaggedLink {
+            source: VariableId::from_raw(source),
+            source_lag: Lag::from_raw(1),
+            target: VariableId::from_raw(target),
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        let empty = BTreeSet::new();
+        let (shared, jaccard) = agreement(&empty, &empty);
+        assert!(shared.is_nan() && jaccard.is_nan());
+        // Empty discovery set against a non-empty holdout: no agreement to report, but the Jaccard
+        // index is the honest 0 (none of the one-sided union is shared).
+        let one: BTreeSet<_> = [link(0, 1)].into_iter().collect();
+        let (shared, jaccard) = agreement(&empty, &one);
+        assert!(shared.is_nan());
+        assert_eq!(jaccard, 0.0);
+        // {a, b} against {b, c}: 1 shared of 2 discovered, Jaccard 1/3.
+        let ab: BTreeSet<_> = [link(0, 1), link(1, 0)].into_iter().collect();
+        let bc: BTreeSet<_> = [link(1, 0), link(0, 0)].into_iter().collect();
+        let (shared, jaccard) = agreement(&ab, &bc);
+        assert_eq!(shared, 0.5);
+        assert!((jaccard - 1.0 / 3.0).abs() < 1e-15);
     }
 }

@@ -14,7 +14,7 @@ use antecedent_expr::IdentifiedEstimand;
 
 use crate::ValidationError;
 use crate::common::{
-    RefutationReport, fill_gaussian, replicate_p_value, with_contiguous_row_window,
+    RefutationReport, fill_gaussian, replicate_mean, replicate_p_value, with_contiguous_row_window,
     with_extra_float, with_replaced_float,
 };
 
@@ -132,7 +132,7 @@ pub fn refute_temporal_mediation_adjusted(
     let mut placebo = Vec::new();
     let mut rcc = Vec::new();
     let mut subset = Vec::new();
-    for replicate in 0..20_u64 {
+    for replicate in 0..MEDIATION_REPLICATES {
         if ctx.cancellation.is_cancelled() {
             return Err(ValidationError::Cancelled);
         }
@@ -172,11 +172,11 @@ pub fn refute_temporal_mediation_adjusted(
         }
     }
     let mut reports = vec![
-        report("mediation.placebo_mediator", 0.0, &placebo),
-        report("mediation.random_common_cause", original.effect.ate, &rcc),
+        report("mediation.placebo_mediator", 0.0, &placebo)?,
+        report("mediation.random_common_cause", original.effect.ate, &rcc)?,
     ];
     if full {
-        reports.push(report("mediation.contiguous_window", original.effect.ate, &subset));
+        reports.push(report("mediation.contiguous_window", original.effect.ate, &subset)?);
     }
     // Binary treatment permits a direct empirical mediator-support check. This
     // is a necessary range diagnostic, not a proof of conditional positivity.
@@ -208,10 +208,12 @@ pub fn refute_temporal_mediation_adjusted(
         let shared = (ranges[0].1.min(ranges[1].1) - ranges[0].0.max(ranges[1].0)).max(0.0);
         let width = ranges[0].1.max(ranges[1].1) - ranges[0].0.min(ranges[1].0);
         let fraction = if width > 0.0 { shared / width } else { 0.0 };
+        // A range diagnostic, not a re-estimate: the effect columns carry the published
+        // contrast, and `comparison` is the shared fraction of the mediator range.
         reports.push(RefutationReport::new(
             "mediation.binary_mediator_support",
-            1.0,
-            fraction,
+            original.effect.ate,
+            original.effect.ate,
             fraction,
             true,
             fraction > 0.0,
@@ -225,20 +227,23 @@ pub fn refute_temporal_mediation_adjusted(
     Ok(reports)
 }
 
-fn report(id: &str, target: f64, values: &[f64]) -> RefutationReport {
-    let p = replicate_p_value(values, target);
+/// Replicates per mediation refuter (placebo, random common cause, window / subset).
+const MEDIATION_REPLICATES: u64 = 20;
+
+fn report(id: &str, target: f64, values: &[f64]) -> Result<RefutationReport, ValidationError> {
+    let p = replicate_p_value(values, target)?;
     // Linear mediation placebo/RCC/subset use the same OLS-orthogonal constructions
     // as the ATE refuters: they cannot falsify the claim, so they are not informative.
-    RefutationReport::new(
+    Ok(RefutationReport::new(
         id,
         target,
-        values.iter().sum::<f64>() / 20.0,
+        replicate_mean(values),
         p,
         false,
         p >= 0.05,
         (p < 0.05).then(|| Arc::from("mediation contrast is inconsistent with the refuter target")),
-        20,
-    )
+        u32::try_from(values.len()).unwrap_or(u32::MAX),
+    ))
 }
 
 /// Static mediation-native suite. Cheap tests a placebo mediator, an exogenous
@@ -262,7 +267,7 @@ pub fn refute_static_mediation(
     let mut placebo = Vec::new();
     let mut rcc = Vec::new();
     let mut subset = Vec::new();
-    for rep in 0..20_u64 {
+    for rep in 0..MEDIATION_REPLICATES {
         if ctx.cancellation.is_cancelled() {
             return Err(ValidationError::Cancelled);
         }
@@ -293,11 +298,11 @@ pub fn refute_static_mediation(
         }
     }
     let mut reports = vec![
-        report("mediation.static.placebo_mediator", 0.0, &placebo),
-        report("mediation.static.random_common_cause", original.effect.ate, &rcc),
+        report("mediation.static.placebo_mediator", 0.0, &placebo)?,
+        report("mediation.static.random_common_cause", original.effect.ate, &rcc)?,
     ];
     if full {
-        reports.push(report("mediation.static.subset", original.effect.ate, &subset));
+        reports.push(report("mediation.static.subset", original.effect.ate, &subset)?);
     }
     let treatment = data.float64_values(query.treatment)?;
     let mut levels: Vec<_> = treatment.iter().copied().filter(|x| x.is_finite()).collect();
@@ -318,9 +323,23 @@ pub fn refute_static_mediation(
             }
             overlap &= ranges[0].0.max(ranges[1].0) <= ranges[0].1.min(ranges[1].1);
         }
-        reports.push(RefutationReport::new("mediation.static.mediator_overlap",1.0,
-            if overlap {1.0} else {0.0},1.0,false,overlap,
-            Some(Arc::from("Empirical mediator range overlap is necessary, not proof of conditional positivity.")),0));
+        // A range diagnostic, not a re-estimate: `comparison` is 1 when every mediator's
+        // per-arm empirical ranges overlap and 0 otherwise.
+        reports.push(RefutationReport::new(
+            "mediation.static.mediator_overlap",
+            original.effect.ate,
+            original.effect.ate,
+            f64::from(overlap),
+            false,
+            overlap,
+            (!overlap).then(|| {
+                Arc::from(
+                    "the treatment arms have disjoint empirical mediator ranges (a necessary \
+                     condition for conditional positivity fails)",
+                )
+            }),
+            0,
+        ));
     }
     Ok(reports)
 }

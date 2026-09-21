@@ -94,7 +94,33 @@ impl RieszSensitivity {
                 message: "Riesz sensitivity requires a non-empty delta_grid",
             });
         }
-        let (alpha, y, ipw_ate) = self.representer_and_ipw(problem, propensity)?;
+        let representer = self.representer_and_ipw(problem, propensity)?;
+        if let Some(defect) = representer.defect {
+            // Separation makes the representer unbounded: no finite δ certifies robustness.
+            return Ok(RefutationReport {
+                refuter: Arc::from("sensitivity.riesz"),
+                original_ate: problem.original.ate,
+                refuted_ate: problem.original.ate,
+                comparison: 0.0,
+                informative: true,
+                passed: false,
+                failure_condition: Some(Arc::from(defect)),
+                replicates: 0,
+            });
+        }
+        let Representer { alpha, y, ipw_ate, .. } = representer;
+        // The bound is computed around the clipped inverse-probability-weighted ATE, not around
+        // the published estimate; a bound for an effect of the opposite sign does not describe
+        // the published one.
+        if ipw_ate != 0.0
+            && problem.original.ate != 0.0
+            && ipw_ate.signum() != problem.original.ate.signum()
+        {
+            return Err(ValidationError::NotApplicable {
+                message: "the inverse-probability-weighted ATE has the opposite sign of the \
+                          published estimate, so the Riesz bound around it does not describe it",
+            });
+        }
         let sd_y = crate::common::sample_sd(&y).max(1e-12);
         let n = alpha.len() as f64;
         let alpha_l2 = (alpha.iter().map(|a| a * a).sum::<f64>() / n.max(1.0)).sqrt();
@@ -115,11 +141,12 @@ impl RieszSensitivity {
             let bias = delta * sd_y * alpha_l2;
             let lower = ipw_ate - bias;
             let upper = ipw_ate + bias;
-            // "Explained away" if the interval covers 0 or the nearer endpoint flips sign.
+            // "Explained away" once the interval [ate − bias, ate + bias] covers 0. The bias is
+            // non-negative, so the interval always contains `ipw_ate` and covering zero is
+            // exactly the nearer endpoint reaching or crossing it.
             let covers_zero = lower <= 0.0 && upper >= 0.0;
-            let flipped = if original_sign >= 0.0 { upper < 0.0 } else { lower > 0.0 };
             last_bound_ate = if original_sign >= 0.0 { lower } else { upper };
-            if covers_zero || flipped {
+            if covers_zero {
                 explained_away_at = Some(delta);
                 break;
             }
@@ -152,8 +179,9 @@ impl RieszSensitivity {
         &self,
         problem: &RefutationProblem<'_>,
         propensity: &mut antecedent_stats::PropensityWorkspace,
-    ) -> Result<(Vec<f64>, Vec<f64>, f64), ValidationError> {
+    ) -> Result<Representer, ValidationError> {
         let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, propensity)?;
+        let defect = cols.defect;
         let y = cols.outcome.expect("outcome requested");
         let nrows = cols.treatment.len();
         for &ti in &cols.treatment {
@@ -174,8 +202,17 @@ impl RieszSensitivity {
             weighted += a * yi;
         }
         let ipw_ate = weighted / nrows as f64;
-        Ok((alpha, y, ipw_ate))
+        Ok(Representer { alpha, y, ipw_ate, defect })
     }
+}
+
+/// Riesz representer values, outcome and IPW ATE of the diagnostic propensity fit.
+struct Representer {
+    alpha: Vec<f64>,
+    y: Vec<f64>,
+    ipw_ate: f64,
+    /// Separation / non-convergence of the diagnostic fit (a positivity failure).
+    defect: Option<&'static str>,
 }
 
 #[cfg(test)]

@@ -696,8 +696,10 @@ impl ValidationSuite {
                 ))
             }
             ValidatorId::PriorSensitivity => {
-                let sens = PriorSensitivity::standard_grid();
-                let (summary, _posts) = sens.evaluate(
+                // The grid perturbs the prior the estimator fits with (a supplied or transferred
+                // prior gets its variance-multiplier grid, none the isotropic scale grid).
+                let sens = PriorSensitivity::for_estimator(bayes.estimator);
+                let (summary, _posts) = sens.evaluate_in_force(
                     bayes.estimator,
                     bayes.prepared,
                     bayes.identification,
@@ -903,8 +905,20 @@ mod tests {
         );
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
+        // Every outcome is exactly one of report / skip / operational failure.
         let reports = ValidationSuite::reports_only(&outcomes);
-        assert!(reports.len() >= 10, "reports={}", reports.len());
+        let skipped = ValidationSuite::not_applicable_only(&outcomes);
+        let failed =
+            outcomes.iter().filter(|o| matches!(o, ValidationOutcome::Failed { .. })).count();
+        assert_eq!(reports.len() + skipped.len() + failed, 14);
+        // The noise-free toy leaves no residual outcome variation, so no finite confounder
+        // strength can explain the effect away: the E-value is infinite, not a finite artefact of
+        // the outcome's marginal spread.
+        let evalue = reports
+            .iter()
+            .find(|r| r.refuter.as_ref() == "sensitivity.evalue")
+            .expect("e-value report");
+        assert!(evalue.comparison.is_infinite(), "e-value={}", evalue.comparison);
     }
 
     #[test]

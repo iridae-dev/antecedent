@@ -7,11 +7,12 @@
 use std::collections::BTreeMap;
 
 use antecedent_core::{ExecutionContext, RegimeId, VariableId};
-use antecedent_data::{ResamplingPlan, TableView, TimeSeriesData, resample_timeseries};
+use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, RegimeAssignment, Rpcmci};
 
 use crate::error::ValidationError;
 
+use super::gapped_block_bootstrap;
 use super::pcmci_grid::{DiscoveryStabilityReport, report_from_counts};
 
 /// Per-regime link-frequency stability under fixed caller labels.
@@ -86,24 +87,25 @@ impl RegimeStability {
         }
         let mut rng = ctx.rng.stream(0x5E61_u64);
         let mut index_scratch = Vec::new();
+        // RPCMCI's nested PCMCI+ materializes lags up to twice its maximum lag: separate blocks
+        // by that many missing rows so no lag window mixes two blocks, and so none straddles
+        // two regimes at a junction (see `gapped_block_bootstrap`).
+        let gap = 2 * self.rpcmci.pcmci_plus.engine().constraints.temporal.max_lag.raw() as usize;
         for _ in 0..self.replicates {
-            let boot = resample_timeseries(
-                data,
-                ResamplingPlan::MovingBlock { length: self.block_size },
-                &mut rng,
-                &mut index_scratch,
-            )
-            .map_err(ValidationError::from)?;
-            // Re-apply fixed labels by mapping bootstrap row indexes back to original regimes.
-            let boot_labels: Vec<_> = index_scratch
+            let boot =
+                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
+            // Re-apply fixed labels by mapping every position back to its original row's regime
+            // (a separator row takes its predecessor's label; its values are missing anyway).
+            let boot_labels: Vec<_> = boot
+                .source_rows
                 .iter()
-                .map(|&i| self.assignment.at(i as usize).expect("bootstrap index in range"))
+                .map(|&i| self.assignment.at(i).expect("bootstrap index in range"))
                 .collect();
             let boot_assign =
                 RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
             let result = self
                 .rpcmci
-                .run(&boot, variables, &boot_assign, workspace, ctx)
+                .run(&boot.series, variables, &boot_assign, workspace, ctx)
                 .map_err(ValidationError::from)?;
             for (idx, &(regime, _)) in result.graphs.graphs.iter().enumerate() {
                 let Some(per) = result.per_regime.get(idx) else {
