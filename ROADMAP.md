@@ -782,7 +782,7 @@ Review, corrections, and calibration scope: [T6 audit](docs/audits/transport-t6-
 - [x] Separate sampling uncertainty from model assumptions, invariance, and
       graph uncertainty. Bootstrap variation cannot quantify an unmodeled
       mechanism difference or an unidentified target effect.
-- [ ] Calibrate every licensed interval row against known SCM truth, varying
+- [x] Calibrate every licensed interval row against known SCM truth, varying
       source/target sample imbalance, weak overlap, nonlinear recursive formulas,
       and shared-factor dependence. Gate coverage using declared Monte Carlo
       tolerances and record interval width/failure rate as well as coverage.
