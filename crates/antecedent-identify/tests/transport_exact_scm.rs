@@ -584,7 +584,7 @@ fn original_coordinates_and_intervention_enlargement_are_preserved() {
         panic!("target DAG identifies");
     };
     assert!(proof.rules().contains(&"sid.line3"));
-    let mut arena = proof.arena().clone();
+    let arena = proof.arena().clone();
     assert_eq!(arena.free_variables(proof.root()), vec![v(41), v(99)]);
 }
 

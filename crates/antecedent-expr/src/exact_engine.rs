@@ -1,10 +1,13 @@
 //! Provider-frozen memoized elimination with checked zero-mass extensions.
 use crate::eval::{EvalOp, with_scoped_bindings};
+use crate::exact::CompensatedSum;
+use crate::simplify::{MarginalConditional, marginal_conditional};
 use crate::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, EvalContext, EvalError,
-    FactorSpec,
+    ExprNode, FactorSpec,
 };
 use antecedent_core::{Value, VariableId};
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -33,7 +36,9 @@ pub(crate) struct ExactSession<'a> {
     supports: HashMap<Vec<VariableId>, SupportRows>,
     pub support: Vec<crate::exact_plan::ExactSupportRecord>,
     ctx: &'a antecedent_core::ExecutionContext,
-    remaining: usize,
+    /// The execution's single operation budget, shared with the provider that charges row
+    /// inspections against it.
+    remaining: &'a Cell<usize>,
 }
 impl<'a> ExactSession<'a> {
     pub fn new(
@@ -41,7 +46,7 @@ impl<'a> ExactSession<'a> {
         plan: &'a CompiledEvaluator,
         provider: &'a dyn DistributionProvider,
         ctx: &'a antecedent_core::ExecutionContext,
-        operations: usize,
+        remaining: &'a Cell<usize>,
     ) -> Self {
         Self {
             arena,
@@ -51,7 +56,7 @@ impl<'a> ExactSession<'a> {
             supports: HashMap::new(),
             support: Vec::new(),
             ctx,
-            remaining: operations,
+            remaining,
         }
     }
     pub fn evaluate(&mut self, assignment: &mut Assignment) -> Result<f64, EvalError> {
@@ -62,10 +67,12 @@ impl<'a> ExactSession<'a> {
         if self.ctx.cancellation.is_cancelled() {
             return Err(EvalError::ProviderKind("exact evaluation cancelled"));
         }
-        self.remaining = self
+        let remaining = self
             .remaining
+            .get()
             .checked_sub(1)
             .ok_or(EvalError::ProviderKind("exact operation budget exceeded"))?;
+        self.remaining.set(remaining);
         let key = (
             slot,
             self.plan.free_vars[slot]
@@ -116,8 +123,10 @@ impl<'a> ExactSession<'a> {
                     self.provider.probability(&spec, env, &EvalContext::default())
                 }) {
                     Ok(value) => Term::Defined(value),
-                    Err(error @ EvalError::ExactLaw(_)) if matches!(&error,EvalError::ExactLaw(e) if e.kind=="zero_conditioning_mass") => {
-                        Term::Extendable(error)
+                    Err(EvalError::ExactLaw(law_error))
+                        if law_error.is_null_conditioning_event() =>
+                    {
+                        Term::Extendable(EvalError::ExactLaw(law_error))
                     }
                     Err(error) => return Err(error),
                 }
@@ -175,39 +184,36 @@ impl<'a> ExactSession<'a> {
                     rows
                 };
                 let value = with_scoped_bindings(env, variables.iter().copied(), |env| {
-                    let (mut total, mut correction) = (0.0, 0.0);
+                    let mut total = CompensatedSum::default();
                     for row in rows.iter() {
                         for (v, x) in variables.iter().zip(row.iter()) {
                             env.set(*v, x.clone());
                         }
-                        let value = self.slot(body, env)?.required()?;
-                        let adjusted = value - correction;
-                        let next = total + adjusted;
-                        correction = (next - total) - adjusted;
-                        total = next;
+                        total.add(self.slot(body, env)?.required()?);
                     }
-                    Ok(total)
+                    Ok(total.total())
                 })?;
                 Term::Defined(value)
             }
             EvalOp::Ratio { numerator, denominator } => {
-                // Ratio-form conditionals (`P(x,y)/Σ_y P(x,y)`) never hit the
-                // conditional-leaf `sampling_zero` guard. Probe the equivalent
-                // leaf factor first so empty empirical conditioners refuse
-                // here too; structural `zero_conditioning_mass` still falls
-                // through to the zero-mass extension path below.
-                self.refuse_empirical_empty_ratio_conditioner(numerator, denominator, env)?;
+                // A ratio of two marginals of one joint is a conditional distribution. It never
+                // hits the conditional-leaf `sampling_zero` guard, so probe the equivalent leaf
+                // factor first: empty empirical conditioners refuse here too, while structural
+                // `zero_conditioning_mass` still falls through to the zero-mass extension below.
+                let conditional = self.marginal_conditional_of(numerator, denominator);
+                if let Some(conditional) = &conditional {
+                    self.refuse_empirical_empty_ratio_conditioner(conditional, env)?;
+                }
                 let num = self.slot(numerator, env)?.required()?;
                 let den = self.slot(denominator, env)?.required()?;
                 denominator_value = Some(den);
                 if den == 0.0 {
                     let error =
                         self.provider.zero_denominator(self.arena, self.plan.origins[slot], env);
-                    // A denominator that literally marginalizes this numerator
-                    // certifies a bounded conditional extension, never a generic 0/0.
-                    if num == 0.0
-                        && matches!(self.plan.ops[denominator],EvalOp::SumOut { body,.. } if body==numerator)
-                    {
+                    // A denominator that marginalizes this numerator's joint over a strict
+                    // superset of its binders certifies a bounded conditional extension: every
+                    // summand is non-negative, so `den = 0` forces `num = 0`. Never a generic 0/0.
+                    if num == 0.0 && conditional.is_some() {
                         Term::Extendable(error)
                     } else {
                         return Err(error);
@@ -242,31 +248,49 @@ impl<'a> ExactSession<'a> {
         }
     }
 
-    /// Apply the conditional-leaf empirical-support guard to `joint / Σ joint`.
+    /// `numerator / denominator` as a conditional over one joint, when it is one the engine can
+    /// both extend across null events and check for empirical support.
+    ///
+    /// With summed variables `A ⊊ B` the ratio is `P(B∖A | joint∖B)`. The support probe needs the
+    /// joint to be a single unconditional leaf; a bare joint (`A = ∅`) is accepted for any body,
+    /// as before.
+    fn marginal_conditional_of(
+        &self,
+        numerator: usize,
+        denominator: usize,
+    ) -> Option<MarginalConditional> {
+        let conditional = marginal_conditional(
+            self.arena,
+            self.plan.origins[numerator],
+            self.plan.origins[denominator],
+        )?;
+        let probeable = matches!(
+            self.arena.node(conditional.joint),
+            ExprNode::Distribution { conditioned_on, .. }
+                if self.arena.var_set(*conditioned_on).is_empty()
+        );
+        (conditional.numerator_summed.is_empty() || probeable).then_some(conditional)
+    }
+
+    /// Apply the conditional-leaf empirical-support guard to `Σ_A k / Σ_B k`, i.e. to the leaf
+    /// factor `P(B∖A | k∖B)` read from the joint leaf `k`.
     ///
     /// Structural `zero_conditioning_mass` is ignored so the Ratio arm can still
     /// emit an extendable null-event term; every other provider error, including
     /// `sampling_zero`, refuses.
     fn refuse_empirical_empty_ratio_conditioner(
         &self,
-        numerator: usize,
-        denominator: usize,
+        conditional: &MarginalConditional,
         env: &mut Assignment,
     ) -> Result<(), EvalError> {
-        let EvalOp::SumOut { variables: summed, body } = self.plan.ops[denominator].clone() else {
-            return Ok(());
-        };
-        if body != numerator {
-            return Ok(());
-        }
-        let EvalOp::Distribution {
+        let ExprNode::Distribution {
             variables,
             conditioned_on,
             intervention,
             domain,
             population,
             regime,
-        } = self.plan.ops[numerator].clone()
+        } = self.arena.node(conditional.joint).clone()
         else {
             return Ok(());
         };
@@ -274,12 +298,15 @@ impl<'a> ExactSession<'a> {
             return Ok(());
         }
         let joint = self.arena.var_set(variables);
-        let outcomes = self.arena.var_set(summed);
-        if !outcomes.iter().all(|v| joint.binary_search(v).is_ok()) {
+        let summed = &conditional.denominator_summed;
+        let marginalised = &conditional.numerator_summed;
+        if !summed.iter().all(|v| joint.binary_search(v).is_ok()) {
             return Ok(());
         }
+        let outcomes: Vec<VariableId> =
+            summed.iter().copied().filter(|v| marginalised.binary_search(v).is_err()).collect();
         let conditions: Vec<VariableId> =
-            joint.iter().copied().filter(|v| outcomes.binary_search(v).is_err()).collect();
+            joint.iter().copied().filter(|v| summed.binary_search(v).is_err()).collect();
         let mut assignments = self.arena.intervention_assignments(intervention).to_vec();
         for a in &mut assignments {
             if a.is_symbolic() {
@@ -288,7 +315,7 @@ impl<'a> ExactSession<'a> {
             }
         }
         let spec = FactorSpec {
-            variables: outcomes,
+            variables: &outcomes,
             conditioned_on: &conditions,
             intervention: &assignments,
             domain,
@@ -302,7 +329,7 @@ impl<'a> ExactSession<'a> {
             self.provider.probability(&spec, env, &EvalContext::default())
         }) {
             Ok(_) => Ok(()),
-            Err(EvalError::ExactLaw(error)) if error.kind == "zero_conditioning_mass" => Ok(()),
+            Err(EvalError::ExactLaw(error)) if error.is_null_conditioning_event() => Ok(()),
             Err(error) => Err(error),
         }
     }
@@ -356,8 +383,9 @@ mod tests {
         let root = arena.intern(crate::ExprNode::Product(list));
         let plan = arena.compile(root).unwrap();
         let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let budget = Cell::new(100);
         let first = CountingLaw { probability: 0.5, calls: Cell::new(0) };
-        let mut session = ExactSession::new(&arena, &plan, &first, &ctx, 100);
+        let mut session = ExactSession::new(&arena, &plan, &first, &ctx, &budget);
         let mut assignment = Assignment::from_pairs([(variable, Value::Int64(0))]);
         assert!((session.evaluate(&mut assignment).unwrap() - 0.25).abs() < 1e-12);
         assert_eq!(first.calls.get(), 1);
@@ -368,7 +396,8 @@ mod tests {
         session.evaluate(&mut assignment).unwrap();
         assert_eq!(first.calls.get(), 2, "different free assignments remain distinct");
         let replacement = CountingLaw { probability: 0.25, calls: Cell::new(0) };
-        let mut session = ExactSession::new(&arena, &plan, &replacement, &ctx, 100);
+        budget.set(100);
+        let mut session = ExactSession::new(&arena, &plan, &replacement, &ctx, &budget);
         assert!((session.evaluate(&mut assignment).unwrap() - 0.0625).abs() < 1e-12);
         assert_eq!(replacement.calls.get(), 1, "provider replacement cannot reuse old values");
     }

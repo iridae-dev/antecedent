@@ -647,7 +647,7 @@ type ReloadedExpression = (String, String, Vec<String>, Vec<Option<u32>>, Vec<u3
 fn roundtrip_expr_arena(wire_json: &str, root: u32) -> PyResult<ReloadedExpression> {
     let wire: antecedent_io::ExprArenaWire =
         serde_json::from_str(wire_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let mut arena = expr_arena_from_wire(&wire).map_err(py_err)?;
+    let arena = expr_arena_from_wire(&wire).map_err(py_err)?;
     if root as usize >= arena.len() {
         return Err(PyValueError::new_err("expression root is out of range"));
     }

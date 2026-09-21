@@ -14,6 +14,10 @@ use crate::{
 };
 use antecedent_core::RegimeId;
 
+/// A difference `l − r` no larger than this many machine epsilons of `|l| + |r|` is
+/// indistinguishable from zero: each term carries at least half an ulp of rounding error.
+const CANCELLATION_TOLERANCE: f64 = 8.0 * f64::EPSILON;
+
 /// One step in a compiled evaluation plan (child references are slot indices).
 #[derive(Clone, Debug)]
 pub(crate) enum EvalOp {
@@ -88,6 +92,9 @@ impl CompiledEvaluator {
     ///
     /// Continuous [`ExprNode::IntegralOut`] is supported (see [`CausalExprArena::compile`]).
     pub fn compile(arena: &CausalExprArena, root: ExprId) -> Result<Self, EvalError> {
+        if root.raw() as usize >= arena.len() {
+            return Err(EvalError::ProviderKind("expression id outside the arena"));
+        }
         let mut ops = Vec::new();
         let mut expr_to_slot = HashMap::new();
         let root_slot = compile_rec(arena, root, &mut ops, &mut expr_to_slot)?;
@@ -223,11 +230,19 @@ impl CompiledEvaluator {
             }
             EvalOp::Ratio { numerator, denominator } => {
                 let num = self.eval_slot(arena, provider, ctx, env, *numerator)?;
-                let den = self.eval_slot(arena, provider, ctx, env, *denominator)?;
-                if den == 0.0 {
+                let (den, cancellation_scale) =
+                    self.eval_denominator(arena, provider, ctx, env, *denominator)?;
+                // A denominator that is a difference of two terms is zero to working precision
+                // when the terms agree to rounding error: the residue is noise, and dividing by
+                // it returns a huge, meaningless estimate.
+                if den == 0.0 || den.abs() <= CANCELLATION_TOLERANCE * cancellation_scale {
                     return Err(provider.zero_denominator(arena, self.origins[slot], env));
                 }
-                Ok(num / den)
+                let quotient = num / den;
+                if !quotient.is_finite() {
+                    return Err(EvalError::NonFiniteRatio);
+                }
+                Ok(quotient)
             }
             EvalOp::Expectation { function, distribution } => {
                 with_scoped_bindings(env, [function.variable()], |env| {
@@ -250,6 +265,24 @@ impl CompiledEvaluator {
                 }
             }
         }
+    }
+
+    /// Denominator value and the magnitude its rounding error scales with: `|l| + |r|` for a
+    /// difference `l − r`, zero otherwise.
+    fn eval_denominator(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+        ctx: &EvalContext,
+        env: &mut Assignment,
+        slot: usize,
+    ) -> Result<(f64, f64), EvalError> {
+        if let EvalOp::Contrast { left, right, op: ContrastOp::Difference } = &self.ops[slot] {
+            let l = self.eval_slot(arena, provider, ctx, env, *left)?;
+            let r = self.eval_slot(arena, provider, ctx, env, *right)?;
+            return Ok((l - r, l.abs() + r.abs()));
+        }
+        Ok((self.eval_slot(arena, provider, ctx, env, slot)?, 0.0))
     }
 
     fn eval_sum_out(
@@ -560,7 +593,7 @@ fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Variab
 mod tests {
     use super::*;
     use crate::provider::{EmpiricalTableProvider, PosteriorDrawProvider};
-    use crate::{InterventionAssignment, OutcomeExprId};
+    use crate::{InterventionAssignment, OutcomeExprId, SimplifyError};
     use antecedent_core::Value;
 
     fn v(id: u32) -> VariableId {
@@ -991,7 +1024,7 @@ mod tests {
         let dist = arena.intern_distribution(xset, empty, empty_i, DomainRef::Observational);
         let integ = arena.intern(ExprNode::IntegralOut { variables: xset, expr: dist });
         let mut p = GaussianDensityProvider::new();
-        p.set_gaussian(x, 0.0, 1.0);
+        p.set_gaussian(x, 0.0, 1.0).unwrap();
         let mass =
             arena.compile(integ).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((mass - 1.0).abs() < 1e-6, "∫ φ = {mass}");
@@ -1012,8 +1045,8 @@ mod tests {
         let inner = arena.intern(ExprNode::IntegralOut { variables: yset, expr: dist });
         let outer = arena.intern(ExprNode::IntegralOut { variables: xset, expr: inner });
         let mut p = GaussianDensityProvider::new();
-        p.set_gaussian(x, 1.0, 0.25);
-        p.set_gaussian(y, -0.5, 4.0);
+        p.set_gaussian(x, 1.0, 0.25).unwrap();
+        p.set_gaussian(y, -0.5, 4.0).unwrap();
         let mass =
             arena.compile(outer).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((mass - 1.0).abs() < 1e-5, "∬ φ = {mass}");
@@ -1336,9 +1369,10 @@ mod tests {
     }
 
     #[test]
-    fn simplification_preserves_overlapping_binding_multiplicity() {
-        // The inner x shadows the outer x: summing over outer (x,y)
-        // therefore counts each inner marginal twice. Unioning binders loses 2.
+    fn literal_evaluation_counts_overlapping_binder_multiplicity_and_simplify_refuses() {
+        // The inner x shadows the outer x: summing over outer (x,y) counts each inner
+        // marginal twice, which is what the evaluator computes literally. Unioning the binders
+        // would erase that multiplicity, so simplification must refuse rather than merge.
         for integral in [false, true] {
             let mut arena = CausalExprArena::new();
             let empty = arena.empty_var_set();
@@ -1358,7 +1392,14 @@ mod tests {
             } else {
                 ExprNode::SumOut { variables: xyset, expr: inner }
             });
-            let simplified = arena.simplify(root).unwrap();
+            // The outer x is entirely shadowed by the inner binder, so it is a dead binder:
+            // simplification refuses instead of merging it into a well-looking SumOut{x,y}.
+            let dead = if integral {
+                SimplifyError::DeadIntegralOut { variables: vec![x] }
+            } else {
+                SimplifyError::DeadSumOut { variables: vec![x] }
+            };
+            assert_eq!(arena.simplify(root), Err(dead));
             let mut provider = EmpiricalTableProvider::new();
             provider.set_domain(x, [f(0.0), f(1.0)]);
             provider.set_domain(y, [f(0.0), f(1.0)]);
@@ -1381,7 +1422,7 @@ mod tests {
                         .unwrap();
                 }
             }
-            for expr in [root, simplified] {
+            for expr in [root] {
                 let value = arena
                     .compile(expr)
                     .unwrap()
@@ -1425,5 +1466,82 @@ mod tests {
                 Err(EvalError::DivisionByZero)
             );
         }
+    }
+
+    /// Provider for the Wald functional over `t = v(0)`, `y = v(1)`, `z = v(2)` with binary
+    /// levels and the given conditional means `E[·|Z=z]`.
+    fn wald_provider(y_means: [f64; 2], t_means: [f64; 2]) -> EmpiricalTableProvider {
+        let (t, y, z) = (v(0), v(1), v(2));
+        let mut p = EmpiricalTableProvider::new();
+        for var in [t, y, z] {
+            p.set_domain(var, [f(0.0), f(1.0)]);
+        }
+        for (outcome, means) in [(y, y_means), (t, t_means)] {
+            for (level, mean) in [0.0, 1.0].into_iter().zip(means) {
+                let interv = [InterventionAssignment { variable: z, value: f(level) }];
+                let spec = FactorSpec {
+                    variables: &[outcome],
+                    conditioned_on: &[z],
+                    intervention: &interv,
+                    domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
+                };
+                for (value, prob) in [(1.0, mean), (0.0, 1.0 - mean)] {
+                    let assign = Assignment::from_pairs([(outcome, f(value)), (z, f(level))]);
+                    p.insert_probability(&spec, &assign, prob).unwrap();
+                }
+            }
+        }
+        p
+    }
+
+    #[test]
+    fn wald_ratio_of_a_cancelled_first_stage_is_a_zero_denominator() {
+        // E[T|Z=1] = 0.1 + 0.2 and E[T|Z=0] = 0.3 are equal in exact arithmetic (an irrelevant
+        // instrument); their floating-point difference is 5.55e-17. Dividing the reduced form
+        // 0.9 - 0.4 by that residue would return ~9e15 as an effect estimate.
+        let mut arena = CausalExprArena::new();
+        let wald = arena.iv_wald(v(0), v(1), &[v(2)], &f(1.0), &f(0.0)).unwrap();
+        let compiled = arena.compile(wald).unwrap();
+        let irrelevant = wald_provider([0.4, 0.9], [0.3, 0.1 + 0.2]);
+        assert_eq!(
+            compiled.evaluate(&arena, &irrelevant, &EvalContext::default()),
+            Err(EvalError::DivisionByZero)
+        );
+        // A genuine first stage of 0.5 gives the reduced form / first stage = 0.5 / 0.5.
+        let relevant = wald_provider([0.4, 0.9], [0.2, 0.7]);
+        let ratio = compiled.evaluate(&arena, &relevant, &EvalContext::default()).unwrap();
+        assert!((ratio - 1.0).abs() < 1e-12, "ratio={ratio}");
+    }
+
+    #[test]
+    fn ratio_that_overflows_is_an_error_not_infinity() {
+        // 3 / 5e-324 = inf. The denominator is nonzero, so only the quotient check catches it.
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let numerator = arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
+        let denominator =
+            arena.intern_distribution(empty, empty, empty_i, DomainRef::Interventional);
+        let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
+        let mut p = EmpiricalTableProvider::new();
+        for (domain, value) in
+            [(DomainRef::Observational, 3.0), (DomainRef::Interventional, 5e-324)]
+        {
+            let spec = FactorSpec {
+                variables: &[],
+                conditioned_on: &[],
+                intervention: &[],
+                domain,
+                population: "",
+                regime: None,
+            };
+            p.insert_probability(&spec, &Assignment::new(), value).unwrap();
+        }
+        assert_eq!(
+            arena.compile(ratio).unwrap().evaluate(&arena, &p, &EvalContext::default()),
+            Err(EvalError::NonFiniteRatio)
+        );
     }
 }
