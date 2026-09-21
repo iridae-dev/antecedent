@@ -1111,6 +1111,87 @@ fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
     assert!(result.mediation.is_none());
 }
 
+/// Two atoms, both genuinely identified (no autoregressive / not-certified
+/// atom): the plain known-truth atom, and a second atom whose S(h) also needs
+/// the lagged mediator (`lagged_mediator`, the same construction as
+/// `manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate`).
+/// On a series too short to fit that atom's larger design, its estimation
+/// fails while identification did not: the failure must be counted as
+/// `unevaluable_mass`, not folded into `unidentified_mass`.
+#[test]
+fn manufacturing_dbn_posterior_bayesian_mediation_estimation_failure_is_not_unidentified_mass() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let c = pin["identified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let l = pin["identified_atom"]["lag_mask"].as_u64().unwrap();
+    // Lag-mask bit `from * 3 + to`: M_{t-1} -> Y_t is bit 5.
+    let lagged_mediator = l | (1 << 5);
+    let weights = [0.6, 0.4];
+    let zeros = vec![0.0; 9];
+    let gp = GraphPosterior::new(
+        3,
+        weights.to_vec(),
+        vec![c, c],
+        zeros.clone(),
+        zeros,
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("known_truth_mixtures"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0])
+    .unwrap()
+    .with_lag_masks(vec![l, lagged_mediator])
+    .unwrap()
+    .with_algorithm("known_truth_fixture");
+    // Short enough that the extra-regressor atom's design cannot be fit
+    // (n below its column count plus the usual estimability floor), while the
+    // plain atom's smaller design still can be.
+    let (series, q) = mediation_series(3);
+    let result = Study::series(series)
+        .graph_posterior(gp)
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(43))
+        .unwrap();
+    let post = result.posterior.as_ref().expect("mixture posterior");
+    let demotion = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.dbn_posterior.atom_demotion")
+        .expect("atom demotion diagnostic");
+    assert!(
+        demotion.message.contains("identify_unidentified=0"),
+        "both atoms are genuinely identified: {}",
+        demotion.message
+    );
+    assert!(
+        demotion.message.contains("estimate_demoted=1"),
+        "the lagged-mediator atom's estimation must fail on this short series: {}",
+        demotion.message
+    );
+    assert!(
+        post.unevaluable_mass > 0.0,
+        "an identified atom's estimation failure must be unevaluable_mass, not \
+         unidentified_mass: unidentified={} unevaluable={}",
+        post.unidentified_mass,
+        post.unevaluable_mass
+    );
+    assert!(
+        (post.unidentified_mass).abs() < 1e-12,
+        "no atom here is genuinely unidentified: unidentified={}",
+        post.unidentified_mass
+    );
+    assert_eq!(demotion.severity, antecedent_core::DiagnosticSeverity::Warning);
+}
+
 fn temporal_mean_curve(query: &TemporalEffectQuery) -> ResponseQuery {
     ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: query.outcome,

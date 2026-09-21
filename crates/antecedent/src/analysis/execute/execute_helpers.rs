@@ -392,14 +392,15 @@ pub(super) fn envelope_mass_diagnostic(
     code: impl Into<Arc<str>>,
     posterior: &CausalPosterior,
 ) -> Diagnostic {
-    let message = if posterior.subsampled_out_mass > 0.0 {
-        format!(
-            "unidentified_mass={}, subsampled_out_mass={}",
-            posterior.unidentified_mass, posterior.subsampled_out_mass
-        )
-    } else {
-        format!("unidentified_mass={}", posterior.unidentified_mass)
-    };
+    let mut message = format!("unidentified_mass={}", posterior.unidentified_mass);
+    if posterior.unevaluable_mass > 0.0 {
+        // Distinct from unidentified_mass: this mass was identified but its
+        // estimation failed, which is a refusal, not a negative proof.
+        message.push_str(&format!(", unevaluable_mass={}", posterior.unevaluable_mass));
+    }
+    if posterior.subsampled_out_mass > 0.0 {
+        message.push_str(&format!(", subsampled_out_mass={}", posterior.subsampled_out_mass));
+    }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
         .with_fields(mass_fields(None, posterior.unidentified_mass))
 }

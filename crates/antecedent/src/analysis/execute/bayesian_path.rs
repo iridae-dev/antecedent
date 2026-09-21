@@ -2281,6 +2281,14 @@ impl super::Study {
         let mut distinct_z = false;
         let mut first_z: Option<Arc<[antecedent_data::LaggedColumn]>> = None;
         let mut horizon_dependent = false;
+        // Mass of atoms that WERE identified but whose estimation (design
+        // preparation, fitting, composition or draw extraction) failed. This is
+        // a refusal to estimate, not a proof of non-identification, so it is
+        // kept apart from `unidentified_mass` (the `require_identified` failure
+        // below, and an atom with no per-horizon identification at all, stay
+        // genuine non-identification).
+        let mut unevaluable_weight = 0.0_f64;
+        let mut first_estimation_error: Option<String> = None;
 
         for atom in identified.atoms.iter() {
             let Some(horizons) = atom.horizons.as_ref() else {
@@ -2319,6 +2327,7 @@ impl super::Study {
             horizon_dependent |= super::temporal_path::mediation_horizon_z_differs(&clicks);
             let mut published = None;
             let mut click_ok = true;
+            let mut estimation_failed = false;
             for click in &clicks {
                 if require_identified(&click.identification).is_err() {
                     click_ok = false;
@@ -2326,23 +2335,32 @@ impl super::Study {
                 }
                 let mut qh = query.clone();
                 qh.horizons = Arc::from([click.horizon]);
-                let Ok(preparations) = prepare_temporal_mediation_adjusted(
+                match prepare_temporal_mediation_adjusted(
                     data,
                     &click.estimand,
                     &qh,
                     &click.adjustment,
                     ctx,
-                ) else {
-                    click_ok = false;
-                    break;
-                };
-                if published.is_none() {
-                    published = Some((click, qh, preparations));
+                ) {
+                    Ok(preparations) => {
+                        if published.is_none() {
+                            published = Some((click, qh, preparations));
+                        }
+                    }
+                    Err(error) => {
+                        click_ok = false;
+                        estimation_failed = true;
+                        first_estimation_error.get_or_insert_with(|| error.to_string());
+                        break;
+                    }
                 }
             }
             if !click_ok {
                 if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                if estimation_failed {
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
                 }
                 prepare_demoted += 1;
                 continue;
@@ -2371,49 +2389,64 @@ impl super::Study {
                     })
                     .collect()
             };
-            let Ok(mechanisms) = fit(cfg.prior_scale) else {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
-                    flags[idx] = GraphIdentFlag::Unidentified;
+            let mechanisms = match fit(cfg.prior_scale) {
+                Ok(mechanisms) => mechanisms,
+                Err(error) => {
+                    if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    first_estimation_error.get_or_insert_with(|| error.to_string());
+                    fit_demoted += 1;
+                    continue;
                 }
-                fit_demoted += 1;
-                continue;
             };
-            let Ok(composed) = compose_temporal_mediation(
+            let composed = match compose_temporal_mediation(
                 &mechanisms[0],
                 &mechanisms[1],
                 &qh,
                 click.identification.status,
-            ) else {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
-                    flags[idx] = GraphIdentFlag::Unidentified;
+            ) {
+                Ok(composed) => composed,
+                Err(error) => {
+                    if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    first_estimation_error.get_or_insert_with(|| error.to_string());
+                    fit_demoted += 1;
+                    continue;
                 }
-                fit_demoted += 1;
-                continue;
             };
-            if let Ok(draws) = envelope_draws_from_posterior(atom.key, &composed) {
-                atom_contexts.push((
-                    atom.key,
-                    click.estimand.clone(),
-                    click.identification.clone(),
-                    click.indexer.clone(),
-                ));
-                per_graph.push(draws);
-                let weight = identified_weight_for_key(&identified.graphs, atom.key);
-                refute_atoms.push(DbnMediationAtom {
-                    key: atom.key,
-                    weight,
-                    estimand: click.estimand.clone(),
-                    adjustment: Arc::clone(&click.adjustment),
-                    query: qh,
-                    preparations,
-                    mechanisms,
-                    composed,
-                });
-            } else {
-                if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
-                    flags[idx] = GraphIdentFlag::Unidentified;
+            match envelope_draws_from_posterior(atom.key, &composed) {
+                Ok(draws) => {
+                    atom_contexts.push((
+                        atom.key,
+                        click.estimand.clone(),
+                        click.identification.clone(),
+                        click.indexer.clone(),
+                    ));
+                    per_graph.push(draws);
+                    let weight = identified_weight_for_key(&identified.graphs, atom.key);
+                    refute_atoms.push(DbnMediationAtom {
+                        key: atom.key,
+                        weight,
+                        estimand: click.estimand.clone(),
+                        adjustment: Arc::clone(&click.adjustment),
+                        query: qh,
+                        preparations,
+                        mechanisms,
+                        composed,
+                    });
                 }
-                draws_demoted += 1;
+                Err(error) => {
+                    if let Some(idx) = keys.iter().position(|&k| k == atom.key) {
+                        flags[idx] = GraphIdentFlag::Unidentified;
+                    }
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, atom.key);
+                    first_estimation_error.get_or_insert_with(|| error.to_string());
+                    draws_demoted += 1;
+                }
             }
         }
 
@@ -2450,9 +2483,24 @@ impl super::Study {
         )
         .map_err(CausalError::from)?;
         report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
+        // `report_subsampled_out_mass` reads `unidentified_mass` off the
+        // pre-subsample flags, which still carry every estimation-failure
+        // demotion above as `Unidentified` (the envelope aggregation has no
+        // third state to exclude an atom by). Split that mass back out so a
+        // refusal to estimate is never published as a negative identification
+        // finding.
+        let total_weight = fitted_graphs.total_weight();
+        let unevaluable_mass =
+            if total_weight > 0.0 { unevaluable_weight / total_weight } else { 0.0 };
+        posterior.unevaluable_mass = unevaluable_mass;
+        posterior.unidentified_mass = (posterior.unidentified_mass - unevaluable_mass).max(0.0);
         // The envelope must preserve structural restrictions and disclose this
-        // horizon's unidentified graph mass, independently of other horizons.
-        if posterior.unidentified_mass > 0.0 || posterior.subsampled_out_mass > 0.0 {
+        // horizon's unidentified / unevaluable graph mass, independently of
+        // other horizons.
+        if posterior.unidentified_mass > 0.0
+            || posterior.unevaluable_mass > 0.0
+            || posterior.subsampled_out_mass > 0.0
+        {
             identification.status = IdentificationStatus::GraphDependent;
         }
         posterior.identification = identification.status;
@@ -2462,11 +2510,21 @@ impl super::Study {
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
+        let estimate_demoted = prepare_demoted + fit_demoted + draws_demoted;
+        let mut demotion_summary =
+            identified.identify_demotion.summary(prepare_demoted, fit_demoted, draws_demoted);
+        if let Some(error) = first_estimation_error.as_ref() {
+            demotion_summary.push_str(&format!("; first_estimation_error={error:?}"));
+        }
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            identified.identify_demotion.summary(prepare_demoted, fit_demoted, draws_demoted),
+            if estimate_demoted > 0 {
+                DiagnosticSeverity::Warning
+            } else {
+                DiagnosticSeverity::Info
+            },
+            demotion_summary,
         ));
         let contributing: Vec<&IdentifiedEstimand> =
             refute_atoms.iter().map(|atom| &atom.estimand).collect();
@@ -2480,7 +2538,7 @@ impl super::Study {
             resolve_structural_aggregation(&contributing, any_partial),
             contributing_identified_mass,
             posterior.unidentified_mass,
-            0.0,
+            posterior.unevaluable_mass,
             posterior.subsampled_out_mass,
         );
         diagnostics.push(Diagnostic::new(

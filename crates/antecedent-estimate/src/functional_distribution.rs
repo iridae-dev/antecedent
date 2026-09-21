@@ -1372,6 +1372,7 @@ fn functional_posterior_from_draws(
     let summaries = draws.summarize();
     crate::CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification,
