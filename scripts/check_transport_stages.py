@@ -51,13 +51,16 @@ for route in registry.get("routes", []):
             route.get("stage") == "identify"
             and route.get("guarantee") != "sound_incomplete"
         ):
-            if (
-                name != "antecedent.transport.identify_classical"
-                or route.get("guarantee") != "complete_in_classical_evidence_scope"
-                or route.get("evidence") != "classical_complete_source_experimental_family"
-                or route.get("reference") != "https://arxiv.org/abs/1312.7485v1"
-            ):
-                errors.append(f"{name}: completeness requires the pinned classical evidence scope")
+            pinned = {
+                "antecedent.transport.identify_classical": (
+                    "complete_in_classical_evidence_scope", "classical_complete_source_experimental_family",
+                    "https://arxiv.org/abs/1312.7485v1"),
+                "antecedent.transport.identify_meta": (
+                    "complete_in_classical_meta_evidence_scope", "classical_complete_multi_source_experimental_families",
+                    "https://proceedings.mlr.press/v31/bareinboim13a.pdf"),
+            }
+            if pinned.get(name) != (route.get("guarantee"), route.get("evidence"), route.get("reference")):
+                errors.append(f"{name}: completeness requires its pinned classical evidence scope")
             path, assertion = route.get("conformance_test"), route.get("conformance_assertion")
             if not path or not assertion:
                 errors.append(f"{name}: completeness requires consuming Rust branch conformance")

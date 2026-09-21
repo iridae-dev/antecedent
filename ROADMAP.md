@@ -798,32 +798,42 @@ identification but cannot claim a licensed interval.
 **Owner:** identify transport, expression bindings, estimate orchestration.
 **Depends on:** validated T3–T4; T6 for inferential claims.
 
-- [ ] Choose and document the initial multi-source theorem/subset, query scope,
+- [x] Choose and document the initial multi-source theorem/subset, query scope,
       and experimental information assumptions. Publish soundness/completeness
       claims only for that setting, with explicit unsupported catalog patterns.
-- [ ] Implement source-specific selection reasoning and assembly of target
+- [x] Implement source-specific selection reasoning and assembly of target
       district/kernel factors from different sources plus target evidence.
       Every substitution needs its own checked invariance/transport premise.
-- [ ] Track factor provenance through recursion, provider choice, inference,
+- [x] Track factor provenance through recursion, provider choice, inference,
       diagnostics, and serialization. A source ID is a scientific dependency,
       not a display annotation.
-- [ ] If several derivations are admissible, use a documented deterministic
+- [x] If several derivations are admissible, use a documented deterministic
       policy or explicit caller selection. Retain selected evidence and search
       status. Do not choose the most favorable estimate after seeing outcomes.
-- [ ] Reuse shared datasets/factors without duplicate evidence counting. Forwarded
+- [x] Reuse shared datasets/factors without duplicate evidence counting. Forwarded
       copies of one study do not become independent evidence. Different formulas
       for one estimand do not automatically license averaging their estimates.
-- [ ] Freeze a complementary-source fixture where combined evidence identifies
+- [x] Freeze a complementary-source fixture where combined evidence identifies
       the target effect and each source alone does not. Establish the latter
       with theorem-scoped witnesses or a cited construction, not merely failure
       of the implemented search. Execute the combined formula against exact SCM
       truth and with licensed statistical providers.
-- [ ] Add source-ablation, source permutation, irrelevant-source, wrong-population,
+- [x] Add source-ablation, source permutation, irrelevant-source, wrong-population,
       and conflicting-selection cases. A failure under one source does not
       terminate search before another licensed source can supply the factor.
-- [ ] For disagreeing evidence, report the affected factors and declared
+- [x] For disagreeing evidence, report the affected factors and declared
       assumptions; optional discrepancy checks do not decide which source is
       causally valid. Do not silently pool incompatible studies.
+
+**Implementation and exact-validation evidence:**
+[architecture and branch-to-test mapping](docs/architecture/transport-meta-grid.md),
+`crates/antecedent-identify/tests/meta_transport_scm.rs`, and
+`python/tests/test_transport_meta_grid.py`. The fixtures include source-alone
+checked obstructions, source permutation/ablation, alternative binding, dataset
+aliases, exact laws, and bounded paired-bootstrap execution.
+
+- [ ] Run and review full multi-source calibration; bind accepted coverage records.
+      The bounded deterministic sampling fixtures are not coverage measurements.
 
 **Done when:** the combined-source fixture has a checked derivation, exact target
 law, correct sampling uncertainty, and faithful artifacts. Removing a required
@@ -841,27 +851,36 @@ limited-experiment result; that broader claim has its own follow-on gate.
 **Owner:** existing response query/functional types, expression execution,
 transport results. **Depends on:** T4–T7.
 
-- [ ] Execute a finite discrete treatment grid with stable named coordinates;
+- [x] Execute a finite discrete treatment grid with stable named coordinates;
       include joint intervention grids only where the declared identification
       and experiment regimes license them. Never infer joint experimental support
       from separate single-treatment regimes.
-- [ ] Preserve the requested target response and target distribution; derive
+- [x] Preserve the requested target response and target distribution; derive
       two-point contrasts as explicit transformations instead of replacing curves.
-- [ ] Reuse a structural derivation over values only if its premises cover the
+- [x] Reuse a structural derivation over values only if its premises cover the
       requested grid. Check evidence value coverage and empirical support at each
       coordinate; record grid-local failures without silently deleting points.
-- [ ] Reuse common factors and joint resampling across the grid. Implement and
+- [x] Reuse common factors and joint resampling across the grid. Implement and
       calibrate a finite-family simultaneous-band method before claiming bands;
       otherwise label licensed intervals pointwise. Changing the family changes
       the relevant inference identity and calibration obligation.
-- [ ] Return factor-level support maps, denominator diagnostics, and selection/
+- [x] Return factor-level support maps, denominator diagnostics, and selection/
       treatment overlap where applicable. Clearly distinguish assumed population
       positivity from its imperfect empirical diagnostics.
-- [ ] License mean responses first. Additional existing response functionals
+- [x] License mean responses first. Additional existing response functionals
       need explicit transport evaluator and uncertainty rows; the availability
       of a distribution does not auto-license quantile inference or derivatives.
-- [ ] Refuse continuous point interventions under the finite-discrete provider
+- [x] Refuse continuous point interventions under the finite-discrete provider
       contract; do not reinterpret a numeric treatment silently as bins.
+
+**Implementation and exact-validation evidence:** retained exact/statistical
+response grids, joint-regime coverage, per-point support diagnostics and artifact
+round trips are consumed by `python/tests/test_transport_meta_grid.py` and
+`crates/antecedent/src/analysis/transport_grid.rs`. Intervals are pointwise;
+simultaneous bands, quantile inference and derivatives remain unlicensed.
+
+- [ ] Run and review full response-grid/contrast calibration; bind accepted
+      coverage records. T8's calibration-dependent completion gate remains open.
 
 **Done when:** a transported curve agrees with exact target SCM responses at
 all supported points, retains a deliberate unsupported point, and passes the
@@ -872,28 +891,34 @@ claimed pointwise/simultaneous calibration. Contrasts retain joint covariance.
 **Owner:** existing core identities/claims, IO transport wire/contract section,
 Python retained products. **Depends on:** each new T1–T8 payload as it lands.
 
-- [ ] Version evidence catalogs, regimes, derivations/witnesses, expressions,
+- [x] Version evidence catalogs, regimes, derivations/witnesses, expressions,
       provider contracts, factor diagnostics, and result payloads using existing
       artifact versioning. Do not assume package and artifact versions coincide.
-- [ ] Bind result claims to target, population assumptions, graph/evidence
+- [x] Bind result claims to target, population assumptions, graph/evidence
       identity, verified functional, provider/inference identity, snapshot vector,
       and applicable coverage records. A changed source snapshot changes execution.
-- [ ] Verify expression leaves against their catalog and derivation on load or
+- [x] Verify expression leaves against their catalog and derivation on load or
       semantic acceptance. Require unique IDs, resolvable references, valid graph
       coordinates, acyclic derivation ancestry, and matching enclosing query.
-- [ ] Migrate historical conservative certificates to `NotCertified`, never
+- [x] Migrate historical conservative certificates to `NotCertified`, never
       proven non-transportable. A legacy flat experiment list cannot acquire
       invented joint regimes or measurement availability during migration;
       preserve a legacy-scoped record or require explicit rebinding to execute.
-- [ ] Preserve missing raw data/provider references honestly. A consumer may
+- [x] Preserve missing raw data/provider references honestly. A consumer may
       store or verify an artifact without being able to rerun its estimator.
       Declare which verification requires graph inputs, tables, or linked data.
-- [ ] Retain the independent-consume and loss-receipt contracts for unknown
+- [x] Retain the independent-consume and loss-receipt contracts for unknown
       required features, unsupported inference, omitted covariance/draws, and
       scalar-only exports. A forwarded scalar cannot recover source lineage.
-- [ ] Freeze Rust → Python → artifact → independent Rust/Python round trips for
+- [x] Freeze Rust → Python → artifact → independent Rust/Python round trips for
       positive, negative, computational, support, and partial-grid outcomes.
       Test tampered population, regime, selection target, witness, and table axes.
+
+**Consuming evidence:** native semantic-tampering tests in
+`crates/antecedent-io/src/transport_certificate.rs` and
+`crates/antecedent/src/analysis/transport_grid.rs`, plus Python positive, negative,
+support-failure and partial-grid round trips. Existing historical exact and
+statistical-v2 regression suites remain authoritative for compatibility.
 
 **Done when:** accepted claims reproduce the same four slots and dependencies
 across languages; corrupt or incomplete claims fail at the appropriate boundary;
