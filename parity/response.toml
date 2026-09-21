@@ -135,7 +135,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
-limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
@@ -144,7 +144,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
-limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]

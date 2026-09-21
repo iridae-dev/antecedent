@@ -93,12 +93,23 @@ for doc in [
         if stale != version:
             fail.append(f"{doc} states package version {stale!r}; canonical is {version!r}")
 
-# Live generated licensed-cell markers belong only on the current cut.
+# Live generated licensed-cell markers belong only on the active documentation
+# cut.  A release-preparation target may be ahead of the package version.
 # Historical notes use frozen markers so a regen cannot overwrite a shipped
 # snapshot (v0.6.1 was rewritten that way while the workspace was still 0.6.1).
 rn_begin = "<!-- generated:support-matrix:licensed:begin -->"
 rn_end = "<!-- generated:support-matrix:licensed:end -->"
-current_notes = Path("docs/release-notes") / f"v{version}.md"
+preparation = Path("docs/release-notes/preparation.toml")
+if preparation.is_file():
+    target = tomllib.loads(preparation.read_text()).get("target_version")
+    if not isinstance(target, str) or not re.fullmatch(r"\d+\.\d+\.\d+", target):
+        fail.append("docs/release-notes/preparation.toml has no valid target_version")
+        target = version
+else:
+    target = version
+current_notes = Path("docs/release-notes") / f"v{target}.md"
+if not current_notes.is_file():
+    fail.append(f"{current_notes}: active documentation release notes missing")
 for path in sorted(Path("docs/release-notes").glob("v*.md")):
     if path.resolve() == current_notes.resolve():
         continue

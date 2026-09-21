@@ -278,7 +278,7 @@ fi
 
 echo "== regenerate support-matrix docs (must be clean) =="
 python3 scripts/generate_support_matrix_docs.py
-VERSION="$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version'])")"
+VERSION="$(python3 -c "import tomllib; from pathlib import Path; p=Path('docs/release-notes/preparation.toml'); d=tomllib.load(open(p,'rb')) if p.is_file() else tomllib.load(open('Cargo.toml','rb'))['workspace']['package']; print(d.get('target_version', d.get('version')))" )"
 if ! git diff --exit-code -- docs/support-matrix.md \
     crates/antecedent/src/support_matrix_data.rs \
     crates/antecedent-io/src/coverage_records_data.rs \

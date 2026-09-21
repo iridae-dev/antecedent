@@ -137,7 +137,15 @@ if caps.is_file():
 # query (or a removed license) can leave the release notes silently stale.
 cargo = tomllib.load(open(root / "Cargo.toml", "rb"))
 version = cargo["workspace"]["package"]["version"]
-notes_path = root / "docs" / "release-notes" / f"v{version}.md"
+preparation = root / "docs" / "release-notes" / "preparation.toml"
+if preparation.is_file():
+    target = tomllib.loads(preparation.read_text()).get("target_version")
+    if not isinstance(target, str) or not re.fullmatch(r"\d+\.\d+\.\d+", target):
+        fail.append("docs/release-notes/preparation.toml has no valid target_version")
+        target = version
+else:
+    target = version
+notes_path = root / "docs" / "release-notes" / f"v{target}.md"
 if not notes_path.is_file():
     fail.append(f"{notes_path}: current release notes missing")
 else:
