@@ -592,7 +592,7 @@ impl IdIdentifier {
 pub(crate) fn validate_distribution_query(
     q: &antecedent_core::InterventionalDistributionQuery,
 ) -> Result<(), IdentificationError> {
-    q.validate().map_err(|e| IdentificationError::msg(format!("invalid distribution query: {e}")))
+    q.validate().map_err(|e| IdentificationError::InvalidQuery { message: e.to_string() })
 }
 
 /// ID is defined for disjoint `Y` and `X` with `Y ≠ ∅`.
@@ -790,9 +790,9 @@ fn id_body(
         // on Y = S_i with X = V \ S_i, line 7 keeps Y ⊆ S ⊆ S′). An empty
         // V \ X would mean Y ⊆ X, where the answer is a point mass at x and
         // never a marginal of the current law, so nothing is emitted for it.
-        return Err(IdentificationError::msg(
-            "general ID invariant violated: outcomes are not disjoint from interventions",
-        ));
+        return Err(IdentificationError::InvariantViolated {
+            message: "general ID: outcomes are not disjoint from interventions",
+        });
     }
 
     if comps.len() > 1 {
@@ -910,7 +910,9 @@ fn id_lines_5_to_7(
         );
     }
 
-    Err(IdentificationError::msg("ID reached inconsistent C-component state"))
+    Err(IdentificationError::InvariantViolated {
+        message: "general ID: no line applies to the current C-component state",
+    })
 }
 
 /// Chain-rule conditionals `P(vi | v_π^{(i-1)})` of the observational marginal
@@ -965,9 +967,9 @@ impl Law {
             let kept: Vec<Factor> =
                 self.factors.iter().filter(|f| s.contains(f.var())).cloned().collect();
             if kept.len() != s.to_dense_ids().len() {
-                return Err(IdentificationError::msg(
-                    "general ID: current law does not cover the requested C-component",
-                ));
+                return Err(IdentificationError::InvariantViolated {
+                    message: "general ID: current law does not cover the requested C-component",
+                });
             }
             return Ok(kept);
         }
@@ -1441,6 +1443,33 @@ mod tests {
             }
             _ => false,
         }
+    }
+
+    /// With ID complete, an `Err` is never a verdict on identifiability, so each remaining
+    /// one carries its own kind: a malformed query, and a broken internal invariant.
+    #[test]
+    fn remaining_errors_are_typed_by_cause() {
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let y = VariableId::from_raw(2);
+        let outcome_intervened =
+            CausalQuery::Distribution(antecedent_core::InterventionalDistributionQuery::new(
+                y,
+                [Intervention::set(y, Value::f64(1.0))],
+            ));
+        let err = id
+            .identify(&prep, &outcome_intervened, &mut IdentificationWorkspace::default())
+            .unwrap_err();
+        assert!(matches!(err, IdentificationError::InvalidQuery { .. }), "{err:?}");
+
+        // A law that lacks a factor for a node of the requested C-component cannot arise
+        // from the recursion; if it did, that is a defect, not an unsupported query.
+        let nodes = prep.admg().node_count();
+        let law = Law { sumset: BitSet::with_len(nodes), factors: Vec::new() };
+        let mut s = BitSet::with_len(nodes);
+        s.insert(DenseNodeId::from_raw(2));
+        let err = law.conditionals(&prep, &s, &full_nodes(nodes)).unwrap_err();
+        assert!(matches!(err, IdentificationError::InvariantViolated { .. }), "{err:?}");
     }
 
     /// Napkin `W -> Z -> X -> Y`, `W <-> X`, `W <-> Y`: line 7 → line 2 → line 6.

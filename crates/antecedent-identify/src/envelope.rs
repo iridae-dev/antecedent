@@ -100,8 +100,9 @@ impl<G> IdentificationEnvelope<G> {
         let mut any_parametric = false;
         let mut any_prior_restricted = false;
         let mut any_partial = false;
-        let mut invariant: Option<IdentifiedEstimand> = None;
+        let mut invariant: Option<(IdentifiedEstimand, Option<String>)> = None;
         let mut invariant_conflict = false;
+        let mut functionals_differ = false;
         for c in &cases {
             // `carries_identified_mass` is the list; this is the split it owns.
             if carries_identified_mass(c.result.status) {
@@ -117,10 +118,15 @@ impl<G> IdentificationEnvelope<G> {
                 any_partial |= matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
                 identified += c.weight.0;
                 if let Some(est) = c.result.estimands.first() {
+                    let form = functional_form(&c.result, est);
                     match &invariant {
-                        None => invariant = Some(est.clone()),
-                        Some(prev) if !estimands_agree(prev, est) => {
+                        None => invariant = Some((est.clone(), form)),
+                        Some((prev, _)) if !roles_agree(prev, est) => {
                             invariant_conflict = true;
+                        }
+                        Some((_, prev_form)) if *prev_form != form => {
+                            invariant_conflict = true;
+                            functionals_differ = true;
                         }
                         _ => {}
                     }
@@ -149,10 +155,16 @@ impl<G> IdentificationEnvelope<G> {
         } else {
             IdentificationStatus::NotIdentified
         };
-        if invariant_conflict {
-            invariant = None;
+        let invariant = if invariant_conflict { None } else { invariant.map(|(est, _)| est) };
+        let mut critical_graph_features = collect_critical_features(&cases, status, unidentified);
+        if functionals_differ {
+            critical_graph_features.push(GraphFeature {
+                kind: Arc::from("completion_functionals_differ"),
+                detail: Arc::from(
+                    "identified cases share their estimand roles but yield different functionals; no single estimand holds across the class",
+                ),
+            });
         }
-        let critical_graph_features = collect_critical_features(&cases, status, unidentified);
         let truncated_completions = cases.iter().filter(|c| case_truncated(c)).count();
         Self {
             invariant,
@@ -205,9 +217,18 @@ pub fn search_truncated(result: &crate::IdentificationResult) -> bool {
     })
 }
 
-/// Class-wide invariant estimands must agree on the functional roles, not just the method tag.
-/// `functional` `ExprIds` live in per-case arenas and are not comparable.
-fn estimands_agree(a: &IdentifiedEstimand, b: &IdentifiedEstimand) -> bool {
+/// Canonical text of a case's functional, the only form comparable across cases:
+/// `functional` `ExprIds` live in per-case arenas. `None` for an estimand that carries no
+/// expression in its arena (role-only estimands).
+fn functional_form(result: &IdentificationResult, estimand: &IdentifiedEstimand) -> Option<String> {
+    ((estimand.functional.raw() as usize) < result.arena.len())
+        .then(|| result.arena.pretty(estimand.functional))
+}
+
+/// Class-wide invariant estimands must agree on the functional roles, not just the method
+/// tag. Roles do not settle it: a general-ID estimand has none, so [`functional_form`] is
+/// compared as well.
+fn roles_agree(a: &IdentifiedEstimand, b: &IdentifiedEstimand) -> bool {
     a.method == b.method
         && a.adjustment_set == b.adjustment_set
         && a.instruments == b.instruments
@@ -354,6 +375,59 @@ mod tests {
             weight: ProbabilityMass(1.0),
         }]);
         assert_eq!(complete.truncated_weight(), 0.0);
+    }
+
+    /// A general-ID estimand has no adjustment set, instruments or mediators: its functional
+    /// is all that distinguishes it. Two completions that are both identified by general ID
+    /// through different functionals share no class-wide estimand.
+    #[test]
+    fn general_id_cases_with_different_functionals_have_no_invariant() {
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let case = |adjust: &[VariableId]| {
+            let mut result = dummy_result(IdentificationStatus::NonparametricallyIdentified);
+            let functional =
+                result.arena.backdoor_mean(t, y, adjust, antecedent_core::Value::f64(1.0));
+            result.estimands = vec![IdentifiedEstimand::new(
+                Arc::from("general.id"),
+                Arc::from([]),
+                Arc::from([]),
+                Arc::from([]),
+                functional,
+                None,
+            )];
+            result
+        };
+        let envelope = |a: &[VariableId], b: &[VariableId]| {
+            IdentificationEnvelope::from_cases(vec![
+                GraphIdentificationCase {
+                    graph: 0u32,
+                    result: case(a),
+                    weight: ProbabilityMass(0.5),
+                },
+                GraphIdentificationCase {
+                    graph: 1u32,
+                    result: case(b),
+                    weight: ProbabilityMass(0.5),
+                },
+            ])
+        };
+
+        let same = envelope(&[z], &[z]);
+        assert_eq!(same.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(same.invariant.is_some());
+
+        let different = envelope(&[z], &[]);
+        assert!(different.invariant.is_none());
+        assert_eq!(different.status, IdentificationStatus::PartiallyIdentified);
+        assert!((different.identified_weight.0 - 1.0).abs() < 1e-12, "both cases stay identified");
+        assert!(
+            different
+                .critical_graph_features
+                .iter()
+                .any(|f| f.kind.as_ref() == "completion_functionals_differ"),
+            "{:?}",
+            different.critical_graph_features
+        );
     }
 
     #[test]
