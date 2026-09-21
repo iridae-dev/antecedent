@@ -119,7 +119,7 @@ def test_response_retains_study_and_exports_own_execution():
 
 
 def test_refusal_retains_description_without_changing_exception_type():
-    with pytest.raises(ant.CausalError) as caught:
+    with pytest.raises(ant.CausalError, match="graph") as caught:
         ant.prepare(sample(), graph=None, query=QUERY)
     report = caught.value.report
     assert report.operation == "prepare"

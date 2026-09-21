@@ -187,5 +187,5 @@ def test_posterior_view_interval_missing_quantiles_raises():
         p_below_zero=None,
         backend=None,
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="no scalar-effect quantiles"):
         view.interval()

@@ -191,6 +191,8 @@ run_ignored antecedent-estimate frontdoor_functional_saturated_ci_coverage
 run_ignored antecedent-estimate frontdoor_functional_arm_linear_ci_coverage
 run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
 run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage
+# Out-of-assumption probe (curvature + heterogeneity): coverage printed, not gated.
+run_ignored antecedent-estimate rd_sharp_hc1_curved_heterogeneous_probe
 # DML / DR-Learner / causal forest: reported_level (0.95) cells on confounded_scm.
 run_ignored antecedent-estimate dml_analytic_ci_coverage
 run_ignored antecedent-estimate dr_learner_analytic_ci_coverage
@@ -277,6 +279,10 @@ run_temporal_class frequentist_temporal_cpdag_identified_set_interval_nominal_90
 run_temporal_class frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage
 run_temporal_class bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage
 run_temporal_class bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage
+# One-sided (at least the band's lower edge): the per-completion construction is
+# conservative by design when one completion is much noisier than the other.
+run_temporal_class frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion
+run_temporal_class bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion
 
 echo "== shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
 run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
@@ -564,6 +570,7 @@ run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_defaul
 run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
 run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
 run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
+run_v110 v110_class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
 
 echo "== 2.0 statistical transport: empirical-table IID bootstrap (antecedent) =="
 run_v20() {

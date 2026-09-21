@@ -127,7 +127,8 @@ fn prepare(
     )?)
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (diagram, functional) = identify()?;
     let ctx = ExecutionContext::for_tests(7);
     let mut means = Vec::new();
@@ -144,4 +145,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!((means[1] - 0.8).abs() < 1e-12);
     println!("means = {means:?}");
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run()
 }

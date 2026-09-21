@@ -44,8 +44,8 @@ use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
-    quantile_interval,
+    CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim,
+    normal_interval, quantile_interval,
 };
 use common::calibration_bind::{bind, bind_all};
 // The laws this suite shares with the `v110` suites live in one owner, so the
@@ -1142,7 +1142,12 @@ fn run_distribution(
 /// `posterior_quantile` interval. Gated at 90% unless `measured` names the
 /// cell's own boundary coverage; the reported 95% interval is scored on the
 /// same replicates and recorded.
-fn distribution_bayesian(test: &'static str, base: f64, seed: u64, measured: Option<f64>) {
+fn distribution_bayesian(
+    test: &'static str,
+    base: f64,
+    seed: u64,
+    measured: Option<[f64; GRID_POINTS]>,
+) {
     let truth = base + 0.015;
     let key = RecordKey { test, dgp: "distribution_data", interval: "posterior_quantile" };
     let mut tally = CoverageTally::for_record(key, LEVEL);
@@ -1174,7 +1179,7 @@ fn distribution_bayesian(test: &'static str, base: f64, seed: u64, measured: Opt
         reported.record(quantile_interval(draws, REPORTED_LEVEL), truth);
     }
     match measured {
-        Some(measured) => tally.assert_boundary(measured),
+        Some(measured) => tally.assert_boundary_at(measured.map(Some)),
         None => tally.assert(),
     }
     reported.emit();
@@ -1191,7 +1196,7 @@ fn interventional_distribution_bayesian_near_one_nominal_90_coverage() {
         "interventional_distribution_bayesian_near_one_nominal_90_coverage",
         0.95,
         33_000,
-        Some(0.861),
+        Some([0.868, 0.861, 0.888]),
     );
 }
 
@@ -1212,8 +1217,10 @@ fn interventional_distribution_bayesian_near_zero_boundary_within_band() {
     );
 }
 
-/// 90% coverage of the near-zero atom measured at 2000 replicates.
-const NEAR_ZERO_MEASURED: f64 = 0.875;
+/// 90% coverage of the near-zero atom at each sample-size grid point; the base
+/// point (index 1) is the 2000-replicate figure above, the others the 400-replicate
+/// gate measurement.
+const NEAR_ZERO_MEASURED: [f64; GRID_POINTS] = [0.835, 0.875, 0.868];
 
 /// Frequentist published interval for `P(Y = 1 | do(t = 1))`: the logit-scale
 /// delta-method interval from the per-atom bootstrap SE, at the estimator's
@@ -1303,8 +1310,9 @@ fn interventional_distribution_frequentist_interior_nominal_95_coverage() {
 // Counterfactual (Bayesian mechanism-refit posterior of the mean ITE)
 // ======================================================================
 
-/// 90% coverage of the mean-ITE credible interval measured at 2000 replicates.
-const MEAN_ITE_MEASURED: f64 = 0.884;
+/// 90% coverage of the mean-ITE credible interval at each sample-size grid point: the
+/// base point (index 1) at 2000 replicates, the others at the gate's 400.
+const MEAN_ITE_MEASURED: [f64; GRID_POINTS] = [0.900, 0.884, 0.885];
 
 /// Measured coverage of the mean-ITE 90% credible interval at 2000 replicates:
 /// 0.884 (1768/2000), below the precision floor 0.887. The mean ITE is the
@@ -1354,7 +1362,7 @@ fn counterfactual_bayesian_mean_ite_boundary_within_band() {
         tally.record(posterior_interval(&result), 11.0);
         reported.record(posterior_interval_at(&result, REPORTED_LEVEL), 11.0);
     }
-    tally.assert_boundary(MEAN_ITE_MEASURED);
+    tally.assert_boundary_at(MEAN_ITE_MEASURED.map(Some));
     reported.emit();
 }
 

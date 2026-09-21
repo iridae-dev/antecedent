@@ -784,8 +784,10 @@ mod tests {
         let graph = Admg::with_variables(3);
         let diagram = SelectionDiagram::try_new(graph, [outcome]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
+        // The c-component factorization identifies this diagram, so a refusal would be a
+        // regression too: a refuse-everything identifier must not pass.
         let TransportIdentification::Transportable { formula, certificate } = &result else {
-            return; // Refusal is also an acceptable answer; the degenerate formula is not.
+            panic!("the c-component factorization identifies this diagram: {result:?}");
         };
         assert_eq!(&*certificate.rule, "transport.sid.singleton_c_components");
         match formula {

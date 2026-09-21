@@ -146,7 +146,7 @@ def test_from_discovery_and_session_guards():
         Cpdag.from_directed_undirected(["t", "y"], [], [("t", "y")]),
         algorithm_id="pc",
     )
-    with pytest.raises((TypeError, CausalValueError)):
+    with pytest.raises(CausalTypeError, match="unsupported query type"):
         cpdag.prepare({"t": [0.0], "y": [1.0]}, query=object())
     with pytest.raises(CausalValueError, match="unsupported AcceptedGraph format"):
         AcceptedGraph.from_json(

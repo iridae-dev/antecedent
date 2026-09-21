@@ -96,7 +96,8 @@ fn batch(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     (TabularData::new(storage), dag, query)
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let (data_a, dag, query) = batch(180, 1);
     let (_, dag_b, _) = batch(180, 2);
     let (data_b, _, _) = batch(180, 2);
@@ -132,4 +133,8 @@ fn main() -> Result<(), CausalError> {
 
     println!("A effect_mean={mean_a:.4} B effect_mean={mean_b:.4} assumptions={assumptions}");
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

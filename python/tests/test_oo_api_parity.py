@@ -112,7 +112,7 @@ def test_refute_true_is_rejected():
     y[0] = 0.0
     for t in range(1, n):
         y[t] = 0.8 * x[t - 1]
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="refute=True is ambiguous"):
         antecedent.analyze(
             {"a": x, "b": y},
             graph=[("a", 1, "b", 0)],

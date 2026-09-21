@@ -1,7 +1,5 @@
 """Empirical-table stages publish licensed pointwise intervals on the common handle."""
 
-from pathlib import Path
-
 import pytest
 from antecedent import Admg, load, prepare
 from antecedent.transport import advanced as transport
@@ -102,15 +100,6 @@ def test_unknown_dependence_keeps_identification_and_withholds_interval():
     assert result.uncertainty["reason"] == "transport.unsupported_dependence"
 
 
-def test_statistical_walkthrough_example():
-    import runpy
-
-    runpy.run_path(
-        str(Path(__file__).resolve().parents[2] / "examples/python/transport_statistical.py"),
-        run_name="__main__",
-    )
-
-
 @pytest.mark.parametrize("level", [0.0, 1.0, -0.1, float("nan"), float("inf")])
 def test_invalid_coverage_is_rejected_during_prepare(level):
     identified, catalog, data = fixture()
@@ -133,7 +122,7 @@ def test_statistical_native_authority_identity_and_load_round_trip():
     assert loaded.inspect().execution_id == result.inspect().execution_id
     assert loaded.export() == result.export()
     assert result.uncertainty["row"]["calibration_status"] == "not_bound_to_this_execution"
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="does not support item assignment"):
         data.samples[0].columns["y"] = ()
     larger = replace(data.samples[0], columns={"y": data.samples[0].columns["y"] * 2})
     second = transport.prepare_statistical(

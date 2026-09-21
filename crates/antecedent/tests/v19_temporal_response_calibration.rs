@@ -966,7 +966,7 @@ fn frequentist_intervention_coverage(
     test: &'static str,
     rho: f64,
     seed_base: u64,
-    measured: Option<[f64; 2]>,
+    measured: Option<[[f64; GRID_POINTS]; 2]>,
     at: Option<&[[Option<f64>; GRID_POINTS]]>,
 ) {
     let shift = 0.5;
@@ -999,7 +999,7 @@ fn frequentist_intervention_coverage(
         (None, None) => assert_all(&boot.all()),
         (Some(measured), None) => {
             for (cell, measured) in boot.cells.iter().zip(measured) {
-                cell.assert_boundary(measured);
+                cell.assert_boundary_at(measured.map(Some));
             }
             assert_all(&[boot.simultaneous.clone()]);
         }
@@ -1043,9 +1043,11 @@ fn frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_
     );
 }
 
-/// Pointwise coverage of the AR(1) shift response at h = 1 and h = 2, measured
-/// at 2000 replicates.
-const AR1_SHIFT_MEASURED: [f64; 2] = [0.940, 0.9355];
+/// Pointwise coverage of the AR(1) shift response at h = 1 and h = 2 at each
+/// sample-size grid point: the base point (index 1) at 2000 replicates, the other
+/// two at the gate's 400.
+const AR1_SHIFT_MEASURED: [[f64; GRID_POINTS]; 2] =
+    [[0.9385, 0.940, 0.944], [0.9395, 0.9355, 0.9435]];
 
 /// Two-step Sequence `Set(T@-2 := 0.5)` then `Set(T@-1 := 1)` over horizons 1 and 2.
 fn two_step_sequence() -> Intervention {

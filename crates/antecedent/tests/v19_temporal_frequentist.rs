@@ -35,8 +35,8 @@ use antecedent_data::TimeSeriesData;
 use antecedent_estimate::CircularBlockFamily;
 use antecedent_graph::TemporalDag;
 use common::calibration::{
-    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point, n_sim,
-    normal_interval, smoke,
+    BASE_GRID_POINT, CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n,
+    grid_point, n_sim, normal_interval, smoke,
 };
 use common::calibration_bind::bind_all;
 use common::driven_dgp::{
@@ -177,12 +177,12 @@ fn gate_at(coverage: Coverage, measured: [Option<f64>; 3]) {
 
 /// Named boundary cell: a design whose interval measures below the gate's
 /// precision floor at 2000 replicates (the mechanism is named at the test);
-/// every contrast is asserted against the band around `measured`, and the
-/// short-series warning rate is reported.
-fn boundary_gate(coverage: Coverage, measured: f64) {
+/// every contrast is asserted against the band around `measured` (one value per
+/// grid point), and the short-series warning rate is reported.
+fn boundary_gate(coverage: Coverage, measured: [f64; GRID_POINTS]) {
     eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
     for tally in &coverage.tallies {
-        tally.assert_boundary(measured);
+        tally.assert_boundary_at(measured.map(Some));
     }
     for tally in &coverage.reported {
         tally.emit();
@@ -580,7 +580,7 @@ effect_boundary_gate!(
     pulse(2),
     ALPHA * DELTA,
     0,
-    0.885
+    [0.885, 0.885, 0.860]
 );
 
 effect_gate!(
@@ -606,7 +606,7 @@ effect_boundary_gate!(
     single_sustained(),
     BETA,
     50_000,
-    0.880
+    [0.885, 0.880, 0.873]
 );
 effect_gate!(
     temporal_dag_sustained_ar09_n400_nominal_90_coverage,

@@ -25,7 +25,8 @@ use antecedent_data::{
 };
 use antecedent_graph::ensure_lagged;
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let n = 400usize;
     let mut pressure = vec![0.0; n];
     let mut defect = vec![0.0; n];
@@ -109,4 +110,8 @@ fn main() -> Result<(), CausalError> {
     );
     assert!((result.estimate.ate - 0.9).abs() < 0.05, "ate={}", result.estimate.ate);
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

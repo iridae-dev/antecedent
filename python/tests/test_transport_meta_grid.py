@@ -339,44 +339,6 @@ def test_bounded_multisource_calibration_fixture(parameter):
     assert contrast["interval"][0] <= contrast["interval"][1]
 
 
-@pytest.mark.skipif(
-    __import__("os").environ.get("ANTECEDENT_RUN_META_CALIBRATION") != "1",
-    reason="Long calibration deferred; explicitly opt in",
-)
-def test_deferred_multisource_grid_calibration():
-    import json
-    import os
-
-    replications = int(os.environ.get("ANTECEDENT_META_CALIBRATION_REPLICATIONS", "1000"))
-    records = []
-    for parameter in (0, 1):
-        hits = [0, 0, 0]
-        available = [0, 0, 0]
-        for replicate in range(replications):
-            result, truth = calibration_case(10000 + replicate, parameter, bootstrap=199)
-            intervals = [
-                dict((row[0], row[1:]) for row in point["uncertainty"]["mean_intervals"])["y"]
-                for point in result.points
-            ]
-            intervals.append(result.contrast(1, 0, "y")["interval"])
-            for index, (interval, target) in enumerate(
-                zip(intervals, [*truth, truth[1] - truth[0]], strict=True)
-            ):
-                if interval is not None:
-                    available[index] += 1
-                    hits[index] += int(interval[0] <= target <= interval[1])
-        records.append(
-            {
-                "parameter": parameter,
-                "replications": replications,
-                "covered": hits,
-                "available": available,
-                "status": "candidate_measurement_requires_review_and_coverage_registry_binding",
-            }
-        )
-    print(json.dumps(records, sort_keys=True))
-
-
 def test_joint_regimes_do_not_come_from_separate_experiments():
     graph = Admg.from_edges(
         ["x", "w", "y"], [("x", "y"), ("w", "y")], bidirected=[("x", "y"), ("w", "y")]

@@ -102,11 +102,12 @@ a record that failed at any point is `scope_not_assessed` /
 coverage; outside the range it is `scope_not_assessed` /
 `sample_size_outside_measured_range`. Nothing is extrapolated.
 
-A named boundary asserts its measured coverage at the base point with
-`CoverageTally::assert_boundary(m)` and is recorded, not gated, at the other
-points; once those points are measured, `assert_boundary_at([m0, m1, m2])`
-holds each point to its own value (`None` gates a point at nominal). A gated
-design that fails at one point is named the boundary it measures the same way.
+A named boundary asserts its measured coverage at every grid point with
+`CoverageTally::assert_boundary_at([Some(m0), Some(m1), Some(m2)])`, so a
+regression at any point fails (`None` gates a point at nominal). The values come
+from the gate's own deterministic seeds: the band is a change detector around
+the measured level, not a claim about the true coverage. A gated design that
+fails at one point is named the boundary it measures the same way.
 
 A wiring smoke run (`ANTECEDENT_CALIBRATION_SMOKE=1` with a small
 `ANTECEDENT_CALIBRATION_NSIM`) never gates and flags its lines

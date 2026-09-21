@@ -79,14 +79,14 @@ def test_positional_prefix_still_works(cls, positional, kind, extra):
 def test_extra_positional_raises_type_error(cls, positional, kind, extra):
     """Anything past the identifier prefix is keyword-only: one extra positional arg fails."""
     del kind, extra
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="positional argument"):
         cls(*positional, "unexpected_extra_positional")
 
 
 @pytest.mark.parametrize("cls, positional, kind, extra", _CASES, ids=_IDS)
 def test_kind_not_accepted_as_init_kwarg(cls, positional, kind, extra):
     """``kind`` is a discriminator (``init=False``); a caller can never set it."""
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument .kind."):
         cls(*positional, kind=kind, **extra)
 
 
@@ -107,7 +107,7 @@ def test_mediation_effect_mediators_is_keyword_only_and_required():
     q = MediationEffect("t", "y", mediators=["m1", "m2"], contrast="direct")
     assert list(q.mediators) == ["m1", "m2"]
     assert q.contrast == "direct"
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="missing 1 required .*argument: .mediators."):
         MediationEffect("t", "y")  # mediators is required, no default
 
 

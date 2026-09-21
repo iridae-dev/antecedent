@@ -14,17 +14,39 @@ use std::sync::Arc;
 
 #[test]
 fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
-    let t: Vec<_> = (0..800).map(|i| 0.05 + 0.9 * f64::from(i) / 799.0).collect();
-    let y: Vec<_> = t.iter().map(|t| 1.0 + 2.0 * t).collect();
-    let r: Vec<_> = (0..800).map(|i| f64::from(i % 2)).collect();
-    let s: Vec<_> = (0..800).map(|i| f64::from(i).sin()).collect();
-    let v: Vec<_> = (0..800).map(|i| f64::from(i).cos()).collect();
+    // `r -> t`, a measured confounder `z -> t, z -> y`, and `y = 1 + 2t + 1.5z`. The
+    // sample mean of `z` is exactly 0, so every certified functional equals the
+    // structural value only when `z` is in the adjustment set; the crude slope of `y`
+    // on `t` is far from 2, so an empty or partial set cannot pass.
+    let z: Vec<_> = (0..800).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+    let r: Vec<_> = (0..800).map(|i| f64::from((i / 2) % 2)).collect();
+    let t: Vec<_> = (0..800)
+        .map(|i| {
+            let jitter = f64::from((i * 7919) % 101) / 101.0 * 0.1 - 0.05;
+            0.5 + 0.2 * z[i as usize] + 0.15 * (r[i as usize] - 0.5) + jitter
+        })
+        .collect();
+    let y: Vec<_> = t.iter().zip(&z).map(|(t, z)| 1.0 + 2.0 * t + 1.5 * z).collect();
+    let v: Vec<_> = (0..800).map(|i| f64::from(i).sin()).collect();
+    let w: Vec<_> = (0..800).map(|i| f64::from(i).cos()).collect();
+    let crude_slope = {
+        let n = t.len() as f64;
+        let (mt, my) = (t.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+        let cov: f64 = t.iter().zip(&y).map(|(t, y)| (t - mt) * (y - my)).sum();
+        let var: f64 = t.iter().map(|t| (t - mt).powi(2)).sum();
+        cov / var
+    };
+    assert!(
+        crude_slope > 2.5,
+        "the confounder must bias the crude slope by more than 0.5: {crude_slope}"
+    );
     let data = TabularData::from_f64_columns([
         ("t", t.as_slice()),
         ("y", y.as_slice()),
         ("r", r.as_slice()),
-        ("s", s.as_slice()),
+        ("z", z.as_slice()),
         ("v", v.as_slice()),
+        ("w", w.as_slice()),
     ])
     .unwrap();
     let t = VariableId::from_raw(0);
@@ -57,11 +79,13 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
         ),
     ];
     for mixed in [false, true] {
-        let mut pag = Pag::with_variables(5);
+        let mut pag = Pag::with_variables(6);
         pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap();
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         if mixed {
-            pag.insert_circle_circle(DenseNodeId::from_raw(3), DenseNodeId::from_raw(4)).unwrap();
+            pag.insert_circle_circle(DenseNodeId::from_raw(4), DenseNodeId::from_raw(5)).unwrap();
         }
         for accepted in [false, true] {
             for bayesian in [false, true] {
@@ -106,7 +130,7 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
                         assert_eq!(values.len(), expected.len());
                         for (value, target) in values.iter().zip(expected) {
                             assert!(
-                                (value - target).abs() < 0.05,
+                                (value - target).abs() < 0.02,
                                 "{query:?}: {value} vs {target}"
                             );
                         }

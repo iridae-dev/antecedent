@@ -38,7 +38,8 @@ fn confounded_scm(n: usize) -> (TabularData, Dag) {
     (data, dag)
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let (data, dag) = confounded_scm(500);
     let control = 0.2;
     let active = 0.8;
@@ -95,4 +96,8 @@ fn main() -> Result<(), CausalError> {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
     assert_eq!(cf.unit_effects.len(), 500);
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

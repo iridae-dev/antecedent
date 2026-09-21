@@ -80,12 +80,28 @@ select = [
   "UP",  # pyupgrade
   "B",   # bugbear
   "SIM", # simplify
+  "PT011", # pytest.raises on a broad class must pin the message with match=
 ]
 ignore = [
   "E501", # line length handled by formatter / existing style
 ]
 
+[tool.ruff.lint.flake8-pytest-style]
+# A bare `pytest.raises(ValueError)` passes for any error of that class, including an
+# unrelated TypeError from a wrong keyword. Causal* refusals are pinned by asserting the
+# caught error's `reason_code` instead (tests/_refusal.py).
+raises-require-match-for = ["Exception", "ValueError", "TypeError"]
+
 [tool.ruff.lint.per-file-ignores]
+# Sites whose expected message comes from the Rust runtime and is not yet pinned. The list
+# only shrinks: a new bare `pytest.raises` on these classes fails lint everywhere else.
+"tests/test_analysis_workflow.py" = ["PT011"]
+"tests/test_compiler_consistency.py" = ["PT011"]
+"tests/test_learned_transport.py" = ["PT011"]
+"tests/test_transport_exact.py" = ["PT011"]
+"tests/test_transport_meta_grid.py" = ["PT011"]
+"tests/test_transport_status_honesty.py" = ["PT011"]
+"tests/test_v13_staged.py" = ["PT011"]
 "antecedent/**/*.pyi" = [
   "F401", # re-export stubs
   "F403", # star-import stubs

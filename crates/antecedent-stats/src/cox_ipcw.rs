@@ -241,6 +241,10 @@ mod tests {
         let beta: Vec<_> =
             pin["coefficients"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect();
         let atol = pin["atol"].as_f64().unwrap();
+        // `zip` truncates to the shorter side: pin the lengths so a short fit cannot pass.
+        assert_eq!(fit.coefficients.len(), beta.len());
+        assert_eq!(fit.survival_before.len(), nums("survival").len());
+        assert_eq!(fit.weights.len(), nums("weight").len());
         for (got, want) in fit
             .coefficients
             .iter()

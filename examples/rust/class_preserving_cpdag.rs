@@ -33,7 +33,8 @@ fn node(schema: &CausalSchema, name: &str) -> Result<DenseNodeId, CausalError> {
     Ok(DenseNodeId::from_raw(schema.id_of(name)?.raw()))
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let (t, y, z) = confounded(200);
     let schema = schema()?;
     let data = TabularData::try_from_schema_f64(
@@ -49,6 +50,7 @@ fn main() -> Result<(), CausalError> {
         &CausalQuery::AverageEffect(query.clone()),
     )?;
     println!("partial status = {:?}", identified.status());
+    assert_eq!(format!("{:?}", identified.status()), "PartiallyIdentified");
 
     let result = Study::tabular(data)
         .graph(partial)
@@ -58,9 +60,17 @@ fn main() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(1))?;
     println!("partial effect = {:.4}", result.effect());
+    // The two completions disagree: Z -> T adjusts for Z (effect 2), T -> Z is the crude
+    // contrast (2 + 3 * (E[z | t=1] - E[z | t=0]) = 3.5). Equal weights give their mean.
+    assert!((result.effect() - 2.75).abs() < 1e-6, "envelope mean {}", result.effect());
 
     let oriented = Cpdag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")])?;
     let point = identify(&AcceptedGraph::from(oriented), &CausalQuery::AverageEffect(query))?;
     println!("oriented status = {:?}", point.status());
+    assert_eq!(format!("{:?}", point.status()), "NonparametricallyIdentified");
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

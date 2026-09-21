@@ -50,8 +50,8 @@ use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
-    quantile_interval, unit_uniform,
+    CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim,
+    normal_interval, quantile_interval, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
@@ -412,10 +412,11 @@ impl FreqTally {
         self.reported.emit();
     }
 
-    /// Named boundary cell: assert the band around its measured coverage.
-    fn assert_boundary(&self, measured: f64) {
+    /// Named boundary cell: assert the band around its measured coverage at each
+    /// grid point (index 1 is the base point).
+    fn assert_boundary(&self, measured: [f64; GRID_POINTS]) {
         self.report();
-        self.tally.assert_boundary(measured);
+        self.tally.assert_boundary_at(measured.map(Some));
         self.reported.emit();
     }
 }
@@ -611,7 +612,7 @@ fn frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band() {
         400,
         31_000,
     )
-    .assert_boundary(0.879);
+    .assert_boundary([0.863, 0.879, 0.913]);
 }
 frequentist_dbn_ar1!(
     frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage,
@@ -736,7 +737,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 }
 
 /// Boundary cell, not a nominal one. The two-completion `TemporalCpdag` Pulse
-/// at ρ = 0.9, n = 400 measures `CPDAG_RHO09_MEASURED` over 2000 replicates on
+/// at ρ = 0.9, n = 400 measures `CPDAG_RHO09_MEASURED[1]` over 2000 replicates on
 /// this seed stream (0.890 and 0.905 on two other streams,
 /// `docs/short-series-thresholds.md`), at or below the gate's precision
 /// floor: the non-causal completion omits a persistent confounder, and its
@@ -746,7 +747,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 /// on about three quarters of its replicates. The assertion is the band around
 /// the measured coverage: it guards against a regression below (or a silent
 /// change above) that level; a pass does not show nominal coverage.
-const CPDAG_RHO09_MEASURED: f64 = 0.885;
+const CPDAG_RHO09_MEASURED: [f64; GRID_POINTS] = [0.875, 0.885, 0.910];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]

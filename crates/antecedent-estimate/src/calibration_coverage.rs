@@ -218,21 +218,21 @@ impl Tally {
         );
     }
 
-    /// Assert a named boundary cell against its *measured* coverage
-    /// (`measured ± 3·MCSE`), and record it as a boundary. For a cell whose
+    /// Assert a named boundary cell against its *measured* coverage at each
+    /// sample-size grid point (`measured ± 3·MCSE`), and record it as a boundary. For a cell whose
     /// precise measurement sits below the precision floor: the gate guards the
     /// measured level instead of claiming a nominal one.
     ///
     /// # Panics
     ///
     /// When no replicate scored, or coverage leaves the measured band.
-    fn assert_boundary(&self, label: &str, measured: f64) {
+    fn assert_boundary(&self, label: &str, measured: [f64; 3]) {
         assert!(self.scored > 0, "{label}: no replicates scored");
         self.report(label);
         let Some((tally, _)) = self.record.as_ref() else {
             panic!("{label}: a boundary cell needs a record tally")
         };
-        tally.assert_boundary(measured);
+        tally.assert_boundary_at(measured.map(Some));
     }
 
     /// Per-grid-point named boundary. `Some(m)` holds that point to `m`;
@@ -644,7 +644,10 @@ fn aipw_att_hc1_ci_coverage() {
 /// 0.939, just under the one-sided precision floor (0.940). The ATE and ATT
 /// cells on the same law and the same branch cover 0.948 and 0.958, so this is
 /// the untreated arm's finite-sample shortfall at n = 600, not the branch's.
-const AIPW_ATC_HC1_MEASURED: f64 = 0.939;
+///
+/// One value per sample-size grid point: the base point (index 1) is the 2000-replicate
+/// figure above, the others the gate's 400-replicate measurement.
+const AIPW_ATC_HC1_MEASURED: [f64; 3] = [0.9575, 0.939, 0.9575];
 
 /// Boundary cell, not a nominal one: the assertion is the band around
 /// [`AIPW_ATC_HC1_MEASURED`], and the record it emits is a boundary, so an

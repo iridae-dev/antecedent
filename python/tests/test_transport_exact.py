@@ -467,13 +467,3 @@ def test_catalog_diagnostics_distinguish_missing_evidence_and_future_experiments
     assert not report["finite_catalog_complete"]
     assert report["future_experiments"] == ["future"]
     assert report["missing_factors"]
-
-
-def test_source_snapshot_walkthrough_example():
-    import runpy
-    from pathlib import Path
-
-    runpy.run_path(
-        str(Path(__file__).resolve().parents[2] / "examples/python/transport_exact.py"),
-        run_name="__main__",
-    )

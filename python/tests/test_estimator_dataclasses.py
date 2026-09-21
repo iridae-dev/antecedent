@@ -364,9 +364,9 @@ def test_frontdoor_two_stage_has_no_multiway_or_panel_fields():
     # frontdoor.linear_two_stage's Rust struct only carries cluster_ids (no multiway/panel_times
     # SE machinery); passing those as kwargs must be a plain TypeError (unknown field),
     # not a silently-accepted-then-ignored value.
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument .multiway_ids."):
         FrontdoorLinearTwoStage(multiway_ids=[[0, 1]])  # type: ignore[call-arg]
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument .panel_times."):
         FrontdoorLinearTwoStage(panel_times=[0, 1])  # type: ignore[call-arg]
     cfg = FrontdoorLinearTwoStage(se="cluster", cluster_ids=[0, 1, 2])
     assert cfg._wire() == {"se_kind": "cluster", "cluster_ids": [0, 1, 2]}
@@ -444,7 +444,7 @@ def test_ridge_and_huber_do_not_carry_the_lasso_se_restriction():
 
 
 def test_lasso_with_se_raises_and_explains_why():
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(ValueError, match="permanently omitted") as exc:
         LinearAdjustment(fit="lasso", fit_lambda=0.1, se="hc0")
     message = str(exc.value)
     # Names the offending field...
@@ -540,7 +540,7 @@ def test_glm_options_full_wire_and_nesting_in_glm_adjustment():
 def test_propensity_weighting_only_exposes_bootstrap_and_glm_options():
     cfg = PropensityWeighting(bootstrap=10, glm_options=GlmOptions(max_iter=5))
     assert cfg._wire() == {"bootstrap_replicates": 10, "glm_options": {"max_iter": 5}}
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument .se."):
         PropensityWeighting(se="cluster")  # type: ignore[call-arg]
 
 

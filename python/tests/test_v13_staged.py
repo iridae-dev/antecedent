@@ -10,6 +10,7 @@ from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.identify import identify
 
+from _refusal import assert_registered_refusal
 from _repo_text import load_json
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -240,7 +241,7 @@ def test_static_mediation_refuter_pin():
 
 
 def test_new_derivative_boundaries():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Elasticity.at must be positive"):
         ac.Elasticity("a", "y", at=-0.5)
     data, graph = fixture()
     for query, config in [
@@ -422,8 +423,9 @@ def test_static_mediation_recanting_witness_refuses():
     data = {"a": np.sin(i), "l": np.cos(i), "m": np.sin(0.3 * i), "y": np.cos(0.2 * i)}
     graph = ac.Dag.from_edges(list(data), [("a", "l"), ("l", "m"), ("l", "y"), ("m", "y")])
     query = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_indirect")
-    with pytest.raises(ac.CausalError):
+    with pytest.raises(ac.CausalError) as caught:
         PreparedAnalysis.prepare(data, graph=graph, query=query)
+    assert_registered_refusal(caught.value)
 
 
 def test_v13_named_refusals():
