@@ -712,6 +712,35 @@ def render_allowed_rules(rules: list[dict]) -> str:
     return ",\n".join(items) if items else ""
 
 
+def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
+    """Estimator wire-ids whose evidence ran for this geometric cell.
+
+    Prefer an explicit `estimators` list on the licensed row. Otherwise join
+    the estimator recorded for this coordinate in `parity/licensed_routes.toml`
+    (the plan each licensed-compiler evidence run actually executed). Never
+    invent an estimator that neither source names.
+    """
+    named = row.get("estimators")
+    if isinstance(named, list):
+        out = [str(x) for x in named if isinstance(x, str) and x.strip()]
+        if out:
+            return out
+    route = routes.get(external_evidence.coordinate(row))
+    if route is None:
+        return []
+    est = route.get("estimator")
+    if isinstance(est, str) and est.strip():
+        return [est]
+    return []
+
+
+def rust_str_list(values: list[str]) -> str:
+    if not values:
+        return "&[]"
+    inner = ", ".join(f'"{rust_escape(v)}"' for v in values)
+    return f"&[{inner}]"
+
+
 def render_rust(
     na_rules: list[dict],
     closed_rules: list[dict],
@@ -721,8 +750,10 @@ def render_rust(
     na_block = render_rules(na_rules)
     closed_block = render_rules(closed_rules)
     allowed_block = render_allowed_rules(allowed_rules)
+    routes = external_evidence.routes()
     lic_items = []
     for row in cells:
+        estimators = cell_estimators(row, routes)
         lic_items.append(
             "    LicensedCell {\n"
             f'        query: "{rust_escape(row["query"])}",\n'
@@ -730,6 +761,7 @@ def render_rust(
             f'        structure: "{rust_escape(row["structure"])}",\n'
             f'        inference: "{rust_escape(row["inference"])}",\n'
             f'        validation: "{rust_escape(row["validation"])}",\n'
+            f"        estimators: {rust_str_list(estimators)},\n"
             "    }"
         )
     lic_block = ",\n".join(lic_items) if lic_items else ""
@@ -766,6 +798,8 @@ pub struct LicensedCell {{
     pub structure: &'static str,
     pub inference: &'static str,
     pub validation: &'static str,
+    /// Estimator wire-ids whose evidence ran for this geometric cell.
+    pub estimators: &'static [&'static str],
 }}
 
 pub static NA_RULES: &[NaRule] = &[

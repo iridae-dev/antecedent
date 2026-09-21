@@ -11,6 +11,12 @@
 //! older artifacts and clients, but the 0.9 gate requires
 //! `parity/support_allowlist.toml` to have zero active entries. Any refused
 //! cell without a reason uses the shared default-refusal message.
+//!
+//! Geometric [`classify`] keys on the five-tuple cell. [`classify_estimator`]
+//! additionally requires the concrete [`EstimatorId`] to appear on that cell's
+//! evidence list (`LicensedCell::estimators`), so matching / IV / RD / forest /
+//! two-stage front-door cannot inherit a license whose calibration never ran
+//! them.
 
 use antecedent_core::{
     CausalQuery, DerivativeScale, LicensedNeighbor, PremiseChange, ResponseFunctional,
@@ -23,6 +29,7 @@ use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::strategy_table::EstimatorId;
 use crate::support_matrix_data::{ALLOWED_RULES, CLOSED_RULES, LICENSED, NA_RULES};
 
 /// Stable support-matrix refusal id.
@@ -202,6 +209,47 @@ pub fn classify(cell: SupportCell) -> CellStatus {
         return CellStatus::Licensed;
     }
     CellStatus::Refused
+}
+
+/// Estimator wire-ids whose evidence ran for this geometric cell.
+///
+/// Empty when the cell is not licensed, or when the licensed row named no
+/// estimator (do not guess one).
+#[must_use]
+pub fn licensed_estimators(cell: SupportCell) -> &'static [&'static str] {
+    LICENSED
+        .iter()
+        .find(|row| {
+            row.query == cell.query
+                && row.graph_class == cell.graph_class
+                && row.structure == cell.structure
+                && row.inference == cell.inference
+                && row.validation == cell.validation
+        })
+        .map(|row| row.estimators)
+        .unwrap_or(&[])
+}
+
+/// Classify `cell` for a concrete estimator.
+///
+/// [`CellStatus::Licensed`] only when the geometric cell is licensed and the
+/// row's evidence list contains `estimator`. Otherwise [`CellStatus::Refused`]
+/// (or the geometric n/a status). Never returns [`CellStatus::Allowlisted`]:
+/// that status is historical compatibility only, and unmeasured estimators
+/// must not ride it to stay runnable.
+#[must_use]
+pub fn classify_estimator(cell: SupportCell, estimator: EstimatorId) -> CellStatus {
+    match classify(cell) {
+        CellStatus::NotApplicable { reason } => CellStatus::NotApplicable { reason },
+        CellStatus::Licensed => {
+            if licensed_estimators(cell).contains(&estimator.as_str()) {
+                CellStatus::Licensed
+            } else {
+                CellStatus::Refused
+            }
+        }
+        CellStatus::Refused | CellStatus::Allowlisted { .. } => CellStatus::Refused,
+    }
 }
 
 /// Matrix query name for `query` on `graph_class`, if the query is on the public axis.
@@ -658,6 +706,46 @@ mod tests {
     fn pulse_on_static_dag_is_not_applicable() {
         let status = classify(cell("PulseEffect", "Dag", "explicit", "Frequentist", "none"));
         assert!(matches!(status, CellStatus::NotApplicable { .. }));
+    }
+
+    #[test]
+    fn classify_estimator_licenses_only_evidence_estimators() {
+        let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+        assert_eq!(classify(c), CellStatus::Licensed);
+        assert!(
+            licensed_estimators(c).contains(&"linear.adjustment.ate"),
+            "{:?}",
+            licensed_estimators(c)
+        );
+        assert_eq!(
+            classify_estimator(c, EstimatorId::LinearAdjustmentAte),
+            CellStatus::Licensed
+        );
+        // These families inherit the geometric cell today but have no evidence
+        // on this row (parity/licensed_routes.toml recorded linear.adjustment.ate).
+        for est in [
+            EstimatorId::PropensityMatching,
+            EstimatorId::DistanceMatching,
+            EstimatorId::IvWald,
+            EstimatorId::Iv2Sls,
+            EstimatorId::RdSharp,
+            EstimatorId::CausalForest,
+            EstimatorId::FrontDoorTwoStage,
+        ] {
+            assert_eq!(
+                classify_estimator(c, est),
+                CellStatus::Refused,
+                "{est:?} must not inherit a license whose evidence never ran it"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_estimator_never_allowlists_unmeasured_estimators() {
+        let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+        let status = classify_estimator(c, EstimatorId::PropensityMatching);
+        assert_eq!(status, CellStatus::Refused);
+        assert!(!matches!(status, CellStatus::Allowlisted { .. }));
     }
 
     #[test]

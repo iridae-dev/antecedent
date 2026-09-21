@@ -12,6 +12,7 @@
     clippy::cast_precision_loss
 )]
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -1770,10 +1771,39 @@ impl StudyBuilder {
         let support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
-            if inspect_only {
-                Some(crate::support::classify(cell))
-            } else {
-                Some(crate::support::refuse_if_not_applicable(cell)?)
+            // Geometric n/a / refused still refuse the build (except inspect).
+            // Geometric licensed is reclassified once an estimator is known so
+            // matching / IV / RD / forest / two-stage front-door cannot inherit
+            // a license whose evidence never ran them.
+            match crate::support::classify(cell) {
+                crate::support::CellStatus::NotApplicable { .. }
+                | crate::support::CellStatus::Refused => {
+                    if inspect_only {
+                        Some(crate::support::classify(cell))
+                    } else {
+                        Some(crate::support::refuse_if_not_applicable(cell)?)
+                    }
+                }
+                crate::support::CellStatus::Licensed => {
+                    let estimator = self.estimator.or_else(|| {
+                        // Evidence named exactly one estimator for this cell:
+                        // that is the default route the licensed compiler ran.
+                        let named = crate::support::licensed_estimators(cell);
+                        (named.len() == 1)
+                            .then(|| EstimatorId::from_str(named[0]).ok())
+                            .flatten()
+                    });
+                    match estimator {
+                        Some(est) => Some(crate::support::classify_estimator(cell, est)),
+                        // Inspect (and any path with no bound estimator) must
+                        // not stamp licensed for a later matching/IV selection
+                        // to inherit.
+                        None => Some(crate::support::CellStatus::Refused),
+                    }
+                }
+                crate::support::CellStatus::Allowlisted { .. } => {
+                    unreachable!("classify never returns Allowlisted")
+                }
             }
         } else {
             None
