@@ -79,6 +79,7 @@ cargo run -p antecedent --example <name>
 | Example | Description | Python | Rust |
 | ------- | ----------- | ------ | ---- |
 | Propensity weighting | Adjust for treatment selection using inverse-probability weights | [python](python/propensity_weighting.py) | [rust](rust/propensity_weighting.rs) |
+| IHDP-style propensity / AIPW | Synthetic IHDP-like covariates → assumed DAG → IPW + AIPW + refute | [python](python/ihdp_propensity_e2e.py) | — |
 | Mediation and individual effects | Separate direct and mediated effects; estimate individual effects | [python](python/staged_static_kinds.py) | [rust](rust/staged_static_kinds.rs) |
 | Uncertain graph directions | Estimate a range of effects when some edge directions are unknown | [python](python/class_preserving_cpdag.py) | [rust](rust/class_preserving_cpdag.rs) |
 | Manufacturing temporal | Estimate how a pressure change affects later defects | [python](python/manufacturing_temporal.py) | [rust](rust/manufacturing_temporal.rs) |
