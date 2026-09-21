@@ -225,6 +225,9 @@ pub fn expr_arena_from_wire(w: &ExprArenaWire) -> Result<CausalExprArena, IoErro
         }
     }
     for (index, list) in w.lists.iter().enumerate() {
+        if list.iter().any(|entry| *entry as usize >= w.nodes.len()) {
+            return Err(IoError::Convert("expression list names a node outside the arena".into()));
+        }
         let id = arena.intern_list(list.iter().copied().map(ExprId::from_raw));
         if id.raw() as usize != index {
             return Err(IoError::Convert("duplicate expression-list table entry".into()));
@@ -562,6 +565,19 @@ mod tests {
             regime: None,
         });
         assert!(expr_arena_from_wire(&invalid).is_err());
+    }
+
+    #[test]
+    fn unreferenced_expression_list_entries_are_bounds_checked() {
+        let wire = ExprArenaWire {
+            derivations: Vec::new(),
+            var_sets: Vec::new(),
+            interventions: Vec::new(),
+            lists: vec![vec![3]],
+            nodes: Vec::new(),
+        };
+        let error = expr_arena_from_wire(&wire).unwrap_err().to_string();
+        assert!(error.contains("outside the arena"), "{error}");
     }
 
     #[test]

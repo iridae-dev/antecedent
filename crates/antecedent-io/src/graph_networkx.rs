@@ -133,14 +133,15 @@ fn dag_wire_and_names_from_networkx_node_link(
     }
     let mut order = Vec::new();
     let mut index = HashMap::new();
+    let mut kinds = NodeIdKinds::default();
     for n in &doc.nodes {
-        let name = json_id_to_string(&n.id)?;
+        let name = kinds.name(&n.id)?;
         graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for link in &doc.links {
-        let s = json_id_to_string(&link.source)?;
-        let t = json_id_to_string(&link.target)?;
+        let s = kinds.name(&link.source)?;
+        let t = kinds.name(&link.target)?;
         let from = graph_dot::intern(&s, &mut order, &mut index)?;
         let to = graph_dot::intern(&t, &mut order, &mut index)?;
         edges.push((from, to));
@@ -230,18 +231,19 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
     }
     let mut order = Vec::new();
     let mut index = HashMap::new();
+    let mut kinds = NodeIdKinds::default();
     for n in &doc.nodes {
-        let name = json_id_to_string(&n.id)?;
+        let name = kinds.name(&n.id)?;
         graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for (i, nbrs) in doc.adjacency.iter().enumerate() {
-        let from_name = json_id_to_string(&doc.nodes[i].id)?;
+        let from_name = kinds.name(&doc.nodes[i].id)?;
         let from = *index.get(&from_name).ok_or_else(|| {
             IoError::Convert(format!("NetworkX adjacency missing node `{from_name}`"))
         })?;
         for nbr in nbrs {
-            let to_name = json_id_to_string(&nbr.id)?;
+            let to_name = kinds.name(&nbr.id)?;
             let to = graph_dot::intern(&to_name, &mut order, &mut index)?;
             edges.push((from, to));
         }
@@ -302,7 +304,27 @@ pub fn dag_to_networkx_adjacency(dag: &Dag, names: Option<&[String]>) -> Result<
     serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }
 
-pub(crate) fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
+/// Node-id spellings seen in one document. NetworkX keys nodes by Python value, so the
+/// integer `1` and the string `"1"` are different nodes; names here are strings, so a
+/// document that uses both spellings of one name cannot be represented faithfully.
+#[derive(Default)]
+pub(crate) struct NodeIdKinds(HashMap<String, bool>);
+
+impl NodeIdKinds {
+    pub(crate) fn name(&mut self, id: &JsonValue) -> Result<String, IoError> {
+        let name = json_id_to_string(id)?;
+        let numeric = id.is_number();
+        if *self.0.entry(name.clone()).or_insert(numeric) != numeric {
+            return Err(IoError::Convert(format!(
+                "NetworkX node id `{name}` appears both as a number and as a string; \
+                 these are distinct nodes and cannot share one variable name"
+            )));
+        }
+        Ok(name)
+    }
+}
+
+fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
     match v {
         JsonValue::String(s) => Ok(s.clone()),
         JsonValue::Number(n) => Ok(n.to_string()),
@@ -315,6 +337,17 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     use super::*;
+
+    #[test]
+    fn integer_and_string_ids_of_one_spelling_are_refused_not_merged() {
+        let doc = r#"{"directed": true, "multigraph": false, "graph": {},
+            "nodes": [{"id": 1}, {"id": "1"}], "links": []}"#;
+        let error = dag_from_networkx_node_link(doc).unwrap_err().to_string();
+        assert!(error.contains("both as a number and as a string"), "{error}");
+        let same_kind = r#"{"directed": true, "multigraph": false, "graph": {},
+            "nodes": [{"id": "a"}, {"id": "b"}], "links": [{"source": "a", "target": "b"}]}"#;
+        assert_eq!(dag_from_networkx_node_link(same_kind).unwrap().node_count(), 2);
+    }
 
     #[test]
     fn node_link_round_trip() {

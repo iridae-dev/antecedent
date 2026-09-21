@@ -977,7 +977,8 @@ fn prior_bank_catalog() {
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: Some(1.0),
         };
-        let draws = vec![0.0f64; n_q * 2];
+        // Two draws at -1 / +1 per quantity: mean 0 and nearest-rank quantiles -1 / 1.
+        let draws = (0..n_q).flat_map(|_| [-1.0f64, 1.0]).collect::<Vec<_>>();
         let art = encode_posterior_artifact(&meta, &draws, id, "0.1.0").unwrap();
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();

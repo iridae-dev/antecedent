@@ -983,9 +983,16 @@ pub fn claim_kind_name(
     match slot.status.as_str() {
         "not_identified" => return "incomplete",
         "partially_identified" => return "bounds",
-        _ => {}
+        "nonparametrically_identified"
+        | "identified_under_parametric_restrictions"
+        | "identified_under_prior_restrictions"
+        | "graph_dependent" => {}
+        // `not_certified`, `proven_non_transportable`, or any spelling this reader
+        // does not know: never a point.
+        _ => return "incomplete",
     }
-    if slot.unidentified_mass > 0.0 || slot.weight_basis.is_some() {
+    // Any mass short of full identification, or a weighted mixture, is not a point.
+    if slot.identified_mass < 1.0 || slot.weight_basis.is_some() {
         if body.structural_response.as_ref().is_some_and(|mixture| mixture.identified_set.is_some())
         {
             return "bounds";
@@ -1418,13 +1425,22 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
         ("refusal", _) => serde_json::Value::String("unsupported".into()),
         (_, _) => serde_json::Value::String("unknown".into()),
     };
+    // Domains are re-derived from rehashed reasoning slots; when references do
+    // not verify, the stored strings are the sender's say-so and are not shown.
+    let domain = |stored: &str| {
+        if consumed.acceptance.verified_references {
+            serde_json::Value::String(stored.to_owned())
+        } else {
+            serde_json::Value::Null
+        }
+    };
     ClaimHostProjection {
         claim_id: Some(digest_hex(&claim.claim_id)),
         kind: Some(claim.kind.clone()),
         value,
-        identification_domain: serde_json::Value::String(claim.identification_domain.clone()),
-        support_domain: serde_json::Value::String(claim.support_domain.clone()),
-        evaluated_domain: serde_json::Value::String(claim.evaluated_domain.clone()),
+        identification_domain: domain(&claim.identification_domain),
+        support_domain: domain(&claim.support_domain),
+        evaluated_domain: domain(&claim.evaluated_domain),
         recognized: consumed.acceptance.recognized,
         accepts_as_claim: consumed.acceptance.accepts_as_claim(),
     }
@@ -1529,6 +1545,7 @@ mod tests {
                 diagnostics: Vec::new(),
                 candidates_examined: 0,
                 sets_returned: 0,
+                hedge: None,
             },
             identification_variables: None,
             temporal_identification: Vec::new(),
@@ -2264,6 +2281,30 @@ mod tests {
             weight_basis: None,
         };
         assert_eq!(claim_kind_name(&body, Some(&slot)), "bounds");
+    }
+
+    #[test]
+    fn claim_kind_is_never_point_short_of_full_identified_mass_or_for_unknown_status() {
+        let (body, _, _) = fixture_body();
+        let slot = |status: &str, identified: f64, unevaluable: f64, incomplete: f64| {
+            IdentificationSlotWire {
+                status: status.into(),
+                identified_mass: identified,
+                unidentified_mass: 0.0,
+                unevaluable_mass: unevaluable,
+                incomplete_search_mass: incomplete,
+                full_mass_scope: true,
+                search_capped: false,
+                weight_basis: None,
+            }
+        };
+        let identified = "nonparametrically_identified";
+        assert_eq!(claim_kind_name(&body, Some(&slot(identified, 1.0, 0.0, 0.0))), "point");
+        assert_eq!(claim_kind_name(&body, Some(&slot(identified, 0.6, 0.0, 0.4))), "mixture");
+        assert_eq!(claim_kind_name(&body, Some(&slot(identified, 0.75, 0.25, 0.0))), "mixture");
+        for status in ["not_certified", "proven_non_transportable", "surprise"] {
+            assert_eq!(claim_kind_name(&body, Some(&slot(status, 1.0, 0.0, 0.0))), "incomplete");
+        }
     }
 
     #[test]

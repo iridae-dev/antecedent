@@ -350,7 +350,15 @@ pub fn to_cbor<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, IoError> {
 ///
 /// CBOR failure.
 pub fn from_cbor<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, IoError> {
-    ciborium::from_reader(bytes).map_err(|e| IoError::Cbor(e.to_string()))
+    let mut reader = bytes;
+    let value = ciborium::from_reader(&mut reader).map_err(|e| IoError::Cbor(e.to_string()))?;
+    // A section is one CBOR item. Bytes after it would ride under the section checksum
+    // while no consumer reads them.
+    if reader.is_empty() {
+        Ok(value)
+    } else {
+        Err(IoError::Cbor(format!("{} trailing bytes after the CBOR item", reader.len())))
+    }
 }
 
 /// Helper: dense variable id list.
@@ -363,4 +371,18 @@ pub fn vars_to_raw(vars: &[VariableId]) -> Vec<u32> {
 #[must_use]
 pub fn vars_from_raw(raw: &[u32]) -> Arc<[VariableId]> {
     raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>().into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_cbor_rejects_bytes_after_the_first_item() {
+        let mut bytes = to_cbor(&vec![1u32, 2, 3]).unwrap();
+        assert_eq!(from_cbor::<Vec<u32>>(&bytes).unwrap(), vec![1, 2, 3]);
+        bytes.extend_from_slice(&to_cbor(&99u32).unwrap());
+        let error = from_cbor::<Vec<u32>>(&bytes).unwrap_err().to_string();
+        assert!(error.contains("trailing bytes"), "{error}");
+    }
 }

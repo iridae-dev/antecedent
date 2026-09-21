@@ -274,6 +274,12 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     r.read_exact(&mut manifest_buf)?;
     let manifest: ArtifactManifest =
         ciborium::from_reader(manifest_buf.as_slice()).map_err(|e| IoError::Cbor(e.to_string()))?;
+    // Lookups are by id, so a repeated id would let one payload be read while another
+    // is hashed, listed or skipped.
+    let mut ids = HashSet::with_capacity(manifest.sections.len());
+    if !manifest.sections.iter().all(|desc| ids.insert(desc.id.as_str())) {
+        return Err(IoError::ManifestMismatch { message: "duplicate section id" });
+    }
     Ok((manifest, r))
 }
 
@@ -708,6 +714,29 @@ mod tests {
         // Logical buffers still shared after write (Never path does not uniquify).
         assert!(Arc::ptr_eq(&art.sections[0].data, &art.sections[1].data));
         assert!(Arc::ptr_eq(&art.sections[0].data, &shared));
+    }
+
+    #[test]
+    fn duplicate_section_ids_are_rejected_on_read() {
+        let (first, first_bytes) = pack_section(
+            "note",
+            "application/octet-stream",
+            b"one".to_vec(),
+            CompressPolicy::Never,
+        );
+        let (second, second_bytes) = pack_section(
+            "note",
+            "application/octet-stream",
+            b"two".to_vec(),
+            CompressPolicy::Never,
+        );
+        let art = tiny_artifact(vec![(first, first_bytes), (second, second_bytes)]);
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).unwrap();
+        let err = EncodedArtifact::read_from(buf.as_slice()).unwrap_err();
+        assert_eq!(err, IoError::ManifestMismatch { message: "duplicate section id" });
+        assert!(EncodedArtifact::read_selective(buf.as_slice(), &HashSet::from(["note"])).is_err());
+        assert!(crate::reader::ArtifactReader::open_seek(std::io::Cursor::new(buf)).is_err());
     }
 
     #[test]

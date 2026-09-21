@@ -71,6 +71,11 @@ pub enum IoError {
     },
 }
 
+/// Wrap any displayable failure as [`IoError::Convert`].
+pub(crate) fn convert_err(error: impl std::fmt::Display) -> IoError {
+    IoError::Convert(error.to_string())
+}
+
 impl From<std::io::Error> for IoError {
     fn from(value: std::io::Error) -> Self {
         Self::Io(value.to_string())

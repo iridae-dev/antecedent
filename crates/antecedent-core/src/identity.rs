@@ -58,11 +58,16 @@ pub enum IdentityDomain {
     ScoreReuse,
     /// Row-weight retarget payload bound to one data snapshot.
     TargetWeights,
+    /// Whole learner-backed trial-transport claim: graph, query, raw inputs, frozen
+    /// options, seed, and the retained score and bootstrap evidence.
+    LearnedTrial,
+    /// Whole structural transport certificate outcome (positive proof or refusal).
+    TransportCertificate,
 }
 
 impl IdentityDomain {
     /// Closed set of domains. A new variant fails dictionary tests until listed.
-    pub const ALL: [IdentityDomain; 11] = [
+    pub const ALL: [IdentityDomain; 13] = [
         Self::Target,
         Self::Identification,
         Self::IdentificationProduct,
@@ -74,6 +79,8 @@ impl IdentityDomain {
         Self::Claim,
         Self::ScoreReuse,
         Self::TargetWeights,
+        Self::LearnedTrial,
+        Self::TransportCertificate,
     ];
 
     /// Stable `snake_case` name.
@@ -91,6 +98,8 @@ impl IdentityDomain {
             Self::Claim => "claim",
             Self::ScoreReuse => "score_reuse",
             Self::TargetWeights => "target_weights",
+            Self::LearnedTrial => "learned_trial",
+            Self::TransportCertificate => "transport_certificate",
         }
     }
 
@@ -109,6 +118,8 @@ impl IdentityDomain {
             Self::Claim => "antecedent.identity.claim.v1",
             Self::ScoreReuse => "antecedent.identity.score_reuse.v1",
             Self::TargetWeights => "antecedent.identity.target_weights.v1",
+            Self::LearnedTrial => "antecedent.identity.learned_trial.v1",
+            Self::TransportCertificate => "antecedent.identity.transport_certificate.v1",
         }
     }
 }

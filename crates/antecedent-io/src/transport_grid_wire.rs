@@ -1,5 +1,7 @@
 //! Durable transport grid and statistical-provider records.
 #![allow(missing_docs)]
+use crate::error::convert_err as err;
+use crate::identity::digest_wire_hex as digest;
 use crate::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
@@ -7,12 +9,6 @@ use crate::{
 use antecedent_core::IdentityDomain;
 use antecedent_estimate::EmpiricalTableOptions;
 use serde::{Deserialize, Serialize};
-fn err(e: impl std::fmt::Display) -> IoError {
-    IoError::Convert(e.to_string())
-}
-fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(domain, value)?.to_hex())
-}
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct StatisticalOptionsWire {

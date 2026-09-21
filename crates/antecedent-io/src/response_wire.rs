@@ -24,6 +24,7 @@ use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_w
 
 /// Evaluation grid on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum GridSpecWire {
     /// Explicit grid values.
@@ -41,6 +42,7 @@ pub enum GridSpecWire {
 
 /// Scalar continuous intervention domain on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ContinuousDomainWire {
     /// Intervened variable raw id.
     pub variable: u32,
@@ -50,6 +52,7 @@ pub struct ContinuousDomainWire {
 
 /// Average-derivative weighting law on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum DerivativeWeightingWire {
     /// Observed treatment/covariate law.
@@ -81,6 +84,7 @@ pub enum DerivativeScaleWire {
 
 /// Observation mechanism on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum ObservationSpecWire {
     /// Complete observation.
@@ -99,6 +103,7 @@ pub enum ObservationSpecWire {
 
 /// Explicit observation assumption on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum ObservationAssumptionWire {
     /// Conditional observation/censoring independence.
@@ -111,6 +116,7 @@ pub enum ObservationAssumptionWire {
 
 /// Response functional on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseFunctionalWire {
     /// Mean response curve.
@@ -134,6 +140,7 @@ pub enum ResponseFunctionalWire {
 
 /// Complete response query on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ResponseQueryWire {
     /// Requested functional.
     pub functional: ResponseFunctionalWire,
@@ -154,6 +161,7 @@ pub struct ResponseQueryWire {
 
 /// Temporal dose-over-horizon / policy-path attachment on the wire (format 0.4).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct TemporalResponseSpecWire {
     /// Outcome horizons (steps after policy origin), each ≥ 1, strictly increasing.
     pub horizons: Vec<u32>,

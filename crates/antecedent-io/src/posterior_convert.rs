@@ -6,7 +6,6 @@
 
 use antecedent_core::VERSION;
 use antecedent_estimate::CausalPosterior;
-use antecedent_identify::IdentificationStatus;
 use antecedent_prob::PosteriorQuantityKind;
 
 use crate::container::EncodedArtifact;
@@ -109,20 +108,10 @@ pub fn encode_causal_posterior_with_payload(
         sd: posterior.summaries.sd.to_vec(),
         q025: posterior.summaries.q025.to_vec(),
         q975: posterior.summaries.q975.to_vec(),
-        identification: match posterior.identification {
-            IdentificationStatus::NonparametricallyIdentified => {
-                "NonparametricallyIdentified".into()
-            }
-            IdentificationStatus::IdentifiedUnderParametricRestrictions => {
-                "IdentifiedUnderParametricRestrictions".into()
-            }
-            IdentificationStatus::IdentifiedUnderPriorRestrictions => {
-                "IdentifiedUnderPriorRestrictions".into()
-            }
-            IdentificationStatus::PartiallyIdentified => "PartiallyIdentified".into(),
-            IdentificationStatus::GraphDependent => "GraphDependent".into(),
-            IdentificationStatus::NotIdentified => "NotIdentified".into(),
-        },
+        identification: crate::analysis_wire::identification_status_pascal(
+            posterior.identification,
+        )
+        .into(),
         unidentified_mass: posterior.unidentified_mass,
         subsampled_out_mass: posterior.subsampled_out_mass,
         backend_id: posterior.diagnostics.backend_id.to_string(),

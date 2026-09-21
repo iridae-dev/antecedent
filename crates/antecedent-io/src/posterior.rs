@@ -127,15 +127,7 @@ fn validate_posterior_meta(
             "posterior backend id must be non-blank and draw count must be positive".into(),
         ));
     }
-    if !matches!(
-        meta.identification.as_str(),
-        "NonparametricallyIdentified"
-            | "IdentifiedUnderParametricRestrictions"
-            | "IdentifiedUnderPriorRestrictions"
-            | "PartiallyIdentified"
-            | "GraphDependent"
-            | "NotIdentified"
-    ) {
+    if crate::analysis_wire::identification_status_from_any(&meta.identification).is_none() {
         return Err(IoError::Convert(format!(
             "unknown posterior identification status `{}`",
             meta.identification
@@ -163,6 +155,56 @@ fn validate_posterior_meta(
             return Err(IoError::Convert(format!(
                 "posterior draws length {} != expected {expected}",
                 draws.len()
+            )));
+        }
+        if !draws.is_empty() {
+            validate_summaries_against_draws(meta, draws)?;
+        }
+    }
+    Ok(())
+}
+
+/// Stored summaries must describe the embedded draws, so a summary-reading and a
+/// draw-reading consumer see one posterior.
+///
+/// The quantiles are a deterministic function of the draws and are recomputed with the
+/// producer's own routine (`PosteriorDraws::summarize`), agreeing to a relative 1e-9. The
+/// mean and SD may legitimately be exact moments of a mixture whose draws are a Monte-Carlo
+/// sample (the structural-envelope posterior), so they are held to the draws' own sampling
+/// error rather than bit agreement: eight standard errors of the draw mean / draw SD, which
+/// still rejects any summary that belongs to a different distribution.
+fn validate_summaries_against_draws(
+    meta: &CausalPosteriorWire,
+    draws: &[f64],
+) -> Result<(), IoError> {
+    use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
+
+    const RELATIVE: f64 = 1e-9;
+    const STANDARD_ERRORS: f64 = 8.0;
+    let n_draws = meta.n_draws as usize;
+    let schema = PosteriorSchema {
+        quantities: (0..meta.quantities.len())
+            .map(|_| PosteriorQuantityKind::Scalar { name: "q".into() })
+            .collect(),
+    };
+    let recomputed = PosteriorDraws::from_column_major(schema, n_draws, draws.to_vec())
+        .map_err(|err| IoError::Convert(err.to_string()))?
+        .summarize();
+    let close = |stored: f64, derived: f64, slack: f64| {
+        (stored - derived).abs() <= RELATIVE * derived.abs().max(stored.abs()).max(1.0) + slack
+    };
+    let n = n_draws as f64;
+    for q in 0..meta.quantities.len() {
+        let sd = recomputed.sd[q];
+        let mean_se = sd / n.sqrt();
+        let sd_se = if n_draws > 1 { sd / (2.0 * (n - 1.0)).sqrt() } else { 0.0 };
+        let agrees = close(meta.mean[q], recomputed.mean[q], STANDARD_ERRORS * mean_se)
+            && close(meta.sd[q], sd, STANDARD_ERRORS * sd_se)
+            && close(meta.q025[q], recomputed.q025[q], 0.0)
+            && close(meta.q975[q], recomputed.q975[q], 0.0);
+        if !agrees {
+            return Err(IoError::Convert(format!(
+                "posterior summaries for quantity {q} disagree with the embedded draws"
             )));
         }
     }
@@ -312,8 +354,8 @@ mod tests {
             n_draws: 3,
             mean: vec![1.0],
             sd: vec![0.1],
-            q025: vec![0.8],
-            q975: vec![1.2],
+            q025: vec![0.9],
+            q975: vec![1.1],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,
@@ -396,14 +438,56 @@ mod tests {
     }
 
     #[test]
+    fn posterior_summaries_must_describe_the_embedded_draws() {
+        // Draws centred at 0 (mean 0, sample SD 1, nearest-rank quantiles -1 / 1).
+        let draws = vec![-1.0, 0.0, 1.0];
+        let mut consistent = valid_meta();
+        consistent.mean = vec![0.0];
+        consistent.sd = vec![1.0];
+        consistent.q025 = vec![-1.0];
+        consistent.q975 = vec![1.0];
+        encode_posterior_artifact(&consistent, &draws, "ok", "0.1.0").unwrap();
+
+        // Summary reader would see 5 +- 0.5 while a draw reader sees 0 +- 1.
+        let mut shifted = consistent.clone();
+        shifted.mean = vec![5.0];
+        shifted.q025 = vec![4.5];
+        shifted.q975 = vec![5.5];
+        let error =
+            encode_posterior_artifact(&shifted, &draws, "bad", "0.1.0").unwrap_err().to_string();
+        assert!(error.contains("disagree with the embedded draws"), "{error}");
+
+        // Quantiles are exact functions of the draws.
+        let mut narrowed = consistent.clone();
+        narrowed.q975 = vec![0.5];
+        assert!(encode_posterior_artifact(&narrowed, &draws, "bad", "0.1.0").is_err());
+
+        // Mean / SD tolerate Monte-Carlo scale (exact mixture moments) but not a
+        // different distribution.
+        let mut mc = consistent.clone();
+        mc.mean = vec![0.1];
+        mc.sd = vec![1.2];
+        encode_posterior_artifact(&mc, &draws, "mc", "0.1.0").unwrap();
+        let mut wide = consistent;
+        wide.sd = vec![40.0];
+        assert!(encode_posterior_artifact(&wide, &draws, "bad", "0.1.0").is_err());
+
+        // Summary-only artifacts have no draws to compare against.
+        let mut summary = valid_meta();
+        summary.draws_encoding = "none".into();
+        summary.mean = vec![5.0];
+        encode_posterior_artifact(&summary, &[], "summary", "0.1.0").unwrap();
+    }
+
+    #[test]
     fn posterior_meta_only_skips_draws() {
         let meta = CausalPosteriorWire {
             quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
             n_draws: 8192,
-            mean: vec![1.0],
-            sd: vec![0.1],
-            q025: vec![0.9],
-            q975: vec![1.1],
+            mean: vec![0.5],
+            sd: vec![0.0],
+            q025: vec![0.5],
+            q975: vec![0.5],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,

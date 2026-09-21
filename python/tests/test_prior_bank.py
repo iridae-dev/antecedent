@@ -46,7 +46,8 @@ def _unnamed_artifact_bytes() -> bytes:
         sd=[1.0, 1.0, 0.1],
         q025=[-1.0, 0.0, 1.8],
         q975=[1.0, 2.0, 2.2],
-        draws=[0.0, 0.0, 1.0, 1.0, 2.0, 2.0],
+        # Two draws per quantity at (q025, q975): mean and quantiles match the summaries.
+        draws=[-1.0, 1.0, 0.0, 2.0, 1.8, 2.2],
         backend_id="laplace",
         identification="NonparametricallyIdentified",
         quantity_names=["coef_0", "coef_1", "ate"],
