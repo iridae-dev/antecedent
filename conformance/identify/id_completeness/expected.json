@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "Shpitser-Pearl ID (2006) worked examples and hedge definition; numeric truth is enumerated from latent binary SCMs by the consuming test, not stored here",
+    "generator": "hand-derived from the cited paper's algorithm and Definition 6 (hedge)"
+  },
+  "cases": [
+    {
+      "id": "napkin",
+      "nodes": ["W", "Z", "X", "Y"],
+      "edges": ["W->Z", "Z->X", "X->Y", "W<->X", "W<->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "status": "identified",
+      "closed_form": "sum_w P(x,y|z,w) P(w) / sum_w P(x|z,w) P(w), for any z",
+      "lines": ["line3", "line7", "line2", "line6"]
+    },
+    {
+      "id": "nested_napkin",
+      "nodes": ["W1", "Z1", "W2", "Z2", "X", "Y"],
+      "edges": ["W1->Z1", "Z1->X", "W2->Z2", "Z2->X", "X->Y", "W1<->W2", "W1<->Z2", "W2<->X", "W2<->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "status": "identified",
+      "lines": ["line3", "line7", "line2", "line7", "line2", "line6"]
+    },
+    {
+      "id": "frontdoor_admg",
+      "nodes": ["X", "M", "Y"],
+      "edges": ["X->M", "M->Y", "X<->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "status": "identified",
+      "closed_form": "sum_m P(m|x) sum_x' P(y|x',m) P(x')",
+      "lines": ["line4", "line2", "line6", "line7", "line2", "line1"]
+    },
+    {
+      "id": "frontdoor_confounded_mediator",
+      "nodes": ["X", "M", "Y"],
+      "edges": ["X->M", "M->Y", "X<->Y", "M<->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "status": "not_identified",
+      "hedge": {"f": ["X", "M", "Y"], "f_prime": ["M", "Y"]}
+    },
+    {
+      "id": "bow_arc",
+      "nodes": ["X", "Y"],
+      "edges": ["X->Y", "X<->Y"],
+      "treatments": ["X"],
+      "outcomes": ["Y"],
+      "status": "not_identified",
+      "hedge": {"f": ["X", "Y"], "f_prime": ["Y"]}
+    },
+    {
+      "id": "joint_treatment_confounded_pair",
+      "nodes": ["X1", "X2", "Y"],
+      "edges": ["X1->X2", "X2->Y", "X1->Y", "X1<->Y"],
+      "treatments": ["X1", "X2"],
+      "outcomes": ["Y"],
+      "status": "not_identified",
+      "hedge": {"f": ["X1", "Y"], "f_prime": ["Y"]}
+    }
+  ],
+  "sweep": {
+    "exhaustive": "all ADMGs on 2-4 ordered nodes x all ordered (treatment, outcome) pairs = 49544 queries",
+    "sampled": "1500 seeded 5-6 node ADMGs with treatment and outcome sets of size 1-2",
+    "contract": "identified and numerically equal to the enumerated interventional law, or not identified with a hedge that satisfies Definition 6; never an error"
+  }
+}
