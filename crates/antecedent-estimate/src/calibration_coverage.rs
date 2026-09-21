@@ -794,10 +794,7 @@ fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed:
                 diag.anderson_rubin.is_none(),
                 "{label}: non-homoskedastic AR must be withheld"
             );
-            assert_eq!(
-                diag.uncertainty_withheld,
-                Some("anderson_rubin_requires_homoskedastic")
-            );
+            assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
             // No licensed interval product — score as a miss, not a Wald SE.
             tally.record_ar(effect.ate, None, TRUE_ATE);
         }
@@ -915,10 +912,7 @@ fn two_sls_coverage(
             }
         } else {
             assert!(diag.anderson_rubin.is_none());
-            assert_eq!(
-                diag.uncertainty_withheld,
-                Some("anderson_rubin_requires_homoskedastic")
-            );
+            assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
             tally.record_ar(effect.ate, None, TRUE_ATE);
         }
     }

@@ -151,6 +151,8 @@ fn receipt_body(
         temporal_identification: Vec::new(),
         estimate: attach.scalar_value,
         standard_error: None,
+        interval_lower: None,
+        interval_upper: None,
         assumptions: Vec::new(),
         diagnostics: Vec::new(),
         refutations: Vec::new(),

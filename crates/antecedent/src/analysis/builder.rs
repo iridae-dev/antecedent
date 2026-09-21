@@ -1786,9 +1786,8 @@ impl StudyBuilder {
                 crate::support::CellStatus::Licensed => {
                     // Unset → licensed_routes default for this cell (not "refuse
                     // when the evidence list has more than one estimator").
-                    let estimator = self.estimator.or_else(|| {
-                        crate::support::licensed_route_estimator(cell)
-                    });
+                    let estimator =
+                        self.estimator.or_else(|| crate::support::licensed_route_estimator(cell));
                     match estimator {
                         Some(est) => Some(crate::support::classify_estimator(cell, est)),
                         None => Some(crate::support::CellStatus::Refused),

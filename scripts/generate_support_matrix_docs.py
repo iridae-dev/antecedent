@@ -563,6 +563,7 @@ def render_coverage_records() -> str:
         ("IdentifiedSet", "identified_set"),
         ("CircularBlockSe", "circular_block_se"),
         ("SimultaneousBand", "simultaneous_band"),
+        ("AndersonRubin", "anderson_rubin"),
         ("None", "none"),
     ]
     reason_items = ",\n".join(

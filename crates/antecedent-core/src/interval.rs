@@ -22,13 +22,16 @@ pub enum IntervalMethod {
     CircularBlockSe,
     /// Simultaneous band.
     SimultaneousBand,
+    /// Anderson–Rubin confidence set. Endpoints are not a standard error:
+    /// they may be infinite, and the set is not `estimate ± z·SE`.
+    AndersonRubin,
     /// No interval was formed.
     None,
 }
 
 impl IntervalMethod {
     /// Closed set of methods. A new variant fails calibration tests until listed.
-    pub const ALL: [IntervalMethod; 8] = [
+    pub const ALL: [IntervalMethod; 9] = [
         Self::AnalyticSe,
         Self::BootstrapSe,
         Self::PosteriorQuantile,
@@ -36,6 +39,7 @@ impl IntervalMethod {
         Self::IdentifiedSet,
         Self::CircularBlockSe,
         Self::SimultaneousBand,
+        Self::AndersonRubin,
         Self::None,
     ];
 
@@ -50,6 +54,7 @@ impl IntervalMethod {
             Self::IdentifiedSet => "identified_set",
             Self::CircularBlockSe => "circular_block_se",
             Self::SimultaneousBand => "simultaneous_band",
+            Self::AndersonRubin => "anderson_rubin",
             Self::None => "none",
         }
     }

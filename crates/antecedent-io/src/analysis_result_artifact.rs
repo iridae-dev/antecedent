@@ -353,8 +353,16 @@ pub struct AnalysisResultWire {
     pub temporal_identification: Vec<TemporalIdentificationWire>,
     /// Scalar estimate when one exists; function-valued results have no scalar placeholder.
     pub estimate: Option<f64>,
-    /// Scalar standard error when justified.
+    /// Scalar standard error when justified. Absent when the published interval
+    /// is an Anderson–Rubin set (`interval_lower` / `interval_upper`) or when
+    /// no scalar SE is licensed.
     pub standard_error: Option<f64>,
+    /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_upper: Option<f64>,
     /// Estimation assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Execution and scientific diagnostics.

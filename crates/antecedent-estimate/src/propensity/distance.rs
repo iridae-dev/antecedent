@@ -417,9 +417,8 @@ mod tests {
         let est = DistanceMatching { bootstrap_replicates: 30, ..DistanceMatching::new() };
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est
-            .fit(&prep, &mut ws, &ExecutionContext::for_tests(7), AssumptionSet::new())
-            .unwrap();
+        let effect =
+            est.fit(&prep, &mut ws, &ExecutionContext::for_tests(7), AssumptionSet::new()).unwrap();
         assert!(
             effect.se_bootstrap.is_none(),
             "NN matching must not store the invalid bootstrap SE"

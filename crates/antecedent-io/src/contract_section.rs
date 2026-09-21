@@ -1534,6 +1534,8 @@ mod tests {
             temporal_identification: Vec::new(),
             estimate: Some(2.0),
             standard_error: Some(0.1),
+            interval_lower: None,
+            interval_upper: None,
             assumptions: Vec::new(),
             diagnostics: Vec::new(),
             refutations: Vec::new(),
