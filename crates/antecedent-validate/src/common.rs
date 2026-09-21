@@ -679,8 +679,10 @@ pub(crate) enum NoiseReplaceTarget {
 
 /// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
 ///
-/// Passes when the replicate ATE distribution is statistically consistent with zero
-/// (two-sided normal test, `p >= alpha`), so the verdict is invariant to outcome units.
+/// Under OLS / linear adjustment the coefficient on independent noise is asymptotically
+/// zero by construction, so this procedure has no power against a wrong causal claim.
+/// Reports are therefore `informative: false` (diagnostic only, not a falsifier).
+/// Non-finite replicates fail closed via [`replicate_p_value`].
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
@@ -720,7 +722,8 @@ pub(crate) fn noise_replace_refute(
         original_ate: problem.original.ate,
         refuted_ate: mean_ate,
         comparison: p_value,
-        informative: true,
+        // OLS recovery of ~0 under independent noise cannot falsify the claim.
+        informative: false,
         passed,
         failure_condition: (!passed).then(|| {
             Arc::from(format!(
@@ -739,28 +742,30 @@ pub(crate) fn noise_replace_refute(
 /// would make any tiny systematic bias refute at large R, which is the wrong operating
 /// characteristic for a placebo / dummy-outcome refuter. Degenerate spread compares
 /// means directly.
+///
+/// Non-finite samples or statistics fail closed (`0.0`): they must never become `p = 1`
+/// and silently pass a check.
 pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
     if samples.len() < 2 {
-        return 1.0;
+        return 0.0;
+    }
+    if !hypothesized.is_finite() || samples.iter().any(|x| !x.is_finite()) {
+        return 0.0;
     }
     #[allow(clippy::cast_precision_loss)]
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let sd = sample_sd(samples);
     let scale = mean.abs().max(hypothesized.abs()).max(1.0);
     if !sd.is_finite() {
-        return 1.0;
+        return 0.0;
     }
     if sd <= 1e-12 * scale {
         return if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 };
     }
     let z = (hypothesized - mean) / sd;
     if !z.is_finite() {
-        // Defense in depth rather than a live path: a non-finite `mean` drags
-        // `sample_sd` non-finite too, so the guard above already catches every
-        // way `z` is currently reachable as NaN/±inf. Kept so a future change to
-        // the spread guards cannot leak a NaN into a reported probability, and
-        // returning 1.0 matches the non-finite convention established above.
-        return 1.0;
+        // Defense in depth: non-finite `z` fails closed (never `p = 1`).
+        return 0.0;
     }
     // `erfc` is guaranteed in [0, 2] for finite input, so `z.abs() >= 0` keeps this
     // in [0, 1] mathematically — clamp anyway since this value is documented as a
@@ -1022,14 +1027,18 @@ mod tests {
     }
 
     #[test]
-    fn replicate_p_value_nan_mean_does_not_propagate_nan() {
-        // A blown-up replicate (e.g. a failed refit) can leave NaN in the sample
-        // set; `mean`/`z` then become non-finite even though `sd` itself may
-        // still compare finite. The result must stay a valid probability
-        // (D2: unclamped/non-finite tail probability).
+    fn replicate_p_value_nan_replicate_fails_closed() {
+        // A blown-up replicate (e.g. a failed refit) must not become p=1.0 (pass).
+        // Fail closed: non-finite replicates yield p=0 so the check cannot pass.
         let samples = [1.0, 2.0, f64::NAN, 3.0];
         let p = replicate_p_value(&samples, 0.0);
-        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
-        assert!(!p.is_nan(), "p_value must not be NaN");
+        assert_eq!(p, 0.0, "non-finite replicates must fail closed, got {p}");
+    }
+
+    #[test]
+    fn replicate_p_value_non_finite_hypothesis_fails_closed() {
+        let samples = [1.0, 2.0, 3.0, 4.0];
+        assert_eq!(replicate_p_value(&samples, f64::NAN), 0.0);
+        assert_eq!(replicate_p_value(&samples, f64::INFINITY), 0.0);
     }
 }

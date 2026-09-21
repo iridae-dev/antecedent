@@ -16,6 +16,11 @@ use crate::common::{
 use crate::error::ValidationError;
 
 /// Randomly subset rows and re-estimate; expect the ATE to move little.
+///
+/// Under the OLS / linear-adjustment path this refuter is gated to, subset refits of a
+/// correctly specified linear model stay near the full-sample estimate by construction,
+/// so the procedure has no power as a falsifier of the causal claim. Reports set
+/// `informative: false` (sampling-stability diagnostic only).
 #[derive(Clone, Debug)]
 pub struct DataSubsetRefuter {
     /// Replicate count (fresh subset draw per replicate).
@@ -24,6 +29,7 @@ pub struct DataSubsetRefuter {
     pub subset_fraction: f64,
     /// Pass if the subset ATE distribution is consistent with the original estimate at
     /// this significance level (two-sided normal test on the replicates, `p >= alpha`).
+    /// Non-finite replicates fail closed. A pass is not an informative falsification under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -106,7 +112,8 @@ impl DataSubsetRefuter {
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
             comparison: p_value,
-            informative: true,
+            // OLS subset stability is not a falsifier of the causal claim.
+            informative: false,
             passed,
             failure_condition: if passed {
                 None

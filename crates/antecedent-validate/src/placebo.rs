@@ -28,12 +28,17 @@ pub enum PlaceboMode {
 }
 
 /// Replace treatment with independent noise or a permutation; expect ATE near zero.
+///
+/// Under the OLS / linear-adjustment estimators this refuter is gated to, the coefficient
+/// on an independent placebo treatment is asymptotically zero by construction, so the
+/// procedure cannot falsify a wrong causal claim. Reports set `informative: false`.
 #[derive(Clone, Debug)]
 pub struct PlaceboTreatment {
     /// Replicate count (each draw a fresh placebo treatment).
     pub replicates: u32,
     /// Pass if the placebo ATE distribution is consistent with zero at this significance
-    /// level (two-sided normal test on the replicates, `p >= alpha`).
+    /// level (two-sided normal test on the replicates, `p >= alpha`). Non-finite
+    /// replicates fail closed. A pass is not an informative falsification under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled to avoid nested pools).
     pub estimator: LinearAdjustmentAte,
@@ -139,7 +144,9 @@ impl PlaceboTreatment {
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
             comparison: p_value,
-            informative: true,
+            // Permuting T under OLS still yields ~0 coefficient when T ⊥ Y | Z in
+            // the fitted linear model; this is not a falsifier of the causal claim.
+            informative: false,
             passed,
             failure_condition: (!passed).then(|| {
                 Arc::from(format!(

@@ -113,14 +113,16 @@ fn refuters_and_sensitivity_smoke() {
         None,
     );
 
-    assert!(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
-    assert!(RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    // OLS-gated noise/subset refuters have no power against the causal claim: they
+    // must report informative=false. The remaining validators keep informative=true.
+    assert!(!PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(!RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(BootstrapRefute::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(OverlapRefuter::new().refute(&problem).unwrap().informative);
     assert!(OverlapRuleRefuter::new().refute(&problem).unwrap().informative);
-    assert!(DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
-    assert!(DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(!DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(!DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(EValue::new().refute(&problem).unwrap().informative);
     assert!(GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(LinearSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);

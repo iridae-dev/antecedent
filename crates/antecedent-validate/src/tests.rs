@@ -109,7 +109,7 @@ fn with_invalid_treatment_row(data: &TabularData, row: usize) -> TabularData {
 }
 
 #[test]
-fn placebo_near_zero_on_null() {
+fn placebo_ols_is_non_informative() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
             .unwrap();
@@ -132,15 +132,14 @@ fn placebo_near_zero_on_null() {
         None,
     );
     let report = PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.passed, "{:?}", report.failure_condition);
-    // comparison is the two-sided p-value of zero under the placebo distribution.
-    assert!(report.comparison >= 0.05, "p={}", report.comparison);
+    // OLS recovers ~0 on independent noise by construction: not a falsifier.
+    assert!(!report.informative, "OLS placebo must not claim to falsify the causal claim");
     let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
-fn placebo_permute_near_zero_on_null() {
+fn placebo_permute_ols_is_non_informative() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
             .unwrap();
@@ -165,13 +164,13 @@ fn placebo_permute_near_zero_on_null() {
     placebo.mode = PlaceboMode::Permute;
     placebo.replicates = 40;
     let report = placebo.refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.passed, "{:?}", report.failure_condition);
+    assert!(!report.informative, "OLS placebo permute must not claim to falsify");
     let max = fixture["expected"]["placebo_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean placebo ate={}", report.refuted_ate);
 }
 
 #[test]
-fn rcc_preserves_ate() {
+fn rcc_ols_is_non_informative() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
             .unwrap();
@@ -193,7 +192,7 @@ fn rcc_preserves_ate() {
         None,
     );
     let report = RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.passed, "{:?}", report.failure_condition);
+    assert!(!report.informative, "OLS RCC must not claim to falsify the causal claim");
     let max = fixture["expected"]["random_common_cause_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
 }
@@ -346,7 +345,7 @@ fn continuous_overlap_comparison_is_unsupported_mass() {
 }
 
 #[test]
-fn data_subset_preserves_ate() {
+fn data_subset_ols_is_non_informative() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
             .unwrap();
@@ -368,7 +367,7 @@ fn data_subset_preserves_ate() {
         None,
     );
     let report = DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.passed, "{:?}", report.failure_condition);
+    assert!(!report.informative, "OLS data-subset must not claim to falsify the causal claim");
     let max = fixture["expected"]["subset_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
 }
@@ -494,11 +493,11 @@ fn refit_effect_honors_caller_se_kind() {
     let mut refuter = DataSubsetRefuter::new();
     refuter.estimator.se_kind = AnalyticSeKind::Hc1;
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.informative);
+    assert!(!report.informative);
 }
 
 #[test]
-fn dummy_outcome_near_zero() {
+fn dummy_outcome_ols_is_non_informative() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
             .unwrap();
@@ -520,11 +519,48 @@ fn dummy_outcome_near_zero() {
         None,
     );
     let report = DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap();
-    assert!(report.passed, "{:?}", report.failure_condition);
-    // comparison is the two-sided p-value of zero under the dummy-outcome distribution.
-    assert!(report.comparison >= 0.05, "p={}", report.comparison);
+    assert!(!report.informative, "OLS dummy-outcome must not claim to falsify the causal claim");
     let max = fixture["expected"]["dummy_outcome_abs_max"].as_f64().unwrap();
     assert!(report.refuted_ate.abs() < max, "mean dummy ate={}", report.refuted_ate);
+}
+
+#[test]
+fn ols_refuters_do_not_earn_a_pass_from_p_equals_one() {
+    // Historical bug: NaN replicates collapsed to p=1.0, and pass-only tests treated
+    // that as earning the falsifier claim. Earn the opposite: non-finite replicates
+    // fail closed, and OLS-gated refuters are non-informative even when p is large.
+    let p_nan = crate::common::replicate_p_value(&[0.1, f64::NAN, 0.2, 0.15], 0.0);
+    assert_eq!(p_nan, 0.0, "NaN replicate must not become p=1.0");
+
+    let (data, estimand, _) = toy_confounded();
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let mut ws = EstimationWorkspace::default();
+    let ctx = ExecutionContext::for_tests(31);
+    let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &query,
+        &original,
+        Some("linear.adjustment.ate"),
+        None,
+    );
+    for (name, report) in [
+        ("placebo", PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap()),
+        ("rcc", RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap()),
+        ("subset", DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap()),
+        ("dummy", DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap()),
+    ] {
+        assert!(
+            !report.informative,
+            "{name}: large p under OLS must not be presented as an informative falsifier \
+             (comparison={})",
+            report.comparison
+        );
+    }
 }
 
 #[test]
