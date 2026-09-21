@@ -12,23 +12,23 @@ from dataclasses import KW_ONLY, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, get_args, overload
 
 if TYPE_CHECKING:
-    from .estimation import PreparedAnalysis
+    from ..estimation import PreparedAnalysis
 
 import numpy as np
 
-from ._native import estimate_trial_transport as _estimate_trial_transport
-from ._native import identify_transport as _identify_transport
-from ._native import roundtrip_expr_arena as _roundtrip_expr_arena
-from ._transport_results import (
+from .._native import estimate_trial_transport as _estimate_trial_transport
+from .._native import identify_transport as _identify_transport
+from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
+from .._transport_results import (
     TransportContrast,
     TransportGridPoint,
     TransportSupport,
     TransportUncertainty,
 )
-from .errors import CausalTypeError, CausalValueError
-from .graph import Admg
-from .learners import LearnerSpec, Logistic, Ridge, _learner_wire
-from .query import (
+from ..errors import CausalTypeError, CausalValueError
+from ..graph import Admg
+from ..learners import LearnerSpec, Logistic, Ridge, _learner_wire
+from ..query import (
     AverageDerivative,
     DirectionalDerivative,
     Elasticity,
@@ -757,7 +757,7 @@ class ExactTransportDistribution:
         """Native four-slot reasoning and factor-level support for this execution."""
         import json
 
-        from .results._report import InspectionReport
+        from ..results._report import InspectionReport
 
         if self._execution is None:
             raise ValueError("This display object has no native execution authority")
@@ -811,16 +811,43 @@ class ClassicalTransportIdentification:
         """Export the retained checked proof or conservative/negative certificate."""
         return bytes(self._native.export())
 
-    def inspect(self) -> dict[str, Any]:
+    def inspect(self) -> Any:
         """Structural certificate and all four reasoning slots; no provider access."""
         import json
 
-        return dict(json.loads(self._native.certificate_json()))
+        from ..results._report import InspectionReport, SlotModel
+
+        raw = dict(json.loads(self._native.certificate_json()))
+        identified = self.outcome == "identified"
+        return InspectionReport(
+            identification=SlotModel(
+                available=identified,
+                reason=None if identified else self.outcome,
+                summary=self.outcome,
+                payload={"outcome": self.outcome, "engine": raw},
+            ),
+            support=SlotModel(
+                available=identified,
+                reason=None,
+                summary="not_estimated" if identified else "unavailable",
+                payload={"engine": raw},
+            ),
+            uncertainty=SlotModel(
+                available=False,
+                reason="not_estimated",
+                summary="unavailable",
+            ),
+            assumptions=SlotModel(
+                available=True,
+                summary="declared",
+                payload={"rules": list(self.rules), "engine": raw.get("reasoning", raw)},
+            ),
+        )
 
 
 def consume_identification(artifact: bytes, **limits: Any) -> ClassicalTransportIdentification:
     """Independently verify a structural certificate, without rerunning identification."""
-    from ._native import consume_transport_certificate
+    from .._native import consume_transport_certificate
 
     native = consume_transport_certificate(artifact, **limits)
     return ClassicalTransportIdentification(
@@ -845,7 +872,7 @@ def identify_meta(
     Completeness concerns full source experimental families; finite catalog
     binding remains a separate bounded search. No provider data are inspected.
     """
-    from ._native import identify_meta_transport_stage
+    from .._native import identify_meta_transport_stage
 
     native = identify_meta_transport_stage(
         graph,
@@ -884,7 +911,7 @@ def identify_classical(
     user's finite catalog supplies every experiment. Actual tables are bound
     separately by :func:`evaluate_exact`.
     """
-    from ._native import identify_classical_transport_stage
+    from .._native import identify_classical_transport_stage
 
     native = identify_classical_transport_stage(
         graph,
@@ -1012,7 +1039,7 @@ class StatisticalTransportDistribution:
     def inspect(self) -> Any:
         import json
 
-        from .results._report import InspectionReport
+        from ..results._report import InspectionReport
 
         if self._execution is None:
             raise ValueError("This display object has no native execution authority")
@@ -1120,8 +1147,8 @@ def prepare_statistical(
     seed: int = 1,
 ) -> PreparedAnalysis[StatisticalTransportDistribution]:
     """Prepare the empirical-table modality of the common PreparedAnalysis lifecycle."""
-    from ._native import prepare_statistical_transport
-    from .estimation import PreparedAnalysis, _Controls
+    from .._native import prepare_statistical_transport
+    from ..estimation import PreparedAnalysis, _Controls
 
     native = prepare_statistical_transport(
         identification._native,
@@ -1170,8 +1197,8 @@ def consume_statistical(
     cancel: Any = None,
 ) -> PreparedAnalysis[StatisticalTransportDistribution]:
     """Verify portable proof and recomputed plug-in point; do not re-bootstrap."""
-    from . import _native
-    from .estimation import PreparedAnalysis, _Controls
+    from .. import _native
+    from ..estimation import PreparedAnalysis, _Controls
 
     native = _native.consume_statistical_transport(
         artifact,
@@ -1416,7 +1443,7 @@ def prepare_exact(
     cancel: Any = None,
 ) -> PreparedAnalysis[ExactTransportDistribution]:
     """Prepare the exact-law modality of the common PreparedAnalysis lifecycle."""
-    from .estimation import PreparedAnalysis, _Controls
+    from ..estimation import PreparedAnalysis, _Controls
 
     native = identification._native.prepare_exact(
         catalog,
@@ -1443,8 +1470,8 @@ def consume_exact(
 
     Uses embedded immutable laws; never fits models or fetches providers.
     """
-    from . import _native
-    from .estimation import PreparedAnalysis, _Controls
+    from .. import _native
+    from ..estimation import PreparedAnalysis, _Controls
 
     native = _native.consume_exact_transport(
         artifact,
@@ -1558,7 +1585,7 @@ class TransportResponseGrid:
     def inspect(self) -> Any:
         import json
 
-        from .results._report import InspectionReport
+        from ..results._report import InspectionReport
 
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
@@ -1594,8 +1621,8 @@ def prepare_response_grid(
     cancel: Any = None,
 ) -> PreparedAnalysis[TransportResponseGrid]:
     """Prepare exact or empirical finite responses on the common study lifecycle."""
-    from . import _native
-    from .estimation import PreparedAnalysis, _Controls
+    from .. import _native
+    from ..estimation import PreparedAnalysis, _Controls
 
     if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
         raise TypeError("Grid data must be exact laws or explicit statistical providers")
@@ -1627,8 +1654,8 @@ def consume_response_grid(
     cancel: Any = None,
 ) -> PreparedAnalysis[TransportResponseGrid]:
     """Verify a grid without fetching, fitting, or rebuilding raw samples."""
-    from . import _native
-    from .estimation import PreparedAnalysis, _Controls
+    from .. import _native
+    from ..estimation import PreparedAnalysis, _Controls
 
     native = _native.consume_transport_grid(
         artifact,
@@ -1766,7 +1793,7 @@ class LearnedTrialEstimate:
     def inspect(self) -> Any:
         import json
 
-        from .results._report import InspectionReport
+        from ..results._report import InspectionReport
 
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
@@ -1801,8 +1828,8 @@ def prepare_trial(
     """Prepare a checked binary contrast; baseline covariates must match its certificate."""
     import json
 
-    from . import _native
-    from .estimation import PreparedAnalysis, _Controls
+    from .. import _native
+    from ..estimation import PreparedAnalysis, _Controls
 
     provider = provider or TrialAipw()
     inference = inference or TransportInference()

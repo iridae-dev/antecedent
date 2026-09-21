@@ -16,9 +16,9 @@ licensed cell:
 import antecedent as ant
 from antecedent import interference, transport
 
-query = ant.TransportQuery(
+query = transport.advanced.TransportQuery(
     ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
-    transport.SelectionDiagram("trial", "target", ["x"]),
+    transport.advanced.SelectionDiagram("trial", "target", ["x"]),
     source_experiments=["a"],
     trial="trial",                    # source-trial membership column
     selection_probability="s",        # P(S=1 | X) on every row

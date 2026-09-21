@@ -3,7 +3,8 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent import interference, transport
+from antecedent import interference
+from antecedent.transport import advanced as transport
 
 
 def test_graphical_transport_returns_direct_formula_and_certificate() -> None:

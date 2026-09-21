@@ -1,89 +1,37 @@
-"""Identify, prepare, refresh, and independently consume an empirical transported law."""
+"""Single-source empirical table. Same verbs as the exact and complementary examples."""
 
-from antecedent import Admg, load, prepare, transport
-
-
-def _sample(snapshot: str, counts: tuple[int, int]) -> transport.RegimeSample:
-    y0, y1 = counts
-    return transport.RegimeSample(
-        "source",
-        "trial",
-        snapshot,
-        {"y": [0.0] * y0 + [1.0] * y1},
-        interventions=(("x", 1.0),),
-    )
+import antecedent as ant
 
 
 def main() -> None:
-    graph = Admg.from_edges(["x", "y"], [("x", "y")])
-    identified = transport.identify_classical(
-        graph,
-        transport.SelectionDiagram("source", "target", []),
-        outcomes=["y"],
-        treatments=["x"],
-    )
-    catalog = transport.EvidenceCatalog(
-        environments=[
-            transport.Environment(
-                "source",
-                [
-                    transport.VariableCoordinate("x", "binary"),
-                    transport.VariableCoordinate("y", "binary"),
-                ],
-            ),
-            transport.Environment(
-                "target",
-                [
-                    transport.VariableCoordinate("x", "binary"),
-                    transport.VariableCoordinate("y", "binary"),
-                ],
-            ),
-        ],
-        regimes=[
-            transport.EvidenceRegime(
-                "trial",
-                "source",
-                kind="experimental",
-                interventions=["x"],
-                measured=["y"],
-            ),
-        ],
-        bindings=[
-            transport.RegimeBinding(
-                "trial",
-                "source-v1",
-                sampling="independent",
-                dependence="independent_studies",
-            ),
-        ],
+    graph = ant.Admg.from_edges(["x", "y"], [("x", "y")])
+    evidence = ant.transport.Evidence(
+        source=ant.transport.Source(
+            "source", kind="experimental", interventions=["x"], sampling="independent"
+        ),
         target_sampling="representative_sample",
     )
-    data = transport.StatisticalTransportData(samples=(_sample("source-v1", (20, 80)),))
-    study = prepare(
-        data,
-        query=transport.StatisticalTransportQuery(
-            identified, catalog, {"x": 1.0}, bootstrap=39, seed=7
-        ),
+    query = ant.transport.Transport(
+        ant.ResponseCurve("x", "y", grid=[0.0, 1.0]),
+        target="target",
+        evidence=evidence,
     )
-    inspection = study.inspect()
-    assert inspection.uncertainty.available
-    result = study.estimate()
-    assert abs(result.mean("y") - 0.8) < 1e-12
-    assert result.uncertainty is not None
-    assert result.uncertainty["available"]
-    assert result.uncertainty["row"]["interval_scope"] == "pointwise"
+    data = {
+        "x": [0.0] * 50 + [1.0] * 100,
+        "y": [0.0] * 25 + [1.0] * 25 + [0.0] * 20 + [1.0] * 80,
+    }
+    result = ant.analyze(data, graph=graph, query=query)
+    assert result.answer.kind == "response"
+    assert [row[0] for row in result.response.values] == [0.5, 0.8]
+    print(result)
 
-    replacement = transport.StatisticalTransportData(samples=(_sample("source-v2", (30, 70)),))
-    assert study.preview_transform("compatible_data_replace")["refused"] == "false"
-    study.replace_snapshot(replacement)
-    assert study.inspect().identification_id == inspection.identification_id
-    assert study.inspect().data_snapshot_id != inspection.data_snapshot_id
-    refreshed = study.refresh(replacement)
-    assert abs(refreshed.mean("y") - 0.7) < 1e-12
-    consumed = load(study.export())
-    assert consumed.probabilities == refreshed.probabilities
-    assert consumed.uncertainty["available"]
-    print(consumed)
+    replacement = {
+        "x": [0.0] * 50 + [1.0] * 100,
+        "y": [0.0] * 30 + [1.0] * 20 + [0.0] * 30 + [1.0] * 70,
+    }
+    refreshed = result.refresh(replacement)
+    assert [round(row[0], 2) for row in refreshed.response.values] == [0.4, 0.7]
+    print(refreshed)
 
 
 if __name__ == "__main__":

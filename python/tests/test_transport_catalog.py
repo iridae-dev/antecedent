@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import pytest
-from antecedent import transport
+from antecedent.transport import advanced as transport
 from antecedent.errors import CausalValueError
 
 

@@ -62,7 +62,6 @@ _EXPECTED_ALL = {
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
-    "TransportQuery",
     # Graphs (five graph classes)
     "Dag",
     "Cpdag",

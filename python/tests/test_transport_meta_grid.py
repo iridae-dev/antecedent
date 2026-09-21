@@ -3,7 +3,8 @@
 from dataclasses import replace
 
 import pytest
-from antecedent import Admg, load, prepare, transport
+from antecedent import Admg, load, prepare
+from antecedent.transport import advanced as transport
 
 
 def fixture(missing=False, statistical=False):
@@ -542,12 +543,11 @@ def test_frozen_rust_not_certified_consumes_without_upgrade():
     assert result.outcome == "not_certified"
     assert result.outcomes == ("y",)
     assert load(result.export()).inspect() == result.inspect()
-    assert set(result.inspect()["reasoning"]) == {
-        "identification",
-        "support",
-        "uncertainty",
-        "assumptions",
-    }
+    report = result.inspect()
+    assert report.identification.summary == "not_certified"
+    assert {name for name in ("identification", "support", "uncertainty", "assumptions")} <= set(
+        report.to_dict()
+    )
 
 
 def test_invalid_source_coordinates_and_continuous_provider_contracts():

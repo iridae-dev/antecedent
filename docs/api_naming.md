@@ -18,14 +18,14 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 57 names as of 1.10**.
+The root namespace (`import antecedent`) is **frozen at 56 names as of 2.0**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
 them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
-and the two design queries `TransportQuery` and `InterferenceQuery`, whose licensed
-cells `analyze()` now executes (they were previously reachable only from their stage
-modules).
+and the design query `InterferenceQuery`. The licensed trial-IPW cell is
+`antecedent.transport.advanced.TransportQuery`; the 2.0 compiler is
+`antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](python-workflow.md) for lifetime and report semantics.
 The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
@@ -36,8 +36,8 @@ above; the accepted-structure and result types (`AcceptedGraph`, `Identification
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
 `InterventionResponse`) plus the two attribution queries
-(`AnomalyAttribution`, `ChangeAttribution`) plus the two design queries
-(`TransportQuery`, `InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+(`AnomalyAttribution`, `ChangeAttribution`) plus the design query
+(`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
@@ -137,7 +137,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
 | Intervention response | `ResponseFunctional::InterventionResponse` | `InterventionResponse(..., intervention=intervention.Set/Shift/Bernoulli/Gaussian/Categorical(...))` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
-| Structural transport | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)`; `antecedent.transport.identify` stages identification |
+| Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
+| Structural transport (1.10 trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the 2.0 compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |

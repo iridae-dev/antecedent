@@ -7,7 +7,8 @@ import dataclasses
 import antecedent
 import numpy as np
 import pytest
-from antecedent import interference, intervention, observation, transport
+from antecedent import interference, intervention, observation
+from antecedent.transport import advanced as transport
 from antecedent._native import analyze_response_pag
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results import (

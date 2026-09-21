@@ -26,7 +26,7 @@ from typing import Any, Literal, TypedDict
 
 from ._claim import identification_statement
 from ._verdict import describe_status, verdict_for
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
@@ -163,6 +163,7 @@ class Identification:
         | MediationEffect
         | TemporalMediationEffect
         | Counterfactual
+        | Any
     )
     names: list[str] | None = None
     identifier: str | None = None
@@ -289,6 +290,108 @@ class Identification:
             derivation_step_count=view.derivation_step_count,
         )
 
+    def inspect(self) -> Any:
+        """Identification / support / assumptions slots. No provider access."""
+
+        from ._claim import identification_statement
+        from .results._report import InspectionReport, SlotModel
+        from .transport import Transport
+
+        certificate = self.certificate or {}
+        outcome = certificate.get("outcome") or self.status
+        identified = self.verdict == "identified"
+        missing = outcome == "missing_evidence" or certificate.get("missing_detail")
+        support_detail = certificate.get("missing_detail")
+        if missing and not support_detail:
+            support_detail = (
+                "The formula is identified, but a required joint is unbound; "
+                "bind that snapshot before estimate."
+            )
+        not_certified = outcome in {"not_certified", "proven_non_transportable"}
+        engine = certificate.get("engine") or {
+            "formula": certificate.get("formula"),
+            "catalog_search": certificate.get("catalog_search"),
+            "rules": certificate.get("rules") or [],
+        }
+        if isinstance(self.query, Transport):
+            statement = identification_statement(
+                self.query, self.status, self.method, self.adjustment_set
+            )
+            return InspectionReport(
+                identification=SlotModel(
+                    available=identified,
+                    reason=None if identified else str(outcome),
+                    summary=statement,
+                    payload={"outcome": outcome, "method": self.method, "engine": engine},
+                ),
+                support=SlotModel(
+                    available=identified and not missing,
+                    reason=None if not missing else "missing_evidence",
+                    summary="unbound_factor"
+                    if missing
+                    else "not_estimated"
+                    if identified
+                    else "unavailable",
+                    payload={"detail": support_detail, "engine": engine},
+                ),
+                uncertainty=SlotModel(
+                    available=False,
+                    reason="not_estimated",
+                    summary="unavailable",
+                ),
+                assumptions=SlotModel(
+                    available=True,
+                    summary="declared",
+                    payload={
+                        "statements": list(self.assumption_statements),
+                        "not_certified": certificate.get("not_certified_detail")
+                        if not_certified
+                        else None,
+                    },
+                ),
+            )
+        return InspectionReport(
+            identification=SlotModel(
+                available=identified,
+                reason=None if identified else str(outcome),
+                summary=self.status,
+                payload={
+                    "outcome": outcome,
+                    "formula": certificate.get("formula"),
+                    "rules": certificate.get("rules") or [],
+                    "method": self.method,
+                },
+            ),
+            support=SlotModel(
+                available=identified and not missing,
+                reason=None if not missing else "missing_evidence",
+                summary="unbound_factor"
+                if missing
+                else "not_estimated"
+                if identified
+                else "unavailable",
+                payload={
+                    "detail": support_detail,
+                    "catalog_search": certificate.get("catalog_search"),
+                },
+            ),
+            uncertainty=SlotModel(
+                available=False,
+                reason="not_estimated",
+                summary="unavailable",
+            ),
+            assumptions=SlotModel(
+                available=True,
+                summary="declared",
+                payload={
+                    "statements": list(self.assumption_statements),
+                    "not_certified": certificate.get("not_certified_detail")
+                    if not_certified
+                    else None,
+                },
+            ),
+        )
+
     def estimate(
         self,
         data: Mapping[str, Any] | Any,
@@ -301,6 +404,8 @@ class Identification:
         bootstrap: int | None = None,
         threads: int | None = None,
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
+        provider: Any | None = None,
+        controls: Any | None = None,
     ) -> Analysis:
         """Estimate the effect on ``data`` using this identification's strategy.
 
@@ -313,7 +418,18 @@ class Identification:
         its own pipeline, deterministically arriving at the same strategy.
         """
         from ._analyze import analyze
+        from .transport import Transport
 
+        if isinstance(self.query, Transport):
+            return analyze(
+                data,
+                query=self.query,
+                graph=self.graph,
+                inference=inference,
+                identifier=self.identifier,
+                provider=provider,
+                controls=controls,
+            )
         return analyze(
             data,
             query=self.query,
@@ -327,6 +443,8 @@ class Identification:
             bootstrap=bootstrap,
             threads=threads,
             latency=latency,
+            provider=provider,
+            controls=controls,
         )
 
     def validate(
@@ -558,7 +676,8 @@ def identify(
     | ResponseJacobian
     | MediationEffect
     | Counterfactual
-    | TemporalMediationEffect,
+    | TemporalMediationEffect
+    | Any,
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> Identification:
@@ -595,6 +714,14 @@ def identify(
     ``Dag.latent_project(observed)`` builds the ``Admg``.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
+    from .transport import Transport
+    from .transport._day1 import identification_from_transport
+
+    if isinstance(query, Transport):
+        if not isinstance(graph, Admg):
+            raise CausalTypeError("transport.Transport identify requires graph=Admg(...)")
+        return identification_from_transport(graph, query)
+
     from .accepted_graph import AcceptedGraph as _AcceptedGraph
 
     supplied = graph.graph if isinstance(graph, _AcceptedGraph) else graph

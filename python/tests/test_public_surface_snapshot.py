@@ -141,9 +141,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "SemiElasticity",
         "SustainedEffect",
         "TemporalMediationEffect",
-        # Design queries: their licensed cells run on analyze and retain a study
+        # Design queries: licensed cells run on analyze and retain a study
         "InterferenceQuery",
-        "TransportQuery",
         # Stage modules
         "accepted_graph",
         "artifacts",
@@ -235,6 +234,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "unit_extrapolative",
         # Design-cell sections beside the scalar estimate
         "interference",
+        "transport",
         "transport_overlap",
         # Licensed GCM attribution cells
         "anomaly",

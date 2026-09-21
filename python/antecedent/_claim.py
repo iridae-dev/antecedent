@@ -9,6 +9,10 @@ from ._verdict import describe_status, verdict_for
 
 
 def query_phrase(query: object) -> str:
+    question = getattr(query, "question", None)
+    target = getattr(query, "target", None)
+    if type(query).__name__ == "Transport" and question is not None and isinstance(target, str):
+        return f"{query_phrase(question)} into {target}"
     name = type(query).__name__
     treatment = getattr(query, "treatment", None)
     outcome = getattr(query, "outcome", None)

@@ -344,6 +344,10 @@ class ResultAPI:
     @property
     def answer(self) -> Answer:
         """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
+        section = getattr(self, "transport", None)
+        detail = getattr(section, "unavailable", None) if section is not None else None
+        if detail:
+            return Answer("unavailable", detail=detail)
         limitation = getattr(self, "rendering_limitation", lambda: None)()
         bounds = _scalar_bounds(getattr(self, "structural_identified_set", None))
         if self._function_valued:

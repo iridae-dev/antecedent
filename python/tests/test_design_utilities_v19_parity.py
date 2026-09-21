@@ -16,7 +16,8 @@ from pathlib import Path
 
 import antecedent
 import pytest
-from antecedent import interference, transport
+from antecedent import interference
+from antecedent.transport import advanced as transport
 
 from _repo_text import read_text
 

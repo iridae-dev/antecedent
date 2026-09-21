@@ -3,7 +3,8 @@
 from pathlib import Path
 
 import pytest
-from antecedent import Admg, load, prepare, transport
+from antecedent import Admg, load, prepare
+from antecedent.transport import advanced as transport
 
 
 def fixture():

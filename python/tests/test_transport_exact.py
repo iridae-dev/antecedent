@@ -3,7 +3,8 @@
 from dataclasses import replace
 
 import pytest
-from antecedent import Admg, transport
+from antecedent import Admg
+from antecedent.transport import advanced as transport
 
 
 def fixture():

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import antecedent
-from antecedent import transport
+from antecedent.transport import advanced as transport
 
 
 def _mean_curve() -> antecedent.ResponseCurve:

@@ -137,7 +137,6 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import Analysis, AnalysisResult
-from .transport import TransportQuery
 
 __all__ = [
     # Verbs
@@ -172,7 +171,6 @@ __all__ = [
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
-    "TransportQuery",
     # Graphs
     "Dag",
     "Cpdag",

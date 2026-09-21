@@ -412,6 +412,8 @@ class CausalResponseView(ResultModel, ResultAPI):
     claim_id: str | None = None
     #: Identity of the data snapshot this execution ran on.
     data_snapshot_id: str | None = None
+    #: T5–T9 transport lineage when the estimand was ``transport.Transport``.
+    transport: Any = None
     _prepared: Any = PrivateAttr(default=None)
     _execution: Any = PrivateAttr(default=None)
 

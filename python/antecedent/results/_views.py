@@ -16,7 +16,7 @@ if TYPE_CHECKING:
         ValidationFailureSection,
     )
     from ..interference import InterferenceEstimate
-    from ..transport import TransportOverlapReport
+    from ..transport._impl import TransportOverlapReport
 else:
     AnomalyScores = Any
     ChangeAttributionResult = Any
@@ -660,6 +660,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: TransportQuery: trial-selection and within-trial treatment overlap,
     #: reported separately (the transported IPW is ``estimate.ate``).
     transport_overlap: TransportOverlapReport | None = None
+    #: T5–T9 transport lineage (formula, provider, bindings) when the query
+    #: was ``transport.Transport``. Specialist views stay on ``transport.distribution``.
+    transport: Any = None
     #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
     #: variance and exposure-probability methods (HT is ``estimate.ate``).
     interference: InterferenceEstimate | None = None

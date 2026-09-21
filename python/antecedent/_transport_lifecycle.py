@@ -42,7 +42,7 @@ class TransportLifecycle:
 
 
 def transport_lifecycle(kind: str) -> TransportLifecycle | None:
-    from .transport import (
+    from .transport._impl import (
         _exact_distribution,
         _learned_trial,
         _response_grid,
