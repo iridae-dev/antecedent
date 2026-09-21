@@ -485,15 +485,15 @@ pub(crate) fn refine_temporal_class_identification(
     horizon: u32,
 ) -> Result<(), CausalError> {
     let schedule = if let CausalQuery::Response(response) = query {
-        antecedent_estimate::plan_from_response_query(response)
-            .map_err(CausalError::from)?
-            .and_then(|plan| plan.mechanism_overlays())
-            .map(|overlays| {
-                overlays
-                    .iter()
-                    .map(|overlay| (overlay.node.variable, overlay.node.offset))
-                    .collect::<Vec<_>>()
-            })
+        match antecedent_estimate::plan_from_response_query(response).map_err(CausalError::from)? {
+            Some(plan) if plan.mechanism_overlays().is_some() => {
+                let temporal = response.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+                    message: "sequence schedule requires TemporalResponseSpec".into(),
+                })?;
+                Some(plan.identification_schedule(temporal))
+            }
+            _ => None,
+        }
     } else {
         None
     };

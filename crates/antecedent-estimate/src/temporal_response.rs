@@ -82,21 +82,27 @@ impl TemporalInterventionPlan {
             Self::Mechanisms { overlays } => Some(overlays.clone()),
         }
     }
-    /// Treatment nodes the identifier must cover.
+    /// Treatment nodes the identifier must cover, with the `Set` level actually
+    /// requested at each node (`None` for a Soft/shift step, which has no
+    /// fixed value).
     #[must_use]
-    pub fn identification_schedule(&self, spec: &TemporalResponseSpec) -> Vec<(VariableId, i32)> {
+    pub fn identification_schedule(
+        &self,
+        spec: &TemporalResponseSpec,
+    ) -> Vec<(VariableId, i32, Option<f64>)> {
         match self {
-            Self::Single { treatment, .. } => spec
+            Self::Single { treatment, level, .. } => spec
                 .policy
                 .active_offsets()
-                .map(|offsets| offsets.iter().map(|&offset| (*treatment, offset)).collect())
+                .map(|offsets| offsets.iter().map(|&offset| (*treatment, offset, *level)).collect())
                 .unwrap_or_default(),
-            Self::Sequential { overlays } => {
-                overlays.iter().map(|overlay| (overlay.variable, overlay.offset)).collect()
-            }
+            Self::Sequential { overlays } => overlays
+                .iter()
+                .map(|overlay| (overlay.variable, overlay.offset, overlay.level))
+                .collect(),
             Self::Mechanisms { overlays } => overlays
                 .iter()
-                .map(|overlay| (overlay.node.variable, overlay.node.offset))
+                .map(|overlay| (overlay.node.variable, overlay.node.offset, overlay.node.level))
                 .collect(),
         }
     }
