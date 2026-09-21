@@ -31,6 +31,8 @@ pub struct LicensedCell {
     pub structure: &'static str,
     pub inference: &'static str,
     pub validation: &'static str,
+    /// Estimator wire-ids whose evidence ran for this geometric cell.
+    pub estimators: &'static [&'static str],
 }
 
 pub static NA_RULES: &[NaRule] = &[
@@ -434,6 +436,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -441,6 +444,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -448,6 +452,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -455,6 +460,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -462,6 +468,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -469,6 +476,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -476,6 +484,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -483,6 +492,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -490,6 +500,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -497,6 +508,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -504,6 +516,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -511,6 +524,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -518,6 +532,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -525,6 +540,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -532,6 +548,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -539,6 +556,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -546,6 +564,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -553,6 +572,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -560,6 +580,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -567,6 +588,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -574,6 +596,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -581,6 +604,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -588,6 +612,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -595,6 +620,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -602,6 +628,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -609,6 +636,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -616,6 +644,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -623,6 +652,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -630,6 +660,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -637,6 +668,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -644,6 +676,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -651,6 +684,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -658,6 +692,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -665,6 +700,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -672,6 +708,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -679,6 +716,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -686,6 +724,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -693,6 +732,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -700,6 +740,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -707,6 +748,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -714,6 +756,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -721,6 +764,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -728,6 +772,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -735,6 +780,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -742,6 +788,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -749,6 +796,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -756,6 +804,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -763,6 +812,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -770,6 +820,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -777,6 +828,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -784,6 +836,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -791,6 +844,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -798,6 +852,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -805,6 +860,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -812,6 +868,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -819,6 +876,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -826,6 +884,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -833,6 +892,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -840,6 +900,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -847,6 +908,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -854,6 +916,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -861,6 +924,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -868,6 +932,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -875,6 +940,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -882,6 +948,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -889,6 +956,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -896,6 +964,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -903,6 +972,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -910,6 +980,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -917,6 +988,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -924,6 +996,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -931,6 +1004,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -938,6 +1012,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -945,6 +1020,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -952,6 +1028,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -959,6 +1036,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -966,6 +1044,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -973,6 +1052,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -980,6 +1060,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -987,6 +1068,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -994,6 +1076,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1001,6 +1084,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1008,6 +1092,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1015,6 +1100,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1022,6 +1108,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1029,6 +1116,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1036,6 +1124,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -1043,6 +1132,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -1050,6 +1140,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -1057,6 +1148,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -1064,6 +1156,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -1071,6 +1164,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -1078,6 +1172,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -1085,6 +1180,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1092,6 +1188,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1099,6 +1196,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1106,6 +1204,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1113,6 +1212,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1120,6 +1220,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1127,6 +1228,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1134,6 +1236,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1141,6 +1244,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.response.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1148,6 +1252,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1155,6 +1260,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1162,6 +1268,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1169,6 +1276,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1176,6 +1284,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1183,6 +1292,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1190,6 +1300,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1197,6 +1308,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1204,6 +1316,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1211,6 +1324,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1218,6 +1332,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1225,6 +1340,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1232,6 +1348,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1239,6 +1356,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1246,6 +1364,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1253,6 +1372,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1260,6 +1380,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1267,6 +1388,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1274,6 +1396,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1281,6 +1404,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1288,6 +1412,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1295,6 +1420,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1302,6 +1428,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1309,6 +1436,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -1316,6 +1444,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -1323,6 +1452,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -1330,6 +1460,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1337,6 +1468,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1344,6 +1476,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1351,6 +1484,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1358,6 +1492,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1365,6 +1500,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1372,6 +1508,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1379,6 +1516,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1386,6 +1524,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1393,6 +1532,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1400,6 +1540,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1407,6 +1548,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1414,6 +1556,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1421,6 +1564,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1428,6 +1572,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1435,6 +1580,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1442,6 +1588,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1449,6 +1596,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1456,6 +1604,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1463,6 +1612,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1470,6 +1620,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1477,6 +1628,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1484,6 +1636,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1491,6 +1644,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1498,6 +1652,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1505,6 +1660,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1512,6 +1668,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1519,6 +1676,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1526,6 +1684,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1533,6 +1692,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1540,6 +1700,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1547,6 +1708,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1554,6 +1716,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1561,6 +1724,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1568,6 +1732,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1575,6 +1740,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1582,6 +1748,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1589,6 +1756,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1596,6 +1764,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -1603,6 +1772,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1610,6 +1780,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1617,6 +1788,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1624,6 +1796,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -1631,6 +1804,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1638,6 +1812,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1645,6 +1820,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1652,6 +1828,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1659,6 +1836,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1666,6 +1844,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1673,6 +1852,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1680,6 +1860,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1687,6 +1868,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1694,6 +1876,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1701,6 +1884,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1708,6 +1892,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -1715,6 +1900,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1722,6 +1908,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1729,6 +1916,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1736,6 +1924,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1743,6 +1932,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1750,6 +1940,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1757,6 +1948,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1764,6 +1956,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1771,6 +1964,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1778,6 +1972,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1785,6 +1980,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1792,6 +1988,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -1799,6 +1996,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.linear.adjustment"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1806,6 +2004,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1813,6 +2012,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1820,6 +2020,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1827,6 +2028,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1834,6 +2036,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1841,6 +2044,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1848,6 +2052,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1855,6 +2060,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1862,6 +2068,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1869,6 +2076,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1876,6 +2084,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1883,6 +2092,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1890,6 +2100,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1897,6 +2108,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1904,6 +2116,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1911,6 +2124,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1918,6 +2132,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1925,6 +2140,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1932,6 +2148,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1939,6 +2156,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1946,6 +2164,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1953,6 +2172,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1960,6 +2180,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1967,6 +2188,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.gcomp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1974,6 +2196,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1981,6 +2204,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1988,6 +2212,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1995,6 +2220,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -2002,6 +2228,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -2009,6 +2236,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2016,6 +2244,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2023,6 +2252,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2030,6 +2260,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2037,6 +2268,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2044,6 +2276,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2051,6 +2284,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2058,6 +2292,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2065,6 +2300,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2072,6 +2308,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2079,6 +2316,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2086,6 +2324,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2093,6 +2332,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2100,6 +2340,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2107,6 +2348,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2114,6 +2356,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2121,6 +2364,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2128,6 +2372,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2135,6 +2380,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -2142,6 +2388,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -2149,6 +2396,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -2156,6 +2404,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -2163,6 +2412,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -2170,6 +2420,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2177,6 +2428,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2184,6 +2436,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2191,6 +2444,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2198,6 +2452,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2205,6 +2460,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2212,6 +2468,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2219,6 +2476,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2226,6 +2484,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2233,6 +2492,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2240,6 +2500,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2247,6 +2508,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2254,6 +2516,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2261,6 +2524,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2268,6 +2532,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2275,6 +2540,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2282,6 +2548,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2289,6 +2556,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2296,6 +2564,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2303,6 +2572,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2310,6 +2580,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2317,6 +2588,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2324,6 +2596,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2331,6 +2604,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2338,6 +2612,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2345,6 +2620,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2352,6 +2628,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2359,6 +2636,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2366,6 +2644,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2373,6 +2652,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -2380,6 +2660,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2387,6 +2668,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2394,6 +2676,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2401,6 +2684,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2408,6 +2692,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2415,6 +2700,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2422,6 +2708,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2429,6 +2716,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2436,6 +2724,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2443,6 +2732,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2450,6 +2740,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2457,6 +2748,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2464,6 +2756,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2471,6 +2764,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2478,6 +2772,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2485,6 +2780,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2492,6 +2788,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2499,6 +2796,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2506,6 +2804,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2513,6 +2812,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2520,6 +2820,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2527,6 +2828,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2534,6 +2836,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "PointDerivative",
@@ -2541,6 +2844,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "PointDerivative",
@@ -2548,6 +2852,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "Elasticity",
@@ -2555,6 +2860,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "Elasticity",
@@ -2562,6 +2868,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "SemiElasticity",
@@ -2569,6 +2876,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "SemiElasticity",
@@ -2576,6 +2884,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "AverageDerivative",
@@ -2583,6 +2892,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.riesz_ade"],
     },
     LicensedCell {
         query: "AverageDerivative",
@@ -2590,6 +2900,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.riesz_ade"],
     },
     LicensedCell {
         query: "DirectionalDerivative",
@@ -2597,6 +2908,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "DirectionalDerivative",
@@ -2604,6 +2916,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "ResponseJacobian",
@@ -2611,6 +2924,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "ResponseJacobian",
@@ -2618,6 +2932,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -2625,6 +2940,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -2632,6 +2948,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -2639,6 +2956,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -2646,6 +2964,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -2653,6 +2972,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -2660,6 +2980,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "Counterfactual",
@@ -2667,6 +2988,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["gcm.fit"],
     },
     LicensedCell {
         query: "Counterfactual",
@@ -2674,6 +2996,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["gcm.fit"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2681,6 +3004,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["cell.aipw"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -2688,6 +3012,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["aipw"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -2695,6 +3020,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["linear.adjustment.ate"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2702,6 +3028,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2709,6 +3036,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2716,6 +3044,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2723,6 +3052,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2730,6 +3060,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2737,6 +3068,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2744,6 +3076,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2751,6 +3084,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2758,6 +3092,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2765,6 +3100,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2772,6 +3108,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "PulseEffect",
@@ -2779,6 +3116,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2786,6 +3124,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2793,6 +3132,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2800,6 +3140,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2807,6 +3148,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2814,6 +3156,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2821,6 +3164,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2828,6 +3172,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2835,6 +3180,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2842,6 +3188,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2849,6 +3196,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2856,6 +3204,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "SustainedEffect",
@@ -2863,6 +3212,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["bayesian.temporal.gcomp"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2870,6 +3220,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2877,6 +3228,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2884,6 +3236,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -2891,6 +3244,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2898,6 +3252,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -2905,20 +3260,23 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
-    },
-    LicensedCell {
-        query: "InterventionResponse",
-        graph_class: "TemporalPag",
-        structure: "explicit",
-        inference: "Bayesian",
-        validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
         graph_class: "TemporalPag",
+        structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+        estimators: &["response.temporal.bayesian"],
+    },
+    LicensedCell {
+        query: "InterventionResponse",
+        graph_class: "TemporalPag",
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.temporal.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2926,6 +3284,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2933,6 +3292,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2940,6 +3300,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2947,6 +3308,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2954,6 +3316,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -2961,6 +3324,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2968,6 +3332,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2975,6 +3340,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2982,6 +3348,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2989,6 +3356,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -2996,6 +3364,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "PathSpecificEffect",
@@ -3003,6 +3372,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3010,6 +3380,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3017,6 +3388,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3024,6 +3396,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3031,6 +3404,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3038,6 +3412,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3045,6 +3420,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -3052,6 +3428,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -3059,6 +3436,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -3066,6 +3444,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -3073,6 +3452,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -3080,6 +3460,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -3087,6 +3468,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -3094,6 +3476,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -3101,6 +3484,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -3108,6 +3492,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -3115,6 +3500,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -3122,6 +3508,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "MediationEffect",
@@ -3129,6 +3516,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["mediation.linear"],
     },
     LicensedCell {
         query: "Counterfactual",
@@ -3136,6 +3524,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["gcm.fit"],
     },
     LicensedCell {
         query: "Counterfactual",
@@ -3143,6 +3532,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["gcm.fit"],
     },
     LicensedCell {
         query: "AverageDerivative",
@@ -3150,6 +3540,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.riesz_ade"],
     },
     LicensedCell {
         query: "AverageDerivative",
@@ -3157,6 +3548,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.riesz_ade"],
     },
     LicensedCell {
         query: "DirectionalDerivative",
@@ -3164,6 +3556,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "DirectionalDerivative",
@@ -3171,6 +3564,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "Elasticity",
@@ -3178,6 +3572,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "Elasticity",
@@ -3185,6 +3580,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "PointDerivative",
@@ -3192,6 +3588,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "PointDerivative",
@@ -3199,6 +3596,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseJacobian",
@@ -3206,6 +3604,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "ResponseJacobian",
@@ -3213,6 +3612,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.gam_derivative"],
     },
     LicensedCell {
         query: "SemiElasticity",
@@ -3220,6 +3620,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "SemiElasticity",
@@ -3227,6 +3628,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3234,6 +3636,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3241,6 +3644,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3248,6 +3652,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3255,6 +3660,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3262,6 +3668,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3269,6 +3676,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3276,6 +3684,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3283,6 +3692,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3290,6 +3700,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "InterventionalDistribution",
@@ -3297,6 +3708,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.distribution"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3304,6 +3716,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3311,6 +3724,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3318,6 +3732,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3325,6 +3740,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3332,6 +3748,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3339,6 +3756,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3346,6 +3764,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3353,6 +3772,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3360,6 +3780,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3367,6 +3788,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3374,6 +3796,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3381,6 +3804,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3388,6 +3812,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3395,6 +3820,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3402,6 +3828,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3409,6 +3836,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "accepted",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["functional.effect"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3416,6 +3844,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3423,6 +3852,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3430,6 +3860,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3437,6 +3868,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3444,6 +3876,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3451,6 +3884,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["temporal.mediation"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3458,6 +3892,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3465,6 +3900,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "TemporalMediationEffect",
@@ -3472,6 +3908,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["temporal.mediation.bayesian"],
     },
     LicensedCell {
         query: "AnomalyAttribution",
@@ -3479,6 +3916,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["gcm.fit"],
     },
     LicensedCell {
         query: "ChangeAttribution",
@@ -3486,6 +3924,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["gcm.fit"],
     },
     LicensedCell {
         query: "TransportQuery",
@@ -3493,6 +3932,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["transport.trial_ipw"],
     },
     LicensedCell {
         query: "InterferenceQuery",
@@ -3500,6 +3940,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "explicit",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["interference.ht_hajek"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3507,6 +3948,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3514,6 +3956,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3521,6 +3964,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3528,6 +3972,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3535,6 +3980,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3542,6 +3988,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3549,6 +3996,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3556,6 +4004,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3563,6 +4012,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3570,6 +4020,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3577,6 +4028,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3584,6 +4036,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3591,6 +4044,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3598,6 +4052,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3605,6 +4060,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["conditional.linear.adjustment"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3612,6 +4068,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3619,6 +4076,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "cheap",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -3626,6 +4084,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "full",
+        estimators: &["conditional.bayesian"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3633,6 +4092,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.kennedy_dr"],
     },
     LicensedCell {
         query: "ResponseCurve",
@@ -3640,6 +4100,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3647,6 +4108,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "none",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3654,6 +4116,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "cheap",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3661,6 +4124,7 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Frequentist",
         validation: "full",
+        estimators: &["response.intervention_gcomp"],
     },
     LicensedCell {
         query: "InterventionResponse",
@@ -3668,5 +4132,6 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        estimators: &["response.bayesian"],
     }
 ];

@@ -349,6 +349,21 @@ legal_q = set(all_queries)
 # parity/_evidence_test_backlog.txt; the backlog only shrinks.
 missing_evidence: set[str] = set()
 
+# Estimator wire-ids recorded on licensed rows (secondary axis; not cartesian).
+# When present, every entry must be a non-empty string. Empty lists are allowed
+# only when the row honestly has no estimator evidence (classify_estimator then
+# refuses every concrete EstimatorId, including the five unmeasured families).
+def check_estimators(label: str, row: dict) -> None:
+    named = row.get("estimators")
+    if named is None:
+        return
+    if not isinstance(named, list):
+        fail.append(f"{label}: estimators must be a list of wire-ids")
+        return
+    for est in named:
+        if not isinstance(est, str) or not est.strip():
+            fail.append(f"{label}: estimators entries must be non-empty strings")
+
 
 def check_evidence_test(label: str, row: dict) -> None:
     for problem in test_evidence.row_evidence_problems(row):
@@ -360,6 +375,7 @@ for i, row in enumerate(cells, 1):
     for key in required:
         if key not in row:
             fail.append(f"{label}: missing {key}")
+    check_estimators(label, row)
     q = row.get("query")
     g = row.get("graph_class")
     s = row.get("structure")
