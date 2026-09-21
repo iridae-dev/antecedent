@@ -122,7 +122,9 @@ if not rows:
     sys.exit(1)
 
 for row in rows:
-    cid = row.get("id", "<no id>")
+    cid = row.get("id") or row.get("route") or "<no id>"
+    if row.get("status") == "closed" and not row.get("evidence_test"):
+        continue
     test_rel = row.get("evidence_test")
     assertion = row.get("evidence_assertion")
     if not test_rel or not assertion:

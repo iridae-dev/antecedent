@@ -114,6 +114,23 @@ required = {
 }
 if not required.issubset(seen):
     errors.append("missing current public transport stage")
+coverage_ids = {
+    row.get("id")
+    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text()).get("record", [])
+}
+for route in registry.get("routes", []):
+    for cid in route.get("coverage") or []:
+        if cid not in coverage_ids:
+            errors.append(f"{route.get('route')}: unknown coverage record {cid}")
+    for key in ("scm", "tolerance", "calibration_reason"):
+        value = route.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            errors.append(f"{route.get('route')}: {key} must be a non-empty string")
+for row in registry.get("fixture_evidence", []):
+    for key in ("scm", "tolerance"):
+        value = row.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            errors.append(f"{row.get('id')}: {key} must be a non-empty string")
 if errors:
     print("Transport stage gate FAILED:\n" + "\n".join(f" - {e}" for e in errors))
     sys.exit(1)

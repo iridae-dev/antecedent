@@ -125,6 +125,33 @@ def _meta():
     return graph, query, transport.ExactTransportData(tuple(laws))
 
 
+def test_inspect_does_not_require_data_or_fit(monkeypatch):
+    from antecedent import prepare
+
+    ident = identify(graph=_graph(), query=_curve())
+    prepared = prepare(_statistical(), graph=_graph(), query=_curve())
+    calls: list[str] = []
+
+    def boom(name):
+        def _boom(*_args, **_kwargs):
+            calls.append(name)
+            raise AssertionError(f"inspect must not {name}")
+
+        return _boom
+
+    # inspect_catalog does bounded catalog search over regime metadata, not sample tables.
+    monkeypatch.setattr(transport.EmpiricalTable, "_wire", boom("fit"))
+    monkeypatch.setattr(transport.advanced, "evaluate_exact", boom("evaluate"))
+    monkeypatch.setattr(transport.advanced, "inspect_catalog", boom("catalog_search"))
+    report = ident.inspect()
+    assert report.identification.available
+    assert report.support.summary
+    assert ident.estimate is not None
+    prepared_report = prepared.inspect()
+    assert prepared_report.identification.available
+    assert calls == []
+
+
 def test_identify_estimate_analyze_loop():
     graph = _graph()
     query = _curve()
@@ -212,6 +239,19 @@ def test_day1_surface_excludes_stage_types():
     assert not hasattr(transport, "StatisticalTransportQuery")
     assert not hasattr(transport, "TransportQuery")
     assert hasattr(transport.advanced, "StatisticalTransportQuery")
+
+
+def test_route_transport_tabular_explicit_day1():
+    from antecedent import load
+
+    result = analyze(_statistical(), graph=_graph(), query=_curve())
+    assert result.study is not None
+    refreshed = result.refresh(_statistical())
+    assert list(refreshed.response.values) == list(result.response.values)
+    loaded = load(result.export())
+    assert list(loaded.response.values) == list(result.response.values)
+    again = result.study.estimate()
+    assert list(again.response.values) == list(result.response.values)
 
 
 def test_day1_export_load_rehydrates_view():

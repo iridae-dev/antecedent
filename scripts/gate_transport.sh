@@ -60,5 +60,8 @@ python3 scripts/check_transport_stages.py
 echo "== T10 fixture families: positive and counterexample rows =="
 python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" fixture_evidence gate_transport
 
+echo "== licensed stage routes: consuming evidence assertions =="
+python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" routes gate_transport
+
 echo "revision: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
 echo "gate_transport: ok"
