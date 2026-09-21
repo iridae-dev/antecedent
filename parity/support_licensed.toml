@@ -5577,7 +5577,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
 evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.282 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
@@ -5592,7 +5592,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
 evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.282 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
@@ -5607,7 +5607,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
 evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.282 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
@@ -5622,7 +5622,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
 evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.282 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
@@ -5637,7 +5637,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
 evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.282 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
@@ -5652,7 +5652,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
 evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.282 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 calibration = ["cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage", "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
