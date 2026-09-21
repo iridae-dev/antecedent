@@ -926,7 +926,7 @@ fn attach_batch_family_joint_inference(
         );
         return;
     };
-    let crit = antecedent_estimate::max_t_critical(&level_cov, 0.95, 4096, 1).ok();
+    let crit = resolve_max_t_critical(results, &level_cov, "simultaneous interval");
     for (i, result) in results.iter_mut().enumerate() {
         result.estimate.joint_covariance = Some(level_cov.clone());
         if let Some(c) = crit {
@@ -1010,7 +1010,7 @@ fn attach_batch_family_joint_inference(
                     return;
                 };
                 let contrast_crit =
-                    antecedent_estimate::max_t_critical(&contrast_cov, 0.95, 4096, 1).ok();
+                    resolve_max_t_critical(results, &contrast_cov, "family-contrast interval");
                 attach_family_p_values(
                     results,
                     &contrast_values,
@@ -1242,6 +1242,34 @@ fn subset_estimate_rows(
     }
     let mask = ValidityBitmap::from_bytes(bytes, n).map_err(CausalError::from)?;
     data.with_analysis_mask(mask).map_err(CausalError::from)
+}
+
+/// Resolve the max-t critical value for a joint covariance, attaching a
+/// diagnostic to every result when the band cannot be formed.
+///
+/// `max_t_critical` refuses on a non-PSD correlation matrix, a non-finite or
+/// non-positive SE, or an asymmetric covariance. Unlike `.ok()`, this makes
+/// that refusal visible: "not claimed" (no family declared) and "computation
+/// failed" must read differently on the result.
+fn resolve_max_t_critical(
+    results: &mut [StudyResult],
+    cov: &antecedent_estimate::JointCovariance,
+    what: &str,
+) -> Option<f64> {
+    match antecedent_estimate::max_t_critical(cov, 0.95, 4096, 1) {
+        Ok(c) => Some(c),
+        Err(err) => {
+            for result in results.iter_mut() {
+                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                    "batch.joint_if.max_t_unavailable",
+                    antecedent_core::DiagnosticKind::Scientific,
+                    antecedent_core::DiagnosticSeverity::Warning,
+                    format!("max-t band unavailable for the {what}: {err}"),
+                ));
+            }
+            None
+        }
+    }
 }
 
 fn attach_batch_inference_unavailable(
@@ -1478,6 +1506,96 @@ mod fail_open_regression_tests {
         let expected_by = (3.0 * ordinary_p).min(1.0); // m=2 harmonic factor H_2 = 1.5
         assert!((bh[1] - expected_bh).abs() < 1e-12, "bh={} expected={}", bh[1], expected_bh);
         assert!((by[1] - expected_by).abs() < 1e-12, "by={} expected={}", by[1], expected_by);
+    }
+}
+
+#[cfg(test)]
+mod max_t_diagnostic_tests {
+    use super::*;
+    use antecedent_core::{
+        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
+    use antecedent_graph::DenseNodeId;
+
+    fn one_result() -> StudyResult {
+        let n = 20;
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let ti = f64::from(u32::try_from(i % 2).unwrap());
+            t[i] = ti;
+            y[i] = 2.0 * ti;
+        }
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, role) in [("t", RoleHint::TreatmentCandidate), ("y", RoleHint::OutcomeCandidate)]
+        {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(role),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let cols: Vec<OwnedColumn> = [t, y]
+            .into_iter()
+            .enumerate()
+            .map(|(i, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let ctx = ExecutionContext::for_tests(1);
+        Study::tabular(data)
+            .graph(dag)
+            .query(query)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    }
+
+    #[test]
+    fn max_t_failure_leaves_a_diagnostic_instead_of_silent_none() {
+        let base = one_result();
+        let mut results = vec![base.clone(), base];
+        // A zero-variance claim next to a real one: `max_t_critical` refuses
+        // ("max-t requires positive finite SEs") on the degenerate diagonal entry.
+        let cov = antecedent_estimate::JointCovariance {
+            dim: 2,
+            values: Arc::from([0.0, 0.0, 0.0, 4.0]),
+        };
+        assert!(antecedent_estimate::max_t_critical(&cov, 0.95, 4096, 1).is_err());
+
+        let crit = resolve_max_t_critical(&mut results, &cov, "test interval");
+        assert!(crit.is_none());
+        for result in &results {
+            assert!(
+                result.diagnostics.iter().any(|d| &*d.code == "batch.joint_if.max_t_unavailable"
+                    && d.severity == antecedent_core::DiagnosticSeverity::Warning),
+                "expected a max_t_unavailable warning, got {:?}",
+                result.diagnostics
+            );
+        }
     }
 }
 
