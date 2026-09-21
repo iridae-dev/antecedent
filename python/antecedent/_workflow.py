@@ -14,7 +14,7 @@ from .inference import Bayesian, ClassPrior, Frequentist
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._report import InspectionReport, as_inspection
 from .results._slots import ReasoningSlots
-from .transport import ExactTransportDistribution
+from .transport import ExactTransportDistribution, StatisticalTransportDistribution
 
 
 def prepare(
@@ -147,7 +147,7 @@ class LoadedResult(ResultAPI):
 
 
 @describe_refusal
-def load(data: bytes) -> LoadedResult | ExactTransportDistribution:
+def load(data: bytes) -> LoadedResult | ExactTransportDistribution | StatisticalTransportDistribution:
     """Load a contracted result through the Rust semantic consumer.
 
     Missing/unknown contracts remain explicitly unavailable and can still be
@@ -161,6 +161,11 @@ def load(data: bytes) -> LoadedResult | ExactTransportDistribution:
 
         prepared = consume_exact(encoded)
         return _exact_distribution(prepared._native, prepared._native.last_result())
+    if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
+        from .transport import _statistical_distribution, consume_statistical
+
+        prepared = consume_statistical(encoded)
+        return _statistical_distribution(prepared._native, prepared._native.last_result())
     receipt = artifacts.accept(encoded)
     artifact = artifacts.loads(encoded)
     return LoadedResult(

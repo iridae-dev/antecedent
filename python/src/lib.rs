@@ -41,6 +41,7 @@ mod temporal_api;
 mod temporal_license;
 mod transport_exact_api;
 mod transport_interference_api;
+mod transport_statistical_api;
 
 pub(crate) use ate_api::{
     GraphEdge, ate_result_from_analysis, panel_discovery_builder, panel_multi_dataset_constraints,
@@ -2447,6 +2448,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     temporal_license::register(m)?;
     transport_interference_api::register(m)?;
     transport_exact_api::register(m)?;
+    transport_statistical_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
