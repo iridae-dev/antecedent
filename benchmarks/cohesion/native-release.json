@@ -1,0 +1,92 @@
+{
+  "allocation_scope": "Rust System global allocator; excludes foreign direct malloc and process RSS",
+  "comparison": "current tree; warm cache compared with fresh fitting on identical inputs; no branch speedup claim",
+  "grid_points": 2,
+  "ml_rows": 600,
+  "profile": "release bench",
+  "seed": 9,
+  "threads": 1,
+  "trial_rows": 200,
+  "workloads": {
+    "grid_cold_preparation": {
+      "allocated_bytes": 17425,
+      "allocation_calls": 300,
+      "median_ms": 0.012667,
+      "p95_ms": 0.018583000000000002,
+      "peak_extra_live_bytes": 12884,
+      "repeats": 25
+    },
+    "grid_export": {
+      "allocated_bytes": 97370,
+      "allocation_calls": 285,
+      "median_ms": 0.066625,
+      "p95_ms": 0.075875,
+      "peak_extra_live_bytes": 42902,
+      "repeats": 25
+    },
+    "grid_reasoning": {
+      "allocated_bytes": 800,
+      "allocation_calls": 9,
+      "median_ms": 0.00033299999999999996,
+      "p95_ms": 0.000375,
+      "peak_extra_live_bytes": 688,
+      "repeats": 25
+    },
+    "grid_repeated_evaluation": {
+      "allocated_bytes": 82446,
+      "allocation_calls": 830,
+      "median_ms": 0.061375,
+      "p95_ms": 0.079792,
+      "peak_extra_live_bytes": 29316,
+      "repeats": 25
+    },
+    "grid_verified_load": {
+      "allocated_bytes": 201179,
+      "allocation_calls": 1962,
+      "median_ms": 0.224708,
+      "p95_ms": 0.31220800000000004,
+      "peak_extra_live_bytes": 68013,
+      "repeats": 25
+    },
+    "loaded_numerical_model_prediction": {
+      "allocated_bytes": 14516,
+      "allocation_calls": 5,
+      "median_ms": 0.002125,
+      "p95_ms": 0.002333,
+      "peak_extra_live_bytes": 14400,
+      "repeats": 25
+    },
+    "ml_cold_nuisance_fit": {
+      "allocated_bytes": 883164,
+      "allocation_calls": 654,
+      "median_ms": 0.276875,
+      "p95_ms": 0.31679199999999996,
+      "peak_extra_live_bytes": 109824,
+      "repeats": 25
+    },
+    "ml_cold_preparation": {
+      "allocated_bytes": 53596,
+      "allocation_calls": 15,
+      "median_ms": 0.006584,
+      "p95_ms": 0.007333,
+      "peak_extra_live_bytes": 34316,
+      "repeats": 25
+    },
+    "ml_reused_nuisance_fit": {
+      "allocated_bytes": 134678,
+      "allocation_calls": 108,
+      "median_ms": 0.034958,
+      "p95_ms": 0.051375000000000004,
+      "peak_extra_live_bytes": 57952,
+      "repeats": 25
+    },
+    "trial_joint_bootstrap_9": {
+      "allocated_bytes": 1699388,
+      "allocation_calls": 5540,
+      "median_ms": 0.6525409999999999,
+      "p95_ms": 0.721458,
+      "peak_extra_live_bytes": 33780,
+      "repeats": 25
+    }
+  }
+}
