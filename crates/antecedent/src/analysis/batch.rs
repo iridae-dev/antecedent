@@ -1113,14 +1113,18 @@ fn cell_family_contrast_claim(
     Some((contrast.value, scores))
 }
 
+/// Two-sided p-value for a Wald statistic `value / se`.
+///
+/// A non-finite or non-positive SE describes a degenerate or broken estimate
+/// (a constant influence column, a negative-variance covariance entry), not
+/// infinite precision. Returning `NaN` in that case — rather than folding it
+/// into `z = +inf`, `p = 0` — keeps the test out of BH/BY ranking instead of
+/// handing it the family's strongest "discovery".
 fn two_sided_p(value: f64, se: f64) -> f64 {
-    let z = if se > 0.0 {
-        value.abs() / se
-    } else if value == 0.0 {
-        0.0
-    } else {
-        f64::INFINITY
-    };
+    if !se.is_finite() || se <= 0.0 {
+        return f64::NAN;
+    }
+    let z = value.abs() / se;
     2.0 * antecedent_stats::student_t_sf(z, 1.0e8)
 }
 
@@ -1429,6 +1433,51 @@ fn attach_candidate_selection(
                 "winner is ranked on the reported estimate-sample family; screen_rows are recorded provenance and were not used to select",
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod fail_open_regression_tests {
+    use super::*;
+
+    #[test]
+    fn degenerate_se_is_undefined_not_a_discovery() {
+        // `se == 0` with a nonzero point estimate is a broken/degenerate estimate
+        // (e.g. a constant influence column), not infinite precision.
+        assert!(two_sided_p(5.0, 0.0).is_nan());
+        // `se == NaN` (e.g. `sqrt` of a negative covariance entry) is likewise undefined.
+        assert!(two_sided_p(5.0, f64::NAN).is_nan());
+        // a genuinely testable claim is unaffected.
+        let p = two_sided_p(3.0, 1.0);
+        assert!(p.is_finite() && p > 0.0 && p < 1.0);
+    }
+
+    #[test]
+    fn degenerate_se_is_excluded_from_bh_by_instead_of_ranked_first() {
+        // One degenerate claim (se=0, nonzero point estimate) next to one ordinary
+        // claim (se=1). Before the fix `two_sided_p(5.0, 0.0) == 0.0`, which BH/BY
+        // treat as the strongest possible discovery (adjusted p = q = 0).
+        let degenerate_p = two_sided_p(5.0, 0.0);
+        let ordinary_p = two_sided_p(3.0, 1.0);
+        let p_values = [degenerate_p, ordinary_p];
+        let bh = antecedent_stats::benjamini_hochberg(&p_values);
+        let by = antecedent_stats::benjamini_yekutieli(&p_values);
+        assert!(
+            bh[0].is_nan(),
+            "degenerate claim must not receive an adjusted p-value, got {}",
+            bh[0]
+        );
+        assert!(
+            by[0].is_nan(),
+            "degenerate claim must not receive an adjusted q-value, got {}",
+            by[0]
+        );
+        // the ordinary claim's family size stays 2 (conservative fill of the
+        // invalid test as p=1), it is not silently shrunk to 1.
+        let expected_bh = (2.0 * ordinary_p).min(1.0);
+        let expected_by = (3.0 * ordinary_p).min(1.0); // m=2 harmonic factor H_2 = 1.5
+        assert!((bh[1] - expected_bh).abs() < 1e-12, "bh={} expected={}", bh[1], expected_bh);
+        assert!((by[1] - expected_by).abs() < 1e-12, "by={} expected={}", by[1], expected_by);
     }
 }
 
