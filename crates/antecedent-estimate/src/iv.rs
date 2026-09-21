@@ -951,10 +951,7 @@ mod tests {
                 }
             }
             None => {
-                assert_eq!(
-                    weak_diag.uncertainty_withheld,
-                    Some("anderson_rubin_set_is_union")
-                );
+                assert_eq!(weak_diag.uncertainty_withheld, Some("anderson_rubin_set_is_union"));
             }
         }
         assert!(
@@ -1011,11 +1008,8 @@ mod tests {
     #[test]
     fn wald_iv_hc1_withholds_anderson_rubin() {
         let (data, estimand) = binary_iv_scm(800, 5);
-        let est = WaldIv {
-            bootstrap_replicates: 20,
-            se_kind: AnalyticSeKind::Hc1,
-            ..WaldIv::new()
-        };
+        let est =
+            WaldIv { bootstrap_replicates: 20, se_kind: AnalyticSeKind::Hc1, ..WaldIv::new() };
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!(!effect.se_analytic.is_finite());
@@ -1047,9 +1041,8 @@ mod tests {
                 weak_f += 1;
             }
             scored += 1;
-            let z: Vec<f64> = (0..prep.nrows)
-                .map(|r| prep.instruments_matrix[prep.nrows + r])
-                .collect();
+            let z: Vec<f64> =
+                (0..prep.nrows).map(|r| prep.instruments_matrix[prep.nrows + r]).collect();
             let mut ws = LeastSquaresWorkspace::default();
             let ar_true = antecedent_stats::anderson_rubin_statistic(
                 &prep.outcome,
@@ -1087,10 +1080,7 @@ mod tests {
         }
         let rate = f64::from(covered) / f64::from(scored);
         let weak_share = f64::from(weak_f) / f64::from(scored);
-        assert!(
-            weak_share > 0.05,
-            "DGP must produce a non-trivial F<10 share, got {weak_share}"
-        );
+        assert!(weak_share > 0.05, "DGP must produce a non-trivial F<10 share, got {weak_share}");
         assert!(
             (0.85..=0.99).contains(&rate),
             "AR coverage {rate} outside wide band around 0.95 (covered={covered}/{scored}, weak_share={weak_share})"

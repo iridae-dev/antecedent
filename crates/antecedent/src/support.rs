@@ -18,8 +18,6 @@
 //! two-stage front-door cannot inherit a license whose calibration never ran
 //! them.
 
-use std::str::FromStr;
-
 use antecedent_core::{
     CausalQuery, DerivativeScale, LicensedNeighbor, PremiseChange, ResponseFunctional,
     TemporalPolicy,
@@ -727,10 +725,7 @@ mod tests {
         let named = licensed_estimators(c);
         assert!(named.contains(&"linear.adjustment.ate"), "{named:?}");
         // Route default.
-        assert_eq!(
-            licensed_route_estimator(c),
-            Some(EstimatorId::LinearAdjustmentAte)
-        );
+        assert_eq!(licensed_route_estimator(c), Some(EstimatorId::LinearAdjustmentAte));
         // Calibration-record tokens on this row (plus the route).
         for est in [
             EstimatorId::LinearAdjustmentAte,

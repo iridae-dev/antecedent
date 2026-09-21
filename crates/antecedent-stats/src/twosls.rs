@@ -408,10 +408,7 @@ fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
         }
         let root = -c / b;
         return if b > 0.0 {
-            QuadraticAcceptance::Ray {
-                lo: f64::NEG_INFINITY,
-                hi: root,
-            }
+            QuadraticAcceptance::Ray { lo: f64::NEG_INFINITY, hi: root }
         } else {
             QuadraticAcceptance::Ray { lo: root, hi: f64::INFINITY }
         };
@@ -419,11 +416,7 @@ fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
     let disc = b * b - 4.0 * a * c;
     if disc < -eps * eps {
         // No real roots: sign follows A.
-        return if a < 0.0 {
-            QuadraticAcceptance::WholeLine
-        } else {
-            QuadraticAcceptance::Empty
-        };
+        return if a < 0.0 { QuadraticAcceptance::WholeLine } else { QuadraticAcceptance::Empty };
     }
     let sqrt_disc = disc.max(0.0).sqrt();
     let r1 = (-b - sqrt_disc) / (2.0 * a);
@@ -448,8 +441,14 @@ fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
 enum QuadraticAcceptance {
     Empty,
     WholeLine,
-    Interval { lo: f64, hi: f64 },
-    Ray { lo: f64, hi: f64 },
+    Interval {
+        lo: f64,
+        hi: f64,
+    },
+    Ray {
+        lo: f64,
+        hi: f64,
+    },
     /// Accepts (−∞, lo] ∪ [hi, ∞).
     Union {
         #[allow(dead_code)]
@@ -516,8 +515,14 @@ pub fn anderson_rubin_confidence_set(
     let mut z_star = vec![0.0; z_nrows * z_ncols];
     for j in 0..z_ncols {
         let col = &instruments_colmajor[j * z_nrows..(j + 1) * z_nrows];
-        let resid =
-            residualize_on_exogenous(col, exogenous_colmajor, z_nrows, x_ncols, backend, workspace)?;
+        let resid = residualize_on_exogenous(
+            col,
+            exogenous_colmajor,
+            z_nrows,
+            x_ncols,
+            backend,
+            workspace,
+        )?;
         z_star[j * z_nrows..(j + 1) * z_nrows].copy_from_slice(&resid);
     }
 
@@ -699,13 +704,12 @@ mod tests {
         let n = 8usize;
         let z = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
         let t = [0.1, 0.2, 0.0, 0.3, 1.1, 0.9, 1.2, 0.8];
-        let y: Vec<f64> = t.iter().enumerate().map(|(i, &ti)| 2.0 * ti + 0.05 * (i as f64 - 3.5)).collect();
+        let y: Vec<f64> =
+            t.iter().enumerate().map(|(i, &ti)| 2.0 * ti + 0.05 * (i as f64 - 3.5)).collect();
         let x = [1.0; 8];
         let mut ws = LeastSquaresWorkspace::default();
-        let ar = anderson_rubin_statistic(
-            &y, &t, &z, n, 1, &x, 1, 2.0, &FaerBackend, &mut ws,
-        )
-        .unwrap();
+        let ar =
+            anderson_rubin_statistic(&y, &t, &z, n, 1, &x, 1, 2.0, &FaerBackend, &mut ws).unwrap();
 
         let y_star: Vec<f64> = y.iter().zip(t).map(|(yi, ti)| yi - 2.0 * ti).collect();
         let mut xz = vec![0.0; n * 2];
@@ -716,10 +720,7 @@ mod tests {
         let df = n - 2;
         let f = ((restricted.rss - full.rss) / 1.0) / (full.rss / df as f64);
         let expected = f;
-        assert!(
-            (ar - expected).abs() < 1e-10,
-            "AR={ar} reduced-form k·F={expected}"
-        );
+        assert!((ar - expected).abs() < 1e-10, "AR={ar} reduced-form k·F={expected}");
     }
 
     #[test]
@@ -737,10 +738,9 @@ mod tests {
             x[i] = 1.0;
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let (ar, reason) = anderson_rubin_confidence_set(
-            &y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws,
-        )
-        .unwrap();
+        let (ar, reason) =
+            anderson_rubin_confidence_set(&y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws)
+                .unwrap();
         assert!(reason.is_none(), "unexpected withhold: {reason:?}");
         let (lo, hi, level) = ar.expect("connected AR set");
         assert_eq!(level, 0.95);
@@ -767,10 +767,9 @@ mod tests {
             y[i] = beta * t[i] + 1e-6 * ((i % 5) as f64 - 2.0);
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let (ar, reason) = anderson_rubin_confidence_set(
-            &y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws,
-        )
-        .unwrap();
+        let (ar, reason) =
+            anderson_rubin_confidence_set(&y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws)
+                .unwrap();
         assert!(reason.is_none(), "unexpected withhold: {reason:?}");
         let (lo, hi, level) = ar.expect("narrow AR set must exist");
         assert_eq!(level, 0.95);
@@ -810,10 +809,9 @@ mod tests {
             y[i] = 2.0 * t[i] + 40.0 * ((i % 11) as f64 - 5.0);
         }
         let mut ws = LeastSquaresWorkspace::default();
-        let (ar, reason) = anderson_rubin_confidence_set(
-            &y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws,
-        )
-        .unwrap();
+        let (ar, reason) =
+            anderson_rubin_confidence_set(&y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws)
+                .unwrap();
         assert!(reason.is_none(), "unexpected withhold: {reason:?}");
         let (lo, hi, _) = ar.expect("connected AR set");
         assert!(lo.is_finite() && hi.is_finite(), "expected finite endpoints, got [{lo}, {hi}]");

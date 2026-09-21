@@ -2356,6 +2356,13 @@ fn result_reasoning(
                 false,
             ));
         }
+        antecedent_core::IntervalMethod::AndersonRubin => {
+            components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling,
+                "anderson_rubin",
+                false,
+            ));
+        }
         _ => {}
     }
     if result.posterior.is_some() {
@@ -2471,13 +2478,16 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone());
     identification.query = frame.query.clone();
+    let published = crate::PublishedScalarUncertainty::select(&result.estimate);
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),
         identification,
         identification_variables,
         temporal_identification,
         estimate: executed_scalar(result),
-        standard_error: crate::PublishedScalarUncertainty::select(&result.estimate).standard_error,
+        standard_error: published.standard_error,
+        interval_lower: published.lower,
+        interval_upper: published.upper,
         assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),

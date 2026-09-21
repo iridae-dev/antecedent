@@ -45,8 +45,15 @@ pub struct StaticResultWire {
     pub identification: crate::IdentificationResultWire,
     /// Primary requested contrast.
     pub estimate: f64,
-    /// Sampling standard error; absent when unavailable.
+    /// Sampling standard error; absent when unavailable or when the published
+    /// interval is an Anderson–Rubin set (`interval_lower` / `interval_upper`).
     pub standard_error: Option<f64>,
+    /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_upper: Option<f64>,
     /// Declared estimation assumptions, separate from identification.
     pub assumptions: Vec<crate::AssumptionRecordWire>,
     /// Empirical support diagnostics (range/overlap), never structural ID.

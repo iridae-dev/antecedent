@@ -56,7 +56,10 @@ impl SharedCircularBlockSe {
         level: f64,
     ) -> Option<antecedent_estimate::IdentifiedSetInterval> {
         if self.cancelled
-            || !super::bootstrap_has_enough_successes(self.atom_draws.len(), self.attempted as usize)
+            || !super::bootstrap_has_enough_successes(
+                self.atom_draws.len(),
+                self.attempted as usize,
+            )
         {
             return None;
         }
@@ -383,11 +386,7 @@ pub fn shared_circular_block_mixture_se_with_length(
     let k = designs.len();
     // Cancelled shared blocks do not earn a nominal bootstrap SE even when the
     // success floor is met; cancellation is not adaptive early-stop.
-    let se = if draws.cancelled {
-        f64::NAN
-    } else {
-        draws.se_result(k).se.unwrap_or(f64::NAN)
-    };
+    let se = if draws.cancelled { f64::NAN } else { draws.se_result(k).se.unwrap_or(f64::NAN) };
     SharedCircularBlockSe {
         se,
         completed: u32::try_from(draws.draws.len()).unwrap_or(u32::MAX),

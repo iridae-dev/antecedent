@@ -25,17 +25,11 @@ use antecedent_io::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::result::PERCENTILE_95_MIN_REPLICATES;
+
 fn err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())
 }
-
-/// Fewest bootstrap replicates that may carry a nominal two-sided 0.95 percentile label.
-///
-/// Under the usual (B+1) rule each tail of a level-(1 − α) percentile interval holds
-/// (B+1)·α/2 order statistics. For the empirical-table coverage target α = 0.05 that
-/// count exceeds a single order statistic only once B ≥ 40. Two draws cannot earn that
-/// quantile; the empirical-table default remains 199.
-const PERCENTILE_95_MIN_REPLICATES: u32 = 40;
 
 fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
     Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())

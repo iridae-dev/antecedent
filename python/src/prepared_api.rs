@@ -3497,6 +3497,7 @@ impl PyPreparedAnalysis {
                 }
                 _ => unreachable!(),
             };
+            let published = antecedent::PublishedScalarUncertainty::select(&result.estimate);
             let wire = antecedent_io::StaticResultWire {
                 identification: antecedent_io::identification_to_wire_with_registry(
                     &result.identification,
@@ -3504,8 +3505,9 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?,
                 estimate: result.estimate.ate,
-                standard_error: antecedent::PublishedScalarUncertainty::select(&result.estimate)
-                    .standard_error,
+                standard_error: published.standard_error,
+                interval_lower: published.lower,
+                interval_upper: published.upper,
                 assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
                 support: result
                     .diagnostics
@@ -3882,6 +3884,7 @@ fn composite_result_wire(
             }
         }
     }
+    let published = antecedent::PublishedScalarUncertainty::select(&result.estimate);
     let mut wire = antecedent_io::AnalysisResultWire {
         query: antecedent_io::causal_query_to_wire_with_registry(query, registry)
             .map_err(py_err)?,
@@ -3889,8 +3892,9 @@ fn composite_result_wire(
         identification_variables,
         temporal_identification,
         estimate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        standard_error: antecedent::PublishedScalarUncertainty::select(&result.estimate)
-            .standard_error,
+        standard_error: published.standard_error,
+        interval_lower: published.lower,
+        interval_upper: published.upper,
         assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),

@@ -19570,5 +19570,6 @@ pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&
     (antecedent_core::IntervalMethod::IdentifiedSet, None),
     (antecedent_core::IntervalMethod::CircularBlockSe, None),
     (antecedent_core::IntervalMethod::SimultaneousBand, None),
+    (antecedent_core::IntervalMethod::AndersonRubin, Some("estimator_grid_not_measured")),
     (antecedent_core::IntervalMethod::None, Some("no_interval_reported"))
 ];

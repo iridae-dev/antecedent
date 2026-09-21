@@ -2332,9 +2332,9 @@ pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize)
 }
 
 /// Fewest successful replicates that may license a facade-published nominal 0.95
-/// pointwise / simultaneous band. Same (B+1)·α/2 > 1 floor as the statistical
-/// transport percentile licence (`α = 0.05` ⇒ B ≥ 40).
-pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize = 40;
+/// pointwise / simultaneous band. Alias of [`crate::result::PERCENTILE_95_MIN_REPLICATES`].
+pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
+    crate::result::PERCENTILE_95_MIN_REPLICATES as usize;
 
 #[cfg(test)]
 mod bootstrap_success_floor_tests {
