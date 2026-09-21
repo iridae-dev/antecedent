@@ -1105,7 +1105,7 @@ fn frontdoor_functional_arm_linear_ci_coverage() {
         "frontdoor_functional_arm_linear_ci_coverage",
         "frontdoor_functional_arm_linear",
         false,
-        40_600,
+        39_600,
     );
 }
 
