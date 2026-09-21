@@ -46,9 +46,11 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
-    BoundTransportFunctional, CatalogTransportResult, ClassicalTransportDerivation,
-    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_catalog_transport,
-    identify_classical_transport, verify_classical_transport,
+    BoundTransportFunctional, CatalogTransportResult, CheckedTransportDerivation,
+    ClassicalTransportDerivation, ClassicalTransportQuery, ClassicalTransportResult, MetaSource,
+    MetaTransportQuery, SidLimits, identify_catalog_transport, identify_classical_transport,
+    identify_meta_catalog, identify_meta_transport, verify_classical_transport,
+    verify_meta_s_hedge, verify_meta_transport,
 };
 mod transport_lower;
 
