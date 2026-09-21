@@ -90,12 +90,26 @@ impl super::Study {
             transported.ipw,
         )
         .map_err(CausalError::from)?;
-        let estimate = EffectEstimate::new(
-            transported.ipw,
-            se,
-            identification.required_assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
+        // The SE conditions on the supplied probability columns; a fitted participation
+        // or treatment model's estimation error is not in it.
+        let mut assumptions = identification.required_assumptions.clone();
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::ParametricRestriction(
+                antecedent_core::ParametricAssumption {
+                    id: Arc::from("transport.known_selection_probabilities"),
+                    description: Arc::from(
+                        "selection and treatment probabilities are treated as known: the reported SE conditions on the supplied probability columns and excludes the estimation error of any fitted participation or propensity model, so it is design-based only when those probabilities are known or fixed by design and is not guaranteed conservative for fitted ones",
+                    ),
+                },
+            ),
+            source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("estimate.transport.trial_ipw"),
+            },
+            scope: antecedent_core::AssumptionScope::Estimation,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+        let estimate =
+            EffectEstimate::new(transported.ipw, se, assumptions, OverlapPolicy::ExplicitOverride);
         let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,

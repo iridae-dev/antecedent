@@ -82,7 +82,7 @@ pub fn fit_huber_m(
             }
             residuals[r] = y[r] - pred;
         }
-        scale = mad_scale(&residuals).max(1e-12);
+        scale = crate::quantile::mad_sigma(&residuals).unwrap_or(1.0).max(1e-12);
         for r in 0..nrows {
             let u = residuals[r] / scale;
             let au = u.abs();
@@ -107,23 +107,6 @@ pub fn fit_huber_m(
         converged,
         diagnostics: FitDiagnostics::new(ncols, None, "huber", workspace.grow_count),
     })
-}
-
-fn mad_scale(residuals: &[f64]) -> f64 {
-    if residuals.is_empty() {
-        return 1.0;
-    }
-    let mut sorted = residuals.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let mid = sorted.len() / 2;
-    let center =
-        if sorted.len() % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] };
-    let mut abs_dev: Vec<f64> = residuals.iter().map(|r| (r - center).abs()).collect();
-    abs_dev.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let mad =
-        if abs_dev.len() % 2 == 0 { 0.5 * (abs_dev[mid - 1] + abs_dev[mid]) } else { abs_dev[mid] };
-    // Consistency constant for Gaussian MAD → σ.
-    1.4826 * mad
 }
 
 #[cfg(test)]
@@ -180,10 +163,10 @@ mod tests {
     fn mad_scale_centers_before_median_abs_dev() {
         // Residuals with nonzero median: MAD must use median(|r − med(r)|).
         let r = [-2.0_f64, -1.0, 0.0, 1.0, 10.0];
-        let scale = mad_scale(&r);
+        let scale = crate::quantile::mad_sigma(&r).unwrap();
         // med(r)=0, mad=1, scale=1.4826
         assert!((scale - 1.4826).abs() < 1e-12);
         let r2 = [8.0_f64, 9.0, 10.0, 11.0, 20.0]; // shifted by +10
-        assert!((mad_scale(&r2) - scale).abs() < 1e-12);
+        assert!((crate::quantile::mad_sigma(&r2).unwrap() - scale).abs() < 1e-12);
     }
 }

@@ -352,14 +352,12 @@ impl Selection {
     }
 }
 
-/// Type-7 quantile of the replicate bounds. Draws are finite by construction
-/// ([`BoundDraws::new`] keeps only complete finite draws), so nothing is filtered
-/// here and the sample behind the quantile is exactly the replicate count reported;
-/// an empty set is `NaN`.
+/// Exchangeable-rank (type-6) quantile of posterior draws, so a finite-draw
+/// interval covers at its level; non-finite draws are ignored.
 fn quantile(values: &[f64], p: f64) -> f64 {
-    let mut sorted = values.to_vec();
+    let mut sorted: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
     sorted.sort_by(f64::total_cmp);
-    antecedent_stats::quantile_type7(&sorted, p).unwrap_or(f64::NAN)
+    antecedent_stats::quantile_sorted(&sorted, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 
 #[cfg(test)]
@@ -484,7 +482,10 @@ mod tests {
     fn posterior_draw_interval_is_equal_tailed_for_a_point() {
         let a: Vec<f64> = (0..1000).map(|k| f64::from(k) / 999.0).collect();
         let im = imbens_manski_posterior_draws(&[0.5], &[&a], 160, 0.9).unwrap();
-        assert!((im.lower - 0.05).abs() < 1e-9 && (im.upper - 0.95).abs() < 1e-9);
+        // Draws k/999 (k = 0..999) at exchangeable ranks p·1001 (one-based):
+        // value = (p·1001 − 1)/999 for tail probability p = 0.05 and 0.95.
+        let (lower, upper) = ((0.05 * 1001.0 - 1.0) / 999.0, (0.95 * 1001.0 - 1.0) / 999.0);
+        assert!((im.lower - lower).abs() < 1e-9 && (im.upper - upper).abs() < 1e-9);
         assert_eq!(im.method, IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile);
     }
 

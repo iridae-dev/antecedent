@@ -246,25 +246,18 @@ pub fn trial_to_target_effect(
 ) -> Result<TransportEffectEstimate, EstimationError> {
     require_dahabreh_compatible_formula(identification, "trial-to-target effect")?;
     let n = outcome.len();
-    if n == 0
-        || treatment.len() != n
-        || trial.len() != n
-        || selection_probability.len() != n
-        || treatment_probability.len() != n
-    {
-        return Err(EstimationError::data_msg("transport input length mismatch"));
-    }
     if let Some((mu0, mu1)) = outcome_regressions {
         if mu0.len() != n || mu1.len() != n {
             return Err(EstimationError::data_msg("transport outcome-regression length mismatch"));
         }
     }
-    let target_n = trial.iter().filter(|&&source| !source).count();
-    if target_n == 0 || !trial.iter().any(|&source| source) {
-        return Err(EstimationError::data_msg(
-            "transport requires source-trial and target-population rows",
-        ));
-    }
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
     let mut ipw_sum = 0.0;
     let mut augmentation_sum = 0.0;
     let mut selection_weights = Vec::new();
@@ -274,19 +267,9 @@ pub fn trial_to_target_effect(
     for i in 0..n {
         let s = selection_probability[i];
         let e = treatment_probability[i];
-        // `e` is P(A=1|X,S=1): it is only defined on trial rows, so it is only range-checked
-        // there. Target rows carry no realized treatment and their `e` value is never read.
-        let treatment_probability_out_of_range =
-            trial[i] && (!e.is_finite() || e <= 0.0 || e >= 1.0);
-        if !s.is_finite() || s <= 0.0 || s >= 1.0 || treatment_probability_out_of_range {
-            return Err(EstimationError::data_msg(
-                "selection and treatment probabilities must lie strictly inside (0,1)",
-            ));
-        }
+        // Ranges and finiteness were checked by `validate_trial_to_target_inputs`; `e` is
+        // P(A=1|X,S=1), defined and read only on trial rows.
         if trial[i] {
-            if !outcome[i].is_finite() {
-                return Err(EstimationError::data_msg("trial outcomes must be finite"));
-            }
             let selection_odds = (1.0 - s) / s;
             let arm = if treatment[i] { e } else { 1.0 - e };
             let sign = if treatment[i] { 1.0 } else { -1.0 };
@@ -321,6 +304,48 @@ pub fn trial_to_target_effect(
     })
 }
 
+/// Checks shared by [`trial_to_target_effect`] and [`trial_to_target_ipw_se`]: equal
+/// non-empty lengths, both source and target rows, finite trial outcomes, and
+/// probabilities strictly inside (0, 1) (the treatment probability only on trial rows,
+/// where it is defined). Returns the number of target rows.
+fn validate_trial_to_target_inputs(
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+) -> Result<usize, EstimationError> {
+    let n = outcome.len();
+    if n == 0
+        || treatment.len() != n
+        || trial.len() != n
+        || selection_probability.len() != n
+        || treatment_probability.len() != n
+    {
+        return Err(EstimationError::data_msg("transport input length mismatch"));
+    }
+    let target_n = trial.iter().filter(|&&source| !source).count();
+    if target_n == 0 || !trial.iter().any(|&source| source) {
+        return Err(EstimationError::data_msg(
+            "transport requires source-trial and target-population rows",
+        ));
+    }
+    for i in 0..n {
+        let (s, e) = (selection_probability[i], treatment_probability[i]);
+        let treatment_probability_out_of_range =
+            trial[i] && (!e.is_finite() || e <= 0.0 || e >= 1.0);
+        if !s.is_finite() || s <= 0.0 || s >= 1.0 || treatment_probability_out_of_range {
+            return Err(EstimationError::data_msg(
+                "selection and treatment probabilities must lie strictly inside (0,1)",
+            ));
+        }
+        if trial[i] && !outcome[i].is_finite() {
+            return Err(EstimationError::data_msg("trial outcomes must be finite"));
+        }
+    }
+    Ok(target_n)
+}
+
 /// Standard error of the trial-to-target IPW contrast of [`trial_to_target_effect`].
 ///
 /// The IPW contrast is a ratio of two sample means over all `n` rows,
@@ -331,12 +356,16 @@ pub fn trial_to_target_effect(
 /// mean(1 − S)` and the delta-method SE is
 /// `sqrt(Σ_i (ψ_i − ipw·(1 − S_i))²) / n_target`.
 ///
-/// Inputs are those passed to [`trial_to_target_effect`]; `ipw` is its
-/// [`TransportEffectEstimate::ipw`].
+/// The SE conditions on the probabilities as given: it carries no term for their
+/// estimation, so it is design-based only when they are known (or fixed by design) and
+/// is not guaranteed conservative for fitted probabilities. Inputs are those passed to
+/// [`trial_to_target_effect`]; `ipw` is its [`TransportEffectEstimate::ipw`].
 ///
 /// # Errors
 ///
-/// Returns [`EstimationError`] for mismatched lengths or when no target row exists.
+/// Returns [`EstimationError`] under the same input conditions as
+/// [`trial_to_target_effect`] (lengths, source and target rows, finite trial outcomes,
+/// probabilities strictly inside (0, 1)) or for a non-finite `ipw`.
 pub fn trial_to_target_ipw_se(
     outcome: &[f64],
     treatment: &[bool],
@@ -346,16 +375,15 @@ pub fn trial_to_target_ipw_se(
     ipw: f64,
 ) -> Result<f64, EstimationError> {
     let n = outcome.len();
-    if treatment.len() != n
-        || trial.len() != n
-        || selection_probability.len() != n
-        || treatment_probability.len() != n
-    {
-        return Err(EstimationError::data_msg("transport input length mismatch"));
-    }
-    let target_n = trial.iter().filter(|&&source| !source).count();
-    if target_n == 0 {
-        return Err(EstimationError::data_msg("transport requires target-population rows"));
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    if !ipw.is_finite() {
+        return Err(EstimationError::data_msg("transport IPW estimate must be finite"));
     }
     let mut sum_sq = 0.0;
     for i in 0..n {
@@ -600,6 +628,22 @@ mod tests {
             trial_to_target_ipw_se(&outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn trial_to_target_ipw_se_shares_the_effect_input_validation() {
+        let (outcome, treatment, trial) =
+            ([3.0, 1.0, 0.0, 0.0], [true, false, false, false], [true, true, false, false]);
+        let se = |outcome: &[f64], selection: &[f64], ipw: f64| {
+            trial_to_target_ipw_se(outcome, &treatment, &trial, selection, &[0.5; 4], ipw)
+        };
+        assert!(se(&outcome, &[0.5; 4], 2.0).is_ok());
+        // Out-of-range or non-finite selection probabilities would give inf/NaN silently.
+        assert!(se(&outcome, &[0.5, 0.0, 0.5, 0.5], 2.0).is_err());
+        assert!(se(&outcome, &[0.5, 0.5, 1.0, 0.5], 2.0).is_err());
+        assert!(se(&outcome, &[0.5, f64::NAN, 0.5, 0.5], 2.0).is_err());
+        assert!(se(&[f64::NAN, 1.0, 0.0, 0.0], &[0.5; 4], 2.0).is_err());
+        assert!(se(&outcome, &[0.5; 4], f64::NAN).is_err());
     }
 
     #[test]

@@ -73,6 +73,13 @@ pub enum EstimationError {
         /// Coefficients in the target design.
         design: usize,
     },
+    /// A resampled empirical law received no rows, so it has no defined table. Bootstrap
+    /// loops count this as a failed replicate; anywhere else it is an ordinary error.
+    #[error("{message}")]
+    EmptyEmpiricalSample {
+        /// Located description of the empty sample.
+        message: String,
+    },
     /// A refusal carrying a registered runtime reason code
     /// (`parity/reason_codes.toml`), rendered `reason=<code>: <message>` so every
     /// boundary reads the code the same way.

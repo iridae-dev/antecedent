@@ -26,6 +26,7 @@ pub mod matching;
 pub mod observation;
 pub use cox_ipcw::{CoxIpcwFit, cox_ipcw};
 pub mod propensity;
+pub mod quantile;
 pub mod regularized;
 pub mod response;
 pub mod special;
@@ -95,20 +96,24 @@ pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,
     fit_propensity_in_place, predict_propensity,
 };
+pub use quantile::{
+    MAD_TO_SIGMA, QuantileRule, equal_tail_interval_sorted, mad_sigma, median_sorted,
+    quantile_sorted,
+};
 pub use regularized::{
     LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
     ridge_gram_inverse,
 };
 pub use response::{
-    LocalPolynomialBiasCorrected, LocalPolynomialInfluence, LocalPolynomialPoint,
-    LocalQuadraticWorkspace, gaussian_density, gaussian_local_quadratic,
+    GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,
+    LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density, gaussian_local_quadratic,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
     gaussian_local_quadratic_weighted, silverman_bandwidth,
 };
 pub use special::{
-    digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf,
-    student_t_sf, trigamma,
+    digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
+    regularized_incomplete_beta, student_t_ppf, student_t_sf, trigamma,
 };
 pub use twosls::{
     FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_kf_critical,

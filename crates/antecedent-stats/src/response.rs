@@ -91,6 +91,157 @@ pub fn gaussian_density(value: f64, mean: f64, standard_deviation: f64) -> f64 {
     (-0.5 * z * z).exp() / (standard_deviation * (2.0 * std::f64::consts::PI).sqrt())
 }
 
+/// Mixtures at or below this size are summed term by term.
+const DIRECT_MIXTURE_MAX: usize = 512;
+/// Hermite terms kept per source bin; the first omitted term is below `1e-18`
+/// of the total weight for bins of width one standard deviation.
+const HERMITE_TERMS: usize = 24;
+/// Source bins farther than this many standard deviations (plus one bin) are
+/// dropped; their combined contribution is below `1e-21` of a unit weight.
+const MIXTURE_CUTOFF_SD: f64 = 10.0;
+
+#[derive(Clone, Debug)]
+struct HermiteBin {
+    center: f64,
+    /// `Σ w_j δ_j^k / k!` with `δ_j = (m_j − center) / (σ√2)`.
+    moments: [f64; HERMITE_TERMS],
+}
+
+#[derive(Clone, Debug)]
+enum MixtureKernel {
+    Direct { means: Vec<f64>, weights: Vec<f64> },
+    Binned(Vec<HermiteBin>),
+}
+
+/// Density of an equal-bandwidth Gaussian location mixture
+/// `Σ_j w_j N(a; m_j, σ²) / Σ_j w_j`, evaluable at many points.
+///
+/// Small mixtures are summed term by term. Large ones use the Hermite-series
+/// fast Gauss transform: means are grouped into bins one `σ` wide, each bin keeps
+/// the moments of its sources about the bin centre, and a query touches only the
+/// bins within ten standard deviations. The series error is below `1e-15` of the
+/// total weight per bin and the cutoff error below `1e-21`, so a query costs
+/// `O(bins in window)` instead of `O(m)` while agreeing with the direct sum to
+/// working precision.
+#[derive(Clone, Debug)]
+pub struct GaussianMixtureDensity {
+    kernel: MixtureKernel,
+    standard_deviation: f64,
+    weight_sum: f64,
+}
+
+impl GaussianMixtureDensity {
+    /// Build the mixture. `weights = None` means equal weights.
+    ///
+    /// # Errors
+    ///
+    /// Empty or non-finite means, a non-positive or non-finite `standard_deviation`,
+    /// weights of the wrong length, or weights that are negative, non-finite, or sum to zero.
+    pub fn new(
+        means: &[f64],
+        weights: Option<&[f64]>,
+        standard_deviation: f64,
+    ) -> Result<Self, StatsError> {
+        if means.is_empty()
+            || means.iter().any(|m| !m.is_finite())
+            || !standard_deviation.is_finite()
+            || standard_deviation <= 0.0
+        {
+            return Err(StatsError::Shape { message: "mixture density needs finite means and sd" });
+        }
+        let weights: Vec<f64> = match weights {
+            Some(w) if w.len() == means.len() => w.to_vec(),
+            Some(_) => {
+                return Err(StatsError::Shape { message: "mixture weights must match means" });
+            }
+            None => vec![1.0; means.len()],
+        };
+        if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+            return Err(StatsError::Shape { message: "mixture weights must be finite and >= 0" });
+        }
+        let weight_sum: f64 = weights.iter().sum();
+        if !weight_sum.is_finite() || weight_sum <= 0.0 {
+            return Err(StatsError::Shape { message: "mixture weights must have positive sum" });
+        }
+        let lo = means.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = means.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let bins_spanned = (hi - lo) / standard_deviation;
+        if means.len() <= DIRECT_MIXTURE_MAX || !bins_spanned.is_finite() || bins_spanned > 1e12 {
+            return Ok(Self {
+                kernel: MixtureKernel::Direct { means: means.to_vec(), weights },
+                standard_deviation,
+                weight_sum,
+            });
+        }
+        let mut order: Vec<usize> = (0..means.len()).collect();
+        order.sort_unstable_by(|&a, &b| means[a].total_cmp(&means[b]));
+        let root2_sd = standard_deviation * std::f64::consts::SQRT_2;
+        let mut bins: Vec<HermiteBin> = Vec::new();
+        let mut current: Option<(i64, f64, [f64; HERMITE_TERMS])> = None;
+        let flush = |bins: &mut Vec<HermiteBin>,
+                     entry: Option<(i64, f64, [f64; HERMITE_TERMS])>| {
+            if let Some((_, center, moments)) = entry {
+                bins.push(HermiteBin { center, moments });
+            }
+        };
+        for &j in &order {
+            let index = ((means[j] - lo) / standard_deviation).floor() as i64;
+            if current.as_ref().is_none_or(|(id, _, _)| *id != index) {
+                flush(&mut bins, current.take());
+                let center = lo + (index as f64 + 0.5) * standard_deviation;
+                current = Some((index, center, [0.0; HERMITE_TERMS]));
+            }
+            if let Some((_, center, moments)) = current.as_mut() {
+                let delta = (means[j] - *center) / root2_sd;
+                let mut term = weights[j];
+                for (k, moment) in moments.iter_mut().enumerate() {
+                    *moment += term;
+                    term *= delta / (k as f64 + 1.0);
+                }
+            }
+        }
+        flush(&mut bins, current.take());
+        Ok(Self { kernel: MixtureKernel::Binned(bins), standard_deviation, weight_sum })
+    }
+
+    /// Mixture density at `value` (NaN for a non-finite `value`).
+    #[must_use]
+    pub fn density(&self, value: f64) -> f64 {
+        if !value.is_finite() {
+            return f64::NAN;
+        }
+        let sd = self.standard_deviation;
+        match &self.kernel {
+            MixtureKernel::Direct { means, weights } => {
+                let mut total = 0.0;
+                for (&m, &w) in means.iter().zip(weights) {
+                    total += w * gaussian_density(value, m, sd);
+                }
+                total / self.weight_sum
+            }
+            MixtureKernel::Binned(bins) => {
+                let reach = (MIXTURE_CUTOFF_SD + 1.0) * sd;
+                let start = bins.partition_point(|b| b.center < value - reach);
+                let root2_sd = sd * std::f64::consts::SQRT_2;
+                let mut total = 0.0;
+                for bin in bins[start..].iter().take_while(|b| b.center <= value + reach) {
+                    let x = (value - bin.center) / root2_sd;
+                    // h_k(x) = H_k(x) e^{-x²}: h_{k+1} = 2x h_k − 2k h_{k−1}.
+                    let mut previous = 0.0;
+                    let mut hermite = (-x * x).exp();
+                    for (k, moment) in bin.moments.iter().enumerate() {
+                        total += moment * hermite;
+                        let next = 2.0 * x * hermite - 2.0 * k as f64 * previous;
+                        previous = hermite;
+                        hermite = next;
+                    }
+                }
+                (total / (sd * (2.0 * std::f64::consts::PI).sqrt() * self.weight_sum)).max(0.0)
+            }
+        }
+    }
+}
+
 /// Fit a Gaussian-kernel local quadratic regression at `at`.
 ///
 /// Coefficients use centered powers `[1, x-at, (x-at)^2]`, so the second
@@ -505,6 +656,51 @@ fn inverse_3x3(a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
 
 #[cfg(test)]
 mod tests {
+
+    fn direct_mixture(means: &[f64], weights: &[f64], sd: f64, at: f64) -> f64 {
+        let total: f64 = weights.iter().sum();
+        means.iter().zip(weights).map(|(&m, &w)| w * gaussian_density(at, m, sd)).sum::<f64>()
+            / total
+    }
+
+    #[test]
+    fn binned_mixture_density_matches_the_direct_sum_to_working_precision() {
+        // 4000 means (above the direct-sum threshold) spread over ~30 sd with an
+        // uneven weight pattern; the reference is the definitional O(m) sum.
+        let sd = 0.7;
+        let means: Vec<f64> =
+            (0..4000).map(|i| 21.0 * ((f64::from(i) * 0.618_034).fract() - 0.5)).collect();
+        let weights: Vec<f64> =
+            (0..4000).map(|i| 0.2 + 1.8 * (f64::from(i) * 0.414_214).fract()).collect();
+        let fast = GaussianMixtureDensity::new(&means, Some(&weights), sd).unwrap();
+        assert!(matches!(fast.kernel, MixtureKernel::Binned(_)));
+        for k in -60..=60 {
+            let at = f64::from(k) * 0.2;
+            let expected = direct_mixture(&means, &weights, sd, at);
+            let got = fast.density(at);
+            assert!((got - expected).abs() <= 1e-13, "at={at}: got={got} expected={expected}");
+        }
+        // Far tail: both are effectively zero.
+        assert!(fast.density(1e3).abs() < 1e-30);
+    }
+
+    #[test]
+    fn mixture_density_is_one_gaussian_when_all_means_coincide() {
+        let means = vec![0.25; 2000];
+        let fast = GaussianMixtureDensity::new(&means, None, 1.3).unwrap();
+        for at in [-2.0, 0.0, 0.25, 3.1] {
+            assert!((fast.density(at) - gaussian_density(at, 0.25, 1.3)).abs() < 1e-14);
+        }
+    }
+
+    #[test]
+    fn mixture_density_rejects_invalid_inputs() {
+        assert!(GaussianMixtureDensity::new(&[], None, 1.0).is_err());
+        assert!(GaussianMixtureDensity::new(&[0.0], None, 0.0).is_err());
+        assert!(GaussianMixtureDensity::new(&[f64::NAN], None, 1.0).is_err());
+        assert!(GaussianMixtureDensity::new(&[0.0, 1.0], Some(&[1.0]), 1.0).is_err());
+        assert!(GaussianMixtureDensity::new(&[0.0, 1.0], Some(&[0.0, 0.0]), 1.0).is_err());
+    }
     use super::*;
 
     #[test]
@@ -559,6 +755,26 @@ mod tests {
             gaussian_local_quadratic(&x, &y, 42.0, 1.0).unwrap_err(),
             StatsError::SingularLocalDesign { order: 2 }
         );
+    }
+
+    #[test]
+    fn local_quadratic_level_has_no_h_squared_curvature_bias() {
+        // A local-constant level carries the O(h²) bias h² m''/2; the local quadratic
+        // reproduces any quadratic exactly, so its level bias starts at the h⁴ term.
+        let x: Vec<f64> = (0..=800).map(|i| -2.0 + 4.0 * f64::from(i) / 800.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| 3.0 - v + 2.0 * v * v).collect();
+        let at = 0.3;
+        let fit = gaussian_local_quadratic(&x, &y, at, 0.5).unwrap();
+        assert!((fit.value - (3.0 - at + 2.0 * at * at)).abs() < 1e-9, "value={}", fit.value);
+
+        // For m(x) = x⁴ at 0 with a Gaussian kernel of sd h the Gaussian moments
+        // (h², 3h⁴, 15h⁶) give the local-quadratic intercept −3h⁴: order h⁴, as claimed.
+        let x: Vec<f64> = (-4000..=4000).map(|i| f64::from(i) * 0.002).collect();
+        let y: Vec<f64> = x.iter().map(|v| v.powi(4)).collect();
+        for h in [0.2_f64, 0.4] {
+            let fit = gaussian_local_quadratic(&x, &y, 0.0, h).unwrap();
+            assert!((fit.value + 3.0 * h.powi(4)).abs() < 1e-7, "h={h} value={}", fit.value);
+        }
     }
 
     #[test]

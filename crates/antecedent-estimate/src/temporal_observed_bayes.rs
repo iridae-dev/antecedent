@@ -973,10 +973,9 @@ mod memory_budget_tests {
     }
 }
 
-/// Type-7 quantile of an ascending draw column; `NaN` (an unavailable band edge)
-/// for an empty column.
+/// Exchangeable-rank (type-6) quantile of sorted posterior draws.
 fn quantile(x: &[f64], p: f64) -> f64 {
-    antecedent_stats::quantile_type7(x, p).unwrap_or(f64::NAN)
+    antecedent_stats::quantile_sorted(x, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 
 #[cfg(test)]

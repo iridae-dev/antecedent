@@ -7,6 +7,7 @@ use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits};
 use antecedent_identify::BoundTransportFunctional;
+use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 
 use crate::empirical_table::{
     EmpiricalTableOptions, StatisticalTransportInput, assemble_point_laws,
@@ -433,7 +434,6 @@ fn outer_bootstrap(
     let mut ids = Vec::new();
     let mut ok = 0u32;
     let mut failed = 0u32;
-    let mut indexes = Vec::new();
     let mut samples: Vec<_> = input
         .samples
         .iter()
@@ -445,91 +445,92 @@ fn outer_bootstrap(
         samples.sort_by(|a, b| a.0.cmp(&b.0));
     }
     samples.dedup_by(|a, b| a.0 == b.0);
-    for replicate in 0..options.bootstrap_replicates {
-        check_cancelled(ctx)?;
-        let mut row_indexes = BTreeMap::new();
-        let mut resample_ok = true;
-        for (dataset, (key, sample)) in samples.iter().enumerate() {
-            let n = sample.n();
-            if n == 0 {
-                resample_ok = false;
-                break;
-            }
-            let mut rng = ctx.rng.stream_for(
-                StreamDomain::Transport,
-                ((dataset as u64) << 32) | u64::from(replicate),
-            );
-            indexes.clear();
-            if fill_resample_indexes(ResamplingPlan::IidBootstrap, n, &mut rng, &mut indexes)
-                .is_err()
-            {
-                resample_ok = false;
-                break;
-            }
-            row_indexes.insert(key.clone(), indexes.clone());
-        }
-        if !resample_ok {
-            failed = failed.saturating_add(1);
-            continue;
-        }
-        let assembled =
-            match assemble_statistical_laws(input, functional, options, &row_indexes, ctx) {
-                Ok(data) => {
-                    data.with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 })
+    // Every replicate resamples each dataset on its own `(dataset, replicate)` stream, so
+    // replicates are independent; they are evaluated across the context's thread budget
+    // and folded in index order. `None` is a counted failed replicate.
+    let attempts = ctx.map_indexed::<_, EstimationError, _>(
+        options.bootstrap_replicates as usize,
+        |index, ctx| {
+            let replicate = u32::try_from(index).unwrap_or(u32::MAX);
+            check_cancelled(ctx)?;
+            let mut indexes = Vec::new();
+            let mut row_indexes = BTreeMap::new();
+            for (dataset, (key, sample)) in samples.iter().enumerate() {
+                let n = sample.n();
+                if n == 0 {
+                    return Ok(None);
                 }
-                Err(error) if error.to_string().contains("empty_empirical_sample") => {
-                    failed = failed.saturating_add(1);
-                    continue;
+                let mut rng = ctx.rng.stream_for(
+                    StreamDomain::Transport,
+                    ((dataset as u64) << 32) | u64::from(replicate),
+                );
+                indexes.clear();
+                if fill_resample_indexes(ResamplingPlan::IidBootstrap, n, &mut rng, &mut indexes)
+                    .is_err()
+                {
+                    return Ok(None);
                 }
-                Err(error) => return Err(error),
-            };
-        let mut complete = Vec::with_capacity(requests.len());
-        for request in requests {
-            match prepare_exact_transport(
-                functional,
-                assembled.clone(),
-                request.clone(),
-                limits,
-                ctx,
-            )
-            .and_then(|plan| plan.evaluate(ctx))
-            {
-                Ok(distribution) => complete.push(distribution),
-                Err(error) => {
-                    check_cancelled(ctx)?;
-                    if matches!(
-                        error,
-                        antecedent_expr::EvalError::ExactLaw(_)
-                            | antecedent_expr::EvalError::ExactRatioSupport { .. }
-                            | antecedent_expr::EvalError::DivisionByZero
-                    ) {
-                        break;
+                row_indexes.insert(key.clone(), indexes.clone());
+            }
+            let assembled =
+                match assemble_statistical_laws(input, functional, options, &row_indexes, ctx) {
+                    Ok(data) => {
+                        data.with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 })
                     }
-                    return Err(EstimationError::data_msg(error.to_string()));
+                    Err(EstimationError::EmptyEmpiricalSample { .. }) => return Ok(None),
+                    Err(error) => return Err(error),
+                };
+            let mut complete = Vec::with_capacity(requests.len());
+            for request in requests {
+                match prepare_exact_transport(
+                    functional,
+                    assembled.clone(),
+                    request.clone(),
+                    limits,
+                    ctx,
+                )
+                .and_then(|plan| plan.evaluate(ctx))
+                {
+                    Ok(distribution) => complete.push(distribution),
+                    Err(error) => {
+                        check_cancelled(ctx)?;
+                        if matches!(
+                            error,
+                            antecedent_expr::EvalError::ExactLaw(_)
+                                | antecedent_expr::EvalError::ExactRatioSupport { .. }
+                                | antecedent_expr::EvalError::DivisionByZero
+                        ) {
+                            break;
+                        }
+                        return Err(EstimationError::data_msg(error.to_string()));
+                    }
                 }
             }
-        }
-        if complete.len() == requests.len() {
-            for (i, distribution) in complete.into_iter().enumerate() {
-                for outcome in outcomes.iter() {
-                    let mean = distribution
-                        .mean(*outcome)
-                        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-                    mean_cols[i].get_mut(outcome).expect("known outcome").push(mean);
-                }
-                atom_reps[i].push(distribution.probabilities);
+            if let Some(progress) = &ctx.progress {
+                progress.report(
+                    f64::from(replicate + 1) / f64::from(options.bootstrap_replicates),
+                    "transport.bootstrap",
+                );
             }
-            ids.push(replicate);
-            ok += 1;
-        } else {
+            Ok((complete.len() == requests.len()).then_some(complete))
+        },
+    )?;
+    for (index, attempt) in attempts.into_iter().enumerate() {
+        let Some(complete) = attempt else {
             failed += 1;
+            continue;
+        };
+        for (i, distribution) in complete.into_iter().enumerate() {
+            for outcome in outcomes.iter() {
+                let mean = distribution
+                    .mean(*outcome)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                mean_cols[i].get_mut(outcome).expect("known outcome").push(mean);
+            }
+            atom_reps[i].push(distribution.probabilities);
         }
-        if let Some(progress) = &ctx.progress {
-            progress.report(
-                f64::from(replicate + 1) / f64::from(options.bootstrap_replicates),
-                "transport.bootstrap",
-            );
-        }
+        ids.push(u32::try_from(index).unwrap_or(u32::MAX));
+        ok += 1;
     }
     check_cancelled(ctx)?;
     let ids: Arc<[u32]> = ids.into();
@@ -557,7 +558,7 @@ fn pointwise_intervals(replicates: &[Arc<[f64]>], level: f64) -> Arc<[(f64, f64)
         .collect()
 }
 
-/// Linear interpolation percentile interval.
+/// Linear-interpolation (type-7) percentile interval of resampled replicates.
 #[must_use]
 pub fn percentile_interval(values: &[f64], level: f64) -> (f64, f64) {
     if values.len() < 2
@@ -570,9 +571,7 @@ pub fn percentile_interval(values: &[f64], level: f64) -> (f64, f64) {
     }
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let alpha = (1.0 - level) / 2.0;
-    let at = |p| antecedent_stats::quantile_type7(&sorted, p).unwrap_or(f64::NAN);
-    (at(alpha), at(1.0 - alpha))
+    equal_tail_interval_sorted(&sorted, level, QuantileRule::Interpolated)
 }
 
 #[cfg(test)]
@@ -582,7 +581,7 @@ mod tests {
     #[test]
     fn percentile_interval_is_pointwise_and_ordered() {
         let (lo, hi) = percentile_interval(&[0.0, 1.0, 2.0, 3.0, 4.0], 0.5);
-        assert!(lo <= hi);
-        assert!(lo >= 0.0 && hi <= 4.0);
+        // Type 7 on five points: p·(n − 1) = 1 and 3.
+        assert!((lo - 1.0).abs() < 1e-12 && (hi - 3.0).abs() < 1e-12);
     }
 }
