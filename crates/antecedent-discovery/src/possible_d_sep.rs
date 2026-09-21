@@ -8,8 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use std::collections::{HashSet, VecDeque};
 
 use antecedent_graph::{DenseNodeId, Endpoint};

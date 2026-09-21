@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;

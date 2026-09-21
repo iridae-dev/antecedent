@@ -8,7 +8,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import interference, intervention, observation
-from antecedent.transport import advanced as transport
 from antecedent._native import analyze_response_pag
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results import (
@@ -19,6 +18,7 @@ from antecedent.results import (
     SupportDiagnostic,
     SupportReport,
 )
+from antecedent.transport import advanced as transport
 
 
 def test_only_queries_are_reexported_at_root():

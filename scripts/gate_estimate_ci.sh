@@ -4,33 +4,15 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+source scripts/python_smoke.sh
 
 bash scripts/gate_parity_schema.sh
 
 python3 - <<'PY'
-from pathlib import Path
-import re
 import sys
 
-root = Path(".")
-estimate_inv = (root / "parity/estimate.toml").read_text()
-discovery_inv = (root / "parity/discovery.toml").read_text()
-
-def caps(text: str):
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({
-            "id": g("id"),
-            "status": g("status"),
-        })
-    return out
+sys.path.insert(0, "scripts")
+import parity_rows as pr
 
 EVIDENCE = {
     "estimate.temporal_sequential": "crates/antecedent/tests/temporal_response_facade.rs",
@@ -73,51 +55,24 @@ EVIDENCE = {
     "discovery.temporal.max_cond_size": "python/tests/test_discovery_provenance.py",
 }
 
-missing = []
-# Only gate the estimate/CI evidence set (not every inventory row).
-by_id = {c["id"]: c for c in caps(estimate_inv) + caps(discovery_inv)}
-for cid, ev in EVIDENCE.items():
-    c = by_id.get(cid)
-    if c is None:
-        missing.append(f"{cid} missing from parity manifests")
-        continue
-    if c["status"] != "done":
-        missing.append(f"{cid} status={c['status']} (expected done)")
-        continue
-    p = root / ev
-    if not p.exists():
-        missing.append(f"{cid} evidence path missing: {ev}")
-
-if missing:
-    print("parity inventory gaps:")
-    for m in missing:
-        print(" -", m)
-    sys.exit(1)
-print(f"parity inventory evidence map: ok ({len(EVIDENCE)} estimate/CI rows)")
+# Only the estimate/CI evidence set is gated here (not every inventory row).
+problems = pr.evidence_map_problems(EVIDENCE, ["parity/estimate.toml", "parity/discovery.toml"])
+pr.finish("parity inventory", problems, f"parity inventory evidence map: ok ({len(EVIDENCE)} estimate/CI rows)")
 PY
 
 echo "== conformance / calibration =="
-cargo test -p antecedent --test estimate_conformance --test estimate_linear_gaussian_ate
-cargo test -p antecedent-validate --test refuters
-cargo test -p antecedent-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
-cargo test -p antecedent-stats --lib ci::calibration
-cargo test -p antecedent-stats --test foundations_oracle
-cargo test -p antecedent-stats --test uncertainty_routing_contract
-cargo test -p antecedent-stats --test advanced_ci_oracle
-cargo test -p antecedent-stats --test bayesian_ci_oracle
-cargo test -p antecedent-discovery --test multiplicity_oracle
+bash scripts/counted_cargo.sh test -p antecedent --test estimate_conformance --test estimate_linear_gaussian_ate
+bash scripts/counted_cargo.sh test -p antecedent-validate --test refuters
+bash scripts/counted_cargo.sh test -p antecedent-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
+bash scripts/counted_cargo.sh test -p antecedent-stats --lib ci::calibration
+bash scripts/counted_cargo.sh test -p antecedent-stats --test foundations_oracle
+bash scripts/counted_cargo.sh test -p antecedent-stats --test uncertainty_routing_contract
+bash scripts/counted_cargo.sh test -p antecedent-stats --test advanced_ci_oracle
+bash scripts/counted_cargo.sh test -p antecedent-stats --test bayesian_ci_oracle
+bash scripts/counted_cargo.sh test -p antecedent-discovery --test multiplicity_oracle
 bash scripts/gate_estimate_reuse.sh
 
 echo "== Python max_cond_size (PCMCI family) facade smoke =="
-if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
-  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
-elif ! command -v uv >/dev/null 2>&1; then
-  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
-else
-  (
-    cd python
-    uv run pytest tests/test_discovery_provenance.py -q
-  )
-fi
+python_smoke tests/test_discovery_provenance.py
 
 echo "estimate_ci parity gate: ok"

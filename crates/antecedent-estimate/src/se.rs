@@ -4,11 +4,8 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::cast_sign_loss,
     clippy::manual_map,
-    clippy::many_single_char_names,
-    clippy::similar_names,
     clippy::too_many_arguments
 )]
 

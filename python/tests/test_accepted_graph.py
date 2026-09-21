@@ -5,11 +5,9 @@ from __future__ import annotations
 import math
 import random
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.graph import TemporalCpdag, TemporalPag
 
 

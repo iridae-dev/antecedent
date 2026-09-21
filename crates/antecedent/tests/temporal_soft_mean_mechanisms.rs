@@ -1,5 +1,4 @@
 //! Known-truth mean-dynamics pins: clipping applies to propagated means, not draws.
-#![allow(clippy::cast_precision_loss)]
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, InterventionSequence, Lag, MechanismOverride,

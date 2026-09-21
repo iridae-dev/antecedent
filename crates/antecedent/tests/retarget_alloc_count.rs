@@ -13,8 +13,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp)]
-#![allow(clippy::many_single_char_names)]
+#![allow(clippy::float_cmp)]
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;

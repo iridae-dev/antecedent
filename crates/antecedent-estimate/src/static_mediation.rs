@@ -1,7 +1,6 @@
 //! Static additive-linear natural mediation on an identified DAG.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation,
     clippy::needless_pass_by_value,

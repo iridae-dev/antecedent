@@ -11,9 +11,7 @@
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::fn_params_excessive_bools,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss
+    clippy::cast_possible_truncation
 )]
 
 mod artifact_api;

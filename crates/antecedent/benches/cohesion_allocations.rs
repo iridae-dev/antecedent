@@ -1,5 +1,5 @@
 //! Fixed release workloads with native allocator accounting. No speedup claim.
-#![allow(missing_docs, clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(missing_docs, clippy::too_many_lines)]
 use antecedent::analysis::{TransportGridData, TransportGridQuery, TransportGridState};
 use antecedent::{PreparedStudy, StudyBuilder};
 use antecedent_core::*;

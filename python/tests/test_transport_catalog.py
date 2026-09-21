@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import antecedent
 import pytest
-from antecedent.transport import advanced as transport
 from antecedent.errors import CausalValueError
+from antecedent.transport import advanced as transport
 
 
 def _mean_curve() -> antecedent.ResponseCurve:

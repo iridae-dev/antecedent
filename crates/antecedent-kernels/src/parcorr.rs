@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::needless_range_loop, clippy::similar_names)]
+#![allow(clippy::needless_range_loop)]
 
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]

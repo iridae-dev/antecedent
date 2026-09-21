@@ -114,6 +114,9 @@ GRID_POINTS = (0, 1, 2)
 # (n/2, n, 3n/2) costs 3.0 and the short-series grid (3n/4, n, 2n) 3.75; this
 # is the estimate for all three, since the plan cannot see a design's grid.
 GRID_COST = 3.5
+# Default parallel jobs: the coverage tests are CPU-bound and each already uses
+# every core.
+MAX_DEFAULT_JOBS = 3
 
 
 def is_grid(label: str) -> bool:
@@ -261,12 +264,16 @@ def estimate(group: Group, timings: dict[str, float]) -> tuple[float | None, str
     measured = SUITE_SECONDS.get(group.head)
     if measured is None:
         return None, "no data"
-    seconds, tests, threads = measured
-    # The recorded sweep measured one sample size per design.
+    seconds, tests, _threads = measured
+    # The recorded sweep measured one sample size per design, every suite at once
+    # on the whole machine, so a suite's wall time divided by its tests is the
+    # machine time of one test. It is not scaled by the suite's libtest threads:
+    # those shared the machine (each test already runs on every core), they did
+    # not each get a machine of their own.
     grid = GRID_COST if len(group.points) > 1 else 1.0
     if group.head in WHOLE_FILE:
         return seconds * grid, "recorded sweep x grid"
-    return seconds * min(threads, tests) / tests * grid, "recorded sweep, suite average x grid"
+    return seconds / tests * grid, "recorded sweep, suite average x grid"
 
 
 def _clock(seconds: float) -> str:
@@ -295,13 +302,17 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
         print(f"  group {g.index}: {g.label}  [{selection.reasons[g.index]}; {shown}{long_note}]")
     if not selection.groups:
         return
-    # A rough wall-clock bound: the jobs share the known work (each grid point
-    # of a group is its own job), and no run ends before its longest grid point.
+    # The work is CPU-bound and already parallel: every coverage test spreads its
+    # replicates over `available_parallelism` threads (`map_replicates`), so the
+    # machine is saturated by one job and `--jobs N` interleaves N such jobs
+    # instead of dividing the time by N. Wall-clock is the total work; extra jobs
+    # only keep the machine busy through the serial phases of each test.
     # Rechecks are not included.
-    wall = max(max(known, default=0.0) / GRID_COST, sum(known) / max(jobs, 1))
+    wall = sum(known)
     print(
-        f"rough estimate: {_clock(sum(known))} of group time, about {_clock(wall)} wall-clock "
-        f"with {jobs} jobs, for the {len(known)} group(s) with timing data"
+        f"rough estimate: about {_clock(wall)} wall-clock for the {len(known)} group(s) with "
+        f"timing data (CPU-bound: each test already uses every core, so {jobs} concurrent "
+        "job(s) share the machine and do not divide this)"
         + (f"; {unknown} group(s) have none" if unknown else "")
         + ". 2000-replicate rechecks come on top."
     )
@@ -434,7 +445,9 @@ def main() -> int:
     for name, text in (("plan", "list the groups that would run"), ("run", "run them")):
         p = sub.add_parser(name, help=text)
         p.add_argument("--all", action="store_true", help="every group, not only the owed ones")
-        p.add_argument("--jobs", type=int, default=os.cpu_count() or 1)
+        # Each job already runs its replicates on every core, so a few concurrent
+        # jobs keep the machine busy; more only oversubscribe it.
+        p.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, MAX_DEFAULT_JOBS))
     args = parser.parse_args()
     if args.jobs < 1:
         raise SystemExit("--jobs must be at least 1")

@@ -7,7 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::needless_range_loop)]
+#![allow(clippy::needless_range_loop)]
 
 use crate::backend::BayesDesignRef;
 use crate::error::ProbError;

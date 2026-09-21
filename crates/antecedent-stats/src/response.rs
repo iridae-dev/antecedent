@@ -5,8 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use crate::StatsError;
 
 /// Result of a Gaussian-kernel local quadratic regression at one coordinate.

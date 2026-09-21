@@ -17,13 +17,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::precedence
-)]
+#![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::precedence)]
 
 use std::collections::HashMap;
 use std::sync::Arc;

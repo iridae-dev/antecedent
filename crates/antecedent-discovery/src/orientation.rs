@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names, clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::redundant_closure_for_method_calls)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;

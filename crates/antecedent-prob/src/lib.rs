@@ -5,12 +5,9 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::unnecessary_wraps,
     clippy::manual_memcpy,

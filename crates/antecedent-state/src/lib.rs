@@ -8,7 +8,6 @@
     clippy::module_name_repetitions,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::needless_range_loop
 )]

@@ -1,5 +1,5 @@
 //! Matching-index benchmark .
-#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(missing_docs, clippy::cast_possible_truncation)]
 
 use antecedent_stats::{MatchingDistance, MatchingIndex};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};

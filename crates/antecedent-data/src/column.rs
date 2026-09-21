@@ -292,7 +292,9 @@ impl Float64Column {
     }
 }
 
-/// Whether every invalid row of `values` already holds `NaN`.
+/// Whether every invalid row of `values` already holds `NaN`. Only the Arrow
+/// adapter needs it, so it is compiled with the `arrow` feature.
+#[cfg(feature = "arrow")]
 pub(crate) fn invalid_rows_are_nan(values: &[f64], validity: &ValidityBitmap) -> bool {
     if validity.is_all_valid() {
         return true;

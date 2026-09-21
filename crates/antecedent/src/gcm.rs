@@ -14,7 +14,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::too_many_arguments)]
+#![allow(clippy::too_many_arguments)]
 
 use std::sync::Arc;
 

@@ -10,12 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-
-import antecedent
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.graph import TemporalCpdag, TieredBackground, WithinTier

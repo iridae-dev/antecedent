@@ -4,8 +4,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use antecedent_kernels::norm_cdf;
 
 use crate::backend::{BayesDesignRef, BayesLikelihood};

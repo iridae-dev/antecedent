@@ -2,11 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop
-)]
+#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop)]
 
 const TAYLOR_TERMS: u32 = 20;
 

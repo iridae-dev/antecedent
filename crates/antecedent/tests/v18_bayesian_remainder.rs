@@ -1,6 +1,6 @@
 //! Bayesian remainder: functional, mediation, CF, derivatives, CATE mixtures.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::float_cmp, clippy::too_many_lines)]
 
 use std::sync::Arc;
 

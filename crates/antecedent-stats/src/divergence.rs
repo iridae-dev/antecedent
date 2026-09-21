@@ -2,14 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::similar_names,
-    clippy::many_single_char_names,
-    clippy::float_cmp,
-    clippy::cast_possible_truncation,
-    clippy::unnecessary_wraps
-)]
+#![allow(clippy::float_cmp, clippy::cast_possible_truncation, clippy::unnecessary_wraps)]
 
 use antecedent_core::CausalRng;
 

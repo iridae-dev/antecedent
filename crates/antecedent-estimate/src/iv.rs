@@ -32,11 +32,9 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::float_cmp,
     clippy::manual_memcpy,
-    clippy::needless_range_loop,
-    clippy::similar_names
+    clippy::needless_range_loop
 )]
 
 use std::sync::Arc;

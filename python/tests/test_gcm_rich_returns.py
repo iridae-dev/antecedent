@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _gcm_linear(n: int = 200, seed: int = 3):

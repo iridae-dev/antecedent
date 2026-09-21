@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
 # Parity manifest schema gate: every [[capabilities]] row carries its required keys.
 #
-# Why this exists: the feature gates parse manifests with a regex `caps()` helper
-# whose accessor takes an explicit default (`g("status", default=None)`). A row
-# missing `status` therefore reads as None, matches none of the honesty checks,
-# and passes every gate forever without ever being marked done/pending. Those
-# parsers cannot detect an absent key by construction -- this gate is the
-# schema-completeness check that closes that hole.
-#
-# It also pins the regex parser itself: the ids and statuses the gates' `caps()`
-# recovers must agree with a real TOML parse, so a manifest whose layout drifts
-# out from under the regex fails here instead of silently under-reporting.
+# Why this exists: a row missing `status` (or any required key) matches none of
+# the feature gates' honesty checks and would pass them forever without ever being
+# marked done/pending. The gates read rows through scripts/parity_rows.py
+# (tomllib), and this gate is the schema-completeness check on top of that.
 #
 # Run standalone, or via any feature gate / gate_release.sh, which all invoke it.
 set -euo pipefail
@@ -116,22 +110,6 @@ MANIFESTS = {
     "parity/response.toml": ((), True),
     "parity/compiler.toml": (("group", "description", "owner"), True),
 }
-
-# The parser every feature gate embeds. Reproduced verbatim so this gate checks
-# what those gates actually see, not an idealized reading of the file.
-def regex_caps(text: str):
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({"id": g("id"), "status": g("status")})
-    return out
-
 
 problems = []
 
@@ -324,48 +302,22 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                     f"{rel}: {label} evidence_test must be Rust or Python test code"
                 )
             else:
-                text_src = test_path.read_text(errors="ignore")
+                # The one static resolver (comments/strings masked, #[ignore],
+                # cfg-disabled and uncompiled modules rejected).
                 if test_path.suffix == ".rs":
-                    test_pattern = re.compile(
-                        rf"#\[test\][^\n]*\n((?:\s*#\[[^\n]*\n)*)\s*fn\s+{re.escape(assertion)}\s*\(",
-                        re.M,
-                    )
+                    why = test_evidence.static_rust_test(test_path, assertion).problems
                 else:
-                    test_pattern = re.compile(
-                        rf"()^\s*def\s+{re.escape(assertion)}\s*\(", re.M
-                    )
-                match = test_pattern.search(text_src)
-                if not match:
+                    why = test_evidence.static_python_test(test_path, assertion)
+                for reason in why:
                     problems.append(
-                        f"{rel}: {label} evidence_assertion {assertion!r} is not "
-                        f"an executing test function in {test_rel}"
-                    )
-                elif re.search(r"#\[\s*ignore\b", match.group(1)):
-                    problems.append(
-                        f"{rel}: {label} evidence_assertion {assertion!r} is #[ignore]d"
+                        f"{rel}: {label} evidence_assertion {assertion!r} in "
+                        f"{test_rel} is not an executing test: {reason}"
                     )
 
         if isinstance(cid, str) and cid.strip():
             if cid in seen_ids:
                 problems.append(f"{rel}: duplicate id `{cid}`")
             seen_ids.add(cid)
-
-    # The gates' regex parser must recover the same rows the TOML parser sees.
-    header_count = len(re.findall(r"^\[\[capabilities\]\]", text, re.M))
-    scanned = regex_caps(text)
-    if not (len(rows) == header_count == len(scanned)):
-        problems.append(
-            f"{rel}: row-count disagreement -- toml={len(rows)} "
-            f"headers={header_count} gate-regex={len(scanned)}"
-        )
-    else:
-        for row, seen in zip(rows, scanned):
-            for key in ("id", "status"):
-                if row.get(key) != seen[key]:
-                    problems.append(
-                        f"{rel}: gate regex reads {key}={seen[key]!r} for "
-                        f"{row.get('id')!r} but TOML has {row.get(key)!r}"
-                    )
 
 if problems:
     print("parity manifest schema violations:")
@@ -737,6 +689,30 @@ else:
 
 if len(record_ids) != len(records):
     problems.append("parity/coverage_records.toml: duplicate record ids")
+
+# --- record-less calibration groups: each ran, passed, at a commit in this clone ---
+gates_path = root / "parity/calibration_gates.toml"
+# The collector's registry header names the ledger; a registry written by it must
+# come with the ledger, so deleting the ledger cannot pass.
+ledger_owed = cr.is_file() and "calibration_gates.toml" in cr.read_text()
+if not gates_path.is_file():
+    if ledger_owed:
+        problems.append("parity/calibration_gates.toml missing")
+else:
+    gate_rows = tomllib.loads(gates_path.read_text()).get("gate", [])
+    if not gate_rows:
+        problems.append("parity/calibration_gates.toml: no record-less group is attested")
+    if len({g.get("group") for g in gate_rows}) != len(gate_rows):
+        problems.append("parity/calibration_gates.toml: duplicate groups")
+    for g in gate_rows:
+        label = f"calibration_gates.toml {g.get('group')}"
+        if not isinstance(g.get("group"), str) or not g["group"]:
+            problems.append(f"{label}: missing group")
+        if not isinstance(g.get("passed"), int) or g["passed"] < 1:
+            problems.append(f"{label}: no passed test recorded")
+        gate_sha = str(g.get("calibration_sha", ""))
+        if not re.fullmatch(r"[0-9a-f]{40}", gate_sha) or set(gate_sha) == {"0"}:
+            problems.append(f"{label}: calibration_sha must be a real 40 lowercase hex commit")
 
 by_id = {rec.get("id"): rec for rec in records}
 

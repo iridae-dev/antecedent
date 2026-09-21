@@ -10,13 +10,17 @@ GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
 - **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
   crates.io publish dry-run when manifests change).
+- **`features`** — compiles the feature combinations crates.io users get (default
+  features, each optional feature alone, `--no-default-features`), which the
+  workspace-wide jobs never build because the `python` member enables `ml-full`.
+- **`deny`** — `cargo deny check` (licenses, advisories, sources).
 - **`gates`** — first the calibration attestation
   (`scripts/gate_calibration_attestation.sh`, seconds), then
   `scripts/gate_release.sh`, which runs the parity-manifest schema check,
   provenance and metadata checks, support-matrix and evidence checks, feature
   gates, artifact tests, and Criterion benchmark smokes.
-- **`python-lint`** — Ruff, mypy, and pytest with an 85% coverage floor after
-  building the native extension.
+- **`python-lint`** — `scripts/gate_python_lint.sh` (Ruff, mypy), then pytest with an
+  85% coverage floor after building the native extension.
 - **`python-wheels`** — builds and tests the supported wheel matrix.
 
 **Statistical calibration is measured on a development machine before you push,
@@ -300,7 +304,8 @@ sizes against the candidate, and close its leftover ledger. It remains outside
 
 `gate_release.sh` is the PR inventory; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
-tagging). It needs one input:
+tagging). It refuses a dirty tree, `SKIP_PRIOR_GATES`, `SKIP_PYTHON_SMOKE` and
+`ALLOW_SKIP_PYTHON_SMOKE`, and requires `cargo-deny`. It needs one input:
 
 ```bash
 CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
@@ -311,8 +316,8 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   the commit being cut (`gh run list --workflow ci.yml --commit "$(git rev-parse HEAD)"`).
   The gate reads it with `gh run view <id> --json headSha,jobs` and requires
   every job id listed in `parity/release.toml` `required_jobs` to have
-  succeeded. Job ids are `ci.yml` keys (`rust`, `gates`, `python-lint`,
-  `python-wheels`); a run reports display names instead, one per matrix
+  succeeded. Job ids are `ci.yml` keys (`rust`, `features`, `deny`, `gates`,
+  `python-lint`, `python-wheels`); a run reports display names instead, one per matrix
   combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
@@ -398,11 +403,13 @@ on the default path.”
 Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
-Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`.
-`antecedent-prob` has no features: its native HMC sampler is always compiled. There is
-no `simd-runtime` feature, so `KernelPolicy::allow_arch_simd` always selects the
-portable kernels. Ingest and exchange adapters are optional
-features and never reshape core types.
+Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
+`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-gpu`. A feature that gates no code is not
+declared (the HMC backend is always compiled), and there is no `simd-runtime`
+feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
+Ingest and exchange adapters are optional features and never reshape core types.
+CI compiles the feature combinations crates.io users get (default features, each
+optional feature alone, `--no-default-features`) in the `features` job.
 
 ## Unsafe / deps
 

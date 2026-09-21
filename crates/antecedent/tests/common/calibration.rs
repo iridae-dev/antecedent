@@ -68,7 +68,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, clippy::cast_precision_loss)]
+#![allow(dead_code)]
 
 /// Standard-normal 0.95 quantile (two-sided 90% interval).
 pub const Z90: f64 = 1.644_853_626_951_472_2;

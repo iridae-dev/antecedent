@@ -18,7 +18,7 @@
 
 // `t`, `y`, `z`, `m`, `c`, `u` are the variable names of the laws themselves,
 // the same ones the suites that used to carry these bodies allowed.
-#![allow(dead_code, clippy::many_single_char_names)]
+#![allow(dead_code)]
 
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag};

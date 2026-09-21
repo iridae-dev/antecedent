@@ -2,12 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    missing_docs,
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_lossless
-)]
+#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_lossless)]
 
 use std::time::{Duration, Instant};
 

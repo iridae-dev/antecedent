@@ -2,7 +2,7 @@
 /// Located point-local missing evidence or support outcome.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransportGridFailure {
-    /// Stable kind: missing_evidence or support_failure.
+    /// Stable kind: `missing_evidence` or `support_failure`.
     pub kind: String,
     /// Located provider/denominator explanation.
     pub detail: String,

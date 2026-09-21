@@ -5,13 +5,11 @@ from __future__ import annotations
 import pathlib
 from typing import Any
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import load_json
-
-antecedent = pytest.importorskip("antecedent")
-
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 _ATE = load_json(_ROOT / "conformance" / "estimate" / "cpdag_ate_envelope" / "expected.json")

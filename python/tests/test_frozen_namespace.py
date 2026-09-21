@@ -19,13 +19,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import read_text
-
-pytest.importorskip("antecedent")
-import antecedent
 
 # --- 1. The root `__all__` contract, spelled out in full. -------------------------
 

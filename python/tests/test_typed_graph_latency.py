@@ -9,11 +9,9 @@ points did not, so `analyze(graph=<Cpdag|Pag|Admg>, latency=...)` raised
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.graph import Admg, Cpdag
 
 

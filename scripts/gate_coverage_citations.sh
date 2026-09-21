@@ -19,6 +19,10 @@
 # observed value it states, or says it is not a registry value (a probe or an
 # earlier measurement the registry does not carry). Known-truth values, standard
 # errors and pinned values are not coverage figures and are never rejected.
+# Two-decimal rates and percentages are scanned too (nominal levels exempt), and a
+# disclosure names its source, `(probe <module>::<test_fn>)`, resolved to a compiled
+# test; the figures and bare disclosures that predate this are ratcheted in
+# parity/_coverage_citation_backlog.txt, which may only shrink.
 #
 # Run directly, or via scripts/gate_release.sh (CI's `gates` job, every PR).
 # --self-test: broken citations must fail this gate (scripts/selftest_cases.py).

@@ -8,8 +8,6 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::too_many_lines

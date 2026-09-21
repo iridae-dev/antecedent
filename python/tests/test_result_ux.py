@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.errors import (
     EffectNotIdentified,
     PendingEdge,

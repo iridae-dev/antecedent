@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::cast_precision_loss)]
+#![allow(clippy::too_many_arguments)]
 
 use antecedent_stats::GlmFamily;
 

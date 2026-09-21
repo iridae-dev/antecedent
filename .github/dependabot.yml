@@ -1,0 +1,9 @@
+# Every action in .github/workflows is pinned to a commit SHA (with the tag it
+# resolves to in a trailing comment). Dependabot proposes the bumps, so the pins
+# stay fresh without going back to mutable tags.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

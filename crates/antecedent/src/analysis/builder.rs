@@ -4,13 +4,7 @@
 
 //! Builder types.
 
-#![allow(
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
 use std::sync::Arc;
 

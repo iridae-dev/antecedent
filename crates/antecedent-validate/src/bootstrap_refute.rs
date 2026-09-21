@@ -32,7 +32,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 /// RNG stream base for the aligned-row block replicates.
 const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;

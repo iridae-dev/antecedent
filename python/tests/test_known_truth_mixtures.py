@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import pytest
-
-antecedent = pytest.importorskip("antecedent")
 
 from known_truth import (  # noqa: E402
     BAYES,

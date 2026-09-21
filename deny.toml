@@ -10,8 +10,9 @@ no-default-features = false
 version = 2
 yanked = "warn"
 ignore = [
-    # Transitive via faer → gemm; paste is a build-time proc-macro only.
-    # No safe upgrade in faer 0.21; tracked in docs/security_review.md.
+    # Transitive via faer 0.24 → gemm / pulp (and cubecl, metal in the optional GPU
+    # stack); paste is a build-time proc-macro only. Re-verified against Cargo.lock:
+    # every current `paste` dependent is one of those. Tracked in docs/security_review.md.
     { id = "RUSTSEC-2024-0436", reason = "faer/gemm still depends on archived paste; build-time only, no runtime vuln" },
 ]
 [licenses]

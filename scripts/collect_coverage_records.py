@@ -47,8 +47,16 @@ to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
 registry. Smoke lines measure nothing: every other invocation refuses them, and
 `--smoke` refuses to write `parity/coverage_records.toml` or touch any registry.
 
-`--sha <sha>` overrides the stamped SHA (for collecting logs measured at
-another commit); `--no-cells` leaves the registries alone. Without `--sha` the
+Every log must show a passing `test result: ok. N passed` with N >= 1 and no
+failure, and end with the `calibration-measured-at <sha>` line the gate wrote
+(scripts/gate_calibration.sh); all logs must agree on that sha and it must equal
+the stamped one. A run whose groups failed, matched no test, or was measured at
+another commit than the one being stamped is refused. Without `--keep-attested`
+the registry is exactly the logs, and the collector refuses to drop a record id
+the registry already holds unless it is named with `--allow-removal <id>`.
+
+`--sha <sha>` stamps that commit instead of HEAD (for logs measured at another
+commit, which must say so in their `calibration-measured-at` line); `--no-cells` leaves the registries alone. Without `--sha` the
 collector refuses to stamp HEAD while the worktree's statistical surface
 differs from HEAD, because the logs would then describe uncommitted code.
 """
@@ -69,6 +77,7 @@ import calibration_facets as facets  # noqa: E402
 
 LOG_DIR = ROOT / "target" / "calibration-records"
 OUT = ROOT / "parity" / "coverage_records.toml"
+GATES = ROOT / "parity" / "calibration_gates.toml"
 LICENSED = ROOT / "parity" / "support_licensed.toml"
 ESTIMATE = ROOT / "parity" / "estimate.toml"
 GENERATOR = ROOT / "scripts" / "generate_support_matrix_docs.py"
@@ -79,7 +88,8 @@ HEADER = """# Coverage records bound onto executions at claim time.
 # `CoverageTally::for_record` (crates/antecedent/tests/common/calibration.rs)
 # and collected by `scripts/collect_coverage_records.py`, which stamps the SHA
 # of the commit the logs were measured at. Do not edit rows by hand; re-run
-# the collector. `scripts/gate_parity_schema.sh` checks every row.
+# the collector. `scripts/gate_parity_schema.sh` checks every row. The pass/fail
+# groups that emit no record are attested in parity/calibration_gates.toml.
 """
 
 FIELDS = (
@@ -293,10 +303,94 @@ def merged_records(logs: list[Path], smoke: bool = False) -> dict[str, dict]:
     return {rid: merge_grid(rid, points) for rid, points in record_lines(logs, smoke).items()}
 
 
-def load_records(sha: str, log_dir: Path = LOG_DIR, smoke: bool = False) -> dict[str, dict]:
+CARGO_RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
+MEASURED_AT = re.compile(r"^calibration-measured-at ([0-9a-f]{40})$", re.M)
+
+
+def log_problems(log: Path) -> tuple[list[str], set[str]]:
+    """Why a group log cannot back a registry, and the shas it says it was measured at.
+
+    The record-less groups (CI Type I, uniformity, discovery FPR, SBC) leave no
+    artifact but their log, so a group that failed or matched no test would
+    otherwise vanish from the registry without a trace."""
+    text = log.read_text(errors="ignore")
+    results = CARGO_RESULT.findall(text)
+    problems = []
+    if any(status == "FAILED" or int(failed) for status, _, failed in results):
+        problems.append(f"{log.name}: a test failed")
+    if sum(int(passed) for _, passed, _ in results) < 1:
+        problems.append(f"{log.name}: no test passed (renamed or filtered away?)")
+    return problems, set(MEASURED_AT.findall(text))
+
+
+def check_logs(logs: list[Path], sha: str) -> None:
+    """Refuse logs of a failed or empty group, or measured at another commit than `sha`."""
+    problems: list[str] = []
+    for log in logs:
+        found, measured = log_problems(log)
+        problems += found
+        if not measured:
+            problems.append(f"{log.name}: no calibration-measured-at line (not written by the gate)")
+        elif measured != {sha}:
+            problems.append(
+                f"{log.name}: measured at {', '.join(sorted(measured))}, not at {sha}"
+            )
+    if problems:
+        raise SystemExit("cannot collect these logs:\n  " + "\n  ".join(problems))
+
+
+GATES_HEADER = """# Pass/fail calibration groups that emit no coverage record (CI Type I error,
+# permutation uniformity, discovery FPR/power, SBC, response calibration).
+#
+# One row per group log `scripts/gate_calibration.sh` wrote and
+# `scripts/collect_coverage_records.py` accepted: the group ran, passed at least
+# one test and failed none, at `calibration_sha`. Do not edit rows by hand; re-run
+# the collector. `scripts/gate_parity_schema.sh` checks every row.
+"""
+
+
+def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
+    """A row per record-less group log: which group, how many tests passed, at which commit."""
+    rows: dict[str, dict] = {}
+    for log in logs:
+        text = log.read_text(errors="ignore")
+        if log.name.endswith(".recheck.log") or any(
+            line.startswith("calibration-record ") for line in text.splitlines()
+        ):
+            continue
+        passed = sum(int(n) for _, n, _ in CARGO_RESULT.findall(text))
+        rows[log.name.removesuffix(".log")] = {
+            "group": log.name.removesuffix(".log"),
+            "passed": passed,
+            "calibration_sha": sha,
+        }
+    return rows
+
+
+def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None) -> None:
+    merged = {**(keep or {}), **rows}
+    lines = [GATES_HEADER]
+    for group in sorted(merged):
+        row = merged[group]
+        lines += [
+            "[[gate]]",
+            f"group = {toml_value('group', group)}",
+            f"passed = {int(row['passed'])}",
+            f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
+            "",
+        ]
+    GATES.write_text("\n".join(lines))
+
+
+def load_records(
+    sha: str, log_dir: Path = LOG_DIR, smoke: bool = False, verify_logs: bool = True
+) -> dict[str, dict]:
     if not log_dir.is_dir():
         raise SystemExit(f"missing {log_dir}: run scripts/gate_calibration.sh first")
-    records = merged_records(sorted(log_dir.glob("*.log")), smoke)
+    logs = sorted(log_dir.glob("*.log"))
+    if verify_logs and not smoke:
+        check_logs(logs, sha)
+    records = merged_records(logs, smoke)
     if not records:
         raise SystemExit(
             f"no calibration-record lines in {log_dir}: nothing measured, so nothing to commit"
@@ -471,6 +565,14 @@ def main() -> int:
         action="store_true",
         help="collect a wiring smoke run's lines into the scratch registry --out",
     )
+    parser.add_argument(
+        "--allow-removal",
+        nargs="+",
+        default=[],
+        metavar="ID",
+        help="record ids the registry holds that this run is allowed to drop "
+        "(without --keep-attested the registry becomes exactly the logs)",
+    )
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
@@ -511,12 +613,33 @@ def main() -> int:
                 "the statistical surface differs from HEAD, so these logs do not describe "
                 "a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
             )
+    if not args.keep_attested:
+        dropped = sorted(
+            {rec["id"] for rec in facets.load_records(OUT)} - set(records) - set(args.allow_removal)
+        )
+        if dropped:
+            raise SystemExit(
+                f"the logs do not re-measure {len(dropped)} record(s) the registry holds, so this "
+                "run would silently delete them (a renamed or unrun group?). Run the missing "
+                "groups, use --keep-attested, or name each id in --allow-removal:\n  "
+                + "\n  ".join(dropped)
+            )
     if args.keep_attested:
         kept = keep_attested(records)
         print(f"kept {len(kept)} attested records the logs did not re-measure")
         records = {**kept, **records}
     write_registry(records)
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
+    previous = (
+        {g["group"]: g for g in tomllib.loads(GATES.read_text()).get("gate", [])}
+        if args.keep_attested and GATES.is_file()
+        else None
+    )
+    write_gate_ledger(
+        gate_ledger(sorted(args.log_dir.glob("*.log")), sha),
+        previous,
+    )
+    print(f"wrote the record-less group ledger to {GATES.relative_to(ROOT)}")
     if not args.no_cells:
         cells = sync_licensed_cells(records)
         rows = sync_estimator_rows(records)

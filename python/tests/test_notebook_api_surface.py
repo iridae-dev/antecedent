@@ -15,12 +15,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import antecedent
 import pytest
 
 from _repo_text import load_json
-
-pytest.importorskip("antecedent")
-import antecedent
 
 _NOTEBOOKS = sorted(
     (Path(__file__).resolve().parents[2] / "examples" / "notebooks").glob("*.ipynb")

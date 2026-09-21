@@ -5,11 +5,9 @@ from __future__ import annotations
 import math
 import random
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _confounded_scm(n: int = 600, seed: int = 7):

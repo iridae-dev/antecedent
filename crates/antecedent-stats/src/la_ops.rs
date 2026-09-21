@@ -1,5 +1,5 @@
 //! Thin wrappers around the LA operations Antecedent actually uses.
-#![allow(clippy::cast_precision_loss, clippy::similar_names, dead_code)]
+#![allow(dead_code)]
 //!
 //! Not a generic linear-algebra backend. Callers stay on library-owned
 //! column-major slices. `faer` types do not leave this crate.

@@ -26,7 +26,6 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::cast_sign_loss,
     clippy::too_many_lines,
     clippy::unused_self

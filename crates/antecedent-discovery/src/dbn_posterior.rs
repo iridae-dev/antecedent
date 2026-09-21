@@ -13,10 +13,8 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::needless_range_loop,
     clippy::neg_cmp_op_on_partial_ord,
-    clippy::similar_names,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::unused_self

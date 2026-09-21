@@ -108,6 +108,24 @@ def helper_not_a_test():
 @pytest.mark.skip(reason="off")
 def test_skipped():
     assert load()["true_effect"] == 2.0, AXES
+
+
+@pytest.mark.skipif(
+    True,
+    reason="opt-in",
+)
+def test_skipped_multiline_decorator():
+    assert load()["true_effect"] == 2.0, AXES
+
+
+def test_skipped_in_body():
+    pytest.skip("off")
+    assert load()["true_effect"] == 2.0, AXES
+
+
+@pytest.mark.parametrize("case", [])
+def test_empty_parametrisation(case):
+    assert load()["true_effect"] == 2.0, AXES
 """
 
 BASE_ROW = {
@@ -197,6 +215,17 @@ def main() -> int:
             ),
             ("python_helper_not_a_test", py("helper_not_a_test"), "is not a collected pytest name"),
             ("python_skipped", py("test_skipped"), "carries a skip/xfail marker"),
+            (
+                "python_skipped_multiline_decorator",
+                py("test_skipped_multiline_decorator"),
+                "carries a skip/xfail marker",
+            ),
+            ("python_skipped_in_body", py("test_skipped_in_body"), "calls pytest.skip() unconditionally"),
+            (
+                "python_empty_parametrisation",
+                py("test_empty_parametrisation"),
+                "parametrised over an empty list",
+            ),
             (
                 "fixture_consumed_only_elsewhere",
                 rs("never_reads_the_fixture"),

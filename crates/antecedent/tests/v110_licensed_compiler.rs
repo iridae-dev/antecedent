@@ -5,8 +5,6 @@
 
 #![allow(
     clippy::cast_lossless,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
     clippy::cast_possible_truncation,
     clippy::match_same_arms,
     clippy::needless_range_loop,

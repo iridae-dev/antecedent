@@ -59,6 +59,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# -rs lists every skip with its reason; the skip bound in tests/conftest.py fails
+# a session that mostly skips, which is what a broken native extension looks like.
+addopts = "--strict-markers -rs"
 
 [tool.coverage.run]
 source = ["antecedent"]

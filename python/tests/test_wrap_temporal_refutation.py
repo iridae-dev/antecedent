@@ -10,9 +10,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
-pytest.importorskip("antecedent")
 from antecedent.estimation import _wrap_ate as _wrap_temporal
 
 

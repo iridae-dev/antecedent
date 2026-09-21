@@ -6,8 +6,6 @@ import gc
 
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
 from antecedent._native import (
     PosteriorArtifact,
     decode_posterior_artifact,

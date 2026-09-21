@@ -613,13 +613,14 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
     """Surface paths whose content differs between `sha` and `head` (default: the
     working tree), with workspace version numbers ignored in the manifests."""
     between = [sha] if head is None else [sha, head]
-    diff = _git("diff", "--name-only", *between, "--", *surface.paths)
+    # NUL-separated: a path with a space (or one git would quote) stays one path.
+    diff = _git("diff", "--name-only", "-z", *between, "--", *surface.paths)
     if diff.returncode != 0:
         raise SystemExit(f"git diff {' '.join(between)} failed: {diff.stderr.strip()}")
-    changed = set(diff.stdout.split())
+    changed = {p for p in diff.stdout.split("\0") if p}
     if head is None:
-        untracked = _git("ls-files", "--others", "--exclude-standard", "--", *surface.paths)
-        changed |= set(untracked.stdout.split())
+        untracked = _git("ls-files", "--others", "--exclude-standard", "-z", "--", *surface.paths)
+        changed |= {p for p in untracked.stdout.split("\0") if p}
     kept = []
     for rel in sorted(changed):
         if NORMALIZED.search(rel):
@@ -2186,12 +2187,41 @@ def self_test() -> int:
     return 0
 
 
+def widening_problems(base: str) -> list[str]:
+    """How this tree's surface list narrows the list at `base`.
+
+    Attestation compares each record against *today's* list, so re-pointing a
+    file from `core` to a facet no record carries would retroactively attest
+    every record against later edits to that file. A change to the list may
+    therefore only widen it (add paths, or move a path toward `core`) unless the
+    same change carries a replay waiver edit, which is reviewed on its own."""
+    shown = _git("show", f"{base}:scripts/calibration_surface.list")
+    if shown.returncode != 0:
+        return [f"cannot read scripts/calibration_surface.list at {base}: {shown.stderr.strip()}"]
+    old = load_surface(text=shown.stdout)
+    new = load_surface()
+    if _git("diff", "--quiet", base, "--", "parity/calibration_waivers.toml").returncode != 0:
+        return []
+    problems = []
+    for facet, path in old.entries:
+        now = new.facet_of(path)
+        if now is None:
+            problems.append(f"{path} left the calibration surface (was {facet})")
+        elif now not in (facet, CORE):
+            problems.append(f"{path} moved from facet {facet} to {now}, away from {CORE}")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="validate the list and the facet boundaries")
+    p_wide = sub.add_parser(
+        "widening", help="fail when the surface list narrows relative to a base ref"
+    )
+    p_wide.add_argument("base", help="ref holding the list this change is measured against")
     status = sub.add_parser("status", help="report drift since each record's SHA")
     status.add_argument("--require", action="store_true", help="fail unless every record stands")
     sub.add_parser("counts", help="records carrying each facet")
@@ -2213,6 +2243,18 @@ def main() -> int:
         return replay(args.waiver, args.dry_run)
     if args.command == "replay-candidates":
         return replay_candidates(args.start, args.end, args.paths)
+    if args.command == "widening":
+        problems = widening_problems(args.base)
+        for problem in problems:
+            print(f"FAIL: {problem}")
+        if problems:
+            print(
+                "the surface list may only widen in a change without a waiver: a narrower list "
+                "retroactively attests every record against later edits to the file"
+            )
+            return 1
+        print(f"calibration surface list does not narrow relative to {args.base}")
+        return 0
     surface = load_surface()
     if args.command == "check":
         problems = check(surface)
@@ -2232,7 +2274,8 @@ def main() -> int:
         print(
             f"calibration surface: {len(surface.entries)} paths in "
             f"{len(surface.facets)} facets; boundaries hold; "
-            f"{len(waivers)} replay waiver(s) valid"
+            f"{len(waivers)} replay waiver(s) valid; list blob "
+            f"{_git('hash-object', str(LIST)).stdout.strip()[:12]}"
         )
         return 0
     if surface.errors:

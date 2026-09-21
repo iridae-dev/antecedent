@@ -2,7 +2,7 @@
 //!
 //! Times `PropensityWeighting::fit` with bootstrap replicates enabled, refitting the
 //! propensity model each replicate while reusing `PropensityEstimationWorkspace` scratch.
-#![allow(missing_docs, clippy::cast_precision_loss, clippy::many_single_char_names)]
+#![allow(missing_docs)]
 
 use std::sync::Arc;
 

@@ -1,5 +1,4 @@
 //! Per-horizon DBN mediation eligibility and prepared numerical reuse.
-#![allow(clippy::cast_precision_loss)]
 
 use super::*;
 use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};

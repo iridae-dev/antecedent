@@ -1,7 +1,6 @@
 //! End-to-end temporal-response facade conformance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 

@@ -12,7 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names, clippy::too_many_lines, clippy::type_complexity)]
+#![allow(clippy::too_many_lines, clippy::type_complexity)]
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,

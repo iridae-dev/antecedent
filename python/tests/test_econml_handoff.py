@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import load_json
-
-antecedent = pytest.importorskip("antecedent")
 
 
 def _backdoor_data(n: int = 200) -> dict[str, np.ndarray]:

@@ -9,7 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::many_single_char_names, clippy::similar_names)]
+#![allow(clippy::cast_possible_truncation)]
 
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag};
 

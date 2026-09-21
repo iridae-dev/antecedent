@@ -6,11 +6,9 @@ Covers every accepted input shape and every rejection for ``coerce_data``,
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent import _coerce
 from antecedent.ids import Latency, Refute
 from antecedent.query import (
