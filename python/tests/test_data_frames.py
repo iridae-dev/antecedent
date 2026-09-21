@@ -79,9 +79,11 @@ def test_column_ingest_and_arrow_probes():
     assert frame_names == ["a"]
     assert list(frame_cols[0]) == [1.0, 2.0]
 
+    pa = pytest.importorskip("pyarrow")
+
     class ArrowCol:
         def __arrow_c_array__(self, requested_schema=None):
-            return (None, None)
+            return pa.array([1.0, 2.0]).__arrow_c_array__(requested_schema)
 
     mapping = {"a": ArrowCol()}
     assert try_as_arrow_c_columns(mapping)[0] == ["a"]
@@ -150,3 +152,59 @@ def test_column_ingest_and_arrow_probes():
     streamed = try_as_arrow_c_columns(StreamTable())
     assert streamed is not None
     assert streamed[0] == ["a"]
+
+
+def test_to_f64_accepts_numeric_and_refuses_reinterpretation():
+    from antecedent.errors import CausalTypeError
+
+    np.testing.assert_array_equal(to_f64([1, 0, 1]), [1.0, 0.0, 1.0])
+    np.testing.assert_array_equal(to_f64(np.array([True, False])), [1.0, 0.0])
+    assert to_f64(np.array([2**53], dtype=np.int64))[0] == float(2**53)
+    # Numeric strings are labels, not numbers (zip codes, ids).
+    for bad in (["1", "0", "1"], np.array(["1", "2"]), np.array(["2020-01-01"], dtype="M8[D]")):
+        with pytest.raises(CausalTypeError, match="not numeric") as info:
+            to_f64(bad)
+        assert info.value.reason_code == "invalid_argument"
+    with pytest.raises(CausalTypeError, match="numeric values"):
+        to_f64(np.array(["1", 2.0], dtype=object))
+    with pytest.raises(CausalTypeError, match="2\\*\\*53"):
+        to_f64(np.array([2**53 + 1], dtype=np.int64))
+    with pytest.raises(CausalTypeError, match="2\\*\\*53"):
+        to_f64(np.array([2**60], dtype=object))
+
+
+def test_to_f64_maps_none_and_pandas_na_to_nan():
+    class NAType:
+        pass
+
+    column = to_f64(np.array([1.0, None, NAType()], dtype=object))
+    assert column[0] == 1.0
+    assert np.isnan(column[1:]).all()
+
+
+def test_as_columns_names_duplicate_frame_columns():
+    from antecedent.errors import CausalValueError
+
+    class Frame:
+        columns = ["a", "b", "a"]
+
+        def to_numpy(self) -> np.ndarray:
+            raise NotImplementedError
+
+    with pytest.raises(CausalValueError, match=r"duplicate column names: \['a'\]"):
+        as_columns(Frame())
+
+
+def test_every_arrow_route_casts_integers_and_refuses_non_numeric():
+    from antecedent.errors import CausalTypeError
+
+    pa = pytest.importorskip("pyarrow")
+    ints = pa.array([1, 0, 1], type=pa.int64())
+    for source in ({"t": ints}, pa.table({"t": ints})):
+        names, cols = try_as_arrow_c_columns(source)
+        assert names == ["t"]
+        assert cols[0].type == pa.float64()
+        # Every entry point (as_columns) reads Arrow tables, not only analyze().
+        np.testing.assert_array_equal(as_columns(source)[1][0], [1.0, 0.0, 1.0])
+    with pytest.raises(CausalTypeError, match="not numeric"):
+        try_as_arrow_c_columns({"z": pa.array(["1", "2"])})

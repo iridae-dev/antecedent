@@ -371,16 +371,11 @@ class ReasoningSlots:
         response = body.get("response") or {}
         if isinstance(response, Mapping) and response.get("uncertainty") is not None:
             details["response"] = response["uncertainty"]
-            if response["uncertainty"] != "none" and not uncertainty.available:
-                uncertainty = SlotView(True, None, "response_specific", details)
-            else:
-                uncertainty = SlotView(
-                    uncertainty.available, uncertainty.reason, uncertainty.summary, details
-                )
-        else:
-            uncertainty = SlotView(
-                uncertainty.available, uncertainty.reason, uncertainty.summary, details
-            )
+        # Availability is the native decision (`result_reasoning` counts response
+        # uncertainty only for a Bayesian inference); the body only enriches the payload.
+        uncertainty = SlotView(
+            uncertainty.available, uncertainty.reason, uncertainty.summary, details
+        )
         structural = body.get("structural_response") or {}
         if (
             isinstance(structural, Mapping)

@@ -600,6 +600,7 @@ class PcmciDiscoveryResult:
     cpdag_directed_edges: int
     cpdag_undirected_edges: int
     graph_edges: list[GraphEdge]
+    variable_names: list[str]
 
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""

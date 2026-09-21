@@ -1,7 +1,7 @@
 """The omitted-default table, read from the Rust study builder.
 
-``analyze`` / ``prepare`` / ``PreparedAnalysis.prepare`` never fill an omitted
-``refute`` / ``bootstrap`` / ``latency`` themselves: an omitted value reaches
+``analyze`` / ``prepare`` / ``PreparedAnalysis.prepare`` / ``PreparedBatch.prepare`` never
+fill an omitted ``refute`` / ``bootstrap`` / ``latency`` themselves: an omitted value reaches
 the study builder as omitted, and the builder applies this table, its
 latency-tier mapping, and its refute downgrade. This module exposes what the
 builder would use, for display and for tests.
@@ -14,7 +14,9 @@ from typing import Any
 from ._native import default_user_threads, omitted_defaults
 
 #: ``bootstrap`` (on routes that resample), ``refute`` (before any cell
-#: downgrade), ``latency`` (never injected), and the Bayesian draw budgets.
+#: downgrade), ``latency`` (never injected), the Bayesian draw budgets, the
+#: default propensity ``overlap`` clip/trim, and the transport query inference
+#: settings. Every Python-side default of these is read from here.
 OMITTED: dict[str, Any] = omitted_defaults()
 
 TEMPORAL_QUERY_KINDS = frozenset({"pulse", "sustained", "temporal_mediation"})

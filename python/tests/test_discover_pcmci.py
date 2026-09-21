@@ -27,6 +27,7 @@ SCHEMA_FIELDS = {
     "cpdag_nodes",
     "cpdag_directed_edges",
     "cpdag_undirected_edges",
+    "variable_names",
 }
 
 LINK_FIELDS = {
@@ -67,6 +68,7 @@ def test_discover_pcmci_schema_fields():
     for name in SCHEMA_FIELDS:
         assert hasattr(result, name), name
     assert result.algorithm_id == "pcmci"
+    assert list(result.variable_names) == names
     assert "fdr=" in result.algorithm_config
     assert "fdr=BH" not in result.algorithm_config  # fdr=False → no BH adjustment
     assert result.ci_tests > 0

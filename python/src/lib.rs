@@ -654,7 +654,16 @@ impl IntoCausalPyErr for RustCausalError {
             // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
             // hierarchy root rather than failing the build. Give new variants an explicit
             // arm above when their Python-facing category is decided.
-            ref other => CausalError::new_err(other.to_string()),
+            ref other => {
+                let message = other.to_string();
+                let code = antecedent_core::reason_code::split_prefix(&message)
+                    .map(|(code, _)| code.to_string());
+                let err = CausalError::new_err(message);
+                match code {
+                    Some(code) => with_reason_code(err, &code),
+                    None => err,
+                }
+            }
         }
     }
 }
@@ -2537,6 +2546,14 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// Inference settings the transport query modalities apply when a caller omits them.
+pub(crate) mod transport_defaults {
+    /// Bootstrap replicates of a statistical transport query.
+    pub(crate) const BOOTSTRAP: u32 = 199;
+    /// Central coverage level of a statistical transport interval.
+    pub(crate) const COVERAGE_LEVEL: f64 = 0.95;
+}
+
 /// The study builder's omitted-default table, read from the builder itself.
 ///
 /// `bootstrap` applies on resampling routes (the builder omits it on static and
@@ -2566,6 +2583,17 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
         antecedent::discovery_defaults::DEFAULT_MAX_COND_SIZE,
     )?;
     dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
+    // Propensity overlap default shared by every propensity-score estimator.
+    let antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } =
+        antecedent_estimate::default_propensity_overlap()
+    else {
+        unreachable!("the default propensity overlap policy requires diagnostics");
+    };
+    dict.set_item("overlap_clip", clip)?;
+    dict.set_item("overlap_trim", trim)?;
+    // Inference settings of the transport query modalities.
+    dict.set_item("transport_bootstrap", transport_defaults::BOOTSTRAP)?;
+    dict.set_item("transport_coverage_level", transport_defaults::COVERAGE_LEVEL)?;
     Ok(dict.into())
 }
 

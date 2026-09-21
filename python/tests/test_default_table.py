@@ -51,6 +51,10 @@ def test_table_is_the_builders_own():
         "discovery_alpha",
         "discovery_max_cond_size",
         "prior_scale",
+        "overlap_clip",
+        "overlap_trim",
+        "transport_bootstrap",
+        "transport_coverage_level",
     }
     assert OMITTED["latency"] is None
 

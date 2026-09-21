@@ -290,3 +290,14 @@ def test_sample_intervention_must_belong_to_declared_domain(value):
             at={"x": value},
             bootstrap=0,
         )
+
+
+def test_transport_query_defaults_are_read_from_the_native_table():
+    import dataclasses
+
+    from antecedent._defaults import OMITTED
+    from antecedent.transport._impl import StatisticalTransportQuery
+
+    fields = {f.name: f.default for f in dataclasses.fields(StatisticalTransportQuery)}
+    assert fields["bootstrap"] == OMITTED["transport_bootstrap"] == 199
+    assert fields["coverage_level"] == OMITTED["transport_coverage_level"] == 0.95

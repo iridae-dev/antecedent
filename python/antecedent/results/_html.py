@@ -124,6 +124,9 @@ def _refutation_table_html(validation: ValidationView) -> str:
     for r in validation.reports:
         verdict = "pass" if r.passed else "fail"
         verdict_class = "ar-ok" if r.passed else "ar-bad"
+        if not r.informative and r.passed:
+            # A refuter that ran nothing (e.g. an empty adjustment set) is not evidence.
+            verdict, verdict_class = "not informative", "antecedent-ar-muted"
         rows.append(
             "<tr>"
             f"<td>{_esc(r.refuter)}</td>"

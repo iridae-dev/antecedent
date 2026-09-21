@@ -18,6 +18,7 @@ import numpy as np
 
 from .._native import estimate_trial_transport as _estimate_trial_transport
 from .._native import identify_transport as _identify_transport
+from .._defaults import OMITTED
 from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .._transport_results import (
     TransportContrast,
@@ -1119,8 +1120,8 @@ class StatisticalTransportQuery:
     identification: ClassicalTransportIdentification
     catalog: EvidenceCatalog
     at: Mapping[str, float]
-    bootstrap: int = 199
-    coverage_level: float = 0.95
+    bootstrap: int = OMITTED["transport_bootstrap"]
+    coverage_level: float = OMITTED["transport_coverage_level"]
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
     seed: int = 1
 
@@ -1141,8 +1142,8 @@ def prepare_statistical(
     max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
-    bootstrap: int = 199,
-    coverage_level: float = 0.95,
+    bootstrap: int = OMITTED["transport_bootstrap"],
+    coverage_level: float = OMITTED["transport_coverage_level"],
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin",
     seed: int = 1,
 ) -> PreparedAnalysis[StatisticalTransportDistribution]:
@@ -1542,8 +1543,8 @@ class TransportResponseGridQuery:
     identification: ClassicalTransportIdentification
     catalog: EvidenceCatalog
     at: Sequence[Mapping[str, float]]
-    bootstrap: int = 199
-    coverage_level: float = 0.95
+    bootstrap: int = OMITTED["transport_bootstrap"]
+    coverage_level: float = OMITTED["transport_coverage_level"]
     seed: int = 1
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin"
 
@@ -1611,8 +1612,8 @@ def prepare_response_grid(
     *,
     at: Sequence[Mapping[str, float]],
     estimator: EmpiricalTable | LearnedCategorical | str = "plugin",
-    bootstrap: int = 199,
-    coverage_level: float = 0.95,
+    bootstrap: int = OMITTED["transport_bootstrap"],
+    coverage_level: float = OMITTED["transport_coverage_level"],
     seed: int = 1,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
@@ -1737,8 +1738,8 @@ class TrialAipwQuery:
 class TransportInference:
     """Frozen joint outer bootstrap; intervals remain nominal and uncalibrated."""
 
-    bootstrap: int = 199
-    coverage_level: float = 0.95
+    bootstrap: int = OMITTED["transport_bootstrap"]
+    coverage_level: float = OMITTED["transport_coverage_level"]
     seed: int = 1
 
 

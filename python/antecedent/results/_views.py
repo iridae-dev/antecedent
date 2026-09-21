@@ -452,6 +452,8 @@ class RefutationReport(ResultModel):
 
     def __repr__(self) -> str:
         verdict = "pass" if self.passed else "fail"
+        if not self.informative and self.passed:
+            verdict = "not informative"
         return (
             f"<RefutationReport {self.refuter!r} {verdict} "
             f"original={fmt_float(self.original_ate)} refuted={fmt_float(self.refuted_ate)} "
@@ -473,7 +475,10 @@ class ValidationView(ResultModel):
         if not self.ran:
             return "<ValidationView not run>"
         verdict = "pass" if self.passed else "fail"
-        return f"<ValidationView {verdict} {len(self)} refuters ({len(self.failed)} failed)>"
+        text = f"<ValidationView {verdict} {len(self)} refuters ({len(self.failed)} failed"
+        if self.uninformative:
+            text += f", {len(self.uninformative)} not informative"
+        return text + ")>"
 
     def __len__(self) -> int:
         return len(self.reports)
@@ -493,6 +498,11 @@ class ValidationView(ResultModel):
     def failed(self) -> list[RefutationReport]:
         """Reports that did not pass (empty when everything passed or nothing ran)."""
         return [r for r in self.reports if not r.passed]
+
+    @property
+    def uninformative(self) -> list[RefutationReport]:
+        """Reports that ran nothing informative; their ``passed`` is not evidence."""
+        return [r for r in self.reports if not r.informative]
 
     def to_columns(self) -> dict[str, list[Any]]:
         """One row per :class:`RefutationReport`, as name → column. No frame dep."""
@@ -754,9 +764,12 @@ class AnalysisResult(ResultModel, ResultAPI):
         else:
             parts = [verdict, f"effect={fmt_float(effect)} ±{se_text}"]
         if self.validation.ran:
-            n = len(self.validation)
-            n_passed = n - len(self.validation.failed)
-            parts.append(f"refute={n_passed}/{n} pass")
+            informative = [r for r in self.validation if r.informative or not r.passed]
+            n_passed = sum(1 for r in informative if r.passed)
+            text = f"refute={n_passed}/{len(informative)} pass"
+            if len(informative) < len(self.validation):
+                text += f" ({len(self.validation) - len(informative)} not informative)"
+            parts.append(text)
         mass = self.posterior.unidentified_mass if self.posterior is not None else None
         if mass is not None and mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(mass)}")

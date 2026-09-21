@@ -238,7 +238,7 @@ impl PreparedTransportGridStage {
     }
 }
 #[pyfunction]
-#[pyo3(signature=(stage,catalog,data,at,*,statistical=false,estimator=None,bootstrap=199,coverage_level=0.95,seed=1,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
+#[pyo3(signature=(stage,catalog,data,at,*,statistical=false,estimator=None,bootstrap=crate::transport_defaults::BOOTSTRAP,coverage_level=crate::transport_defaults::COVERAGE_LEVEL,seed=1,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_transport_grid(
     py: Python<'_>,

@@ -52,19 +52,32 @@ class TieredBackground:
                 seen.add(str(name))
 
 
+def _discovery_variable_names(result: _PcmciDiscoveryResult) -> list[str]:
+    """The schema's variable names a discovery ran over, isolated variables included.
+
+    A graph built from edge endpoints alone silently drops a variable the
+    algorithm found no adjacency for, turning "no edge into Y" into "Y is not in
+    the graph". The native result carries the schema, so it is the only source.
+    """
+    names = getattr(result, "variable_names", None)
+    if not names:
+        raise CausalValueError(
+            "discovery result carries no variable names; cannot build a graph over "
+            "the variables that were analysed"
+        )
+    return [str(n) for n in names]
+
+
 def discovery_to_dag(result: _PcmciDiscoveryResult) -> Dag:
     """Build a ``Dag`` from a discovery result's directed ``graph_edges``.
 
-    Raises ``ValueError`` if any undirected/circle marks remain.
+    The node set is the result's full variable list, so variables with no
+    adjacency stay in the graph. Raises ``ValueError`` if any undirected/circle
+    marks remain.
     """
-    names: list[str] = []
-    seen: set[str] = set()
+    names = _discovery_variable_names(result)
     directed: list[tuple[str, str]] = []
     for e in result.graph_edges:
-        for n in (e.source, e.target):
-            if n not in seen:
-                seen.add(n)
-                names.append(n)
         if e.at_source == "tail" and e.at_target == "arrow":
             directed.append((e.source, e.target))
         elif e.at_source == "arrow" and e.at_target == "tail":
