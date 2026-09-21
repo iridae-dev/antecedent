@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
-from ..errors import CausalUnsupportedError
+from ..errors import CausalSerializationError, CausalUnsupportedError
 from ..results import (
     AnalysisResult,
     CausalResponseView,
@@ -21,7 +23,7 @@ from ..results import (
     ValidationView,
 )
 from ..results._execution import Answer
-from ._day1 import Evidence, Source, Transport, missing_evidence_detail
+from ._day1 import Evidence, Source, Transport, lower_question, missing_evidence_detail
 from ._impl import (
     EmpiricalTable,
     ExactTransportDistribution,
@@ -30,7 +32,21 @@ from ._impl import (
     StatisticalTransportDistribution,
     TransportResponseGrid,
     TrialAipw,
+    _exact_distribution,
+    _learned_trial,
+    _response_grid,
+    _statistical_distribution,
+    consume_exact,
+    consume_identification,
+    consume_response_grid,
+    consume_statistical,
 )
+
+#: Never a computed number: :func:`fmt_se` and the uncertainty-availability
+#: check in ``results/_execution.py`` both treat a non-finite ``se_analytic``
+#: as withheld, so this is how an unwritten analytic SE is spelled without
+#: inventing ``0.0`` (a real, wrong, finite standard error).
+_NO_ANALYTIC_SE = math.nan
 
 VIEW_PREFIX = b"ANTECEDENT-TRANSPORT-VIEW\x01"
 
@@ -46,6 +62,14 @@ class TransportSection:
     distribution: Any = None
     unavailable: str | None = None
     shape: str | None = None
+    #: Native sampling interval for the reported number, when one was licensed
+    #: (``LearnedTrialEstimate.interval``, a plug-in ``TransportContrast.interval``,
+    #: or the matching entry in ``TransportUncertainty.mean_intervals``). ``None``
+    #: means no interval was computed, not that it rounds to a point.
+    interval: tuple[float, float] | None = None
+    #: Why no interval exists (e.g. ``exact_supplied_law_no_sampling_uncertainty``),
+    #: read from the native uncertainty/contrast reason; never invented.
+    uncertainty_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,10 +79,13 @@ class TransportSection:
             "replicate_ids": list(self.replicate_ids),
             "unavailable": self.unavailable,
             "shape": self.shape,
+            "interval": list(self.interval) if self.interval is not None else None,
+            "uncertainty_reason": self.uncertainty_reason,
         }
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> TransportSection:
+        interval = raw.get("interval")
         return cls(
             formula=raw.get("formula"),
             provider=raw.get("provider"),
@@ -66,6 +93,8 @@ class TransportSection:
             replicate_ids=tuple(raw.get("replicate_ids") or ()),
             unavailable=raw.get("unavailable"),
             shape=raw.get("shape"),
+            interval=tuple(interval) if interval else None,
+            uncertainty_reason=raw.get("uncertainty_reason"),
         )
 
 
@@ -76,19 +105,30 @@ def _provider_name(provider: object) -> str:
         return "learned_categorical"
     if isinstance(provider, TrialAipw):
         return "trial_aipw"
+    if isinstance(provider, str):
+        # Already a resolved name (e.g. round-tripped through export/load).
+        return provider
     return type(provider).__name__
 
 
 def _identification_view(stage: Mapping[str, Any] | None, query: Transport) -> IdentificationView:
     identified = None if stage is None else stage.get("identified")
-    status = "NonparametricallyIdentified"
     method = "identify.transport_sid"
-    rules: list[str] = []
-    if identified is not None:
-        if identified.outcome != "identified":
-            status = "NotIdentified"
-        rules = list(identified.rules)
-        method = "identify.transport_sid"
+    if identified is None:
+        # No native identification stage travelled with this result: never
+        # default to identified when nothing is actually known. Fails closed,
+        # the same way an unrecognized status string closes in ``_verdict.py``.
+        return IdentificationView(
+            status="NotIdentified",
+            method=method,
+            adjustment_set=[],
+            assumption_count=0,
+            derivation_step_count=0,
+        )
+    status = (
+        "NonparametricallyIdentified" if identified.outcome == "identified" else "NotIdentified"
+    )
+    rules = list(identified.rules)
     return IdentificationView(
         status=status,
         method=method,
@@ -99,7 +139,9 @@ def _identification_view(stage: Mapping[str, Any] | None, query: Transport) -> I
 
 
 def _empty_validation() -> ValidationView:
-    return ValidationView(passed=True, ran=False, count=0)
+    # Rust's aggregate rule never claims a pass when nothing ran
+    # (``estimation.py``'s quoted rule: "never claim pass when nothing ran").
+    return ValidationView(passed=False, ran=False, count=0)
 
 
 def _empty_performance() -> PerformanceView:
@@ -192,101 +234,130 @@ def _query_from_dict(raw: Mapping[str, Any] | None) -> Transport | None:
     )
 
 
+class _RehydratedStudy:
+    """Just enough of a study for :func:`wrap_transport_result` to rebuild a view.
+
+    Carries a verified native identification (and, for a computed answer, the
+    verified native specialist) recovered from an exported artifact — never a
+    JSON-authored status. ``catalog`` stays ``None``: evidence bindings are
+    lineage, not re-derivable from the exported artifact, and are restored
+    from the plain-text metadata afterwards rather than re-fabricated here.
+    """
+
+    def __init__(self, query: Transport | None, stage: Mapping[str, Any]) -> None:
+        self._query = query
+        self._transport_stage = stage
+
+
+def _identification_bytes(result: Any) -> bytes | None:
+    study = getattr(result, "_prepared", None)
+    stage = getattr(study, "_transport_stage", None) or {}
+    identified = stage.get("identified")
+    if identified is None:
+        return None
+    return bytes(identified._native.export())
+
+
+def _specialist_bytes(section: TransportSection) -> bytes | None:
+    distribution = section.distribution
+    export = getattr(distribution, "export", None)
+    if export is None:
+        return None
+    return bytes(export())
+
+
+def _consume_specialist_artifact(encoded: bytes) -> Any:
+    """Verify one of the native specialist exports and rebuild its display object.
+
+    Dispatches on the artifact's own magic prefix — the same four kinds
+    :func:`antecedent._workflow.load` already recognizes for a bare specialist
+    export — so a transported result's numbers are always re-derived from a
+    native consumer, never trusted from unauthenticated JSON.
+    """
+    if encoded.startswith(b"ANTECEDENT-LEARNED-TRIAL\x01"):
+        from .. import _native
+
+        native = _native.consume_learned_trial(encoded)
+        return _learned_trial(native, native.last_result())
+    if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
+        prepared = consume_exact(encoded)
+        return _exact_distribution(prepared._native, prepared._native.last_result())
+    if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
+        prepared = consume_statistical(encoded)
+        return _statistical_distribution(prepared._native, prepared._native.last_result())
+    if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
+        prepared = consume_response_grid(encoded)
+        return _response_grid(prepared._native, prepared._native.last_result())
+    raise CausalSerializationError("unrecognized transport specialist artifact")
+
+
 def encode_transport_view(result: Any) -> bytes:
+    """Export a transported result as its native artifacts plus lineage metadata.
+
+    The identification certificate and the specialist's own native export are
+    the sole authority for status and numbers on reload (see
+    :func:`decode_transport_view`); everything else here (provider label,
+    bindings, the query) is descriptive lineage that can be lost or rewritten
+    without a tampered artifact ever being able to claim a stronger status
+    than the one its native certificate carries.
+    """
     section = result.transport
     query = getattr(result, "query", None)
-    identification = result.identification
-    estimate = getattr(result, "estimate", None)
     payload: dict[str, Any] = {
-        "shape": section.shape,
-        "transport": section.to_dict(),
         "query": _query_to_dict(query) if isinstance(query, Transport) else None,
-        "identification": {
-            "status": identification.status,
-            "method": identification.method,
-            "adjustment_set": list(identification.adjustment_set),
-            "assumption_count": identification.assumption_count,
-            "derivation_step_count": identification.derivation_step_count,
-        },
-        "ate": None if estimate is None else getattr(estimate, "ate", None),
-        "estimator_id": None if estimate is None else getattr(estimate, "estimator_id", None),
-        "method": None if estimate is None else getattr(estimate, "method", None),
-        "response": None,
-        "support": None,
-        "diagnostics": list(getattr(result, "diagnostics", None) or ()),
+        "provider": section.provider,
+        "bindings": list(section.bindings),
+        "unavailable": section.unavailable,
     }
-    response = getattr(result, "response", None)
-    if response is not None:
-        payload["response"] = {
-            "treatments": list(response.treatments),
-            "outcomes": list(response.outcomes),
-            "points": [list(point) for point in response.points],
-            "values": [list(value) for value in response.values],
-        }
-        support = result.support
-        payload["support"] = {
-            "status": support.status,
-            "query_region": support.query_region,
-            "warnings": list(getattr(support, "warnings", ()) or ()),
-            "point_status": list(support.point_status) if support.point_status else None,
-        }
+    identification_bytes = _identification_bytes(result)
+    if identification_bytes is not None:
+        payload["identification_artifact"] = base64.b64encode(identification_bytes).decode("ascii")
+    specialist_bytes = _specialist_bytes(section)
+    if specialist_bytes is not None:
+        payload["specialist_artifact"] = base64.b64encode(specialist_bytes).decode("ascii")
     return VIEW_PREFIX + json.dumps(payload).encode()
 
 
 def decode_transport_view(encoded: bytes) -> AnalysisResult | CausalResponseView:
+    """Rebuild a transported result from its verified native artifacts.
+
+    Status, identification and every reported number come from
+    ``consume_identification``/the matching native specialist consumer — the
+    same functions a live analysis uses — never from the JSON envelope
+    directly, so editing the envelope by hand cannot upgrade what the result
+    claims.
+    """
     payload = json.loads(encoded[len(VIEW_PREFIX) :])
-    section = TransportSection.from_dict(payload["transport"])
     query = _query_from_dict(payload.get("query"))
-    view = IdentificationView(
-        status=payload["identification"]["status"],
-        method=payload["identification"]["method"],
-        adjustment_set=list(payload["identification"]["adjustment_set"]),
-        assumption_count=payload["identification"]["assumption_count"],
-        derivation_step_count=payload["identification"]["derivation_step_count"],
+    identification_artifact = payload.get("identification_artifact")
+    identified = (
+        consume_identification(base64.b64decode(identification_artifact))
+        if identification_artifact is not None
+        else None
     )
-    if payload.get("response") is not None:
-        raw = payload["response"]
-        support = payload.get("support") or {}
-        result: Any = CausalResponseView(
-            estimand=None if query is None else query.question,
-            response=ResponseView(
-                treatments=list(raw["treatments"]),
-                outcomes=list(raw["outcomes"]),
-                points=list(raw["points"]),
-                values=list(raw["values"]),
-            ),
-            estimate=[row[0] for row in raw["values"]],
-            uncertainty=ResponseUncertainty(kind="none"),
-            support=SupportReport(
-                status=support.get("status") or "supported",
-                query_region=support.get("query_region") or {},
-                warnings=tuple(support.get("warnings") or ()),
-                point_status=tuple(support["point_status"])
-                if support.get("point_status")
-                else None,
-            ),
-            identification=view,
-            transport=section,
-        )
+    shape, worlds = lower_question(query.question) if query is not None else (None, ())
+    stage = {
+        "identified": identified,
+        "catalog": None,
+        "bound": None,
+        "shape": shape,
+        "worlds": worlds,
+        "provider": payload.get("provider"),
+        "graph": None,
+    }
+    study = _RehydratedStudy(query, stage)
+    specialist_artifact = payload.get("specialist_artifact")
+    if specialist_artifact is not None:
+        specialist = _consume_specialist_artifact(base64.b64decode(specialist_artifact))
+        result = wrap_transport_result(study, specialist)
     else:
-        result = AnalysisResult(
-            identification=view,
-            estimate=EstimateView(
-                ate=payload.get("ate"),
-                se_analytic=0.0,
-                se_bootstrap=None,
-                estimator_id=payload.get("estimator_id") or "transport.empirical_table",
-                method=payload.get("method") or "transport.plugin",
-            ),
-            posterior=None,
-            validation=_empty_validation(),
-            performance=_empty_performance(),
-            diagnostics=list(payload.get("diagnostics") or ()),
-            provenance={"operation_ids": ["estimate.transport"]},
-            transport=section,
+        detail = payload.get("unavailable") or (
+            "no evidence travelled with this artifact; identification status alone is verified"
         )
-    object.__setattr__(result, "query", query)
-    object.__setattr__(result, "_execution", _ExportAdapter(result))
+        result = _unavailable_result(study, query, detail, shape=shape or "scalar", stage=stage)
+    bindings = payload.get("bindings")
+    if bindings:
+        object.__setattr__(result, "transport", replace(result.transport, bindings=tuple(bindings)))
     return result
 
 
@@ -322,7 +393,7 @@ def _unavailable_result(
         identification=view,
         estimate=EstimateView(
             ate=None,
-            se_analytic=0.0,
+            se_analytic=_NO_ANALYTIC_SE,
             se_bootstrap=None,
             estimator_id="transport.empirical_table",
             method="unavailable",
@@ -374,11 +445,14 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
     )
     view = _identification_view(stage, query)
     if isinstance(specialist, LearnedTrialEstimate):
+        section = replace(
+            section, interval=specialist.interval, uncertainty_reason=specialist.uncertainty_reason
+        )
         result = AnalysisResult(
             identification=view,
             estimate=EstimateView(
                 ate=specialist.estimate,
-                se_analytic=0.0,
+                se_analytic=_NO_ANALYTIC_SE,
                 se_bootstrap=None,
                 estimator_id="transport.trial_aipw",
                 method="trial.aipw",
@@ -404,11 +478,13 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
             )
         outcome = query.question.outcome  # type: ignore[union-attr]
         value = specialist.mean(outcome)
+        interval, uncertainty_reason = _plugin_uncertainty(specialist, outcome)
+        section = replace(section, interval=interval, uncertainty_reason=uncertainty_reason)
         result = AnalysisResult(
             identification=view,
             estimate=EstimateView(
                 ate=value,
-                se_analytic=0.0,
+                se_analytic=_NO_ANALYTIC_SE,
                 se_bootstrap=None,
                 estimator_id=f"transport.{provider}",
                 method="transport.plugin",
@@ -422,6 +498,46 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
         )
         return _attach(result, study, specialist, section)
     return specialist
+
+
+def _plugin_uncertainty(
+    specialist: Any, outcome: str
+) -> tuple[tuple[float, float] | None, str | None]:
+    """Native interval for one outcome mean, or the native reason it is withheld.
+
+    ``ExactTransportDistribution.uncertainty`` is always ``None`` (a complete
+    law makes no sampling claim); a ``StatisticalTransportDistribution`` may
+    withhold uncertainty for reasons of its own (``uncertainty.reason``).
+    """
+    uncertainty = getattr(specialist, "uncertainty", None)
+    if uncertainty is None:
+        return None, "exact_supplied_law_no_sampling_uncertainty"
+    for name, lower, upper in uncertainty.mean_intervals or ():
+        if name == outcome:
+            return (lower, upper), uncertainty.reason
+    return None, uncertainty.reason
+
+
+def _contrast_unavailable_detail(
+    stage: Mapping[str, Any], query: Transport, warnings: list[str]
+) -> str:
+    """Explain an unsupported contrast without ever crashing on the way there.
+
+    ``missing_evidence_detail`` re-runs the bounded catalog search when it is
+    not given one; that search can itself fail (the same budget/cancellation
+    outcomes handled in ``identification_from_transport``), which must
+    degrade to the native per-point detail rather than raise past this
+    diagnostic and hide the real (already-known) reason the contrast is
+    unavailable.
+    """
+    identified = stage.get("identified")
+    catalog = stage.get("catalog")
+    if identified is not None and catalog is not None:
+        try:
+            return missing_evidence_detail(identified, catalog, query=query)
+        except Exception:
+            pass
+    return warnings[0] if warnings else "every requested grid point is unbound"
 
 
 def _wrap_grid(
@@ -457,7 +573,7 @@ def _wrap_grid(
         statuses.append("supported")
     if stage.get("shape") == "contrast":
         if len(values) != 2 or any(status != "supported" for status in statuses):
-            detail = missing_evidence_detail(stage["identified"], stage["catalog"], query=query)
+            detail = _contrast_unavailable_detail(stage, query, warnings)
             return _unavailable_result(
                 study,
                 query,
@@ -466,11 +582,12 @@ def _wrap_grid(
                 stage=stage,
             )
         contrast = grid.contrast(1, 0, outcome)
+        section = replace(section, interval=contrast.interval, uncertainty_reason=contrast.reason)
         result = AnalysisResult(
             identification=view,
             estimate=EstimateView(
                 ate=float(contrast.estimate),
-                se_analytic=0.0,
+                se_analytic=_NO_ANALYTIC_SE,
                 se_bootstrap=None,
                 estimator_id=f"transport.{section.provider}",
                 method="transport.contrast",
