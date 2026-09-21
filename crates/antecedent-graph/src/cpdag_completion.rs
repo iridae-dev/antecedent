@@ -6,12 +6,23 @@
 //! bound (`max_completions` caps **valid** yields). Conflict (`x-x`) edges are
 //! refused at construction.
 //!
+//! The orientation space is enumerated exhaustively (`2^k` masks for `k`
+//! undirected edges). Construction therefore refuses when `k` exceeds
+//! [`MAX_UNDIRECTED_EDGES`] rather than hanging on a blind scan.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::cpdag::Cpdag;
 use crate::dag::Dag;
 use crate::error::GraphError;
 use crate::types::DenseNodeId;
+
+/// Hard cap on undirected edges the mask enumerator will accept.
+///
+/// Enumeration is `O(2^k)` with end-of-mask MEC validation; past this bound
+/// construction returns [`GraphError::InvalidEndpoints`] immediately instead of
+/// scanning (e.g. a 25-edge CPDAG would otherwise examine `2^25` masks).
+pub const MAX_UNDIRECTED_EDGES: usize = 16;
 
 /// One DAG completion of a CPDAG (MEC member).
 #[derive(Clone, Debug)]
@@ -39,7 +50,8 @@ impl CpdagCompletionSampler {
     ///
     /// # Errors
     ///
-    /// Conflict edges present, or more than 63 undirected edges (mask capacity).
+    /// Conflict edges present, or more than [`MAX_UNDIRECTED_EDGES`] undirected
+    /// edges (exhaustive `2^k` mask enumeration would not finish promptly).
     pub fn new(cpdag: Cpdag, max_completions: usize) -> Result<Self, GraphError> {
         if cpdag.conflict_edge_count() > 0 {
             return Err(GraphError::InvalidEndpoints {
@@ -55,9 +67,9 @@ impl CpdagCompletionSampler {
         }
         undirected.sort_by_key(|(a, b)| (a.raw(), b.raw()));
         undirected.dedup();
-        if undirected.len() > 63 {
+        if undirected.len() > MAX_UNDIRECTED_EDGES {
             return Err(GraphError::InvalidEndpoints {
-                message: "too many undirected edges for CpdagCompletionSampler mask",
+                message: "CpdagCompletionSampler supports at most 16 undirected edges",
             });
         }
         Ok(Self { base: cpdag, undirected, max_completions, next_index: 0, assign: 0 })
@@ -290,5 +302,31 @@ mod tests {
         let collected: Vec<_> = CpdagCompletionSampler::new(g.clone(), 8).unwrap().collect();
         assert_eq!(collected.len(), 1);
         assert!(is_mec_member(&g, &collected[0].graph));
+    }
+
+    #[test]
+    fn refuses_above_undirected_edge_bound() {
+        // 25 undirected edges would otherwise scan 2^25 masks; refuse at construction.
+        let n = 26u32;
+        let mut g = Cpdag::with_variables(n);
+        for i in 0..(n - 1) {
+            let a = DenseNodeId::from_raw(i);
+            let b = DenseNodeId::from_raw(i + 1);
+            g.insert_undirected(a, b).unwrap();
+        }
+        assert_eq!(g.undirected_edge_count(), 25);
+        let err = CpdagCompletionSampler::new(g, 4).unwrap_err();
+        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+    }
+
+    #[test]
+    fn small_completable_cpdag_still_completes() {
+        let mut g = Cpdag::with_variables(2);
+        g.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let collected: Vec<_> = CpdagCompletionSampler::new(g.clone(), 8).unwrap().collect();
+        assert_eq!(collected.len(), 2);
+        for c in &collected {
+            assert!(is_mec_member(&g, &c.graph));
+        }
     }
 }
