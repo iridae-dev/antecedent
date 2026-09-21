@@ -80,6 +80,41 @@ pub fn shuffle<T>(rng: &mut CausalRng, items: &mut [T]) {
     }
 }
 
+/// Assign each of `n` rows to one of `folds` cross-validation folds through a
+/// seeded shuffle, optionally stratified.
+///
+/// A position-based `i % folds` assignment makes fold membership a function of
+/// row order, so any periodic or sorted structure aligned with the fold count
+/// (alternating treated/control rows, weekly data with seven folds) puts whole
+/// classes into single folds. The rows are shuffled first; with `strata`, rows
+/// are then grouped by stratum (stable within a stratum) so every stratum is
+/// dealt round-robin across the folds and each fold's training rows retain
+/// every stratum that has at least `folds` members.
+///
+/// # Panics
+///
+/// When `folds == 0` or `strata` has a length other than `n`.
+#[must_use]
+pub fn shuffled_fold_assignment(
+    rng: &mut CausalRng,
+    n: usize,
+    folds: usize,
+    strata: Option<&[u32]>,
+) -> Vec<usize> {
+    assert!(folds > 0, "fold count must be positive");
+    let mut order: Vec<usize> = (0..n).collect();
+    shuffle(rng, &mut order);
+    if let Some(strata) = strata {
+        assert_eq!(strata.len(), n, "strata must align with rows");
+        order.sort_by_key(|&row| strata[row]);
+    }
+    let mut assignment = vec![0usize; n];
+    for (rank, &row) in order.iter().enumerate() {
+        assignment[row] = rank % folds;
+    }
+    assignment
+}
+
 /// A weight counts only if it is finite and positive; NaN, negative and infinite
 /// weights carry no probability mass.
 fn categorical_mass(weight: f64) -> f64 {
@@ -275,5 +310,40 @@ mod gamma_tests {
         // shape < 1 boost: Gamma(0.5, rate 1) has mean 0.5.
         let m: f64 = (0..n).map(|_| sample_gamma(0.5, 1.0, &mut rng)).sum::<f64>() / n as f64;
         assert!((m - 0.5).abs() < 0.02, "shape<1 mean {m}");
+    }
+}
+
+#[cfg(test)]
+mod fold_tests {
+    use super::*;
+
+    /// Alternating classes with two folds put every treated row in one fold
+    /// under `i % 2`; a stratified shuffle deals each class across both folds.
+    #[test]
+    fn stratified_shuffled_folds_split_every_class_across_folds() {
+        let n = 40;
+        let strata: Vec<u32> = (0..n).map(|i| u32::from(i % 2 == 0)).collect();
+        let mut rng = CausalRng::from_seed(5);
+        let fold = shuffled_fold_assignment(&mut rng, n, 2, Some(&strata));
+        for class in 0..2u32 {
+            for f in 0..2usize {
+                let count = (0..n).filter(|&i| strata[i] == class && fold[i] == f).count();
+                assert_eq!(count, 10, "class {class} fold {f}");
+            }
+        }
+    }
+
+    /// Without strata, fold sizes are balanced to within one row and the
+    /// assignment is not the position-periodic `i % folds`.
+    #[test]
+    fn unstratified_shuffled_folds_are_balanced_and_not_periodic() {
+        let n = 103;
+        let mut rng = CausalRng::from_seed(9);
+        let fold = shuffled_fold_assignment(&mut rng, n, 5, None);
+        for f in 0..5usize {
+            let size = fold.iter().filter(|&&g| g == f).count();
+            assert!(size == 20 || size == 21, "fold {f} has {size} rows");
+        }
+        assert!((0..n).any(|i| fold[i] != i % 5));
     }
 }

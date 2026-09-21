@@ -30,18 +30,13 @@ default = []
 # Gaussian-process mechanism family (registry auto-fit path only — a deserialized
 # `MechanismSlot::GaussianProcess` always evaluates/samples regardless of this feature).
 #
-# EXPERIMENTAL — not enabled by any shipped configuration (no default, no workspace
-# member, no downstream Cargo.toml turns this on). The gated `fit_gaussian_process` in
-# `src/registry.rs` is numerically correct (exact Cholesky NLML, proper error handling,
-# no panics) but intentionally minimal relative to the other mechanism families:
-# hyperparameter search is a coarse fixed 5x4 grid (no continuous/gradient optimization),
-# `variance` is hardcoded to 1.0 (never fit), the kernel is a single fixed isotropic RBF
-# (no ARD/kernel selection), the exact-Cholesky fit is O(n^3) per grid cell with no
-# sparse/inducing-point path, and it has exactly one test
-# (`registry.rs::gaussian_process_matches_exact_logdet_oracle`), itself gated behind this
-# same feature so it does not run in default CI. Treat this as a research/prototype path,
-# not a production-ready auto-fit family, until hyperparameter optimization, kernel
-# choice, and scaling are revisited.
+# Exact Cholesky NLML over a coarse fixed 5x5 grid, on the data's own scale: length scales
+# are multiples of the parents' RMS spread, noise levels multiples of the outcome's SD, the
+# signal variance is the outcome's variance and the prior mean its sample mean, so the fit
+# is equivariant to a change of units. The kernel is a single isotropic RBF (no ARD or
+# kernel selection) and the exact fit is O(n^3) per grid cell with no sparse/inducing-point
+# path, hence the `GP_FAMILY_MAX_ROWS` refusal. Family selection scores it out of fold, like
+# every other family. CI builds and tests this feature (`.github/workflows/ci.yml`).
 gaussian-process = []
 
 [dev-dependencies]

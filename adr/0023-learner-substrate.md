@@ -40,7 +40,7 @@ antecedent-stats     →  faer helpers (OLS, ridge, logistic, …)
 2. **Antecedent-owned learner interface.** `LearnerSpec` is public
    (`Linear`, `Ridge`, `Logistic`, `GradientBoostedTrees`, `RandomForest`,
    `Auto`, `NeuralNet`). Resolution to a provider is internal. Provenance records
-   `implementation` and crate version. `NeuralNet` is optional (`ml-gpu` →
+   `implementation` and crate version. `NeuralNet` is optional (`ml-neural` →
    `antecedent-learn-burn`) and is not part of `ml-full`.
 3. **Forust** is the first nonlinear provider (milestone F): borrowed
    column-major matrix plus row index vector; squared-loss and log-loss;

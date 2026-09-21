@@ -10,6 +10,13 @@ use crate::{
 use antecedent_core::ExecutionContext;
 
 /// Fitted finite joint with retained empirical support counts.
+///
+/// The law is estimated on the *observed* support: a category level that never occurs
+/// in the sample has an at-risk hazard of exactly `0` in every context, so every cell
+/// containing it has probability exactly `0` — a statement about the sample, not a
+/// structural zero of the population. [`Self::counts`] reports the zero cells so a caller
+/// can tell them apart; a level that should be possible despite being unobserved needs
+/// external smoothing before the joint is used as a population law.
 pub struct FiniteJoint {
     cardinalities: Vec<usize>,
     conditionals: Vec<Vec<Conditional>>,
@@ -199,6 +206,7 @@ fn joint_size(cardinalities: &[usize], max_cells: usize) -> Result<usize, LearnE
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     #[test]
@@ -251,6 +259,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(sparse.counts(), &[2, 2, 0]);
+        // The never-observed level gets probability exactly zero, and the observed mass is
+        // the empirical split: the joint is a statement about the observed support.
+        let sparse_p = sparse.probabilities(&ExecutionContext::for_tests(3)).unwrap();
+        assert!((sparse_p[0] - 0.5).abs() < 1e-9 && (sparse_p[1] - 0.5).abs() < 1e-9);
+        assert_eq!(sparse_p[2], 0.0);
         assert!(p.iter().all(|v| v.is_finite() && *v >= 0.0));
         assert!(
             FiniteJoint::fit(

@@ -72,12 +72,17 @@ impl LearnerFactory for ForestLearner {
         let matrix = dense_row_major(&design, nrows, ncols)?;
         let mut rng = ctx.rng.stream_for(StreamDomain::Learner, 2);
         let seed = rng.next_u64();
+        let n_trees = self.spec.n_trees as usize;
+        let leaf = self.spec.resolved_min_samples_leaf(self.task) as usize;
         let model = if self.spec.extra_trees {
             FittedForest::Extra(
                 ExtraTreesRegressor::fit(
                     &matrix,
                     &gathered_y,
-                    ExtraTreesRegressorParameters::default().with_seed(seed).with_n_trees(64),
+                    ExtraTreesRegressorParameters::default()
+                        .with_seed(seed)
+                        .with_n_trees(n_trees)
+                        .with_min_samples_leaf(leaf),
                 )
                 .map_err(|e| LearnError::Backend(e.to_string()))?,
             )
@@ -86,7 +91,10 @@ impl LearnerFactory for ForestLearner {
                 RandomForestRegressor::fit(
                     &matrix,
                     &gathered_y,
-                    RandomForestRegressorParameters::default().with_seed(seed).with_n_trees(64),
+                    RandomForestRegressorParameters::default()
+                        .with_seed(seed)
+                        .with_n_trees(n_trees)
+                        .with_min_samples_leaf(leaf),
                 )
                 .map_err(|e| LearnError::Backend(e.to_string()))?,
             )
@@ -131,8 +139,12 @@ impl FittedPredictor for FittedForestPredictor {
         }
         match self.task {
             PredictionTask::Regression => out.copy_from_slice(&preds),
-            // Leaf means of a 0/1 outcome estimate E[T|X] = P(T=1|X). This is
-            // not a log-loss classifier; clamp only guards floating error.
+            // Leaf means of a 0/1 outcome estimate E[T|X] = P(T=1|X). This is not a log-loss
+            // classifier. With fully grown trees (leaf size 1) out-of-fold means are often
+            // exactly 0 or 1 and this clamp would become the operative propensity (weights up
+            // to 1e9); the probability task therefore defaults to a leaf size of
+            // `FOREST_PROBABILITY_MIN_LEAF`, which keeps leaf means off the boundary. The clamp
+            // only guards what remains: floating error and single-class leaves.
             PredictionTask::BinaryProbability => {
                 for (slot, p) in out.iter_mut().zip(preds) {
                     *slot = p.clamp(1e-9, 1.0 - 1e-9);

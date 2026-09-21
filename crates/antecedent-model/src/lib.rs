@@ -35,10 +35,7 @@ pub use do_sampler::{
 };
 pub use error::ModelError;
 pub use evaluate::{MechanismPredictiveCheck, ModelEvaluationReport, ModelEvaluator};
-pub use lgssm::{
-    infer_lgssm_innovations, kalman_filter, pack_innovations, rts_smooth, sample_lgssm_noise,
-    unpack_innovations,
-};
+pub use lgssm::{kalman_filter, rts_smooth, sample_lgssm_noise};
 pub use mechanism::{
     NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,
     infer_noise_column_rng, log_prob_column, sample_column, sample_noise_batch,
@@ -47,7 +44,8 @@ pub use mechanism::{
 pub use model_collection::ModelCollection;
 pub use overlay::{InterventionOverlay, ModelView};
 pub use registry::{
-    MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, SelectionPolicy,
+    MechanismAssignment, MechanismCandidate, MechanismFamily, MechanismRegistry, MechanismTyping,
+    SelectionPolicy,
 };
 pub use sample::{
     refuse_cross_family_soft, sample_conditional_interventional, sample_interventional,

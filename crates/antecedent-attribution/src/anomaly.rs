@@ -197,8 +197,8 @@ pub fn score_anomalies(
     }
 
     let engine = CounterfactualEngine::from_ref(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
     let mut ctx = ExecutionContext::for_tests(0xA10A);
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, &ctx)?;
     // The exact-Shapley payoff is deterministic given (row, mask), so the
     // coalition cache changes nothing numerically — but `for_tests` disables
     // it, which forces 2^k·(1 + k/2) evaluations per row instead of 2^k.

@@ -1,10 +1,11 @@
-//! faer-backed logistic factory. Hidden behind [`crate::LearnerSpec::Logistic`].
+//! faer-backed logistic factories. Hidden behind [`crate::LearnerSpec::Logistic`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, LeastSquaresWorkspace, fit_glm,
+    fit_glm_ridge,
 };
 
 use crate::dense::{
@@ -19,6 +20,29 @@ use crate::learner::{
 /// Logistic regression via [`fit_glm`] (`BinomialLogit`).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LogisticLearner;
+
+/// Ridge-penalized logistic regression via [`fit_glm_ridge`]: the probability-task form of
+/// a ridge learner. The penalty applies to every non-intercept coefficient; a constant
+/// first design column is the intercept and is left unpenalized.
+#[derive(Clone, Copy, Debug)]
+pub struct RidgeLogisticLearner {
+    lambda: f64,
+}
+
+impl RidgeLogisticLearner {
+    /// Penalized logistic factory. `lambda` must be finite and positive.
+    ///
+    /// # Errors
+    ///
+    /// [`LearnError::Shape`] for a non-finite or non-positive penalty.
+    pub fn new(lambda: f64) -> Result<Self, LearnError> {
+        if lambda.is_finite() && lambda > 0.0 {
+            Ok(Self { lambda })
+        } else {
+            Err(LearnError::Shape { message: "logistic ridge penalty must be finite and > 0" })
+        }
+    }
+}
 
 impl LogisticLearner {
     /// Logistic factory, or a typed refusal if `task` is not probability.
@@ -37,17 +61,61 @@ impl LogisticLearner {
     }
 }
 
+fn capabilities() -> LearnerCapabilities {
+    LearnerCapabilities {
+        binary_probability: true,
+        deterministic_seed: true,
+        ..LearnerCapabilities::none()
+    }
+}
+
+fn fit_logistic(
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    weights: Option<&[f64]>,
+    ridge: Option<f64>,
+) -> Result<GlmFit, LearnError> {
+    if weights.is_some() {
+        return Err(LearnError::Unsupported {
+            message: "logistic learner does not accept sample weights",
+        });
+    }
+    let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
+    if y.len() != x.physical_nrows() {
+        return Err(LearnError::Shape { message: "target length != physical rows" });
+    }
+    let gathered_y = gather_physical(y.values(), x, nrows)?;
+    require_binary_labels(&gathered_y)?;
+    let mut ws = LeastSquaresWorkspace::default();
+    let design_ref = GlmDesignRef { x_colmajor: &design, nrows, ncols, y: &gathered_y };
+    let fit = match ridge {
+        None => fit_glm(
+            GlmFamily::BinomialLogit,
+            design_ref,
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default(),
+        )?,
+        Some(lambda) => fit_glm_ridge(
+            GlmFamily::BinomialLogit,
+            design_ref,
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default(),
+            lambda,
+        )?,
+    };
+    fit.require_ok()?;
+    Ok(fit)
+}
+
 impl LearnerFactory for LogisticLearner {
     fn task(&self) -> PredictionTask {
         PredictionTask::BinaryProbability
     }
 
     fn capabilities(&self) -> LearnerCapabilities {
-        LearnerCapabilities {
-            binary_probability: true,
-            deterministic_seed: true,
-            ..LearnerCapabilities::none()
-        }
+        capabilities()
     }
 
     fn fit(
@@ -57,32 +125,35 @@ impl LearnerFactory for LogisticLearner {
         weights: Option<&[f64]>,
         _ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
-        if weights.is_some() {
-            return Err(LearnError::Unsupported {
-                message: "logistic learner does not accept sample weights",
-            });
-        }
-        let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
-        if y.len() != x.physical_nrows() {
-            return Err(LearnError::Shape { message: "target length != physical rows" });
-        }
-        let gathered_y = gather_physical(y.values(), x, nrows)?;
-        require_binary_labels(&gathered_y)?;
-        let mut ws = LeastSquaresWorkspace::default();
-        let fit = fit_glm(
-            GlmFamily::BinomialLogit,
-            GlmDesignRef { x_colmajor: &design, nrows, ncols, y: &gathered_y },
-            &FaerBackend,
-            &mut ws,
-            &GlmOptions::default(),
-        )?;
-        fit.require_ok()?;
-        Ok(Box::new(LogisticPredictor { fit }))
+        let fit = fit_logistic(x, y, weights, None)?;
+        Ok(Box::new(LogisticPredictor { fit, implementation: "faer" }))
+    }
+}
+
+impl LearnerFactory for RidgeLogisticLearner {
+    fn task(&self) -> PredictionTask {
+        PredictionTask::BinaryProbability
+    }
+
+    fn capabilities(&self) -> LearnerCapabilities {
+        capabilities()
+    }
+
+    fn fit(
+        &self,
+        x: DesignView<'_>,
+        y: TargetView<'_>,
+        weights: Option<&[f64]>,
+        _ctx: &ExecutionContext,
+    ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+        let fit = fit_logistic(x, y, weights, Some(self.lambda))?;
+        Ok(Box::new(LogisticPredictor { fit, implementation: "faer_ridge" }))
     }
 }
 
 struct LogisticPredictor {
     fit: GlmFit,
+    implementation: &'static str,
 }
 
 impl FittedPredictor for LogisticPredictor {
@@ -114,7 +185,7 @@ impl FittedPredictor for LogisticPredictor {
     fn provenance(&self) -> LearnerProvenance {
         LearnerProvenance {
             spec: "logistic".into(),
-            implementation: "faer".into(),
+            implementation: self.implementation.into(),
             version: "0.24".into(),
         }
     }

@@ -103,7 +103,7 @@ pub use quantile::{
     quantile_sorted,
 };
 pub use regularized::{
-    LassoFit, LassoOptions, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
+    LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
     ridge_gram_inverse,
 };
 pub use response::{

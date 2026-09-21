@@ -22,5 +22,5 @@ test_sources = [
  "conformance/estimate/staged_static_kinds",
  "conformance/gcm/gcm_cf_ite",
  "conformance/gcm/nested_temporal_counterfactual",
- "crates/antecedent-counterfactual/src/engine.rs unit tests (streaming_matches_retained equivalence)",
+ "crates/antecedent-counterfactual/src/engine.rs unit tests (outcomes-only streaming means equal the full-retention column mean; nested_freezes_only_the_named_mediator_not_every_other_node; nested_reevaluates_descendants_of_the_inner_target)",
 ]

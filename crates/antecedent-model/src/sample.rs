@@ -233,6 +233,7 @@ fn noise_kind_override(family_id: &str) -> &'static str {
 /// # Errors
 ///
 /// Empty condition, intervened condition nodes, density failures, or empty weights.
+#[allow(clippy::too_many_lines)]
 pub fn sample_conditional_interventional(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
@@ -279,37 +280,57 @@ pub fn sample_conditional_interventional(
     }
 
     let n_nodes = model.n_nodes();
-    let mut accepted = vec![0.0; n_rows * n_nodes];
-    let mut got = 0usize;
-    let max_attempts = n_rows.saturating_mul(100).max(100);
-    // Overlay built once; the attempt loop previously rebuilt it (five
-    // per-node vectors plus a linear id scan per intervention) per candidate.
-    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
-    let view = ModelView::with_overlay(model, overlay);
-    for _ in 0..max_attempts {
-        if got >= n_rows {
-            break;
-        }
-        let batch = sample_with_overlay(&view, 1, rng, ws)?;
-        let mut ok = true;
-        for (i, &node) in condition_nodes.iter().enumerate() {
-            let v = batch.column(node.as_usize())?[0];
-            if (v - condition_values[i]).abs() > 1e-9 {
-                ok = false;
-                break;
+    // Exact-match rejection only makes sense for evidence with positive probability, i.e.
+    // conditioning nodes whose mechanism is discrete (or a point mass). For a continuous
+    // condition the acceptance probability is zero, so drawing candidates would burn the
+    // whole attempt budget for nothing: go straight to likelihood weighting.
+    let discrete_evidence = condition_nodes.iter().all(|&node| {
+        matches!(
+            model.mechanisms.get(node),
+            MechanismSlot::Discrete { .. }
+                | MechanismSlot::DiscreteBasis { .. }
+                | MechanismSlot::Constant { .. }
+        )
+    });
+    if discrete_evidence {
+        let mut accepted = vec![0.0; n_rows * n_nodes];
+        let mut got = 0usize;
+        let max_attempts = n_rows.saturating_mul(100).max(100);
+        // Overlay built once; candidates are drawn in batches (one workspace preparation
+        // and one allocation per batch, not per candidate row).
+        let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+        let view = ModelView::with_overlay(model, overlay);
+        let batch_rows = n_rows.clamp(256, 65_536);
+        let mut drawn = 0usize;
+        while got < n_rows && drawn < max_attempts {
+            let rows = batch_rows.min(max_attempts - drawn);
+            let batch = sample_with_overlay(&view, rows, rng, ws)?;
+            drawn += rows;
+            let cond_cols: Vec<&[f64]> = condition_nodes
+                .iter()
+                .map(|node| batch.column(node.as_usize()))
+                .collect::<Result<_, _>>()?;
+            for r in 0..rows {
+                if got >= n_rows {
+                    break;
+                }
+                let matches_evidence = cond_cols
+                    .iter()
+                    .zip(condition_values)
+                    .all(|(col, &target)| (col[r] - target).abs() <= 1e-9);
+                if !matches_evidence {
+                    continue;
+                }
+                for node in 0..n_nodes {
+                    accepted[node * n_rows + got] = batch.column(node)?[r];
+                }
+                got += 1;
             }
         }
-        if !ok {
-            continue;
+        if got >= n_rows {
+            let _ = ctx;
+            return Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() });
         }
-        for node in 0..n_nodes {
-            accepted[node * n_rows + got] = batch.column(node)?[0];
-        }
-        got += 1;
-    }
-    if got >= n_rows {
-        let _ = ctx;
-        return Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() });
     }
 
     // Likelihood-weighting / SIR for continuous conditions.
@@ -519,10 +540,23 @@ pub fn soft_to_slot(
     soft: &MechanismOverride,
     n_parents: usize,
 ) -> Result<MechanismSlot, ModelError> {
-    match soft.family_id.as_ref() {
+    let family = soft.family_id.as_ref();
+    if let Some(bad) = soft.parameters.iter().position(|p| !p.is_finite()) {
+        return Err(ModelError::Numerical {
+            message: format!(
+                "soft override `{family}` parameter {bad} is not finite ({})",
+                soft.parameters[bad]
+            ),
+        });
+    }
+    match family {
         "constant" => {
-            let v = soft.parameters.first().copied().unwrap_or(0.0);
-            Ok(MechanismSlot::Constant { value: v })
+            match &soft.parameters[..] {
+                [v] => Ok(MechanismSlot::Constant { value: *v }),
+                _ => Err(ModelError::Shape {
+                    message: "constant override needs exactly one value".into(),
+                }),
+            }
         }
         "additive_shift" => Err(ModelError::Unsupported {
             message: "additive_shift soft overrides must be applied as Intervention::Shift / overlay shifts"
@@ -536,7 +570,7 @@ pub fn soft_to_slot(
             }
             let intercept = soft.parameters[0];
             let coeffs = std::sync::Arc::from(soft.parameters[1..=n_parents].to_vec());
-            let sigma = soft.parameters[1 + n_parents].max(1e-12);
+            let sigma = positive(soft.parameters[1 + n_parents], "linear_gaussian sigma")?;
             Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
         }
         "hierarchical_linear" => {
@@ -548,8 +582,13 @@ pub fn soft_to_slot(
             }
             let intercept = soft.parameters[0];
             let coeffs = std::sync::Arc::from(soft.parameters[1..=n_parents].to_vec());
-            let sigma = soft.parameters[1 + n_parents].max(1e-12);
-            let shrinkage = soft.parameters[2 + n_parents].max(0.0);
+            let sigma = positive(soft.parameters[1 + n_parents], "hierarchical_linear sigma")?;
+            let shrinkage = soft.parameters[2 + n_parents];
+            if shrinkage < 0.0 {
+                return Err(ModelError::Numerical {
+                    message: format!("hierarchical_linear shrinkage must be >= 0, got {shrinkage}"),
+                });
+            }
             Ok(MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, shrinkage })
         }
         "bvar" => {
@@ -560,7 +599,7 @@ pub fn soft_to_slot(
             }
             let intercept = soft.parameters[0];
             let coeffs = std::sync::Arc::from(soft.parameters[1..=n_parents].to_vec());
-            let sigma = soft.parameters[1 + n_parents].max(1e-12);
+            let sigma = positive(soft.parameters[1 + n_parents], "bvar sigma")?;
             Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
         }
         "discrete" => soft_discrete_slot(soft, n_parents),
@@ -573,8 +612,8 @@ pub fn soft_to_slot(
                 intercept: soft.parameters[0],
                 coeffs: std::sync::Arc::from(soft.parameters[1..k].to_vec()),
                 a: soft.parameters[k],
-                process_std: soft.parameters[k + 1],
-                obs_std: soft.parameters[k + 2],
+                process_std: positive(soft.parameters[k + 1], "conditional_lgssm process_std")?,
+                obs_std: positive(soft.parameters[k + 2], "conditional_lgssm obs_std")?,
                 initial_mean: soft.parameters[k + 3],
             })
         }
@@ -586,8 +625,8 @@ pub fn soft_to_slot(
             }
             Ok(MechanismSlot::LinearGaussianStateSpace {
                 a: soft.parameters[0],
-                process_std: soft.parameters[1].max(1e-12),
-                obs_std: soft.parameters[2].max(1e-12),
+                process_std: positive(soft.parameters[1], "lgssm process_std")?,
+                obs_std: positive(soft.parameters[2], "lgssm obs_std")?,
                 initial_mean: soft.parameters[3],
             })
         }
@@ -595,6 +634,30 @@ pub fn soft_to_slot(
         other => Err(ModelError::Unsupported {
             message: format!("unknown soft override family {other}"),
         }),
+    }
+}
+
+/// A strictly positive scale parameter. A non-positive one is refused, not clamped to a
+/// tiny value: `sigma = -1` silently becoming a near-deterministic mechanism reports a
+/// counterfactual the caller never asked for.
+fn positive(value: f64, what: &str) -> Result<f64, ModelError> {
+    if value > 0.0 {
+        Ok(value)
+    } else {
+        Err(ModelError::Numerical {
+            message: format!("soft override {what} must be finite and > 0, got {value}"),
+        })
+    }
+}
+
+/// A non-negative integer-valued parameter (a count or a size).
+fn count_param(value: f64, what: &str) -> Result<usize, ModelError> {
+    if value >= 0.0 && value.fract() == 0.0 && value <= f64::from(u32::MAX) {
+        Ok(value as usize)
+    } else {
+        Err(ModelError::Shape {
+            message: format!("soft override {what} must be a non-negative integer, got {value}"),
+        })
     }
 }
 
@@ -607,7 +670,7 @@ fn soft_discrete_slot(
             message: "discrete override needs k, support..., probs/logits...".into(),
         });
     }
-    let k = soft.parameters[0] as usize;
+    let k = count_param(soft.parameters[0], "discrete k")?;
     if k == 0 {
         return Err(ModelError::Shape { message: "discrete override k must be > 0".into() });
     }
@@ -617,6 +680,12 @@ fn soft_discrete_slot(
     let support: std::sync::Arc<[f64]> = std::sync::Arc::from(soft.parameters[1..=k].to_vec());
     let rest = &soft.parameters[1 + k..];
     if rest.len() == k {
+        if rest.iter().any(|p| *p < 0.0) || rest.iter().sum::<f64>() <= 0.0 {
+            return Err(ModelError::Numerical {
+                message: "discrete override probabilities must be non-negative with a positive sum"
+                    .into(),
+            });
+        }
         Ok(MechanismSlot::Discrete {
             support,
             probs: std::sync::Arc::from(rest.to_vec()),
@@ -645,17 +714,29 @@ fn soft_gp_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
             message: "gaussian_process override truncated header".into(),
         });
     }
-    let length_scale = soft.parameters[0].max(1e-12);
-    let variance = soft.parameters[1].max(0.0);
-    let noise_std = soft.parameters[2].max(1e-12);
-    let n_train = soft.parameters[3] as usize;
-    let n_par = soft.parameters[4] as usize;
+    let length_scale = positive(soft.parameters[0], "gaussian_process length_scale")?;
+    let variance = soft.parameters[1];
+    if variance < 0.0 {
+        return Err(ModelError::Numerical {
+            message: format!("gaussian_process variance must be >= 0, got {variance}"),
+        });
+    }
+    let noise_std = positive(soft.parameters[2], "gaussian_process noise_std")?;
+    let n_train = count_param(soft.parameters[3], "gaussian_process n_train")?;
+    let n_par = count_param(soft.parameters[4], "gaussian_process n_parents")?;
     if n_par != n_parents {
         return Err(ModelError::Shape {
             message: format!("gaussian_process override n_parents {n_par} != gather {n_parents}"),
         });
     }
-    let need = 5 + n_train * n_par + n_train;
+    // Sizes come from user parameters: checked arithmetic, never a wrapped index.
+    let x_len = n_train.checked_mul(n_par);
+    let need = x_len.and_then(|x| x.checked_add(n_train)).and_then(|s| s.checked_add(5));
+    let (Some(x_len), Some(need)) = (x_len, need) else {
+        return Err(ModelError::Shape {
+            message: "gaussian_process override size overflows".into(),
+        });
+    };
     if soft.parameters.len() < need {
         return Err(ModelError::Shape {
             message: format!(
@@ -664,14 +745,14 @@ fn soft_gp_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
             ),
         });
     }
-    let x_train = std::sync::Arc::from(soft.parameters[5..5 + n_train * n_par].to_vec());
-    let alpha = std::sync::Arc::from(
-        soft.parameters[5 + n_train * n_par..5 + n_train * n_par + n_train].to_vec(),
-    );
+    let x_train = std::sync::Arc::from(soft.parameters[5..5 + x_len].to_vec());
+    let alpha = std::sync::Arc::from(soft.parameters[5 + x_len..need].to_vec());
     Ok(MechanismSlot::GaussianProcess {
         length_scale,
         variance,
         noise_std,
+        // The packed layout carries no prior mean: an override is a zero-mean GP.
+        mean: 0.0,
         x_train,
         n_train,
         n_parents: n_par,

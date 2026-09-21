@@ -5,7 +5,7 @@
 use crate::error::LearnError;
 use crate::learner::{LearnerCapabilities, LearnerFactory, PredictionTask};
 use crate::linear::LinearLearner;
-use crate::logistic::LogisticLearner;
+use crate::logistic::{LogisticLearner, RidgeLogisticLearner};
 use crate::ridge::RidgeLearner;
 
 /// Public linear (OLS) options. The design already includes an intercept if wanted.
@@ -18,6 +18,11 @@ pub struct LinearSpec {}
 #[serde(default, deny_unknown_fields)]
 pub struct RidgeSpec {
     /// Penalty strength. Zero is ordinary least squares, not a ridge default.
+    ///
+    /// Minimizes `‖y − Xβ‖² + λ‖β‖²` on the *raw* columns (a constant first column is the
+    /// unpenalized intercept). The penalty is not divided by the sample size and the
+    /// columns are not standardized, so `λ` is in the units of `‖y − Xβ‖²` and is not
+    /// comparable with [`ElasticNetSpec::lambda`], whose columns are standardized.
     pub lambda: f64,
 }
 
@@ -28,9 +33,16 @@ impl Default for RidgeSpec {
 }
 
 /// Logistic options (milestone D).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct LogisticSpec {}
+pub struct LogisticSpec {
+    /// Ridge penalty on the non-intercept coefficients. Zero is the unpenalized MLE.
+    ///
+    /// This is the probability-task form of [`RidgeSpec::lambda`]: a user who asks for
+    /// a ridge learner and a binary nuisance gets a *penalized* logistic model, not the
+    /// plain IRLS fit (which fails or yields extreme scores under near-separation).
+    pub ridge_lambda: f64,
+}
 
 /// Elastic-net options (milestone D). Coordinate descent; not a dense factorization.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -39,6 +51,11 @@ pub struct ElasticNetSpec {
     /// L1/L2 mix in `[0, 1]`. `1` is lasso; `0` is ridge.
     pub l1_ratio: f64,
     /// Penalty strength. Zero is ordinary least squares, not an elastic-net default.
+    ///
+    /// Minimizes `½‖y − Xβ‖² + λ(α‖β‖₁ + (1 − α)/2 ‖β‖²)` on *standardized* columns
+    /// (`α = l1_ratio`, unpenalized intercept). The data term is a sum, not a mean, so the
+    /// same `λ` regularizes relatively less as `n` grows; scale `λ` with `n` to hold the
+    /// penalty per observation fixed. It is not comparable with [`RidgeSpec::lambda`].
     pub lambda: f64,
 }
 
@@ -67,11 +84,39 @@ impl Default for GbtSpec {
 }
 
 /// Random forest or extra-trees (`SmartCore` in H).
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ForestSpec {
     /// Extra-trees split randomization when the forest provider is present.
     pub extra_trees: bool,
+    /// Number of trees.
+    pub n_trees: u32,
+    /// Minimum rows in a leaf. `None` picks the task default: `1` for regression
+    /// (fully grown trees) and [`FOREST_PROBABILITY_MIN_LEAF`] for a probability
+    /// nuisance, where fully grown trees return exactly 0 or 1 out of fold and a
+    /// propensity of 0/1 makes inverse-probability weights explode.
+    pub min_samples_leaf: Option<u32>,
+}
+
+/// Default minimum leaf size of a forest used as a probability (propensity) model.
+pub const FOREST_PROBABILITY_MIN_LEAF: u32 = 10;
+
+impl Default for ForestSpec {
+    fn default() -> Self {
+        Self { extra_trees: false, n_trees: 64, min_samples_leaf: None }
+    }
+}
+
+impl ForestSpec {
+    /// Leaf size in effect for `task`.
+    #[must_use]
+    pub const fn resolved_min_samples_leaf(self, task: PredictionTask) -> u32 {
+        match (self.min_samples_leaf, task) {
+            (Some(leaf), _) => leaf,
+            (None, PredictionTask::BinaryProbability) => FOREST_PROBABILITY_MIN_LEAF,
+            (None, PredictionTask::Regression) => 1,
+        }
+    }
 }
 
 /// Neural net (Burn in L). Public name is not the provider.
@@ -121,7 +166,8 @@ impl LearnerSpec {
         match self {
             Self::Auto => "auto".into(),
             Self::Linear(_) => "linear".into(),
-            Self::Logistic(_) => "logistic".into(),
+            Self::Logistic(s) if s.ridge_lambda == 0.0 => "logistic".into(),
+            Self::Logistic(s) => format!("logistic:{}", s.ridge_lambda.to_bits()),
             Self::Ridge(s) => format!("ridge:{}", s.lambda.to_bits()),
             Self::ElasticNet(s) => {
                 format!("elastic_net:{}:{}", s.lambda.to_bits(), s.l1_ratio.to_bits())
@@ -129,7 +175,12 @@ impl LearnerSpec {
             Self::GradientBoostedTrees(s) => {
                 format!("gbdt:{}:{}:{}", s.trees, s.depth, s.learning_rate.to_bits())
             }
-            Self::RandomForest(s) => format!("forest:{}", u8::from(s.extra_trees)),
+            Self::RandomForest(s) => format!(
+                "forest:{}:{}:{}",
+                u8::from(s.extra_trees),
+                s.n_trees,
+                s.min_samples_leaf.map_or_else(|| "task".to_string(), |leaf| leaf.to_string())
+            ),
             Self::NeuralNet(s) => {
                 format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits())
             }
@@ -142,6 +193,8 @@ impl LearnerSpec {
     pub fn validate(self) -> Result<(), LearnError> {
         let valid = match self {
             Self::Ridge(s) => s.lambda.is_finite() && s.lambda >= 0.0,
+            Self::Logistic(s) => s.ridge_lambda.is_finite() && s.ridge_lambda >= 0.0,
+            Self::RandomForest(s) => s.n_trees > 0 && s.min_samples_leaf != Some(0),
             Self::ElasticNet(s) => {
                 s.lambda.is_finite()
                     && s.lambda >= 0.0
@@ -198,13 +251,28 @@ impl LearnerSpec {
     }
 
     /// Remap a parametric spec onto the task a nuisance actually needs.
+    ///
+    /// A ridge spec becomes the *penalized* logistic model with the same penalty, so a
+    /// user's `lambda` is honoured on a probability nuisance instead of silently
+    /// replaced by an unpenalized fit; a pure-ridge elastic net (`l1_ratio = 0`) maps the
+    /// same way. OLS maps to the unpenalized logistic MLE.
+    ///
+    /// An elastic net with an L1 component has no probability-task counterpart (there is
+    /// no L1-penalized logistic learner). It is left as an elastic net so that resolving
+    /// it for the probability task refuses with [`LearnError::TaskMismatch`] rather than
+    /// substituting a different estimator than the one requested.
     #[must_use]
     pub const fn for_task(self, task: PredictionTask) -> Self {
         match (self, task) {
-            (
-                Self::Linear(_) | Self::Ridge(_) | Self::ElasticNet(_),
-                PredictionTask::BinaryProbability,
-            ) => Self::Logistic(LogisticSpec {}),
+            (Self::Linear(_), PredictionTask::BinaryProbability) => {
+                Self::Logistic(LogisticSpec { ridge_lambda: 0.0 })
+            }
+            (Self::Ridge(s), PredictionTask::BinaryProbability) => {
+                Self::Logistic(LogisticSpec { ridge_lambda: s.lambda })
+            }
+            (Self::ElasticNet(s), PredictionTask::BinaryProbability) if s.l1_ratio == 0.0 => {
+                Self::Logistic(LogisticSpec { ridge_lambda: s.lambda })
+            }
             (Self::Logistic(_), PredictionTask::Regression) => Self::Linear(LinearSpec {}),
             (other, _) => other,
         }
@@ -239,9 +307,13 @@ pub fn resolve_for(
             require_resolved_task(task, PredictionTask::Regression)?;
             Ok(Box::new(RidgeLearner::new(ridge)))
         }
-        LearnerSpec::Logistic(_) => {
+        LearnerSpec::Logistic(logistic) => {
             require_resolved_task(task, PredictionTask::BinaryProbability)?;
-            Ok(Box::new(LogisticLearner))
+            if logistic.ridge_lambda > 0.0 {
+                Ok(Box::new(RidgeLogisticLearner::new(logistic.ridge_lambda)?))
+            } else {
+                Ok(Box::new(LogisticLearner))
+            }
         }
         LearnerSpec::ElasticNet(elastic) => {
             require_resolved_task(task, PredictionTask::Regression)?;
@@ -318,11 +390,11 @@ fn resolve_neural(
     spec: crate::NeuralSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
-    #[cfg(feature = "ml-gpu")]
+    #[cfg(feature = "ml-neural")]
     {
         return Ok(Box::new(crate::neural::NeuralNetLearner::new(spec, task)));
     }
-    #[cfg(not(feature = "ml-gpu"))]
+    #[cfg(not(feature = "ml-neural"))]
     {
         let _ = (spec, task);
         Err(LearnError::ProviderUnavailable {

@@ -405,7 +405,7 @@ Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
 Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
-`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-gpu`. A feature that gates no code is not
+`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
 declared (the HMC backend is always compiled), and there is no `simd-runtime`
 feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
 Ingest and exchange adapters are optional features and never reshape core types.

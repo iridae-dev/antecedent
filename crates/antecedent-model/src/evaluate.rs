@@ -5,12 +5,11 @@
 #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::needless_range_loop)]
 
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
-use antecedent_graph::DenseNodeId;
+use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_stats::ci::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest, ConfidenceMethod,
     PartialCorrelation, SignificanceMethod,
@@ -25,7 +24,10 @@ use crate::mechanism::{infer_noise_column, log_prob_column};
 #[derive(Clone, Debug)]
 pub struct ModelEvaluationReport {
     /// In-sample mean log-likelihood (higher better). No holdout split is performed.
+    /// `-∞` when the model assigns zero probability to any observed row.
     pub in_sample_loglik: f64,
+    /// Observed rows (across nodes) with zero probability under the model.
+    pub zero_probability_rows: usize,
     /// Mean absolute residual for invertible nodes.
     pub mean_abs_residual: f64,
     /// Residual independence p-values vs non-parent covariates (empty if none).
@@ -80,7 +82,13 @@ impl ModelEvaluator {
             return Err(ModelError::Shape { message: "empty data for evaluation".into() });
         }
         let mut notes = Vec::new();
-        let in_sample_loglik = mean_loglik(model, data)?;
+        let (in_sample_loglik, zero_probability_rows) = mean_loglik(model, data)?;
+        if zero_probability_rows > 0 {
+            notes.push(Arc::from(format!(
+                "{zero_probability_rows} observed rows have zero probability under the model \
+                 (in_sample_loglik = -inf)"
+            )));
+        }
         let (mean_abs_residual, residuals_by_node) = residual_summary(model, data)?;
         let residual_independence_p =
             residual_independence_tests(model, data, &residuals_by_node, self.alpha, ctx)?;
@@ -108,6 +116,7 @@ impl ModelEvaluator {
 
         Ok(ModelEvaluationReport {
             in_sample_loglik,
+            zero_probability_rows,
             mean_abs_residual,
             residual_independence_p: Arc::from(residual_independence_p),
             local_markov_p: Arc::from(local_markov_p),
@@ -119,35 +128,100 @@ impl ModelEvaluator {
     }
 }
 
-fn mean_loglik(model: &CompiledCausalModel, data: &TabularData) -> Result<f64, ModelError> {
-    let n = data.row_count();
-    let mut total = 0.0;
-    let mut count = 0usize;
-    for gather in model.parent_gathers.iter() {
-        let node = gather.child;
-        let var = model.output_layout.variables[node.as_usize()];
-        let y = data.float64_cow(var).map_err(ModelError::from)?;
-        let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
-        for (pi, &p) in gather.parents.iter().enumerate() {
-            let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_cow(pv).map_err(ModelError::from)?;
-            parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
+/// Column-major parent matrix `[parent * n + row]` of `gather`'s parents (one owner for
+/// the gather every evaluation pass repeats).
+fn parent_matrix(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    gather: &crate::compile::ParentGatherPlan,
+    n: usize,
+) -> Result<Vec<f64>, ModelError> {
+    let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
+    for (pi, &p) in gather.parents.iter().enumerate() {
+        let pv = model.output_layout.variables[p.as_usize()];
+        let col = data.float64_cow(pv).map_err(ModelError::from)?;
+        parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
+    }
+    Ok(parent_mat)
+}
+
+/// Log-likelihood terms of one node's observed rows under its mechanism.
+#[derive(Clone, Copy, Debug, Default)]
+struct NodeLoglik {
+    /// Sum over rows with a finite log-density.
+    sum: f64,
+    /// Rows with a finite log-density.
+    finite: usize,
+    /// Rows the mechanism assigns zero probability (`-∞`): an observation the
+    /// model says cannot happen.
+    zero_probability: usize,
+}
+
+fn node_loglik(lp: &[f64]) -> NodeLoglik {
+    let mut t = NodeLoglik::default();
+    for &v in lp {
+        if v.is_finite() {
+            t.sum += v;
+            t.finite += 1;
+        } else if v == f64::NEG_INFINITY {
+            t.zero_probability += 1;
         }
-        let parents = ParentBatch {
-            n_rows: n,
-            n_parents: gather.n_parents(),
-            values: &parent_mat[..gather.n_parents().saturating_mul(n)],
-        };
-        let mut lp = vec![0.0; n];
-        log_prob_column(model.mechanisms.get(node), &y, parents, &mut lp)?;
-        for v in lp {
-            if v.is_finite() {
-                total += v;
-                count += 1;
-            }
+        // NaN marks a missing cell, not a model failure: it carries no likelihood term.
+    }
+    t
+}
+
+/// Mean per-term log-likelihood over every node's rows; `-∞` when any observed
+/// row has zero model probability. Dropping those rows instead would let a model
+/// that rules out the data (a `Constant` node on varying data) score its surviving
+/// rows and look *better* than a correct one. Also returns the zero-probability
+/// row count.
+fn mean_loglik(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+) -> Result<(f64, usize), ModelError> {
+    let mut total = NodeLoglik::default();
+    for gather in model.parent_gathers.iter() {
+        total.add(node_terms(model, data, gather)?);
+    }
+    Ok((total.mean(), total.zero_probability))
+}
+
+fn node_terms(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    gather: &crate::compile::ParentGatherPlan,
+) -> Result<NodeLoglik, ModelError> {
+    let n = data.row_count();
+    let node = gather.child;
+    let var = model.output_layout.variables[node.as_usize()];
+    let y = data.float64_cow(var).map_err(ModelError::from)?;
+    let parent_mat = parent_matrix(model, data, gather, n)?;
+    let parents = ParentBatch {
+        n_rows: n,
+        n_parents: gather.n_parents(),
+        values: &parent_mat[..gather.n_parents().saturating_mul(n)],
+    };
+    let mut lp = vec![0.0; n];
+    log_prob_column(model.mechanisms.get(node), &y, parents, &mut lp)?;
+    Ok(node_loglik(&lp))
+}
+
+impl NodeLoglik {
+    fn add(&mut self, other: Self) {
+        self.sum += other.sum;
+        self.finite += other.finite;
+        self.zero_probability += other.zero_probability;
+    }
+
+    /// Mean over finite terms; `-∞` when any row has zero probability.
+    fn mean(&self) -> f64 {
+        if self.zero_probability > 0 {
+            f64::NEG_INFINITY
+        } else {
+            self.sum / self.finite.max(1) as f64
         }
     }
-    Ok(total / count.max(1) as f64)
 }
 
 type ResidualByNode = Vec<Option<Vec<f64>>>;
@@ -175,12 +249,7 @@ fn residual_summary(
         let var = model.output_layout.variables[node.as_usize()];
         let y = data.float64_cow(var).map_err(ModelError::from)?;
         ws.prepare(n, gather.n_parents().max(1));
-        let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
-        for (pi, &p) in gather.parents.iter().enumerate() {
-            let pv = model.output_layout.variables[p.as_usize()];
-            let col = data.float64_cow(pv).map_err(ModelError::from)?;
-            parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
-        }
+        let parent_mat = parent_matrix(model, data, gather, n)?;
         let parents = ParentBatch {
             n_rows: n,
             n_parents: gather.n_parents(),
@@ -218,7 +287,8 @@ fn residual_independence_tests(
     let test = PartialCorrelation::new();
     let mut ws = CiWorkspace::default();
     let n_nodes = model.n_nodes();
-    let children = child_adjacency(model);
+    let mut descendants = BitSet::with_len(n_nodes);
+    let mut graph_ws = GraphWorkspace::default();
 
     let mut obs_store: Vec<Cow<'_, [f64]>> = Vec::with_capacity(n_nodes);
     for i in 0..n_nodes {
@@ -239,40 +309,21 @@ fn residual_independence_tests(
         let Some(_) = resid_opt else { continue };
         let Some(rx) = resid_col[node_i] else { continue };
         let gather = model.gather_for(DenseNodeId::from_raw(node_i as u32)).unwrap();
-        let parent_set: HashSet<usize> = gather.parents.iter().map(|p| p.as_usize()).collect();
-        let descendants = descendants_of(&children, node_i);
+        model.graph.descendants_of(&[gather.child], &mut descendants, &mut graph_ws);
         for other in 0..n_nodes {
             // ANM residuals are independent of non-descendants (parents already skipped).
             // Dependence on descendants is expected and must not falsify a correct model.
-            if other == node_i || parent_set.contains(&other) || descendants.contains(&other) {
+            let other_id = DenseNodeId::from_raw(other as u32);
+            if other == node_i
+                || gather.parents.contains(&other_id)
+                || descendants.contains(other_id)
+            {
                 continue;
             }
             queries.push(CiQuery { x: rx, y: other, z_start: 0, z_len: 0 });
         }
     }
     ci_pvalues(&test, &cols, &queries, &[], &mut ws, ctx)
-}
-
-fn child_adjacency(model: &CompiledCausalModel) -> Vec<Vec<usize>> {
-    let mut children = vec![Vec::new(); model.n_nodes()];
-    for gather in model.parent_gathers.iter() {
-        let child = gather.child.as_usize();
-        for &p in gather.parents.iter() {
-            children[p.as_usize()].push(child);
-        }
-    }
-    children
-}
-
-fn descendants_of(children: &[Vec<usize>], node: usize) -> HashSet<usize> {
-    let mut out = HashSet::new();
-    let mut stack = children.get(node).cloned().unwrap_or_default();
-    while let Some(v) = stack.pop() {
-        if out.insert(v) {
-            stack.extend(children.get(v).into_iter().flatten().copied());
-        }
-    }
-    out
 }
 
 fn local_markov_tests(
@@ -380,11 +431,13 @@ fn permutation_baseline(
     // so build the parent matrix once instead of re-copying it per replicate.
     let gather = model.gather_for(last).unwrap();
     let n = y.len();
-    let mut parent_mat = vec![0.0; n * gather.n_parents().max(1)];
-    for (pi, &p) in gather.parents.iter().enumerate() {
-        let pv = model.output_layout.variables[p.as_usize()];
-        let col = data.float64_cow(pv).map_err(ModelError::from)?;
-        parent_mat[pi * n..(pi + 1) * n].copy_from_slice(&col[..n]);
+    let parent_mat = parent_matrix(model, data, gather, n)?;
+    // Same statistic as the in-sample score — mean over every node's terms, zero-probability
+    // rows making it `-∞` — with only the last node's outcome shuffled, so the two are
+    // comparable term for term.
+    let mut others = NodeLoglik::default();
+    for g in model.parent_gathers.iter().filter(|g| g.child != last) {
+        others.add(node_terms(model, data, g)?);
     }
     let mut lp = vec![0.0; n];
     for _ in 0..n_perm {
@@ -393,14 +446,15 @@ fn permutation_baseline(
             let j = (rng.next_f64() * (i as f64 + 1.0)) as usize;
             y.swap(i, j.min(i));
         }
-        // Score only the last node under shuffled y.
         let parents = ParentBatch {
             n_rows: n,
             n_parents: gather.n_parents(),
             values: &parent_mat[..gather.n_parents().saturating_mul(n)],
         };
         log_prob_column(model.mechanisms.get(last), &y, parents, &mut lp)?;
-        acc += lp.iter().filter(|v| v.is_finite()).sum::<f64>() / n.max(1) as f64;
+        let mut replicate = others;
+        replicate.add(node_loglik(&lp));
+        acc += replicate.mean();
     }
     Ok(acc / n_perm as f64)
 }
@@ -442,9 +496,9 @@ impl MechanismPredictiveCheck {
         model: &CompiledCausalModel,
         data: &TabularData,
         var: VariableId,
+        ctx: &ExecutionContext,
     ) -> Result<(f64, f64, f64), ModelError> {
         use crate::sample::sample_observational;
-        use antecedent_core::ExecutionContext;
 
         let observed = data.float64_values(var).map_err(ModelError::from)?;
         let obs_mean = observed.iter().sum::<f64>() / observed.len().max(1) as f64;
@@ -453,10 +507,9 @@ impl MechanismPredictiveCheck {
             .ok_or_else(|| ModelError::Shape { message: "variable not in model".into() })?;
         let mut rng = CausalRng::from_seed(self.seed);
         let mut ws = MechanismWorkspace::default();
-        let ctx = ExecutionContext::for_tests(1);
         let mut means = Vec::with_capacity(self.n_sims);
         for _ in 0..self.n_sims {
-            let batch = sample_observational(model, observed.len(), &mut rng, &mut ws, &ctx)?;
+            let batch = sample_observational(model, observed.len(), &mut rng, &mut ws, ctx)?;
             let col = batch.column(dense.as_usize())?;
             means.push(col.iter().sum::<f64>() / col.len().max(1) as f64);
         }
@@ -573,6 +626,59 @@ mod tests {
             .unwrap();
         assert!(rep.in_sample_loglik.is_finite());
         assert!(rep.mean_abs_residual < 1e-6, "resid={}", rep.mean_abs_residual);
+    }
+
+    /// A model that rules out the observed data must not score better than one that
+    /// fits it. `Constant{0}` gives every row of `y = 1 + 2x ≥ 1` zero probability; the
+    /// surviving terms (the root's) used to be averaged alone, so the broken model
+    /// reported a higher in-sample log-likelihood than the correct one.
+    #[test]
+    fn model_with_zero_probability_rows_scores_minus_infinity() {
+        use crate::compile::CompiledMechanismStore;
+        let n = 40usize;
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let yv: Vec<f64> = xv.iter().map(|x| 1.0 + 2.0 * x + 0.05 * (x * 7.0).sin()).collect();
+        let data =
+            TabularData::from_f64_columns([("x", xv.as_slice()), ("y", yv.as_slice())]).unwrap();
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (good_store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let good = compiled.clone().with_mechanisms(good_store.clone());
+        let bad_slots = vec![
+            good_store.get(DenseNodeId::from_raw(0)).clone(),
+            MechanismSlot::Constant { value: 0.0 },
+        ];
+        let bad = compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(bad_slots) });
+
+        let ctx = ExecutionContext::for_tests(1);
+        let good_report = ModelEvaluator::default().evaluate(&good, &data, &ctx).unwrap();
+        assert!(good_report.in_sample_loglik.is_finite());
+        assert_eq!(good_report.zero_probability_rows, 0);
+
+        let bad_report = ModelEvaluator::default().evaluate(&bad, &data, &ctx).unwrap();
+        assert!(bad_report.in_sample_loglik.is_infinite() && bad_report.in_sample_loglik < 0.0);
+        assert_eq!(bad_report.zero_probability_rows, n);
+        assert!(bad_report.in_sample_loglik < good_report.in_sample_loglik);
+    }
+
+    /// The residual-independence and local-Markov checks pair a node's residual with
+    /// its non-descendants only; the descendant set comes from the graph crate.
+    #[test]
+    fn residual_independence_skips_descendants_via_graph_reachability() {
+        // 0 → 1 → 2, plus isolated 3: node 1's non-parent non-descendants are {3} only
+        // (0 is its parent, 2 its descendant).
+        let mut g = Dag::with_variables(4);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let mut reach = BitSet::with_len(4);
+        let mut ws = GraphWorkspace::default();
+        g.descendants_of(&[DenseNodeId::from_raw(1)], &mut reach, &mut ws);
+        let ids: Vec<usize> =
+            (0..4).filter(|&i| reach.contains(DenseNodeId::from_raw(i as u32))).collect();
+        assert_eq!(ids, vec![1, 2]);
     }
 
     /// MM-A2: `evaluate`'s in-sample log-likelihood must score an LGSSM node against the
@@ -703,8 +809,14 @@ mod tests {
         let outlier_data = TabularData::new(outlier_storage);
 
         let check = MechanismPredictiveCheck::default();
-        let (obs_mean, _pred_mean, p) =
-            check.check_mean(&model, &outlier_data, VariableId::from_raw(0)).unwrap();
+        let (obs_mean, _pred_mean, p) = check
+            .check_mean(
+                &model,
+                &outlier_data,
+                VariableId::from_raw(0),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
         assert!((obs_mean - 1000.0).abs() < 1e-9);
         assert!(p > 0.0, "p must never be exactly 0 (finite-sample bound 2/(n_sims+1)); got {p}");
     }

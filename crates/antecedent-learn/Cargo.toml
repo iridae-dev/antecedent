@@ -20,8 +20,8 @@ workspace = true
 ml-gbdt = ["dep:forust-ml"]
 ml-forest = ["dep:smartcore"]
 ml-full = ["ml-gbdt", "ml-forest"]
-# L: not in ml-full. GPU/WGPU stays off; NdArray is the portable default.
-ml-gpu = ["dep:antecedent-learn-burn"]
+# L: not in ml-full. A CPU-only Burn `NdArray<f32>` MLP: there is no GPU/WGPU backend.
+ml-neural = ["dep:antecedent-learn-burn"]
 
 [dependencies]
 antecedent-core = { version = "1.11.0", path = "../antecedent-core" }

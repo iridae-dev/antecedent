@@ -4,7 +4,8 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::needless_range_loop)]
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
+use antecedent_kernels::shuffled_fold_assignment;
 
 use crate::design::{DesignView, RowSelection, TargetView};
 use crate::error::LearnError;
@@ -41,12 +42,26 @@ pub struct NuisanceDiagnostics {
     pub challenger_loss: Option<f64>,
 }
 
-/// Assign `i % folds` on physical rows.
+/// Stream index of the fold shuffle within [`StreamDomain::Learner`].
+const FOLD_STREAM: u64 = 0xF01D;
+
+/// Assign each physical row to one of `folds` folds through a seeded shuffle.
+///
+/// Fold membership is *not* a function of row position: an `i % folds` rule makes any
+/// periodic or sorted row order (alternating treated/control exports, weekly data with
+/// seven folds) put whole classes into single folds, so a fold's training rows can miss
+/// a class entirely. With `strata`, rows of each stratum are dealt round-robin across the
+/// folds, so every training fold keeps each class that has at least `folds` members.
 ///
 /// # Errors
 ///
-/// Fewer than two folds, or fewer rows than folds.
-pub fn assign_folds(n_rows: usize, folds: usize) -> Result<Vec<u16>, LearnError> {
+/// Fewer than two folds, fewer rows than folds, or `strata` of the wrong length.
+pub fn assign_folds(
+    n_rows: usize,
+    folds: usize,
+    rng: &mut CausalRng,
+    strata: Option<&[u32]>,
+) -> Result<Vec<u16>, LearnError> {
     if folds < 2 {
         return Err(LearnError::Shape { message: "cross-fitting requires at least two folds" });
     }
@@ -58,7 +73,17 @@ pub fn assign_folds(n_rows: usize, folds: usize) -> Result<Vec<u16>, LearnError>
     if n_rows < folds {
         return Err(LearnError::Shape { message: "cross-fitting folds cannot exceed rows" });
     }
-    Ok((0..n_rows).map(|i| (i % folds) as u16).collect())
+    if strata.is_some_and(|s| s.len() != n_rows) {
+        return Err(LearnError::Shape { message: "fold strata length != rows" });
+    }
+    Ok(shuffled_fold_assignment(rng, n_rows, folds, strata).into_iter().map(|f| f as u16).collect())
+}
+
+/// Class labels to stratify folds on: the 0/1 target of a probability task.
+#[allow(clippy::float_cmp)] // labels are coded exactly 0/1
+fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
+    (task == PredictionTask::BinaryProbability && y.iter().all(|v| *v == 0.0 || *v == 1.0))
+        .then(|| y.iter().map(|&v| u32::from(v == 1.0)).collect())
 }
 
 /// Cross-fit `factory` on `x` / `y`. `y` is physical-aligned.
@@ -81,7 +106,9 @@ pub fn cross_fit(
             message: "cross_fit expects a physical design without a row selection",
         });
     }
-    let fold_assignment = assign_folds(x.physical_nrows(), folds)?;
+    let strata = binary_strata(factory.task(), y.values());
+    let mut fold_rng = ctx.rng.stream_for(StreamDomain::Learner, FOLD_STREAM);
+    let fold_assignment = assign_folds(x.physical_nrows(), folds, &mut fold_rng, strata.as_deref())?;
     cross_fit_with_folds(factory, x, y, fold_assignment, ctx, transformer)
 }
 
@@ -253,8 +280,29 @@ mod tests {
 
     #[test]
     fn fold_ids_cannot_wrap() {
-        assert!(assign_folds(65_537, 65_537).is_err());
-        assert_eq!(assign_folds(65_536, 65_536).unwrap()[65_535], u16::MAX);
+        let mut rng = CausalRng::from_seed(1);
+        assert!(assign_folds(65_537, 65_537, &mut rng, None).is_err());
+        let folds = assign_folds(65_536, 65_536, &mut rng, None).unwrap();
+        assert_eq!(folds.iter().copied().max(), Some(u16::MAX));
+    }
+
+    /// Alternating treated/control rows with two folds: under `i % 2` fold 0 is all
+    /// treated and its propensity model trains on fold 1 = all controls (a single-class
+    /// target). The stratified shuffle puts both classes in every fold.
+    #[test]
+    fn alternating_binary_rows_keep_both_classes_in_every_fold() {
+        let n = 60usize;
+        let y: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let strata = binary_strata(PredictionTask::BinaryProbability, &y).unwrap();
+        let mut rng = CausalRng::from_seed(3);
+        let folds = assign_folds(n, 2, &mut rng, Some(&strata)).unwrap();
+        for fold in 0..2u16 {
+            let treated = (0..n).filter(|&i| folds[i] == fold && y[i] == 1.0).count();
+            let control = (0..n).filter(|&i| folds[i] == fold && y[i] == 0.0).count();
+            assert_eq!((treated, control), (15, 15), "fold {fold}");
+        }
+        // A regression task is not stratified.
+        assert!(binary_strata(PredictionTask::Regression, &y).is_none());
     }
 
     fn line(n: usize) -> (Vec<f64>, Vec<f64>) {
