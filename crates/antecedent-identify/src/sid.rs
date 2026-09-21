@@ -5,6 +5,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::selection_separation::{
+    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
+};
 use crate::{IdentificationError, PreparedAdmg};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
@@ -37,7 +40,10 @@ pub struct ClassicalTransportQuery {
 /// Search and verification limits, in addition to execution memory/cancellation.
 #[derive(Clone, Copy, Debug)]
 pub struct SidLimits {
-    /// Maximum recursive subproblems across target ID and sID.
+    /// Maximum recursive subproblems across target ID and sID. It is also the number
+    /// of candidate subsets the catalog pretreatment-standardization search may
+    /// separation-test; that search keeps its own count, and running out of it is
+    /// reported as an unmet obligation rather than an error.
     pub steps: usize,
     /// Maximum recursion depth.
     pub depth: usize,
@@ -98,7 +104,10 @@ impl ClassicalTransportDerivation {
 /// Classical recursion result; an unchecked obstruction is explicitly inconclusive.
 #[derive(Clone, Debug)]
 pub enum ClassicalTransportResult {
-    /// Independently checked symbolic distribution.
+    /// Symbolic distribution whose every local premise was re-derived by the checker.
+    /// S-admissibility is decided a second time by an independent implementation;
+    /// ancestor and c-component structure is shared with the search, and the
+    /// end-to-end evidence is the latent-SCM enumeration suites.
     Identified(Box<ClassicalTransportDerivation>),
     /// Recursion found an obstruction; no negative claim without a checked forest witness.
     NotCertified,
@@ -115,7 +124,11 @@ pub enum Rule {
     Districts,
     Factor,
     Recurse,
+    /// Figure 5 line 10: `C(D)={D}` and the source experiment answers the query.
     Source,
+    /// Definition 6 direct transport at any state whose outcomes are S-admissible:
+    /// the source experiment on the state's intervention set is the answer.
+    DirectTransport,
     Standardize,
 }
 impl Rule {
@@ -128,6 +141,7 @@ impl Rule {
             Self::Factor => "sid.line7",
             Self::Recurse => "sid.line8",
             Self::Source => "sid.line10",
+            Self::DirectTransport => "transport.direct",
             Self::Standardize => "transport.pretreatment_standardize",
         }
     }
@@ -217,7 +231,7 @@ impl ClassicalTransportDerivation {
         }
     }
 
-    /// Independently verify portable premises against externally supplied inputs.
+    /// Re-derive and check portable premises against externally supplied inputs.
     /// No identification search or provider access occurs.
     ///
     /// # Errors
@@ -451,15 +465,38 @@ impl<'a> Engine<'a> {
             if !state.v.contains(v) {
                 continue;
             }
-            let before = suffix.clone();
             suffix.remove(v);
             if district.contains(v) {
+                // P(v | predecessors) = N / Σ_v N. The denominator literally
+                // marginalizes the numerator, which is what lets the exact
+                // evaluator treat a null-event conditional as a bounded
+                // extension rather than an undefined 0/0.
                 let numerator = self.marginal(state.kernel, &suffix)?;
-                let denominator = self.marginal(state.kernel, &before)?;
+                let mut summed = BitSet::with_len(self.diagram.causal_graph().node_count());
+                summed.insert(v);
+                let denominator = self.marginal(numerator, &summed)?;
                 factors.push(self.arena.intern(ExprNode::Ratio { numerator, denominator }));
             }
         }
         Ok(self.product(factors))
+    }
+    /// Line 3 result. Rule 3 makes the child functional constant in `w`, so any
+    /// normalized weight over `w` returns it without leaving a free parameter.
+    /// The weight is `P(w | x)` from the carried kernel: it is zero exactly where
+    /// the child is a conditional on a null event, so the answer never requires
+    /// the child to be defined at a level of `w` that the data cannot reach
+    /// under the intervention values being asked about.
+    fn enlarge_output(
+        &mut self,
+        state: &State,
+        w: &BitSet,
+        child: ExprId,
+    ) -> Result<ExprId, IdentificationError> {
+        let joint = self.marginal(state.kernel, &difference(&difference(&state.v, &state.x), w))?;
+        let denominator = self.marginal(joint, w)?;
+        let weight = self.arena.intern(ExprNode::Ratio { numerator: joint, denominator });
+        let product = self.product(vec![child, weight]);
+        self.marginal(product, w)
     }
     fn source(&mut self, state: &State) -> Result<ExprId, IdentificationError> {
         let population = self.query.source.clone();
@@ -521,49 +558,37 @@ impl<'a> Engine<'a> {
         given: &[VariableId],
         selections: &[VariableId],
     ) -> Result<bool, IdentificationError> {
-        let original = self.diagram.causal_graph();
-        let n = original.node_count();
-        let count = u32::try_from(n + selections.len())
-            .map_err(|_| IdentificationError::msg("selection graph capacity"))?;
-        let mut augmented = Admg::with_variables(count);
-        for from in state.v.to_dense_ids() {
-            for &to in original.children(from) {
-                if state.v.contains(to) && !state.x.contains(to) {
-                    augmented.insert_directed(from, to)?;
-                }
-            }
-            for &to in original.bidirected_neighbors(from) {
-                if from.raw() < to.raw()
-                    && state.v.contains(to)
-                    && !state.x.contains(from)
-                    && !state.x.contains(to)
-                {
-                    augmented.insert_bidirected(from, to)?;
-                }
-            }
-        }
-        let mut ws = DSeparationWorkspace::default();
+        let targets = self.dense_all(selections)?;
+        let selection =
+            MutilatedSelection::build(self.diagram.causal_graph(), &state.v, &state.x, &targets)?;
         let mut conditions = state.x.to_dense_ids();
-        conditions.extend(
-            given.iter().map(|v| self.prepared.var_to_dense(*v)).collect::<Result<Vec<_>, _>>()?,
-        );
-        for (i, target) in selections.iter().enumerate() {
-            let target = self.prepared.var_to_dense(*target)?;
-            if !state.v.contains(target) || state.x.contains(target) {
-                continue;
-            }
-            let selection = DenseNodeId::from_raw(
-                u32::try_from(n + i)
-                    .map_err(|_| IdentificationError::msg("selection graph capacity"))?,
-            );
-            augmented.insert_directed(selection, target)?;
-            for outcome in state.y.to_dense_ids() {
-                if !augmented.is_m_separated(selection, outcome, &conditions, &mut ws)? {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
+        conditions.extend(self.dense_all(given)?);
+        selection.separates(
+            &state.y.to_dense_ids(),
+            &conditions,
+            &mut DSeparationWorkspace::default(),
+        )
+    }
+    /// Second implementation of [`Self::admissible_selections`] for the checker:
+    /// it builds no graph and calls no m-separation, so a defect in the search's
+    /// separation code cannot also pass verification.
+    fn independently_admissible(
+        &self,
+        state: &State,
+        given: &[VariableId],
+        selections: &[VariableId],
+    ) -> Result<bool, IdentificationError> {
+        Ok(independently_separated(
+            self.diagram.causal_graph(),
+            &state.v,
+            &state.x,
+            &self.dense_all(selections)?,
+            &state.y.to_dense_ids(),
+            &self.dense_all(given)?,
+        ))
+    }
+    fn dense_all(&self, variables: &[VariableId]) -> Result<Vec<DenseNodeId>, IdentificationError> {
+        variables.iter().map(|v| self.prepared.var_to_dense(*v)).collect()
     }
     fn standardized(
         &mut self,
@@ -664,7 +689,7 @@ impl<'a> Engine<'a> {
         }
         if source && self.source_catalog.is_some() {
             if let Some(output) = self.available_source(&state)? {
-                let step = self.record(state.clone(), Rule::Source, Vec::new(), output);
+                let step = self.record(state.clone(), Rule::DirectTransport, Vec::new(), output);
                 self.memo.insert((state, source), Some(step));
                 return Ok(Some(step));
             }
@@ -703,15 +728,23 @@ impl<'a> Engine<'a> {
             } else if non_x.any() {
                 let mut next = state.clone();
                 next.x.union_with(&non_x);
+                // Direct transport needs no enlargement: it answers the query
+                // as posed, without demanding experiments or laws at every
+                // level of the irrelevant variables.
+                if source {
+                    if let Some(output) = self.available_source(state)? {
+                        return Ok(Some(self.record(
+                            state.clone(),
+                            Rule::DirectTransport,
+                            vec![],
+                            output,
+                        )));
+                    }
+                }
                 let Some(child) = self.solve(next, source, depth + 1)? else {
                     return Ok(None);
                 };
-                // The added intervention is irrelevant by rule 3. Average it
-                // against a normalized marginal of the carried kernel so it
-                // does not leak an arbitrary free parameter into the query.
-                let weight = self.marginal(state.kernel, &difference(&state.v, &non_x))?;
-                let product = self.product(vec![self.proof[child].output, weight]);
-                let output = self.marginal(product, &non_x)?;
+                let output = self.enlarge_output(state, &non_x, self.proof[child].output)?;
                 (Rule::Enlarge, vec![child], output)
             } else {
                 let districts = self.prepared.c_components(&difference(&state.v, &state.x));
@@ -743,7 +776,7 @@ impl<'a> Engine<'a> {
                         if let Some(output) = self.available_source(state)? {
                             return Ok(Some(self.record(
                                 state.clone(),
-                                Rule::Source,
+                                Rule::DirectTransport,
                                 vec![],
                                 output,
                             )));
@@ -871,6 +904,10 @@ pub fn verify_classical_transport(
                 if !children.is_empty() || state != &initial || !derivation.sources.is_empty() {
                     return Err(bad());
                 }
+                let selections: Vec<_> = diagram.selection_targets().to_vec();
+                if !checker.independently_admissible(state, &step.parameters, &selections)? {
+                    return Err(bad());
+                }
                 checker.standardized(state, &step.parameters)?.ok_or_else(bad)?
             }
             Rule::Marginal => {
@@ -904,9 +941,7 @@ pub fn verify_classical_transport(
                 if !w.any() || children.len() != 1 || children[0].state != expected {
                     return Err(bad());
                 }
-                let weight = checker.marginal(state.kernel, &difference(&state.v, &w))?;
-                let product = checker.product(vec![children[0].output, weight]);
-                checker.marginal(product, &w)?
+                checker.enlarge_output(state, &w, children[0].output)?
             }
             Rule::Districts => {
                 let districts = checker.prepared.c_components(&difference(&state.v, &state.x));
@@ -959,9 +994,27 @@ pub fn verify_classical_transport(
                     children[0].output
                 }
             }
-            Rule::Source => {
+            Rule::Source | Rule::DirectTransport => {
                 if !children.is_empty() {
                     return Err(bad());
+                }
+                if step.rule == Rule::Source {
+                    // Figure 5 line 10 fires only after lines 2-4 declined: the
+                    // vertices are their own ancestors, nothing is enlargeable,
+                    // and both C(D minus X) and C(D) are single components.
+                    let ancestors = checker.prepared.ancestors_within(&state.y, &state.v, &mut ws);
+                    let bar =
+                        checker.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
+                    let mut non_x = difference(&state.v, &state.x);
+                    non_x.difference_with(&bar);
+                    if !state.x.any()
+                        || !ancestors.equal_set(&state.v)
+                        || non_x.any()
+                        || checker.prepared.c_components(&difference(&state.v, &state.x)).len() != 1
+                        || checker.prepared.c_components(&state.v).len() != 1
+                    {
+                        return Err(bad());
+                    }
                 }
                 let population = match checker.arena.node(step.output) {
                     ExprNode::Distribution { population, .. } => {
@@ -986,7 +1039,9 @@ pub fn verify_classical_transport(
                         .map(VariableId::from_raw)
                         .collect()
                 };
-                if !checker.admissible_selections(state, &[], &selections)? {
+                if !checker.admissible_selections(state, &[], &selections)?
+                    || !checker.independently_admissible(state, &[], &selections)?
+                {
                     return Err(bad());
                 }
                 // Compare the source leaf explicitly: symbolic values use the
@@ -1553,8 +1608,10 @@ pub fn verify_s_hedge(
     let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
     let check_forest = |forest: &SelectionForest| -> Result<Vec<VariableId>, IdentificationError> {
         let nodes = &forest.nodes;
+        let position: HashMap<VariableId, usize> =
+            nodes.iter().enumerate().map(|(i, v)| (*v, i)).collect();
         if nodes.is_empty()
-            || nodes.iter().enumerate().any(|(i, v)| nodes[..i].contains(v))
+            || position.len() != nodes.len()
             || !nodes.iter().any(|v| diagram.selection_targets().contains(v))
         {
             return Err(bad());
@@ -1562,13 +1619,16 @@ pub fn verify_s_hedge(
         for v in nodes.iter() {
             prepared.var_to_dense(*v)?;
         }
-        for (i, (a, b)) in forest.directed.iter().enumerate() {
+        // At most one child per node: a forest edge list has distinct sources.
+        let mut has_child = vec![false; nodes.len()];
+        for (a, b) in forest.directed.iter() {
             if ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::msg("transport.cancelled"));
             }
-            if !nodes.contains(a)
-                || !nodes.contains(b)
-                || forest.directed[..i].iter().any(|(from, _)| from == a)
+            let (Some(&from), Some(_)) = (position.get(a), position.get(b)) else {
+                return Err(bad());
+            };
+            if std::mem::replace(&mut has_child[from], true)
                 || !diagram
                     .causal_graph()
                     .children(prepared.var_to_dense(*a)?)
@@ -1578,10 +1638,12 @@ pub fn verify_s_hedge(
             }
         }
         let mut unique_edges = std::collections::BTreeSet::new();
+        let mut adjacency = vec![Vec::new(); nodes.len()];
         for (a, b) in forest.bidirected.iter() {
+            let (Some(&i), Some(&j)) = (position.get(a), position.get(b)) else {
+                return Err(bad());
+            };
             if !unique_edges.insert(((*a).min(*b), (*a).max(*b)))
-                || !nodes.contains(a)
-                || !nodes.contains(b)
                 || !diagram
                     .causal_graph()
                     .bidirected_neighbors(prepared.var_to_dense(*a)?)
@@ -1589,49 +1651,51 @@ pub fn verify_s_hedge(
             {
                 return Err(bad());
             }
+            adjacency[i].push(j);
+            adjacency[j].push(i);
         }
-        let mut reached = vec![nodes[0]];
-        let mut cursor = 0;
-        while cursor < reached.len() {
+        // One bidirected component must span every node.
+        let mut reached = vec![false; nodes.len()];
+        reached[0] = true;
+        let mut pending = vec![0usize];
+        let mut count = 1usize;
+        while let Some(node) = pending.pop() {
             if ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::msg("transport.cancelled"));
             }
-            let node = reached[cursor];
-            cursor += 1;
-            for (a, b) in forest.bidirected.iter() {
-                let next = if *a == node {
-                    Some(*b)
-                } else if *b == node {
-                    Some(*a)
-                } else {
-                    None
-                };
-                if let Some(next) = next {
-                    if !reached.contains(&next) {
-                        reached.push(next);
-                    }
+            for &next in &adjacency[node] {
+                if !reached[next] {
+                    reached[next] = true;
+                    count += 1;
+                    pending.push(next);
                 }
             }
         }
-        if reached.len() != nodes.len() {
+        if count != nodes.len() {
             return Err(bad());
         }
         let mut roots = nodes
             .iter()
             .copied()
-            .filter(|v| !forest.directed.iter().any(|(a, _)| a == v))
+            .enumerate()
+            .filter(|(i, _)| !has_child[*i])
+            .map(|(_, v)| v)
             .collect::<Vec<_>>();
         roots.sort_unstable();
         Ok(roots)
     };
     let roots = check_forest(&witness.larger)?;
+    let larger_nodes: std::collections::HashSet<_> = witness.larger.nodes.iter().collect();
+    let larger_directed: std::collections::HashSet<_> = witness.larger.directed.iter().collect();
+    let larger_bidirected: std::collections::HashSet<_> =
+        witness.larger.bidirected.iter().collect();
     if roots != check_forest(&witness.smaller)?
         || roots.is_empty()
         || !witness.larger.nodes.iter().any(|v| query.treatments.contains(v))
         || witness.smaller.nodes.iter().any(|v| query.treatments.contains(v))
-        || !witness.smaller.nodes.iter().all(|v| witness.larger.nodes.contains(v))
-        || !witness.smaller.directed.iter().all(|e| witness.larger.directed.contains(e))
-        || !witness.smaller.bidirected.iter().all(|e| witness.larger.bidirected.contains(e))
+        || !witness.smaller.nodes.iter().all(|v| larger_nodes.contains(v))
+        || !witness.smaller.directed.iter().all(|e| larger_directed.contains(e))
+        || !witness.smaller.bidirected.iter().all(|e| larger_bidirected.contains(e))
     {
         return Err(bad());
     }
@@ -1731,18 +1795,47 @@ pub fn identify_catalog_transport(
         if strategy == 0 {
             // Independent sufficient-rule alternatives use only target marginals
             // and source conditionals; they need not bind the target joint law.
-            let candidates: Vec<_> =
-                engine.vars(&difference(&difference(&state.v, &state.x), &state.y))?;
-            let count = if candidates.len() <= 20 { 1usize << candidates.len() } else { 1 };
-            for mask in 0..count {
-                engine.charge(0)?;
-                let over: Vec<_> = candidates
-                    .iter()
-                    .enumerate()
-                    .filter(|(i, _)| mask & (1usize << i) != 0)
-                    .map(|(_, v)| *v)
+            // Pretreatment candidates are the non-descendants of the treatments;
+            // subsets are tried smallest first under the search's own budget, so
+            // its exhaustion is an obligation, never a failure of the whole call
+            // and never a reason to skip the cheaper source-first strategy.
+            let mut reach = GraphWorkspace::default();
+            let x_nodes = state.x.to_dense_ids();
+            let candidates: Vec<DenseNodeId> =
+                difference(&difference(&state.v, &state.x), &state.y)
+                    .to_dense_ids()
+                    .into_iter()
+                    .filter(|z| {
+                        !x_nodes
+                            .iter()
+                            .any(|x| diagram.causal_graph().reaches_with(*x, *z, &mut reach))
+                    })
                     .collect();
-                if let Some(output) = engine.standardized(&state, &over)? {
+            let targets = engine.dense_all(diagram.selection_targets())?;
+            let selection =
+                MutilatedSelection::build(diagram.causal_graph(), &state.v, &state.x, &targets)?;
+            let mut found = None;
+            let end = for_each_admissible_subset(
+                &selection,
+                &state.y.to_dense_ids(),
+                &x_nodes,
+                &candidates,
+                limits.steps,
+                || {
+                    if ctx.cancellation.is_cancelled() {
+                        Err(IdentificationError::msg("transport.cancelled"))
+                    } else {
+                        Ok(())
+                    }
+                },
+                |subset| {
+                    let over = subset
+                        .iter()
+                        .map(|z| engine.prepared.dense_to_var(*z))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let Some(output) = engine.standardized(&state, &over)? else {
+                        return Ok(false);
+                    };
                     had_derivation = true;
                     let derivation = ClassicalTransportDerivation {
                         query: query.clone(),
@@ -1754,23 +1847,40 @@ pub fn identify_catalog_transport(
                         sources: Vec::new(),
                         proof: vec![ProofStep {
                             state: state.clone(),
-                            rule: if over.is_empty() { Rule::Source } else { Rule::Standardize },
+                            rule: if over.is_empty() {
+                                Rule::DirectTransport
+                            } else {
+                                Rule::Standardize
+                            },
                             children: Vec::new(),
                             output,
                             parameters: over,
                         }],
                     };
-                    if let Ok(mut bound) = derivation.bind_catalog(catalog) {
-                        verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
-                        bound.searched = Arc::from([
-                            Arc::from("target_first_sid"),
-                            Arc::from("pretreatment_standardization"),
-                        ]);
-                        return Ok(CatalogTransportResult::Identified(Box::new(bound)));
-                    }
-                }
+                    let Ok(mut bound) = derivation.bind_catalog(catalog) else {
+                        return Ok(false);
+                    };
+                    verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
+                    bound.searched = Arc::from([
+                        Arc::from("target_first_sid"),
+                        Arc::from("pretreatment_standardization"),
+                    ]);
+                    found = Some(bound);
+                    Ok(true)
+                },
+            )?;
+            if let Some(bound) = found {
+                return Ok(CatalogTransportResult::Identified(Box::new(bound)));
             }
-            obligations.push(Arc::from(if candidates.len()>20 { "pretreatment standardization subset search capped at empty set" } else { "searched pretreatment standardizations: required supplied source conditional or target marginal is missing" }));
+            obligations.push(Arc::from(if end == SubsetSearchEnd::Capped {
+                format!(
+                    "pretreatment standardization search stopped after {} candidate subsets of {} pretreatment covariates; inconclusive",
+                    limits.steps,
+                    candidates.len()
+                )
+            } else {
+                "searched pretreatment standardizations: required supplied source conditional or target marginal is missing".to_owned()
+            }));
             // This cache is scoped to immutable evidence and strategy. Changing
             // the evidence-selection policy invalidates it, not just its root.
             engine.memo.clear();

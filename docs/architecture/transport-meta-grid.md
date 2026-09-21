@@ -30,13 +30,16 @@ mapping to the two papers differs:
 | 2 | Ancestors / `sid.line2` | same independent SCM enumeration |
 | 3 | Enlarge / `sid.line3` | same test, including middle-node intervention |
 | 4 | Districts / `sid.line4` | same test, including joint outcome requests |
-| 6–7 | Source / `sid.line10` | same test and `complementary_sources_require_both_and_proof_is_checked` |
+| 6–7 | DirectTransport / `transport.direct` (the source answers the state as posed; Figure 5 line 10 proper is `sid.line10`, used only by single-source recursion) | same test and `complementary_sources_require_both_and_proof_is_checked` |
 | 8 | independently checked common μs-hedge | `common_negative_witness_cannot_drop_an_admissible_source` |
 | 9 | Factor / `sid.line7` | independent SCM enumeration |
 | 10 | Recurse / `sid.line8` | independent SCM enumeration with multi-node districts |
 
 The positive checker replays each local graph/kernel transformation against its
-premises, not the identification search. The negative checker verifies the same
+premises, not the identification search. S-admissibility is decided again by a second
+implementation (Richardson augmented-graph criterion over the original graph) that
+shares no code with the search; ancestor and c-component structure is shared, and the
+latent-SCM enumeration tests are the end-to-end independent evidence. The negative checker verifies the same
 nested rooted forests against every source, including selection, ancestry,
 treatment intersection, graph, query and evidence scope. A catalog gap or an
 exhausted computation never becomes a proven negative. Certificates serialize

@@ -20,11 +20,12 @@ variables outside an induced district remain external kernel parameters.
 | --- | --- | --- |
 | 1 | `Marginal` | Sum non-outcome variables from the current kernel. Exhaustive branch conformance. |
 | 2 | `Ancestors` | Restrict graph and kernel to outcome ancestors. Three-node SCM enumeration and branch conformance. |
-| 3 | `Enlarge` | Add irrelevant interventions in the mutilated graph. Average the resulting irrelevant parameter against the normalized carried-kernel marginal. `original_coordinates_and_intervention_enlargement_are_preserved` and branch conformance. |
+| 3 | `Enlarge` | Add irrelevant interventions in the mutilated graph. Average the resulting irrelevant parameter against the normalized carried-kernel conditional given the current interventions, `P(w \| x)`: rule 3 makes the child constant in `w`, and that weight vanishes exactly where the child would be a conditional on a null event, so the query never needs the child at levels the data cannot reach. `original_coordinates_and_intervention_enlargement_are_preserved`, `enlargement_does_not_require_the_child_at_levels_the_data_cannot_reach` and branch conformance. |
 | 4 | `Districts` | Identify each postintervention district, multiply, and sum nuisance coordinates. Six-node independent front-door districts. |
 | 7 | `Factor` | Extract the topologically ordered district kernel from the current kernel. Branch conformance and front-door oracle. |
 | 8 | `Recurse` | Recurse inside the containing district with its extracted kernel. Six-node recursive SCM oracle. |
-| 10 | `Source` | Check selection separation in the mutilated graph before substituting the source experimental law. Branch conformance and source-snapshot walkthrough. |
+| 10 | `Source` | Only when `C(D)={D}`: check selection separation in the mutilated graph before substituting the source experimental law. Branch conformance and source-snapshot walkthrough. |
+| (Definition 6) | `DirectTransport` (`transport.direct`) | The same separation check at any earlier state, including before line 3 enlargement, so the source experiment answers the query as posed. `irrelevant_selection_upstream_of_the_treatment_is_direct_transport_at_the_root`. |
 | 11 | checked s-hedge | Verify nested selected C-forests, common roots, treatment intersection and ancestral conditions. Exhaustive four-node conformance and witness mutation tests. |
 
 All referenced Rust tests live in
