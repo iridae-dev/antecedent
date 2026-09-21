@@ -1,4 +1,4 @@
-"""1.8 Bayesian remainder: staged cells and named fixtures."""
+"""Bayesian remainder: staged cells and named fixtures."""
 
 from __future__ import annotations
 

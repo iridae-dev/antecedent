@@ -677,8 +677,8 @@ mod tests {
 
     /// The static path regresses every node on its full graph parent set, so a
     /// mediator-outcome confounder that is a graph parent of `m` and `y` is
-    /// adjusted in both inference modes (the omission fixed on the temporal
-    /// path in 1.9 does not exist here). Dropping the `w` edges from the graph
+    /// adjusted in both inference modes (the temporal-path omission does not
+    /// exist here). Dropping the `w` edges from the graph
     /// reproduces the omitted-confounder bias, so the check is sensitive.
     #[test]
     fn mediator_outcome_confounder_is_adjusted_in_both_modes() {

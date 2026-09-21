@@ -778,7 +778,7 @@ pub fn nested_counterfactual_with_exo(
         // that constant-filled column with every unit's abduced noise, so
         // "unit u's counterfactual" mixed other units' noise and a fabricated
         // constant history. Refuse rather than return a contaminated number;
-        // a true single-series slice evaluation is the post-0.5.2 follow-up.
+        // a true single-series slice evaluation is the follow-up.
         return Err(CounterfactualError::model_msg(
             "nested counterfactual over row-coupled (temporal) mechanisms with \
              unit-varying outer values is not supported: per-unit freezing \

@@ -1,4 +1,4 @@
-"""1.4 numeric evidence for licensed Cpdag/Pag ConditionalEffect cells."""
+"""Numeric evidence for licensed Cpdag/Pag ConditionalEffect cells."""
 
 from __future__ import annotations
 

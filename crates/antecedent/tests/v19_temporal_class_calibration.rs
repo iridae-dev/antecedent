@@ -1,4 +1,4 @@
-//! 1.9 coverage of temporal class envelopes not covered by `v19_calibration`
+//! Coverage of temporal class envelopes not covered by `v19_calibration`
 //! (WP-H): Frequentist multi-step Sustained on `TemporalCpdag` / `TemporalPag`,
 //! `TemporalPag` Sustained in both inference modes, AR(1) variants of the
 //! `TemporalPag` cells, and the identified-set interval (C-3 / K-2).

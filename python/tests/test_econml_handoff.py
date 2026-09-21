@@ -1,4 +1,4 @@
-"""1.4 EconML adjustment-set handoff."""
+"""EconML adjustment-set handoff."""
 
 from __future__ import annotations
 

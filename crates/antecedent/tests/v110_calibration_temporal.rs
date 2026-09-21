@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of Frequentist `TemporalMediationEffect` on
+//! Repeated-sampling coverage of Frequentist `TemporalMediationEffect` on
 //! a `TemporalCpdag` (explicit and accepted, validation none / cheap / full).
 //!
 //! The class of `common::fixtures::mediation_cpdag_two` has two completions

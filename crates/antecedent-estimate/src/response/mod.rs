@@ -1020,7 +1020,7 @@ impl ContinuousResponseEstimator {
             // With an additive μ̂ that bracket is the constant `ĥ(X_i) − mean ĥ`
             // and `P_n[g K] = D e₀`, so the term is exactly `covariate_term[i]`,
             // the same at every grid point. Treating the pseudo-outcomes as fixed
-            // data drops it; the 1.9 calibration measured 0.80–0.86 pointwise
+            // data drops it; without it, calibration measured 0.80–0.86 pointwise
             // coverage at nominal 0.90 without it.
             let row = &mut influences[g_idx * n..(g_idx + 1) * n];
             for (slot, (local_if, centered)) in
@@ -1779,7 +1779,8 @@ impl ContinuousResponseEstimator {
     /// Unpenalized treatment / penalized adjustment specs for the plug-in target.
     ///
     /// Shared by [`Self::fit_outcome_target`] and the weighted Jacobian path so
-    /// a 1.9 special-case cannot drift between the two (ENG-009).
+    /// the unpenalized-treatment / penalized-adjustment split cannot drift
+    /// between the two (ENG-009).
     fn outcome_target_specs(&self, sample: &CompleteSample) -> Vec<SmoothSpec> {
         (0..sample.raw_cols)
             .map(|col| {
@@ -1798,7 +1799,7 @@ impl ContinuousResponseEstimator {
     /// Same split as [`Self::plugin_gradient_weighted`]: treatment smooths are
     /// unpenalized cubic regression splines (a roughness penalty with quantile
     /// knots shrinks even a linear dose effect, which biased the g-computation
-    /// level by about half its SE at every n in the 1.9 calibration), and
+    /// level by about half its SE at every n in calibration), and
     /// adjustment smooths keep `nuisance_lambda`.
     ///
     /// When the unpenalized target fit fails (a binary or low-cardinality
@@ -1829,8 +1830,8 @@ impl ContinuousResponseEstimator {
                 "additive GAM target did not converge; refuse rather than publish an unfinished fit",
             )),
             // A binary or low-cardinality treatment cannot support an unpenalized
-            // cubic basis (singular Gram); keep the penalized nuisance fit there,
-            // exactly as before 1.9, and report why.
+            // cubic basis (singular Gram); keep the penalized nuisance fit there
+            // and report why.
             Err(error) => {
                 let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
                 Ok((fit, Some(error.to_string())))

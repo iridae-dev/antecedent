@@ -614,7 +614,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Scalar identified set ``(lower, upper)`` over identified class completions.
     structural_identified_set: tuple[float, float] | None = None
     #: Interval for the identified set at ``structural_identified_set_interval_level``
-    #: (1.9, C-3). With method ``"imbens_manski_shared_block"`` (Frequentist) it covers
+    #: (C-3). With method ``"imbens_manski_shared_block"`` (Frequentist) it covers
     #: the true effect with asymptotic probability at least the level whenever that
     #: is one retained identified completion's effect; with
     #: ``"product_posterior_envelope_quantile"`` (Bayesian) every retained

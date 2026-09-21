@@ -558,7 +558,7 @@ mod tests {
         // The buffer-reusing `AssignmentSampler` must replay the historical
         // one-shot sampler exactly: same RNG consumption order, same chosen
         // sets, same assignment vectors — so published MC probabilities do not
-        // move. The reference below is the pre-0.5.2 per-draw implementation.
+        // move. The reference below is the historical per-draw implementation.
         fn reference_draw(design: &AssignmentDesign, n: usize, rng: &mut CausalRng) -> Vec<bool> {
             match design {
                 AssignmentDesign::Bernoulli { probabilities } => (0..n)

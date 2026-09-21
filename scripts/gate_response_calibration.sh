@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 0.5.0 response/observation/transport/interference calibration and conformance.
+# Response/observation/transport/interference calibration and conformance.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

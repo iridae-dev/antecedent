@@ -156,7 +156,7 @@ run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal
 run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
 
-echo "== 1.9 temporal / mixture interval coverage (antecedent) =="
+echo "== temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -193,7 +193,7 @@ run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
 run_ignored_test bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage
 run_ignored_test bayesian_temporal_dag_mediation_confounded_nominal_90_coverage
 
-echo "== 1.9 temporal class envelopes: multi-step, TemporalPag, identified-set intervals (antecedent) =="
+echo "== temporal class envelopes: multi-step, TemporalPag, identified-set intervals (antecedent) =="
 run_temporal_class() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -226,10 +226,10 @@ run_temporal_class frequentist_temporal_pag_point_identified_set_interval_nomina
 run_temporal_class bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage
 run_temporal_class bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage
 
-echo "== 1.9 shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
+echo "== shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
 run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
 
-echo "== 1.9 static graph-posterior mixture coverage (antecedent) =="
+echo "== static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -242,7 +242,7 @@ run_static_mixture_test static_graph_posterior_frequentist_cate_joint_if_nominal
 run_static_mixture_test static_graph_posterior_bayesian_ate_bma_nominal_90_coverage
 run_static_mixture_test static_graph_posterior_bayesian_cate_bma_nominal_90_coverage
 
-echo "== 1.9 derivative-family interval coverage (antecedent) =="
+echo "== derivative-family interval coverage (antecedent) =="
 run_ignored_derivative() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -266,7 +266,7 @@ run_ignored_derivative elasticity_bayesian_nominal_90_coverage
 run_ignored_derivative response_jacobian_bayesian_boundary_within_band
 run_ignored_derivative directional_derivative_bayesian_nominal_90_coverage
 
-echo "== 1.9 Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
+echo "== Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
 run_ignored_bayes_temporal() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -323,7 +323,7 @@ run_ignored_bayes_temporal bayesian_temporal_mediation_arma11_n60_nominal_90_cov
 run_ignored_bayes_temporal bayesian_temporal_mediation_arma11_n160_nominal_90_coverage
 run_ignored_bayes_temporal bayesian_temporal_mediation_arma11_n400_nominal_90_coverage
 
-echo "== 1.9 dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
+echo "== dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
 run_temporal_frequentist() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -362,7 +362,7 @@ run_temporal_frequentist temporal_dag_pulse_ar1_treatment_rho09_n60_short_series
 run_temporal_frequentist temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary
 run_temporal_frequentist temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary
 
-echo "== 1.9 static envelope / tier coverage (antecedent, release) =="
+echo "== static envelope / tier coverage (antecedent, release) =="
 run_static_envelope() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -384,7 +384,7 @@ run_static_envelope conditional_effect_pag_bayesian_nominal_90_coverage
 run_static_envelope codetermined_aipw_closure_nominal_90_coverage
 run_static_envelope unknown_two_scenario_joint_band_nominal_95_coverage
 
-echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (antecedent) =="
+echo "== temporal response surfaces: pointwise + simultaneous bands (antecedent) =="
 # One invocation runs every ignored test in the file (Frequentist / Bayesian
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
 # TemporalCpdag / TemporalPag completion atoms, two-step Sequence overlays on
@@ -392,12 +392,12 @@ echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (anteced
 check "v19_temporal_response_calibration" \
   cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
 
-echo "== 1.10 panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
+echo "== panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
 # One invocation runs every ignored test in the file.
 check "v110_panel_calibration" \
   cargo test --release -p antecedent --test v110_panel_calibration -- --ignored --nocapture
 
-echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
+echo "== remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -456,7 +456,7 @@ run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
 
-echo "== 1.10 coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
+echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_v110() {
   local file="$1"
   local filter="$2"
@@ -526,7 +526,7 @@ run_v20 source_target_imbalance_standardize_nominal_coverage
 run_v20 recursive_frontdoor_nominal_coverage
 run_v20 weak_overlap_near_empty_conditioner_boundary
 
-echo "== 0.5.0 response/observation/transport/interference =="
+echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh
 
 if [ -n "$RECHECKED" ]; then

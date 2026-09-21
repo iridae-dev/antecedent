@@ -1,4 +1,4 @@
-//! 1.10.1 coverage of CPDAG class graph-posterior ATE intervals.
+//! Coverage of CPDAG class graph-posterior ATE intervals.
 //!
 //! Two identified CPDAG posterior atoms share an empty backdoor adjustment on
 //! the `known_truth_mixtures` tabular DGP (`Y = 2T + 2Z ± 0.2`), so the scalar

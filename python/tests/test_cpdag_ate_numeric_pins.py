@@ -1,4 +1,4 @@
-"""1.4 numeric evidence for licensed CPDAG ATE cells."""
+"""Numeric evidence for licensed CPDAG ATE cells."""
 
 from __future__ import annotations
 

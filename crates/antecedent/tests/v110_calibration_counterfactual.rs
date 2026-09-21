@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the counterfactual constructions that
+//! Repeated-sampling coverage of the counterfactual constructions that
 //! heterogeneity-capable mechanism families introduced, at the level the facade
 //! publishes.
 //!

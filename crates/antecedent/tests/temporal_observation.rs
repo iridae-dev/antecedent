@@ -410,7 +410,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
     assert!(error.to_string().contains("output bytes"), "{error}");
 }
 
-/// 1.9: observation-adjusted Sequence overlays resample lag-aligned outcome-time tuples,
+/// Observation-adjusted Sequence overlays resample lag-aligned outcome-time tuples,
 /// refit the observation nuisance and every unfolded sequential mechanism on them, and
 /// publish pointwise and simultaneous bands. (The earlier raw-series replicate measured
 /// 31-81% coverage and was withheld; its replacement is calibrated in

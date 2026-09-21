@@ -1,4 +1,4 @@
-//! 1.9 repeated-sampling coverage for the remaining static cells (R-19, R-17).
+//! Repeated-sampling coverage for the remaining static cells (R-19, R-17).
 //!
 //! Static responses (Kennedy-DR curve bands, the g-computation intervention
 //! level, the `cell.aipw` joint cell mean, and the CPDAG class-aware joint-IF
@@ -51,7 +51,7 @@ use common::calibration::{
     quantile_interval,
 };
 use common::calibration_bind::{bind, bind_all};
-// The laws this suite shares with the 1.10 suites live in one owner, so the
+// The laws this suite shares with the `v110` suites live in one owner, so the
 // two measurements of a cell cannot silently diverge.
 use common::static_dgp::{
     bernoulli, counterfactual_data, distribution_data, path_data, sigmoid, table, two_path_data,
@@ -1444,7 +1444,7 @@ fn bayesian_gcomp_misspecification_probe() {
     gated_reported.emit();
 }
 
-/// Drift pin on every law this suite shares with the 1.10 suites.
+/// Drift pin on every law this suite shares with the `v110` suites.
 ///
 /// These digests were measured on the data these generators produce, and the
 /// `parity/coverage_records.toml` rows that cite these DGPs were measured on

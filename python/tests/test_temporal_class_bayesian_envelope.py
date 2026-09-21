@@ -1,4 +1,4 @@
-"""1.7 Bayesian temporal-class envelope pins."""
+"""Bayesian temporal-class envelope pins."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install antecedent for Read the Docs pdoc. Prefer a published wheel so RTD
-# does not rustc the crate (~9 min on 1.10.0). Compile from this checkout only
+# does not rustc the crate (~9 min historically). Compile from this checkout only
 # when that exact version is not on PyPI yet.
 set -euo pipefail
 

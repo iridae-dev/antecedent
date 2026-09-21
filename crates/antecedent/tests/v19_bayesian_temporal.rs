@@ -1,4 +1,4 @@
-//! 1.9 coverage of Bayesian temporal Pulse / Sustained credible intervals (R-9).
+//! Coverage of Bayesian temporal Pulse / Sustained credible intervals (R-9).
 //!
 //! Every replicate runs the staged `Study` path. The treatment and the outcome
 //! residual are independent stationary processes of one noise family
@@ -361,7 +361,7 @@ dag_coverage! {
     bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::RHO05_N60, [Some(0.883), None, None]);
     // AR(2)(0.3, 0.5) treatment and residual: the REML autoregressive factor with the
-    // residual-scale term brings coverage into the band down to n = 60 (the 1.9
+    // residual-scale term brings coverage into the band down to n = 60 (the
     // kernel-and-AR(1) factor gave 0.81 at n = 60 and 0.87 at n = 160).
     bayesian_temporal_pulse_ar2_n60_nominal_90_coverage =>
         (Cell::Pulse, Regime::AR2_N60, [Some(0.860), None, None]);

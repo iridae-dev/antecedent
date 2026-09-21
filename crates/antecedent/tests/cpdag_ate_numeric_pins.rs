@@ -1,4 +1,4 @@
-//! 1.4 numeric pins for licensed CPDAG ATE cells.
+//! Numeric pins for licensed CPDAG ATE cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

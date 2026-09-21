@@ -1,4 +1,4 @@
-//! 1.4 numeric pins for licensed `TemporalCpdag` / `TemporalPag` Pulse cells.
+//! Numeric pins for licensed `TemporalCpdag` / `TemporalPag` Pulse cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

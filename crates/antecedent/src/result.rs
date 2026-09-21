@@ -174,7 +174,7 @@ pub struct StructuralResponseMixture {
     /// Pointwise range over identified atom point responses.
     pub identified_set: Option<ResponseEnvelope>,
     /// Interval for a scalar [`Self::identified_set`] that adds sampling
-    /// uncertainty to the point bounds (1.9, C-3). Published on class-aware
+    /// uncertainty to the point bounds (C-3). Published on class-aware
     /// temporal Pulse / Sustained effects. Frequentist: an Imbens–Manski interval
     /// with per-completion endpoints from the shared circular-block replicates,
     /// covering the true effect with asymptotic probability at least the stated

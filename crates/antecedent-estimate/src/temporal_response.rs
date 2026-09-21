@@ -340,8 +340,8 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
 /// bandwidth `ℓ`, whose testing-optimal bandwidth grows like `n^{1/2}` (Sun, Phillips &
 /// Jin 2008, Bartlett characteristic exponent `q = 1`), not like the MSE-optimal
 /// `n^{1/3}` used by the scalar temporal effect resamplers. A shorter block leaves an
-/// `O(1/ℓ)` kernel bias that no critical value repairs: with `ℓ = ceil(n^{1/3})` the
-/// 1.9 calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
+/// `O(1/ℓ)` kernel bias that no critical value repairs: with `ℓ = ceil(n^{1/3})`
+/// calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
 /// coverage of nominal 95% bands under AR(1) ρ = 0.5 residuals at n = 160. The
 /// estimation noise the longer block adds is carried by the fixed-b factor of
 /// [`block_dispersion_inflation`]; the kernel bias that remains at any licensed
@@ -427,8 +427,8 @@ pub const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_
 /// [`RESPONSE_SHORT_SERIES_ROWS`] effective rows, so the band may under-cover.
 pub const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
 
-/// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are the 1.9
-/// calibration (`crates/antecedent/tests/v19_temporal_response_calibration.rs`, 400
+/// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are from
+/// `crates/antecedent/tests/v19_temporal_response_calibration.rs` (400
 /// replicates, nominal 95%).
 const PERSISTENCE_BOUNDARY_MESSAGE: &str = "circular blocks are max(span, ceil(sqrt(n))), \
      lengthened to ceil(b_PW·n^(1/6)) (at most n/3) when an estimating score is detectably \

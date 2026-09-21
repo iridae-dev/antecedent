@@ -603,7 +603,7 @@ pub enum CausalQueryWire {
         active: InterventionWire,
         /// Population.
         target_population: TargetPopulationWire,
-        /// Outcome functional. Absent on pre-1.5 artifacts decodes as Mean.
+        /// Outcome functional. Absent field decodes as Mean.
         #[serde(default, skip_serializing_if = "OutcomeFunctionalWire::is_mean")]
         outcome_functional: OutcomeFunctionalWire,
     },

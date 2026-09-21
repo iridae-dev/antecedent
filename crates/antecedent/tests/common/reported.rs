@@ -4,7 +4,7 @@
 //! The facade publishes every interval at 0.95 unless the caller asks for
 //! another level ([`REPORTED_LEVEL`]; `IntervalBinding::level`,
 //! `ContinuousResponseOptions::confidence_level`, the posterior `q025`/`q975`
-//! summaries). The v1.9 gate measures at 0.90 ([`GATE_LEVEL`]). The 1.10
+//! summaries). The `v19` gate measures at 0.90 ([`GATE_LEVEL`]). The `v110`
 //! coverage tests score both levels from the same replicates:
 //!
 //! * a normal interval `est ± z·se` is re-formed at 0.90 from the reported SE

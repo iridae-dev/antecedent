@@ -611,7 +611,7 @@ def estimate_trial_effect(
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
 
-    This is an unlicensed utility with its 1.9 behaviour: it calls the
+    This is an unlicensed utility: it calls the
     trial-to-target estimator directly and returns bare numbers, with no study,
     contract, export or calibration slot. ``antecedent.analyze(data, graph=Admg,
     query=TransportQuery(..., trial=, selection_probability=,

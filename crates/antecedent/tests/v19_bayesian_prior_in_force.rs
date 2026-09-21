@@ -1,4 +1,4 @@
-//! 1.9: Bayesian validation uses the prior in force (R-4, R-5), the temporal
+//! Bayesian validation uses the prior in force (R-4, R-5), the temporal
 //! serial-dependence posterior check (C-4), the tempering diagnostic (R-9) and
 //! the HMC draw-floor diagnostic (B-5).
 //!

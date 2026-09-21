@@ -79,7 +79,7 @@ pub const Z95: f64 = 1.959_963_984_540_054;
 /// (`antecedent::result::REPORTED_SE_INTERVAL_LEVEL`).
 pub const REPORTED_LEVEL: f64 = 0.95;
 
-/// Default replicate count for 1.9 coverage tests.
+/// Default replicate count for coverage tests.
 pub const DEFAULT_N_SIM: u32 = 400;
 
 /// Replicate count the gate script re-runs a `calibration-recheck` group at.

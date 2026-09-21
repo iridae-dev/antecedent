@@ -1,13 +1,13 @@
-//! 1.10 repeated-sampling coverage of every Bayesian static coordinate that
+//! Repeated-sampling coverage of every Bayesian static coordinate that
 //! carries an `iid` coverage record, at the level the facade publishes.
 //!
-//! The 1.9 suites (`v19_static_calibration`, `v19_static_envelope_calibration`,
-//! `v19_derivative_calibration`) score these cells at a 0.90 level with a
+//! The `v19_static_calibration`, `v19_static_envelope_calibration`, and
+//! `v19_derivative_calibration` suites score these cells at a 0.90 level with a
 //! conjugate backend and reduced draw counts. The records bound to results
 //! describe the interval a study reports by default: the facade's default
 //! Bayesian configuration (Laplace backend, 1000 draws, prior scale 10 —
 //! Python `Bayesian()`), published at 0.95. This file measures exactly that
-//! interval on the 1.9 in-assumption DGPs (reproduced here next to their
+//! interval on those in-assumption DGPs (reproduced here next to their
 //! truths), and the same construction at 0.90 from the same replicates
 //! (`common::reported`):
 //!
@@ -16,7 +16,7 @@
 //! * response and derivative intervals use estimator-internal quantile rules,
 //!   so the 0.90 interval is the same study re-run with
 //!   `confidence_level = 0.90` on the same data and seed (response options
-//!   otherwise as in the 1.9 designs: the caller bandwidth of the
+//!   otherwise as in those designs: the caller bandwidth of the
 //!   point-derivative cells).
 //!
 //! Every tally is keyed through [`keyed`], this file's one emission point. A
@@ -65,7 +65,7 @@ use common::reported::{
     response_scalar,
 };
 // The laws this suite shares with `v19_static_calibration` live in one owner:
-// the 1.9 and 1.10 records of a cell are comparable only if the replicate data
+// the two records of a cell are comparable only if the replicate data
 // is literally the same, which a copy makes a convention and this makes a fact.
 use common::static_dgp::{
     bernoulli, counterfactual_data, distribution_data, envelope_pag as pag, linear_ate_data,
@@ -775,7 +775,7 @@ fn conditional_effect_pag_bayesian_default_nominal_coverage() {
 // ------------------------------------------------ interventional distribution
 
 /// Boundary cells: the atom probability sits 0.035 from a boundary, so at the
-/// 1.9 design's 600 rows the Bayesian-bootstrap posterior of that atom is
+/// design's 600 rows the Bayesian-bootstrap posterior of that atom is
 /// discrete and skewed and its equal-tailed interval covers
 /// [`DISTRIBUTION_NEAR_ONE_MEASURED`] / [`DISTRIBUTION_NEAR_ZERO_MEASURED`]
 /// (measured over 2000 replicates). The shortfall is small-count, not a defect
@@ -1009,7 +1009,7 @@ fn path_specific_two_path_bayesian_default_nominal_coverage() {
     );
 }
 
-/// Boundary cell: at the 1.9 design's `n = 300` the mean-ITE credible
+/// Boundary cell: at the design's `n = 300` the mean-ITE credible
 /// interval covers [`COUNTERFACTUAL_MEASURED`] — 0.942 at the published 0.95
 /// and 0.886 at 0.90, measured over 2000 replicates (the 0.90 reading is one
 /// thousandth under the precision floor 0.887). The shortfall is
@@ -1220,7 +1220,7 @@ const N_DERIVATIVE: usize = 1000;
 fn derivative_n() -> usize {
     SampleGrid::HEAVY.n(N_DERIVATIVE)
 }
-/// Caller bandwidth of the 1.9 point-derivative designs (≈ the MSE-optimal
+/// Caller bandwidth of the point-derivative designs (≈ the MSE-optimal
 /// local-quadratic first-derivative bandwidth at `N_DERIVATIVE`).
 const BANDWIDTH: f64 = 0.35;
 const AT: f64 = 0.5;

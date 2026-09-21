@@ -1,4 +1,4 @@
-//! 1.9 repeated-sampling coverage for static envelope and tier cells (R-19).
+//! Repeated-sampling coverage for static envelope and tier cells (R-19).
 //!
 //! Every DGP is linear with Gaussian noise, so each completion's reported
 //! functional has a closed-form population value (derived next to each
@@ -39,7 +39,7 @@ use common::calibration::{
     quantile_interval,
 };
 use common::calibration_bind::bind_all;
-// The six-variable envelope PAG is measured by the 1.10 Bayesian suite too;
+// The six-variable envelope PAG is measured by the Bayesian static suite too;
 // one owner, so the two suites cannot enumerate different completions.
 use common::static_dgp::envelope_pag as pag;
 

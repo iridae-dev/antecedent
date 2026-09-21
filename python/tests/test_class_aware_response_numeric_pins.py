@@ -1,4 +1,4 @@
-"""1.4 numeric evidence for licensed Cpdag/Pag response cells."""
+"""Numeric evidence for licensed Cpdag/Pag response cells."""
 
 from __future__ import annotations
 

@@ -273,8 +273,8 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         // Off the public axis: the mechanism-change and unit-change queries
         // that exist today, and any variant added after this release.
         //
-        // This cannot be made exhaustive. `CausalQuery` is `#[non_exhaustive]`
-        // for the 1.0 API freeze, so a downstream crate is required by the
+        // This cannot be made exhaustive. `CausalQuery` is `#[non_exhaustive]`,
+        // so a downstream crate is required by the
         // compiler to keep a wildcard here, and clippy refuses a named arm
         // beside it with the same body. The wire-side classifier that used to
         // shadow this table is gone — a consumer reads the `query_kind` the

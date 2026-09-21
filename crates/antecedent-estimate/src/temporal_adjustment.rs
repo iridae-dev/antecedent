@@ -457,7 +457,7 @@ impl TemporalLinearAdjustment {
     ///   ([`crate::temporal_block::kernel_bias_scale`]).
     /// - `se_analytic` is NaN. No analytic SE is calibrated here: the iid OLS SE
     ///   ignores the dependence, and a Newey–West HAC SE at the same bandwidth
-    ///   under-covered in the 1.9 calibration (0.82–0.88 at nominal 0.90).
+    ///   under-covered in calibration (0.82–0.88 at nominal 0.90).
     ///
     /// `inner.se_kind` and the iid bootstrap of [`LinearAdjustmentAte`] are never used.
     ///

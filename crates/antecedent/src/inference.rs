@@ -385,7 +385,7 @@ pub fn resolve_bayesian_prior_with_conflict(
 /// - identical subspace: source coefficient names must equal the target's;
 /// - effect functional: the source must carry the target's treatment coefficient
 ///   (same variable at the same lag);
-/// - a source without coefficient names (pre-1.9 temporal artifacts) is refused;
+/// - a source without coefficient names is refused;
 /// - [`HydrateMapping::NamedParameters`] is the explicit bridge and is always allowed
 ///   (hydrate validates the names).
 ///
@@ -416,7 +416,7 @@ fn require_lag_aware_transfer(
         return Err(CausalError::Compile {
             message: format!(
                 "temporal prior transfer refused: the source posterior carries no lag-aware \
-                 coefficient names (pre-1.9 artifact), so its lag structure cannot be checked \
+                 coefficient names, so its lag structure cannot be checked \
                  against the target [{target_list}]; refit the source or declare \
                  PriorMapping::NamedParameters"
             ),

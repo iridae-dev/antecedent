@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the static response coordinates that had
+//! Repeated-sampling coverage of the static response coordinates that had
 //! no coverage evidence: the Frequentist graph-posterior intervention level,
 //! the Bayesian class-aware (CPDAG / PAG) intervention level and response
 //! curve, and the CoDetermined same-tier joint intervention level.
@@ -56,7 +56,7 @@ use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, n_sim_at_least, record_pair, response_band,
     response_normal_pair, response_scalar, skip_pair,
 };
-// The continuous response law is shared with the 1.10 Bayesian static suite;
+// The continuous response law is shared with the Bayesian static suite;
 // one owner, so both measurements of it run on the same replicate data.
 use common::static_dgp::response_data;
 

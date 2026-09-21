@@ -268,7 +268,7 @@ result), **n/a** (the coordinate does not denote — a typed impossibility),
 or **refused** (`SupportRefusal::Refused`). Refusal is the *default*: any
 cell that is not licensed and not n/a is refused. `support_closed.toml`
 does not close anything — it is the **reason table** for refused cells,
-not a fourth state. 1.10 requires every refused cell to have a named
+not a fourth state. Every refused cell has a named
 reason; a missing rule still refuses at runtime with the shared default
 message. `allowed_unlicensed` is retained as a compatibility wire value,
 but the current matrix has no active allowlist entries.

@@ -2419,7 +2419,7 @@ mod tests {
         g
     }
 
-    /// Default replicate count for the 1.9 coverage gate (matches
+    /// Default replicate count for the coverage gate (matches
     /// `crates/antecedent/tests/common/calibration.rs`, which this crate cannot import).
     const CALIBRATION_N_SIM: u32 = 400;
 

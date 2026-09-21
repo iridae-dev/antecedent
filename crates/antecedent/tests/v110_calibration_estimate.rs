@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the `glm.adjustment` estimator
+//! Repeated-sampling coverage of the `glm.adjustment` estimator
 //! (`parity/estimate.toml` row `estimate.glm`) through the public Study API.
 //!
 //! Binary-outcome logistic law of `conformance/estimate/glm_adjustment`

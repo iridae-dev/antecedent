@@ -16,7 +16,7 @@ binds records under. Operations with no meaning for a design-defined estimand
 (retarget, a second-click refuter suite, a bootstrap) refuse with a registered
 reason code, and so does a construction outside the licensed cell. The
 unlicensed utilities ``transport.estimate_trial_effect`` and
-``interference.estimate`` keep their 1.9 behaviour and call the same Rust
+``interference.estimate`` keep that unlicensed behaviour and call the same Rust
 estimator, so on a licensed construction they report the analysis's point numbers.
 """
 

@@ -1,4 +1,4 @@
-//! 1.4 numeric pins for licensed `Cpdag`/`Pag` `ConditionalEffect` cells.
+//! Numeric pins for licensed `Cpdag`/`Pag` `ConditionalEffect` cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

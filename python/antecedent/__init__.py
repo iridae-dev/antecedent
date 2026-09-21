@@ -40,7 +40,7 @@ from typing import NoReturn as _NoReturn
 
 # A debug-profile extension returns bit-identical estimates while running
 # ~50x slower, so nothing downstream would ever notice on its own. The flag
-# is absent from pre-0.5.1 builds; only an explicit `False` proves the
+# is absent unless compiled in; only an explicit `False` proves the
 # module was compiled without optimizations.
 from . import _native as _native_module
 

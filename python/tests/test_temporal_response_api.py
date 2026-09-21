@@ -299,7 +299,7 @@ def test_temporal_dose_horizon_point_and_block_bands_match_fixture():
 
 
 def test_temporal_response_zero_bootstrap_withholds_band():
-    """The pre-1.9 analytic band treated lag-aligned rows as independent.
+    """The withheld analytic band treated lag-aligned rows as independent.
 
     The fixture no longer carries it; with ``bootstrap=0`` the surface keeps its
     point values and publishes no band.

@@ -1,4 +1,4 @@
-"""Pathological-but-valid 1.2 Bayesian families: refuse or stay finite, never silent."""
+"""Pathological-but-valid Bayesian families: refuse or stay finite, never silent."""
 
 from __future__ import annotations
 

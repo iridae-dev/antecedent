@@ -752,7 +752,7 @@ pub(crate) fn public_adjustment_set(
 }
 
 /// Scalar identified set `[lower, upper]` of a class-aware result and its
-/// interval: endpoints, level, construction, and truncation flag (1.9, C-3).
+/// interval: endpoints, level, construction, and truncation flag (C-3).
 #[derive(Default)]
 pub(crate) struct IdentifiedSetFields {
     pub set: Option<(f64, f64)>,
@@ -1153,7 +1153,7 @@ impl RefutationReportView {
 // `StudyResult →` section builder; facades only attach modality extras (ATE
 // posterior artifacts, temporal mediation grids). Nested sections mirror
 // `antecedent.results._views`. Flat fields stay in place and are filled from
-// the same builder so 1.9 fields (`structural_identified_set_interval`,
+// the same builder so identified-set interval fields (`structural_identified_set_interval`,
 // `distribution.mean_interval`) have a single owner.
 
 /// Identification section (mirrors `antecedent.results.IdentificationView`).

@@ -1,4 +1,4 @@
-//! 1.10 contracts-first: identities, inspection, transformation preview, claims.
+//! Contracts-first: identities, inspection, transformation preview, claims.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

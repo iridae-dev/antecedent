@@ -761,7 +761,7 @@ fn response_values(value: &ResponseValue) -> Vec<f64> {
     }
 }
 
-/// D-2 (1.9 cell review): numeric known-truth pin of the static graph-posterior
+/// D-2: numeric known-truth pin of the static graph-posterior
 /// response `conditional_on_identified` mean for `InterventionResponse` and
 /// `ResponseCurve`, Frequentist and Bayesian. Only the Frequentist scalar
 /// aggregate carries a joint-IF SE; curves and Bayesian aggregates withhold
@@ -919,7 +919,7 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
     }
 }
 
-/// E-4 (1.9 cell review): the static class-envelope response discloses
+/// E-4: the static class-envelope response discloses
 /// `estimate.envelope.response_posterior_not_mixed` only when per-completion
 /// posterior uncertainty was actually dropped, not for a single completion.
 #[test]

@@ -69,13 +69,13 @@
 //!   BIC-selected AR(q) prewhitening; bandwidth `⌊4 (n/100)^{2/9}⌋`; scaled by
 //!   the squared Kiefer–Vogelsang fixed-b factor of bandwidth `M + 1`,
 //!   [`crate::temporal_block::fixed_b_scale`]) by at most that bound. On the
-//!   1.9 calibration designs the bound never binds.
+//!   calibration designs the bound never binds.
 //! - **Exact fits.** A residual sum of squares at most `1e-20` of the outcome's
 //!   centred sum of squares keeps `κ̂ = 1`: the residuals are rounding error,
 //!   whose apparent autocorrelation would otherwise drive `κ̂` to the cap.
 //!
 //! The model is calibrated for short-memory dependence an AR(4) captures: in
-//! the 1.9 calibration (nominal 90%, 400 replicates, `n = 60–400`) AR(1),
+//! calibration (nominal 90%, 400 replicates, `n = 60–400`) AR(1),
 //! ARMA(1,1), MA(2) and AR(2)(0.3, 0.5) treatment-and-residual designs cover
 //! 0.87–0.92 for Pulse, Sustained and temporal mediation; the previous
 //! kernel-and-AR(1) rule left AR(2) at 0.81 (`n = 60`) and 0.87 (`n = 160`).
@@ -129,7 +129,7 @@ const EXACT_FIT_RELATIVE_SS: f64 = 1e-20;
 const MAX_AR_ORDER: usize = 4;
 
 /// Largest factor by which the autoregressive factor may exceed the
-/// fixed-b-scaled score HAC ratio. On the 1.9 calibration designs the bound
+/// fixed-b-scaled score HAC ratio. On the calibration designs the bound
 /// never binds; on a deterministic period-4 treatment with an omitted lag it
 /// stops a residual quadratic form of ≈145 against a score ratio of ≈0.2.
 const AR_QUADRATIC_HAC_BOUND: f64 = 3.0;

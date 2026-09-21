@@ -227,7 +227,7 @@ def estimate(
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
-    This is an unlicensed utility with its 1.9 behaviour: every assignment
+    This is an unlicensed utility: every assignment
     design and exposure mapping, and ``seed`` as the exposure-probability Monte
     Carlo seed. It calls the interference estimator directly and returns bare
     numbers, with no study, contract, export or calibration slot.

@@ -1244,7 +1244,7 @@ def identify(
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
 
-    ``identify(TieredBackground)`` stays Rust-only in 1.5
+    ``identify(TieredBackground)`` stays Rust-only
     (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
     already returns the certificate; this entry does not accept a tier rule.
     Pair-family joint cells use :meth:`PreparedBatch.prepare_cells`.
