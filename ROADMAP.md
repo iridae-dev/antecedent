@@ -955,20 +955,20 @@ parity or calibration, and the items below remain open against them.
 
 ### Identification and numerical correctness
 
-- [ ] Pin papers, algorithm versions, fixture generators, SCM definitions,
+- [x] Pin papers, algorithm versions, fixture generators, SCM definitions,
       exact target truth, seeds, tolerances, and source revisions in existing
       evidence records. Map each claimed rule to a consuming assertion.
 - [ ] Use small exactly enumerated SCMs with multiple valid parameterizations.
       Add bounded graph/parameter sweeps to catch recursion mistakes; record
       their domain and limits. Test agreement with target interventions, not
       agreement between two wrappers around the same implementation.
-- [ ] Extend executing external-oracle comparisons where an oracle supports the
+- [x] Extend executing external-oracle comparisons where an oracle supports the
       exact setting. Pin versions and numeric factor inputs. Normalize variable
       names and compare evaluated laws when formula syntax differs.
-- [ ] Label external parity, internal cross-checks, theoretical witnesses, and
+- [x] Label external parity, internal cross-checks, theoretical witnesses, and
       statistical calibration separately. Neither snapshots nor successful
       serialization establish mathematical or inferential correctness.
-- [ ] Include adversarial contract fixtures beside successful counterparts so a
+- [x] Include adversarial contract fixtures beside successful counterparts so a
       blanket refusal cannot make the suite green. Show designated assertions
       fail after narrow deliberate corruptions of critical bindings.
 
@@ -978,13 +978,13 @@ parity or calibration, and the items below remain open against them.
       sources/regimes, and evaluation by factor cardinality and grid size.
       Record intermediate memory, allocations, repeated-plan latency, and
       bootstrap cost under ADR 0011; set budgets from measured baselines.
-- [ ] Ensure metadata inspection does not clone datasets, materialize tables,
+- [x] Ensure metadata inspection does not clone datasets, materialize tables,
       rerun identification, or fit providers. Verify cancellation and deterministic
       result order on expensive enumeration/search/resampling paths.
 - [x] Add a transport gate entry point to the existing release gates, backed by
       the same registries. Require nonzero expected test execution; missing
       language runtimes/oracles are recorded skips, not complete evidence.
-- [ ] Enroll every licensed route and interval method in support, public-product,
+- [x] Enroll every licensed route and interval method in support, public-product,
       claim, identity, reason-code, and coverage obligations. Remove overlapping
       closed rules only when consuming evidence licenses the replacement.
 - [ ] Run regression gates for existing transport and unrelated 1.x consumers
@@ -993,13 +993,13 @@ parity or calibration, and the items below remain open against them.
 
 ### Practitioner acceptance and release checklist
 
-- [ ] Publish a worked single-source example, a recursive example, and a
+- [x] Publish a worked single-source example, a recursive example, and a
       complementary-source target response example. Each has executable Rust/
       Python counterparts and four-slot results, not just a notebook narrative.
-- [ ] Publish a failure guide covering structural impossibility, unsupported
+- [x] Publish a failure guide covering structural impossibility, unsupported
       evidence settings, missing factors, positivity failures, unsupported
       uncertainty, and budget exhaustion, with a valid neighboring example.
-- [ ] Publish the exact support matrix, theorem scope, estimation assumptions,
+- [x] Publish the exact support matrix, theorem scope, estimation assumptions,
       calibration scope, migration guide, and limits against registry-owned claims.
 - [ ] Require a fresh release-candidate run covering designated scientific,
       calibration, artifact, cross-language, composition, and performance evidence.
