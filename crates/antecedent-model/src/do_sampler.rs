@@ -57,8 +57,10 @@ pub struct DoSampleResult {
 ///   density `f(T∣parents)`: `wᵢ ∝ Kₕ(Tᵢ − t) / f(Tᵢ∣parents)`. Hard interventions have a
 ///   Dirac interventional law, so the kernel is the localization numerator (there is no
 ///   separate `lp_do` term).
-/// - **Non-density / discrete mechanisms:** kernel localization alone (exact match when the
-///   bandwidth collapses on tied support).
+/// - **Density unavailable:** if the fitted treatment mechanism cannot supply `f(T∣parents)`
+///   (e.g. an unfitted slot), `estimate` refuses rather than silently reporting an unweighted
+///   kernel estimate as IPW. A unit whose fitted density is non-finite is dropped from the
+///   weighted estimate and the drop count is recorded in `notes`.
 #[derive(Clone, Debug)]
 pub struct WeightingDoSampler {
     /// Treatment variable.
@@ -129,35 +131,12 @@ impl WeightingDoSampler {
         }
 
         // Confounded: IPW using Gaussian propensity from fitted treatment mechanism.
-        let slot = model.mechanisms.get(t_dense);
-        let mut parent_cols = Vec::new();
-        for &p in gather.parents.iter() {
-            let var = model.output_layout.variables[p.as_usize()];
-            parent_cols.push(data.float64_cow(var).map_err(ModelError::from)?);
-        }
-        let n_par = gather.n_parents();
-        let mut parent_mat = vec![0.0; n * n_par];
-        for (pi, col) in parent_cols.iter().enumerate() {
-            for r in 0..n {
-                parent_mat[pi * n + r] = col[r];
-            }
-        }
-        let parents = ParentBatch { n_rows: n, n_parents: n_par, values: &parent_mat };
-        let mut lp_obs = vec![0.0; n];
-        let has_density = log_prob_column(slot, &t, parents, &mut lp_obs).is_ok();
-        let bw = silverman_bandwidth(&t).max(1e-8);
-        let inv_norm = 1.0 / (bw * (2.0 * std::f64::consts::PI).sqrt());
-        for i in 0..n {
-            let z = (t[i] - treatment_value) / bw;
-            let kernel = inv_norm * (-0.5 * z * z).exp();
-            let w = if has_density && lp_obs[i].is_finite() {
-                let dens = lp_obs[i].exp().max(1e-300);
-                (kernel / dens).min(1e6)
-            } else {
-                kernel
-            };
-            weights[i] = w;
-            values.push(y[i]);
+        let (values, mut weights, dropped_nonfinite, bw) =
+            confounded_ipw_weights(model, data, gather, t_dense, &t, &y, treatment_value)?;
+        if dropped_nonfinite > 0 {
+            notes.push(Arc::from(format!(
+                "dropped {dropped_nonfinite} of {n} units with non-finite treatment density"
+            )));
         }
         let wsum: f64 = weights.iter().sum();
         if wsum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
@@ -279,6 +258,70 @@ impl KdeDoSampler {
         }
         dens / n.max(1.0)
     }
+}
+
+/// Horvitz–Thompson weights for the confounded branch of [`WeightingDoSampler::estimate`].
+///
+/// Returns the retained outcome values, their unnormalized weights, how many units were
+/// dropped for having a non-finite fitted treatment density, and the kernel bandwidth used.
+///
+/// # Errors
+///
+/// The treatment mechanism's density cannot be evaluated at all (e.g. an unfitted slot):
+/// propagated rather than swallowed, since a bare kernel fallback would not be the
+/// requested importance-weighted estimate.
+#[allow(clippy::too_many_arguments)]
+fn confounded_ipw_weights(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    gather: &crate::compile::ParentGatherPlan,
+    t_dense: antecedent_graph::DenseNodeId,
+    t: &[f64],
+    y: &[f64],
+    treatment_value: f64,
+) -> Result<(Vec<f64>, Vec<f64>, usize, f64), ModelError> {
+    let n = y.len();
+    let slot = model.mechanisms.get(t_dense);
+    let mut parent_cols = Vec::new();
+    for &p in gather.parents.iter() {
+        let var = model.output_layout.variables[p.as_usize()];
+        parent_cols.push(data.float64_cow(var).map_err(ModelError::from)?);
+    }
+    let n_par = gather.n_parents();
+    let mut parent_mat = vec![0.0; n * n_par];
+    for (pi, col) in parent_cols.iter().enumerate() {
+        for r in 0..n {
+            parent_mat[pi * n + r] = col[r];
+        }
+    }
+    let parents = ParentBatch { n_rows: n, n_parents: n_par, values: &parent_mat };
+    let mut lp_obs = vec![0.0; n];
+    // A failure here means the treatment mechanism cannot supply p(t | parents) at all
+    // (e.g. the slot was never fitted). That is not "no density family" — it is the
+    // requested importance weighting being impossible — so it must refuse rather than
+    // quietly falling back to a bare kernel and still calling the result IPW.
+    log_prob_column(slot, t, parents, &mut lp_obs)?;
+    let bw = silverman_bandwidth(t).max(1e-8);
+    let inv_norm = 1.0 / (bw * (2.0 * std::f64::consts::PI).sqrt());
+    let mut weights = Vec::with_capacity(n);
+    let mut values = Vec::with_capacity(n);
+    let mut dropped_nonfinite = 0usize;
+    for i in 0..n {
+        // A row whose fitted density is non-finite (e.g. zero probability under the model)
+        // cannot be importance-weighted; including it at the bare kernel weight would
+        // silently mix an unweighted unit into a weighted estimate. Drop it instead — the
+        // caller reports the count.
+        if !lp_obs[i].is_finite() {
+            dropped_nonfinite += 1;
+            continue;
+        }
+        let z = (t[i] - treatment_value) / bw;
+        let kernel = inv_norm * (-0.5 * z * z).exp();
+        let dens = lp_obs[i].exp().max(1e-300);
+        weights.push((kernel / dens).min(1e6));
+        values.push(y[i]);
+    }
+    Ok((values, weights, dropped_nonfinite, bw))
 }
 
 fn silverman_bandwidth(x: &[f64]) -> f64 {
@@ -433,6 +476,7 @@ pub fn interventional_mean(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compile::MechanismSlot;
     use crate::registry::{MechanismRegistry, SelectionPolicy};
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, Value, ValueType,
@@ -599,6 +643,39 @@ mod tests {
             "healthy case should not be flagged as degenerate, got {:?}",
             healthy.notes
         );
+    }
+
+    /// When the treatment mechanism's density is unavailable (here: the slot was never
+    /// fitted), `WeightingDoSampler::estimate` must not silently fall back to an unweighted
+    /// kernel estimate and still call it `IPW / Silverman-kernel weighting`. The confounded
+    /// association it would otherwise return is not the requested importance-weighted
+    /// estimate, and nothing in `notes` says the density computation failed.
+    #[test]
+    fn weighting_surfaces_a_density_failure_instead_of_silently_falling_back() {
+        let n = 200usize;
+        let (model, data) = confounded_continuous_scm(n);
+        let t_dense = model.dense_of(VariableId::from_raw(1)).unwrap();
+        // Simulate a treatment mechanism whose density could not be evaluated (e.g. a slot
+        // that was never fitted), leaving everything else about the compiled model intact.
+        let broken_store = model.mechanisms.with_replaced(t_dense, MechanismSlot::Vacant).unwrap();
+        let broken_model = model.with_mechanisms(broken_store);
+
+        let ctx = ExecutionContext::for_tests(1);
+        let sampler = WeightingDoSampler::new(VariableId::from_raw(1), VariableId::from_raw(2));
+        let result = sampler.estimate(&broken_model, &data, 0.0, &ctx);
+
+        match result {
+            Err(_) => {} // honest refusal: acceptable
+            Ok(res) => {
+                // If it doesn't refuse outright, it must not claim to be the requested IPW
+                // estimate: the method/notes must disclose that density weighting failed.
+                assert!(
+                    !res.notes.iter().any(|note| note.contains("IPW")),
+                    "density computation failed but the result is still labelled IPW: {:?}",
+                    res.notes
+                );
+            }
+        }
     }
 
     #[test]
