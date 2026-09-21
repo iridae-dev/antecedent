@@ -627,10 +627,22 @@ impl PreparedExactStage {
             "expression":r.expression.raw(),"status":r.status,"denominator":r.denominator,
             "assignment":r.assignment.iter().map(|(v,x)|(self.graph.names[v.as_usize()].as_str(),x.as_f64())).collect::<std::collections::BTreeMap<_,_>>()
         })).collect();
+        let identification_status = view
+            .reasoning
+            .identification
+            .as_ref()
+            .map_or("unavailable", |slot| slot.status.as_str());
+        let uncertainty_reason = match &view.reasoning.uncertainty {
+            antecedent_core::SlotAvailability::Unavailable { reason } => reason.as_ref(),
+            _ => "",
+        };
         serde_json::json!({
-            "identification":{"available":true,"summary":"nonparametrically_identified","payload":{"formula":view.formula,"theorem_scope":view.theorem_scope,"classical_family":view.classical_scope.family.as_str(),"classical_guarantee":view.classical_scope.outcome_guarantees.as_str(),"classical_version":view.classical_scope.reference.version.as_ref(),"catalog_family":view.catalog_scope.family.as_str(),"catalog_guarantee":view.catalog_scope.outcome_guarantees.as_str(),"multi_node_recursion":view.classical_scope.computation_limits.multi_node_c_component_recursion,"rules":self.inner.rules()}},
+            "identification":{"available":view.reasoning.identification.is_available(),"summary":identification_status,"payload":{"formula":view.formula,"theorem_scope":view.theorem_scope,"classical_family":view.classical_scope.family.as_str(),"classical_guarantee":view.classical_scope.outcome_guarantees.as_str(),"classical_version":view.classical_scope.reference.version.as_ref(),"catalog_family":view.catalog_scope.family.as_str(),"catalog_guarantee":view.catalog_scope.outcome_guarantees.as_str(),"multi_node_recursion":view.classical_scope.computation_limits.multi_node_c_component_recursion,"rules":self.inner.rules()}},
+            // `view.reasoning` comes from `PreparedStudy::inspect`, which always reports
+            // support as not-yet-evaluated: it has no visibility into this binding's own
+            // retained `last` result, so that stays the actual evaluated/not-evaluated flag.
             "support":{"available":executed,"summary":if executed {"exact_factor_support_checked"} else {"execution_specific"},"payload":{"required_factors":factors,"bindings":view.bindings,"factor_support":support}},
-            "uncertainty":{"available":false,"reason":"exact_supplied_law_no_sampling_uncertainty","summary":"unavailable"},
+            "uncertainty":{"available":view.reasoning.uncertainty.is_available(),"reason":uncertainty_reason,"summary":"unavailable"},
             "assumptions":{"available":true,"summary":"declared_selection_diagram_and_exact_laws","payload":{"empirically_verified":false,"source":self.inner.query().source.as_ref(),"target":self.inner.query().target.as_ref(),"selection_targets":self.inner.diagram().selection_targets().iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>()}},
             "target_id":view.identities.target,"observation_id":view.identities.observation,"inference_binding_id":view.identities.inference_binding,"program_id":view.identities.program,"identification_id":view.identities.identification,
             "identification_product_id":view.identities.identification_product,"data_snapshot_id":view.identities.snapshot,"execution_id":view.identities.execution,
