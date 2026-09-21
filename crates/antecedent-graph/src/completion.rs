@@ -348,7 +348,7 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
     true
 }
 
-fn as_admg(g: &Pag) -> Admg {
+pub(crate) fn as_admg(g: &Pag) -> Admg {
     let mut admg = Admg::with_variables(u32::try_from(g.node_count()).expect("node count fits"));
     for i in 0..g.node_count() {
         let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));

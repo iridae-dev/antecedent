@@ -89,4 +89,9 @@ pub enum GraphError {
         /// Path-length budget.
         max_len: usize,
     },
+    /// PAG m-separation holds in some members of the equivalence class and fails in
+    /// others, or the class could not be enumerated; neither "separated" nor
+    /// "connected" is a statement about every member.
+    #[error("m-separation is not determined for every MAG in the PAG's class")]
+    SeparationUndetermined,
 }
