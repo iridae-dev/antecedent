@@ -1851,14 +1851,14 @@ impl FittedHorizon {
         self.column_means[TREATMENT_COL]
     }
 
-    /// Delta-method influence series of the level at `eval`: the row's weight in the
-    /// coefficient combination `c'β̂` (`c` = the column means with the treatment column
-    /// at the evaluated dose) times its residual, plus the centered design columns whose
-    /// sample means the level reads (every column but the treatment for a dose; every
-    /// column for a shift, whose level reads the treatment mean too), each weighted by
-    /// its coefficient. The circular-block variance of the level is asymptotically the
-    /// Bartlett long-run variance of this series at the block length. `None` when `X'X`
-    /// is singular.
+    /// Delta-method influence series of the level at `eval`. The regression contribution
+    /// is the usual OLS influence of `c'β̂` (`c` = the column means with the treatment
+    /// column at the evaluated dose): `n · x_t'(X'X)⁻¹ c · ê_t`. The contribution of the
+    /// estimated means is `coef' · (x_t − mean)` on the columns the level actually reads
+    /// (every column but the treatment for a dose; every column for a shift, whose level
+    /// reads the treatment mean too). Both terms are `O_p(1)`; the circular-block variance
+    /// of the level is asymptotically the Bartlett long-run variance of this series at the
+    /// block length. `None` when `X'X` is singular.
     fn level_influence(&self, eval: CellEval) -> Option<Vec<f64>> {
         let design = &self.prepared.design;
         let (n, p) = (design.nrows, design.ncols);
@@ -1882,6 +1882,7 @@ impl FittedHorizon {
         };
         let v = solve_spd(&xtx, &direction, p)?;
         let reads_treatment_mean = matches!(eval, CellEval::Shift(_));
+        let n_f = n as f64;
         Some(
             (0..n)
                 .map(|t| {
@@ -1890,7 +1891,7 @@ impl FittedHorizon {
                         .filter(|&k| k != TREATMENT_COL || reads_treatment_mean)
                         .map(|k| self.coefs[k] * (x[k * n + t] - self.column_means[k]))
                         .sum();
-                    weight * self.residuals[t] + means
+                    n_f * weight * self.residuals[t] + means
                 })
                 .collect(),
         )
@@ -3690,6 +3691,86 @@ mod tests {
             out.push(previous);
         }
         out
+    }
+
+    fn fitted_horizon(
+        treatment: &[f64],
+        covariates: &[(VariableId, &[f64])],
+        outcome: &[f64],
+    ) -> FittedHorizon {
+        let design = CompiledDesign::linear_adjustment(treatment, covariates, outcome, &[])
+            .expect("balanced design");
+        let prepared = PreparedEstimationProblem {
+            design,
+            method: Arc::from("test"),
+            adjustment_set: Arc::from(covariates.iter().map(|(id, _)| *id).collect::<Vec<_>>()),
+            overlap: OverlapPolicy::ExplicitOverride,
+            treatment_delta: 1.0,
+            target_population: TargetPopulation::AllObserved,
+            treatment: Arc::from(treatment.to_vec()),
+            active: 1.0,
+            control: 0.0,
+        };
+        FittedHorizon::fit(prepared, &mut LeastSquaresWorkspace::default()).expect("OLS fit")
+    }
+
+    /// The level influence must be `O_p(1)` in every term: the OLS piece is
+    /// `n · x_t'(X'X)⁻¹ c · ê_t`, not the raw leverage weight. Without the `n`, a long
+    /// series makes the residual term ~`1/n` times the mean term, and duplicating every
+    /// row (same level, twice the rows) would shrink the residual contribution by 2.
+    #[test]
+    fn level_influence_is_op1_in_regression_and_mean_terms() {
+        // Intercept + treatment, Shift(0): level is ȳ, so the influence is exactly y_t − ȳ.
+        let n = 200usize;
+        let a: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 2.0 + 3.0 * a[i] + if i % 2 == 0 { 0.5 } else { -0.5 })
+            .collect();
+        let fitted = fitted_horizon(&a, &[], &y);
+        let psi = fitted.level_influence(CellEval::Shift(0.0)).unwrap();
+        let ybar = y.iter().sum::<f64>() / n as f64;
+        for t in 0..n {
+            assert!((psi[t] - (y[t] - ybar)).abs() < 1e-10, "t={t}: {} vs {}", psi[t], y[t] - ybar);
+        }
+
+        // One covariate, Dose(a): both contributions stay the same order on a long series.
+        let z_id = VariableId::from_raw(2);
+        let z: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let a2: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { 1.0 } else { -1.0 }).collect();
+        let y2: Vec<f64> = (0..n)
+            .map(|i| 1.0 + 2.0 * a2[i] + 4.0 * z[i] + 0.25 * ((i % 3) as f64 - 1.0))
+            .collect();
+        let fitted2 = fitted_horizon(&a2, &[(z_id, z.as_slice())], &y2);
+        let dose = 0.5;
+        let psi2 = fitted2.level_influence(CellEval::Dose(dose)).unwrap();
+        let means: Vec<f64> = (0..n)
+            .map(|t| fitted2.coefs[2] * (z[t] - fitted2.column_means[2]))
+            .collect();
+        let reg: Vec<f64> = psi2.iter().zip(&means).map(|(p, m)| p - m).collect();
+        let rms = |v: &[f64]| (v.iter().map(|x| x * x).sum::<f64>() / v.len() as f64).sqrt();
+        let (r_reg, r_means) = (rms(&reg), rms(&means));
+        assert!(r_reg > 0.05 && r_means > 0.05, "reg={r_reg} means={r_means}");
+        let ratio = r_reg / r_means;
+        assert!(
+            (0.05..20.0).contains(&ratio),
+            "regression term must not be ~1/n times the mean term: ratio={ratio}"
+        );
+
+        // Repeat every row: level unchanged, n → 2n. Influence on matching rows must stay
+        // put (not shrink by 2 as a missing-n residual term would).
+        let a_rep: Vec<f64> = a2.iter().flat_map(|&x| [x, x]).collect();
+        let z_rep: Vec<f64> = z.iter().flat_map(|&x| [x, x]).collect();
+        let y_rep: Vec<f64> = y2.iter().flat_map(|&x| [x, x]).collect();
+        let fitted_rep = fitted_horizon(&a_rep, &[(z_id, z_rep.as_slice())], &y_rep);
+        let psi_rep = fitted_rep.level_influence(CellEval::Dose(dose)).unwrap();
+        for t in 0..n {
+            assert!(
+                (psi_rep[2 * t] - psi2[t]).abs() < 1e-8,
+                "row {t}: repeated {} vs original {}",
+                psi_rep[2 * t],
+                psi2[t]
+            );
+        }
     }
 
     #[test]
