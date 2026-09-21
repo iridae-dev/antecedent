@@ -1115,9 +1115,7 @@ impl super::Study {
                     graph,
                     &CausalQuery::Mediation(query.clone()),
                 )?;
-                let estimand =
-                    select_estimand(&identification, EstimatorId::StaticMediationLinear)?;
-                Ok((identification, estimand))
+                select_claim(identification, EstimatorId::StaticMediationLinear)
             })?;
         if let InferenceMode::Bayesian(cfg) = &self.inference {
             if cfg.prior.is_some() || cfg.external_compose.is_some() {
