@@ -317,9 +317,9 @@ fn z_permutation_strata(
 
 fn ensure_finite_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<(), StatsError> {
     for &zc in z {
-        let col = columns.get(zc).ok_or(StatsError::Shape {
-            message: "Z column index out of range for kNN strata",
-        })?;
+        let col = columns
+            .get(zc)
+            .ok_or(StatsError::Shape { message: "Z column index out of range for kNN strata" })?;
         if col.len() < n || col.iter().take(n).any(|v| !v.is_finite()) {
             return Err(StatsError::Shape {
                 message: "non-finite Z in conditional permutation strata",
@@ -411,7 +411,11 @@ fn local_z_neighbourhood_strata(
 
 /// Former name retained as a thin wrapper for call sites / docs that still say "coarse".
 #[cfg(test)]
-fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Result<Vec<Vec<usize>>, StatsError> {
+fn coarse_z_strata(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+) -> Result<Vec<Vec<usize>>, StatsError> {
     z_permutation_strata(columns, z, n, 5)
 }
 
@@ -451,7 +455,7 @@ impl ConditionalIndependenceTest for MixedKnnDependence {
         for col in &mut owned {
             if looks_discrete(col) {
                 let ranked = col.clone();
-                super::parcorr_variants::rank_column(&ranked, col);
+                super::parcorr_variants::rank_column(&ranked, col)?;
             }
         }
         let refs: Vec<&[f64]> = owned.iter().map(std::vec::Vec::as_slice).collect();
@@ -783,9 +787,9 @@ fn gp_residual(
     let zdim = z.len();
     let mut z_std = vec![0.0; n * zdim];
     for (j, &zc) in z.iter().enumerate() {
-        let col = columns.get(zc).ok_or(StatsError::Shape {
-            message: "Z column index out of range for GPDC",
-        })?;
+        let col = columns
+            .get(zc)
+            .ok_or(StatsError::Shape { message: "Z column index out of range for GPDC" })?;
         if col.len() < n || col.iter().take(n).any(|v| !v.is_finite()) {
             return Err(StatsError::Shape { message: "non-finite Z in GPDC residualization" });
         }
@@ -1229,13 +1233,15 @@ mod tests {
         let mut rejects = 0u32;
         for t in 0..trials {
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(u64::from(t)));
-            let z: Vec<f64> = (0..n).map(|_| {
-                let u = (rng.next_u64() as f64) / (u64::MAX as f64);
-                // Box–Muller half: approximate N(0,1)
-                let v = (rng.next_u64() as f64) / (u64::MAX as f64);
-                let r = (-2.0 * (u.max(1e-12)).ln()).sqrt();
-                r * (2.0 * std::f64::consts::PI * v).cos()
-            }).collect();
+            let z: Vec<f64> = (0..n)
+                .map(|_| {
+                    let u = (rng.next_u64() as f64) / (u64::MAX as f64);
+                    // Box–Muller half: approximate N(0,1)
+                    let v = (rng.next_u64() as f64) / (u64::MAX as f64);
+                    let r = (-2.0 * (u.max(1e-12)).ln()).sqrt();
+                    r * (2.0 * std::f64::consts::PI * v).cos()
+                })
+                .collect();
             let y: Vec<f64> = z
                 .iter()
                 .map(|&zi| {
@@ -1243,9 +1249,8 @@ mod tests {
                     zi + 0.35 * e
                 })
                 .collect();
-            let x: Vec<f64> = (0..n)
-                .map(|_| (rng.next_u64() as f64) / (u64::MAX as f64) - 0.5)
-                .collect();
+            let x: Vec<f64> =
+                (0..n).map(|_| (rng.next_u64() as f64) / (u64::MAX as f64) - 0.5).collect();
             let cols: [&[f64]; 3] = [&x, &y, &z];
             let req = CiBatchRequest {
                 columns: &cols,
@@ -1287,10 +1292,8 @@ mod tests {
             let noise_y = lcg_noise(n, 300 + u64::from(t));
             let z: Vec<f64> = noise_z.iter().map(|e| scale * e).collect();
             // Null: X ⊥ Y | Z with both driven by Z.
-            let x_null: Vec<f64> =
-                z.iter().zip(&noise_x).map(|(zi, e)| 0.01 * zi + e).collect();
-            let y_null: Vec<f64> =
-                z.iter().zip(&noise_y).map(|(zi, e)| 0.02 * zi + e).collect();
+            let x_null: Vec<f64> = z.iter().zip(&noise_x).map(|(zi, e)| 0.01 * zi + e).collect();
+            let y_null: Vec<f64> = z.iter().zip(&noise_y).map(|(zi, e)| 0.02 * zi + e).collect();
             let cols_null: [&[f64]; 3] = [&x_null, &y_null, &z];
             let req = CiBatchRequest {
                 columns: &cols_null,
@@ -1305,8 +1308,7 @@ mod tests {
             }
             // Alt: residual X–Y dependence after conditioning on Z.
             let x_alt = x_null.clone();
-            let y_alt: Vec<f64> =
-                x_alt.iter().zip(&y_null).map(|(xi, yi)| xi + yi).collect();
+            let y_alt: Vec<f64> = x_alt.iter().zip(&y_null).map(|(xi, yi)| xi + yi).collect();
             let cols_alt: [&[f64]; 3] = [&x_alt, &y_alt, &z];
             let req_alt = CiBatchRequest {
                 columns: &cols_alt,

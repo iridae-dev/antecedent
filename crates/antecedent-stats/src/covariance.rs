@@ -401,9 +401,9 @@ fn ensure_multiway_meat_psd(
         return Ok(());
     }
     let mat = faer::Mat::<f64>::from_fn(ncols, ncols, |r, c| meat[r * ncols + c]);
-    let eigs = mat.self_adjoint_eigenvalues(faer::Side::Lower).map_err(|_| {
-        StatsError::Backend("multiway meat eigendecomposition failed".into())
-    })?;
+    let eigs = mat
+        .self_adjoint_eigenvalues(faer::Side::Lower)
+        .map_err(|_| StatsError::Backend("multiway meat eigendecomposition failed".into()))?;
     let scale = abs_diag.iter().copied().fold(0.0_f64, f64::max);
     let tol = 64.0 * f64::EPSILON * scale;
     for &lam in &eigs {

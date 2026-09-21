@@ -730,11 +730,8 @@ mod tests {
 
         // Y is an affine function of Z → zero Y residual, finite X residual leftover.
         let y_exact: Vec<f64> = z.iter().map(|&zi| 2.0 * zi + 1.0).collect();
-        let x_var: Vec<f64> = z
-            .iter()
-            .enumerate()
-            .map(|(i, &zi)| zi + ((i % 3) as f64 - 1.0) * 0.5)
-            .collect();
+        let x_var: Vec<f64> =
+            z.iter().enumerate().map(|(i, &zi)| zi + ((i % 3) as f64 - 1.0) * 0.5).collect();
         assert_eq!(
             partial_correlation_scalar(&x_var, &y_exact, &[&z], &mut ws),
             Some(0.0),

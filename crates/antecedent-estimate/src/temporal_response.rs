@@ -3723,9 +3723,8 @@ mod tests {
         // Intercept + treatment, Shift(0): level is ȳ, so the influence is exactly y_t − ȳ.
         let n = 200usize;
         let a: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
-        let y: Vec<f64> = (0..n)
-            .map(|i| 2.0 + 3.0 * a[i] + if i % 2 == 0 { 0.5 } else { -0.5 })
-            .collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| 2.0 + 3.0 * a[i] + if i % 2 == 0 { 0.5 } else { -0.5 }).collect();
         let fitted = fitted_horizon(&a, &[], &y);
         let psi = fitted.level_influence(CellEval::Shift(0.0)).unwrap();
         let ybar = y.iter().sum::<f64>() / n as f64;
@@ -3743,9 +3742,8 @@ mod tests {
         let fitted2 = fitted_horizon(&a2, &[(z_id, z.as_slice())], &y2);
         let dose = 0.5;
         let psi2 = fitted2.level_influence(CellEval::Dose(dose)).unwrap();
-        let means: Vec<f64> = (0..n)
-            .map(|t| fitted2.coefs[2] * (z[t] - fitted2.column_means[2]))
-            .collect();
+        let means: Vec<f64> =
+            (0..n).map(|t| fitted2.coefs[2] * (z[t] - fitted2.column_means[2])).collect();
         let reg: Vec<f64> = psi2.iter().zip(&means).map(|(p, m)| p - m).collect();
         let rms = |v: &[f64]| (v.iter().map(|x| x * x).sum::<f64>() / v.len() as f64).sqrt();
         let (r_reg, r_means) = (rms(&reg), rms(&means));
