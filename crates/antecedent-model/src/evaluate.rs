@@ -95,23 +95,16 @@ impl ModelEvaluator {
         let permutation_loglik = permutation_baseline(model, data, self.n_permutations, perm_seed)?;
 
         // Bonferroni across the union of CI checks that feed `falsified`.
-        let family: Vec<f64> = residual_independence_p
-            .iter()
-            .chain(local_markov_p.iter())
-            .copied()
-            .collect();
+        let family: Vec<f64> =
+            residual_independence_p.iter().chain(local_markov_p.iter()).copied().collect();
         let falsified = falsified_bonferroni(&family, self.alpha);
         let m = family.len();
         let threshold = if m == 0 { self.alpha } else { self.alpha / m as f64 };
         if residual_independence_p.iter().any(|&p| p < threshold) {
-            notes.push(Arc::from(
-                "residual independence rejected at Bonferroni-corrected alpha",
-            ));
+            notes.push(Arc::from("residual independence rejected at Bonferroni-corrected alpha"));
         }
         if local_markov_p.iter().any(|&p| p < threshold) {
-            notes.push(Arc::from(
-                "local Markov condition rejected at Bonferroni-corrected alpha",
-            ));
+            notes.push(Arc::from("local Markov condition rejected at Bonferroni-corrected alpha"));
         }
         if in_sample_loglik + 1.0 < permutation_loglik {
             // Model worse than noise baseline by a wide margin.

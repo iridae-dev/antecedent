@@ -1316,10 +1316,7 @@ mod tests {
         });
         let sym_sum = arena.intern(ExprNode::SumOut { variables: ts, expr: sym_mean });
         let sum_over_t = arena.compile(sym_sum).unwrap().evaluate(&arena, &p, &ctx).unwrap();
-        assert!(
-            (sum_over_t - 1.0).abs() < 1e-12,
-            "symbolic Σ_t E[Y|do(t)] = {sum_over_t}"
-        );
+        assert!((sum_over_t - 1.0).abs() < 1e-12, "symbolic Σ_t E[Y|do(t)] = {sum_over_t}");
 
         // Same SumOut shape with concrete NaN must not yield that sum.
         let do_nan = arena.intern_intervention_assignments([InterventionAssignment {

@@ -965,10 +965,7 @@ mod tests {
             ValidatorId::EValue,
             ValidatorId::Riesz,
         ] {
-            assert!(
-                ids.contains(&required),
-                "falsification_effect must keep {required:?}"
-            );
+            assert!(ids.contains(&required), "falsification_effect must keep {required:?}");
         }
     }
 }
