@@ -919,10 +919,7 @@ mod tests {
         let sum_1pk2: f64 = k.iter().map(|kj| (1.0 + kj).powi(2)).sum();
         let expected = (sigma2 * sum_1pk2 / n.powi(2)).sqrt();
         let se = abadie_imbens_se(&effects, &donors, 4, true);
-        assert!(
-            (se - expected).abs() < 1e-14,
-            "se={se} expected={expected} (Σ(1+K)²={sum_1pk2})"
-        );
+        assert!((se - expected).abs() < 1e-14, "se={se} expected={expected} (Σ(1+K)²={sum_1pk2})");
         let sum_k2: f64 = k.iter().map(|kj| kj.powi(2)).sum();
         let old_att_form = (sigma2 * (n + sum_k2) / n.powi(2)).sqrt();
         assert!(
@@ -963,8 +960,7 @@ mod tests {
         // is controls‖treated → local [2,3,0,1] maps K onto rows via matching_influence.
         // Direct construction with K_M(i)=1 for all units mirrors that geometry.
         let scale = std::f64::consts::SQRT_2.recip();
-        let psi: Vec<f64> =
-            effects.iter().map(|&e| (e - ate) * scale * (1.0 + 1.0)).collect();
+        let psi: Vec<f64> = effects.iter().map(|&e| (e - ate) * scale * (1.0 + 1.0)).collect();
         let groups: Vec<u32> = (0..effects.len() as u32).collect();
         let se_cl = crate::se::cluster_influence_se(&psi, &groups).unwrap();
         assert!(
@@ -1042,10 +1038,7 @@ mod tests {
         }
         let rate = covered as f64 / reps as f64;
         // Directional check only: must not collapse near the old ~0.89 undercoverage.
-        assert!(
-            rate >= 0.85,
-            "nominal-95% coverage {rate} too low (covered {covered}/{reps})"
-        );
+        assert!(rate >= 0.85, "nominal-95% coverage {rate} too low (covered {covered}/{reps})");
     }
 
     /// Regression: requesting bootstrap replicates must not license an SE in

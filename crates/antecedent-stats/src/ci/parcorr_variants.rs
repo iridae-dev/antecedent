@@ -27,9 +27,7 @@ use crate::gram::{chol_log_det, cholesky_spd, invert_square};
 #[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) -> Result<(), StatsError> {
     if col.iter().any(|v| !v.is_finite()) {
-        return Err(StatsError::Shape {
-            message: "non-finite values in rank transform",
-        });
+        return Err(StatsError::Shape { message: "non-finite values in rank transform" });
     }
     let n = col.len();
     let mut idx: Vec<usize> = (0..n).collect();
@@ -62,11 +60,7 @@ fn kish_effective_n(weights: &[f64]) -> f64 {
         sum += w;
         sum_sq += w * w;
     }
-    if sum_sq > 0.0 {
-        (sum * sum) / sum_sq
-    } else {
-        0.0
-    }
+    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
 }
 
 /// Robust (nonparanormal / rank-based) partial correlation.
@@ -780,7 +774,8 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
-        let err = RobustPartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        let err =
+            RobustPartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
         assert!(matches!(err, StatsError::Shape { .. }));
     }
 
