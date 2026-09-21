@@ -181,35 +181,82 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     use crate::path::path_decompose;
     use crate::result::ComponentContribution;
 
-    // PathBased is a linear-Gaussian path decomposition, not Shapley. Per-player
-    // path products need not partition v(N)−v(∅) when ancestries nest, so shares
-    // are renormalized to the true total (efficiency). Truncation and nonlinear
-    // mechanisms are refused by `path_decompose`.
-    let _ = payoff;
-    let mut path_breakdown = Vec::new();
-    let mut contributions: Vec<ComponentContribution> = Vec::new();
+    // PathBased is the O(n) analogue of Shapley: instead of averaging each
+    // player's marginal contribution over every coalition (O(2^n) payoff
+    // evaluations), it uses only the two single-player coalitions v(∅) and
+    // v({i}) — the same baseline/comparison mechanism-swap `payoff` that
+    // `AllocationMethod::Shapley` uses on this call site. `v({i}) − v(∅)` is the
+    // effect of swapping *only* player i's mechanism from baseline to
+    // comparison; a player whose fitted mechanism is unchanged between the two
+    // populations therefore scores (near) exactly zero, regardless of how
+    // strong its paths to the outcome are — the defect this replaces.
+    //
+    // This is exact whenever mechanism shifts act additively on the payoff
+    // (e.g. `MeanDiff` on a linear-Gaussian model with no player sharing a
+    // descendant with another player); with interacting shifts the marginals
+    // need not already sum to `total_change`, so — exactly as the previous
+    // implementation did — they are rescaled to the measured total
+    // (efficiency), which corrects *scale* only: a truly unchanged player's
+    // zero marginal survives rescaling untouched as long as some other player
+    // actually moved.
+    //
+    // `path_decompose`'s static path-coefficient products are used only to
+    // split a player's already-correct total across its individual directed
+    // paths to the outcome for reporting; they never determine how much of the
+    // total change that player receives.
+    let v0 = payoff.value(0)?;
+    let mut raw_players = Vec::with_capacity(players.len());
+    for i in 0..players.len() {
+        let bit = 1u64 << i;
+        let v_i = payoff.value(bit)?;
+        raw_players.push(v_i - v0);
+    }
+
+    let mut player_paths = Vec::with_capacity(players.len());
     for &comp in players {
         let res = path_decompose(model, &[comp.variable()], outcome, 64, 16, ctx)?;
-        let player_sum: f64 = res.path_breakdown.iter().map(|p| p.contribution).sum();
+        player_paths.push(res.path_breakdown.to_vec());
+    }
+
+    let raw: f64 = raw_players.iter().sum();
+    let scale = path_efficiency_scale(raw, total_change)?;
+
+    let mut contributions: Vec<ComponentContribution> = Vec::with_capacity(players.len());
+    let mut path_breakdown = Vec::new();
+    let mut n_evaluations = players.len() as u64 + 1;
+    for (idx, &comp) in players.iter().enumerate() {
+        let mut contribution = raw_players[idx];
+        if let Some(scale) = scale {
+            contribution *= scale;
+        }
         contributions.push(ComponentContribution {
             component: comp,
-            contribution: player_sum,
+            contribution,
             stderr: None,
             ci_low: None,
             ci_high: None,
         });
-        path_breakdown.extend(res.path_breakdown.iter().cloned());
-    }
-    let raw: f64 = contributions.iter().map(|c| c.contribution).sum();
-    if let Some(scale) = path_efficiency_scale(raw, total_change)? {
-        for c in &mut contributions {
-            c.contribution *= scale;
+        // Apportion this player's mechanism-shift contribution across its
+        // paths using static path-coefficient shares — a reporting split
+        // only: it redistributes `contribution` among the player's paths and
+        // does not change the player's total or the grand total.
+        let paths = &player_paths[idx];
+        let path_raw_total: f64 = paths.iter().map(|p| p.contribution).sum();
+        for p in paths {
+            n_evaluations += 1;
+            let share = if path_raw_total.abs() > 1e-15 {
+                p.contribution / path_raw_total
+            } else if paths.is_empty() {
+                0.0
+            } else {
+                1.0 / paths.len() as f64
+            };
+            path_breakdown.push(crate::result::PathContribution {
+                path: Arc::clone(&p.path),
+                contribution: contribution * share,
+            });
         }
-        for p in &mut path_breakdown {
-            p.contribution *= scale;
-        }
     }
-    let n_paths = path_breakdown.len();
     Ok(ChangeAttributionResult {
         outcome,
         total_change,
@@ -219,7 +266,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         unidentified,
         graph_sensitivity: None,
         budget: crate::result::ComputeBudget {
-            evaluations: u64::try_from(n_paths).unwrap_or(u64::MAX),
+            evaluations: n_evaluations,
             samples: 0,
             exact_coalitions: 0,
         },
