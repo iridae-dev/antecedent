@@ -364,6 +364,13 @@ impl MechanismRegistry {
             let mut failed = Vec::new();
             for &family in families {
                 match score_family(family, gather, model, data, &y, backend, &mut ls_ws) {
+                    // A non-finite score is not a low score: it is the family's own admissibility
+                    // gate (see `CONSTANT_FAMILY_MAX_VARIANCE` above) reporting that the fit is
+                    // not a candidate at all. Treat it exactly like an `Err` from the fit itself —
+                    // it must never win selection just because everything else also failed.
+                    Ok((c, _)) if !c.score.is_finite() => {
+                        failed.push((family, format!("score not finite ({})", c.score)));
+                    }
                     Ok((c, slot)) => {
                         candidates.push(c);
                         fits.push((family, slot));
@@ -1945,6 +1952,65 @@ mod tests {
         };
         assert!(coeffs.is_empty());
         assert!((intercept - 1.95).abs() < 1e-10, "root mean must survive residualization");
+    }
+
+    /// When every real family fails to fit (here: collinear parents make the
+    /// design matrix rank-deficient, so `LinearGaussian` errors), the registry
+    /// must refuse the node rather than silently select `Constant` at its
+    /// `-∞` inadmissibility score. A varying `y` is not degenerate, so a
+    /// `Constant` fit is not a legitimate answer here — it must be excluded
+    /// from selection along with the family that errored outright.
+    #[test]
+    fn assign_and_fit_refuses_when_only_admissible_candidate_is_negative_infinity() {
+        let n = 20usize;
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["p1", "p2", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut p1 = vec![0.0; n];
+        let mut p2 = vec![0.0; n];
+        let mut yv = vec![0.0; n];
+        for i in 0..n {
+            p1[i] = i as f64 * 0.1;
+            p2[i] = 2.0 * p1[i]; // exactly collinear with p1 -> rank-deficient design
+            yv[i] = if i % 2 == 0 { 10.0 } else { -10.0 }; // clearly not degenerate
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(p1), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(p2), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let reg = MechanismRegistry::standard();
+        let result = reg.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore);
+        assert!(
+            result.is_err(),
+            "must refuse to fit y when LinearGaussian is rank-deficient and Constant is \
+             inadmissible, not silently select Constant at -infinity: {result:?}"
+        );
     }
 
     #[test]
