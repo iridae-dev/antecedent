@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "project": "Zhang (2008), Causal reasoning with ancestral graphs, Definition 8 (visibility) and Lemmas 9-10; Shpitser & Pearl (2006) ID on the confounded ADMG",
+    "generator": "hand-derived from the generating DAGs named in each case; the numeric truth of every identified case, and the soundness of the reduction over all small DAGs, is checked by exact SCM enumeration in crates/antecedent-identify/src/mag_id_bruteforce.rs",
+    "scope": "single-treatment E[Y | do(T)] on a directed/bidirected MAG or the MAG completions of a PAG. Sound, not complete: 'refused' is not a proof of non-identifiability. The complete PAG algorithm (IDP; Jaber, Zhang & Bareinboim 2019) is not implemented."
+  },
+  "edge_syntax": "'A->B' directed, 'A<->B' bidirected, 'Ao->B' circle-arrow, 'Ao-oB' circle-circle",
+  "cases": [
+    {
+      "id": "invisible_two_node",
+      "nodes": ["T", "Y"],
+      "edges": ["T->Y"],
+      "generating_dag": "T <- L -> Y, T -> Y (L latent)",
+      "status": "refused",
+      "identified_weight": 0,
+      "unidentified_weight": 1,
+      "reason": "nothing points into T, so T -> Y is invisible and P(y | t) is confounded by L"
+    },
+    {
+      "id": "front_door_dag_as_mag",
+      "nodes": ["T", "M", "Y"],
+      "edges": ["T->M", "M->Y", "T->Y"],
+      "generating_dag": "T -> M -> Y, T <- L -> Y (L latent)",
+      "status": "refused",
+      "identified_weight": 0,
+      "unidentified_weight": 1,
+      "reason": "the inducing path T <- L -> Y appears in the MAG as an invisible T -> Y; the MAG also represents DAGs with a confounded direct effect, so the front-door functional is not licensed from the MAG"
+    },
+    {
+      "id": "front_door_admg_is_not_ancestral",
+      "nodes": ["T", "M", "Y"],
+      "edges": ["T->M", "M->Y", "T<->Y"],
+      "status": "not_a_mag",
+      "identified_weight": 0,
+      "unidentified_weight": 0,
+      "reason": "T is an ancestor of its spouse Y (almost-directed cycle); hold this graph as an Admg"
+    },
+    {
+      "id": "direct_witness",
+      "nodes": ["R", "T", "Y"],
+      "edges": ["R->T", "T->Y"],
+      "generating_dag": "R -> T -> Y",
+      "status": "identified",
+      "method": "generalized.adjustment.empty",
+      "identified_weight": 1,
+      "unidentified_weight": 0,
+      "reason": "R points into T and is not adjacent to Y"
+    },
+    {
+      "id": "collider_path_witness",
+      "nodes": ["D", "C", "T", "Y"],
+      "edges": ["D->C", "C<->T", "C->Y", "T->Y"],
+      "generating_dag": "D -> C <- L -> T, C -> Y, T -> Y (L latent)",
+      "status": "identified",
+      "method": "generalized.adjustment",
+      "identified_weight": 1,
+      "unidentified_weight": 0,
+      "reason": "D is not adjacent to Y and D -> C <-> T is a collider path into T whose interior C is a parent of Y"
+    },
+    {
+      "id": "identified_beyond_adjustment",
+      "nodes": ["T", "A", "M", "B", "Y"],
+      "edges": ["T<->A", "A<->B", "T->M", "M->B", "M->Y", "B->Y", "A->Y"],
+      "generating_dag": "T -> M -> Y, M -> B -> Y, A -> Y, T <- L1 -> A <- L2 -> B (L1, L2 latent)",
+      "status": "identified",
+      "method": "general.id",
+      "identified_weight": 1,
+      "unidentified_weight": 0,
+      "reason": "blocking T <-> A -> Y needs A, which opens T <-> A <-> B -> Y, and B descends from the mediator: no adjustment set. Every directed edge is visible, so ID separates T from its child M"
+    },
+    {
+      "id": "bidirected_pair_has_a_null_effect",
+      "nodes": ["T", "Y"],
+      "edges": ["T<->Y"],
+      "generating_dag": "T <- L -> Y",
+      "status": "identified",
+      "method": "general.id",
+      "identified_weight": 1,
+      "unidentified_weight": 0,
+      "reason": "Y is not a descendant of T in any represented DAG: E[Y | do(t)] = E[Y]; no set m-separates T and Y, so adjustment cannot say so"
+    },
+    {
+      "id": "circle_arrow_pair_is_graph_dependent",
+      "nodes": ["T", "Y"],
+      "edges": ["To->Y"],
+      "status": "graph_dependent",
+      "identified_weight": 1,
+      "unidentified_weight": 1,
+      "reason": "the completions are the invisible T -> Y (refused) and T <-> Y (null effect)"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+feature_id = "identify.response_visibility_id"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+implementation_deviations = [
+ "Not the IDP algorithm. Each valid MAG completion is identified separately: generalized adjustment first, then Shpitser-Pearl ID on the ADMG that keeps every MAG edge and adds A <-> B beside each invisible directed edge A -> B. Soundness rests on the latent projection of every represented DAG being an edge-subgraph of that ADMG (a projected directed edge makes A an ancestor of B; a projected bidirected edge is an inducing path into both ends, which Zhang's Lemma 9 excludes for a visible edge). The reduction is sound, not complete, for MAGs and for PAGs.",
+ "Scope of the evidence: the subgraph property and the numeric exactness of every identified mean are checked by brute force for all DAGs with at most four observed and two latent binary variables and for sampled five-observed DAGs, not proved in general here.",
+ "A refusal clears the hedge certificate when invisible edges were added: the hedge lives in the confounded supergraph, which need not be a member of the MAG's class.",
+ "A PAG is handled by enumerating at most 16 circle endpoints' worth of MAG completions; completions whose functionals differ make the class PartiallyIdentified, and any refused completion makes it GraphDependent.",
+ "Single-treatment intervention means only; no conditional (IDC-style) PAG identification.",
+]
+
+papers = [
+ { title = "Causal Reasoning with Ancestral Graphs", url = "https://www.jmlr.org/papers/v9/zhang08a.html", sections = ["Definition 8: visible edges", "Lemmas 9 and 10: a visible edge admits no latent common cause; an invisible edge admits one"] },
+ { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", sections = ["Algorithm ID, run on the confounded ADMG"] },
+ { title = "Causal Identification under Markov Equivalence: Completeness Results", url = "https://proceedings.mlr.press/v97/jaber19a.html", sections = ["IDP: the complete algorithm for PAGs, cited as what this feature does not implement"] },
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "exhaustive and sampled DAG-with-latents sweep: MAG, latent projection and interventional truth computed independently of the identifier (crates/antecedent-identify/src/mag_id_bruteforce.rs)",
+ "hand-derived MAG cases: invisible edge, front-door DAG, non-ancestral input, direct and collider-path visibility witnesses, identification beyond adjustment, null effect, circle-arrow class (conformance/identify/mag_visibility_id)",
+ "end-to-end exact recovery of E[Y | do(T)] on a five-node MAG with no adjustment set, and refusal of the front-door ADMG held as a Pag (crates/antecedent/tests/v15_numeric_pins.rs)",
+]

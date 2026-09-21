@@ -74,9 +74,10 @@ artifacts—with 2.0's new prediction and transport foundations.
   experiments, sampling, and selected mechanisms are explicit. A formula can
   be identified yet unavailable to evaluate when a required joint law or
   provider is absent.
-- **Preserved epistemic boundaries.** Graph classes remain distinct; priors do
-  not turn nonidentification into identification; unsupported combinations
-  refuse rather than silently fall back.
+- **Preserved epistemic boundaries.** Graph classes remain distinct (a MAG edge
+  is read as unconfounded only when it is visible); priors do not turn
+  nonidentification into identification; unsupported combinations refuse rather
+  than silently fall back.
 
 The [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), and [examples](examples/README.md) are the best starting points. The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
 
