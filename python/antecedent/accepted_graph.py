@@ -575,24 +575,34 @@ def _encode_graph(graph: _GraphTypes) -> tuple[str, Any]:
             "edges": [list(e) for e in graph.edges()],
         }
     if isinstance(graph, TemporalCpdag):
-        # Prefer oriented TemporalDag when possible; otherwise names + empty edges.
+        # A fully oriented TemporalCpdag reduces to a TemporalDag, which has a real
+        # edge accessor; an unoriented one does not (no to_json()/edges() on
+        # TemporalCpdag itself — see _pending_edges's identical refusal), so there is
+        # no way to serialize its undirected/conflict marks honestly. Refuse rather
+        # than emit the edgeless placeholder graph this used to fall back to.
         try:
             dag = graph.try_into_temporal_dag()
-            return "temporal_dag", {
-                "names": _temporal_names(dag),
-                "edges": [list(e) for e in dag.edges()],
-            }
-        except Exception:
-            return "temporal_cpdag", {
-                "names": [f"v{i}" for i in range(graph.node_count())],
-                "directed": [],
-                "undirected": [],
-            }
-    if isinstance(graph, TemporalPag):
-        return "temporal_pag", {
-            "names": [f"v{i}" for i in range(graph.node_count())],
-            "edges": [],
+        except Exception as exc:  # noqa: BLE001 — surfacing "can't serialize", not orientation
+            raise CausalUnsupportedError(
+                "TemporalCpdag has undirected or conflict marks but exposes no edge "
+                "accessor to serialize them from Python; to_json() refuses rather than "
+                "emit an edgeless graph with invented names. Orient it fully first "
+                "(so try_into_temporal_dag() succeeds), or hold the discovery result's "
+                "graph_edges directly for review"
+            ) from exc
+        return "temporal_dag", {
+            "names": _temporal_names(dag),
+            "edges": [list(e) for e in dag.edges()],
         }
+    if isinstance(graph, TemporalPag):
+        # TemporalPag exposes no edge accessor in the native layer at all (see
+        # _pending_edges's identical refusal), so none of its marks can be
+        # serialized; refuse rather than emit an edgeless graph with invented names.
+        raise CausalUnsupportedError(
+            "TemporalPag exposes no edge accessor in the native layer; to_json() "
+            "cannot serialize its marks and refuses rather than emit an edgeless "
+            "placeholder graph"
+        )
     if isinstance(graph, Dag):
         return "dag", {"nodes": list(graph.nodes()), "edges": [list(e) for e in graph.edges()]}
     if isinstance(graph, Cpdag):
