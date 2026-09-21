@@ -58,6 +58,7 @@ fn run(test: &dyn ConditionalIndependenceTest, case: &JsonValue, seed: u64) -> (
 /// Partial correlation of columns 0 and 1 given `z`, from an independent dense OLS: normal
 /// equations on `[1 | Z]` solved by Gauss-Jordan with partial pivoting, then Pearson of the
 /// two residual vectors.
+#[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
 fn partial_correlation(columns: &[Vec<f64>], z: &[usize]) -> f64 {
     let n = columns[0].len();
     let q = 1 + z.len();

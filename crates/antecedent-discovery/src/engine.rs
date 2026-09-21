@@ -699,7 +699,7 @@ impl PcmciEngine {
                 }));
             }
             for h in handles {
-                partials.push(Some(h.join().unwrap_or_else(|_| {
+                partials.push(Some(h.join().unwrap_or({
                     Err(DiscoveryError::Unsupported { message: "MCI worker panicked" })
                 })));
             }

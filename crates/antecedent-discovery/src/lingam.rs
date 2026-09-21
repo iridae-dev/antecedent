@@ -33,6 +33,9 @@ use crate::result::{
     discovery_assumptions,
 };
 
+/// A candidate parent index with its standardised coefficient.
+type ParentCoef = (usize, f64);
+
 /// Static `DirectLiNGAM` discovery result (`Dag` evidence + review).
 pub type StaticDagDiscoveryResult = DiscoveryResult<Dag, DagReview>;
 
@@ -233,8 +236,8 @@ impl DirectLingam {
         };
         // Keep required parents unconditionally, then the largest standardised
         // coefficients above the threshold up to `max_parents`.
-        let select = |child: usize, coefs: &[(usize, f64)]| -> Vec<(usize, f64)> {
-            let (mut kept, mut optional): (Vec<(usize, f64)>, Vec<(usize, f64)>) =
+        let select = |child: usize, coefs: &[ParentCoef]| -> Vec<ParentCoef> {
+            let (mut kept, mut optional): (Vec<ParentCoef>, Vec<ParentCoef>) =
                 coefs.iter().copied().partition(|&(par, _)| required_pairs.contains(&(par, child)));
             optional.retain(|&(par, beta)| {
                 standardised(par, child, beta).abs() >= self.prune_threshold
@@ -406,7 +409,7 @@ fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
 
 /// Refuse when every exogenous residual under the estimated order is consistent
 /// with a Gaussian law (Jarque–Bera at α=0.05). Under joint Gaussianity the
-/// LiNGAM order is not identifiable, so returning an order would be silent fiction.
+/// `LiNGAM` order is not identifiable, so returning an order would be silent fiction.
 fn refuse_gaussian_consistent_residuals(
     centered: &[Vec<f64>],
     order: &[usize],

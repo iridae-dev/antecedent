@@ -5487,7 +5487,7 @@ mod observation_bootstrap_tests {
 
     #[test]
     fn earned_minimum_successes_publish_pointwise_band() {
-        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![i as f64]).collect();
+        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![f64::from(i)]).collect();
         let band = summarize_observation_bootstrap(&draws, &[19.5], 40, false);
         assert!(!band.lower.is_empty());
         assert!(!band.upper.is_empty());
@@ -5497,7 +5497,7 @@ mod observation_bootstrap_tests {
 
     #[test]
     fn cancelled_at_earned_minimum_withholds_band() {
-        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![i as f64]).collect();
+        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![f64::from(i)]).collect();
         let band = summarize_observation_bootstrap(&draws, &[19.5], 40, true);
         assert!(band.cancelled);
         assert_eq!(band.completed, 40);

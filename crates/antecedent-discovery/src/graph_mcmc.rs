@@ -15,6 +15,12 @@ use crate::graph_posterior::{
     mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
+/// One worker's chain block: `(first chain, traces, sample masks, rejected proposals)`.
+type ChainOutput = (usize, Vec<f64>, Vec<Vec<u64>>, u64);
+
+/// Merged `(traces, sample masks, rejected proposals)` of every chain.
+type MergedChains = (Vec<f64>, Vec<Vec<u64>>, u64);
+
 /// Shared MCMC schedule knobs for mask-based graph samplers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct GraphMcmcSchedule {
@@ -60,8 +66,8 @@ pub(crate) fn merge_chunk_outputs(
     n_chains: usize,
     n_draws: usize,
     n_params: usize,
-    chunks: impl IntoIterator<Item = (usize, Vec<f64>, Vec<Vec<u64>>, u64)>,
-) -> (Vec<f64>, Vec<Vec<u64>>, u64) {
+    chunks: impl IntoIterator<Item = ChainOutput>,
+) -> MergedChains {
     let mut traces = vec![0.0f64; n_chains * n_draws * n_params];
     let mut sample_masks: Vec<Vec<u64>> = vec![Vec::new(); n_chains];
     let mut rejected = 0u64;
@@ -89,9 +95,9 @@ pub(crate) fn run_parallel_mask_chains<F>(
     n_params: usize,
     max_threads: usize,
     worker: F,
-) -> Result<(Vec<f64>, Vec<Vec<u64>>, u64), DiscoveryError>
+) -> Result<MergedChains, DiscoveryError>
 where
-    F: Fn(usize, usize) -> (usize, Vec<f64>, Vec<Vec<u64>>, u64) + Send + Sync,
+    F: Fn(usize, usize) -> ChainOutput + Send + Sync,
 {
     let threads = max_threads.max(1);
     let chunk = n_chains.div_ceil(threads).max(1);

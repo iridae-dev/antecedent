@@ -661,12 +661,12 @@ mod tests {
         stale.calibration_sha = "stale00000000000000000000000000000000000";
         let attests = |record: &CoverageRecord| record.id == "cov.fresh";
 
-        let fresh_slot = calibration_slot_with(&basis(), &[fresh], &attests);
+        let fresh_slot = calibration_slot_with(&basis(), &[fresh], attests);
         assert_eq!(fresh_slot.status, "calibrated");
         assert_eq!(fresh_slot.record_id.as_deref(), Some("cov.fresh"));
         assert_eq!(fresh_slot.reason, None);
 
-        let stale_slot = calibration_slot_with(&basis(), &[stale], &attests);
+        let stale_slot = calibration_slot_with(&basis(), &[stale], attests);
         assert_eq!(stale_slot.status, "scope_not_assessed");
         assert_eq!(stale_slot.record_id.as_deref(), Some("cov.stale"));
         assert_eq!(stale_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));

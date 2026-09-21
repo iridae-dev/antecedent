@@ -229,6 +229,7 @@ fn with_parent_joint() -> Vec<f64> {
     joint
 }
 
+#[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
 fn napkin_joint(do_x: Option<usize>) -> Vec<f64> {
     let latent_p = [0.35, 0.7];
     let mut out = vec![0.0; 16];
@@ -261,6 +262,7 @@ fn napkin_joint(do_x: Option<usize>) -> Vec<f64> {
     out
 }
 
+#[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
 fn discriminating_joint(do_t: Option<usize>) -> Vec<f64> {
     // Observed A=0,Q=1,C=2,T=3,Y=4; latents L1,L2 for Q<->C and C<->T.
     let mut out = vec![0.0; 1 << 5];
@@ -273,16 +275,16 @@ fn discriminating_joint(do_t: Option<usize>) -> Vec<f64> {
                     (bit(obs, 0), bit(obs, 1), bit(obs, 2), bit(obs, 3), bit(obs, 4));
                 let mut mass = latent_mass;
                 mass *= if a == 1 { 0.4 } else { 0.6 };
-                let pq = 0.15 + 0.35 * a as f64 + 0.25 * l1 as f64;
+                let pq = 0.15 + 0.35 * a as f64 + 0.25 * f64::from(l1);
                 mass *= if q == 1 { pq } else { 1.0 - pq };
-                let pc = 0.2 + 0.3 * l1 as f64 + 0.25 * l2 as f64;
+                let pc = 0.2 + 0.3 * f64::from(l1) + 0.25 * f64::from(l2);
                 mass *= if c == 1 { pc } else { 1.0 - pc };
                 if let Some(forced) = do_t {
                     if t != forced {
                         continue;
                     }
                 } else {
-                    let pt = 0.25 + 0.4 * l2 as f64;
+                    let pt = 0.25 + 0.4 * f64::from(l2);
                     mass *= if t == 1 { pt } else { 1.0 - pt };
                 }
                 let py = 0.05 + 0.2 * q as f64 + 0.25 * c as f64 + 0.35 * t as f64;
@@ -501,6 +503,7 @@ fn napkin_identified_expression_matches_enumerated_interventional_ate() {
 
 /// Discriminating-path visibility: `T→Y` is invisible without the path-start
 /// witness `A`, and with it the adjustment functional recovers the SCM ATE.
+#[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 #[test]
 fn discriminating_path_visibility_matches_enumerated_effect() {
     let fixture = fixture();

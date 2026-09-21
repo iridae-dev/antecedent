@@ -666,10 +666,10 @@ impl ExactTransportData {
         }
         let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
         if denominator == 0.0 {
-            return Err(locate(law.error(if law.origin != LawOrigin::SuppliedExact {
-                "sampling_zero"
-            } else {
+            return Err(locate(law.error(if law.origin == LawOrigin::SuppliedExact {
                 ZERO_CONDITIONING_MASS
+            } else {
+                "sampling_zero"
             })));
         }
         conditions.extend(outputs);
@@ -960,6 +960,7 @@ mod tests {
         assert!(data.support(&[v(1)], &EvalContext::default()).is_err());
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn marginal_tables_agree_with_brute_force_enumeration() {
         // Three binary axes, an asymmetric joint. Every subset of axes and every level
@@ -987,10 +988,10 @@ mod tests {
                 .sum()
         };
         for subset in 0..8usize {
-            let axes: Vec<usize> = (0..3).filter(|a| subset >> a & 1 == 1).collect();
+            let axes: Vec<usize> = (0..3).filter(|a| (subset >> a) & 1 == 1).collect();
             for levels in 0..(1usize << axes.len()) {
                 let constraints: Vec<(usize, usize)> =
-                    axes.iter().enumerate().map(|(k, a)| (*a, levels >> k & 1)).collect();
+                    axes.iter().enumerate().map(|(k, a)| (*a, (levels >> k) & 1)).collect();
                 let want = brute(&constraints);
                 assert!((table.mass(&constraints) - want).abs() < 1e-15, "{constraints:?}");
                 // Order of the constraints does not matter, and repeated queries hit the cache.

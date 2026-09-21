@@ -327,7 +327,7 @@ fn z_permutation_strata(
         return Ok(sorted_keys.into_iter().filter_map(|key| map.remove(&key)).collect());
     }
     // Pairwise (size-2) windows: larger local groups re-break Y–Z and inflate type I.
-    local_z_neighbourhood_strata(columns, z, n, 2)
+    Ok(local_z_neighbourhood_strata(columns, z, n, 2))
 }
 
 fn ensure_finite_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<(), StatsError> {
@@ -365,7 +365,7 @@ fn local_z_neighbourhood_strata(
     z: &[usize],
     n: usize,
     neighbourhood: usize,
-) -> Result<Vec<Vec<usize>>, StatsError> {
+) -> Vec<Vec<usize>> {
     let zdim = z.len();
     let mut feats = vec![0.0; n * zdim];
     for (j, &zc) in z.iter().enumerate() {
@@ -421,7 +421,7 @@ fn local_z_neighbourhood_strata(
         strata.push(order[start..end].to_vec());
         start = end;
     }
-    Ok(strata)
+    strata
 }
 
 /// Former name retained as a thin wrapper for call sites / docs that still say "coarse".
@@ -1353,7 +1353,7 @@ mod tests {
         let trials = 200u32;
         let alpha = 0.05;
         let mut ws = CiWorkspace::default();
-        let ctx = ExecutionContext::for_tests(0xC11_C0u64);
+        let ctx = ExecutionContext::for_tests(0x000C_11C0_u64);
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
         let z_flat = [2usize];
         let ci = KnnDependence::new(5);
@@ -1407,7 +1407,7 @@ mod tests {
         let alpha = 0.05;
         let scale = 100.0;
         let mut ws = CiWorkspace::default();
-        let ctx = ExecutionContext::for_tests(0x69DC_5Cu64);
+        let ctx = ExecutionContext::for_tests(0x0069_DC5C_u64);
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
         let z_flat = [2usize];
         let ci = Gpdc::new();

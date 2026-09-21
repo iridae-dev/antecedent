@@ -1118,6 +1118,7 @@ mod tests {
     /// constrained support, so a sampler that starts empty never moves. Starting on the
     /// required-edge template, every draw contains both edges, and the reported Monte-Carlo
     /// error of an indicator that never varies is exactly zero.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn dbn_mcmc_starts_inside_required_edge_support() {
         let (data, vars) = multi_parent_lag_series(260);

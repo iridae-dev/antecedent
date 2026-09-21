@@ -242,6 +242,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn form_xty_matches_hand_dot_products_and_the_row_accumulator() {
         // Columns c0 = [1, 1, 1], c1 = [2, 0, 1]; y = [1, 2, 3]: c0·y = 6, c1·y = 2 + 0 + 3 = 5.

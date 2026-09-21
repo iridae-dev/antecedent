@@ -125,6 +125,7 @@ pub(crate) fn record_sepset(
 /// # Errors
 ///
 /// CI failures.
+#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 pub(crate) fn run_static_skeleton(
     input: &StaticSkeletonInput<'_>,
     workspace: &mut DiscoveryWorkspace,

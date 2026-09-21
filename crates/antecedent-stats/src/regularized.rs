@@ -895,6 +895,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn lasso_fits_a_column_measured_in_small_units() {
         // sd(x) ~ 1e-8 makes the centered sum of squares ~1e-14, under the old absolute

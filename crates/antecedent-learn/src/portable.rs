@@ -128,6 +128,7 @@ impl PortablePredictor {
 }
 
 impl FittedPredictor for PortablePredictor {
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     fn predict(
         &self,
         x: DesignView<'_>,
@@ -159,7 +160,12 @@ impl FittedPredictor for PortablePredictor {
                     for tree in trees {
                         let mut index = 0;
                         loop {
-                            match tree[index] {
+                            let Some(node) = tree.get(index) else {
+                                return Err(LearnError::Shape {
+                                    message: "prediction tree node index out of range",
+                                });
+                            };
+                            match *node {
                                 PredictionNode::Leaf { value } => {
                                     if let Some(v) = value {
                                         sum += v;

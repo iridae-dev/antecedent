@@ -87,6 +87,7 @@ pub fn mad_sigma(values: &[f64]) -> Option<f64> {
 mod tests {
     use super::*;
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn type7_matches_the_textbook_interpolation() {
         let s = [1.0, 2.0, 4.0, 8.0, 16.0];
@@ -98,6 +99,7 @@ mod tests {
         assert!((quantile_sorted(&s, 0.6, QuantileRule::Interpolated) - 5.6).abs() < 1e-12);
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn type6_sits_at_rank_p_times_d_plus_one() {
         // D = 9 draws 1..=9: p = 0.2 → one-based rank 2, p = 0.25 → rank 2.5.

@@ -1744,6 +1744,7 @@ pub enum CatalogTransportResult {
 ///
 /// # Errors
 /// Invalid input, exhausted shared search budget, or cancellation. Never a negative theorem claim.
+#[allow(clippy::too_many_lines)] // one linear pipeline: source pass, then enlargement, then catalog search
 pub fn identify_catalog_transport(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,

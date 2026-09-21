@@ -19,6 +19,9 @@ use burn::tensor::{Tensor, TensorData, backend::Backend};
 type TrainBackend = Autodiff<NdArray<f32>>;
 type InferBackend = NdArray<f32>;
 
+/// Burn's backend RNG is global; training holds this lock so folds cannot reseed each other.
+static TRAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Trained two-hidden-layer MLP. Predicts one value per row.
 ///
 /// Weights are copied out of Burn so the fitted artifact is `Send + Sync`.
@@ -50,6 +53,7 @@ struct DenseLayer {
 /// # Errors
 ///
 /// Shape mismatch, empty design, or a Burn backend failure.
+#[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 pub fn train(
     x_colmajor: &[f64],
     nrows: usize,
@@ -81,7 +85,6 @@ pub fn train(
     }
     // Burn's backend RNG is global. Hold the lock through training so concurrent
     // folds cannot reseed each other's initialization or stochastic operations.
-    static TRAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _guard = TRAIN_LOCK.lock().map_err(|_| "neural_net training lock poisoned")?;
     InferBackend::seed(seed);
     let device = <InferBackend as Backend>::Device::default();

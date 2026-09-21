@@ -1175,7 +1175,7 @@ impl BayesianGComputationAte {
             .iter()
             .enumerate()
             .find(|(_, q)| matches!(q, PosteriorQuantityKind::ResidualVariance))
-            .and_then(|(i, _)| fit.draws.column(i).ok().map(|c| c.to_vec()));
+            .and_then(|(i, _)| fit.draws.column(i).ok().map(<[f64]>::to_vec));
         // Adaptive MVN sampling uses the β-block covariance only; drop residual-variance
         // columns so batch merges match `PosteriorSchema::coefficients`.
         let coef_draws = coefficient_only_draws(&fit.draws)?;

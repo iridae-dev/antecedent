@@ -139,7 +139,7 @@ impl DrLearner {
         let mut ehat = raw_e.clone();
         clip_propensity(&mut ehat, clip_of(problem.overlap));
         let phi =
-            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, &mu0, &mu1);
+            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
         let (factory, _) = resolve_nuisance(
             self.final_learner,
             PredictionTask::Regression,
@@ -258,12 +258,9 @@ fn linear_cate_pointwise_se(
         }
     }
     let all_rows: Vec<usize>;
-    let used: &[usize] = match rows {
-        Some(rows) => rows,
-        None => {
-            all_rows = (0..n).collect();
-            &all_rows
-        }
+    let used: &[usize] = if let Some(rows) = rows { rows } else {
+        all_rows = (0..n).collect();
+        &all_rows
     };
     let m = used.len();
     let mut sub = vec![0.0; m * p];

@@ -163,6 +163,7 @@ impl FittedPredictor for FittedForestPredictor {
             FittedForest::Extra(model) => serde_json::to_value(model),
         }
         .map_err(|e| LearnError::Backend(e.to_string()))?;
+        #[allow(clippy::items_after_statements)] // the decoding shapes are local to this one parse
         #[derive(serde::Deserialize)]
         struct Forest {
             trees: Vec<Tree>,

@@ -1221,7 +1221,13 @@ fn identification_strengthened(
     }
     if parent_slots
         .iter()
-        .any(|slot| !(derived_slot.identified_mass <= slot.identified_mass + 1e-12))
+        .any(|slot| {
+            // Unordered (NaN) counts as strengthening, like an excess.
+            !matches!(
+                derived_slot.identified_mass.partial_cmp(&(slot.identified_mass + 1e-12)),
+                Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+            )
+        })
     {
         return Some("parents_not_retroactively_strengthened");
     }

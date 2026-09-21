@@ -903,6 +903,7 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
     }
 }
 
+#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 #[test]
 fn four_node_graph_parameter_sweep_matches_target_interventions() {
     // Domain: X→M→Y, Z→Y, X↔Y; Z→M on/off; selection {Y} vs empty; three

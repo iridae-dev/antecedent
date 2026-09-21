@@ -31,6 +31,7 @@ impl FiniteJoint {
     /// Fit one coherent law on categorical codes aligned by physical row.
     /// # Errors
     /// Invalid domains/codes, empty samples, provider or resource failures.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     pub fn fit(
         columns: &[Vec<usize>],
         cardinalities: &[usize],
@@ -114,6 +115,7 @@ impl FiniteJoint {
     /// Materialize a normalized joint, bounded by the fit-time Cartesian limit.
     /// # Errors
     /// Invalid provider probabilities, cancellation, or provider prediction failure.
+    #[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
     pub fn probabilities(&self, ctx: &ExecutionContext) -> Result<Vec<f64>, LearnError> {
         let size = self.counts.len();
         workspace(size, &self.cardinalities, size, ctx)?;
@@ -152,10 +154,10 @@ impl FiniteJoint {
                             message: "invalid categorical probability",
                         });
                     }
-                    if assignments[axis][row] == level {
-                        result[row] *= p;
-                    } else if assignments[axis][row] > level {
-                        result[row] *= 1.0 - p;
+                    match assignments[axis][row].cmp(&level) {
+                        std::cmp::Ordering::Equal => result[row] *= p,
+                        std::cmp::Ordering::Greater => result[row] *= 1.0 - p,
+                        std::cmp::Ordering::Less => {}
                     }
                 }
             }

@@ -308,6 +308,7 @@ mod tests {
         let _ = masked_sum(F64VectorView::contiguous(&x), Some(mask));
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn full_length_mask_selects_exactly_its_bits() {
         let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];

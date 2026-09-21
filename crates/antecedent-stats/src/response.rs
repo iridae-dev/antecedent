@@ -183,6 +183,8 @@ impl GaussianMixtureDensity {
             }
         };
         for &j in &order {
+            // The bin index is bounded by the finite span of `means` over `standard_deviation`.
+            #[allow(clippy::cast_possible_truncation)]
             let index = ((means[j] - lo) / standard_deviation).floor() as i64;
             if current.as_ref().is_none_or(|(id, _, _)| *id != index) {
                 flush(&mut bins, current.take());
@@ -748,7 +750,7 @@ mod tests {
     #[test]
     fn local_quadratic_refuses_a_constant_dose_as_singular() {
         let x = vec![42.0; 100];
-        let y: Vec<f64> = (0..100).map(|i| f64::from(i)).collect();
+        let y: Vec<f64> = (0..100).map(f64::from).collect();
         assert_eq!(
             gaussian_local_quadratic(&x, &y, 42.0, 1.0).unwrap_err(),
             StatsError::SingularLocalDesign { order: 2 }

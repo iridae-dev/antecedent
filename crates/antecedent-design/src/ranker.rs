@@ -1251,8 +1251,8 @@ mod tests {
             sum_noop += eig_graph_entropy(&noop, &graphs, g, None, &mut rng);
             sum_measure += eig_graph_entropy(&measure, &graphs, g, None, &mut rng);
         }
-        let mean_noop = sum_noop / n_draw as f64;
-        let mean_measure = sum_measure / n_draw as f64;
+        let mean_noop = sum_noop / f64::from(n_draw);
+        let mean_measure = sum_measure / f64::from(n_draw);
         assert!(
             mean_noop.abs() < 1e-12,
             "no-op must score zero information under the entropy channel, got {mean_noop}"

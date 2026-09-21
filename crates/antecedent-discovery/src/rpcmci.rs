@@ -24,6 +24,9 @@ use crate::error::DiscoveryError;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{AlgorithmRecord, CpdagDiscoveryResult, DiscoveryDiagnostic};
 
+/// A retained lagged parent: `(variable index, lag)`.
+type LaggedParent = (usize, usize);
+
 /// Columnar regime label per time index.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegimeAssignment {
@@ -517,9 +520,9 @@ fn reassign_by_lagged_residual(
     }
 
     // Retained lagged parents per regime and target variable.
-    let mut regime_parents: Vec<(RegimeId, Vec<Vec<(usize, usize)>>)> = Vec::new();
+    let mut regime_parents: Vec<(RegimeId, Vec<Vec<LaggedParent>>)> = Vec::new();
     for (regime, g) in graphs.graphs.iter() {
-        let mut by_target: Vec<Vec<(usize, usize)>> = vec![Vec::new(); variables.len()];
+        let mut by_target: Vec<Vec<LaggedParent>> = vec![Vec::new(); variables.len()];
         for (i, node) in g.nodes().iter().enumerate() {
             let antecedent_graph::NodeRef::Lagged { variable: tgt, lag: tlag } = node else {
                 continue;
@@ -944,7 +947,7 @@ mod tests {
         let n = 240usize;
         let mut state = 12345u64;
         let mut unif = move || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
             ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
         };
         // Uniform(-0.5, 0.5) has variance 1/12: scale to unit variance.

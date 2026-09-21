@@ -75,15 +75,12 @@ impl OverlapRuleRefuter {
             report.refuter = Arc::from("overlap.continuous_rule");
             return Ok(report);
         }
-        let report = match &problem.original.overlap_report {
-            Some(r) => r.clone(),
-            None => {
-                let fit = self.diagnostic_report(problem, eps, propensity)?;
-                if let Some(defect) = fit.defect {
-                    return Ok(self.separated_report(problem, defect));
-                }
-                fit.report
+        let report = if let Some(r) = &problem.original.overlap_report { r.clone() } else {
+            let fit = self.diagnostic_report(problem, eps, propensity)?;
+            if let Some(defect) = fit.defect {
+                return Ok(self.separated_report(problem, defect));
             }
+            fit.report
         };
         // Prefer the §14.3 support field when the report's band matches the declared rule;
         // if the observed range sits fully inside the band, retention is exactly 1. A reused

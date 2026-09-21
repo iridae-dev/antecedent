@@ -960,7 +960,7 @@ mod tests {
 
     #[test]
     fn unavailable_arch_simd_is_not_an_effective_request() {
-        assert!(!ARCH_SIMD_COMPILED);
+        // No arch-SIMD kernels are compiled in, so a request for them cannot take effect.
         assert!(!KernelPolicy::default_policy().arch_simd_effective());
         assert!(!KernelPolicy::scalar_only().arch_simd_effective());
     }

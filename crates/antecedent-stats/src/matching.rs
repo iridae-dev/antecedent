@@ -265,10 +265,10 @@ impl MatchingIndex {
             return Err(StatsError::Shape { message: "not enough donors for k" });
         }
         let mut dists = vec![0.0; n];
-        for q in 0..n {
+        for (q, slot) in out.iter_mut().enumerate().take(n) {
             let query = &self.features[q * self.dim..(q + 1) * self.dim];
             fill_distances(&mut dists, query, &self.features, self.dim, self.distance);
-            out[q] = kth_excluding_self(&mut dists, q, k);
+            *slot = kth_excluding_self(&mut dists, q, k);
         }
         Ok(())
     }
@@ -445,6 +445,7 @@ mod tests {
         assert_eq!(far.nearest(&[-1e200], None).unwrap(), None);
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn external_query_equal_to_a_donor_matches_it_at_distance_zero() {
         // Queries that are not the donor set must not have "their" zero-distance donor
@@ -468,6 +469,7 @@ mod tests {
         assert!((out[0] - 3e-21).abs() < 1e-33, "{}", out[0]);
     }
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn self_distances_exclude_by_index_and_count_duplicates() {
         // Donors 0, 1, 1, 3. For donor 1 (index 1): others are 0, 1, 3 at distances 1, 0, 2,

@@ -295,12 +295,9 @@ pub fn estimate_trial_aipw(
                 sampling: input.sampling,
             };
             let draw_folds: Vec<_> = rows.iter().map(|i| folds[*i]).collect();
-            match fit_point(id, &draw, options, &draw_folds, inner) {
-                Ok(estimate) => Ok((replicate, Some(estimate.estimate))),
-                Err(_) => {
-                    cancelled(inner)?;
-                    Ok((replicate, None))
-                }
+            if let Ok(estimate) = fit_point(id, &draw, options, &draw_folds, inner) { Ok((replicate, Some(estimate.estimate))) } else {
+                cancelled(inner)?;
+                Ok((replicate, None))
             }
         },
     )?;

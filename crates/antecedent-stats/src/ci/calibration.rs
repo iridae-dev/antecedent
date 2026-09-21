@@ -1128,7 +1128,7 @@ mod tests {
         assert_conditional_null_calibrated("robust ParCorr", rej, trials, alpha);
     }
 
-    /// Heterogeneous weights (0.5–1.5, Kish n_eff ≈ 0.96 n) with a confounding Z.
+    /// Heterogeneous weights (0.5–1.5, Kish `n_eff` ≈ 0.96 n) with a confounding Z.
     #[test]
     #[ignore = "calibration: run via scripts/gate_calibration.sh"]
     fn weighted_parcorr_conditional_null_gate() {

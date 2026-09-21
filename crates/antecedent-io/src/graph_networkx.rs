@@ -48,7 +48,7 @@ pub struct NetworkXLink {
 
 /// `NetworkX` `adjacency_data` document.
 ///
-/// Real NetworkX documents keep a parallel top-level `adjacency` array: entry
+/// Real `NetworkX` documents keep a parallel top-level `adjacency` array: entry
 /// `i` lists the out-neighbors of `nodes[i]`, each neighbor carrying an `id`
 /// field (plus optional edge attributes).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -67,7 +67,7 @@ pub struct NetworkXAdjacency {
     pub adjacency: Vec<Vec<NetworkXAdjNeighbor>>,
 }
 
-/// One out-neighbor entry in a NetworkX adjacency list.
+/// One out-neighbor entry in a `NetworkX` adjacency list.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct NetworkXAdjNeighbor {
     /// Neighbor id.
@@ -206,7 +206,7 @@ pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
 /// strings, since the document carries no distinct name information in
 /// that case.
 ///
-/// Expects NetworkX `adjacency_data` shape: top-level `adjacency` parallel
+/// Expects `NetworkX` `adjacency_data` shape: top-level `adjacency` parallel
 /// to `nodes`. Documents without that field (or with length mismatch) are
 /// refused — never returned as an edgeless success.
 ///
@@ -255,7 +255,7 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
 
 /// Serialize a [`Dag`] to `NetworkX` adjacency JSON.
 ///
-/// Emits NetworkX `adjacency_data` shape (top-level `adjacency` parallel to
+/// Emits `NetworkX` `adjacency_data` shape (top-level `adjacency` parallel to
 /// `nodes`).
 ///
 /// # Errors
@@ -304,7 +304,7 @@ pub fn dag_to_networkx_adjacency(dag: &Dag, names: Option<&[String]>) -> Result<
     serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }
 
-/// Node-id spellings seen in one document. NetworkX keys nodes by Python value, so the
+/// Node-id spellings seen in one document. `NetworkX` keys nodes by Python value, so the
 /// integer `1` and the string `"1"` are different nodes; names here are strings, so a
 /// document that uses both spellings of one name cannot be represented faithfully.
 #[derive(Default)]

@@ -1490,7 +1490,7 @@ mod tests {
         }
         let (basis, _) = expand_bspline(&x1, 12, None).unwrap();
         let mut gram = vec![0.0; 12 * 12];
-        let mut rhs = vec![0.0; 12];
+        let mut rhs = [0.0; 12];
         let beta_r = roughness_basis_solve(&basis, n, 12, &y, 1.0).unwrap();
         // Identity ridge baseline (local to this test).
         form_xtx(&basis, n, 12, &mut gram);

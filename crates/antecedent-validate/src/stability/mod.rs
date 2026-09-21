@@ -201,7 +201,7 @@ mod tests {
             assert_eq!(col.values.as_slice()[i], boot.source_rows[i] as f64);
         }
         for start in 0..=len - (gap + 1) {
-            let window = start..start + gap + 1;
+            let window = start..=(start + gap);
             if window.clone().all(|i| valid[i]) {
                 assert!(
                     window
