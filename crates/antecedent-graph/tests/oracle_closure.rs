@@ -1,8 +1,10 @@
 //! Frozen clean-room oracle checks for bounded graph-operation motifs.
 
+#![allow(clippy::many_single_char_names)]
+
 use antecedent_graph::{
-    CompletionSampler, Cpdag, Dag, DenseNodeId, Endpoint, GraphError, Pag, is_mag_completion,
-    latent_project,
+    CompletionSampler, Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, Pag,
+    PagSeparation, is_mag_completion, latent_project,
 };
 
 fn fixture(path: &str) -> serde_json::Value {
@@ -43,18 +45,77 @@ fn pag_endpoint_and_definite_status_oracles() {
     let separation = fixture(include_str!(
         "../../../conformance/graph/definite_status_separation/expected.json"
     ));
-    assert_eq!(separation["cases"].as_array().unwrap().len(), 4);
-    let mut chain = Pag::with_variables(3);
-    chain.insert_directed(a, b).unwrap();
-    chain.insert_directed(b, c).unwrap();
-    assert!(!chain.is_m_separated(a, c, &[], 16, 8).unwrap());
-    assert!(chain.is_m_separated(a, c, &[b], 16, 8).unwrap());
+    let cases = separation["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 10);
+    for case in cases {
+        let id = case["id"].as_str().unwrap();
+        let edges: Vec<&str> =
+            case["edges"].as_array().unwrap().iter().map(|e| e.as_str().unwrap()).collect();
+        let pag = pag_from_marked_edges(&edges);
+        let node = |v: &serde_json::Value| {
+            DenseNodeId::from_raw(u32::try_from(v.as_u64().unwrap()).unwrap())
+        };
+        let z: Vec<DenseNodeId> =
+            case["conditioned"].as_array().unwrap().iter().map(node).collect();
+        let (x, y) = (node(&case["x"]), node(&case["y"]));
+        let expected = match case["status"].as_str().unwrap() {
+            "separated" => PagSeparation::Separated,
+            "connected" => PagSeparation::Connected,
+            "undetermined" => PagSeparation::Undetermined,
+            other => panic!("{id}: unknown status {other}"),
+        };
+        assert_eq!(pag.m_separation_status(x, y, &z, 64, 8).unwrap(), expected, "{id}");
+        match expected {
+            PagSeparation::Separated => assert!(pag.is_m_separated(x, y, &z, 64, 8).unwrap()),
+            PagSeparation::Connected => assert!(!pag.is_m_separated(x, y, &z, 64, 8).unwrap()),
+            PagSeparation::Undetermined => assert!(
+                matches!(
+                    pag.is_m_separated(x, y, &z, 64, 8),
+                    Err(GraphError::SeparationUndetermined)
+                ),
+                "{id}: an undetermined class must never read as separated"
+            ),
+        }
+        if let Some(separated) = case["separated"].as_bool() {
+            assert_eq!(separated, expected == PagSeparation::Separated, "{id}");
+        }
+    }
+}
 
-    let mut collider = Pag::with_variables(3);
-    collider.insert_directed(a, b).unwrap();
-    collider.insert_directed(c, b).unwrap();
-    assert!(collider.is_m_separated(a, c, &[], 16, 8).unwrap());
-    assert!(!collider.is_m_separated(a, c, &[b], 16, 8).unwrap());
+/// `<a><left mark>-<right mark><b>`: `<` / `>` arrowhead, `o` circle, `x`
+/// conflict, nothing for a tail.
+fn pag_from_marked_edges(edges: &[&str]) -> Pag {
+    let parse = |edge: &str| {
+        let (left, right) = edge.split_once('-').unwrap();
+        let a_end = left.trim_end_matches(['<', 'o', 'x']).len();
+        let b_start = right.len() - right.trim_start_matches(['>', 'o', 'x']).len();
+        let mark = |m: &str| match m {
+            "" => Endpoint::Tail,
+            "<" | ">" => Endpoint::Arrow,
+            "o" => Endpoint::Circle,
+            "x" => Endpoint::Conflict,
+            other => panic!("unknown mark {other} in {edge}"),
+        };
+        let a: u32 = left[..a_end].parse().unwrap();
+        let b: u32 = right[b_start..].parse().unwrap();
+        (a, mark(&left[a_end..]), mark(&right[..b_start]), b)
+    };
+    let parsed: Vec<_> = edges.iter().map(|e| parse(e)).collect();
+    let n = parsed.iter().map(|&(a, _, _, b)| a.max(b)).max().unwrap() + 1;
+    let mut pag = Pag::with_variables(n);
+    for (a, at_a, at_b, b) in parsed {
+        let (a, b) = (DenseNodeId::from_raw(a), DenseNodeId::from_raw(b));
+        if at_a == Endpoint::Conflict || at_b == Endpoint::Conflict {
+            pag.insert_circle_circle(a, b).unwrap();
+            pag.mark_conflict(a, b).unwrap();
+        } else {
+            let mut edge = MarkedEdge::directed(a, b);
+            edge.at_a = at_a;
+            edge.at_b = at_b;
+            pag.insert_marked(edge).unwrap();
+        }
+    }
+    pag
 }
 
 #[test]
