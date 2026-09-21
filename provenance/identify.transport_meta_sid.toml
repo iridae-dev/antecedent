@@ -1,0 +1,25 @@
+feature_id = "identify.transport_meta_sid"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Meta-Transportability of Causal Effects: A Formal Approach", sections = ["Figure 5: μsID, lines 1–4, 6–10", "Definition of μs-hedge and obstruction theorem", "Complementary-source construction: sum_z P_a(z|do(x)) P_b(y|do(z))"], url = "https://proceedings.mlr.press/v31/bareinboim13a.pdf" },
+]
+implementation_deviations = [
+ "Target-only ordinary ID is attempted first. Completeness is scoped to the classical complete source-experiment family, not finite catalogs or general limited experiments.",
+ "Finite-catalog binding uses deterministic bounded alternatives. Search exhaustion and catalog gaps are inconclusive, never obstruction proofs.",
+ "Common typed rules retain historical single-source identifiers; the Figure 5 mapping is documented in docs/architecture/transport-meta-grid.md.",
+ "Negative claims require independently checked common nested forests against every declared source. Positive checking replays local premises without rerunning identification.",
+ "Numerical SCM validation and bounded sampling fixtures do not license new coverage. Hours-long multi-source/grid calibration remains deferred.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-identify/src/sid/meta.rs",
+ "crates/antecedent-identify/tests/meta_transport_scm.rs",
+ "crates/antecedent-io/src/transport_certificate.rs",
+ "crates/antecedent/src/analysis/transport_grid.rs",
+ "python/tests/test_transport_meta_grid.py",
+]

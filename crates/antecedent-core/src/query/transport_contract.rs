@@ -14,6 +14,8 @@ pub enum TheoremFamily {
     /// Completeness applies only to that paper's experimental-information
     /// family, not to every catalog the API can represent.
     ClassicalSid,
+    /// Classical multi-source meta-transportability with full source experiments.
+    MetaSid,
     /// Sound search over a finite supplied catalog. Not a completeness theorem.
     FiniteCatalogSearch,
     /// Later z- / limited-experiment contracts. Named so they cannot inherit
@@ -27,6 +29,7 @@ impl TheoremFamily {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ClassicalSid => "classical_sid",
+            Self::MetaSid => "meta_sid",
             Self::FiniteCatalogSearch => "finite_catalog_search",
             Self::LimitedExperiment => "limited_experiment",
         }
@@ -242,6 +245,20 @@ impl TheoremScope {
                 multi_node_c_component_recursion: true,
             },
         }
+    }
+
+    /// `μsID` Figure 5: complete only in the unrestricted source-experiment setting.
+    #[must_use]
+    pub fn meta_sid_complete() -> Self {
+        let mut scope = Self::classical_sid_complete();
+        scope.family = TheoremFamily::MetaSid;
+        scope.reference = TheoremReference {
+            citation: Arc::from(
+                "Bareinboim & Pearl (2013), Meta-Transportability of Causal Effects, PMLR 31:135-143, Figure 5, Theorems 3-5",
+            ),
+            version: Arc::from("meta-sid-pmlr31-2013-figure5-v1"),
+        };
+        scope
     }
 
     /// Durable inspect token used by exact-law preparation.
