@@ -1035,7 +1035,6 @@ mod tests {
         let mut covered = 0u32;
         let mut weak_f = 0u32;
         let mut scored = 0u32;
-        let crit = antecedent_stats::chi2_critical(0.95, 1);
         let est = WaldIv { bootstrap_replicates: 0, ..WaldIv::new() };
         for s in 0..n_sim {
             let (data, estimand) = moderate_binary_iv_scm(n, 90_000 + u64::from(s));
@@ -1065,6 +1064,8 @@ mod tests {
                 &mut ws,
             )
             .unwrap();
+            let df = prep.nrows.saturating_sub(1 + prep.x_ncols);
+            let crit = antecedent_stats::anderson_rubin_kf_critical(0.95, 1, df);
             let accepts_truth = ar_true.is_finite() && ar_true <= crit;
             let covers = match diag.anderson_rubin {
                 Some((lo, hi, level)) => {

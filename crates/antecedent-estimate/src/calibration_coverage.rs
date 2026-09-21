@@ -776,7 +776,11 @@ fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed:
                     &mut ws,
                 )
                 .unwrap();
-                let crit = antecedent_stats::chi2_critical(LEVEL, 1);
+                let crit = antecedent_stats::anderson_rubin_kf_critical(
+                    LEVEL,
+                    1,
+                    prep.nrows.saturating_sub(1 + prep.x_ncols),
+                );
                 if ar_true.is_finite() && ar_true <= crit {
                     tally.record_ar(effect.ate, Some((f64::NEG_INFINITY, f64::INFINITY)), TRUE_ATE);
                 } else {
@@ -896,7 +900,11 @@ fn two_sls_coverage(
                     &mut ws,
                 )
                 .unwrap();
-                let crit = antecedent_stats::chi2_critical(LEVEL, z_ncols);
+                let crit = antecedent_stats::anderson_rubin_kf_critical(
+                    LEVEL,
+                    z_ncols,
+                    prep.nrows.saturating_sub(z_ncols + prep.x_ncols),
+                );
                 if ar_true.is_finite() && ar_true <= crit {
                     tally.record_ar(effect.ate, Some((f64::NEG_INFINITY, f64::INFINITY)), TRUE_ATE);
                 } else {

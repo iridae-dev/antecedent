@@ -107,6 +107,6 @@ pub use special::{
     student_t_sf, trigamma,
 };
 pub use twosls::{
-    FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_statistic,
-    chi2_critical, fit_2sls, fit_wls,
+    FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_kf_critical,
+    anderson_rubin_statistic, chi2_critical, f_critical, fit_2sls, fit_wls,
 };
