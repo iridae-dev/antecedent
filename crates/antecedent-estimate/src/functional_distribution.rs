@@ -1,6 +1,23 @@
 //! Nonparametric estimation of identified interventional distributions via
 //! discrete empirical CPT plug-in into compiled ID/IDC functionals.
 //!
+//! # Free variables of an identified functional
+//!
+//! A complete ID derivation can return a functional that keeps a variable which is not
+//! part of the query: on the napkin graph `P(y | do(x)) = Σ_w P(x,y|z,w)P(w) / Σ_w
+//! P(x|z,w)P(w)` holds for every `z` with positive support. Such a variable is a parameter
+//! of the identity, not a quantity to marginalize: summing the functional over it returns a
+//! multiple of the answer. The estimators here evaluate the functional at each observed
+//! value `r` of its free variables and report `Σ_r P̂(r) θ̂(r) / Σ_r P̂(r)` over the values
+//! at which every required empirical cell exists. Each `θ̂(r)` is consistent for the same
+//! quantity, so any convex combination is; weighting by the empirical law uses every row
+//! (a single fixed value would discard the rest of the sample) and needs no variance
+//! estimate, at the cost of not being the minimum-variance combination. `P̂(r)` comes from
+//! the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws
+//! reweight it consistently. When no value is supported the evaluation fails with the
+//! cell error of the last value tried; nothing is summed over, zero-filled, or skipped
+//! silently ([`FREE_VARIABLES_AVERAGED_CODE`] names the resolution for diagnostics).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -39,6 +56,106 @@ use crate::util::bootstrap_se;
 
 /// Hard cap on discrete levels per variable (fail-closed beyond this).
 const MAX_DISCRETE_LEVELS: usize = 64;
+
+/// Diagnostic code: the functional kept free variables and was averaged over their
+/// supported values (see the module docs).
+pub const FREE_VARIABLES_AVERAGED_CODE: &str = "estimate.functional.free_variables_averaged";
+
+/// Free variables of `functional` that the consumer does not bind (`bound`: outcomes,
+/// interventions, conditioning), sorted by id.
+#[must_use]
+pub fn functional_free_variables(
+    arena: &CausalExprArena,
+    functional: ExprId,
+    bound: &[VariableId],
+) -> Vec<VariableId> {
+    let mut free = arena.clone().free_variables(functional);
+    free.retain(|v| !bound.contains(v));
+    free.sort_by_key(|v| v.raw());
+    free
+}
+
+/// Diagnostic stating that the functional holds at each value of `free` and how the
+/// estimate resolved them; `None` when there is nothing to resolve.
+#[must_use]
+pub fn free_variables_diagnostic(free: &[VariableId]) -> Option<Diagnostic> {
+    if free.is_empty() {
+        return None;
+    }
+    let names = free.iter().map(|v| format!("variable {}", v.raw())).collect::<Vec<_>>();
+    Some(Diagnostic::new(
+        FREE_VARIABLES_AVERAGED_CODE,
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "the identified functional keeps {} free: the identity holds at every value of it \
+             with positive support, and it is not part of the query. The estimate is the \
+             functional averaged over the empirical law of {} restricted to the values at \
+             which every required empirical cell is observed; it is never summed over them",
+            names.join(", "),
+            names.join(", "),
+        ),
+    ))
+}
+
+/// Evaluate `eval` at every supported value of `free` and average by `P̂(free)`.
+///
+/// `eval` returns the quantities to average (one scalar, or every atom of a table so that
+/// a value is kept or dropped for the whole table and the atoms still sum to one).
+fn average_over_free_variables(
+    provider: &dyn DistributionProvider,
+    free: &[VariableId],
+    base: &Assignment,
+    mut eval: impl FnMut(&Assignment) -> Result<Vec<f64>, EvalError>,
+) -> Result<Vec<f64>, EvalError> {
+    if free.is_empty() {
+        return eval(base);
+    }
+    let ctx = EvalContext::default();
+    let law = FactorSpec {
+        variables: free,
+        conditioned_on: &[],
+        intervention: &[],
+        domain: DomainRef::Observational,
+        population: "",
+        regime: None,
+    };
+    let mut total = 0.0;
+    let mut acc: Vec<f64> = Vec::new();
+    let mut last_unsupported = EvalError::MissingTableEntry;
+    for row in provider.support(free, &ctx)?.iter() {
+        let mut env = base.clone();
+        for (&v, value) in free.iter().zip(row.iter()) {
+            env.set(v, value.clone());
+        }
+        let weight = match provider.probability(&law, &env, &ctx) {
+            Ok(w) if w > 0.0 => w,
+            Ok(_) | Err(EvalError::MissingTableEntry) => continue,
+            Err(err) => return Err(err),
+        };
+        match eval(&env) {
+            Ok(values) if values.iter().all(|v| v.is_finite()) => {
+                if acc.is_empty() {
+                    acc = vec![0.0; values.len()];
+                }
+                for (slot, value) in acc.iter_mut().zip(values) {
+                    *slot += weight * value;
+                }
+                total += weight;
+            }
+            Ok(_) => last_unsupported = EvalError::DivisionByZero,
+            Err(err) if functional_cell_unevaluable(&err) => last_unsupported = err,
+            Err(err) => return Err(err),
+        }
+    }
+    if total <= 0.0 {
+        return Err(last_unsupported);
+    }
+    for slot in &mut acc {
+        *slot /= total;
+    }
+    Ok(acc)
+}
 
 /// One outcome-level probability mass under an interventional (and optional
 /// observational) conditioning assignment.
@@ -242,6 +359,8 @@ pub struct PreparedFunctionalDistribution {
     pub conditioning: Arc<[InterventionAssignment]>,
     /// Assumptions from identification.
     pub assumptions: AssumptionSet,
+    /// Free variables of the functional outside the query (see the module docs).
+    pub free_variables: Arc<[VariableId]>,
     /// Row-aligned discrete columns for bootstrap CPT refits.
     bootstrap_columns: HashMap<VariableId, Vec<Option<Value>>>,
     /// Factor specs used to rebuild the empirical provider.
@@ -343,8 +462,17 @@ impl FunctionalDistribution {
             })
             .collect();
 
-        let factor_specs = collect_observational_factors(arena, estimand.functional);
+        let mut factor_specs = collect_observational_factors(arena, estimand.functional);
         let signatures = collect_factor_signatures(arena, estimand.functional);
+        let bound: Vec<VariableId> = query
+            .outcomes
+            .iter()
+            .copied()
+            .chain(interventions.iter().map(|a| a.variable))
+            .chain(query.conditioning.iter().copied())
+            .collect();
+        let free_variables = functional_free_variables(arena, estimand.functional, &bound);
+        push_free_variable_law(&mut factor_specs, &free_variables);
         let mut vars_needed = HashSet::new();
         for (vars, cond) in &factor_specs {
             vars_needed.extend(vars.iter().copied());
@@ -373,6 +501,7 @@ impl FunctionalDistribution {
             interventions: Arc::from(interventions),
             conditioning: Arc::from(conditioning),
             assumptions,
+            free_variables: Arc::from(free_variables),
             bootstrap_columns: columns,
             bootstrap_factors: factor_specs,
             bootstrap_signatures: signatures,
@@ -536,33 +665,50 @@ impl FunctionalDistribution {
         let mut mean_ok = prepared.outcomes.len() == 1 && z_points.len() == 1;
 
         for z_bind in &z_points {
+            let mut base = Assignment::new();
+            for a in prepared.interventions.iter() {
+                base.set(a.variable, a.value.clone());
+            }
+            for (v, val) in z_bind {
+                base.set(*v, val.clone());
+            }
+            let mut rows = Vec::with_capacity(y_support.len());
             for row in y_support.iter() {
-                workspace.assignment = Assignment::new();
-                for a in prepared.interventions.iter() {
-                    workspace.assignment.set(a.variable, a.value.clone());
-                }
-                for (v, val) in z_bind {
-                    workspace.assignment.set(*v, val.clone());
-                }
                 let mut outcome_pairs = Vec::with_capacity(prepared.outcomes.len());
                 for (i, &y) in prepared.outcomes.iter().enumerate() {
                     let val = row.get(i).cloned().ok_or_else(|| {
                         EstimationError::data_msg("outcome support row shorter than outcomes")
                     })?;
-                    workspace.assignment.set(y, val.clone());
                     outcome_pairs.push((y, val));
                 }
+                rows.push(outcome_pairs);
+            }
+            // One pass per value of the free variables evaluates the whole table, so a
+            // value is kept or dropped for every atom at once.
+            let probabilities = average_over_free_variables(
+                &prepared.provider,
+                &prepared.free_variables,
+                &base,
+                |env| {
+                    rows.iter()
+                        .map(|outcome_pairs| {
+                            workspace.assignment = env.clone();
+                            for (y, val) in outcome_pairs {
+                                workspace.assignment.set(*y, val.clone());
+                            }
+                            prepared.compiled.evaluate_with(
+                                &prepared.arena,
+                                &prepared.provider,
+                                &EvalContext::default(),
+                                &workspace.assignment,
+                            )
+                        })
+                        .collect()
+                },
+            )
+            .map_err(eval_err)?;
 
-                let p = prepared
-                    .compiled
-                    .evaluate_with(
-                        &prepared.arena,
-                        &prepared.provider,
-                        &EvalContext::default(),
-                        &workspace.assignment,
-                    )
-                    .map_err(eval_err)?;
-
+            for (outcome_pairs, p) in rows.into_iter().zip(probabilities) {
                 if mean_ok {
                     if let Some((_, val)) = outcome_pairs.first() {
                         if let Some(y) = val.as_f64() {
@@ -572,7 +718,6 @@ impl FunctionalDistribution {
                         }
                     }
                 }
-
                 atoms.push(DistributionAtom {
                     outcomes: Arc::from(outcome_pairs),
                     conditioning: Arc::from(z_bind.clone()),
@@ -709,10 +854,43 @@ pub struct PreparedFunctionalEffect {
     pub provider: EmpiricalTableProvider,
     /// Assumptions from identification.
     pub assumptions: AssumptionSet,
+    /// Free variables of the scalar functional (see the module docs).
+    pub free_variables: Arc<[VariableId]>,
     bootstrap_columns: HashMap<VariableId, Vec<Option<Value>>>,
     bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+}
+
+impl PreparedFunctionalEffect {
+    /// Value of the scalar functional on `provider`'s row law, with the functional's free
+    /// variables resolved as the module docs describe.
+    ///
+    /// # Errors
+    ///
+    /// Evaluation failure; a cell error when no value of the free variables is supported.
+    pub fn evaluate(&self, provider: &EmpiricalTableProvider) -> Result<f64, EvalError> {
+        let ctx = EvalContext::default();
+        average_over_free_variables(provider, &self.free_variables, &Assignment::new(), |env| {
+            self.compiled.evaluate_with(&self.arena, provider, &ctx, env).map(|v| vec![v])
+        })
+        .map(|values| values[0])
+    }
+}
+
+/// Add the marginal law of the free variables to the factors built from the data, so its
+/// empirical (or reweighted) masses are available as averaging weights.
+fn push_free_variable_law(
+    factors: &mut Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
+    free: &[VariableId],
+) {
+    if free.is_empty() {
+        return;
+    }
+    let law: (Arc<[VariableId]>, Arc<[VariableId]>) = (Arc::from(free), Arc::from([]));
+    if !factors.contains(&law) {
+        factors.push(law);
+    }
 }
 
 /// Discrete plug-in estimator for identified scalar functionals (contrasts).
@@ -770,8 +948,12 @@ impl FunctionalEffect {
             &[EstimandMethod::PathSpecificNatural, EstimandMethod::GeneralId],
             "functional.effect requires path_specific.natural or general.id",
         )?;
-        let factor_specs = collect_observational_factors(arena, estimand.functional);
+        let mut factor_specs = collect_observational_factors(arena, estimand.functional);
         let signatures = collect_factor_signatures(arena, estimand.functional);
+        // A scalar functional binds nothing from outside: every free variable is a
+        // parameter of the identity.
+        let free_variables = functional_free_variables(arena, estimand.functional, &[]);
+        push_free_variable_law(&mut factor_specs, &free_variables);
         let mut vars_needed = HashSet::new();
         for (vars, cond) in &factor_specs {
             vars_needed.extend(vars.iter().copied());
@@ -787,6 +969,7 @@ impl FunctionalEffect {
             compiled,
             provider,
             assumptions,
+            free_variables: Arc::from(free_variables),
             bootstrap_columns: columns,
             bootstrap_factors: factor_specs,
             bootstrap_signatures: signatures,
@@ -804,10 +987,7 @@ impl FunctionalEffect {
         _workspace: &mut FunctionalDistributionWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<crate::adjustment::EffectEstimate, EstimationError> {
-        let ate = prepared
-            .compiled
-            .evaluate(&prepared.arena, &prepared.provider, &EvalContext::default())
-            .map_err(eval_err)?;
+        let ate = prepared.evaluate(&prepared.provider).map_err(eval_err)?;
         let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
@@ -821,11 +1001,7 @@ impl FunctionalEffect {
                     &prepared.bootstrap_signatures,
                     None,
                 )?;
-                match prepared.compiled.evaluate(
-                    &prepared.arena,
-                    &provider,
-                    &EvalContext::default(),
-                ) {
+                match prepared.evaluate(&provider) {
                     Ok(v) if v.is_finite() => Ok(Some(v)),
                     _ => Ok(None),
                 }
@@ -877,10 +1053,7 @@ impl FunctionalEffect {
                 &prepared.bootstrap_signatures,
                 &mut rng,
             )?;
-            let value = prepared
-                .compiled
-                .evaluate(&prepared.arena, &provider, &EvalContext::default())
-                .map_err(eval_err)?;
+            let value = prepared.evaluate(&provider).map_err(eval_err)?;
             if !value.is_finite() {
                 return Err(EstimationError::stats_msg("functional Bayesian draw was non-finite"));
             }
@@ -1267,32 +1440,11 @@ fn provider_from_columns(
             if *domain == DomainRef::Observational && interv.is_empty() {
                 continue;
             }
-            // Intervened coordinates in `vars` are Dirac under do(.); other factors
-            // reuse the observational CPT under the interventional FactorKey.
-            let intervened_in_vars: Vec<_> =
-                interv.iter().filter(|a| vars.iter().any(|&v| v == a.variable)).cloned().collect();
-            if intervened_in_vars.is_empty() {
-                insert_cpt(
-                    &mut provider,
-                    columns,
-                    n,
-                    vars,
-                    cond,
-                    interv.as_ref(),
-                    *domain,
-                    weights,
-                )?;
-            } else {
-                insert_dirac_intervened(
-                    &mut provider,
-                    &domains,
-                    vars,
-                    cond,
-                    interv.as_ref(),
-                    *domain,
-                    &intervened_in_vars,
-                )?;
-            }
+            // The intervention slot of an identified functional binds values; it does not
+            // change the law the factor is read from. A factor that generates an intervened
+            // variable (ID line 7 keeps `P(x | w, z)` on the napkin graph) is therefore the
+            // observational conditional evaluated at the fixed value, not a point mass.
+            insert_cpt(&mut provider, columns, n, vars, cond, interv.as_ref(), *domain, weights)?;
         }
     }
 
@@ -1316,60 +1468,6 @@ fn provider_from_bayesian_bootstrap(
 ) -> Result<EmpiricalTableProvider, EstimationError> {
     let weights: Vec<f64> = (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
     provider_from_columns(columns, n, factors, signatures, Some(&weights))
-}
-
-fn insert_dirac_intervened(
-    provider: &mut EmpiricalTableProvider,
-    domains: &HashMap<VariableId, Vec<Value>>,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    intervention: &[InterventionAssignment],
-    domain: DomainRef,
-    intervened_in_vars: &[InterventionAssignment],
-) -> Result<(), EstimationError> {
-    // Free vars = vars not fixed by intervention.
-    let free: Vec<VariableId> = vars
-        .iter()
-        .copied()
-        .filter(|v| !intervened_in_vars.iter().any(|a| a.variable == *v))
-        .collect();
-    let free_rows = cartesian_domain(domains, &free)?;
-    let cond_rows = cartesian_domain(domains, cond)?;
-    for free_vals in &free_rows {
-        for cond_vals in &cond_rows {
-            let mut assign = Assignment::new();
-            for a in intervened_in_vars {
-                assign.set(a.variable, a.value.clone());
-            }
-            for (v, val) in free.iter().copied().zip(free_vals.iter().cloned()) {
-                assign.set(v, val);
-            }
-            for (v, val) in cond.iter().copied().zip(cond_vals.iter().cloned()) {
-                assign.set(v, val);
-            }
-            // Probability 1: intervened vars are fixed; free vars still need a
-            // density — if there are free vars, fall back is wrong. For pure
-            // Dirac on all vars, mass is 1 only for the intervened assignment.
-            let p = if free.is_empty() {
-                1.0
-            } else {
-                // Should not happen for ID treatment factors; refuse.
-                return Err(EstimationError::unsupported(
-                    "intervened factor with free variables is unsupported in functional.effect",
-                ));
-            };
-            let spec = FactorSpec {
-                variables: vars,
-                conditioned_on: cond,
-                intervention,
-                domain,
-                population: "",
-                regime: None,
-            };
-            provider.insert_probability(&spec, &assign, p).map_err(eval_err)?;
-        }
-    }
-    Ok(())
 }
 
 fn cartesian_domain(

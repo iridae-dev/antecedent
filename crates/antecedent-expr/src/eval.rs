@@ -67,6 +67,9 @@ pub struct CompiledEvaluator {
     /// plan, computed once at compile time; `Expectation` evaluation reads it
     /// on every call instead of re-deriving it per evaluation.
     pub(crate) free_vars: Vec<Arc<[VariableId]>>,
+    /// Sorted, deduplicated variables each slot is a density in; an `Expectation`
+    /// integrates over these only.
+    pub(crate) density_vars: Vec<Arc<[VariableId]>>,
     pub(crate) root: usize,
 }
 
@@ -93,7 +96,8 @@ impl CompiledEvaluator {
         for (expression, slot) in expr_to_slot {
             origins[slot] = ExprId::from_raw(expression);
         }
-        Ok(Self { ops, origins, free_vars, root: root_slot })
+        let density_vars = compute_density_vars(&ops, arena);
+        Ok(Self { ops, origins, free_vars, density_vars, root: root_slot })
     }
 
     /// Evaluate once against a provider.
@@ -340,7 +344,15 @@ impl CompiledEvaluator {
         // E[f | D] = Σ_{x ∈ support(free(D))} f(x) · dens(D, x)
         // Free variables per slot are precomputed at compile time; only the
         // env-dependent filtering happens per evaluation.
+        // Only variables the density is a density *in* are integrated. A free variable
+        // that occurs only behind a conditioning bar (or as a symbolic do-value) is a
+        // parameter of the expectation: summing over it is not a mean, so it must be bound.
         let free = &self.free_vars[distribution];
+        let random = &self.density_vars[distribution];
+        if let Some(parameter) = free.iter().find(|v| env.get(**v).is_none() && !random.contains(v))
+        {
+            return Err(EvalError::MissingBinding(*parameter));
+        }
         let mut enum_vars: Vec<VariableId> =
             free.iter().copied().filter(|v| env.get(*v).is_none()).collect();
         if !enum_vars.contains(&outcome_var) && env.get(outcome_var).is_none() {
@@ -468,6 +480,32 @@ fn compile_rec(
     ops.push(op);
     expr_to_slot.insert(id.raw(), slot);
     Ok(slot)
+}
+
+/// Per-slot variables the slot is a density in (sorted, deduplicated): the `variables`
+/// position of its factors, less what is summed or integrated out. A ratio is a density in
+/// its numerator's variables. Expectations and contrasts are scalars.
+fn compute_density_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[VariableId]>> {
+    let mut out: Vec<Arc<[VariableId]>> = Vec::with_capacity(ops.len());
+    for op in ops {
+        let mut vars: Vec<VariableId> = match op {
+            EvalOp::Distribution { variables, .. } => arena.var_set(*variables).to_vec(),
+            EvalOp::Kernel { body, .. } => out[*body].to_vec(),
+            EvalOp::Product { children } => {
+                children.iter().flat_map(|&c| out[c].iter().copied()).collect()
+            }
+            EvalOp::SumOut { variables, body } | EvalOp::IntegralOut { variables, body } => {
+                let bound = arena.var_set(*variables);
+                out[*body].iter().copied().filter(|v| !bound.contains(v)).collect()
+            }
+            EvalOp::Ratio { numerator, .. } => out[*numerator].to_vec(),
+            EvalOp::Expectation { .. } | EvalOp::Contrast { .. } => Vec::new(),
+        };
+        vars.sort_by_key(|v| v.raw());
+        vars.dedup();
+        out.push(Arc::from(vars));
+    }
+    out
 }
 
 /// Per-slot free variables (sorted, deduplicated), computed once per compile.
@@ -604,6 +642,35 @@ mod tests {
         let compiled = arena.compile(expr).unwrap();
         let ate = compiled.evaluate(&arena, &provider, &EvalContext::default()).unwrap();
         assert!((ate - 0.45).abs() < 1e-12, "ate={ate}");
+    }
+
+    /// `E[Y | do(T=1), z]` keeps `z` free. Evaluating it without a value for `z` must be
+    /// refused: enumerating `z` inside the expectation would return
+    /// `E[Y|do(1),z=0] + E[Y|do(1),z=1] = 1.4`, which is not a mean of anything.
+    #[test]
+    fn unbound_free_variable_is_refused_not_summed() {
+        let mut arena = CausalExprArena::new();
+        let (t, y, z) = (v(0), v(1), v(2));
+        let ys = arena.intern_var_set([y]);
+        let zs = arena.intern_var_set([z]);
+        let do_t = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t,
+            value: f(1.0),
+        }]);
+        let conditional = arena.intern_distribution(ys, zs, do_t, DomainRef::Interventional);
+        let expr = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: conditional,
+        });
+        let provider = backdoor_provider(t, y, z);
+        let compiled = arena.compile(expr).unwrap();
+        let ctx = EvalContext::default();
+        assert_eq!(compiled.evaluate(&arena, &provider, &ctx), Err(EvalError::MissingBinding(z)));
+        for (level, expected) in [(0.0, 0.8), (1.0, 0.6)] {
+            let env = Assignment::from_pairs([(z, f(level))]);
+            let value = compiled.evaluate_with(&arena, &provider, &ctx, &env).unwrap();
+            assert!((value - expected).abs() < 1e-12, "z={level}: {value}");
+        }
     }
 
     #[test]
