@@ -702,7 +702,8 @@ fn validate_mediation_grid(
             }
         }
         let optionals = [slice.total, slice.direct, slice.mediated];
-        if !slice.effect.is_finite() || optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite())) {
+        if !slice.effect.is_finite() || optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite()))
+        {
             return Err(IoError::Convert(
                 "mediation grid effects must be finite when present".into(),
             ));
@@ -765,9 +766,7 @@ fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> 
     if unit_effects.effects.is_empty()
         || unit_effects.effects.iter().any(|effect| !effect.is_finite())
     {
-        return Err(IoError::Convert(
-            "unit effects must be a non-empty finite vector".into(),
-        ));
+        return Err(IoError::Convert("unit effects must be a non-empty finite vector".into()));
     }
     let n = unit_effects.effects.len();
     if let Some(intervals) = &unit_effects.intervals {
@@ -833,9 +832,7 @@ fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), 
     if result.learner_provenance.iter().any(|(spec, implementation, version)| {
         spec.trim().is_empty() || implementation.trim().is_empty() || version.trim().is_empty()
     }) {
-        return Err(IoError::Convert(
-            "learner provenance entries must be non-blank".into(),
-        ));
+        return Err(IoError::Convert("learner provenance entries must be non-blank".into()));
     }
     Ok(())
 }
@@ -1253,8 +1250,7 @@ mod tests {
 
         let mut inverted = ok;
         inverted.mediation_grid.as_mut().unwrap().slices[0].identified_set = Some([1.0, 0.0]);
-        let err =
-            encode_analysis_result_artifact(&inverted, names, "grid-set").unwrap_err();
+        let err = encode_analysis_result_artifact(&inverted, names, "grid-set").unwrap_err();
         assert!(err.to_string().contains("identified set"), "{err}");
     }
 

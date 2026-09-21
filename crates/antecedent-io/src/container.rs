@@ -466,10 +466,7 @@ pub(crate) fn decode_on_wire(
             if logical.len() != max {
                 return Err(IoError::Decompress {
                     section: section.into(),
-                    message: format!(
-                        "logical size {} != uncompressed_size {max}",
-                        logical.len()
-                    ),
+                    message: format!("logical size {} != uncompressed_size {max}", logical.len()),
                 });
             }
             Ok(logical)
@@ -526,20 +523,17 @@ fn decode_zstd_bounded(
     max_uncompressed: usize,
     section: &str,
 ) -> Result<Vec<u8>, IoError> {
-    let decoder = zstd::Decoder::new(on_wire).map_err(|e| IoError::Decompress {
-        section: section.into(),
-        message: e.to_string(),
-    })?;
+    let decoder = zstd::Decoder::new(on_wire)
+        .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() })?;
     let read_cap = u64::try_from(max_uncompressed)
         .ok()
         .and_then(|n| n.checked_add(1))
         .ok_or(IoError::TooLarge)?;
     let mut limited = decoder.take(read_cap);
     let mut out = Vec::new();
-    limited.read_to_end(&mut out).map_err(|e| IoError::Decompress {
-        section: section.into(),
-        message: e.to_string(),
-    })?;
+    limited
+        .read_to_end(&mut out)
+        .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() })?;
     if out.len() > max_uncompressed {
         return Err(IoError::Decompress {
             section: section.into(),
@@ -747,9 +741,13 @@ mod tests {
             matches!(err, IoError::Decompress { .. }),
             "lying uncompressed_size must be Err, got {err:?}"
         );
-        let err_huge =
-            decode_on_wire(&on_wire, Some(COMPRESSION_ZSTD), "blob", (MAX_SECTION_BYTES as u64) + 1)
-                .unwrap_err();
+        let err_huge = decode_on_wire(
+            &on_wire,
+            Some(COMPRESSION_ZSTD),
+            "blob",
+            (MAX_SECTION_BYTES as u64) + 1,
+        )
+        .unwrap_err();
         assert!(
             matches!(err_huge, IoError::TooLarge),
             "missing usable size bound must be Err, got {err_huge:?}"

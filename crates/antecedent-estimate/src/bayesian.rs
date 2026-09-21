@@ -112,8 +112,7 @@ pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
 /// Diagnostics note when `unit_ids` request random-intercept GLS whitening under a
 /// non-Gaussian likelihood. Whitening is a Gaussian linear transform and must not be
 /// applied to count or binary outcomes.
-pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str =
-    "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
+pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str = "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
      GaussianIdentity; unit_ids were ignored for this likelihood";
 
 /// `(requested, used)` draw counts when the HMC draw floor raised the request.
@@ -2518,8 +2517,7 @@ mod tests {
                 t.push(a);
                 z.push(0.0);
                 // Within-unit count variation so residual σ²>0 (required by the whitener).
-                let rate: f64 =
-                    unit_base * if a > 0.5 { 2.0 } else { 1.0 } + (k % 3) as f64;
+                let rate: f64 = unit_base * if a > 0.5 { 2.0 } else { 1.0 } + (k % 3) as f64;
                 y.push(rate.round().max(0.0));
                 unit_ids.push(u as u32);
             }

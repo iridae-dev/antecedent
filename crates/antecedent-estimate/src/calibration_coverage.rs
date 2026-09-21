@@ -1327,11 +1327,9 @@ fn score_learner_replicate(
                     unidentified_mass: 0.0,
                 },
             );
-            let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0)
-                .then_some((
-                    effect.ate - Z95 * effect.se_analytic,
-                    effect.ate + Z95 * effect.se_analytic,
-                ));
+            let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some(
+                (effect.ate - Z95 * effect.se_analytic, effect.ate + Z95 * effect.se_analytic),
+            );
             tally.record(interval, TRUE_ATE);
         }
         Err(_) => {
@@ -1436,11 +1434,8 @@ fn causal_forest_analytic_ci_coverage() {
 fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    let est = WaldIv {
-        bootstrap_replicates: 0,
-        se_kind: AnalyticSeKind::Homoskedastic,
-        ..WaldIv::new()
-    };
+    let est =
+        WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Homoskedastic, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(71);
     let mut tally = Tally::default();
     let mut weak_f = 0u32;

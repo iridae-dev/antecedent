@@ -312,9 +312,6 @@ mod tests {
             .with_unit_rows([n])
             .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
         let err = unit_change(&model, &data, &q, &ExecutionContext::for_tests(1)).unwrap_err();
-        assert_eq!(
-            err,
-            AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n }
-        );
+        assert_eq!(err, AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n });
     }
 }

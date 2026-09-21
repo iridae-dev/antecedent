@@ -560,10 +560,7 @@ mod tests {
         let (model, data) = scaled_anomaly_fixture(n, 1.0);
         let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100).with_unit_rows([n]);
         let err = score_anomalies(&model, &data, &q).unwrap_err();
-        assert_eq!(
-            err,
-            AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n }
-        );
+        assert_eq!(err, AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n });
     }
 
     /// The IT score must be invariant to the target's scale.

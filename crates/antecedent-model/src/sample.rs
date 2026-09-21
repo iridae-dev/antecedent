@@ -923,11 +923,7 @@ mod tests {
         let conditional_mean = intercept + coeffs[0] * y_cond;
         let interventional_mean = {
             let y_slot = model.mechanisms.get(DenseNodeId::from_raw(1));
-            let MechanismSlot::LinearGaussian {
-                intercept: y_int,
-                coeffs: y_coeffs,
-                ..
-            } = y_slot
+            let MechanismSlot::LinearGaussian { intercept: y_int, coeffs: y_coeffs, .. } = y_slot
             else {
                 panic!("expected LinearGaussian Y mechanism, got {y_slot:?}");
             };
@@ -956,10 +952,7 @@ mod tests {
         )
         .expect("conditional do should succeed");
         let y = batch.column(1).unwrap();
-        assert!(
-            y.iter().all(|&v| (v - y_cond).abs() < 1e-12),
-            "evidence column Y must be clamped"
-        );
+        assert!(y.iter().all(|&v| (v - y_cond).abs() < 1e-12), "evidence column Y must be clamped");
         let z = batch.column(2).unwrap();
         let z_mean = z.iter().sum::<f64>() / n_rows as f64;
         // Monte Carlo SE ≈ sigma / sqrt(n); allow a few SEs plus fitting slack.
@@ -979,11 +972,9 @@ mod tests {
     fn fitted_three_chain() -> CompiledCausalModel {
         let n = 80usize;
         let mut b = CausalSchemaBuilder::new();
-        for (name, hint) in [
-            ("x", RoleHint::Context),
-            ("y", RoleHint::Context),
-            ("z", RoleHint::OutcomeCandidate),
-        ] {
+        for (name, hint) in
+            [("x", RoleHint::Context), ("y", RoleHint::Context), ("z", RoleHint::OutcomeCandidate)]
+        {
             b.add_variable(
                 name,
                 ValueType::Continuous,
