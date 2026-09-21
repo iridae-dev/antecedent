@@ -28,6 +28,15 @@ use std::sync::Arc;
 fn err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())
 }
+
+/// Fewest bootstrap replicates that may carry a nominal two-sided 0.95 percentile label.
+///
+/// Under the usual (B+1) rule each tail of a level-(1 − α) percentile interval holds
+/// (B+1)·α/2 order statistics. For the empirical-table coverage target α = 0.05 that
+/// count exceeds a single order statistic only once B ≥ 40. Two draws cannot earn that
+/// quantile; the empirical-table default remains 199.
+const PERCENTILE_95_MIN_REPLICATES: u32 = 40;
+
 fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
     Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())
 }
@@ -130,7 +139,7 @@ impl StatisticalStudyResult {
             .checked_sub(contrast.replicates_ok)
             .ok_or_else(|| err("invalid replicate accounting"))?;
         contrast.coverage_target = Some(row.coverage_target);
-        if draws.len() < 2
+        if draws.len() < PERCENTILE_95_MIN_REPLICATES as usize
             || f64::from(contrast.replicates_failed) / f64::from(row.replicates_requested) > 0.5
         {
             contrast.reason = Some("bootstrap_failure_fraction");
@@ -470,7 +479,7 @@ impl PreparedStudy<StatisticalPreparedState> {
     }
 
     fn licensed_interval(&self) -> bool {
-        self.state.options.bootstrap_replicates >= 2
+        self.state.options.bootstrap_replicates >= PERCENTILE_95_MIN_REPLICATES
             && !self.state.samples.is_empty()
             && self.state.samples.iter().all(|sample| {
                 self.evidence_catalog().bindings.iter().any(|b| {
@@ -480,6 +489,31 @@ impl PreparedStudy<StatisticalPreparedState> {
                         && b.weights.is_none()
                 })
             })
+    }
+
+    /// Drop percentile edges that cannot earn the options' nominal coverage label.
+    fn withhold_unearned_percentile(
+        estimate: &mut StatisticalTransportEstimate,
+        options: &EmpiricalTableOptions,
+    ) {
+        let ok = estimate.uncertainty.as_ref().map_or(0, |row| row.replicates_ok);
+        let requested = options.bootstrap_replicates;
+        if requested == 0
+            || (ok >= PERCENTILE_95_MIN_REPLICATES && requested >= PERCENTILE_95_MIN_REPLICATES)
+        {
+            return;
+        }
+        if estimate.atom_intervals.is_none()
+            && estimate.mean_intervals.is_none()
+            && estimate.uncertainty_reason.is_some()
+        {
+            return;
+        }
+        estimate.atom_intervals = None;
+        estimate.mean_intervals = None;
+        if estimate.uncertainty_reason.is_none() {
+            estimate.uncertainty_reason = Some(Arc::from("insufficient_bootstrap_replicates"));
+        }
     }
 
     /// Frozen bootstrap seed, independent of later caller contexts.
@@ -538,7 +572,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             None if self.state.options.bootstrap_replicates == 0 => {
                 SlotAvailability::unavailable("bootstrap_not_requested")
             }
-            None if self.state.options.bootstrap_replicates == 1 => {
+            None if self.state.options.bootstrap_replicates < PERCENTILE_95_MIN_REPLICATES => {
                 SlotAvailability::unavailable("insufficient_bootstrap_replicates")
             }
             None => SlotAvailability::unavailable(
@@ -668,6 +702,8 @@ impl PreparedStudy<StatisticalPreparedState> {
             .map_err(err)?
             .remove(index)
         };
+        let mut estimate = estimate;
+        Self::withhold_unearned_percentile(&mut estimate, &self.state.options);
         Ok(StatisticalStudyResult {
             reasoning: self.reasoning(true, Some(&estimate)),
             estimate,
@@ -702,7 +738,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         requests
             .iter()
             .zip(estimates)
-            .map(|(request, estimate)| {
+            .map(|(request, mut estimate)| {
                 let prepared = Self::build_fitted(
                     self.state.diagram.clone(),
                     self.state.functional.clone(),
@@ -716,6 +752,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                     false,
                 )?
                 .with_grid(requests.iter().map(statistical_assignments).collect())?;
+                Self::withhold_unearned_percentile(&mut estimate, &prepared.state.options);
                 let result = StatisticalStudyResult {
                     reasoning: prepared.reasoning(true, Some(&estimate)),
                     identities: prepared.state.identities.clone(),
@@ -1428,7 +1465,7 @@ fn validate_uncertainty(
             values.push(distribution.mean(*v).map_err(err)?);
         }
     }
-    let unavailable = row.replicates_ok < 2
+    let unavailable = row.replicates_ok < PERCENTILE_95_MIN_REPLICATES
         || f64::from(row.replicates_failed) / f64::from(row.replicates_requested) > 0.5;
     if unavailable {
         if wire.uncertainty_reason.as_deref() != Some("bootstrap_failure_fraction")
@@ -1509,6 +1546,14 @@ mod tests {
     }
 
     fn prepared(snapshot: &str, counts: [usize; 4]) -> PreparedStudy<StatisticalPreparedState> {
+        prepared_with_replicates(snapshot, counts, PERCENTILE_95_MIN_REPLICATES)
+    }
+
+    fn prepared_with_replicates(
+        snapshot: &str,
+        counts: [usize; 4],
+        bootstrap_replicates: u32,
+    ) -> PreparedStudy<StatisticalPreparedState> {
         let mut graph = Admg::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let diagram = SelectionDiagram::try_new(graph, [v(1)]).unwrap();
@@ -1580,10 +1625,39 @@ mod tests {
             },
             Assignment::from_pairs([(v(0), Value::Int64(1))]),
             ExactEvaluationLimits::default(),
-            EmpiricalTableOptions { bootstrap_replicates: 39, ..EmpiricalTableOptions::default() },
+            EmpiricalTableOptions { bootstrap_replicates, ..EmpiricalTableOptions::default() },
             &ctx,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn licensed_interval_requires_earned_percentile_minimum() {
+        for replicates in [0, 1, 2] {
+            let study = prepared_with_replicates("one", [20, 5, 10, 15], replicates);
+            assert!(
+                !study.licensed_interval(),
+                "B={replicates} cannot earn a nominal 0.95 percentile label"
+            );
+            let inspect = study.inspect();
+            assert!(!inspect.reasoning.uncertainty.is_available());
+            match &inspect.reasoning.uncertainty {
+                SlotAvailability::Unavailable { reason } if replicates == 0 => {
+                    assert_eq!(reason.as_ref(), "bootstrap_not_requested");
+                }
+                SlotAvailability::Unavailable { reason } => {
+                    assert_eq!(reason.as_ref(), "insufficient_bootstrap_replicates");
+                }
+                SlotAvailability::Available(_) => panic!("uncertainty must stay withheld"),
+                _ => panic!("unexpected uncertainty slot"),
+            }
+        }
+        let below =
+            prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES - 1);
+        assert!(!below.licensed_interval());
+        let earned = prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES);
+        assert!(earned.licensed_interval());
+        assert!(earned.inspect().reasoning.uncertainty.is_available());
     }
 
     #[test]
