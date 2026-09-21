@@ -204,7 +204,8 @@ pub(crate) fn validate_design(
     Ok(())
 }
 
-/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation).
+/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation);
+/// the separation flag is evaluated only when `want_hessian` is set.
 ///
 /// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
 /// likelihoods ignore it.
@@ -246,7 +247,13 @@ pub(crate) fn accumulate_likelihood(
         let y = design.y[r];
 
         let terms = glm_observation_terms(likelihood, y, e, w_obs, inv_sigma2)?;
-        if matches!(likelihood, BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit)
+        // The separation flag is read only where curvature is (the mode fit);
+        // gradient-only leapfrog evaluations discard it, so skip its exp/erfc.
+        if want_hessian
+            && matches!(
+                likelihood,
+                BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit
+            )
         {
             let mu = if matches!(likelihood, BayesLikelihood::BernoulliLogit) {
                 1.0 / (1.0 + (-e).exp())
@@ -583,5 +590,36 @@ mod tests {
         let lambda1 = (log_phi(eta) - log_normal_cdf(eta)).exp();
         let obs_ref = lambda1 * (lambda1 + eta);
         assert!((t.neg_hessian_eta - obs_ref).abs() < 1e-10);
+    }
+
+    #[test]
+    fn separation_flag_is_only_evaluated_with_curvature() {
+        // One row at eta = 30: fitted P(y=1) = 1 - 9e-14, inside the 1e-8 boundary.
+        let design = BayesDesignRef {
+            x_colmajor: &[1.0],
+            nrows: 1,
+            ncols: 1,
+            y: &[1.0],
+            weights: None,
+            offsets: None,
+        };
+        let flag = |want_hessian: bool| {
+            let (mut grad, mut hess, mut eta, mut work) = ([0.0], [0.0], [0.0], [0.0]);
+            accumulate_likelihood(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &[30.0],
+                &mut grad,
+                &mut hess,
+                &mut eta,
+                &mut work,
+                1.0,
+                want_hessian,
+            )
+            .unwrap()
+            .1
+        };
+        assert!(flag(true));
+        assert!(!flag(false));
     }
 }

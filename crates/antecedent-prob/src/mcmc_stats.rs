@@ -13,7 +13,7 @@
     clippy::too_many_lines
 )]
 
-use antecedent_kernels::norm_inv;
+use antecedent_kernels::{norm_inv, quantile_type7_sorted};
 
 /// Per-parameter MCMC diagnostics (Vehtari / Stan style).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -266,27 +266,8 @@ fn median_sorted(sorted: &[f64]) -> f64 {
 
 fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
     let mut sorted = x.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    (quantile_sorted(&sorted, q_lo), quantile_sorted(&sorted, q_hi))
-}
-
-fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return f64::NAN;
-    }
-    if n == 1 {
-        return sorted[0];
-    }
-    let pos = q * (n - 1) as f64;
-    let lo = pos.floor() as usize;
-    let hi = pos.ceil() as usize;
-    if lo == hi {
-        sorted[lo]
-    } else {
-        let w = pos - lo as f64;
-        sorted[lo] * (1.0 - w) + sorted[hi] * w
-    }
+    sorted.sort_by(f64::total_cmp);
+    (quantile_type7_sorted(&sorted, q_lo), quantile_type7_sorted(&sorted, q_hi))
 }
 
 /// Average ranks for ties, then Φ⁻¹((r − 3/8) / (S + 1/4)).

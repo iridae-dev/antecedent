@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_kernels::standard_normal;
+pub use antecedent_kernels::{sample_gamma, sample_inv_gamma};
 
 use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
@@ -387,43 +388,6 @@ fn draw_nig(
         values[ncols * n_draws + d] = sigma2;
     }
     Ok(Arc::from(values))
-}
-
-/// One draw from `InvGamma(shape, scale)` (`1 / Gamma(shape, rate = scale)`; mean
-/// `scale / (shape − 1)` for `shape > 1`).
-pub fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
-    let g = sample_gamma(shape, scale, rng);
-    1.0 / g.max(f64::MIN_POSITIVE)
-}
-
-/// One draw from `Gamma(shape, rate)` (Marsaglia–Tsang; shape < 1 via the
-/// `U^{1/shape}` boost).
-pub fn sample_gamma(shape: f64, rate: f64, rng: &mut CausalRng) -> f64 {
-    if shape < 1.0 {
-        let u = rng.next_f64().max(f64::EPSILON);
-        return sample_gamma(shape + 1.0, rate, rng) * u.powf(1.0 / shape);
-    }
-    let d = shape - 1.0 / 3.0;
-    let c = 1.0 / (9.0 * d).sqrt();
-    loop {
-        let mut x;
-        let mut v;
-        loop {
-            x = standard_normal(rng);
-            v = 1.0 + c * x;
-            if v > 0.0 {
-                break;
-            }
-        }
-        v = v * v * v;
-        let u = rng.next_f64();
-        if u < 1.0 - 0.0331 * (x * x) * (x * x) {
-            return d * v / rate;
-        }
-        if u.ln() < 0.5 * x * x + d * (1.0 - v + v.ln()) {
-            return d * v / rate;
-        }
-    }
 }
 
 #[cfg(test)]

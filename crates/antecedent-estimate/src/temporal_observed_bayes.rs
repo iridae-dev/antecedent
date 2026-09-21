@@ -36,7 +36,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{DenseNodeId, TemporalDag};
-use antecedent_kernels::standard_normal;
+use antecedent_kernels::{quantile_type7_sorted, standard_normal};
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior,
     HessianFactorization, InferenceDiagnostics, LaplaceWorkspace, PosteriorDraws,
@@ -806,8 +806,8 @@ pub fn estimate_observed_temporal_response(
         columns.push(column);
         let mut x = column.to_vec();
         x.sort_by(f64::total_cmp);
-        lower.push(quantile(&x, 0.025));
-        upper.push(quantile(&x, 0.975));
+        lower.push(quantile_type7_sorted(&x, 0.025));
+        upper.push(quantile_type7_sorted(&x, 0.975));
     }
     // Every Gibbs iteration evaluates the whole grid, so draw r is one joint draw of
     // the surface and the max-deviation band is a genuine joint credible band.

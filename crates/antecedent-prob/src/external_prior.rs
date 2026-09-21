@@ -798,11 +798,18 @@ mod tests {
     }
 
     #[test]
-    fn kish_ess_matches_transport_adjustment_formula() {
-        // Free function agrees with TransportAdjustment::kish_ess for the same
-        // weights (the latter now delegates to this one).
+    fn kish_ess_matches_hand_value() {
+        // Σw = 1, Σw² = 0.25 + 0.0625 + 0.0625 = 0.375, so ESS = 1 / 0.375 = 8/3.
+        let expected = 8.0 / 3.0;
+        assert!((kish_ess(&[0.5, 0.25, 0.25]) - expected).abs() < 1e-12);
+        // Scale-free: (Σw)² / Σw² is unchanged by rescaling the weights.
+        assert!((kish_ess(&[2.0, 1.0, 1.0]) - expected).abs() < 1e-12);
+        // Uniform weights over n units give ESS = n; one dominant unit gives 1.
+        assert!((kish_ess(&[3.0, 3.0, 3.0, 3.0]) - 4.0).abs() < 1e-12);
+        assert!((kish_ess(&[1.0, 0.0, 0.0]) - 1.0).abs() < 1e-12);
+        // The transport adjustment reports the same hand value.
         use crate::transport::TransportAdjustment;
         let adj = TransportAdjustment::new([1.0, 2.0, 3.0], [0.5, 0.25, 0.25]).unwrap();
-        assert!((kish_ess(&[0.5, 0.25, 0.25]) - adj.kish_ess()).abs() < 1e-12);
+        assert!((adj.kish_ess() - expected).abs() < 1e-12);
     }
 }

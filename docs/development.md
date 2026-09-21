@@ -398,10 +398,10 @@ on the default path.”
 Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
-Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
-`antecedent-prob/hmc`. `antecedent-prob/smc` is an empty feature that enables no
-backend, and there is no `simd-runtime` feature, so `KernelPolicy::allow_arch_simd`
-always selects the portable kernels. Ingest and exchange adapters are optional
+Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`.
+`antecedent-prob` has no features: its native HMC sampler is always compiled. There is
+no `simd-runtime` feature, so `KernelPolicy::allow_arch_simd` always selects the
+portable kernels. Ingest and exchange adapters are optional
 features and never reshape core types.
 
 ## Unsafe / deps

@@ -856,6 +856,8 @@ pub fn log_prior_mask(
     }
 }
 
+pub use antecedent_prob::kish_ess;
+
 /// Normalize log-weights with log-sum-exp; returns normalized weights.
 ///
 /// # Errors
