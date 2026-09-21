@@ -983,6 +983,15 @@ mod tests {
         );
     }
     #[test]
+    fn inspect_does_not_require_evaluate() {
+        let prepared = prepared();
+        let before = prepared.inspect();
+        assert!(before.reasoning.identification.is_available());
+        assert!(!before.reasoning.uncertainty.is_available());
+        assert_eq!(before.identities.execution, prepared.inspect().identities.execution);
+    }
+
+    #[test]
     fn exact_common_lifecycle_atomic_refresh_and_independent_consume() {
         let ctx = ExecutionContext::for_tests(0);
         let mut prepared = prepared();

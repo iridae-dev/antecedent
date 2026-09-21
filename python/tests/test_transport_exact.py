@@ -153,6 +153,66 @@ def test_recursive_frontdoor_exact_distribution_matches_latent_enumeration():
     assert result.uncertainty is None
 
 
+def test_inspect_does_not_evaluate_or_fit(monkeypatch):
+    from antecedent import prepare
+
+    identified, catalog, data = fixture()
+    prepared = prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
+    calls: list[str] = []
+
+    def boom(*_args, **_kwargs):
+        calls.append("evaluate")
+        raise AssertionError("inspect must not evaluate or fit")
+
+    monkeypatch.setattr(transport, "evaluate_exact", boom)
+    report = prepared.inspect()
+    assert report.identification.available
+    assert not report.uncertainty.available
+    assert calls == []
+
+
+def test_causaleffect_standardize_formula_matches_enumerated_scm():
+    graph = Admg.from_edges(["X", "Z", "Y"], [("Z", "Y"), ("X", "Y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["Z"]),
+        outcomes=["Y"],
+        treatments=["X"],
+    )
+    assert identified.outcome == "identified"
+    catalog = transport.EvidenceCatalog(
+        regimes=[
+            transport.EvidenceRegime(
+                "src",
+                "source",
+                kind="experimental",
+                interventions=["X"],
+                measured=["Z", "Y"],
+            ),
+            transport.EvidenceRegime("tgt", "target", measured=["Z"]),
+        ]
+    )
+    source = transport.ExactDiscreteLaw(
+        "source",
+        "src",
+        (("Z", (0.0, 1.0)), ("Y", (0.0, 1.0))),
+        (0.48, 0.12, 0.08, 0.32),
+        "src-v1",
+        interventions=(("X", 1.0),),
+    )
+    target = transport.ExactDiscreteLaw(
+        "target",
+        "tgt",
+        (("Z", (0.0, 1.0)),),
+        (0.6, 0.4),
+        "tgt-v1",
+    )
+    result = transport.evaluate_exact(
+        identified, catalog, transport.ExactTransportData((source, target)), at={"X": 1.0}
+    )
+    assert result.mean("Y") == pytest.approx(0.6 * 0.2 + 0.4 * 0.8)
+
+
 def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     from antecedent import load, prepare
     from antecedent.estimation import PreparedAnalysis
