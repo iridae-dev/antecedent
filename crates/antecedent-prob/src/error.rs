@@ -4,7 +4,6 @@
 
 use thiserror::Error;
 
-use crate::transport::TransportError;
 
 /// Errors from prior construction, posterior storage, or inference backends.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]

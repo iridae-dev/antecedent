@@ -162,7 +162,7 @@ impl PreparedAdmg {
     /// C-components (districts) of the subgraph induced by `nodes` under bidirected edges.
     #[must_use]
     pub fn c_components(&self, nodes: &BitSet) -> Vec<BitSet> {
-        self.admg.districts_within(nodes)
+        self.admg.district_components_within(nodes)
     }
 
     /// Whether the induced subgraph on `nodes` is a single C-component covering all of `nodes`.
