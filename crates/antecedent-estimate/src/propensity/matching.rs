@@ -554,9 +554,11 @@ pub(crate) fn matching_contrast(
     } else {
         per_unit_effects.iter().sum::<f64>() / per_unit_effects.len() as f64
     };
+    // One-arm (ATT/ATC) vs two-arm ATE Abadie–Imbens variance.
+    let ate_form = !matches!(target, TargetPopulation::Treated | TargetPopulation::Untreated);
     let se_analytic = match se_kind {
         AnalyticSeKind::Homoskedastic => {
-            abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors)
+            abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors, ate_form)
         }
         AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
             return Err(EstimationError::unsupported(
@@ -567,17 +569,17 @@ pub(crate) fn matching_contrast(
         | AnalyticSeKind::Multiway
         | AnalyticSeKind::NeweyWest { .. }
         | AnalyticSeKind::PanelClusterHac { .. } => {
-            let mut k = vec![0usize; n_donors.max(1)];
-            for &d in &donor_usage {
-                if d < k.len() {
-                    k[d] += 1;
-                }
-            }
-            let mut psi = Vec::with_capacity(per_unit_effects.len());
-            for (i, &d) in donor_usage.iter().enumerate() {
-                let kd = k.get(d).copied().unwrap_or(0) as f64;
-                psi.push((per_unit_effects[i] - ate) * (1.0 + kd));
-            }
+            let psi = matching_influence(
+                &per_unit_effects,
+                ate,
+                &donor_usage,
+                n_donors,
+                ate_form,
+                treatment.len(),
+                &treated_idx,
+                &control_idx,
+                &effect_rows,
+            );
             influence_se_kind(
                 se_kind,
                 &psi,
@@ -592,50 +594,126 @@ pub(crate) fn matching_contrast(
     Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: per_unit_effects.len() })
 }
 
-/// Abadie–Imbens (2006) SE for 1-NN matching with replacement (homoskedastic).
-///
-/// With unit-level matched effects `τ̂ᵢ` and donor reuse counts `Kⱼ`,
-/// `Var = σ̂² (n + Σⱼ Kⱼ²) / n²` where `σ̂² = Var(τ̂ᵢ) / 2` (equal-arm residual variance).
-fn abadie_imbens_se(effects: &[f64], donor_local: &[usize], n_donors: usize) -> f64 {
-    let n = effects.len();
-    if n < 2 || donor_local.len() != n {
-        return sample_std(effects) / (n as f64).sqrt();
-    }
+/// Donor-reuse counts `Kⱼ` from query→donor local indices.
+fn donor_counts(donor_local: &[usize], n_donors: usize) -> Vec<usize> {
     let mut k = vec![0usize; n_donors.max(1)];
     for &d in donor_local {
         if d < k.len() {
             k[d] += 1;
         }
     }
+    k
+}
+
+/// Abadie–Imbens (2006) SE for 1-NN matching with replacement (homoskedastic).
+///
+/// `σ̂² = Var(τ̂ᵢ) / 2` (equal-arm residual variance). With donor reuse counts `Kⱼ`:
+/// - **ATT/ATC** (`ate_form = false`): `Var = σ̂² (n + Σⱼ Kⱼ²) / n²`
+/// - **ATE** (`ate_form = true`): `Var = σ̂² Σⱼ (1 + Kⱼ)² / n²`
+///   `= σ̂² (n_donors + 2 Σ K + Σ K²) / n²` (the ATT form misses the `2 Σ K` cross term).
+fn abadie_imbens_se(
+    effects: &[f64],
+    donor_local: &[usize],
+    n_donors: usize,
+    ate_form: bool,
+) -> f64 {
+    let n = effects.len();
+    if n < 2 || donor_local.len() != n {
+        return sample_std(effects) / (n as f64).sqrt();
+    }
+    let k = donor_counts(donor_local, n_donors);
     let mean = effects.iter().sum::<f64>() / n as f64;
     let var_tau = effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n as f64 - 1.0);
     let sigma2 = (var_tau * 0.5).max(0.0);
-    let sum_k2: f64 = k.iter().map(|&kj| (kj as f64).powi(2)).sum();
-    let var = sigma2 * (n as f64 + sum_k2) / (n as f64).powi(2);
+    let weight = if ate_form {
+        // Σⱼ (1 + Kⱼ)² over the donor-count vector (includes K=0 units).
+        k.iter().map(|&kj| (1.0 + kj as f64).powi(2)).sum::<f64>()
+    } else {
+        let sum_k2: f64 = k.iter().map(|&kj| (kj as f64).powi(2)).sum();
+        n as f64 + sum_k2
+    };
+    let var = sigma2 * weight / (n as f64).powi(2);
     var.sqrt()
+}
+
+/// Influence contributions aligned with [`abadie_imbens_se`].
+///
+/// Residuals are scaled by `1/√2` so that under homoskedasticity they match `σ̂² = Var(τ̂)/2`.
+/// - **ATE**: `ψᵢ ∝ (τ̂ᵢ − τ̄) (1 + K_M(i))` with `K_M(i)` = times unit `i` is used as a donor.
+/// - **ATT/ATC**: `ψᵢ ∝ (τ̂ᵢ − τ̄) √(1 + K_{d(i)})` so `Σ wᵢ² = n + Σ Kⱼ²`.
+fn matching_influence(
+    effects: &[f64],
+    ate: f64,
+    donor_local: &[usize],
+    n_donors: usize,
+    ate_form: bool,
+    nrows: usize,
+    treated_idx: &[usize],
+    control_idx: &[usize],
+    effect_rows: &[usize],
+) -> Vec<f64> {
+    let k = donor_counts(donor_local, n_donors);
+    let scale = std::f64::consts::SQRT_2.recip();
+    let mut psi = Vec::with_capacity(effects.len());
+    if ate_form {
+        // Map each sample row to its donor-reuse count K_M (ATE donor pool = controls ‖ treated).
+        let n_control = control_idx.len();
+        let mut k_m_by_row = vec![0usize; nrows];
+        for (local, &row) in control_idx.iter().enumerate() {
+            if local < k.len() {
+                k_m_by_row[row] = k[local];
+            }
+        }
+        for (local, &row) in treated_idx.iter().enumerate() {
+            let d = local + n_control;
+            if d < k.len() {
+                k_m_by_row[row] = k[d];
+            }
+        }
+        for (i, &eff) in effects.iter().enumerate() {
+            let km = k_m_by_row.get(effect_rows[i]).copied().unwrap_or(0) as f64;
+            psi.push((eff - ate) * scale * (1.0 + km));
+        }
+    } else {
+        for (i, &d) in donor_local.iter().enumerate() {
+            let kd = k.get(d).copied().unwrap_or(0) as f64;
+            psi.push((effects[i] - ate) * scale * (1.0 + kd).sqrt());
+        }
+    }
+    psi
 }
 
 /// Heteroskedastic Abadie–Imbens SE using demeaned pair-level variance proxies.
 /// Not exposed as `Hc0`–`Hc3` (those names are sandwich estimators matching does not implement).
 #[allow(dead_code)]
-fn abadie_imbens_se_hetero(effects: &[f64], donor_local: &[usize], n_donors: usize) -> f64 {
+fn abadie_imbens_se_hetero(
+    effects: &[f64],
+    donor_local: &[usize],
+    n_donors: usize,
+    ate_form: bool,
+) -> f64 {
     let n = effects.len();
     if n < 2 || donor_local.len() != n {
         return sample_std(effects) / (n as f64).sqrt();
     }
-    let mut k = vec![0usize; n_donors.max(1)];
-    for &d in donor_local {
-        if d < k.len() {
-            k[d] += 1;
-        }
-    }
+    let k = donor_counts(donor_local, n_donors);
     let mean = effects.iter().sum::<f64>() / n as f64;
     let mut var = 0.0;
-    for (i, &d) in donor_local.iter().enumerate() {
-        let centered = effects[i] - mean;
-        let sigma2_i = 0.5 * centered * centered;
-        let kd = k.get(d).copied().unwrap_or(0) as f64;
-        var += sigma2_i * (1.0 + kd).powi(2);
+    if ate_form {
+        // Query-level proxy using the matched donor's K (homo ATE uses unit-level K_M).
+        for (i, &d) in donor_local.iter().enumerate() {
+            let centered = effects[i] - mean;
+            let sigma2_i = 0.5 * centered * centered;
+            let kd = k.get(d).copied().unwrap_or(0) as f64;
+            var += sigma2_i * (1.0 + kd).powi(2);
+        }
+    } else {
+        for (i, &d) in donor_local.iter().enumerate() {
+            let centered = effects[i] - mean;
+            let sigma2_i = 0.5 * centered * centered;
+            let kd = k.get(d).copied().unwrap_or(0) as f64;
+            var += sigma2_i * (1.0 + kd);
+        }
     }
     (var / (n as f64).powi(2)).max(0.0).sqrt()
 }
@@ -818,41 +896,156 @@ mod tests {
     #[test]
     fn abadie_imbens_se_grows_with_donor_reuse() {
         let effects = [1.0, 1.2, 0.8, 1.1];
-        // Four queries, two unique donors reused twice each.
+        // Four queries, two unique donors reused twice each (full K vector length n).
         let donors_reuse = vec![0usize, 0, 1, 1];
         let donors_unique = vec![0usize, 1, 2, 3];
-        let se_reuse = abadie_imbens_se(&effects, &donors_reuse, 2);
-        let se_unique = abadie_imbens_se(&effects, &donors_unique, 4);
+        let se_reuse = abadie_imbens_se(&effects, &donors_reuse, 4, true);
+        let se_unique = abadie_imbens_se(&effects, &donors_unique, 4, true);
         assert!(se_reuse > se_unique, "reuse={se_reuse} unique={se_unique}");
+    }
+
+    /// Algebraic identity: ATE SE = √(σ² Σ(1+K)² / n²) and exceeds the old ATT-form
+    /// `(n + Σ K²)` whenever some K > 0.
+    #[test]
+    fn abadie_imbens_ate_se_one_plus_k_squared_identity() {
+        let effects = [1.0, 1.2, 0.8, 1.1];
+        // K_M = [2, 2, 0, 0] via n_donors = 4 and donors {0,1} each reused twice.
+        let donors = vec![0usize, 0, 1, 1];
+        let n = effects.len() as f64;
+        let mean = effects.iter().sum::<f64>() / n;
+        let var_tau = effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        let sigma2 = var_tau * 0.5;
+        let k = [2.0_f64, 2.0, 0.0, 0.0];
+        let sum_1pk2: f64 = k.iter().map(|kj| (1.0 + kj).powi(2)).sum();
+        let expected = (sigma2 * sum_1pk2 / n.powi(2)).sqrt();
+        let se = abadie_imbens_se(&effects, &donors, 4, true);
+        assert!(
+            (se - expected).abs() < 1e-14,
+            "se={se} expected={expected} (Σ(1+K)²={sum_1pk2})"
+        );
+        let sum_k2: f64 = k.iter().map(|kj| kj.powi(2)).sum();
+        let old_att_form = (sigma2 * (n + sum_k2) / n.powi(2)).sqrt();
+        assert!(
+            se > old_att_form,
+            "ATE (1+K)² form {se} should exceed ATT-form {old_att_form} when some K>0"
+        );
+        // Expansion check: Σ(1+K)² = n + 2ΣK + ΣK² when |K|=n.
+        let sum_k: f64 = k.iter().sum();
+        assert!((sum_1pk2 - (n + 2.0 * sum_k + sum_k2)).abs() < 1e-14);
+    }
+
+    #[test]
+    fn abadie_imbens_att_keeps_one_arm_formula() {
+        let effects = [1.0, 1.2, 0.8, 1.1];
+        let donors = vec![0usize, 0, 1, 1];
+        let n = effects.len() as f64;
+        let mean = effects.iter().sum::<f64>() / n;
+        let var_tau = effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        let sigma2 = var_tau * 0.5;
+        // ATT donor pool length 2: K=[2,2], weight = n + ΣK² = 4+8 = 12.
+        let expected = (sigma2 * (n + 8.0) / n.powi(2)).sqrt();
+        let se = abadie_imbens_se(&effects, &donors, 2, false);
+        assert!((se - expected).abs() < 1e-14, "se={se} expected={expected}");
+        let se_ate = abadie_imbens_se(&effects, &donors, 4, true);
+        assert!(se_ate > se, "ATE form should exceed ATT form under reuse");
+    }
+
+    /// Under iid (each unit its own cluster) the corrected IF cluster SE matches the
+    /// analytic ATE SE (finite-sample G/(G−1) cancels with the sample-variance df).
+    #[test]
+    fn cluster_ate_influence_matches_analytic_under_iid() {
+        let effects = [1.0, 1.2, 0.8, 1.1];
+        let donors = vec![0usize, 1, 2, 3]; // K_M = [1,1,1,1]
+        let n_donors = 4;
+        let ate = effects.iter().sum::<f64>() / effects.len() as f64;
+        let se_ai = abadie_imbens_se(&effects, &donors, n_donors, true);
+        // Synthetic rows 0..3 with treated={0,1}, control={2,3} so ATE donor pool
+        // is controls‖treated → local [2,3,0,1] maps K onto rows via matching_influence.
+        // Direct construction with K_M(i)=1 for all units mirrors that geometry.
+        let scale = std::f64::consts::SQRT_2.recip();
+        let psi: Vec<f64> =
+            effects.iter().map(|&e| (e - ate) * scale * (1.0 + 1.0)).collect();
+        let groups: Vec<u32> = (0..effects.len() as u32).collect();
+        let se_cl = crate::se::cluster_influence_se(&psi, &groups).unwrap();
+        assert!(
+            (se_cl - se_ai).abs() < 1e-12,
+            "cluster={se_cl} analytic={se_ai} (should agree under iid)"
+        );
+        // Old over-large IF: (τ−τ̄)(1+K) without 1/√2 is √2 too big here (K≡1).
+        let psi_old: Vec<f64> = effects.iter().map(|&e| (e - ate) * (1.0 + 1.0)).collect();
+        let se_old = crate::se::cluster_influence_se(&psi_old, &groups).unwrap();
+        assert!(
+            (se_old / se_ai - std::f64::consts::SQRT_2).abs() < 1e-12,
+            "old IF should be √2× analytic; ratio={}",
+            se_old / se_ai
+        );
     }
 
     #[test]
     fn cluster_se_grows_with_donor_reuse() {
         let effects = [1.0, 1.2, 0.8, 1.1];
         let ate = effects.iter().sum::<f64>() / effects.len() as f64;
-        let donors_reuse = vec![0usize, 0, 1, 1];
-        let donors_unique = vec![0usize, 1, 2, 3];
         let groups = vec![0u32, 0, 1, 1];
-        let se = |donors: &[usize], n_donors: usize| {
-            let mut k = vec![0usize; n_donors.max(1)];
-            for &d in donors {
-                if d < k.len() {
-                    k[d] += 1;
-                }
-            }
+        let scale = std::f64::consts::SQRT_2.recip();
+        // Unit-level K_M for ATE-style IF (reuse vs unique).
+        let se = |k_m: &[f64]| {
             let psi: Vec<f64> = effects
                 .iter()
                 .enumerate()
-                .map(|(i, &e)| {
-                    let kd = k.get(donors[i]).copied().unwrap_or(0) as f64;
-                    (e - ate) * (1.0 + kd)
-                })
+                .map(|(i, &e)| (e - ate) * scale * (1.0 + k_m[i]))
                 .collect();
             crate::se::cluster_influence_se(&psi, &groups).unwrap()
         };
-        let se_reuse = se(&donors_reuse, 2);
-        let se_unique = se(&donors_unique, 4);
+        let se_reuse = se(&[2.0, 2.0, 0.0, 0.0]);
+        let se_unique = se(&[1.0, 1.0, 1.0, 1.0]);
         assert!(se_reuse > se_unique, "cluster reuse={se_reuse} unique={se_unique}");
+    }
+
+    /// Short Monte Carlo: ATE analytic 95% Wald intervals should not sit near 89% coverage.
+    #[test]
+    fn abadie_imbens_ate_se_coverage_direction() {
+        let mut covered = 0usize;
+        let reps = 80usize;
+        let n = 120usize;
+        for seed in 0..reps {
+            let mut rng = ExecutionContext::for_tests(seed as u64).rng.stream(0xA11Eu64);
+            let mut t = vec![0.0; n];
+            let mut y = vec![0.0; n];
+            let mut x = vec![0.0; n];
+            for i in 0..n {
+                let zi = standard_normal(&mut rng);
+                x[i] = zi;
+                t[i] = if rng.next_f64() < 0.5 { 1.0 } else { 0.0 };
+                y[i] = 1.0 * t[i] + 0.3 * zi + standard_normal(&mut rng) * 0.5;
+            }
+            let mut ws = PropensityEstimationWorkspace::default();
+            let est = matching_contrast(
+                &t,
+                &y,
+                &x,
+                1,
+                MatchingDistance::Absolute,
+                &TargetPopulation::AllObserved,
+                None,
+                &mut ws,
+                AnalyticSeKind::Homoskedastic,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            let z = 1.96;
+            if (est.ate - 1.0).abs() <= z * est.se_analytic {
+                covered += 1;
+            }
+        }
+        let rate = covered as f64 / reps as f64;
+        // Directional check only: must not collapse near the old ~0.89 undercoverage.
+        assert!(
+            rate >= 0.85,
+            "nominal-95% coverage {rate} too low (covered {covered}/{reps})"
+        );
     }
 
     /// Regression: requesting bootstrap replicates must not license an SE in
