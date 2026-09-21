@@ -4,8 +4,10 @@
 //! oriented without new unshielded colliders. Conflict marks are refused.
 //! Future→past orientations are rejected by [`TemporalCpdag::orient_undirected`].
 //!
-//! Enumeration is exhaustive over `2^k` masks; construction refuses when `k`
-//! exceeds [`MAX_TEMPORAL_UNDIRECTED_EDGES`] rather than hanging on a blind scan.
+//! Search orients one undirected edge at a time and rejects a partial assignment
+//! as soon as it creates a cycle, a future→past edge, or an unshielded collider
+//! absent from the CPDAG. A hard ceiling ([`MAX_TEMPORAL_UNDIRECTED_EDGES`])
+//! still refuses pathological unconstrained instances.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,11 +16,11 @@ use crate::error::GraphError;
 use crate::temporal::TemporalDag;
 use crate::types::DenseNodeId;
 
-/// Hard cap on undirected edges the temporal mask enumerator will accept.
+/// Hard ceiling on undirected edges accepted by the temporal completion search.
 ///
-/// Matches [`crate::cpdag_completion::MAX_UNDIRECTED_EDGES`]: past this bound
-/// construction returns [`GraphError::InvalidEndpoints`] immediately.
-pub const MAX_TEMPORAL_UNDIRECTED_EDGES: usize = 16;
+/// Matches [`crate::cpdag_completion::MAX_UNDIRECTED_EDGES`]: above the ~25-edge
+/// hang threshold of a blind mask scan; pruning handles sparse classes below it.
+pub const MAX_TEMPORAL_UNDIRECTED_EDGES: usize = 64;
 
 /// One [`TemporalDag`] completion of a [`TemporalCpdag`].
 #[derive(Clone, Debug)]
@@ -34,9 +36,10 @@ pub struct TemporalCpdagCompletion {
 pub struct TemporalCpdagCompletionSampler {
     base: TemporalCpdag,
     undirected: Vec<(DenseNodeId, DenseNodeId)>,
+    allowed_colliders: Vec<(u32, u32, u32)>,
     max_completions: usize,
     next_index: usize,
-    assign: u64,
+    stack: Vec<(TemporalCpdag, usize)>,
 }
 
 impl TemporalCpdagCompletionSampler {
@@ -44,8 +47,7 @@ impl TemporalCpdagCompletionSampler {
     ///
     /// # Errors
     ///
-    /// Conflict edges, or more than [`MAX_TEMPORAL_UNDIRECTED_EDGES`] undirected
-    /// edges (exhaustive `2^k` mask enumeration would not finish promptly).
+    /// Conflict edges, or more than [`MAX_TEMPORAL_UNDIRECTED_EDGES`] undirected edges.
     pub fn new(cpdag: TemporalCpdag, max_completions: usize) -> Result<Self, GraphError> {
         if cpdag.conflict_edge_count() > 0 {
             return Err(GraphError::InvalidEndpoints {
@@ -63,10 +65,19 @@ impl TemporalCpdagCompletionSampler {
         undirected.dedup();
         if undirected.len() > MAX_TEMPORAL_UNDIRECTED_EDGES {
             return Err(GraphError::InvalidEndpoints {
-                message: "TemporalCpdagCompletionSampler supports at most 16 undirected edges",
+                message: "TemporalCpdagCompletionSampler supports at most 64 undirected edges",
             });
         }
-        Ok(Self { base: cpdag, undirected, max_completions, next_index: 0, assign: 0 })
+        let allowed_colliders = unshielded_colliders_temporal_cpdag(&cpdag);
+        let start = cpdag.clone();
+        Ok(Self {
+            base: cpdag,
+            undirected,
+            allowed_colliders,
+            max_completions,
+            next_index: 0,
+            stack: vec![(start, 0)],
+        })
     }
 
     /// Hard cap on yielded valid completions.
@@ -81,28 +92,10 @@ impl TemporalCpdagCompletionSampler {
         self.undirected.len()
     }
 
-    /// Whether the retention cap stopped the stream before every mask was examined.
+    /// Whether the retention cap stopped the stream before the search finished.
     #[must_use]
     pub fn hit_cap(&self) -> bool {
-        self.next_index >= self.max_completions && self.assign < self.total_masks()
-    }
-
-    fn total_masks(&self) -> u64 {
-        let n = self.undirected.len();
-        if n == 0 { 1 } else { 1u64 << n }
-    }
-
-    fn build_completion(&self, mask: u64) -> Option<TemporalDag> {
-        let mut g = self.base.clone();
-        for (i, &(a, b)) in self.undirected.iter().enumerate() {
-            let reverse = ((mask >> i) & 1) == 1;
-            let (from, to) = if reverse { (b, a) } else { (a, b) };
-            if g.orient_undirected(from, to).is_err() {
-                return None;
-            }
-        }
-        let dag = g.try_into_temporal_dag().ok()?;
-        if is_temporal_mec_member(&self.base, &dag) { Some(dag) } else { None }
+        self.next_index >= self.max_completions && !self.stack.is_empty()
     }
 }
 
@@ -197,6 +190,33 @@ fn unshielded_colliders_temporal_dag(g: &TemporalDag) -> Vec<(u32, u32, u32)> {
     out
 }
 
+fn has_forbidden_collider_at(
+    allowed: &[(u32, u32, u32)],
+    g: &TemporalCpdag,
+    center: DenseNodeId,
+) -> bool {
+    let parents = g.parents(center);
+    for left_i in 0..parents.len() {
+        for right_i in (left_i + 1)..parents.len() {
+            let left_parent = parents[left_i];
+            let right_parent = parents[right_i];
+            if g.has_edge(left_parent, right_parent) {
+                continue;
+            }
+            let (lo, hi) = if left_parent.raw() <= right_parent.raw() {
+                (left_parent.raw(), right_parent.raw())
+            } else {
+                (right_parent.raw(), left_parent.raw())
+            };
+            let trip = (lo, center.raw(), hi);
+            if allowed.binary_search(&trip).is_err() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 impl Iterator for TemporalCpdagCompletionSampler {
     type Item = TemporalCpdagCompletion;
 
@@ -204,14 +224,26 @@ impl Iterator for TemporalCpdagCompletionSampler {
         if self.next_index >= self.max_completions {
             return None;
         }
-        let total = self.total_masks();
-        while self.assign < total {
-            let mask = self.assign;
-            self.assign += 1;
-            if let Some(graph) = self.build_completion(mask) {
+        while let Some((g, edge_i)) = self.stack.pop() {
+            if edge_i == self.undirected.len() {
+                let dag = g.try_into_temporal_dag().ok()?;
+                if !is_temporal_mec_member(&self.base, &dag) {
+                    continue;
+                }
                 let index = self.next_index;
                 self.next_index += 1;
-                return Some(TemporalCpdagCompletion { graph, index });
+                return Some(TemporalCpdagCompletion { graph: dag, index });
+            }
+            let (a, b) = self.undirected[edge_i];
+            for (from, to) in [(b, a), (a, b)] {
+                let mut next_g = g.clone();
+                if next_g.orient_undirected(from, to).is_err() {
+                    continue;
+                }
+                if has_forbidden_collider_at(&self.allowed_colliders, &next_g, to) {
+                    continue;
+                }
+                self.stack.push((next_g, edge_i + 1));
             }
         }
         None
@@ -220,6 +252,8 @@ impl Iterator for TemporalCpdagCompletionSampler {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use antecedent_core::{Lag, VariableId};
 
     use super::*;
@@ -266,8 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn refuses_above_undirected_edge_bound() {
-        // 25 contemporaneous undirected edges: refuse before a 2^25 scan.
+    fn long_undirected_chain_completes_by_pruning() {
         let mut g = TemporalCpdag::empty();
         let mut nodes = Vec::with_capacity(26);
         for i in 0..26u32 {
@@ -277,8 +310,18 @@ mod tests {
             g.insert_undirected(w[0], w[1]).unwrap();
         }
         assert_eq!(g.undirected_edge_count(), 25);
-        let err = TemporalCpdagCompletionSampler::new(g, 4).unwrap_err();
-        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+        let start = Instant::now();
+        let collected: Vec<_> =
+            TemporalCpdagCompletionSampler::new(g.clone(), 64).unwrap().collect();
+        assert!(
+            start.elapsed().as_secs_f64() < 1.0,
+            "25-edge temporal chain must finish by pruning, took {:?}",
+            start.elapsed()
+        );
+        assert_eq!(collected.len(), 26);
+        for completion in &collected {
+            assert!(is_temporal_mec_member(&g, &completion.graph));
+        }
     }
 
     #[test]
@@ -293,5 +336,21 @@ mod tests {
         for completion in &collected {
             assert!(is_temporal_mec_member(&g, &completion.graph));
         }
+    }
+
+    #[test]
+    fn refuses_above_hard_undirected_ceiling() {
+        let mut g = TemporalCpdag::empty();
+        let n = MAX_TEMPORAL_UNDIRECTED_EDGES + 2;
+        let mut nodes = Vec::with_capacity(n);
+        for i in 0..n {
+            nodes.push(lagged(&mut g, u32::try_from(i).unwrap(), 0));
+        }
+        for w in nodes.windows(2) {
+            g.insert_undirected(w[0], w[1]).unwrap();
+        }
+        assert_eq!(g.undirected_edge_count(), MAX_TEMPORAL_UNDIRECTED_EDGES + 1);
+        let err = TemporalCpdagCompletionSampler::new(g, 4).unwrap_err();
+        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
     }
 }
