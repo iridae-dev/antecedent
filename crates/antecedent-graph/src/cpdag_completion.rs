@@ -6,9 +6,11 @@
 //! bound (`max_completions` caps **valid** yields). Conflict (`x-x`) edges are
 //! refused at construction.
 //!
-//! The orientation space is enumerated exhaustively (`2^k` masks for `k`
-//! undirected edges). Construction therefore refuses when `k` exceeds
-//! [`MAX_UNDIRECTED_EDGES`] rather than hanging on a blind scan.
+//! Search orients one undirected edge at a time and rejects a partial assignment
+//! as soon as it creates a directed cycle or an unshielded collider absent from
+//! the CPDAG — so sparse classes (e.g. long undirected chains) finish by pruning
+//! instead of scanning `2^k` full masks. A hard ceiling
+//! ([`MAX_UNDIRECTED_EDGES`]) still refuses pathological unconstrained instances.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,12 +19,12 @@ use crate::dag::Dag;
 use crate::error::GraphError;
 use crate::types::DenseNodeId;
 
-/// Hard cap on undirected edges the mask enumerator will accept.
+/// Hard ceiling on undirected edges accepted by the completion search.
 ///
-/// Enumeration is `O(2^k)` with end-of-mask MEC validation; past this bound
-/// construction returns [`GraphError::InvalidEndpoints`] immediately instead of
-/// scanning (e.g. a 25-edge CPDAG would otherwise examine `2^25` masks).
-pub const MAX_UNDIRECTED_EDGES: usize = 16;
+/// Partial-assignment pruning handles sparse classes (chains, trees) well above
+/// the ~25-edge hang of a blind mask scan. This ceiling only stops fully
+/// unconstrained `2^k` blow-ups; it sits above that practical hang threshold.
+pub const MAX_UNDIRECTED_EDGES: usize = 64;
 
 /// One DAG completion of a CPDAG (MEC member).
 #[derive(Clone, Debug)]
@@ -37,12 +39,14 @@ pub struct CpdagCompletion {
 #[derive(Clone, Debug)]
 pub struct CpdagCompletionSampler {
     base: Cpdag,
-    /// Undirected edges `(a, b)` with `a.raw() < b.raw()`.
+    /// Undirected edges `(a, b)` with `a.raw() <= b.raw()`.
     undirected: Vec<(DenseNodeId, DenseNodeId)>,
+    /// Unshielded colliders already present in `base` (sorted).
+    allowed_colliders: Vec<(u32, u32, u32)>,
     max_completions: usize,
     next_index: usize,
-    /// Bitmask: bit i = 0 → orient a→b, bit i = 1 → orient b→a.
-    assign: u64,
+    /// DFS stack: partial orientation and index of the next edge to orient.
+    stack: Vec<(Cpdag, usize)>,
 }
 
 impl CpdagCompletionSampler {
@@ -50,8 +54,7 @@ impl CpdagCompletionSampler {
     ///
     /// # Errors
     ///
-    /// Conflict edges present, or more than [`MAX_UNDIRECTED_EDGES`] undirected
-    /// edges (exhaustive `2^k` mask enumeration would not finish promptly).
+    /// Conflict edges present, or more than [`MAX_UNDIRECTED_EDGES`] undirected edges.
     pub fn new(cpdag: Cpdag, max_completions: usize) -> Result<Self, GraphError> {
         if cpdag.conflict_edge_count() > 0 {
             return Err(GraphError::InvalidEndpoints {
@@ -69,10 +72,19 @@ impl CpdagCompletionSampler {
         undirected.dedup();
         if undirected.len() > MAX_UNDIRECTED_EDGES {
             return Err(GraphError::InvalidEndpoints {
-                message: "CpdagCompletionSampler supports at most 16 undirected edges",
+                message: "CpdagCompletionSampler supports at most 64 undirected edges",
             });
         }
-        Ok(Self { base: cpdag, undirected, max_completions, next_index: 0, assign: 0 })
+        let allowed_colliders = unshielded_colliders_cpdag(&cpdag);
+        let start = cpdag.clone();
+        Ok(Self {
+            base: cpdag,
+            undirected,
+            allowed_colliders,
+            max_completions,
+            next_index: 0,
+            stack: vec![(start, 0)],
+        })
     }
 
     /// Hard cap on yielded valid completions.
@@ -87,30 +99,12 @@ impl CpdagCompletionSampler {
         self.undirected.len()
     }
 
-    /// Whether the retention cap stopped the stream before every orientation
-    /// mask was examined. Local validity still holds for yielded DAGs; the
-    /// unexamined suffix is not certified empty of further MEC members.
+    /// Whether the retention cap stopped the stream before the search finished.
+    /// Local validity still holds for yielded DAGs; the unexplored remainder is
+    /// not certified empty of further MEC members.
     #[must_use]
     pub fn hit_cap(&self) -> bool {
-        self.next_index >= self.max_completions && self.assign < self.total_masks()
-    }
-
-    fn total_masks(&self) -> u64 {
-        let n = self.undirected.len();
-        if n == 0 { 1 } else { 1u64 << n }
-    }
-
-    fn build_completion(&self, mask: u64) -> Option<Dag> {
-        let mut g = self.base.clone();
-        for (i, &(a, b)) in self.undirected.iter().enumerate() {
-            let reverse = ((mask >> i) & 1) == 1;
-            let (from, to) = if reverse { (b, a) } else { (a, b) };
-            if g.orient_undirected(from, to).is_err() {
-                return None;
-            }
-        }
-        let dag = g.try_into_dag().ok()?;
-        if is_mec_member(&self.base, &dag) { Some(dag) } else { None }
+        self.next_index >= self.max_completions && !self.stack.is_empty()
     }
 }
 
@@ -214,6 +208,34 @@ fn unshielded_colliders_dag(g: &Dag) -> Vec<(u32, u32, u32)> {
     out
 }
 
+/// True when `center` already has an unshielded collider not present in `allowed`.
+fn has_forbidden_collider_at(
+    allowed: &[(u32, u32, u32)],
+    g: &Cpdag,
+    center: DenseNodeId,
+) -> bool {
+    let parents = g.parents(center);
+    for left_i in 0..parents.len() {
+        for right_i in (left_i + 1)..parents.len() {
+            let left_parent = parents[left_i];
+            let right_parent = parents[right_i];
+            if g.has_edge(left_parent, right_parent) {
+                continue;
+            }
+            let (lo, hi) = if left_parent.raw() <= right_parent.raw() {
+                (left_parent.raw(), right_parent.raw())
+            } else {
+                (right_parent.raw(), left_parent.raw())
+            };
+            let trip = (lo, center.raw(), hi);
+            if allowed.binary_search(&trip).is_err() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 impl Iterator for CpdagCompletionSampler {
     type Item = CpdagCompletion;
 
@@ -221,14 +243,28 @@ impl Iterator for CpdagCompletionSampler {
         if self.next_index >= self.max_completions {
             return None;
         }
-        let total = self.total_masks();
-        while self.assign < total {
-            let mask = self.assign;
-            self.assign += 1;
-            if let Some(graph) = self.build_completion(mask) {
+        while let Some((g, edge_i)) = self.stack.pop() {
+            if edge_i == self.undirected.len() {
+                let dag = g.try_into_dag().ok()?;
+                if !is_mec_member(&self.base, &dag) {
+                    continue;
+                }
                 let index = self.next_index;
                 self.next_index += 1;
-                return Some(CpdagCompletion { graph, index });
+                return Some(CpdagCompletion { graph: dag, index });
+            }
+            let (a, b) = self.undirected[edge_i];
+            // Push reverse first so a→b is explored first (LIFO).
+            for (from, to) in [(b, a), (a, b)] {
+                let mut next_g = g.clone();
+                if next_g.orient_undirected(from, to).is_err() {
+                    continue; // cycle (or temporal future→past on TemporalCpdag)
+                }
+                // New arrow into `to` can only create colliders centered at `to`.
+                if has_forbidden_collider_at(&self.allowed_colliders, &next_g, to) {
+                    continue;
+                }
+                self.stack.push((next_g, edge_i + 1));
             }
         }
         None
@@ -237,6 +273,8 @@ impl Iterator for CpdagCompletionSampler {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use super::*;
     use crate::cpdag::Cpdag;
 
@@ -305,18 +343,26 @@ mod tests {
     }
 
     #[test]
-    fn refuses_above_undirected_edge_bound() {
-        // 25 undirected edges would otherwise scan 2^25 masks; refuse at construction.
+    fn long_undirected_chain_completes_by_pruning() {
+        // Path of 26 nodes / 25 undirected edges: MEC has 26 DAGs (one source each).
+        // Blind 2^25 would hang; collider pruning must finish promptly.
         let n = 26u32;
         let mut g = Cpdag::with_variables(n);
         for i in 0..(n - 1) {
-            let a = DenseNodeId::from_raw(i);
-            let b = DenseNodeId::from_raw(i + 1);
-            g.insert_undirected(a, b).unwrap();
+            g.insert_undirected(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
         }
         assert_eq!(g.undirected_edge_count(), 25);
-        let err = CpdagCompletionSampler::new(g, 4).unwrap_err();
-        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
+        let start = Instant::now();
+        let collected: Vec<_> = CpdagCompletionSampler::new(g.clone(), 64).unwrap().collect();
+        assert!(
+            start.elapsed().as_secs_f64() < 1.0,
+            "25-edge chain must finish by pruning, took {:?}",
+            start.elapsed()
+        );
+        assert_eq!(collected.len(), 26);
+        for c in &collected {
+            assert!(is_mec_member(&g, &c.graph));
+        }
     }
 
     #[test]
@@ -328,5 +374,17 @@ mod tests {
         for c in &collected {
             assert!(is_mec_member(&g, &c.graph));
         }
+    }
+
+    #[test]
+    fn refuses_above_hard_undirected_ceiling() {
+        let n = u32::try_from(MAX_UNDIRECTED_EDGES + 2).unwrap();
+        let mut g = Cpdag::with_variables(n);
+        for i in 0..(n - 1) {
+            g.insert_undirected(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        assert_eq!(g.undirected_edge_count(), MAX_UNDIRECTED_EDGES + 1);
+        let err = CpdagCompletionSampler::new(g, 4).unwrap_err();
+        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
     }
 }
