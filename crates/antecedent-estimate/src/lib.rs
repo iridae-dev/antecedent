@@ -31,6 +31,7 @@ pub mod envelope;
 pub mod error;
 pub mod estimator;
 pub mod frontdoor;
+pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
@@ -120,6 +121,7 @@ pub use envelope::{
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
+pub use frontdoor_functional::{FrontDoorFunctional, FrontDoorOutcomeModel};
 pub use functional_distribution::{
     AtomUncertainty, DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace,
     FunctionalEffect, InterventionalDistributionEstimate, PreparedFunctionalDistribution,
