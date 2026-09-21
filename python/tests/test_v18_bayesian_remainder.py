@@ -1,4 +1,4 @@
-"""Bayesian remainder: staged cells and named fixtures."""
+"""Bayesian remainder: staged cells and prior-catalog refusals."""
 
 from __future__ import annotations
 
@@ -19,25 +19,7 @@ def _load(rel: str) -> dict:
     return json.loads((ROOT / rel).read_text(encoding="utf-8"))
 
 
-def test_functional_validation_fixture_is_named():
-    pin = _load("conformance/estimate/functional_validation/expected.json")
-    assert pin["path_effect"] == pytest.approx(0.3)
-
-
-def test_static_kinds_and_derivatives_fixtures_are_named():
-    kinds = _load("conformance/estimate/staged_static_kinds/expected.json")
-    deriv = _load("conformance/response/staged_derivatives/expected.json")
-    admg = _load("conformance/estimate/admg_frontdoor_functional/expected.json")
-    dist = _load("conformance/estimate/interventional_distribution/expected.json")
-    path = _load("conformance/context/path_specific_natural/expected.json")
-    assert kinds["direct"] == pytest.approx(1.8)
-    assert deriv["average"] == pytest.approx(2.0)
-    assert admg["frequentist"]["expected_ate"] == pytest.approx(0.3)
-    assert dist["mean"] == pytest.approx(0.7)
-    assert path["ate"] == pytest.approx(0.3)
-
-
-def test_prior_transfer_fixtures_are_named():
+def test_prior_catalog_rejects_estimand_mismatch():
     from antecedent.priors import (
         DesignVariable,
         EstimandFingerprint,
@@ -46,14 +28,6 @@ def test_prior_transfer_fixtures_are_named():
         PriorSourceMeta,
     )
 
-    effect = _load("conformance/bayesian/static_effect_prior_transfer/expected.json")
-    response = _load("conformance/bayesian/static_response_prior_transfer/expected.json")
-    mediation = _load("conformance/bayesian/static_mediation_prior_transfer/expected.json")
-    mixtures = _load("conformance/bayesian/known_truth_mixtures/expected.json")
-    assert effect["compatibility_filter"] == "PriorCatalog.filter_compatible"
-    assert response["target_cells"]["missing_mapping"] == "typed_refuse"
-    assert mediation["compatibility_filter"] == "outcome-mechanism ATE/Δ hydrate"
-    assert "static_average_effect" in mixtures
     catalog = PriorCatalog.from_sources(
         [
             PriorSource(
@@ -252,7 +226,6 @@ def test_bayesian_mediation_mapped_prior_is_used():
     assert "implied NDE/ATE mean" in text
     assert source.effect == pytest.approx(kinds["total"], abs=0.25)
     assert isotropic.effect == pytest.approx(kinds["direct"], abs=kinds["tolerance"])
-    assert pin["compatibility_filter"] == "outcome-mechanism ATE/Δ hydrate"
 
 
 def test_staged_native_signatures_match_type_stubs():

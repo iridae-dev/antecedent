@@ -1,4 +1,4 @@
-"""Python-only semantic surface for the 0.5 causal-response primitives."""
+"""Python-only semantic surface for the causal-response primitives."""
 
 from __future__ import annotations
 
@@ -66,10 +66,12 @@ def test_stage_specs_are_frozen_and_keep_assumptions_separate():
         mechanism.latent = "changed"  # type: ignore[misc]
 
     diagram = transport.SelectionDiagram("trial", "target", ["age"])
-    assert transport.TransportQuery(antecedent.AverageEffect("a", "y"), diagram).diagram is diagram
+    query = transport.TransportQuery(antecedent.AverageEffect("a", "y"), diagram)
+    assert query.diagram.source == "trial"
+    assert list(query.diagram.selections) == ["age"]
 
     exposure = interference.NeighborFraction()
-    query = interference.InterferenceQuery(
+    interference_query = interference.InterferenceQuery(
         interference.BernoulliAssignment(0.5),
         exposure,
         interference.ExposureContrast(
@@ -78,7 +80,7 @@ def test_stage_specs_are_frozen_and_keep_assumptions_separate():
             interference.ExposureLevel(0.0, 1.0),
         ),
     )
-    assert query.exposure is exposure
+    assert type(interference_query.exposure) is interference.NeighborFraction
 
 
 def test_response_result_views_validate_shape_and_report_orthogonal_axes():
