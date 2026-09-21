@@ -265,6 +265,12 @@ pub struct FirstStageDiagnosticsWire {
     pub df1: u64,
     pub df2: u64,
     pub partial_r2: f64,
+    /// Homoskedastic Anderson–Rubin set `(lower, upper, level)`; endpoints may be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anderson_rubin: Option<(f64, f64, f64)>,
+    /// Why AR / licensed IV uncertainty was withheld.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uncertainty_withheld: Option<String>,
 }
 
 /// Sharp RD design on the wire.
@@ -386,6 +392,8 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
                 df1: u64::try_from(diagnostic.df1).unwrap_or(u64::MAX),
                 df2: u64::try_from(diagnostic.df2).unwrap_or(u64::MAX),
                 partial_r2: diagnostic.partial_r2,
+                anderson_rubin: diagnostic.anderson_rubin,
+                uncertainty_withheld: diagnostic.uncertainty_withheld.map(str::to_owned),
             }
         }),
         retained_memory_bytes: e.retained_memory_bytes,
@@ -543,6 +551,27 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
                 df1: usize::try_from(diagnostic.df1).map_err(|_| IoError::TooLarge)?,
                 df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
                 partial_r2: diagnostic.partial_r2,
+                anderson_rubin: diagnostic.anderson_rubin,
+                uncertainty_withheld: match diagnostic.uncertainty_withheld.as_deref() {
+                    None => None,
+                    Some("anderson_rubin_requires_homoskedastic") => {
+                        Some("anderson_rubin_requires_homoskedastic")
+                    }
+                    Some("anderson_rubin_set_is_union") => Some("anderson_rubin_set_is_union"),
+                    Some("anderson_rubin_set_empty") => Some("anderson_rubin_set_empty"),
+                    Some("anderson_rubin_requires_excluded_instruments") => {
+                        Some("anderson_rubin_requires_excluded_instruments")
+                    }
+                    Some("anderson_rubin_invalid_level") => Some("anderson_rubin_invalid_level"),
+                    Some("anderson_rubin_critical_value_failed") => {
+                        Some("anderson_rubin_critical_value_failed")
+                    }
+                    Some(_) => {
+                        return Err(IoError::Convert(
+                            "unknown first-stage uncertainty_withheld reason".into(),
+                        ));
+                    }
+                },
             })
         })
         .transpose()?;
@@ -1111,6 +1140,8 @@ mod tests {
                 df1: 1,
                 df2: 98,
                 partial_r2: 0.2,
+                anderson_rubin: Some((1.0, 3.0, 0.95)),
+                uncertainty_withheld: None,
             }),
             retained_memory_bytes: Some(4096),
             score_table: None,

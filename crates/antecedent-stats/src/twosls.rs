@@ -6,6 +6,7 @@
 
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
+use crate::special::{gamma_q, normal_ppf};
 
 /// Fit weighted least squares by row-scaling with `sqrt(weight)`.
 ///
@@ -53,8 +54,8 @@ pub fn fit_wls(
 /// first-stage regression of the endogenous variable on `[instruments | exogenous]`.
 ///
 /// [`fit_2sls`] never hard-fails on a weak instrument (only on an exactly
-/// degenerate first stage). Wald / 2SLS estimators refuse analytic Wald
-/// standard errors when `f_statistic < 10` (Staiger–Stock / Stock–Yogo).
+/// degenerate first stage). Licensed IV uncertainty is the Anderson–Rubin set in
+/// [`Self::anderson_rubin`], not a Wald / pretest SE.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FirstStageDiagnostics {
     /// F-statistic for the joint null that all excluded-instrument coefficients are zero,
@@ -67,6 +68,16 @@ pub struct FirstStageDiagnostics {
     /// Partial R² attributable to the excluded instruments:
     /// `(RSS_restricted − RSS_full) / RSS_restricted`.
     pub partial_r2: f64,
+    /// Homoskedastic Anderson–Rubin confidence set for the structural treatment
+    /// coefficient at [`Self::anderson_rubin`]'s third component (nominal level).
+    ///
+    /// `(lower, upper, level)`. Endpoints may be infinite when the non-rejection set
+    /// is an unbounded ray or the whole line. `None` when the set is empty, a union of
+    /// disjoint components, or when AR was withheld (see [`Self::uncertainty_withheld`]).
+    pub anderson_rubin: Option<(f64, f64, f64)>,
+    /// Why a licensed IV uncertainty product was withheld (AR union / empty set /
+    /// non-homoskedastic SE kind / numerical failure).
+    pub uncertainty_withheld: Option<&'static str>,
 }
 
 /// Result of two-stage least squares.
@@ -213,7 +224,272 @@ fn first_stage_f_test(
     } else {
         0.0
     };
-    Ok(FirstStageDiagnostics { f_statistic, df1, df2, partial_r2 })
+    Ok(FirstStageDiagnostics {
+        f_statistic,
+        df1,
+        df2,
+        partial_r2,
+        anderson_rubin: None,
+        uncertainty_withheld: None,
+    })
+}
+
+/// χ² critical value `c` with `P(χ²_df > c) = 1 - level` via bisection on [`gamma_q`].
+#[must_use]
+pub fn chi2_critical(level: f64, df: usize) -> f64 {
+    if df == 0 || !(level.is_finite() && (0.0..1.0).contains(&level)) {
+        return f64::NAN;
+    }
+    if df == 1 {
+        // Exact: χ²_1 = Z².
+        let z = normal_ppf(0.5 + 0.5 * level);
+        return z * z;
+    }
+    let alpha = 1.0 - level;
+    let a = df as f64 * 0.5;
+    let mut lo = 0.0;
+    let mut hi = (df as f64) + 40.0;
+    while gamma_q(a, hi * 0.5) > alpha {
+        hi *= 2.0;
+        if !hi.is_finite() || hi > 1e14 {
+            return f64::INFINITY;
+        }
+    }
+    for _ in 0..100 {
+        let mid = 0.5 * (lo + hi);
+        if gamma_q(a, mid * 0.5) > alpha {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
+/// Homoskedastic Anderson–Rubin statistic for `H₀: β = beta0`.
+///
+/// Forms `ỹ = y − beta0 · t` and returns `k · F` from the partial F-test that the
+/// excluded instruments are jointly insignificant in `ỹ ~ [Z | X]`. Under the null
+/// and homoskedasticity this is asymptotically `χ²_k` with `k = z_ncols`.
+///
+/// # Errors
+///
+/// Shape mismatch or backend failure.
+#[allow(clippy::too_many_arguments)]
+pub fn anderson_rubin_statistic(
+    y: &[f64],
+    t: &[f64],
+    instruments_colmajor: &[f64],
+    z_nrows: usize,
+    z_ncols: usize,
+    exogenous_colmajor: &[f64],
+    x_ncols: usize,
+    beta0: f64,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<f64, StatsError> {
+    if y.len() != z_nrows || t.len() != z_nrows {
+        return Err(StatsError::Shape { message: "y/t length != nrows" });
+    }
+    if instruments_colmajor.len() < z_nrows.saturating_mul(z_ncols) {
+        return Err(StatsError::Shape { message: "instruments buffer too short" });
+    }
+    if exogenous_colmajor.len() < z_nrows.saturating_mul(x_ncols) {
+        return Err(StatsError::Shape { message: "exogenous buffer too short" });
+    }
+    let mut y_star = vec![0.0; z_nrows];
+    for i in 0..z_nrows {
+        y_star[i] = y[i] - beta0 * t[i];
+    }
+    let stage_ncols = z_ncols + x_ncols;
+    let mut xz = vec![0.0; z_nrows * stage_ncols];
+    xz[..z_nrows * z_ncols].copy_from_slice(&instruments_colmajor[..z_nrows * z_ncols]);
+    if x_ncols > 0 {
+        xz[z_nrows * z_ncols..].copy_from_slice(&exogenous_colmajor[..z_nrows * x_ncols]);
+    }
+    let full = backend.least_squares(&xz, z_nrows, stage_ncols, &y_star, workspace)?;
+    let restricted_rss = if x_ncols == 0 {
+        y_star.iter().map(|v| v * v).sum::<f64>()
+    } else {
+        backend.least_squares(exogenous_colmajor, z_nrows, x_ncols, &y_star, workspace)?.rss
+    };
+    let k = z_ncols;
+    let df = z_nrows.saturating_sub(stage_ncols);
+    if k == 0 || df == 0 {
+        return Ok(f64::NAN);
+    }
+    if full.rss <= 0.0 {
+        return Ok(if restricted_rss > full.rss { f64::INFINITY } else { 0.0 });
+    }
+    let f = ((restricted_rss - full.rss) / k as f64) / (full.rss / df as f64);
+    Ok(k as f64 * f.max(0.0))
+}
+
+/// Invert the homoskedastic Anderson–Rubin test at `level`, returning a single
+/// confidence interval when the non-rejection set is connected (possibly unbounded).
+///
+/// On a union of disjoint components, returns `(None, Some("anderson_rubin_set_is_union"))`.
+///
+/// # Errors
+///
+/// Shape mismatch or backend failure while evaluating the AR statistic.
+#[allow(clippy::too_many_arguments)]
+pub fn anderson_rubin_confidence_set(
+    y: &[f64],
+    t: &[f64],
+    instruments_colmajor: &[f64],
+    z_nrows: usize,
+    z_ncols: usize,
+    exogenous_colmajor: &[f64],
+    x_ncols: usize,
+    level: f64,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<(Option<(f64, f64, f64)>, Option<&'static str>), StatsError> {
+    if z_ncols == 0 {
+        return Ok((None, Some("anderson_rubin_requires_excluded_instruments")));
+    }
+    if !(level.is_finite() && (0.0..1.0).contains(&level)) {
+        return Ok((None, Some("anderson_rubin_invalid_level")));
+    }
+    let crit = chi2_critical(level, z_ncols);
+    if !crit.is_finite() {
+        return Ok((None, Some("anderson_rubin_critical_value_failed")));
+    }
+
+    // Probe grid: dense near zero on a log-spaced absolute scale so weak-IV
+    // exterior sets and distant rays are visible without depending on a Wald SE.
+    let mut probes = Vec::with_capacity(256);
+    probes.push(0.0);
+    for exp in -6..=8 {
+        let base = 10f64.powi(exp);
+        for mult in [1.0, 2.0, 5.0] {
+            let v = mult * base;
+            probes.push(v);
+            probes.push(-v);
+        }
+    }
+    // Fill a linear mesh on [-20, 20] for typical structural effects.
+    for i in -200..=200 {
+        probes.push(0.1 * f64::from(i));
+    }
+    probes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    probes.dedup_by(|a, b| (*a - *b).abs() < 1e-15);
+
+    let mut values = Vec::with_capacity(probes.len());
+    for &b in &probes {
+        let ar = anderson_rubin_statistic(
+            y,
+            t,
+            instruments_colmajor,
+            z_nrows,
+            z_ncols,
+            exogenous_colmajor,
+            x_ncols,
+            b,
+            backend,
+            workspace,
+        )?;
+        values.push((b, ar));
+    }
+
+    // Refine crossings of the critical value between adjacent probes.
+    let mut refined = Vec::with_capacity(values.len() * 2);
+    for w in values.windows(2) {
+        let (b0, ar0) = w[0];
+        let (b1, ar1) = w[1];
+        refined.push((b0, ar0));
+        let accept0 = ar0.is_finite() && ar0 <= crit;
+        let accept1 = ar1.is_finite() && ar1 <= crit;
+        if accept0 != accept1 && ar0.is_finite() && ar1.is_finite() {
+            let mut lo_b = b0;
+            let mut hi_b = b1;
+            let mut lo_ar = ar0;
+            for _ in 0..40 {
+                let mid = 0.5 * (lo_b + hi_b);
+                let mid_ar = anderson_rubin_statistic(
+                    y,
+                    t,
+                    instruments_colmajor,
+                    z_nrows,
+                    z_ncols,
+                    exogenous_colmajor,
+                    x_ncols,
+                    mid,
+                    backend,
+                    workspace,
+                )?;
+                let mid_accept = mid_ar.is_finite() && mid_ar <= crit;
+                if mid_accept == accept0 {
+                    lo_b = mid;
+                    lo_ar = mid_ar;
+                } else {
+                    hi_b = mid;
+                }
+                let _ = lo_ar;
+            }
+            let root = 0.5 * (lo_b + hi_b);
+            let root_ar = anderson_rubin_statistic(
+                y,
+                t,
+                instruments_colmajor,
+                z_nrows,
+                z_ncols,
+                exogenous_colmajor,
+                x_ncols,
+                root,
+                backend,
+                workspace,
+            )?;
+            refined.push((root, root_ar));
+        }
+    }
+    if let Some(last) = values.last().copied() {
+        refined.push(last);
+    }
+
+    // Connected components of the acceptance set on the probe line.
+    let mut components: Vec<(f64, f64)> = Vec::new();
+    let mut i = 0;
+    while i < refined.len() {
+        let accept = refined[i].1.is_finite() && refined[i].1 <= crit;
+        if !accept {
+            i += 1;
+            continue;
+        }
+        let start = refined[i].0;
+        let mut end = start;
+        while i < refined.len() && refined[i].1.is_finite() && refined[i].1 <= crit {
+            end = refined[i].0;
+            i += 1;
+        }
+        components.push((start, end));
+    }
+
+    // Extend to ±∞ when the outermost probes accept.
+    if let Some(first) = components.first_mut() {
+        if let Some(&(b, ar)) = refined.first() {
+            if (first.0 - b).abs() < 1e-12 && ar.is_finite() && ar <= crit {
+                first.0 = f64::NEG_INFINITY;
+            }
+        }
+    }
+    if let Some(last) = components.last_mut() {
+        if let Some(&(b, ar)) = refined.last() {
+            if (last.1 - b).abs() < 1e-12 && ar.is_finite() && ar <= crit {
+                last.1 = f64::INFINITY;
+            }
+        }
+    }
+
+    match components.len() {
+        0 => Ok((None, Some("anderson_rubin_set_empty"))),
+        1 => {
+            let (lo, hi) = components[0];
+            Ok((Some((lo, hi, level)), None))
+        }
+        _ => Ok((None, Some("anderson_rubin_set_is_union"))),
+    }
 }
 
 #[cfg(test)]
@@ -355,6 +631,63 @@ mod tests {
         );
         assert!(strong.first_stage_diagnostics.partial_r2 > 0.9);
         assert!(weak.first_stage_diagnostics.partial_r2 < 0.1);
+    }
+
+    #[test]
+    fn anderson_rubin_at_true_beta_matches_reduced_form_test() {
+        // Tiny just-identified fixture: Z drives T, Y = 2T + noise. At the true
+        // β = 2, ỹ = Y − 2T is pure noise orthogonal to Z (up to the same noise),
+        // so the AR statistic equals k·F from the reduced-form regression of ỹ on Z.
+        let n = 8usize;
+        let z = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        let t = [0.1, 0.2, 0.0, 0.3, 1.1, 0.9, 1.2, 0.8];
+        let y: Vec<f64> = t.iter().enumerate().map(|(i, &ti)| 2.0 * ti + 0.05 * (i as f64 - 3.5)).collect();
+        let x = [1.0; 8];
+        let mut ws = LeastSquaresWorkspace::default();
+        let ar = anderson_rubin_statistic(
+            &y, &t, &z, n, 1, &x, 1, 2.0, &FaerBackend, &mut ws,
+        )
+        .unwrap();
+
+        let y_star: Vec<f64> = y.iter().zip(t).map(|(yi, ti)| yi - 2.0 * ti).collect();
+        let mut xz = vec![0.0; n * 2];
+        xz[..n].copy_from_slice(&z);
+        xz[n..].copy_from_slice(&x);
+        let full = FaerBackend.least_squares(&xz, n, 2, &y_star, &mut ws).unwrap();
+        let restricted = FaerBackend.least_squares(&x, n, 1, &y_star, &mut ws).unwrap();
+        let df = n - 2;
+        let f = ((restricted.rss - full.rss) / 1.0) / (full.rss / df as f64);
+        let expected = f;
+        assert!(
+            (ar - expected).abs() < 1e-10,
+            "AR={ar} reduced-form k·F={expected}"
+        );
+    }
+
+    #[test]
+    fn anderson_rubin_confidence_set_covers_true_beta_on_strong_fixture() {
+        let n = 200usize;
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut x = vec![0.0; n];
+        for i in 0..n {
+            let zi = (i as f64) / n as f64 - 0.5;
+            z[i] = zi;
+            t[i] = zi + 0.01 * ((i % 7) as f64 - 3.0);
+            y[i] = 2.0 * t[i] + 0.01 * ((i % 5) as f64 - 2.0);
+            x[i] = 1.0;
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let (ar, reason) = anderson_rubin_confidence_set(
+            &y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws,
+        )
+        .unwrap();
+        assert!(reason.is_none(), "unexpected withhold: {reason:?}");
+        let (lo, hi, level) = ar.expect("connected AR set");
+        assert_eq!(level, 0.95);
+        assert!(lo <= 2.0 && 2.0 <= hi, "AR [{lo}, {hi}] should cover 2");
+        assert!(lo.is_finite() && hi.is_finite());
     }
 
     #[test]

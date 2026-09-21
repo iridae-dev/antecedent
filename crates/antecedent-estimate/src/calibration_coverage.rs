@@ -150,6 +150,47 @@ impl Tally {
         }
     }
 
+    /// Score an Anderson–Rubin set `(lower, upper)` against `truth`.
+    ///
+    /// An honestly unbounded endpoint counts as covering on that side. A missing
+    /// set (union / withheld) is a miss — never collapsed into a Wald SE.
+    fn record_ar(&mut self, ate: f64, interval: Option<(f64, f64)>, truth: f64) {
+        self.scored += 1;
+        self.points.push(ate);
+        let covers = match interval {
+            Some((lo, hi)) => {
+                let left_ok = !lo.is_finite() || truth >= lo;
+                let right_ok = !hi.is_finite() || truth <= hi;
+                left_ok && right_ok
+            }
+            None => false,
+        };
+        if covers {
+            self.covered += 1;
+        }
+        if let Some((lo, hi)) = interval {
+            if lo.is_finite() && hi.is_finite() && lo <= hi {
+                self.with_interval += 1;
+                self.half_width_sum += 0.5 * (hi - lo);
+                self.se_sum += (hi - lo) / (2.0 * Z95);
+                if let Some((tally, _)) = self.record.as_mut() {
+                    tally.record(Some((lo, hi)), truth);
+                }
+            } else if covers {
+                // Unbounded set that covers: count coverage for the harness with a
+                // degenerate finite interval so infinite endpoints are not scored as misses.
+                self.with_interval += 1;
+                if let Some((tally, _)) = self.record.as_mut() {
+                    tally.record(Some((truth, truth)), truth);
+                }
+            } else if let Some((tally, _)) = self.record.as_mut() {
+                tally.record(None, truth);
+            }
+        } else if let Some((tally, _)) = self.record.as_mut() {
+            tally.record(None, truth);
+        }
+    }
+
     fn rate(&self) -> f64 {
         f64::from(self.covered) / f64::from(self.scored.max(1))
     }
@@ -664,13 +705,9 @@ fn matching_homoskedastic_ci_coverage() {
     tally.assert("matching_ai");
 }
 
-/// Continuous-treatment IV DGP with a **strong** first stage.
-///
-/// The first-stage coefficient on `Z` must keep Stock–Yogo F well above 10 at
-/// `N_OBS` across the calibration seed grid. A weaker `0.5·Z` DGP leaves a
-/// non-trivial share of draws with `F < 10`; after `se_if_strong_instrument`
-/// those trials publish `se_analytic = NaN` and would be counted as coverage
-/// misses even though the procedure correctly refused the SE.
+/// Binary IV DGP with a **moderate** first stage so a substantial share of
+/// draws at `N_OBS` have Stock–Yogo F < 10. Coverage is scored on the
+/// Anderson–Rubin set (not a Wald SE behind an F≥10 pretest).
 fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     let mut rng = CausalRng::from_seed(grid_seed(seed));
     let mut t = Vec::with_capacity(n);
@@ -679,7 +716,7 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     for i in 0..n {
         let zi = (i % 2) as f64;
         let ui = standard_normal(&mut rng);
-        let ti = 1.5 * zi + ui + 0.1 * standard_normal(&mut rng);
+        let ti = 0.45 * zi + ui + 0.1 * standard_normal(&mut rng);
         let yi = TRUE_ATE * ti + ui + 0.1 * standard_normal(&mut rng);
         t.push(ti);
         y.push(yi);
@@ -699,19 +736,79 @@ fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed:
     let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "binary_iv_scm");
+    let mut weak_f = 0u32;
     for s in 0..n_sim() {
         let (data, estimand) = binary_iv_scm(n_obs(), seed * 1000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
-        // Strong-instrument DGP: every draw must publish a finite SE.
         assert!(
-            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
-            "{label}: unexpected weak first stage (se_analytic non-finite) on replicate {s}"
+            !effect.se_analytic.is_finite(),
+            "{label}: Wald SE must not be published (replicate {s})"
         );
+        assert!(effect.se_bootstrap.is_none(), "{label}: bootstrap SE must not be published");
+        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
+        if diag.f_statistic.is_finite() && diag.f_statistic < 10.0 {
+            weak_f += 1;
+        }
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+            let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
+            if interval.is_none()
+                && diag.uncertainty_withheld == Some("anderson_rubin_set_is_union")
+            {
+                // AR acceptance set is a union of rays: not published as one interval,
+                // but coverage of the set equals whether AR accepts at the truth.
+                let z: Vec<f64> = {
+                    let n = prep.nrows;
+                    (0..n).map(|r| prep.instruments_matrix[n + r]).collect()
+                };
+                let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+                let ar_true = antecedent_stats::anderson_rubin_statistic(
+                    &prep.outcome,
+                    &prep.treatment,
+                    &z,
+                    prep.nrows,
+                    1,
+                    &prep.exogenous_matrix,
+                    prep.x_ncols,
+                    TRUE_ATE,
+                    &antecedent_stats::FaerBackend,
+                    &mut ws,
+                )
+                .unwrap();
+                let crit = antecedent_stats::chi2_critical(LEVEL, 1);
+                if ar_true.is_finite() && ar_true <= crit {
+                    tally.record_ar(effect.ate, Some((f64::NEG_INFINITY, f64::INFINITY)), TRUE_ATE);
+                } else {
+                    tally.record_ar(effect.ate, None, TRUE_ATE);
+                }
+            } else {
+                tally.record_ar(effect.ate, interval, TRUE_ATE);
+            }
+        } else {
+            assert!(
+                diag.anderson_rubin.is_none(),
+                "{label}: non-homoskedastic AR must be withheld"
+            );
+            assert_eq!(
+                diag.uncertainty_withheld,
+                Some("anderson_rubin_requires_homoskedastic")
+            );
+            // No licensed interval product — score as a miss, not a Wald SE.
+            tally.record_ar(effect.ate, None, TRUE_ATE);
+        }
     }
-    tally.assert(label);
+    if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+        let weak_share = f64::from(weak_f) / f64::from(n_sim().max(1));
+        assert!(
+            weak_share > 0.05,
+            "{label}: DGP must leave a non-trivial F<10 share, got {weak_share}"
+        );
+        tally.assert(label);
+    } else {
+        // HC1 / robust: licensed product withheld; do not claim Wald coverage.
+        tally.report(label);
+    }
 }
 
 #[test]
@@ -775,10 +872,53 @@ fn two_sls_coverage(
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        assert!(!effect.se_analytic.is_finite(), "{label}: Wald SE must not be published");
+        assert!(effect.se_bootstrap.is_none());
+        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
         tally.bind(grid_n(500), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+            let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
+            if interval.is_none()
+                && diag.uncertainty_withheld == Some("anderson_rubin_set_is_union")
+            {
+                let z_ncols = prep.z_ncols - 1;
+                let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+                let ar_true = antecedent_stats::anderson_rubin_statistic(
+                    &prep.outcome,
+                    &prep.treatment,
+                    &prep.instruments_matrix[prep.nrows..],
+                    prep.nrows,
+                    z_ncols,
+                    &prep.exogenous_matrix,
+                    prep.x_ncols,
+                    TRUE_ATE,
+                    &antecedent_stats::FaerBackend,
+                    &mut ws,
+                )
+                .unwrap();
+                let crit = antecedent_stats::chi2_critical(LEVEL, z_ncols);
+                if ar_true.is_finite() && ar_true <= crit {
+                    tally.record_ar(effect.ate, Some((f64::NEG_INFINITY, f64::INFINITY)), TRUE_ATE);
+                } else {
+                    tally.record_ar(effect.ate, None, TRUE_ATE);
+                }
+            } else {
+                tally.record_ar(effect.ate, interval, TRUE_ATE);
+            }
+        } else {
+            assert!(diag.anderson_rubin.is_none());
+            assert_eq!(
+                diag.uncertainty_withheld,
+                Some("anderson_rubin_requires_homoskedastic")
+            );
+            tally.record_ar(effect.ate, None, TRUE_ATE);
+        }
     }
-    tally.assert(label);
+    if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+        tally.assert(label);
+    } else {
+        tally.report(label);
+    }
 }
 
 #[test]
