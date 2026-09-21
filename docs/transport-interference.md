@@ -1,5 +1,12 @@
 # Structural transport and randomized interference
 
+Transport is not a second product or a population flag. It extends the same
+causal contract to a richer evidence environment: the target population,
+source regimes, experiments, measurements, sampling, and dependencies remain
+explicit. Read [refusal and partial knowledge](refusal-and-partial-knowledge.md)
+for why missing evidence, non-certification, support failure, and budget
+exhaustion have different meanings.
+
 Transport and interference are licensed causal settings that should not be
 hidden behind an ordinary target-population flag: both change what information
 identifies the estimand, so their design facts are explicit fields of their

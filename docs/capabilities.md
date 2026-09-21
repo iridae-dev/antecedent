@@ -1,6 +1,9 @@
 # Capabilities
 
-This page is a readable tour of what exists in Antecedent. The parity manifests
+This is a readable inventory of what exists in Antecedent, not the product's
+mental model or a promise that every combination can run. Read
+[what “supported” means](guarantees.md) for the distinction between capability,
+licensed execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
 is the public **license** for analysis cells. 1.11 inspect / claim / reuse /
 handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/1.11/parity/compiler.toml)

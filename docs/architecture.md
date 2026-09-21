@@ -1,7 +1,23 @@
-# Architecture
+# System model and architecture
 
-Library for causal discovery, identification, estimation, SCMs, counterfactuals,
-attribution, and validation. Rust owns computation; Python is a thin binding layer.
+Antecedent is organized around meaning preservation, not around a collection
+of estimators. Scientific semantics flow into causal compilation, statistical
+realization, physical execution, and then a claim or artifact. A later layer
+may add information or perform work, but must not silently strengthen what an
+earlier layer established.
+
+```mermaid
+flowchart TD
+    S["Scientific semantics<br/>question • structure • evidence • assumptions"]
+    C["Causal compilation<br/>identification • obligations • support requirements"]
+    R["Statistical realization<br/>estimators • posteriors • learners • resampling"]
+    E["Physical execution<br/>layouts • kernels • budgets • cancellation"]
+    A["Claim and artifact<br/>answer • uncertainty • provenance • identity • limits"]
+    S --> C --> R --> E --> A
+```
+
+The [system model](system-model.md) is the product introduction. This page
+records the corresponding engineering rules; crate-level detail follows it.
 
 ## Invariants
 
@@ -20,7 +36,7 @@ attribution, and validation. Rust owns computation; Python is a thin binding lay
     implementations; they do not license a cell. `analyze` is sugar over the
     staged path.
 
-## Crates
+## Implementation architecture
 
 ```text
 antecedent-core          ids, schemas, queries, interventions, provenance, plans, errors

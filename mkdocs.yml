@@ -34,6 +34,12 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Understand Antecedent:
+      - System model: system-model.md
+      - The causal contract: causal-contract.md
+      - A result is a claim: result-is-a-claim.md
+      - Refusal and partial knowledge: refusal-and-partial-knowledge.md
+      - Guarantees and support: guarantees.md
   - Start here:
       - Python quickstart: python-workflow.md
       - Rust quickstart: rust-quickstart.md

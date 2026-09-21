@@ -14,12 +14,34 @@ claims are explicitly scoped, unsupported combinations fail closed, evidence is
 classified, implementations are checked against independent oracles where
 available, and provenance and traceability are machine-audited.
 
+**Antecedent is a causal inference system for turning causal questions and
+evidence into checked, executable scientific claims.** It is designed not only
+to calculate an answer, but to preserve what that answer means—its assumptions,
+identification status, empirical support, uncertainty, provenance, and
+limits—as the analysis is estimated, reused, combined, saved, transported, and
+consumed by other software.
+
 Give it data, a causal question, and a graph or discovery strategy. Antecedent
 determines what is identified, runs only a licensed inference path, or refuses
 claims the available evidence does not warrant. Results preserve assumptions,
 uncertainty, diagnostics, and provenance across system boundaries, so analyses
 can be composed, reviewed, reused, and audited without losing scientific
 meaning.
+
+```mermaid
+flowchart TD
+    Q["Question and declared knowledge<br/>intervention • population • structure • evidence"]
+    C["Compile"]
+    K["Causal contract<br/>identification • support • uncertainty • assumptions"]
+    E["Execute<br/>data • estimator • learners • compute resources"]
+    R["Causal claim<br/>answer • provenance • limits • identity • obligations"]
+    O["Reuse • export • compose"]
+    Q --> C --> K --> E --> R --> O
+```
+
+Antecedent's job is to stop the meaning at the top of this diagram from
+disappearing by the time a result reaches another person or system. Start with
+the [system model](docs/system-model.md) before choosing an API.
 
 ```python
 import antecedent as ant

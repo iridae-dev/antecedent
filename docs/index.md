@@ -1,39 +1,41 @@
-# Antecedent 2.0
+# Antecedent
 
-**Release preparation:** these are the active 2.0 docs. The published package
-is still 1.11.0 until the release metadata and tag are advanced.
+> **Release preparation:** these are the active 2.0 docs. The published package
+> remains 1.11.0 until the release metadata and tag advance.
 
-Antecedent makes causal analysis a reviewable program: define a question and
-causal structure, identify the available claim, estimate through a supported
-path, inspect its assumptions and diagnostics, then reuse or export the same
-contract.
+Antecedent is a causal inference system for turning causal questions and
+evidence into checked, executable scientific claims. It preserves what an
+answer means—its assumptions, identification status, empirical support,
+uncertainty, provenance, and limits—when the analysis is estimated, reused,
+combined, saved, transported, or consumed by other software.
 
-## Start here
+Most causal failures in software are semantic failures at boundaries. Read
+[the system model](system-model.md) first: it explains how Antecedent compiles
+declared knowledge into a causal contract and why a result is more than a
+number.
 
-| Goal | Start with |
+## Start with the mental model
+
+| Question | Read |
 | --- | --- |
-| Run an analysis in Python | [Python workflow](python-workflow.md) |
-| Use the Rust facade | [Rust quickstart](rust-quickstart.md) |
-| Choose a supported route | [Supported analyses](supported-analyses.md) |
-| Understand what can be claimed | [Capabilities](capabilities.md) and the [support matrix](support-matrix.md) |
-| Learn the system shape | [Architecture](architecture.md) |
+| What is Antecedent trying to preserve? | [System model](system-model.md) |
+| What does an analysis contract contain? | [The causal contract](causal-contract.md) |
+| How should I read a result? | [A result is a claim](result-is-a-claim.md) |
+| Why does Antecedent refuse some requests? | [Refusal and partial knowledge](refusal-and-partial-knowledge.md) |
+| What does “supported” mean? | [Guarantees and support](guarantees.md) |
 
-## The 2.0 whole
+## Then use it
 
-Existing graph, identification, estimation, validation, response, temporal,
-Bayesian, attribution, design, state, and artifact workflows remain first-class.
-2.0 adds a Rust-native learner substrate for honest nuisance prediction and a
-population/evidence-aware transport foundation; neither bypasses the existing
-identification and claim lifecycle.
+Start an ordinary analysis with the [Python workflow](python-workflow.md) or
+[Rust quickstart](rust-quickstart.md). The same model extends to discovery and
+structural uncertainty, response and temporal questions, Bayesian inference,
+validation, counterfactuals, learner-backed estimation, and transport across
+populations. Those are different causal programs, not disconnected products.
 
-Use DML, DR-Learner, or causal forest only where their assumptions, support,
-and reported diagnostics fit the question. Use structural transport only when
-the evidence catalog represents the actual populations and regimes. A refusal
-or an unavailable answer is useful information, not an estimator fallback.
+For exact public boundaries, consult the [support matrix](support-matrix.md).
+An implemented capability is not automatically a licensed analysis, and a
+licensed analysis does not establish that a real-world causal model is true.
 
-## Evidence status
-
-The repository retains executable conformance and compatibility evidence. The
-long-running 2.0 calibration measurement remains planned, not completed; see
-the [draft release notes](release-notes/v2.0.0.md) and `result.calibration` for
-the scope of any reported interval.
+The long-running 2.0 calibration measurement remains planned, not completed.
+Read `result.calibration` and the [draft release notes](release-notes/v2.0.0.md)
+for the scope of interval evidence.
