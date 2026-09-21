@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
@@ -48,7 +48,7 @@ use crate::pipeline::{
 };
 use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, PcSepsets,
-    ScoredLink,
+    ScoredLink, discovery_assumptions,
 };
 
 /// Column budget for one MCI conditioning set (kernel cap `MAX_CI_COLS` minus the pair
@@ -229,7 +229,7 @@ impl PcmciPlus {
             evidence,
             review,
             algorithm,
-            assumptions: AssumptionSet::new(),
+            assumptions: discovery_assumptions("pcmci_plus", true),
             iterations,
             diagnostics,
             performance: with_links_retained(

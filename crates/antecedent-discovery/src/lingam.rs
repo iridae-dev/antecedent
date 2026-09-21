@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
@@ -33,6 +33,7 @@ use crate::pc::collect_float_columns;
 use crate::result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    discovery_assumptions,
 };
 
 /// Static `DirectLiNGAM` discovery result (`Dag` evidence + review).
@@ -112,6 +113,7 @@ impl DirectLingam {
             if c.len() != n {
                 return Err(DiscoveryError::data_msg("column length mismatch"));
             }
+            require_finite_column(c)?;
         }
 
         let p = variables.len();
@@ -138,12 +140,23 @@ impl DirectLingam {
                         continue;
                     }
                     let resid = regress_residual(&cols[i], &cols[j]);
-                    score += distance_correlation(&resid, &cols[j]);
+                    let d = distance_correlation(&resid, &cols[j]);
+                    if !d.is_finite() {
+                        return Err(DiscoveryError::stats_msg(
+                            "DirectLiNGAM independence score is non-finite",
+                        ));
+                    }
+                    score += d;
                 }
                 if score < best_score {
                     best_score = score;
                     best_j = j;
                 }
+            }
+            if !best_score.is_finite() {
+                return Err(DiscoveryError::stats_msg(
+                    "DirectLiNGAM causal-order search produced a non-finite score",
+                ));
             }
             // Residualize remaining on chosen exogenous.
             for &i in &remaining {
@@ -159,7 +172,7 @@ impl DirectLingam {
             order.push(last);
         }
 
-        // Rebuild original centered columns for pruning.
+        // Rebuild original centered columns for pruning and residual checks.
         let orig: Vec<Vec<f64>> = col_owned
             .iter()
             .map(|c| {
@@ -168,6 +181,8 @@ impl DirectLingam {
                 v
             })
             .collect();
+
+        refuse_gaussian_consistent_residuals(&orig, &order)?;
 
         let max_parents = self.constraints.max_parents.unwrap_or(p.saturating_sub(1));
         let mut dag = Dag::empty();
@@ -314,7 +329,7 @@ impl DirectLingam {
                     self.prune_threshold
                 )),
             },
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("direct_lingam", true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: Vec::<DiscoveryDiagnostic>::new(),
             performance: DiscoveryPerformanceRecord {
@@ -348,6 +363,145 @@ fn forbidden_edge(
         target_lag: Lag::CONTEMPORANEOUS,
     };
     constraints.is_forbidden(link) || constraints.tier_forbids(src, tgt)
+}
+
+fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
+    if col.iter().any(|x| !x.is_finite()) {
+        return Err(DiscoveryError::data_msg(
+            "DirectLiNGAM refuses non-finite (NaN/Inf) input; causal order is undefined",
+        ));
+    }
+    Ok(())
+}
+
+/// Refuse when every exogenous residual under the estimated order is consistent
+/// with a Gaussian law (Jarque–Bera at α=0.05). Under joint Gaussianity the
+/// LiNGAM order is not identifiable, so returning an order would be silent fiction.
+fn refuse_gaussian_consistent_residuals(
+    centered: &[Vec<f64>],
+    order: &[usize],
+) -> Result<(), DiscoveryError> {
+    let n = centered.first().map_or(0, Vec::len);
+    if n < 8 || order.is_empty() {
+        // Too few rows for a reliable moment test; still require at least one
+        // variable with non-zero excess kurtosis as a weak gate.
+        let any_heavy = centered.iter().any(|c| excess_kurtosis(c).abs() > 0.5);
+        if !any_heavy {
+            return Err(DiscoveryError::stats_msg(
+                "DirectLiNGAM refuses data consistent with Gaussian errors; order is unidentifiable",
+            ));
+        }
+        return Ok(());
+    }
+
+    let mut any_non_gaussian = false;
+    for (pos, &idx) in order.iter().enumerate() {
+        let resid = if pos == 0 {
+            centered[idx].clone()
+        } else {
+            residual_on_predecessors(&centered[idx], centered, &order[..pos])
+        };
+        if !residual_looks_gaussian(&resid) {
+            any_non_gaussian = true;
+            break;
+        }
+    }
+    if !any_non_gaussian {
+        return Err(DiscoveryError::stats_msg(
+            "DirectLiNGAM refuses residuals consistent with Gaussian errors (Jarque–Bera); \
+             causal order is unidentifiable under Gaussian noise",
+        ));
+    }
+    Ok(())
+}
+
+fn residual_on_predecessors(y: &[f64], cols: &[Vec<f64>], preds: &[usize]) -> Vec<f64> {
+    if preds.is_empty() {
+        return y.to_vec();
+    }
+    let n = y.len();
+    let k = preds.len();
+    let mut x = vec![0.0; n * k];
+    for (c, &par) in preds.iter().enumerate() {
+        for r in 0..n {
+            x[c * n + r] = cols[par][r];
+        }
+    }
+    let backend = FaerBackend;
+    let mut ls_ws = LeastSquaresWorkspace::default();
+    if let Ok(fit) = backend.least_squares(&x, n, k, y, &mut ls_ws) {
+        let mut resid = y.to_vec();
+        for r in 0..n {
+            let mut pred = 0.0;
+            for (c, coef) in fit.coefficients.iter().enumerate() {
+                pred += coef * x[c * n + r];
+            }
+            resid[r] -= pred;
+        }
+        return resid;
+    }
+    // Pairwise residualize when the joint fit fails.
+    let mut resid = y.to_vec();
+    for &par in preds {
+        resid = regress_residual(&resid, &cols[par]);
+    }
+    resid
+}
+
+/// Jarque–Bera normality gate: `JB = n/6 (S² + K²/4)` with asymptotic χ²(2).
+/// Critical value at α=0.05 is 5.991; below that the residual is treated as
+/// Gaussian-consistent.
+fn residual_looks_gaussian(resid: &[f64]) -> bool {
+    let n = resid.len();
+    if n < 8 {
+        return excess_kurtosis(resid).abs() <= 0.5;
+    }
+    let nf = n as f64;
+    let mean = resid.iter().sum::<f64>() / nf;
+    let mut m2 = 0.0;
+    let mut m3 = 0.0;
+    let mut m4 = 0.0;
+    for &x in resid {
+        let d = x - mean;
+        let d2 = d * d;
+        m2 += d2;
+        m3 += d2 * d;
+        m4 += d2 * d2;
+    }
+    m2 /= nf;
+    m3 /= nf;
+    m4 /= nf;
+    if m2 <= 1e-15 {
+        // Degenerate residual — treat as Gaussian-consistent (no identifiable signal).
+        return true;
+    }
+    let skew = m3 / m2.powf(1.5);
+    let excess_kurt = m4 / (m2 * m2) - 3.0;
+    let jb = nf / 6.0 * (skew * skew + excess_kurt * excess_kurt / 4.0);
+    jb < 5.991
+}
+
+fn excess_kurtosis(x: &[f64]) -> f64 {
+    let n = x.len();
+    if n < 4 {
+        return 0.0;
+    }
+    let nf = n as f64;
+    let mean = x.iter().sum::<f64>() / nf;
+    let mut m2 = 0.0;
+    let mut m4 = 0.0;
+    for &v in x {
+        let d = v - mean;
+        let d2 = d * d;
+        m2 += d2;
+        m4 += d2 * d2;
+    }
+    m2 /= nf;
+    m4 /= nf;
+    if m2 <= 1e-15 {
+        return 0.0;
+    }
+    m4 / (m2 * m2) - 3.0
 }
 
 fn center_inplace(v: &mut [f64]) {
@@ -513,6 +667,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let result = alg.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(result.algorithm.id.as_ref(), "direct_lingam");
+        assert!(!result.assumptions.is_empty());
         let g = &result.evidence.graph;
         let d = |i: u32| DenseNodeId::from_raw(i);
         assert!(
@@ -524,6 +679,72 @@ mod tests {
             g.children(d(1)).contains(&d(2)),
             "expected 1→2, edges={:?}",
             g.edges().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn direct_lingam_refuses_nan_column() {
+        let mut b = CausalSchemaBuilder::new();
+        for i in 0..3 {
+            b.add_variable(
+                format!("x{i}"),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let n = 40;
+        let mut x0 = vec![0.0; n];
+        let mut x1 = vec![0.0; n];
+        let mut x2 = vec![0.0; n];
+        for i in 0..n {
+            let u = ((i as f64 * 0.137) % 1.0) - 0.5;
+            x0[i] = u * u * u * 4.0;
+            x1[i] = 0.9 * x0[i] + (((i as f64 * 0.271) % 1.0) - 0.5).powi(3) * 4.0;
+            x2[i] = 0.9 * x1[i] + (((i as f64 * 0.419) % 1.0) - 0.5).powi(3) * 4.0;
+        }
+        x1[7] = f64::NAN;
+        let owned = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x0),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(x1),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(x2),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+        let alg = DirectLingam::new();
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let err = alg.run(&data, &vars, &mut ws, &ctx).expect_err("NaN must refuse");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("non-finite") || msg.contains("NaN"),
+            "unexpected error: {msg}"
         );
     }
 
