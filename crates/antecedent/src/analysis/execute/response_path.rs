@@ -2098,8 +2098,7 @@ pub(super) fn estimate_general_id_response(
         )
         .map_err(CausalError::from)?;
     let _ = ctx;
-    let eval =
-        prepared.compiled.evaluate(&prepared.arena, &prepared.provider, &EvalContext::default());
+    let eval = prepared.evaluate(&prepared.provider);
     let map_eval = |e: EvalError| {
         CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
     };

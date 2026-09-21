@@ -126,10 +126,11 @@ pub use frontdoor::{
 };
 pub use frontdoor_functional::{FrontDoorFunctional, FrontDoorOutcomeModel};
 pub use functional_distribution::{
-    AtomUncertainty, DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace,
-    FunctionalEffect, InterventionalDistributionEstimate, PreparedFunctionalDistribution,
-    PreparedFunctionalEffect, ProbabilityInterval, ProbabilityIntervalUnavailable,
-    functional_cell_unevaluable, logit_probability_interval, support_from_functional_eval,
+    AtomUncertainty, DistributionAtom, FREE_VARIABLES_AVERAGED_CODE, FunctionalDistribution,
+    FunctionalDistributionWorkspace, FunctionalEffect, InterventionalDistributionEstimate,
+    PreparedFunctionalDistribution, PreparedFunctionalEffect, ProbabilityInterval,
+    ProbabilityIntervalUnavailable, free_variables_diagnostic, functional_cell_unevaluable,
+    functional_free_variables, logit_probability_interval, support_from_functional_eval,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use identified_set::{

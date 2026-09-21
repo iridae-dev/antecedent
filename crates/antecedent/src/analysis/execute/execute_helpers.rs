@@ -1038,6 +1038,30 @@ pub(super) fn push_graph_posterior_structural_aggregation_diagnostic(
     );
 }
 
+/// How a functional estimate resolved variables its functional keeps free outside the
+/// query (a complete ID derivation can leave one, as on the napkin graph).
+fn free_variables_averaged(
+    identification: &IdentificationResult,
+    estimand: &IdentifiedEstimand,
+) -> Option<Diagnostic> {
+    let bound: Vec<VariableId> = match &identification.query {
+        CausalQuery::Distribution(query) => query
+            .outcomes
+            .iter()
+            .copied()
+            .chain(query.interventions.iter().filter_map(antecedent_core::Intervention::primary_variable))
+            .chain(query.conditioning.iter().copied())
+            .collect(),
+        _ => Vec::new(),
+    };
+    let free = antecedent_estimate::functional_free_variables(
+        &identification.arena,
+        estimand.functional,
+        &bound,
+    );
+    antecedent_estimate::free_variables_diagnostic(&free)
+}
+
 /// Fail-closed rank: larger means less identified. Never used to upgrade a status.
 fn identification_closedness(status: IdentificationStatus) -> u8 {
     match status {
@@ -2130,6 +2154,15 @@ impl super::Study {
         }
         push_aipw_score_kind(&mut diagnostics, &mut seen, args.estimator_id, &args.estimate);
         push_grid_scalar_cleared(&mut diagnostics, &mut seen, &args.estimate);
+        if matches!(
+            args.estimator_id,
+            EstimatorId::FunctionalEffect | EstimatorId::FunctionalDistribution
+        ) {
+            if let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand)
+            {
+                push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
+            }
+        }
         let structural_posteriors = extras
             .structural_response
             .iter()

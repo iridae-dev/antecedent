@@ -37,7 +37,7 @@ pub(super) use antecedent_estimate::{
     nonidentified_with_prior, support_from_functional_eval,
 };
 pub(super) use antecedent_expr::{
-    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalContext, EvalError, ExprNode,
+    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalError, ExprNode,
     IdentifiedEstimand, OutcomeExprId,
 };
 pub(super) use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};

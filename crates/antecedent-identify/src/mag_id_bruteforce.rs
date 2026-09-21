@@ -361,13 +361,25 @@ fn identified(result: IdentificationResult) -> Option<IdentificationResult> {
     .then_some(result)
 }
 
-fn evaluate(result: &IdentificationResult, law: &ObservedLaw) -> f64 {
-    result
-        .arena
-        .compile(result.estimands[0].functional)
-        .unwrap()
-        .evaluate(&result.arena, law, &EvalContext::default())
-        .unwrap()
+/// Largest `|functional − truth|` over every value of the functional's free variables.
+///
+/// A functional may keep a variable outside the query (a predecessor that `do(t)` cuts off
+/// from the outcome, or the napkin's `z`): the identity then has to hold at each of its
+/// values, so each one is evaluated and none is summed over.
+fn worst_error(result: &IdentificationResult, law: &ObservedLaw, truth: f64) -> f64 {
+    let functional = result.estimands[0].functional;
+    let free = result.arena.clone().free_variables(functional);
+    let plan = result.arena.compile(functional).unwrap();
+    (0..1usize << free.len())
+        .map(|row| {
+            let env = Assignment::from_pairs(
+                free.iter().enumerate().map(|(i, &v)| (v, Value::f64((row >> i & 1) as f64))),
+            );
+            let value =
+                plan.evaluate_with(&result.arena, law, &EvalContext::default(), &env).unwrap();
+            (value - truth).abs()
+        })
+        .fold(0.0, f64::max)
 }
 
 #[derive(Default)]
@@ -435,7 +447,7 @@ fn check(
                 identified(env.cases[0].result.clone())
             });
             if let Some(result) = route {
-                let error = (evaluate(result, &law) - truth).abs();
+                let error = worst_error(result, &law, truth);
                 assert!(error < 1e-10, "t={t} y={y} error={error} on {mag:?}");
                 tally.worst_error = tally.worst_error.max(error);
                 tally.numeric_checks += 1;
@@ -461,7 +473,7 @@ fn check(
                 .and_then(identified)
             });
             if let Some(result) = naive {
-                if (evaluate(result, &law) - truth).abs() > 1e-6 {
+                if worst_error(result, &law, truth) > 1e-6 {
                     tally.naive_wrong += 1;
                 }
             }
@@ -587,7 +599,7 @@ fn route_error(dag: &SmallDag, t: usize, y: usize) -> Option<(String, f64)> {
     let worst = (0..32)
         .map(|seed| {
             let scm = ExactScm::random(*dag, seed);
-            (evaluate(&result, &scm.observed_law()) - scm.mean_under_do_one(obs[t], obs[y])).abs()
+            worst_error(&result, &scm.observed_law(), scm.mean_under_do_one(obs[t], obs[y]))
         })
         .fold(0.0, f64::max);
     Some((result.estimands[0].method.to_string(), worst))
@@ -608,7 +620,7 @@ fn invisible_edge_is_refused_and_the_unconfounded_reading_is_numerically_wrong()
         .identify_response(&prepared, &do_one(0, 1), &mut IdentificationWorkspace::default())
         .unwrap();
     let scm = ExactScm::random(dag, 3);
-    let gap = (evaluate(&naive, &scm.observed_law()) - scm.mean_under_do_one(1, 2)).abs();
+    let gap = worst_error(&naive, &scm.observed_law(), scm.mean_under_do_one(1, 2));
     assert!(gap > 1e-3, "confounding bias must be visible: {gap}");
 }
 
@@ -668,7 +680,7 @@ fn visible_edges_identify_a_causal_effect_that_no_adjustment_set_reaches() {
     for seed in 0..32 {
         let scm = ExactScm::random(dag, seed);
         let truth = scm.mean_under_do_one(2, 6);
-        let error = (evaluate(result, &scm.observed_law()) - truth).abs();
+        let error = worst_error(result, &scm.observed_law(), truth);
         assert!(error < 1e-12, "seed={seed} error={error}");
     }
 
