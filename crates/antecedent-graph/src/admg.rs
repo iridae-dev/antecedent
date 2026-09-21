@@ -322,7 +322,7 @@ impl Admg {
     /// nodes that a bidirected edge joins through a removed node fall apart. Components come
     /// out in ascending order of their smallest member.
     #[must_use]
-    pub fn districts_within(&self, nodes: &BitSet) -> Vec<BitSet> {
+    pub fn district_components_within(&self, nodes: &BitSet) -> Vec<BitSet> {
         let n = self.node_count();
         let mut seen = BitSet::with_len(n);
         let mut comps = Vec::new();
@@ -436,15 +436,15 @@ mod tests {
     }
 
     #[test]
-    fn districts_within_only_join_through_present_nodes() {
+    fn district_components_within_only_join_through_present_nodes() {
         // 0 <-> 1 <-> 2: dropping 1 separates 0 from 2.
         let mut g = Admg::with_variables(3);
         g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         g.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-        let all = g.districts_within(&set(3, &[0, 1, 2]));
+        let all = g.district_components_within(&set(3, &[0, 1, 2]));
         assert_eq!(all.len(), 1);
         assert!(all[0].equal_set(&set(3, &[0, 1, 2])));
-        let split = g.districts_within(&set(3, &[0, 2]));
+        let split = g.district_components_within(&set(3, &[0, 2]));
         assert_eq!(split.len(), 2);
         assert!(split[0].equal_set(&set(3, &[0])));
         assert!(split[1].equal_set(&set(3, &[2])));

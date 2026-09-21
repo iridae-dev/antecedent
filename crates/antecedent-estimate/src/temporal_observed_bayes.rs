@@ -973,11 +973,6 @@ mod memory_budget_tests {
     }
 }
 
-/// Exchangeable-rank (type-6) quantile of sorted posterior draws.
-fn quantile(x: &[f64], p: f64) -> f64 {
-    antecedent_stats::quantile_sorted(x, p, antecedent_stats::QuantileRule::ExchangeableRank)
-}
-
 #[cfg(test)]
 mod evaluation_boundary_tests {
     use super::*;

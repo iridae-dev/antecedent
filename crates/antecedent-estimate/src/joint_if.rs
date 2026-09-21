@@ -19,7 +19,6 @@
 use std::sync::Arc;
 
 use antecedent_core::CausalRng;
-use antecedent_kernels::standard_normal;
 
 use crate::error::EstimationError;
 
