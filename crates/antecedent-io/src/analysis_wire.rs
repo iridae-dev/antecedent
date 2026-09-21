@@ -98,9 +98,12 @@ pub struct EffectEstimateWire {
     /// Per-unit effects are homogeneous by construction of the selected mechanisms.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects_homogeneous: Option<bool>,
-    /// Complete-case-aligned CATE point predictions; no pointwise intervals implied.
+    /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<Vec<f64>>,
+    /// Licensed pointwise CATE standard errors, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_se: Option<Vec<f64>>,
     /// Held-out outcome R².
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_oof_r2: Option<f64>,
@@ -389,6 +392,7 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         family_contrast_interval: e.family_contrast_interval,
         unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
         cate: e.cate.as_ref().map(|v| v.to_vec()),
+        cate_se: e.cate_se.as_ref().map(|v| v.to_vec()),
         outcome_oof_r2: e.outcome_oof_r2,
         treatment_oof_logloss: e.treatment_oof_logloss,
         crossfit_folds: e.crossfit_folds,
@@ -586,6 +590,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
     estimate.cate = w.cate.clone().map(Into::into);
+    estimate.cate_se = w.cate_se.clone().map(Into::into);
     estimate.outcome_oof_r2 = w.outcome_oof_r2;
     estimate.treatment_oof_logloss = w.treatment_oof_logloss;
     estimate.crossfit_folds = w.crossfit_folds;
@@ -985,7 +990,8 @@ mod tests {
             AssumptionSet::new(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
         )
-        .with_cate(Some(vec![1.0, 3.0].into()));
+        .with_cate(Some(vec![1.0, 3.0].into()))
+        .with_cate_se(Some(vec![0.2, 0.4].into()));
         effect.learner_provenance.push(antecedent_estimate::LearnerProvenance {
             spec: "ridge".into(),
             implementation: "faer".into(),
@@ -1004,6 +1010,7 @@ mod tests {
         assert_eq!(restored.crossfit_folds, effect.crossfit_folds);
         assert_eq!(restored.crossfit_seed, effect.crossfit_seed);
         assert_eq!(restored.cate, effect.cate);
+        assert_eq!(restored.cate_se, effect.cate_se);
         assert_eq!(restored.learner_provenance, effect.learner_provenance);
     }
 
@@ -1110,6 +1117,7 @@ mod tests {
             interaction_structurally_zero: None,
             unit_effects_homogeneous: None,
             cate: None,
+            cate_se: None,
             outcome_oof_r2: None,
             treatment_oof_logloss: None,
             crossfit_folds: None,

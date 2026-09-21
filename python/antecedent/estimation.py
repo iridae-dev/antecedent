@@ -220,6 +220,7 @@ def _section_estimate(raw: Any) -> Any:
         scenario_effects=getattr(raw, "scenario_effects", None),
         scenario_intervals=getattr(raw, "scenario_intervals", None),
         cate=getattr(raw, "cate", None),
+        cate_se=getattr(raw, "cate_se", None),
         outcome_oof_r2=getattr(raw, "outcome_oof_r2", None),
         treatment_oof_logloss=getattr(raw, "treatment_oof_logloss", None),
         crossfit_folds=getattr(raw, "crossfit_folds", None),
@@ -594,6 +595,9 @@ def _wrap_ate(
             learner_provenance=tuple(getattr(sec_estimate, "learner_provenance", ())),
             cate=tuple(sec_estimate.cate)
             if getattr(sec_estimate, "cate", None) is not None
+            else None,
+            cate_se=tuple(sec_estimate.cate_se)
+            if getattr(sec_estimate, "cate_se", None) is not None
             else None,
         ),
         posterior=posterior,

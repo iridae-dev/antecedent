@@ -375,9 +375,12 @@ pub struct AnalysisResultWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects: Option<UnitEffectsWire>,
-    /// Complete-case-aligned CATE point predictions, without pointwise intervals.
+    /// Complete-case-aligned CATE point predictions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<Vec<f64>>,
+    /// Licensed pointwise CATE standard errors, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_se: Option<Vec<f64>>,
     /// Held-out outcome R².
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_oof_r2: Option<f64>,

@@ -103,9 +103,12 @@ EconML focuses on machine-learning estimators for heterogeneous treatment
 effects and policy-oriented workflows. Antecedent now ships native
 cross-fitted DML (`estimators.DML`, AIPW or Robinson PLR) and a DR-Learner
 CATE path (`estimators.DRLearner`) and a native honest causal forest
-(`estimators.CausalForest`). DR-Learner and the forest report the marginal
-ATE and its IID interval from cross-fitted AIPW scores; fitted CATEs are
-separate point predictions, without pointwise uncertainty. Robinson PLR
+(`estimators.CausalForest`). DR-Learner reports the marginal ATE and its IID
+interval from cross-fitted AIPW scores. A linear final stage also reports HC0
+pointwise CATE standard errors of those orthogonal scores; penalized or
+nonlinear finals withhold CATE intervals. The honest forest reports per-row
+SEs from the mean of two-sample leaf variances across trees — not GRF
+infinitesimal-jackknife inference. Robinson PLR
 requires a constant conditional effect to interpret its slope as the ATE.
 The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
 covers a binary-treatment linear SCM at one sample size; it does not license

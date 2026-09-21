@@ -10,6 +10,7 @@ use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Targe
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, RidgeSpec};
+use antecedent_stats::{form_xtx, invert_square};
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -177,13 +178,90 @@ impl DrLearner {
             outcome_diag.r2,
             raw_e,
         )?
-        .with_cate(Some(Arc::from(cate)));
+        .with_cate(Some(Arc::from(cate.clone())))
+        .with_cate_se(linear_cate_pointwise_se(self.final_learner, view, &phi, &cate));
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
         effect.learner_provenance = treat.model_provenance;
         effect.learner_provenance.push(fitted.provenance());
         Ok(effect)
     }
+}
+
+/// HC0 sandwich SEs for a linear CATE regression of orthogonal scores.
+///
+/// Cross-fitting plus Neyman orthogonality of φ makes first-stage estimation
+/// second-order. Penalized or nonlinear finals are not this OLS map, so they
+/// return `None` instead of an invented interval.
+fn linear_cate_pointwise_se(
+    spec: LearnerSpec,
+    x: antecedent_learn::DesignView<'_>,
+    phi: &[f64],
+    cate: &[f64],
+) -> Option<Arc<[f64]>> {
+    if !matches!(spec, LearnerSpec::Linear(_)) {
+        return None;
+    }
+    let n = x.nrows();
+    let p = x.ncols();
+    if n == 0 || p == 0 || phi.len() != n || cate.len() != n {
+        return None;
+    }
+    let mut design = vec![0.0; n.saturating_mul(p)];
+    for c in 0..p {
+        for r in 0..n {
+            design[c * n + r] = x.get(r, c).ok()?;
+        }
+    }
+    let mut xtx = vec![0.0; p.saturating_mul(p)];
+    form_xtx(&design, n, p, &mut xtx);
+    let inv = invert_square(&xtx, p)?;
+    let mut meat = vec![0.0; p.saturating_mul(p)];
+    for i in 0..n {
+        let e2 = (phi[i] - cate[i]).powi(2);
+        for j in 0..p {
+            let xj = design[j * n + i];
+            for k in 0..p {
+                meat[j * p + k] += xj * design[k * n + i] * e2;
+            }
+        }
+    }
+    let mut tmp = vec![0.0; p.saturating_mul(p)];
+    for i in 0..p {
+        for j in 0..p {
+            let mut s = 0.0;
+            for k in 0..p {
+                s += inv[i * p + k] * meat[k * p + j];
+            }
+            tmp[i * p + j] = s;
+        }
+    }
+    let mut cov = vec![0.0; p.saturating_mul(p)];
+    for i in 0..p {
+        for j in 0..p {
+            let mut s = 0.0;
+            for k in 0..p {
+                s += tmp[i * p + k] * inv[k * p + j];
+            }
+            cov[i * p + j] = s;
+        }
+    }
+    let mut se = vec![0.0; n];
+    for i in 0..n {
+        let mut v = 0.0;
+        for j in 0..p {
+            let mut cj = 0.0;
+            for k in 0..p {
+                cj += cov[j * p + k] * design[k * n + i];
+            }
+            v += design[j * n + i] * cj;
+        }
+        if !(v.is_finite() && v >= 0.0) {
+            return None;
+        }
+        se[i] = v.sqrt();
+    }
+    Some(Arc::from(se))
 }
 
 #[cfg(test)]
@@ -303,5 +381,21 @@ mod tests {
         if let Some(m) = mean_phi {
             assert!(m.abs() < 1e-10, "influence must be centered: {m}");
         }
+        let se = effect.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
+        assert_eq!(se.len(), cate.len());
+        assert!(se.iter().all(|&s| s.is_finite() && s > 0.0));
+    }
+
+    #[test]
+    fn penalized_final_stage_withholds_cate_se() {
+        let (data, estimand, _) = interaction_scm(200, 5);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est =
+            DrLearner::new().with_final_learner(LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
+        assert!(effect.cate.is_some());
+        assert!(effect.cate_se.is_none());
     }
 }

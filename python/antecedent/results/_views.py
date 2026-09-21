@@ -222,6 +222,8 @@ class EstimateView(ResultModel):
     limitation: str | None = None
     #: Per-row CATE when a heterogeneous-effect estimator produced one.
     cate: tuple[float, ...] | None = None
+    #: Pointwise CATE standard errors when a licensed formula produced them.
+    cate_se: tuple[float, ...] | None = None
     outcome_oof_r2: float | None = None
     treatment_oof_logloss: float | None = None
     crossfit_folds: int | None = None

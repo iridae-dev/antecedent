@@ -160,6 +160,7 @@ fn receipt_body(
         structural_response: None,
         unit_effects: None,
         cate: None,
+        cate_se: None,
         outcome_oof_r2: None,
         treatment_oof_logloss: None,
         crossfit_folds: None,
