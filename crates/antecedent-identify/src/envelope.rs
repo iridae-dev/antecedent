@@ -213,6 +213,7 @@ fn case_truncated<G>(case: &GraphIdentificationCase<G>) -> bool {
 pub fn search_truncated(result: &crate::IdentificationResult) -> bool {
     result.diagnostics.iter().any(|d| {
         d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            || d.code.as_ref().ends_with(".search_bounded")
             || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
     })
 }

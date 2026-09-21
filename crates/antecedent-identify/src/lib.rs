@@ -75,13 +75,15 @@ pub use envelope::{
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
 pub use generalized::{
-    CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
 };
 pub use hedge::HedgeCertificate;
 pub use id::IdIdentifier;
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
+pub use joint_response::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE;
 pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};

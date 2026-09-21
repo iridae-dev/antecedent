@@ -216,7 +216,7 @@ impl FrontDoorIdentifier {
             if search_bounded {
                 result.diagnostics.push(Diagnostic::new(
                     "identify.frontdoor.search_bounded",
-                    DiagnosticKind::Scientific,
+                    DiagnosticKind::Execution,
                     DiagnosticSeverity::Warning,
                     "front-door mediator search was truncated by max_mediator_set_size / \
                      max_results; NotIdentified may be a search bound, not structural non-ID",
@@ -261,7 +261,7 @@ impl FrontDoorIdentifier {
         if search_bounded {
             result.diagnostics.push(Diagnostic::new(
                 "identify.frontdoor.search_bounded",
-                DiagnosticKind::Scientific,
+                DiagnosticKind::Execution,
                 DiagnosticSeverity::Warning,
                 "front-door mediator search was truncated by max_mediator_set_size / max_results; \
                  NotIdentified (or a missing set) may be a search bound, not structural non-ID",
@@ -477,11 +477,12 @@ mod tests {
             .identify(&prepared, &query, &mut IdentificationWorkspace::default())
             .unwrap();
         assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "identify.frontdoor.search_bounded")
-        );
+        let bounded = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "identify.frontdoor.search_bounded")
+            .expect("bounded search is reported");
+        // How far the search ran is a fact about the run, not about the graph.
+        assert_eq!(bounded.kind, DiagnosticKind::Execution);
     }
 }

@@ -57,6 +57,10 @@ use crate::result::{
     IdentifiedEstimand,
 };
 
+/// Diagnostic code of a modifier-constrained adjustment search that spent
+/// `max_examinations` before it finished: identifiability is undecided, not refuted.
+pub const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.conditional.search_bounded";
+
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to
 /// searching exhaustively and finding no valid set. A cap keeps
@@ -452,6 +456,25 @@ fn validate_conditional_adjustment(
                 );
                 return Ok(());
             }
+            ConditionalSearch::Bounded(examined) => {
+                *result = not_identified(
+                    CausalQuery::AverageEffect(query.clone()),
+                    "modifier-constrained adjustment search stopped at its examination budget; undecided",
+                );
+                result.performance.candidates_examined = examined;
+                result.diagnostics.push(Diagnostic::new(
+                    CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Warning,
+                    format!(
+                        "conditional adjustment search ran {examined} separation tests \
+                         (max_examinations={}) without finding a set and without exhausting \
+                         the candidate subsets; identifiability is undecided, not refuted",
+                        config.max_examinations
+                    ),
+                ));
+                return Ok(());
+            }
             ConditionalSearch::Absent => {}
         }
     }
@@ -489,6 +512,8 @@ fn conditional_levels(query: &AverageEffectQuery) -> Result<(Value, Value), Iden
 enum ConditionalSearch {
     Found(Vec<Vec<VariableId>>, u64),
     Capped(usize),
+    /// No set among the subsets tested, and the examination budget ran out first.
+    Bounded(u64),
     Absent,
 }
 
@@ -519,6 +544,7 @@ fn constrained_conditional_set(
     let mut ws = DSeparationWorkspace::default();
     let mut found: Vec<Vec<DenseNodeId>> = Vec::new();
     let mut examined = 0;
+    let mut budget_exhausted = false;
     let sizes: Vec<_> = if config.maximal_only && !config.minimal_only {
         (0..=candidates.len()).rev().collect()
     } else {
@@ -534,6 +560,7 @@ fn constrained_conditional_set(
                 return false;
             }
             if examined >= config.max_examinations {
+                budget_exhausted = true;
                 return true;
             }
             examined += 1;
@@ -554,9 +581,11 @@ fn constrained_conditional_set(
         if let Some(e) = error {
             return Err(e);
         }
+        // The budget is noticed by the first subset that is refused a test, so that a
+        // search which ends exactly on its budget is complete rather than bounded.
         if found.len() >= config.max_results
             || (config.minimal_only && found.iter().any(Vec::is_empty))
-            || examined >= config.max_examinations
+            || budget_exhausted
         {
             break;
         }
@@ -574,7 +603,11 @@ fn constrained_conditional_set(
         .collect();
     rank_conditional_sets(&mut sets, config);
     Ok(if sets.is_empty() {
-        ConditionalSearch::Absent
+        if budget_exhausted {
+            ConditionalSearch::Bounded(examined)
+        } else {
+            ConditionalSearch::Absent
+        }
     } else {
         ConditionalSearch::Found(sets, examined)
     })
@@ -1073,6 +1106,54 @@ mod tests {
             env.cases[0].result.estimands[0].adjustment_set.as_ref(),
             &[VariableId::from_raw(1)]
         );
+    }
+
+    /// `T <- A -> W <- B -> Y`, `T -> Y`, conditioning on the pre-treatment collider `W`:
+    /// the empty set fails and `{A}` succeeds. A search allowed one separation test stops
+    /// after the empty set, which decides nothing.
+    #[test]
+    fn conditional_search_budget_exit_is_a_bounded_search_not_a_refutation() {
+        let mut dag = antecedent_graph::Dag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let query = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
+                .with_effect_modifiers([VariableId::from_raw(2)]),
+        );
+        let run = |max_examinations: u64| {
+            let id = crate::BackdoorIdentifier {
+                config: crate::backdoor::AdjustmentSearchConfig {
+                    max_examinations,
+                    ..Default::default()
+                },
+            };
+            let prepared = id.prepare(&dag).unwrap();
+            crate::Identifier::identify(
+                &id,
+                &prepared,
+                &query,
+                &mut crate::IdentificationWorkspace::default(),
+            )
+            .unwrap()
+        };
+
+        let bounded = run(1);
+        assert_eq!(bounded.status, IdentificationStatus::NotIdentified);
+        let kinds: Vec<_> =
+            bounded.diagnostics.iter().map(|d| (d.code.as_ref().to_owned(), d.kind)).collect();
+        assert_eq!(
+            kinds,
+            vec![(
+                CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE.to_owned(),
+                DiagnosticKind::Execution
+            )],
+            "an unfinished search carries no scientific negative"
+        );
+
+        let full = run(1_000_000);
+        assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(full.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(1)]);
     }
 
     #[test]
