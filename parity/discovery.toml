@@ -190,7 +190,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 limitations = "No external oracle: the static_oracle_matrix covers FCI/GES/DirectLiNGAM but has no PC case. Evidence is OracleCi skeleton tests on hand-built DAGs plus a locally measured null-FPR calibration gate."
 owner = "discovery"
-notes = "Classic undirected skeleton + Meek on static Cpdag; Rust discover_pc / Python antecedent.discovery.PC(...).run(...). Static FCI/RFCI, GES, and DirectLiNGAM ship. 1.10 class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this row's evidence kind)."
+notes = "Order-dependent (not PC-stable; deterministic order) undirected skeleton + Meek on static Cpdag; retained-edge p is the maximum over every CI test of the edge, optional BH runs over edges (one hypothesis per edge), and constraint-required edges are reported without a fabricated test statistic; Rust discover_pc / Python antecedent.discovery.PC(...).run(...). Static FCI/RFCI, GES, and DirectLiNGAM ship. 1.10 class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this row's evidence kind)."
 
 [[capabilities]]
 id = "discovery.ges"
@@ -214,7 +214,7 @@ oracle_components = ["discovery:Dag"]
 external_oracle = "lingam 1.9.1"
 known_truth_fixture = "conformance/discovery/static_oracle_matrix"
 owner = "discovery"
-notes = "Residual–predictor dCor order search + OLS prune → Dag/DagReview; Rust discover_lingam / Python antecedent.discovery.LiNGAM(...).run(...); no ICA"
+notes = "Residual–predictor dCor order search (O(n log n) distance correlation; required edges constrain the order) + OLS prune on standardised coefficients → Dag/DagReview; Rust discover_lingam / Python antecedent.discovery.LiNGAM(...).run(...); no ICA"
 
 [[capabilities]]
 id = "discovery.notears"

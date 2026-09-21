@@ -161,9 +161,27 @@ impl StructureMcmc {
                     });
                     let mut mask = initial_mask;
                     let mut cur = initial_score;
+                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
+                    // others after a random walk over the feasible set. Identical starts make
+                    // R-hat blind to a chain that has not left its initial mode.
+                    if chain > 0 {
+                        for _ in 0..(4 * n_params).min(400) {
+                            let (prop, _, _) = propose_structure(mask, n, &pairs, &mut rng);
+                            if let Some(ps) =
+                                score_dag_mask(prop, n, &score_data, &mut cache, prior, variables)
+                                    .filter(|s| s.is_finite())
+                            {
+                                mask = prop;
+                                cur = ps;
+                            }
+                        }
+                    }
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
+                        if ctx.cancellation.is_cancelled() {
+                            break;
+                        }
                         let (prop, q_ratio, rej_inc) = propose_structure(mask, n, &pairs, &mut rng);
                         local_rej += rej_inc;
                         let prop_score =
@@ -192,7 +210,10 @@ impl StructureMcmc {
                     }
                 }
                 (start, local_traces, local_samples, local_rej)
-            });
+            })?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
 
         FinishMaskPosterior {
             n,
@@ -201,6 +222,7 @@ impl StructureMcmc {
             sample_masks: &sample_masks,
             rejected,
             n_params,
+            param_edges: &pairs,
             require_gate: self.require_diagnostics_gate,
             refuse_msg: "structure MCMC diagnostics gate refused posterior",
             empty_msg: "structure MCMC produced no samples",

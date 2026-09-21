@@ -281,3 +281,48 @@ fn fixed_point_runner() {
     assert!(d.fixed_point);
     assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
 }
+
+/// Rule *k* only sees what rule *k−1* enqueued, so a pass that changes nothing has not
+/// necessarily shown rule 1 the whole graph. Here rule B enables rule A at node 0 while the last
+/// rule leaves only node 5 queued: the next pass gives A the focus `{5}`, finds nothing, and a
+/// scheduler that stopped on the first quiet pass would end with A's application at node 0
+/// still pending. It must confirm with a full-scan pass and apply it.
+#[test]
+fn quiet_pass_does_not_end_scheduling_before_a_full_scan() {
+    use std::cell::Cell;
+
+    let n = 8usize;
+    let node = DenseNodeId::from_raw;
+    let enabled = Cell::new(false);
+    let applied = Cell::new(false);
+    let b_fired = Cell::new(false);
+    let c_fired = Cell::new(false);
+    let d = drive_to_fixed_point(n, |queue| {
+        let mut pass = RuleDelta::default();
+        // Rule A: acts at node 0 once enabled, but only if 0 is in its focus.
+        let focus = focus_nodes(n, queue);
+        if enabled.get() && !applied.get() && focus.contains(&node(0)) {
+            applied.set(true);
+            pass.edges_changed += 1;
+        }
+        // Rule B: enables A; the node it enqueues is drained by rule C.
+        let _ = focus_nodes(n, queue);
+        if !b_fired.get() {
+            b_fired.set(true);
+            enabled.set(true);
+            pass.edges_changed += 1;
+            queue.push(node(1));
+        }
+        // Rule C (last): fires once and leaves node 5 queued for the next pass.
+        let _ = focus_nodes(n, queue);
+        if !c_fired.get() {
+            c_fired.set(true);
+            pass.edges_changed += 1;
+            queue.push(node(5));
+        }
+        Ok(pass)
+    })
+    .unwrap();
+    assert!(applied.get(), "rule A's pending application was never examined");
+    assert!(d.fixed_point);
+}

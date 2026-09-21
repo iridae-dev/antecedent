@@ -11,29 +11,16 @@
 
 #![allow(clippy::cast_possible_truncation, clippy::many_single_char_names, clippy::similar_names)]
 
-use std::collections::HashSet;
-
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag};
 
 use crate::discriminating_paths::{
-    discriminating_implies_collider, find_discriminating_paths_with_budget,
+    discriminating_implies_collider, find_discriminating_paths_for_edge,
 };
-use crate::orientation::{OrientationError, OrientationQueue, OrientationState, PagOps, RuleDelta};
+use crate::orientation::{
+    OrientationError, OrientationQueue, OrientationState, PagOps, RuleDelta, drive_to_fixed_point,
+    focus_nodes,
+};
 use crate::uncovered_paths::{EndpointPattern, uncovered_pd_paths_with_budget};
-
-/// Drain the orientation queue into a focus set, or scan all nodes when empty
-/// (same contract as Meek [`crate::orientation`] rules).
-fn focus_nodes<G: PagOps>(graph: &G, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
-    if queue.is_empty() {
-        (0..graph.node_count()).map(|i| DenseNodeId::from_raw(i as u32)).collect()
-    } else {
-        let mut v = Vec::new();
-        while let Some(n) = queue.pop() {
-            v.push(n);
-        }
-        v
-    }
-}
 
 /// Enqueue a changed node and its adjacency (local delta, not full-graph re-seed).
 fn enqueue_local<G: PagOps>(graph: &G, id: DenseNodeId, queue: &mut OrientationQueue) {
@@ -88,7 +75,7 @@ fn marks_between<G: PagOps>(
     if e.a == a { Some((e.at_a, e.at_b)) } else { Some((e.at_b, e.at_a)) }
 }
 
-fn set_marks_oriented<G: PagOps>(
+pub(crate) fn set_marks_oriented<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     delta: &mut RuleDelta,
@@ -123,19 +110,38 @@ fn set_marks_oriented<G: PagOps>(
     }
 }
 
-/// Set the mark at `at` on edge `{at, other}` to [`Endpoint::Arrow`], keeping the far mark.
-fn set_arrow_at<G: PagOps>(
+/// Orient the leg `from *—* into` as `from *→ into` for a collider at `into`.
+///
+/// Only a circle at `into` is oriented. An arrow is already the conclusion. A tail at `into`
+/// (from R1/R8, or an earlier collider on the other side) contradicts the collider, so the
+/// edge is pinned as a conflict rather than silently flipped to `↔`.
+///
+/// Returns whether the graph changed.
+pub(crate) fn orient_collider_leg<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     delta: &mut RuleDelta,
-    at: DenseNodeId,
-    other: DenseNodeId,
+    from: DenseNodeId,
+    into: DenseNodeId,
 ) -> Result<bool, OrientationError> {
-    let e = graph
-        .edge_between(at, other)
-        .ok_or(OrientationError::Precondition { message: "discriminating path missing edge" })?;
-    let at_other = if e.a == other { e.at_a } else { e.at_b };
-    set_marks_oriented(graph, state, delta, at, other, Endpoint::Arrow, at_other)
+    let Some((at_from, at_into)) = marks_between(graph, from, into) else {
+        return Ok(false);
+    };
+    match at_into {
+        Endpoint::Circle => {
+            set_marks_oriented(graph, state, delta, from, into, at_from, Endpoint::Arrow)
+        }
+        Endpoint::Tail => {
+            state.record_conflict(delta, from, into, "opposite_direction");
+            if graph.mark_conflict(from, into).is_ok() {
+                delta.edges_changed += 1;
+                delta.fixed_point = false;
+                return Ok(true);
+            }
+            Ok(false)
+        }
+        Endpoint::Arrow | Endpoint::Conflict => Ok(false),
+    }
 }
 
 fn apply_orient_collider<G: PagOps>(
@@ -144,7 +150,7 @@ fn apply_orient_collider<G: PagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     for b in focus {
         let nbrs: Vec<_> = graph.neighbors(b).into_iter().map(|(x, _, _)| x).collect();
         for (ai, &a) in nbrs.iter().enumerate() {
@@ -159,38 +165,15 @@ fn apply_orient_collider<G: PagOps>(
                     continue; // non-collider
                 }
                 // Orient a *→ b ←* c
-                if let Some((at_a, at_b)) = marks_between(graph, a, b) {
-                    if !matches!(at_b, Endpoint::Arrow)
-                        && set_marks_oriented(
-                            graph,
-                            state,
-                            &mut delta,
-                            a,
-                            b,
-                            at_a,
-                            Endpoint::Arrow,
-                        )?
-                    {
-                        enqueue_local(graph, a, queue);
+                for leg in [a, c] {
+                    let before = delta.edges_changed;
+                    if orient_collider_leg(graph, state, &mut delta, leg, b)? {
+                        // A conflict already counted itself in `orient_collider_leg`.
+                        if delta.edges_changed == before {
+                            delta.edges_changed += 1;
+                        }
+                        enqueue_local(graph, leg, queue);
                         enqueue_local(graph, b, queue);
-                        delta.edges_changed += 1;
-                    }
-                }
-                if let Some((at_c, at_b)) = marks_between(graph, c, b) {
-                    if !matches!(at_b, Endpoint::Arrow)
-                        && set_marks_oriented(
-                            graph,
-                            state,
-                            &mut delta,
-                            c,
-                            b,
-                            at_c,
-                            Endpoint::Arrow,
-                        )?
-                    {
-                        enqueue_local(graph, c, queue);
-                        enqueue_local(graph, b, queue);
-                        delta.edges_changed += 1;
                     }
                 }
             }
@@ -206,7 +189,7 @@ fn apply_r1<G: PagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     for b in focus {
         let nbrs: Vec<_> = graph.neighbors(b).into_iter().map(|(x, _, _)| x).collect();
         for &a in &nbrs {
@@ -255,7 +238,7 @@ fn apply_r2<G: PagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     for b in focus {
         let nbrs: Vec<_> = graph.neighbors(b).into_iter().map(|(x, _, _)| x).collect();
         for &a in &nbrs {
@@ -305,7 +288,7 @@ fn apply_r3<G: PagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     let n = graph.node_count();
     for b in focus {
         let nbrs: Vec<_> = graph.neighbors(b).into_iter().map(|(x, _, _)| x).collect();
@@ -358,27 +341,51 @@ fn apply_r3<G: PagOps>(
     Ok(delta)
 }
 
+/// Zhang R4, collider branch: orient the triple `d_k ↔ c ↔ b` (arrowheads at both ends of
+/// both edges; a contradicting tail is a conflict, not overwritten). Returns whether the graph
+/// changed.
+pub(crate) fn orient_discriminated_collider<G: PagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    delta: &mut RuleDelta,
+    d_k: DenseNodeId,
+    c: DenseNodeId,
+    b: DenseNodeId,
+) -> Result<bool, OrientationError> {
+    let mut changed = false;
+    for (from, into) in [(d_k, c), (b, c), (c, d_k), (c, b)] {
+        changed |= orient_collider_leg(graph, state, delta, from, into)?;
+    }
+    Ok(changed)
+}
+
 fn apply_discriminating_path<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
-    rule_id: &'static str,
+    _rule_id: &'static str,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
-    let focus_set: HashSet<u32> = focus.iter().map(|n| n.raw()).collect();
-    let (paths, truncated) = find_discriminating_paths_with_budget(graph, 64, 8);
-    if truncated {
-        return Err(OrientationError::SearchBudgetExhausted {
-            rule: rule_id,
-            max_paths: 64,
-            max_len: 8,
-        });
+    let focus = focus_nodes(graph.node_count(), queue);
+    // Search only from focus nodes as `b`: every intermediate `dᵢ` is a parent of `b`, so any
+    // change on a candidate path enqueues `b` (as a neighbour of the changed `dᵢ`), and an
+    // empty queue scans everything. Each edge `c *-* b` has its own budget; one that runs out
+    // is left at its circle (sound) and recorded, not turned into a run failure.
+    let budget = state.discriminating_budget;
+    let mut paths = Vec::new();
+    for &b in &focus {
+        for (c, _at_b, at_c) in graph.neighbors(b) {
+            if !matches!(at_c, Endpoint::Circle) {
+                continue;
+            }
+            let (found, truncated) = find_discriminating_paths_for_edge(graph, b, c, budget);
+            if truncated {
+                state.discriminating_skipped.insert((c.raw(), b.raw()));
+            }
+            paths.extend(found);
+        }
     }
     for path in paths {
-        if !path.nodes.iter().any(|n| focus_set.contains(&n.raw())) {
-            continue;
-        }
         let a = path.a();
         let c = path.c();
         let b = path.b();
@@ -398,15 +405,7 @@ fn apply_discriminating_path<G: PagOps>(
             continue;
         }
         if collider {
-            // dₖ *→ c ←* b (arrows into c on both edges; keep far-end marks).
-            let mut changed = false;
-            if set_arrow_at(graph, state, &mut delta, c, d_k)? {
-                changed = true;
-            }
-            if set_arrow_at(graph, state, &mut delta, c, b)? {
-                changed = true;
-            }
-            if !changed {
+            if !orient_discriminated_collider(graph, state, &mut delta, d_k, c, b)? {
                 continue;
             }
         } else if set_marks_oriented(
@@ -437,7 +436,7 @@ fn apply_r8<G: PagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     for b in focus {
         let nbrs: Vec<_> = graph.neighbors(b).into_iter().map(|(x, _, _)| x).collect();
         for &a in &nbrs {
@@ -491,7 +490,7 @@ fn apply_r9<G: PagOps>(
     rule_id: &'static str,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     for a in focus {
         let nbrs: Vec<_> = graph.neighbors(a).into_iter().map(|(x, _, _)| x).collect();
         for &c in &nbrs {
@@ -568,7 +567,7 @@ fn apply_r10<G: PagOps>(
     rule_id: &'static str,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     for c in focus {
         let nbrs: Vec<_> = graph.neighbors(c).into_iter().map(|(x, _, _)| x).collect();
         // `a o→ c` candidates and definite parents into c (tail at parent, arrow at c).
@@ -980,7 +979,7 @@ impl LpcmciOrientationRule for LpcmciApr {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
-        let focus = focus_nodes(graph, queue);
+        let focus = focus_nodes(graph.node_count(), queue);
         for a in focus {
             let nbrs: Vec<_> = graph.neighbors(a).map(|(x, _, _)| x).collect();
             for &b in &nbrs {
@@ -1032,7 +1031,7 @@ impl LpcmciOrientationRule for LpcmciMmr {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta::default();
-        let focus = focus_nodes(graph, queue);
+        let focus = focus_nodes(graph.node_count(), queue);
         for a in focus {
             let nbrs: Vec<_> = graph.neighbors(a).map(|(x, _, _)| x).collect();
             for &b in &nbrs {
@@ -1138,42 +1137,23 @@ pub fn run_fci_orientation_to_fixed_point(
     rules: &[&dyn FciOrientationRule],
     state: &mut OrientationState,
 ) -> Result<RuleDelta, OrientationError> {
-    const MAX_ROUNDS: u32 = 10_000;
-    let mut queue = OrientationQueue::new();
-    for i in 0..graph.node_count() {
-        queue.push(DenseNodeId::from_raw(i as u32));
-    }
-    let mut total = RuleDelta::default();
-    let mut rounds = 0u32;
-    while rounds < MAX_ROUNDS {
-        rounds += 1;
-        let mut any = false;
+    let n = graph.node_count();
+    drive_to_fixed_point(n, |queue| {
+        let mut pass = RuleDelta::default();
         for rule in rules {
-            let d = rule.apply(graph, state, &mut queue)?;
-            total.edges_changed += d.edges_changed;
-            total.enqueued += d.enqueued;
-            total.conflicts += d.conflicts;
-            if d.edges_changed > 0 {
-                any = true;
-            }
+            let d = rule.apply(graph, state, queue)?;
+            pass.edges_changed += d.edges_changed;
+            pass.enqueued += d.enqueued;
+            pass.conflicts += d.conflicts;
         }
-        if !any && queue.is_empty() {
-            total.fixed_point = true;
-            break;
-        }
-        if !any {
-            while queue.pop().is_some() {}
-            total.fixed_point = true;
-            break;
-        }
-    }
-    Ok(total)
+        Ok(pass)
+    })
 }
 
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
 ///
 /// Seeds all nodes once. Subsequent rounds honor nodes enqueued by rules
-/// — no full-graph re-seed after each round.
+/// — no full-graph re-seed after each round. See [`drive_to_fixed_point`].
 ///
 /// # Errors
 ///
@@ -1183,38 +1163,17 @@ pub fn run_lpcmci_orientation(
     rules: &[&dyn LpcmciOrientationRule],
     state: &mut OrientationState,
 ) -> Result<RuleDelta, OrientationError> {
-    const MAX_ROUNDS: u32 = 10_000;
-    let mut queue = OrientationQueue::new();
-    for i in 0..graph.node_count() {
-        queue.push(DenseNodeId::from_raw(i as u32));
-    }
-    let mut total = RuleDelta::default();
-    let mut rounds = 0u32;
-    while rounds < MAX_ROUNDS {
-        rounds += 1;
-        let mut any = false;
+    let n = graph.node_count();
+    drive_to_fixed_point(n, |queue| {
+        let mut pass = RuleDelta::default();
         for rule in rules {
-            let d = rule.apply(graph, state, &mut queue)?;
-            total.edges_changed += d.edges_changed;
-            total.enqueued += d.enqueued;
-            total.conflicts += d.conflicts;
-            if d.edges_changed > 0 {
-                any = true;
-            }
+            let d = rule.apply(graph, state, queue)?;
+            pass.edges_changed += d.edges_changed;
+            pass.enqueued += d.enqueued;
+            pass.conflicts += d.conflicts;
         }
-        if !any && queue.is_empty() {
-            total.fixed_point = true;
-            break;
-        }
-        if !any {
-            // Idle queue with no further orientations — drain and stop.
-            while queue.pop().is_some() {}
-            total.fixed_point = true;
-            break;
-        }
-        // Keep delta-queued nodes for the next round (do not re-seed all nodes).
-    }
-    Ok(total)
+        Ok(pass)
+    })
 }
 
 #[cfg(test)]

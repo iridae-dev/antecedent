@@ -24,11 +24,10 @@ use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, CpdagReview, DenseNodeId};
 use antecedent_stats::{
-    CiBatchRequest, CiPreparationPlan, CiQuery, ConditionalIndependence, ConfidenceMethod,
-    FdrAdjustment, PartialCorrelation, PreparedCiTest,
+    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
+    PartialCorrelation, PreparedCiTest,
 };
 
-use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
@@ -38,15 +37,23 @@ use crate::orientation::{
     run_static_orientation_to_fixed_point,
 };
 use crate::result::{
-    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
-    discovery_assumptions,
+    DiscoveryDiagnostic, DiscoveryPerformanceRecord, DiscoveryResult, EvidenceSource,
+    GraphEvidence, ScoredLink, discovery_assumptions,
+};
+use crate::static_skeleton::{
+    StaticSkeleton, StaticSkeletonInput, run_static_skeleton, skeleton_scored_links,
+    static_edge_evidence,
 };
 
 /// Static PC discovery result (`Cpdag` evidence + review).
 pub type StaticCpdagDiscoveryResult = DiscoveryResult<Cpdag, CpdagReview>;
 
-/// Classic PC algorithm over tabular (non-temporal) data.
+/// PC algorithm over tabular (non-temporal) data.
+///
+/// Adjacency is removed in place while the search runs, so — as in the original algorithm
+/// and unlike PC-stable — the skeleton depends on the order edges are visited. That order is
+/// fixed (sorted variable ids), which makes a run reproducible but does not make the result
+/// invariant to relabelling the variables.
 #[derive(Clone)]
 pub struct Pc {
     /// Constraints / alpha / max conditioning size.
@@ -162,173 +169,29 @@ impl Pc {
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
-        let mut adj: HashMap<(u32, u32), ()> = HashMap::new();
-        let mut edge_scores: HashMap<(u32, u32), ScoredLink> = HashMap::new();
-        let mut sepsets: PcSepsets = PcSepsets::default();
-        let mut ci_tests: u64 = 0;
-        let mut iterations = Vec::new();
+        let skel = run_static_skeleton(
+            &StaticSkeletonInput {
+                ci: &*self.ci,
+                constraints: &self.constraints,
+                cols: &cols,
+                var_index: &var_index,
+                variables,
+                label: "pc.depth",
+            },
+            workspace,
+            ctx,
+        )?;
+        let mut scored = skeleton_scored_links(&skel);
+        let StaticSkeleton {
+            mut adj, sepsets, ci_tests, iterations, family_p, family_edge, ..
+        } = skel;
 
-        // Complete undirected skeleton minus forbidden edges.
-        for i in 0..variables.len() {
-            for j in (i + 1)..variables.len() {
-                let a = variables[i];
-                let b = variables[j];
-                if self.static_forbidden(a, b) {
-                    continue;
-                }
-                let key = edge_key(a, b);
-                adj.insert(key, ());
-            }
-        }
-
-        let mut combo_scratch = Vec::new();
-        let mut depth = 0usize;
-        let mut family_p: Vec<f64> = Vec::new();
-        let mut family_edge: Vec<(u32, u32)> = Vec::new();
-        loop {
-            let mut depth_tests = 0u64;
-            // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
-            // so traversal order must be deterministic for the skeleton to be reproducible.
-            let edges = sorted_edge_pairs(&adj);
-
-            for &(x, y) in &edges {
-                if !adj.contains_key(&edge_key(x, y)) {
-                    continue;
-                }
-                if self.static_required(x, y) {
-                    continue;
-                }
-                let neighbors_x = adjacent_vars(x, &adj, variables);
-                let neighbors_y = adjacent_vars(y, &adj, variables);
-                let mut cand_sets: Vec<Vec<VariableId>> = Vec::new();
-                let nx: Vec<VariableId> = neighbors_x.into_iter().filter(|&v| v != y).collect();
-                let ny: Vec<VariableId> = neighbors_y.into_iter().filter(|&v| v != x).collect();
-                if nx.len() >= depth {
-                    for_each_combination_vars(&nx, depth, &mut combo_scratch, |c| {
-                        cand_sets.push(c.to_vec());
-                        true
-                    });
-                }
-                if ny.len() >= depth {
-                    for_each_combination_vars(&ny, depth, &mut combo_scratch, |c| {
-                        cand_sets.push(c.to_vec());
-                        true
-                    });
-                }
-                cand_sets.sort_unstable();
-                cand_sets.dedup();
-
-                let mut independent = false;
-                // `weakest_dep_stat`/`weakest_dep_p` summarize a *retained* edge (no
-                // conditioning set separated x and y): they hold the statistic/p-value of
-                // whichever tested z gave the weakest evidence of dependence (max p), not
-                // whichever z happened to be tested last. That's the conservative summary
-                // to feed BH-FDR downstream. If the loop instead finds a separating set, we
-                // report that test's own (stat, p) — the value that actually establishes
-                // independence — not the running max.
-                let mut weakest_dep_stat = f64::NAN;
-                let mut weakest_dep_p = f64::NAN;
-                let mut best_sep: Arc<[VariableId]> = Arc::from([]);
-
-                for z in &cand_sets {
-                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
-                    ci_tests += 1;
-                    depth_tests += 1;
-                    family_p.push(p);
-                    family_edge.push(edge_key(x, y));
-                    if p > alpha {
-                        independent = true;
-                        weakest_dep_stat = stat;
-                        weakest_dep_p = p;
-                        best_sep = Arc::from(z.as_slice());
-                        break;
-                    }
-                    if weakest_dep_p.is_nan() || p > weakest_dep_p {
-                        weakest_dep_stat = stat;
-                        weakest_dep_p = p;
-                    }
-                }
-
-                let key = edge_key(x, y);
-                if independent {
-                    adj.remove(&key);
-                    let sep_lagged: Arc<[(VariableId, Lag)]> = Arc::from(
-                        best_sep.iter().map(|&v| (v, Lag::CONTEMPORANEOUS)).collect::<Vec<_>>(),
-                    );
-                    sepsets.insert(
-                        (x, Lag::CONTEMPORANEOUS, y, Lag::CONTEMPORANEOUS),
-                        Arc::clone(&sep_lagged),
-                    );
-                    sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
-                } else if weakest_dep_p.is_finite() {
-                    let link = ScoredLink {
-                        link: LaggedLink {
-                            source: x,
-                            source_lag: Lag::CONTEMPORANEOUS,
-                            target: y,
-                            target_lag: Lag::CONTEMPORANEOUS,
-                        },
-                        statistic: weakest_dep_stat,
-                        p_value: weakest_dep_p,
-                        adjusted_p_value: None,
-                    };
-                    edge_scores
-                        .entry(key)
-                        .and_modify(|s| {
-                            if weakest_dep_p < s.p_value {
-                                *s = link;
-                            }
-                        })
-                        .or_insert(link);
-                }
-            }
-
-            iterations.push(DiscoveryIteration {
-                label: Arc::from(format!("pc.depth.{depth}")),
-                ci_tests: depth_tests,
-            });
-
-            depth += 1;
-            if depth > max_cond {
-                break;
-            }
-            // Stop when no remaining edge has enough neighbors for larger cond sets.
-            let max_deg = adj
-                .keys()
-                .map(|&(lo, hi)| {
-                    let a = VariableId::from_raw(lo);
-                    let b = VariableId::from_raw(hi);
-                    let da = adjacent_vars(a, &adj, variables).len().saturating_sub(1);
-                    let db = adjacent_vars(b, &adj, variables).len().saturating_sub(1);
-                    da.max(db)
-                })
-                .max()
-                .unwrap_or(0);
-            if max_deg < depth {
-                break;
-            }
-        }
-
-        // Optional FDR on surviving undirected edges (re-test empty cond for a stable p).
-        let mut scored: Vec<ScoredLink> = adj
-            .keys()
-            .map(|&(lo, hi)| {
-                let x = VariableId::from_raw(lo);
-                let y = VariableId::from_raw(hi);
-                edge_scores.get(&(lo, hi)).copied().unwrap_or(ScoredLink {
-                    link: LaggedLink {
-                        source: x,
-                        source_lag: Lag::CONTEMPORANEOUS,
-                        target: y,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    statistic: 0.0,
-                    p_value: 0.0,
-                    adjusted_p_value: None,
-                })
-            })
-            .collect();
-        scored = retain_after_family_fdr(scored, &family_p, &family_edge, self.fdr, alpha);
+        // Multiplicity correction (when configured) covers the edges that were actually
+        // tested; constraint-required edges carry no test and pass through untouched.
+        let (tested, untested): (Vec<ScoredLink>, Vec<ScoredLink>) =
+            scored.drain(..).partition(|s| s.p_value.is_finite());
+        scored = retain_after_family_fdr(tested, &family_p, &family_edge, self.fdr, alpha);
+        scored.extend(untested);
         let kept: HashSet<(u32, u32)> =
             scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         // If FDR ran, drop edges that failed; if FDR off, keep skeleton as-is.
@@ -384,28 +247,7 @@ impl Pc {
             });
         }
 
-        let edge_evidence: Vec<EdgeEvidence> = scored
-            .iter()
-            .map(|s| {
-                let sepset = sepsets
-                    .get(&(
-                        s.link.source,
-                        Lag::CONTEMPORANEOUS,
-                        s.link.target,
-                        Lag::CONTEMPORANEOUS,
-                    ))
-                    .cloned();
-                EdgeEvidence {
-                    link: s.link,
-                    statistic: Some(s.statistic),
-                    p_value: Some(s.p_value),
-                    adjusted_p_value: s.adjusted_p_value,
-                    interval: None,
-                    separating_set: sepset,
-                    provenance: Arc::from([Arc::from("pc")]),
-                }
-            })
-            .collect();
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, "pc");
 
         let evidence = GraphEvidence {
             graph: cpdag.clone(),
@@ -434,82 +276,6 @@ impl Pc {
             },
             sepsets,
         })
-    }
-
-    fn static_forbidden(&self, a: VariableId, b: VariableId) -> bool {
-        let link_ab = LaggedLink {
-            source: a,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: b,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        let link_ba = LaggedLink {
-            source: b,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: a,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        self.constraints.is_forbidden(link_ab) && self.constraints.is_forbidden(link_ba)
-    }
-
-    fn static_required(&self, a: VariableId, b: VariableId) -> bool {
-        let link_ab = LaggedLink {
-            source: a,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: b,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        let link_ba = LaggedLink {
-            source: b,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: a,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        self.constraints.is_required(link_ab) || self.constraints.is_required(link_ba)
-    }
-
-    fn ci_test(
-        &self,
-        cols: &[&[f64]],
-        var_index: &HashMap<VariableId, usize>,
-        x: VariableId,
-        y: VariableId,
-        z: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<(f64, f64), DiscoveryError> {
-        let xi = *var_index.get(&x).ok_or_else(|| DiscoveryError::data_msg("missing x"))?;
-        let yi = *var_index.get(&y).ok_or_else(|| DiscoveryError::data_msg("missing y"))?;
-        workspace.z_flat.clear();
-        for &v in z {
-            let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
-            workspace.z_flat.push(zi);
-        }
-        let prepared = workspace
-            .prepared_ci
-            .as_ref()
-            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
-        let req = CiBatchRequest {
-            columns: cols,
-            queries: &queries,
-            z_flat: &workspace.z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
-        let result = out
-            .results
-            .into_iter()
-            .next()
-            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-        if !result.statistic.is_finite() || !result.p_value.is_finite() {
-            return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-        }
-        Ok((result.statistic, result.p_value))
     }
 }
 
@@ -565,9 +331,12 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use antecedent_stats::{CiBatchResult, CiResult, CiWorkspace, OracleCi, StatsError};
+    use antecedent_stats::{
+        CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, OracleCi, StatsError,
+    };
 
     use super::*;
+    use crate::result::LaggedLink;
 
     fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
         let mut b = CausalSchemaBuilder::new();
@@ -976,17 +745,12 @@ mod tests {
         }
     }
 
-    /// C2 regression: a retained edge reports the max p-value over tested conditioning
-    /// sets, not the last one tested.
+    /// A retained edge reports the max p-value over every conditioning set it was tested
+    /// with, across all depths: neither the last one tested nor the minimum.
     ///
     /// Pair (0, 1) is tested at depth 0 (`z = []`, p = 0.45) and depth 1 (`z = [2]`
-    /// then `z = [3]`, since `cand_sets` sorts ascending) -- `z = [2]`'s p = 0.40 is
-    /// tested *before* `z = [3]`'s p = 0.10. Pre-fix ("last tested"), depth 1's
-    /// recorded result is 0.10; post-fix ("max tested"), it's 0.40. Depth 0's p = 0.45
-    /// is chosen to never win the (unmodified, out-of-scope) cross-depth min-p merge in
-    /// `edge_scores` either way -- 0.40 and 0.10 are both `< 0.45` -- so depth 1's value
-    /// is always what's finally reported, isolating exactly the within-depth behavior
-    /// this test targets.
+    /// then `z = [3]`, p = 0.40 then 0.10). "Last tested" would report 0.10, a
+    /// cross-depth minimum 0.10; the weakest evidence of dependence is 0.45.
     #[test]
     fn retained_edge_reports_max_p_not_last_tested() {
         let data = tabular_n(4, 30);
@@ -1017,9 +781,60 @@ mod tests {
             .expect("edge (0,1) evidence present");
         let p = evidence.p_value.expect("p-value recorded");
         assert!(
-            (p - 0.40).abs() < 1e-9,
-            "expected max-over-tested-z p=0.40 for retained edge (0,1), got {p} \
-             (0.10 would indicate the pre-fix 'last tested' bug)"
+            (p - 0.45).abs() < 1e-12,
+            "expected max-over-all-tests p=0.45 for retained edge (0,1), got {p}"
         );
+    }
+
+    /// A constraint-required edge is never tested, so it must not carry significance: no
+    /// statistic or p-value, provenance `required`. Tested edges keep theirs.
+    #[test]
+    fn required_edge_reports_no_test_evidence() {
+        let data = tabular_n(3, 30);
+        let vars: Vec<VariableId> = (0..3u32).map(VariableId::from_raw).collect();
+        let mut constraints = DiscoveryConstraints::default();
+        constraints.required = Arc::from([LaggedLink {
+            source: VariableId::from_raw(0),
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: VariableId::from_raw(1),
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        constraints.temporal = crate::TemporalConstraints {
+            max_lag: Lag::CONTEMPORANEOUS,
+            min_lag: Lag::CONTEMPORANEOUS,
+        };
+        let oracle = OracleCi::new([(1usize, 2usize)]);
+        let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle)).with_constraints(constraints);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = pc.run(&data, &vars, &mut ws, &ctx).unwrap();
+        let find = |a: u32, b: u32| {
+            result
+                .evidence
+                .edge_evidence
+                .iter()
+                .find(|e| (e.link.source.raw(), e.link.target.raw()) == (a, b))
+                .unwrap_or_else(|| panic!("edge {a}-{b} present"))
+        };
+        let req = find(0, 1);
+        assert_eq!(req.p_value, None);
+        assert_eq!(req.statistic, None);
+        assert!(req.provenance.iter().any(|p| &**p == "required"));
+        let tested = find(1, 2);
+        assert!(tested.p_value.is_some());
+        assert!(tested.statistic.is_some());
+    }
+
+    /// Cancellation aborts with `Cancelled`; a half-searched skeleton is never returned.
+    #[test]
+    fn cancelled_pc_run_errors() {
+        let data = tabular_n(3, 30);
+        let vars: Vec<VariableId> = (0..3u32).map(VariableId::from_raw).collect();
+        let pc = Pc::new().with_fdr(false).with_ci(Arc::new(OracleCi::new([(0usize, 1usize)])));
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let out = pc.run(&data, &vars, &mut ws, &ctx);
+        assert!(matches!(out, Err(DiscoveryError::Cancelled)), "{out:?}");
     }
 }

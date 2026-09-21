@@ -9,6 +9,7 @@ pub mod ci;
 pub mod cluster;
 pub mod covariance;
 mod cox_ipcw;
+pub mod dcor;
 pub mod design;
 pub mod divergence;
 pub mod error;
@@ -47,6 +48,7 @@ pub use cluster::{
     panel_hac_meat_matrix, panel_hac_meat_scalar,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
+pub use dcor::distance_correlation;
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,

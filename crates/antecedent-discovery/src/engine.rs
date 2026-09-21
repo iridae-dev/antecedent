@@ -169,34 +169,13 @@ impl PcmciEngine {
             };
             compiled.allows(link)
         });
-        if let Some(max_p) = self.constraints.max_parents {
-            // Never drop required parents when truncating.
-            let mut required: Vec<_> = parents
-                .iter()
-                .copied()
-                .filter(|&(src, slag)| {
-                    compiled.requires(LaggedLink {
-                        source: src,
-                        source_lag: slag,
-                        target,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    })
-                })
-                .collect();
-            let mut optional: Vec<_> =
-                parents.iter().copied().filter(|p| !required.contains(p)).collect();
-            let room = max_p.saturating_sub(required.len());
-            optional.truncate(room);
-            required.extend(optional);
-            parents = required;
-        }
         let mut ci_tests = 0u64;
         let max_cond = self.constraints.max_cond_size;
         // PC1 strength ranking: minimum |statistic| across the levels a candidate survived.
         let mut min_stat = vec![f64::INFINITY; parents.len()];
         for cond_size in 0..=max_cond {
             if ctx.cancellation.is_cancelled() {
-                break;
+                return Err(DiscoveryError::Cancelled);
             }
             // A level-q test needs q other candidates to condition on.
             if parents.is_empty() || parents.len() <= cond_size {
@@ -230,7 +209,7 @@ impl PcmciEngine {
             } else {
                 for pi in 0..parents.len() {
                     if ctx.cancellation.is_cancelled() {
-                        break;
+                        return Err(DiscoveryError::Cancelled);
                     }
                     let (src, slag) = parents[pi];
                     // Single strongest-q conditioning set: candidates are kept sorted by
@@ -287,6 +266,24 @@ impl PcmciEngine {
             }
             sort_by_strength(&mut parents, &mut min_stat);
         }
+        // `max_parents` caps the *surviving* parents, strongest first (tigramite's
+        // `max_conds_py`), never the candidate list: truncating candidates by enumeration
+        // order would decide by variable index which links are ever tested. Required
+        // parents are exempt from the cap.
+        if let Some(max_p) = self.constraints.max_parents {
+            let n_required = parents
+                .iter()
+                .filter(|&&(src, slag)| compiled.requires(link_to_target(src, slag, target)))
+                .count();
+            let mut room = max_p.saturating_sub(n_required);
+            parents.retain(|&(src, slag)| {
+                compiled.requires(link_to_target(src, slag, target)) || {
+                    let keep = room > 0;
+                    room = room.saturating_sub(1);
+                    keep
+                }
+            });
+        }
         Ok((parents, ci_tests))
     }
 
@@ -304,7 +301,7 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<u64, DiscoveryError> {
         if ctx.cancellation.is_cancelled() {
-            return Ok(0);
+            return Err(DiscoveryError::Cancelled);
         }
         let mut queries = Vec::with_capacity(parents.len());
         let mut z_flat = Vec::new();
@@ -479,7 +476,9 @@ impl PcmciEngine {
             engine.select_parents_all(&frame, &search_vars, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
-        let (mci_tests, truncated) = engine.mci_all(
+        // MCI conditioning that overflows the column cap is refused (`refuse_truncated_mci`),
+        // so a successful run never carries a truncated test.
+        let (mci_tests, _) = engine.mci_all(
             &frame,
             &search_vars,
             &compiled,
@@ -503,17 +502,7 @@ impl PcmciEngine {
         };
         let review = TemporalGraphReview::from_graph(evidence.graph.clone(), algorithm.id.clone());
         let n_links = evidence.links.len() as u64;
-        let mut diagnostics = Vec::new();
-        if truncated > 0 {
-            diagnostics.push(crate::result::DiscoveryDiagnostic {
-                code: Arc::from("mci.conditioning_truncated"),
-                message: Arc::from(format!(
-                    "MCI conditioning sets dropped {truncated} weakest condition(s) at the \
-                     {MAX_CI_COLS}-column cap; statistics for the affected links use a \
-                     reduced conditioning set"
-                )),
-            });
-        }
+        let diagnostics = Vec::new();
         Ok(DagDiscoveryResult {
             evidence,
             review,
@@ -573,7 +562,9 @@ impl PcmciEngine {
             (0..n).map(|_| None).collect();
 
         let prepared_ci = workspace.prepared_ci.clone();
+        let mut worker_panicked = false;
         std::thread::scope(|scope| {
+            let mut handles = Vec::new();
             let mut rest = slots.as_mut_slice();
             let mut cursor = 0usize;
             for (start, end) in chunk_ranges(n, threads) {
@@ -582,7 +573,7 @@ impl PcmciEngine {
                 let chunk_vars = &variables[start..end];
                 let engine = self;
                 let prepared_ci = prepared_ci.clone();
-                scope.spawn(move || {
+                handles.push(scope.spawn(move || {
                     let mut local_ws =
                         DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
                     for (i, &target) in chunk_vars.iter().enumerate() {
@@ -604,11 +595,20 @@ impl PcmciEngine {
                                 }),
                         );
                     }
-                });
+                }));
                 rest = next;
                 cursor = end;
             }
+            // A panicking worker becomes an error, not a panic across the FFI boundary.
+            for h in handles {
+                worker_panicked |= h.join().is_err();
+            }
         });
+        if worker_panicked {
+            return Err(DiscoveryError::Unsupported {
+                message: "parent-selection worker panicked",
+            });
+        }
 
         let mut all_parents = Vec::with_capacity(n);
         let mut iterations = Vec::with_capacity(n);
@@ -699,7 +699,9 @@ impl PcmciEngine {
                 }));
             }
             for h in handles {
-                partials.push(Some(h.join().expect("MCI worker panicked")));
+                partials.push(Some(h.join().unwrap_or_else(|_| {
+                    Err(DiscoveryError::Unsupported { message: "MCI worker panicked" })
+                })));
             }
         });
 
@@ -736,6 +738,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ScoredLink>, u64), DiscoveryError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
         let mut candidates = self.constraints.candidate_sources(variables, target);
         candidates.retain(|&(src, slag)| compiled.allows(link_to_target(src, slag, target)));
         if candidates.is_empty() {
@@ -747,6 +752,9 @@ impl PcmciEngine {
             let mut scored = Vec::with_capacity(candidates.len());
             let mut truncated = 0u64;
             for &(src, slag) in &candidates {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
                 let link = link_to_target(src, slag, target);
                 let src_parents = parents_of(all_parents, src);
                 let (s, trunc) =
@@ -1127,9 +1135,11 @@ fn link_to_target(src: VariableId, slag: Lag, target: VariableId) -> LaggedLink 
     LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS }
 }
 
-/// Build the MCI conditioning set for `link` into `out`: parents of the target minus the
-/// link endpoints, then parents of the source *time-shifted by the source lag* (a parent
-/// `(v, l)` of `X_t` is `(v, l+τ)` for `X_{t−τ}`). Both inputs are strongest-first, so the
+/// Build the MCI conditioning set for `link` into `out`: parents of the target and of the
+/// source, each *time-shifted by its endpoint's lag* (a parent `(v, l)` of `X_t` is
+/// `(v, l+τ)` for `X_{t−τ}`), minus the link endpoints. Parent sets are keyed to lag 0. The
+/// target shift is zero for every skeleton-phase link (`Y_t`); it matters when a caller tests a
+/// pair whose later node is the source. Both inputs are strongest-first, so the
 /// `MAX_CI_COLS` truncation keeps the strongest conditions; returns how many were dropped.
 pub(crate) fn mci_conditioning(
     link: LaggedLink,
@@ -1140,7 +1150,12 @@ pub(crate) fn mci_conditioning(
     out.clear();
     let src_key = (link.source, link.source_lag);
     let tgt_key = (link.target, link.target_lag);
-    out.extend(parents_target.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
+    for &(v, l) in parents_target {
+        let shifted = (v, Lag::from_raw(l.raw() + link.target_lag.raw()));
+        if !out.contains(&shifted) && shifted != src_key && shifted != tgt_key {
+            out.push(shifted);
+        }
+    }
     for &(v, l) in parents_source {
         let shifted = (v, Lag::from_raw(l.raw() + link.source_lag.raw()));
         if !out.contains(&shifted) && shifted != src_key && shifted != tgt_key {

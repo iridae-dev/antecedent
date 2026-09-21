@@ -151,9 +151,34 @@ impl OrderMcmc {
                     let mut order = initial_order.clone();
                     let mut mask = initial_mask;
                     let mut cur = initial_score;
+                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
+                    // others after a random walk over the feasible set. Identical starts make
+                    // R-hat blind to a chain that has not left its initial mode.
+                    if chain > 0 {
+                        for _ in 0..(4 * n_params).min(400) {
+                            let (new_order, new_mask, _) = propose_order(&order, mask, n, &mut rng);
+                            if let Some(ps) = score_dag_mask(
+                                new_mask,
+                                n,
+                                &score_data,
+                                &mut cache,
+                                prior,
+                                variables,
+                            )
+                            .filter(|s| s.is_finite())
+                            {
+                                order = new_order;
+                                mask = new_mask;
+                                cur = ps - log_topological_order_count(new_mask, n);
+                            }
+                        }
+                    }
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
+                        if ctx.cancellation.is_cancelled() {
+                            break;
+                        }
                         let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
                         local_rej += rej;
                         let prop_score =
@@ -191,8 +216,13 @@ impl OrderMcmc {
                     }
                 }
                 (start, local_traces, local_samples, local_rej)
-            });
+            })?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
 
+        let param_edges: Vec<(usize, usize)> =
+            (0..n).flat_map(|i| (0..n).filter(move |&j| j != i).map(move |j| (i, j))).collect();
         FinishMaskPosterior {
             n,
             schedule: &schedule,
@@ -200,6 +230,7 @@ impl OrderMcmc {
             sample_masks: &sample_masks,
             rejected,
             n_params,
+            param_edges: &param_edges,
             require_gate: self.require_diagnostics_gate,
             refuse_msg: "order MCMC diagnostics gate refused posterior",
             empty_msg: "order MCMC produced no samples",
