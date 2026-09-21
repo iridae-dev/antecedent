@@ -87,6 +87,36 @@ impl PreparedTransportGridStage {
         }).collect();
         serde_json::json!({"execution_id":result.identity(),"points":points,"interval_scope":"pointwise","simultaneous_bands":false}).to_string()
     }
+    /// Native four-slot reasoning, mirroring [`TransportGridResult::reasoning`] before any
+    /// point has been executed (identification is a structural property of the accepted
+    /// proof, not of an execution; the other three slots stay unavailable until then).
+    fn reasoning(&self) -> antecedent_core::ReasoningView {
+        self.last.as_ref().map_or_else(
+            || {
+                use antecedent_core::{
+                    AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
+                    IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope,
+                    ReasoningView, SlotAvailability,
+                };
+                ReasoningView::new(
+                    SlotAvailability::Available(IdentificationSlot::identified_singleton(
+                        IdentificationStatus::NonparametricallyIdentified,
+                    )),
+                    SlotAvailability::unavailable("execution_specific"),
+                    SlotAvailability::unavailable("execution_specific"),
+                    SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
+                        "transport.population_selection_graph",
+                        ObligationScope::Program,
+                        AssumptionSource::UserDeclared,
+                        ObligationKind::UserAssertion,
+                        AssumptionStatus::Declared,
+                        "The accepted graph and source-specific mechanism selections describe the declared populations.",
+                    )])),
+                )
+            },
+            TransportGridResult::reasoning,
+        )
+    }
 }
 #[pymethods]
 impl PreparedTransportGridStage {
@@ -179,11 +209,14 @@ impl PreparedTransportGridStage {
             let antecedent_expr::ExprNode::Distribution { variables, conditioned_on, intervention, population, regime, .. } = arena.node(id) else { unreachable!() };
             serde_json::json!({"expression": id.raw(), "population": arena.population(*population), "regime": regime.map(antecedent_core::RegimeId::raw), "variables": arena.var_set(*variables).iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(), "conditioned_on": arena.var_set(*conditioned_on).iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(), "interventions": arena.intervention_assignments(*intervention).iter().map(|a|self.names[a.variable.as_usize()].as_str()).collect::<Vec<_>>()})
         }).collect();
-        let available=self.last.as_ref().is_some_and(|r|r.points().iter().any(|p|matches!(p,TransportGridPoint::Statistical(_,r) if r.estimate().uncertainty.is_some() && r.estimate().uncertainty_reason.is_none())));
+        let reasoning = self.reasoning();
+        let identification_status =
+            reasoning.identification.as_ref().map_or("unavailable", |slot| slot.status.as_str());
+        let uncertainty_available = reasoning.uncertainty.is_available();
         serde_json::json!({
-            "identification":{"available":true,"summary":"nonparametrically_identified","payload":{"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", ""),"theorem_scope":proof.evidence_setting(),"sources":proof.sources(),"rules":proof.rules(),"required_factors":factors,"required_bindings":query.functional.arena().leaf_bindings(query.functional.root()).iter().map(|b|serde_json::json!({"population":b.population.as_ref(),"regime":b.regime.map(antecedent_core::RegimeId::raw)})).collect::<Vec<_>>()}},
+            "identification":{"available":reasoning.identification.is_available(),"summary":identification_status,"payload":{"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", ""),"theorem_scope":proof.evidence_setting(),"sources":proof.sources(),"rules":proof.rules(),"required_factors":factors,"required_bindings":query.functional.arena().leaf_bindings(query.functional.root()).iter().map(|b|serde_json::json!({"population":b.population.as_ref(),"regime":b.regime.map(antecedent_core::RegimeId::raw)})).collect::<Vec<_>>()}},
             "support":{"available":self.last.is_some(),"summary":"grid_local_support","payload":{"points":points,"population_positivity":"assumed_not_empirically_proven"}},
-            "uncertainty":{"available":available,"summary":if available{"pointwise_bootstrap"}else{"unavailable"},"payload":{"calibration_status":"not_bound_to_this_execution","simultaneous_bands":false}},
+            "uncertainty":{"available":uncertainty_available,"summary":if uncertainty_available{"pointwise_bootstrap"}else{"unavailable"},"payload":{"calibration_status":"not_bound_to_this_execution","simultaneous_bands":false}},
             "assumptions":{"available":true,"summary":"declared_population_selections_and_provider_contract","payload":{"empirically_verified":false,"target":proof.query().target.as_ref(),"sources":proof.sources()}},
             "execution_id":self.last.as_ref().map(TransportGridResult::identity),"capabilities":{"storage":true,"proof_verification":true,"numerical_verification":true,"estimator_replay":self.inner.can_reestimate()},"evidence_contract":antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(query.functional.catalog()),"supported_operations":["estimate","replace_snapshot","refresh","export","mean","contrast","scalar_projection"],"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", "")
         }).to_string()

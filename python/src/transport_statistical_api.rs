@@ -238,8 +238,13 @@ impl PreparedStatisticalStage {
                 "summary": if licensed { "percentile_bootstrap" } else { "unavailable" },
             })
         };
+        let identification_status = view
+            .reasoning
+            .identification
+            .as_ref()
+            .map_or("unavailable", |slot| slot.status.as_str());
         serde_json::json!({
-            "identification": {"available": true, "summary": "nonparametrically_identified", "payload": {
+            "identification": {"available": view.reasoning.identification.is_available(), "summary": identification_status, "payload": {
                 "formula": view.formula,
                 "theorem_scope": view.theorem_scope,
                 "rules": self.inner.rules(),

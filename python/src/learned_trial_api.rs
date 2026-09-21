@@ -31,6 +31,16 @@ impl PreparedLearnedTrial {
         }
         ctx
     }
+    /// Native four-slot reasoning: the executed result's own view once estimated, else
+    /// the not-yet-executed view of the prepared identification (identification is a
+    /// property of the accepted certificate, not of a fitted estimate).
+    fn reasoning(&self) -> Option<antecedent_core::ReasoningView> {
+        self.last.as_ref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
+            self.inner
+                .as_ref()
+                .map(antecedent::PreparedStudy::<antecedent::LearnedTrialState>::inspect)
+        })
+    }
 }
 #[pymethods]
 impl PreparedLearnedTrial {
@@ -78,8 +88,15 @@ impl PreparedLearnedTrial {
     }
     fn inspection_json(&self) -> String {
         let uncertainty = self.last.as_ref().map(|r| r.estimate());
+        let reasoning = self.reasoning();
+        let identification_available =
+            reasoning.as_ref().is_some_and(|r| r.identification.is_available());
+        let identification_status = reasoning
+            .as_ref()
+            .and_then(|r| r.identification.as_ref())
+            .map(|slot| slot.status.as_str());
         serde_json::json!({
-            "identification":{"available":true,"summary":"nonparametrically_identified"},
+            "identification":{"available":identification_available,"summary":identification_status.unwrap_or("unavailable")},
             "support":{"available":self.last.is_some(),"summary":"trial_and_target_overlap_required", "payload": {"overlap":uncertainty.map(|r| r.overlap)}},
             "uncertainty":{"available":uncertainty.is_some_and(|r| r.interval.is_some()),"summary":"joint_outer_bootstrap_uncalibrated","reason":uncertainty.and_then(|r| r.uncertainty_reason.as_deref()),"payload":{"calibration_status":"not_bound_to_this_execution"}},
             "assumptions":{"available":true,"summary":"declared_randomization_sampling_and_nuisance_models"},
