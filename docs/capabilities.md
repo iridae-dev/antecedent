@@ -444,14 +444,19 @@ In both, the replicate SD is multiplied by the circular-Bartlett fixed-b factor
 critical value for a mean studentized by the circular Bartlett variance that the
 circular-block bootstrap estimates. The Kiefer–Vogelsang polynomial is for the
 non-circular Bartlett estimator and is too small at long blocks (it covers 0.942
-at `b = 1/3` for a nominal 95% interval). Published 90% intervals use the same
-95% ratio around a normal critical value, not the 90% fixed-b value; in the same
-simulation that construction covers 0.901–0.913 for `b ≤ 1/3`. The replicate
-SD is also multiplied by the Bartlett kernel-bias factor
-`sqrt(LRV_AR(1)(ρ̂) / Bartlett_ℓ(ρ̂))` of the interval's target scores
-(`antecedent_estimate::kernel_bias_scale`, `ρ̂` the lag-1 autocorrelation
-capped at 0.97): a circular block of length `ℓ` reproduces the Bartlett variance
-at bandwidth `ℓ`, which the fixed-b critical value does not correct for. The
+at `b = 1/3` for a nominal 95% interval). The published SE interval is the 95%
+`estimate ± 1.96·SE`; the short-series sweeps measure a nominal-0.90 interval
+built from the same SE (the 95% ratio around a normal 0.90 critical value, not
+the 90% fixed-b value), which covers 0.901–0.913 for `b ≤ 1/3` in the same
+simulation. The replicate SD is also multiplied by the Bartlett kernel-bias
+factor `1/sqrt(f)` of the interval's target scores
+(`antecedent_estimate::kernel_bias_scale`, the largest over the scores of
+`antecedent_estimate::kernel_bias_factor`, the same per-score factor the response
+bands apply per cell): `f` is the share of a fitted autoregression's long-run
+variance that the Bartlett kernel at the block length keeps, under a
+Kendall-corrected AR(1) and a BIC-selected AR(q ≤ 4) (larger factor kept). A
+circular block of length `ℓ` reproduces the Bartlett variance at bandwidth `ℓ`,
+which the fixed-b critical value does not correct for. The
 `estimate.temporal.circular_block_se` diagnostic (the shared-block diagnostic
 for mixtures) records the block length, row count, fixed-b factor, and the
 estimating score's effective rows: over every score of the interval (every

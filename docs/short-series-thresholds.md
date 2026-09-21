@@ -174,10 +174,12 @@ Measurement conditions: blocks sized on every estimating score (the target
 influence(s), the mixture score, and every normal-equation score of every
 fitted regression, residuals included), the circular-Bartlett fixed-b factor
 (`antecedent_estimate::circular_fixed_b_scale`), the Bartlett kernel-bias
-factor of the target scores (`antecedent_estimate::kernel_bias_scale`: the
-AR(1)-prewhitened long-run variance over the Bartlett variance at the block
-length, 1.01–1.05 on the persistent designs, at most 1.01 on the short-memory
-ones), and fixtures whose noise streams are seeded independently per
+factor of the target scores (`antecedent_estimate::kernel_bias_scale`: measured
+as the AR(1)-prewhitened long-run variance over the Bartlett variance at the
+block length, 1.01–1.05 on the persistent designs, at most 1.01 on the
+short-memory ones; the factor now reads the Kendall-corrected AR(1) and
+BIC AR(q) model shared with the response bands, never smaller on the same
+score), and fixtures whose noise streams are seeded independently per
 replicate. The kernel-bias factor only widens intervals, so the thresholds set
 before it (below) remain valid: every cell that fails at 0.855 still warns,
 and no quiet cell fails. An earlier run of the same

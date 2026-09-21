@@ -24,6 +24,14 @@ pub(crate) fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
     chol_solve(&chol, p, b)
 }
 
+/// `X'X` (row-major `p × p`) of a column-major `n × p` design.
+#[must_use]
+pub(crate) fn gram(x: &[f64], n: usize, p: usize) -> Vec<f64> {
+    let mut xtx = vec![0.0; p * p];
+    form_xtx(x, n, p, &mut xtx);
+    xtx
+}
+
 /// Require [`OverlapPolicy::ExplicitOverride`] (linear / IV / RD / front-door / GLM paths).
 pub(crate) fn require_explicit_override(
     overlap: OverlapPolicy,

@@ -212,6 +212,36 @@ fn lower_normal(a: f64, rng: &mut CausalRng) -> Result<f64, EstimationError> {
     }
     Err(EstimationError::stats_msg("truncated Gaussian sampler failed to accept"))
 }
+/// Stream salt separating a chain's start draws from its sampling draws.
+const CHAIN_START_STREAM: u64 = 0x5EED_57A2_7C4A_1B03;
+
+/// One chain's initial outcome path: exact outcomes as observed, every latent row (missing
+/// or censored) drawn from `N(center, spread²)` and, for a censored row, reflected into
+/// the admissible side of its bound. Chains started at the same point differ only by RNG
+/// stream, so their R-hat could not expose a slow-mixing latent block; `center` and
+/// `spread` are the mean and standard deviation of the exact outcomes, wider than the
+/// conditional posterior of a latent row.
+fn dispersed_latent_start(
+    observations: &[Observation],
+    center: f64,
+    spread: f64,
+    rng: &mut CausalRng,
+) -> Vec<f64> {
+    observations
+        .iter()
+        .map(|&o| match o {
+            Observation::Exact(y) => y,
+            Observation::Missing => center + spread * standard_normal(rng),
+            Observation::Lower(bound) => {
+                bound + (center + spread * standard_normal(rng) - bound).abs()
+            }
+            Observation::Upper(bound) => {
+                bound - (center + spread * standard_normal(rng) - bound).abs()
+            }
+        })
+        .collect()
+}
+
 fn latent_draw(
     mean: f64,
     sd: f64,
@@ -442,27 +472,25 @@ impl Evaluation {
         Ok(Self { order, nodes, outcome })
     }
     fn value(&self, models: &[Mechanism], means: &BTreeMap<VariableId, f64>) -> f64 {
-        let mut values = vec![0.0; self.nodes.len()];
-        for &i in &self.order {
-            let node = &self.nodes[i];
-            if let Some(overlay) = node.overlay.filter(|overlay| overlay.node.level.is_some()) {
-                values[i] = overlay.assigned(0.0);
-                continue;
-            }
-            let natural = node.mechanism.as_ref().map_or_else(
-                || means[&node.variable],
-                |(model, parents)| {
-                    models[*model].beta[0]
-                        + parents
-                            .iter()
-                            .enumerate()
-                            .map(|(j, &parent)| models[*model].beta[j + 1] * values[parent])
-                            .sum::<f64>()
-                },
-            );
-            values[i] = node.overlay.map_or(natural, |overlay| overlay.assigned(natural));
-        }
-        values[self.outcome]
+        crate::temporal_sequential::propagate_linear_level(
+            &self.order,
+            self.nodes.len(),
+            self.outcome,
+            |i| self.nodes[i].overlay,
+            |i, values| {
+                let node = &self.nodes[i];
+                node.mechanism.as_ref().map_or_else(
+                    || means[&node.variable],
+                    |(model, parents)| {
+                        crate::temporal_sequential::linear_natural(
+                            &models[*model].beta,
+                            parents,
+                            values,
+                        )
+                    },
+                )
+            },
+        )
     }
 }
 
@@ -581,6 +609,10 @@ pub fn estimate_observed_temporal_response(
         ));
     }
     let center = exact.iter().sum::<f64>() / exact.len() as f64;
+    let spread = match crate::util::sample_std(&exact) {
+        sd if sd.is_finite() && sd > 0.0 => sd,
+        _ => 1.0,
+    };
     base.insert(
         outcome,
         obs.iter()
@@ -671,8 +703,14 @@ pub fn estimate_observed_temporal_response(
     let mut draws = vec![0.0; count * cells];
     let mut parameters = Vec::with_capacity(count * n_parameters);
     for chain in 0..chains {
-        let mut rng = CausalRng::from_seed(estimator.seed.wrapping_add(chain as u64 * 0x10001));
+        let chain_seed = estimator.seed.wrapping_add(chain as u64 * 0x10001);
+        let mut rng = CausalRng::from_seed(chain_seed);
+        // R-hat detects non-mixing only when the chains start apart: every chain draws
+        // its latent outcomes from its own over-dispersed start (its own stream, so the
+        // sampling stream is unchanged).
+        let mut start_rng = CausalRng::from_seed(chain_seed ^ CHAIN_START_STREAM);
         let mut values = base.clone();
+        values.insert(outcome, dispersed_latent_start(&obs, center, spread, &mut start_rng));
         let mut models = mechanisms(data, graph, outcome, estimator.prior_scale)?;
         for iteration in 0..warmup + per_chain {
             if ctx.cancellation.is_cancelled() {
@@ -737,7 +775,10 @@ pub fn estimate_observed_temporal_response(
                  and mechanism priors (no AR stability prior); {observation_independence}, \
                  conditional on the declared fully observed conditioning trajectory, with \
                  distinct independent nuisance priors; latent initial history has \
-                 independent N(0, prior_scale²) priors"
+                 independent N(0, prior_scale²) priors; root variables and unfolding \
+                 boundary copies enter at their observed sample means, so the band is \
+                 conditional on the observed covariate distribution (no uncertainty in \
+                 the root means is propagated)"
             )
             .into(),
         }),
@@ -1042,6 +1083,40 @@ mod sampler_tests {
         let mean = sum / 20_000.0;
         assert!((mean - 1.6).abs() < 0.02);
         assert!((second / 20_000.0 - mean * mean - 0.8).abs() < 0.025);
+    }
+
+    #[test]
+    fn chain_starts_are_dispersed_and_respect_the_observation_model() {
+        let n = 6000usize;
+        let observations: Vec<Observation> = (0..n)
+            .map(|i| match i % 4 {
+                0 => Observation::Exact(i as f64 * 0.001),
+                1 => Observation::Missing,
+                2 => Observation::Lower(0.5),
+                _ => Observation::Upper(-0.5),
+            })
+            .collect();
+        let (center, spread) = (1.0, 2.0);
+        let a = dispersed_latent_start(&observations, center, spread, &mut CausalRng::from_seed(1));
+        let b = dispersed_latent_start(&observations, center, spread, &mut CausalRng::from_seed(2));
+        let mut missing = Vec::new();
+        for (i, o) in observations.iter().enumerate() {
+            match *o {
+                Observation::Exact(y) => assert_eq!((a[i], b[i]), (y, y)),
+                Observation::Missing => missing.push(a[i]),
+                Observation::Lower(bound) => assert!(a[i] >= bound && b[i] >= bound),
+                Observation::Upper(bound) => assert!(a[i] <= bound && b[i] <= bound),
+            }
+        }
+        // Missing rows are N(center, spread^2): 1500 draws, so the mean is within
+        // 5 standard errors and the standard deviation within 10% of the truth.
+        let m = missing.len() as f64;
+        let mean = missing.iter().sum::<f64>() / m;
+        let sd = crate::util::sample_std(&missing);
+        assert!((mean - center).abs() < 5.0 * spread / m.sqrt(), "mean {mean}");
+        assert!((sd / spread - 1.0).abs() < 0.1, "sd {sd}");
+        // Different chains start at different points.
+        assert!((1..n).step_by(4).any(|i| (a[i] - b[i]).abs() > 1e-3));
     }
 }
 
