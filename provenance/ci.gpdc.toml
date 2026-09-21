@@ -10,7 +10,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "Applies fixed-hyperparameter RBF kernel-ridge residualization before the cited biased sample distance correlation; the cited distance-correlation paper does not specify this GPDC construction.",
+ "Applies fixed-hyperparameter RBF kernel-ridge residualization (each Z column standardised first) before the cited biased sample distance correlation; the cited distance-correlation paper does not specify this GPDC construction. Inputs above 4000 rows are refused, and a constant or fully Z-explained series is refused rather than reported as p = 1.",
 ]
 
 upstream_implementations_observed = [

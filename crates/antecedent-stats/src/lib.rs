@@ -40,7 +40,8 @@ pub use ci::{
     PosteriorDependenceCi, PosteriorPredictiveCi, PreparedCiTest, RegressionCi,
     RobustPartialCorrelation, SignificanceMethod, SymbolicCmi, WeightedPartialCorrelation,
     analytic_confidence_level, analytic_parcorr_ci, calibrate_parcorr_like, ci_from_name,
-    nonparametric_permutation_count, pairwise_multivariate_test,
+    ensure_alpha_resolvable, nonparametric_permutation_count, pairwise_multivariate_test,
+    permutation_min_p,
 };
 pub use cluster::{
     MAX_CLUSTER_DIMENSIONS, bartlett_weight, cluster_meat_scalar, combine_inclusion_exclusion,

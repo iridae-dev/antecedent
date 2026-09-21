@@ -12,17 +12,21 @@
     clippy::trivially_copy_pass_by_ref
 )]
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{shuffle, unbiased_index};
 
-use super::block_shuffle::block_permute_contiguous;
+use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
+use super::gsquared::{
+    discrete_strata, encode_categories, ensure_finite_categories, ensure_permutation_support,
+};
+use super::residualize::residual_is_uninformative;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
-    reject_unsupported_block_size, requested_block_size,
+    KnnDependenceWorkspace, PreparedCiTest, SignificanceMethod, nonparametric_permutation_count,
+    permutation_min_p, reject_unsupported_block_size, requested_block_size,
 };
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
@@ -128,7 +132,7 @@ impl ConditionalIndependenceTest for KnnDependence {
         let mut null_dists: Vec<f64> = Vec::new();
         let mut null_dist_scratch: Vec<f64> = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
-        for (qi, q) in request.queries.iter().enumerate() {
+        for q in request.queries {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             // Blocking is well defined only for an empty conditioning set, where
             // `z_permutation_strata` degenerates to one stratum holding every row in original time
@@ -148,8 +152,12 @@ impl ConditionalIndependenceTest for KnnDependence {
             // shuffle — or coarse tercile bins on continuous Z — inflates type-I error
             // whenever Y depends on Z. See `z_permutation_strata`.
             let strata = z_permutation_strata(request.columns, z, n, self.k)?;
+            ensure_permutation_support(&strata, request.columns[q.x], request.columns[q.y])?;
             let mut y_perm = request.columns[q.y].to_vec();
-            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xC11_u64 ^ qi as u64);
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::StatsCi,
+                0xC11_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
+            );
             let mut null_ge = 0u32;
             // The primary index's feature matrix has exactly the x/y/z layout the
             // null needs; clone it once per query and rewrite the Y column per
@@ -194,6 +202,16 @@ impl ConditionalIndependenceTest for KnnDependence {
         }
         Ok(CiBatchResult { results })
     }
+
+    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
+        permutation_floor(significance)
+    }
+}
+
+/// Smallest attainable p-value of a nonparametric permutation test: the default 49
+/// replicates under `Analytic` (0.02), the caller's `replicates` under `BlockShuffle`.
+fn permutation_floor(significance: SignificanceMethod) -> f64 {
+    permutation_min_p(nonparametric_permutation_count(significance))
 }
 
 /// Content identity of the columns feeding a kNN index.
@@ -466,6 +484,10 @@ impl ConditionalIndependenceTest for MixedKnnDependence {
         let _ = n;
         self.inner.test_batch(prepared, &ranked_req, workspace, ctx)
     }
+
+    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
+        permutation_floor(significance)
+    }
 }
 
 fn looks_discrete(col: &[f64]) -> bool {
@@ -502,20 +524,32 @@ impl ConditionalIndependenceTest for SymbolicCmi {
         prepared.ensure_compatible(request)?;
         let request = &prepared.bind_request(request);
         let mut results = Vec::with_capacity(request.queries.len());
-        for (qi, q) in request.queries.iter().enumerate() {
+        for q in request.queries {
             let n = request.columns[q.x].len();
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let mi = conditional_symbolic_mi(request.columns, q.x, q.y, z, n);
+            // NaN / ±inf would round to a finite symbol; refuse them.
+            ensure_finite_categories(
+                request.columns,
+                [q.x, q.y].into_iter().chain(z.iter().copied()),
+            )?;
+            let xi = encode_categories(request.columns[q.x])?;
+            let yi = encode_categories(request.columns[q.y])?;
             // Permutation p-value on Y, shuffled within Z strata so the Y–Z link is
             // preserved under H0 (an unconditional shuffle inflates type-I error when
-            // Y depends on Z).
-            let strata = symbol_strata_sorted(request.columns, z, n);
+            // Y depends on Z). Strata are invariant under the Y-only permutation.
+            let strata = discrete_strata(request.columns, z, n)?;
+            ensure_permutation_support(&strata, &xi, &yi)?;
+            let mi = conditional_symbolic_mi(&xi, &yi, &strata);
             let mut y_perm = request.columns[q.y].to_vec();
-            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x51C_u64 ^ qi as u64);
+            let mut yi_perm = yi.clone();
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::StatsCi,
+                0x51C_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
+            );
             // As for `KnnDependence`: blocking is well defined only when the conditioning set
-            // is empty, where `symbol_strata_sorted` yields a single time-ordered stratum. With
-            // conditioning, the strata are Z-symbol hashes scattered across time and blocking is
-            // structurally impossible, so the request is refused.
+            // is empty, where `discrete_strata` yields a single time-ordered stratum. With
+            // conditioning, the strata are Z-symbol groups scattered across time and blocking
+            // is structurally impossible, so the request is refused.
             let block_size = requested_block_size(request.significance);
             if block_size > 1 && !z.is_empty() {
                 reject_unsupported_block_size(request.significance, "SymbolicCmi")?;
@@ -533,9 +567,10 @@ impl ConditionalIndependenceTest for SymbolicCmi {
                         }
                     }
                 }
-                let mut cols: Vec<&[f64]> = request.columns.to_vec();
-                cols[q.y] = &y_perm;
-                let null = conditional_symbolic_mi(&cols, q.x, q.y, z, n);
+                for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
+                    *code = value.round() as i32;
+                }
+                let null = conditional_symbolic_mi(&xi, &yi_perm, &strata);
                 if null >= mi {
                     null_ge = null_ge.saturating_add(1);
                 }
@@ -545,55 +580,37 @@ impl ConditionalIndependenceTest for SymbolicCmi {
         }
         Ok(CiBatchResult { results })
     }
-}
 
-/// Rows grouped by exact Z symbol key. Deterministic order (sorted keys) so the seeded
-/// RNG stream used by permutation nulls stays reproducible.
-fn symbol_strata_sorted(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
-    let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
-    for r in 0..n {
-        let key = if z.is_empty() {
-            0u64
-        } else {
-            let mut h = 0xcbf2_9ce4_8422_2325_u64;
-            for &zc in z {
-                let v = columns[zc][r].round() as i32;
-                h ^= u64::from(v as u32);
-                h = h.wrapping_mul(0x0100_0000_01b3);
-            }
-            h
-        };
-        strata.entry(key).or_default().push(r);
+    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
+        permutation_floor(significance)
     }
-    let mut keys: Vec<u64> = strata.keys().copied().collect();
-    keys.sort_unstable();
-    keys.into_iter().filter_map(|k| strata.remove(&k)).collect()
 }
 
-fn conditional_symbolic_mi(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> f64 {
-    // Stratify by Z symbols; average stratum MI(X;Y|Z=z).
-    let strata = symbol_strata_sorted(columns, z, n);
+/// Stratum-size-weighted mean of the per-stratum `MI(X;Y | Z = z)` over strata with at least
+/// two rows. [`ensure_permutation_support`] has already guaranteed such a stratum exists.
+fn conditional_symbolic_mi(xi: &[i32], yi: &[i32], strata: &[Vec<usize>]) -> f64 {
     let mut mi = 0.0;
     let mut weight = 0.0;
-    for rows in &strata {
+    for rows in strata {
         if rows.len() < 2 {
             continue;
         }
         let w = rows.len() as f64;
-        mi += w * symbolic_mi_on_rows(columns, x, y, rows);
+        mi += w * symbolic_mi_on_rows(xi, yi, rows);
         weight += w;
     }
     if weight > 0.0 { mi / weight } else { 0.0 }
 }
 
-fn symbolic_mi_on_rows(columns: &[&[f64]], x: usize, y: usize, rows: &[usize]) -> f64 {
-    let mut joint: HashMap<(i32, i32), f64> = HashMap::new();
-    let mut mx: HashMap<i32, f64> = HashMap::new();
-    let mut my: HashMap<i32, f64> = HashMap::new();
+fn symbolic_mi_on_rows(xi: &[i32], yi: &[i32], rows: &[usize]) -> f64 {
+    // Ordered maps: the float sum below must not depend on the process hash seed, or the
+    // `null >= mi` comparison of two mathematically equal statistics flips between runs.
+    let mut joint: BTreeMap<(i32, i32), f64> = BTreeMap::new();
+    let mut mx: BTreeMap<i32, f64> = BTreeMap::new();
+    let mut my: BTreeMap<i32, f64> = BTreeMap::new();
     let nf = rows.len() as f64;
     for &r in rows {
-        let a = columns[x][r].round() as i32;
-        let b = columns[y][r].round() as i32;
+        let (a, b) = (xi[r], yi[r]);
         *joint.entry((a, b)).or_default() += 1.0;
         *mx.entry(a).or_default() += 1.0;
         *my.entry(b).or_default() += 1.0;
@@ -610,12 +627,21 @@ fn symbolic_mi_on_rows(columns: &[&[f64]], x: usize, y: usize, rows: &[usize]) -
     mi
 }
 
+/// Rows above which GPDC refuses: it builds dense `n × n` kernel-factor and distance matrices
+/// (memory `O(n²)`, Cholesky `O(n³)`), so a few thousand rows already take hundreds of MB.
+pub const GPDC_ROW_LIMIT: usize = 4_000;
+
+/// Conditioning sets whose kernel factorization one batch keeps for reuse.
+const GPDC_FACTOR_CACHE: usize = 2;
+
 /// Native GPDC: RBF-GP residualization (ridge) + distance-correlation on residuals.
 ///
-/// Residualization centers the response, factors `K+λI` once with Cholesky, and
-/// predicts with the unregularized kernel (MM-008). The earlier Jacobi-on-raw-`y`
-/// path rejected conditional nulls and missed two-conditioner alternatives against
-/// the pinned advanced-CI oracle.
+/// Residualization centers the response and factors `K+λI` once per distinct Z set with
+/// Cholesky (X and Y are two right-hand sides of the same factorization, and queries of one
+/// batch sharing a Z set reuse it). The GP mean prediction is `Kα` with `(K+λI)α = y_c`, so the
+/// residual is exactly `y_c − Kα = λα` (MM-008). The earlier Jacobi-on-raw-`y` path rejected
+/// conditional nulls and missed two-conditioner alternatives against the pinned advanced-CI
+/// oracle. Inputs above [`GPDC_ROW_LIMIT`] rows are refused.
 #[derive(Clone, Debug)]
 pub struct Gpdc {
     /// RBF length scale.
@@ -660,12 +686,19 @@ impl ConditionalIndependenceTest for Gpdc {
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
+        if n > GPDC_ROW_LIMIT {
+            return Err(StatsError::Unsupported {
+                message: "GPDC builds dense n x n kernel and distance matrices (O(n^2) memory, \
+                          O(n^3) factorization) and refuses more than 4000 rows; subsample or \
+                          use another CI test",
+            });
+        }
         // Unlike KnnDependence / SymbolicCmi, GPDC residualizes X and Y on Z through the GP
         // regression *before* permuting (see `gp_residual`), so by the time the null is built
         // there is nothing left to stratify — Z's influence is already removed from both
         // residual series. That makes a contiguous-block permutation of the Y residual a
-        // direct, valid substitution for the exchangeable shuffle, the same architecture
-        // ParCorr's block-shuffle path already uses. So `block_size` is honoured, not rejected.
+        // direct, valid substitution for the exchangeable shuffle: the same residual-null
+        // architecture the ParCorr family uses. So `block_size` is honoured, not rejected.
         let block_size = requested_block_size(request.significance);
         let n_perm = nonparametric_permutation_count(request.significance);
         let policy = &ctx.kernel_policy;
@@ -676,11 +709,32 @@ impl ConditionalIndependenceTest for Gpdc {
         let mut y_side = CenteredDistances::default();
         let mut center_row = Vec::new();
         let mut center_col = Vec::new();
+        let mut factors: Vec<(Vec<usize>, Vec<f64>)> = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
-        for (qi, q) in request.queries.iter().enumerate() {
+        for q in request.queries {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
-            let rx = gp_residual(request.columns[q.x], request.columns, z, self)?;
-            let ry = gp_residual(request.columns[q.y], request.columns, z, self)?;
+            let factor: Option<&[f64]> = if z.is_empty() {
+                None
+            } else {
+                let at = if let Some(at) = factors.iter().position(|(key, _)| key.as_slice() == z) {
+                    at
+                } else {
+                    let chol = gp_factor(request.columns, z, n, self)?;
+                    if factors.len() >= GPDC_FACTOR_CACHE {
+                        factors.remove(0);
+                    }
+                    factors.push((z.to_vec(), chol));
+                    factors.len() - 1
+                };
+                Some(factors[at].1.as_slice())
+            };
+            let rx = gp_residual(request.columns[q.x], factor, self.ridge)?;
+            let ry = gp_residual(request.columns[q.y], factor, self.ridge)?;
+            // A constant series, or one the GP explains completely from Z, has no distance
+            // variance left: dCor is undefined, and reporting 0 (p = 1) would be an
+            // independence verdict manufactured by the absence of information.
+            ensure_residual_information(request.columns[q.x], &rx)?;
+            ensure_residual_information(request.columns[q.y], &ry)?;
             x_side.prepare(policy, &rx, &mut center_row, &mut center_col);
             y_side.prepare(policy, &ry, &mut center_row, &mut center_col);
             let dcor = dcor_from_sides(&x_side, &y_side);
@@ -689,7 +743,10 @@ impl ConditionalIndependenceTest for Gpdc {
             // contiguous blocks so the residual's serial dependence survives into the null;
             // otherwise it is an ordinary exchangeable shuffle.
             let mut ry_perm = ry.clone();
-            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x69DC_u64 ^ qi as u64);
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::StatsCi,
+                0x69DC_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
+            );
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
                 if block_size > 1 {
@@ -707,6 +764,21 @@ impl ConditionalIndependenceTest for Gpdc {
         }
         Ok(CiBatchResult { results })
     }
+
+    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
+        permutation_floor(significance)
+    }
+}
+
+/// Refuse a residual carrying no information about its column.
+fn ensure_residual_information(raw: &[f64], resid: &[f64]) -> Result<(), StatsError> {
+    if residual_is_uninformative(raw, resid) {
+        return Err(StatsError::Unsupported {
+            message: "GPDC: a series is constant or fully explained by the conditioning set, so \
+                      its distance correlation is undefined (not zero)",
+        });
+    }
+    Ok(())
 }
 
 /// One series' double-centered pairwise-distance matrix and its distance variance.
@@ -764,21 +836,8 @@ fn dcor_from_sides(x: &CenteredDistances, y: &CenteredDistances) -> f64 {
     (dcov2.max(0.0) / (x.dvar * y.dvar).sqrt()).sqrt()
 }
 
-fn gp_residual(
-    y: &[f64],
-    columns: &[&[f64]],
-    z: &[usize],
-    gp: &Gpdc,
-) -> Result<Vec<f64>, StatsError> {
-    let n = y.len();
-    if y.iter().any(|v| !v.is_finite()) {
-        return Err(StatsError::Shape { message: "non-finite response in GPDC residualization" });
-    }
-    let mean = y.iter().sum::<f64>() / n as f64;
-    let centered: Vec<f64> = y.iter().map(|value| value - mean).collect();
-    if z.is_empty() {
-        return Ok(centered);
-    }
+/// Cholesky factor of `K + λI` on the standardised Z columns (row-major `n × n`).
+fn gp_factor(columns: &[&[f64]], z: &[usize], n: usize, gp: &Gpdc) -> Result<Vec<f64>, StatsError> {
     // Standardise each Z column before the fixed RBF length scale so conditioning
     // does not silently fail when Z is far from unit scale (stats-ci-4).
     let zdim = z.len();
@@ -807,7 +866,7 @@ fn gp_residual(
             }
         }
     }
-    // Build Gram on standardised Z (sum of RBF over Z dims) and solve (K+λI)α = y.
+    // Gram on standardised Z (sum of RBF over Z dims) plus the ridge.
     let mut k = vec![0.0; n * n];
     let ls2 = gp.length_scale * gp.length_scale;
     for i in 0..n {
@@ -823,19 +882,27 @@ fn gp_residual(
         }
         k[i * n + i] += gp.ridge;
     }
-    let chol = crate::gram::cholesky_spd(&k, n)
-        .ok_or_else(|| StatsError::Backend("GPDC kernel factorization failed".into()))?;
-    let alpha = crate::gram::chol_solve(&chol, n, &centered)
-        .ok_or_else(|| StatsError::Backend("GPDC kernel solve failed".into()))?;
-    let mut pred = vec![0.0; n];
-    for i in 0..n {
-        for j in 0..n {
-            pred[i] += k[i * n + j] * alpha[j];
-        }
-        // MM-008: `α` solves (K+λI)α = y_c; mean prediction uses Kα = y_c − λα.
-        pred[i] -= gp.ridge * alpha[i];
+    crate::gram::cholesky_spd(&k, n)
+        .ok_or_else(|| StatsError::Backend("GPDC kernel factorization failed".into()))
+}
+
+/// GP residual of `y` given the Cholesky `factor` of `K + λI` (`None`: empty Z).
+///
+/// With `(K+λI)α = y_c` the mean prediction is `Kα = y_c − λα` (MM-008), so the residual is
+/// `y_c − Kα = λα` — one triangular solve, no `O(n²)` matrix-vector product.
+fn gp_residual(y: &[f64], factor: Option<&[f64]>, ridge: f64) -> Result<Vec<f64>, StatsError> {
+    let n = y.len();
+    if y.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape { message: "non-finite response in GPDC residualization" });
     }
-    Ok((0..n).map(|i| centered[i] - pred[i]).collect())
+    let mean = y.iter().sum::<f64>() / n as f64;
+    let centered: Vec<f64> = y.iter().map(|value| value - mean).collect();
+    let Some(chol) = factor else {
+        return Ok(centered);
+    };
+    let alpha = crate::gram::chol_solve(chol, n, &centered)
+        .ok_or_else(|| StatsError::Backend("GPDC kernel solve failed".into()))?;
+    Ok(alpha.into_iter().map(|a| ridge * a).collect())
 }
 
 /// Reference implementation retained for the differential test of
@@ -932,7 +999,7 @@ mod tests {
     /// three draw that line in different places, and this pins all three.
     ///
     /// `KnnDependence` and `SymbolicCmi` build their null as an exchange within Z strata
-    /// (`z_permutation_strata` / `symbol_strata_sorted`). **With a conditioning set** those strata are
+    /// (`z_permutation_strata` / `discrete_strata`). **With a conditioning set** those strata are
     /// Z-level or local-neighbourhood groups whose members are scattered across time: preserving `Y|Z` needs
     /// permutation within scattered index sets, preserving serial dependence needs contiguous
     /// runs, and the two cannot both hold. A caller asking for `block_size = 20` to preserve
@@ -1133,8 +1200,16 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(11);
         let out = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        // The dependent pair (y = x) has dCor 1, which no permutation reaches: the add-one p is
+        // at its floor 1/50. The independent pair is decided on the statistic, not on a
+        // Monte Carlo p-value that is uniform under H0 and would trip a fixed cut-off by chance.
         assert!(out.results[0].p_value < 0.05, "dependent p={}", out.results[0].p_value);
-        assert!(out.results[1].p_value > 0.1, "independent p={}", out.results[1].p_value);
+        assert!(
+            out.results[0].statistic > out.results[1].statistic + 0.3,
+            "dCor dependent={} independent={}",
+            out.results[0].statistic,
+            out.results[1].statistic
+        );
     }
 
     #[test]
@@ -1167,10 +1242,11 @@ mod tests {
         assert!(s1 > s2, "tight pair should have smaller kth distances: {s1} vs {s2}");
     }
 
+    /// Y = Z exactly: within every Z stratum Y is constant, so no permutation can change the
+    /// statistic and the add-one p-value is 1 by construction. That used to be reported as
+    /// "independent" (p = 1); it is no information, and is refused.
     #[test]
-    fn symbolic_null_preserves_yz_dependence() {
-        // X ⊥ Y | Z with Y = Z (maximal Y–Z dependence): within-stratum permutation
-        // leaves Y unchanged, so the p-value must be large, not systematically tiny.
+    fn symbolic_refuses_y_determined_by_z() {
         let n = 200usize;
         let z: Vec<f64> = (0..n).map(|i| (i % 4) as f64).collect();
         let y = z.clone();
@@ -1187,8 +1263,53 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(13);
+        let err = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
+    }
+
+    /// Within-stratum Y variation, X independent of Y given Z: the null has support, and the
+    /// p-value is an honest large one, not the degenerate p = 1.
+    #[test]
+    fn symbolic_null_preserves_yz_dependence() {
+        let n = 240usize;
+        let z: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+        // Y = Z plus an independent binary wobble; X independent of both given Z.
+        let y: Vec<f64> = (0..n).map(|i| (i % 3) as f64 * 2.0 + ((i / 3) % 2) as f64).collect();
+        let x: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % 5) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::BlockShuffle { replicates: 199, block_size: 1 },
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(13);
         let out = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
-        assert!(out.results[0].p_value > 0.5, "p={}", out.results[0].p_value);
+        assert!(out.results[0].p_value > 0.05, "p={}", out.results[0].p_value);
+    }
+
+    #[test]
+    fn symbolic_refuses_non_finite_symbols() {
+        let n = 40usize;
+        let mut x: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i / 3) % 3) as f64).collect();
+        x[5] = f64::NAN;
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(2);
+        assert!(SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err());
     }
 
     #[test]
@@ -1210,10 +1331,19 @@ mod tests {
             significance: SignificanceMethod::Analytic,
             confidence: ConfidenceMethod::default(),
         };
+        // Under H0 the p-value is uniform, so any single seed has a ~5% chance of a small p.
+        // A null that ignored Y|Z would put every seed near the floor; require most seeds to
+        // sit above 0.05.
         let mut ws = CiWorkspace::default();
-        let ctx = ExecutionContext::for_tests(14);
-        let out = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
-        assert!(out.results[0].p_value > 0.05, "p={}", out.results[0].p_value);
+        let ps: Vec<f64> = (14..20u64)
+            .map(|seed| {
+                let ctx = ExecutionContext::for_tests(seed);
+                KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+                    .p_value
+            })
+            .collect();
+        let above = ps.iter().filter(|&&p| p > 0.05).count();
+        assert!(above >= 4, "kNN conditional null reports tiny p-values: {ps:?}");
     }
 
     /// stats-ci-1: continuous Z with Y←Z must not yield Type I ≈ 1 under X ⊥ Y | Z.
@@ -1372,5 +1502,161 @@ mod tests {
             MixedKnnDependence::new(3).test_batch_adhoc(&req_rank, &mut ws, &ctx).is_err(),
             "MixedKnnDependence rank path must refuse non-finite input"
         );
+    }
+
+    /// The permutation stream is keyed by the query, not its position in the batch, for every
+    /// nonparametric test.
+    #[test]
+    fn nonparametric_p_values_are_independent_of_batch_position() {
+        let n = 60usize;
+        let x: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % 5) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i * 3 + 1) % 4) as f64).collect();
+        let w: Vec<f64> = (0..n).map(|i| ((i * 5 + 2) % 6) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &w];
+        let target = CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 };
+        let other = CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 };
+        let sig = SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 };
+        let tests: [(&str, &dyn ConditionalIndependenceTest); 3] = [
+            ("knn", &KnnDependence::new(3)),
+            ("symbolic", &SymbolicCmi::new()),
+            ("gpdc", &Gpdc::new()),
+        ];
+        for (name, ci) in tests {
+            let run = |queries: &[CiQuery]| {
+                let req = CiBatchRequest {
+                    columns: &cols,
+                    queries,
+                    z_flat: &[],
+                    significance: sig,
+                    confidence: ConfidenceMethod::None,
+                };
+                let mut ws = CiWorkspace::default();
+                let ctx = ExecutionContext::for_tests(77);
+                ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap()
+            };
+            let alone = run(&[target]);
+            let second = run(&[other, target]);
+            assert_eq!(
+                alone.results[0].p_value.to_bits(),
+                second.results[1].p_value.to_bits(),
+                "{name}: p depends on batch position"
+            );
+        }
+    }
+
+    #[test]
+    fn permutation_tests_report_their_resolution() {
+        let analytic = SignificanceMethod::Analytic;
+        let b99 = SignificanceMethod::BlockShuffle { replicates: 99, block_size: 1 };
+        for ci in [
+            &KnnDependence::new(3) as &dyn ConditionalIndependenceTest,
+            &MixedKnnDependence::new(3),
+            &SymbolicCmi::new(),
+            &Gpdc::new(),
+        ] {
+            assert!((ci.min_attainable_p(analytic) - 0.02).abs() < 1e-15);
+            assert!((ci.min_attainable_p(b99) - 0.01).abs() < 1e-15);
+        }
+        assert!(crate::ci::ensure_alpha_resolvable(0.02, 0.01).is_err());
+        assert!(crate::ci::ensure_alpha_resolvable(0.02, 0.05).is_ok());
+    }
+
+    #[test]
+    fn knn_refuses_constant_series() {
+        let n = 30usize;
+        let x = lcg_noise(n, 8);
+        let y = vec![3.0; n];
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let err = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn gpdc_refuses_constant_series_and_oversized_inputs() {
+        let n = 30usize;
+        let x = lcg_noise(n, 9);
+        let y = vec![3.0; n];
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let err = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
+
+        let big = GPDC_ROW_LIMIT + 1;
+        let bx = vec![0.0; big];
+        let by = vec![1.0; big];
+        let big_cols: [&[f64]; 2] = [&bx, &by];
+        let big_req = CiBatchRequest { columns: &big_cols, ..req };
+        let err = Gpdc::new().test_batch_adhoc(&big_req, &mut ws, &ctx).unwrap_err();
+        assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
+    }
+
+    /// The residual is `y_c - K a` with `(K + lambda I) a = y_c` solved by an independent dense
+    /// Gauss-Jordan; the implementation returns `lambda a` from the Cholesky solve.
+    #[test]
+    fn gpdc_residual_matches_dense_gp_regression() {
+        let n = 12usize;
+        let z: Vec<f64> = (0..n).map(|i| 0.4 * i as f64 + (i as f64 * 0.7).sin()).collect();
+        let y: Vec<f64> = (0..n).map(|i| (z[i] * 0.5).sin() + 0.1 * ((i * 5 % 7) as f64)).collect();
+        let gp = Gpdc::new();
+        let cols: [&[f64]; 2] = [&y, &z];
+        let chol = gp_factor(&cols, &[1], n, &gp).unwrap();
+        let got = gp_residual(&y, Some(&chol), gp.ridge).unwrap();
+
+        let mz = z.iter().sum::<f64>() / n as f64;
+        let sd = (z.iter().map(|v| (v - mz) * (v - mz)).sum::<f64>() / n as f64).sqrt();
+        let zs: Vec<f64> = z.iter().map(|v| (v - mz) / sd).collect();
+        let my = y.iter().sum::<f64>() / n as f64;
+        let yc: Vec<f64> = y.iter().map(|v| v - my).collect();
+        let kmat = |i: usize, j: usize| (-0.5 * (zs[i] - zs[j]) * (zs[i] - zs[j])).exp();
+        // Augmented [K + lambda I | y_c], Gauss-Jordan with partial pivoting.
+        let mut a = vec![vec![0.0; n + 1]; n];
+        for i in 0..n {
+            for j in 0..n {
+                a[i][j] = kmat(i, j) + if i == j { gp.ridge } else { 0.0 };
+            }
+            a[i][n] = yc[i];
+        }
+        for c in 0..n {
+            let piv = (c..n).max_by(|&p, &q| a[p][c].abs().total_cmp(&a[q][c].abs())).unwrap();
+            a.swap(c, piv);
+            let d = a[c][c];
+            for j in 0..=n {
+                a[c][j] /= d;
+            }
+            for r in 0..n {
+                if r != c {
+                    let f = a[r][c];
+                    for j in 0..=n {
+                        let v = a[c][j];
+                        a[r][j] -= f * v;
+                    }
+                }
+            }
+        }
+        let alpha: Vec<f64> = (0..n).map(|i| a[i][n]).collect();
+        for i in 0..n {
+            let pred: f64 = (0..n).map(|j| kmat(i, j) * alpha[j]).sum();
+            let want = yc[i] - pred;
+            assert!((got[i] - want).abs() < 1e-8, "{i}: {} vs {want}", got[i]);
+        }
     }
 }

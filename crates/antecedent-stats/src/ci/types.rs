@@ -63,17 +63,54 @@ impl Default for ConfidenceMethod {
     }
 }
 
+/// Null replicates a nonparametric CI test draws when the caller asks for
+/// [`SignificanceMethod::Analytic`], which has no closed-form null for distance / MI proxies.
+pub const DEFAULT_PERMUTATIONS: usize = 49;
+
 /// How many null replicates a nonparametric CI test should draw.
 ///
-/// [`SignificanceMethod::Analytic`] has no closed-form null for distance / MI proxies;
-/// those tests use a documented default of 49. [`SignificanceMethod::BlockShuffle`]
-/// honors the caller's `replicates`.
+/// [`SignificanceMethod::Analytic`] has no closed-form null for distance / MI proxies, so those
+/// tests draw [`DEFAULT_PERMUTATIONS`] (49) replicates and their smallest attainable p-value is
+/// `1/50 = 0.02`: with `alpha <= 0.02` no dependence can ever be declared, and Benjamini–
+/// Hochberg over a family of such p-values needs at least 40% of the family at that minimum.
+/// Discovery must compare [`ConditionalIndependenceTest::min_attainable_p`] with its `alpha`
+/// and ask for [`SignificanceMethod::BlockShuffle`] with more replicates when the test cannot
+/// resolve it. [`SignificanceMethod::BlockShuffle`] honors the caller's `replicates`.
 #[must_use]
 pub fn nonparametric_permutation_count(significance: SignificanceMethod) -> usize {
     match significance {
-        SignificanceMethod::Analytic => 49,
+        SignificanceMethod::Analytic => DEFAULT_PERMUTATIONS,
         SignificanceMethod::BlockShuffle { replicates, .. } => replicates.max(1) as usize,
     }
+}
+
+/// Smallest p-value an add-one permutation test with `replicates` draws can report:
+/// `1 / (replicates + 1)`.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn permutation_min_p(replicates: usize) -> f64 {
+    1.0 / (replicates as f64 + 1.0)
+}
+
+/// Refuse an `alpha` that a test with smallest attainable p-value `min_p` cannot resolve.
+///
+/// A p-value can only fall below `alpha` if `min_p < alpha`; otherwise every edge is kept
+/// (or every test "fails to reject") whatever the data say, which reads as evidence of
+/// independence. Callers that know their `alpha` (discovery) call this with
+/// [`ConditionalIndependenceTest::min_attainable_p`].
+///
+/// # Errors
+///
+/// [`StatsError::Unsupported`] when `min_p >= alpha`.
+pub fn ensure_alpha_resolvable(min_p: f64, alpha: f64) -> Result<(), StatsError> {
+    if min_p >= alpha {
+        return Err(StatsError::Unsupported {
+            message: "the CI test's smallest attainable p-value is not below alpha, so it can \
+                      never declare dependence: use more permutation replicates \
+                      (SignificanceMethod::BlockShuffle { replicates, .. }) or a larger alpha",
+        });
+    }
+    Ok(())
 }
 
 /// The block length the caller asked for, or `1` when no blocking was requested.
@@ -230,7 +267,9 @@ pub struct CiBatchRequest<'a> {
 pub struct CiResult {
     /// Test statistic (partial correlation for partial-correlation CI).
     pub statistic: f64,
-    /// Two-sided p-value.
+    /// Two-sided p-value. For the Bayesian tests this is instead the posterior probability of
+    /// independence (see [`ConditionalIndependenceTest::p_value_is_frequentist`]), which is
+    /// not uniform under the null and must not be multiplicity-adjusted.
     pub p_value: f64,
     /// Residual degrees of freedom (analytic path).
     pub df: f64,
@@ -316,6 +355,26 @@ pub trait ConditionalIndependenceTest {
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError>;
+
+    /// Smallest p-value this test can report under `significance`.
+    ///
+    /// `0.0` for tests with a continuous analytic reference. Permutation tests return
+    /// `1 / (replicates + 1)`; a caller with a significance level `alpha <= min_attainable_p`
+    /// cannot get a rejection from them (see [`ensure_alpha_resolvable`]).
+    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
+        let _ = significance;
+        0.0
+    }
+
+    /// Whether [`CiResult::p_value`] is a frequentist p-value (super-uniform under the null).
+    ///
+    /// `false` for the Bayesian tests, whose `p_value` is a posterior probability of
+    /// independence: thresholding it at `alpha` is a decision rule with its own operating
+    /// characteristics, and Benjamini–Hochberg / FDR adjustment of it is meaningless.
+    /// Multiplicity-adjusting callers must refuse tests that return `false`.
+    fn p_value_is_frequentist(&self) -> bool {
+        true
+    }
 
     /// Ad-hoc batch: prepare from the request plan, then [`Self::test_batch`].
     ///

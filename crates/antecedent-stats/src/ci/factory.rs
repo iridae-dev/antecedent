@@ -30,6 +30,12 @@ use crate::error::StatsError;
 /// - `symbolic_cmi`
 /// - `gpdc`
 /// - `oracle` (empty dependent set ⇒ all independent)
+///
+/// `knn_dependence`, `mixed_knn_dependence`, `symbolic_cmi` and `gpdc` report permutation
+/// p-values; without an explicit replicate count they draw 49, so their smallest attainable
+/// p-value is 0.02 (see [`ConditionalIndependenceTest::min_attainable_p`](super::types::ConditionalIndependenceTest::min_attainable_p)).
+/// `bayes_factor` and `posterior_dependence` return a posterior probability of independence in
+/// `p_value`, not a frequentist p-value.
 /// - `bayes_factor` / `bayes_factor_ci`
 /// - `posterior_dependence` / `posterior_dependence_ci`
 /// - `posterior_predictive_ci` / `ppc_ci`
