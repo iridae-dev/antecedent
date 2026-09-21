@@ -39,7 +39,9 @@ pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     let p = p.clamp(0.0, 1.0);
     let zero_based = match rule {
         QuantileRule::ExchangeableRank => (p * (d + 1) as f64).clamp(1.0, d as f64) - 1.0,
-        QuantileRule::Interpolated => p * (d - 1) as f64,
+        // The one type-7 implementation lives with the posterior kernels, which the
+        // Bayesian backends share; it also poisons a sample that contains NaN.
+        QuantileRule::Interpolated => return antecedent_kernels::quantile_type7_sorted(sorted, p),
     };
     let lo = zero_based.floor() as usize;
     let hi = zero_based.ceil() as usize;

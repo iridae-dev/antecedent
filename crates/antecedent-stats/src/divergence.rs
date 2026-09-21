@@ -106,15 +106,11 @@ pub fn sample_std(values: &[f64]) -> f64 {
 /// the caller decides what an unavailable quantile means; no substitute value is
 /// invented and non-finite draws are never silently dropped.
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // h ∈ [0, len-1].
 pub fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
     if sorted.is_empty() || !p.is_finite() {
         return None;
     }
-    let h = (sorted.len() - 1) as f64 * p.clamp(0.0, 1.0);
-    let lo = h.floor() as usize;
-    let hi = (lo + 1).min(sorted.len() - 1);
-    Some(sorted[lo] + (h - lo as f64) * (sorted[hi] - sorted[lo]))
+    Some(crate::quantile::quantile_sorted(sorted, p, crate::quantile::QuantileRule::Interpolated))
 }
 
 /// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a Welch t-test
