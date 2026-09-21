@@ -35,6 +35,11 @@ the same method refuses a demand derivative.
 
 Choose Python or Rust for each workflow.
 
+For moving a reviewed backdoor graph between Antecedent and DoWhy without
+wrapping either library, see the [DoWhy interoperability cookbook](interop_dowhy.md)
+and [`dowhy_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v2.0.0/examples/python/dowhy_handoff.py)
+(`dowhy` optional).
+
 [The Python analysis workflow](https://github.com/iridae-dev/antecedent/blob/v2.0.0/examples/python/analysis_workflow.py) demonstrates the one-call
 API, retained study, inspection, refresh, and verified artifact loading.
 
