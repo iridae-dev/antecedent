@@ -249,6 +249,12 @@ impl TheoremScope {
     pub fn exact_law_inspect_label() -> &'static str {
         "classical_single_source_all_experiments_v1; finite_catalog_search_bounded"
     }
+
+    /// Durable inspect token used by empirical-table preparation.
+    #[must_use]
+    pub fn statistical_table_inspect_label() -> &'static str {
+        "classical_single_source_all_experiments_v1; empirical_table_plugin_iid"
+    }
 }
 
 /// Optional factor or graph location attached to a [`TransportOutcome`].
@@ -398,6 +404,12 @@ impl TransportOutcome {
             Some(TransportLocation::nodes(location)),
         )
     }
+
+    /// A certified leaf has no supplied law and no bound sample.
+    #[must_use]
+    pub fn missing_provider(reason: impl Into<Arc<str>>) -> Self {
+        Self::new(TransportOutcomeKind::MissingProvider, reason, None)
+    }
 }
 
 /// Identify-stage support coordinate. Not an `analyze` capability.
@@ -488,6 +500,9 @@ mod tests {
         assert_eq!(impossible.kind, TransportOutcomeKind::ProvenNonTransportable);
         assert_eq!(missing.kind.as_str(), "missing_evidence");
         assert_eq!(impossible.kind.as_str(), "proven_non_transportable");
+        let provider = TransportOutcome::missing_provider("transport_missing_provider");
+        assert_eq!(provider.kind, TransportOutcomeKind::MissingProvider);
+        assert_eq!(provider.kind.as_str(), "missing_provider");
     }
 
     #[test]

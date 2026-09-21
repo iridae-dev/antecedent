@@ -13,6 +13,36 @@ use crate::{
     InterventionAssignment,
 };
 
+/// How a dense joint was obtained. Structural zeros are licensed only for supplied laws.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LawOrigin {
+    /// Caller-supplied complete population law. Zero cells may be structural.
+    SuppliedExact,
+    /// Frequency plug-in from a finite sample. Zero cells are unobserved, not structural.
+    EmpiricalPlugin,
+}
+
+impl LawOrigin {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SuppliedExact => "supplied_exact",
+            Self::EmpiricalPlugin => "empirical_plugin",
+        }
+    }
+
+    /// Parse a stable origin name.
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "supplied_exact" | "" => Some(Self::SuppliedExact),
+            "empirical_plugin" => Some(Self::EmpiricalPlugin),
+            _ => None,
+        }
+    }
+}
+
 /// Explicit floating-point validation policy; no normalization is performed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LawTolerance {
@@ -97,6 +127,7 @@ pub struct ExactDiscreteLaw {
     level_index: Arc<[HashMap<Value, usize>]>,
     snapshot_identity: Arc<str>,
     tolerance: LawTolerance,
+    origin: LawOrigin,
 }
 
 impl ExactDiscreteLaw {
@@ -125,6 +156,7 @@ impl ExactDiscreteLaw {
             level_index: Arc::from([]),
             snapshot_identity: snapshot_identity.into(),
             tolerance,
+            origin: LawOrigin::SuppliedExact,
         };
         if law.population.is_empty() || law.snapshot_identity.is_empty() || !tolerance.valid() {
             return Err(law.error("invalid_law_metadata"));
@@ -171,6 +203,33 @@ impl ExactDiscreteLaw {
         law.level_index = level_index.into();
         Ok(law)
     }
+
+    /// Frequency plug-in joint. Empty cells are sampling zeros, not structural zeros.
+    ///
+    /// # Errors
+    /// Same validation as [`Self::try_new`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_empirical(
+        population: impl Into<Arc<str>>,
+        regime: RegimeId,
+        interventions: impl Into<Arc<[InterventionAssignment]>>,
+        axes: impl Into<Arc<[DiscreteAxis]>>,
+        probabilities: impl Into<Arc<[f64]>>,
+        snapshot_identity: impl Into<Arc<str>>,
+        tolerance: LawTolerance,
+    ) -> Result<Self, ExactLawError> {
+        let mut law = Self::try_new(
+            population,
+            regime,
+            interventions,
+            axes,
+            probabilities,
+            snapshot_identity,
+            tolerance,
+        )?;
+        law.origin = LawOrigin::EmpiricalPlugin;
+        Ok(law)
+    }
     /// Population identity.
     #[must_use]
     pub fn population(&self) -> &str {
@@ -206,6 +265,11 @@ impl ExactDiscreteLaw {
     pub const fn tolerance(&self) -> LawTolerance {
         self.tolerance
     }
+    /// Whether this joint is a supplied law or an empirical plug-in.
+    #[must_use]
+    pub const fn origin(&self) -> LawOrigin {
+        self.origin
+    }
 
     fn error(&self, kind: &'static str) -> ExactLawError {
         ExactLawError {
@@ -221,7 +285,11 @@ impl ExactDiscreteLaw {
         self.population.as_ref() == spec.population
             && spec.regime == Some(self.regime)
             && self.interventions.len() == spec.intervention.len()
-            && spec.intervention.iter().all(|a| self.interventions.contains(a))
+            && spec.intervention.iter().all(|a| {
+                self.interventions
+                    .iter()
+                    .any(|b| a.variable == b.variable && value_key(&a.value) == value_key(&b.value))
+            })
             && (spec.domain == DomainRef::Observational) == self.interventions.is_empty()
             && spec
                 .variables
@@ -288,10 +356,16 @@ pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
 
 type WorldIndex = HashMap<Arc<str>, HashMap<RegimeId, HashMap<Vec<InterventionAssignment>, usize>>>;
 
-// Normalize signed zero because Value equality treats -0 and +0 as equal.
-fn value_key(value: &Value) -> Value {
+// Normalize exactly represented integral numeric levels locally, without changing
+// core Value equality or the original table/serialized coordinate representation.
+#[allow(clippy::cast_possible_truncation)] // Finite integral f64, explicitly within the exact i64 range.
+pub(crate) fn value_key(value: &Value) -> Value {
     match value {
-        Value::Float64(x) if *x == 0.0 => Value::Float64(0.0),
+        Value::Float64(x)
+            if x.is_finite() && x.fract() == 0.0 && x.abs() <= 9_007_199_254_740_992.0 =>
+        {
+            Value::Int64(*x as i64)
+        }
         other => other.clone(),
     }
 }
@@ -306,9 +380,7 @@ fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignme
 
 fn lookup_world_key(assignments: &[InterventionAssignment]) -> Cow<'_, [InterventionAssignment]> {
     let ordered = assignments.windows(2).all(|pair| pair[0].variable < pair[1].variable);
-    let normalized = assignments
-        .iter()
-        .all(|a| !matches!(a.value, Value::Float64(x) if x.to_bits() == (-0.0_f64).to_bits()));
+    let normalized = assignments.iter().all(|a| value_key(&a.value) == a.value);
     if ordered && normalized {
         Cow::Borrowed(assignments)
     } else {
@@ -436,7 +508,11 @@ impl ExactTransportData {
         let mut conditions = law.positions(spec.conditioned_on, assignment).map_err(locate)?;
         let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
         if denominator == 0.0 {
-            return Err(locate(law.error("zero_conditioning_mass")));
+            return Err(locate(law.error(if law.origin == LawOrigin::EmpiricalPlugin {
+                "sampling_zero"
+            } else {
+                "zero_conditioning_mass"
+            })));
         }
         conditions.extend(law.positions(spec.variables, assignment).map_err(locate)?);
         Ok(law.mass(&conditions) / denominator)
@@ -557,6 +633,30 @@ mod tests {
         );
         let missing_regime = FactorSpec { regime: None, ..spec };
         assert!(data.require_factor(&missing_regime).is_err());
+    }
+    #[test]
+    fn empirical_empty_conditioner_is_sampling_zero_not_structural() {
+        let table = ExactDiscreteLaw::try_empirical(
+            "target",
+            RegimeId::from_raw(0),
+            [],
+            [axis(0), axis(1)],
+            [0.0, 0.0, 0.3, 0.7],
+            "snapshot",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        assert_eq!(table.origin(), LawOrigin::EmpiricalPlugin);
+        let data = ExactTransportData::try_new([table], 16).unwrap();
+        let outcomes = [v(1)];
+        let conditions = [v(0)];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outcomes, &conditions, &[], DomainRef::Observational)
+        };
+        let assignment = Assignment::from_pairs([(v(0), Value::Int64(0)), (v(1), Value::Int64(1))]);
+        assert_eq!(data.probability_checked(&spec, &assignment).unwrap_err().kind, "sampling_zero");
     }
     #[test]
     fn locates_zero_condition_and_preserves_structural_zeros() {

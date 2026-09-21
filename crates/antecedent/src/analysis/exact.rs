@@ -211,6 +211,7 @@ fn shape(data: &ExactTransportData) -> Result<String, IoError> {
     for law in &mut laws {
         law.probabilities.clear();
         law.snapshot.clear();
+        law.origin.clear();
         law.absolute_tolerance = 0.0;
         law.relative_tolerance = 0.0;
         law.axes.sort_by_key(|(v, _)| *v);
