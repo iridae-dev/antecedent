@@ -106,6 +106,7 @@ fn binary_env(identity: &str, vars: &[u32], selections: &[u32]) -> Environment {
 
 fn binding(regime: RegimeId, snapshot: &str) -> RegimeBinding {
     RegimeBinding {
+        dataset_identity: None,
         regime,
         snapshot_identity: Arc::from(snapshot),
         schema_names: Arc::from([]),

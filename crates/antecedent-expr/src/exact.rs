@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use antecedent_core::{RegimeId, Value, VariableId};
 
@@ -388,6 +388,13 @@ fn lookup_world_key(assignments: &[InterventionAssignment]) -> Cow<'_, [Interven
     }
 }
 
+type JointQueryKey = (usize, Vec<(usize, usize)>, Vec<(usize, usize)>);
+#[derive(Debug)]
+struct SharedFactorCache {
+    capacity: usize,
+    values: Mutex<HashMap<JointQueryKey, f64>>,
+}
+
 /// Immutable collection of exact laws with bounded support materialization.
 #[derive(Clone, Debug)]
 pub struct ExactTransportData {
@@ -395,6 +402,7 @@ pub struct ExactTransportData {
     index: Arc<WorldIndex>,
     domains: Arc<BTreeMap<VariableId, Arc<[Value]>>>,
     max_support_rows: usize,
+    factor_cache: Option<Arc<SharedFactorCache>>,
 }
 
 impl ExactTransportData {
@@ -448,7 +456,31 @@ impl ExactTransportData {
                 }
             }
         }
-        Ok(Self { laws, index: Arc::new(index), domains: Arc::new(domains), max_support_rows })
+        Ok(Self {
+            laws,
+            index: Arc::new(index),
+            domains: Arc::new(domains),
+            max_support_rows,
+            factor_cache: None,
+        })
+    }
+    /// Share a bounded factor-value cache across plans bound to this immutable provider.
+    /// Replacing data creates a new cache; cached values never cross snapshots.
+    #[must_use]
+    pub fn with_shared_factor_cache(mut self, capacity: usize) -> Self {
+        if capacity == 0 {
+            self.factor_cache = None;
+            return self;
+        }
+        self.factor_cache =
+            Some(Arc::new(SharedFactorCache { capacity, values: Mutex::new(HashMap::new()) }));
+        self
+    }
+    pub(crate) fn factor_cache_bytes(&self) -> Option<usize> {
+        let width = self.laws.iter().map(|law| law.axes.len()).max().unwrap_or(0);
+        self.factor_cache.as_ref().map_or(Some(0), |cache| {
+            width.checked_mul(64)?.checked_add(256)?.checked_mul(cache.capacity)
+        })
     }
     /// Declared finite support of a coordinate, without materializing a Cartesian table.
     #[must_use]
@@ -506,6 +538,19 @@ impl ExactTransportData {
             error
         };
         let mut conditions = law.positions(spec.conditioned_on, assignment).map_err(locate)?;
+        let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
+        let key = self.factor_cache.as_ref().map(|_| {
+            let index = self.index[spec.population][&law.regime]
+                [lookup_world_key(spec.intervention).as_ref()];
+            (index, outputs.clone(), conditions.clone())
+        });
+        if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
+            if let Some(value) =
+                cache.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(key)
+            {
+                return Ok(*value);
+            }
+        }
         let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
         if denominator == 0.0 {
             return Err(locate(law.error(if law.origin == LawOrigin::EmpiricalPlugin {
@@ -514,8 +559,15 @@ impl ExactTransportData {
                 "zero_conditioning_mass"
             })));
         }
-        conditions.extend(law.positions(spec.variables, assignment).map_err(locate)?);
-        Ok(law.mass(&conditions) / denominator)
+        conditions.extend(outputs);
+        let value = law.mass(&conditions) / denominator;
+        if let (Some(cache), Some(key)) = (&self.factor_cache, key) {
+            let mut values = cache.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if values.len() < cache.capacity {
+                values.insert(key, value);
+            }
+        }
+        Ok(value)
     }
 }
 

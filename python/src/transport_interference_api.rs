@@ -478,6 +478,10 @@ pub(crate) fn parse_catalog(
             _ => return Err(PyValueError::new_err("unknown dependence group")),
         };
         bindings.push(RegimeBinding {
+            dataset_identity: binding
+                .getattr("dataset_identity")?
+                .extract::<Option<String>>()?
+                .map(Arc::from),
             regime,
             snapshot_identity: Arc::from(
                 binding.getattr("snapshot_identity")?.extract::<String>()?,

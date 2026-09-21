@@ -10,8 +10,8 @@ use antecedent_identify::BoundTransportFunctional;
 
 use crate::empirical_table::{
     EmpiricalTableOptions, StatisticalTransportInput, assemble_point_laws,
-    assemble_statistical_laws, dependence_refusal, licensed_iid_dependence, sample_key,
-    validate_options,
+    assemble_statistical_laws, bound_sample_key, dependence_refusal, licensed_iid_dependence,
+    validate_dataset_aliases, validate_options,
 };
 use crate::error::EstimationError;
 use crate::transport::prepare_exact_transport;
@@ -104,6 +104,7 @@ pub fn evaluate_statistical_transport_grid(
         return Err(EstimationError::data_msg("empty treatment grid"));
     }
     validate_options(options)?;
+    validate_dataset_aliases(functional.catalog(), &input.samples)?;
     let mut budget_ctx = ctx.clone();
     budget_ctx.memory.hard_limit_bytes =
         ctx.memory.hard_limit_bytes.map(|n| n / requests.len() as u64);
@@ -126,7 +127,8 @@ pub fn evaluate_statistical_transport_grid(
         .filter(|n| *n > 0)
         .ok_or_else(|| EstimationError::data_msg("statistical operation budget exceeded"))?;
     let limits = ExactEvaluationLimits { operations, ..limits };
-    let data = assemble_point_laws(input, functional, options)?;
+    let data = assemble_point_laws(input, functional, options)?
+        .with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 });
     let distributions = requests
         .iter()
         .map(|request| {
@@ -396,11 +398,22 @@ fn outer_bootstrap(
     let mut ok = 0u32;
     let mut failed = 0u32;
     let mut indexes = Vec::new();
+    let mut samples: Vec<_> = input
+        .samples
+        .iter()
+        .map(|sample| (bound_sample_key(functional.catalog(), sample), sample))
+        .collect();
+    if !functional.derivation().sources().is_empty()
+        || functional.catalog().bindings.iter().any(|b| b.dataset_identity.is_some())
+    {
+        samples.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+    samples.dedup_by(|a, b| a.0 == b.0);
     for replicate in 0..options.bootstrap_replicates {
         check_cancelled(ctx)?;
         let mut row_indexes = BTreeMap::new();
         let mut resample_ok = true;
-        for (dataset, sample) in input.samples.iter().enumerate() {
+        for (dataset, (key, sample)) in samples.iter().enumerate() {
             let n = sample.n();
             if n == 0 {
                 resample_ok = false;
@@ -414,14 +427,14 @@ fn outer_bootstrap(
                 resample_ok = false;
                 break;
             }
-            row_indexes.insert(sample_key(sample), indexes.clone());
+            row_indexes.insert(key.clone(), indexes.clone());
         }
         if !resample_ok {
             failed = failed.saturating_add(1);
             continue;
         }
         let assembled = match assemble_statistical_laws(input, functional, options, &row_indexes) {
-            Ok(data) => data,
+            Ok(data) => data.with_shared_factor_cache(if requests.len() > 1 { 1024 } else { 0 }),
             Err(error) if error.to_string().contains("empty_empirical_sample") => {
                 failed = failed.saturating_add(1);
                 continue;

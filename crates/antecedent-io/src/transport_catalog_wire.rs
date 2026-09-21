@@ -66,6 +66,9 @@ pub struct EvidenceRegimeWire {
 /// Concrete table provenance.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct RegimeBindingWire {
+    /// Optional stable identity shared by forwarded aliases.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dataset_identity: Option<String>,
     /// Regime id.
     pub regime: u32,
     /// Dataset identity.
@@ -144,6 +147,7 @@ impl EvidenceCatalogWire {
                 .bindings
                 .iter()
                 .map(|b| RegimeBindingWire {
+                    dataset_identity: b.dataset_identity.as_ref().map(ToString::to_string),
                     regime: b.regime.raw(),
                     snapshot_identity: b.snapshot_identity.to_string(),
                     schema_names: b.schema_names.iter().map(ToString::to_string).collect(),
@@ -244,6 +248,7 @@ impl EvidenceCatalogWire {
                 _ => return Err(invalid()),
             };
             bindings.push(RegimeBinding {
+                dataset_identity: b.dataset_identity.as_deref().map(Arc::from),
                 regime: RegimeId::from_raw(b.regime),
                 snapshot_identity: Arc::from(b.snapshot_identity.as_str()),
                 schema_names: b.schema_names.iter().map(|s| Arc::from(s.as_str())).collect(),
@@ -296,6 +301,7 @@ mod tests {
             [],
             [regime],
             [RegimeBinding {
+                dataset_identity: None,
                 regime: RegimeId::from_raw(7),
                 snapshot_identity: Arc::from("snapshot-1"),
                 schema_names: Arc::from([Arc::from("a"), Arc::from("y")]),

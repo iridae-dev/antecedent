@@ -17,6 +17,7 @@ mod contract_identity;
 mod exact;
 mod execute;
 mod statistical;
+mod transport_grid;
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
@@ -24,6 +25,10 @@ pub use exact::{
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,
+};
+pub use transport_grid::{
+    TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
+    TransportGridResult, TransportGridState,
 };
 mod helpers;
 mod latency;

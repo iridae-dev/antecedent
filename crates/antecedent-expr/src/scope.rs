@@ -79,11 +79,27 @@ impl CausalExprArena {
         if got == exp { Ok(()) } else { Err(ExprError::FreeVariableMismatch) }
     }
 
+    /// Reachable distribution leaves, visiting shared subexpressions only once.
+    #[must_use]
+    pub fn distribution_leaves(&self, id: ExprId) -> Vec<ExprId> {
+        let mut out = Vec::new();
+        collect_leaves(self, id, &mut out, &mut std::collections::HashSet::new());
+        out
+    }
+
     /// Leaf population/regime bindings in stable order.
     #[must_use]
     pub fn leaf_bindings(&self, id: ExprId) -> Vec<LeafBinding> {
-        let mut out = Vec::new();
-        collect_leaves(self, id, &mut out, &mut std::collections::HashSet::new());
+        let mut out: Vec<_> = self
+            .distribution_leaves(id)
+            .into_iter()
+            .map(|id| {
+                let ExprNode::Distribution { population, regime, .. } = self.node(id) else {
+                    unreachable!()
+                };
+                LeafBinding { population: Arc::from(self.population(*population)), regime: *regime }
+            })
+            .collect();
         out.sort_by(|a, b| {
             (&*a.population, a.regime.map(RegimeId::raw))
                 .cmp(&(&*b.population, b.regime.map(RegimeId::raw)))
@@ -254,19 +270,14 @@ fn rewrite_intervention(
 fn collect_leaves(
     arena: &CausalExprArena,
     id: ExprId,
-    out: &mut Vec<LeafBinding>,
+    out: &mut Vec<ExprId>,
     visited: &mut std::collections::HashSet<ExprId>,
 ) {
     if !visited.insert(id) {
         return;
     }
     match arena.node(id) {
-        ExprNode::Distribution { population, regime, .. } => {
-            out.push(LeafBinding {
-                population: Arc::from(arena.population(*population)),
-                regime: *regime,
-            });
-        }
+        ExprNode::Distribution { .. } => out.push(id),
         ExprNode::Kernel { body, .. } => collect_leaves(arena, *body, out, visited),
         ExprNode::Product(list) => {
             for &child in arena.list(*list) {

@@ -87,6 +87,51 @@ pub fn sample_key(sample: &RegimeSample) -> SampleKey {
     (sample.population.clone(), sample.snapshot_identity.clone(), sample.regime, world)
 }
 
+/// Resampling key with explicit forwarded-dataset aliases resolved.
+#[must_use]
+pub fn bound_sample_key(catalog: &EvidenceCatalog, sample: &RegimeSample) -> SampleKey {
+    let mut key = sample_key(sample);
+    if let Some(identity) = catalog
+        .bindings
+        .iter()
+        .find(|b| b.regime == sample.regime)
+        .and_then(|b| b.dataset_identity.as_ref())
+    {
+        key.0 = Arc::from(format!("shared-dataset:{identity}"));
+        key.1 = Arc::from("");
+        key.2 = RegimeId::from_raw(0);
+    }
+    key
+}
+/// Check that explicitly forwarded datasets agree before fitting or resampling.
+/// # Errors
+/// An alias names different rows or an incompatible sampling/dependence contract.
+pub fn validate_dataset_aliases(
+    catalog: &EvidenceCatalog,
+    samples: &[RegimeSample],
+) -> Result<(), EstimationError> {
+    let mut seen = BTreeMap::<SampleKey, &RegimeSample>::new();
+    for sample in samples {
+        let key = bound_sample_key(catalog, sample);
+        if let Some(previous) = seen.insert(key, sample) {
+            let binding =
+                |sample: &RegimeSample| catalog.bindings.iter().find(|b| b.regime == sample.regime);
+            let compatible = match (binding(previous), binding(sample)) {
+                (Some(a), Some(b)) => {
+                    a.sampling == b.sampling
+                        && a.dependence == b.dependence
+                        && a.weights == b.weights
+                }
+                _ => false,
+            };
+            if previous.columns != sample.columns || !compatible {
+                return Err(EstimationError::data_msg("conflicting forwarded dataset aliases"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Validate inference settings before allocating a table or running a bootstrap.
 /// # Errors
 /// Nonfinite/invalid coverage or an empty resource bound.
@@ -265,6 +310,15 @@ pub fn assemble_statistical_laws(
     options: &EmpiricalTableOptions,
     row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
 ) -> Result<ExactTransportData, EstimationError> {
+    assemble_laws(input, functional, options, row_indexes, true)
+}
+fn assemble_laws(
+    input: &StatisticalTransportInput,
+    functional: &BoundTransportFunctional,
+    options: &EmpiricalTableOptions,
+    row_indexes: &BTreeMap<SampleKey, Vec<u32>>,
+    require_coverage: bool,
+) -> Result<ExactTransportData, EstimationError> {
     if options.estimator != EmpiricalTableEstimator::Plugin {
         return Err(EstimationError::Refused {
             code: antecedent_core::reason_code!("transport_unsupported_evaluator"),
@@ -279,6 +333,8 @@ pub fn assemble_statistical_laws(
             "empirical laws require their sample provenance; cannot supply them as known exact laws",
         ));
     }
+    validate_dataset_aliases(catalog, &input.samples)?;
+    let mut fitted_joints = BTreeMap::<SampleKey, ExactDiscreteLaw>::new();
     let mut laws = input.supplied.clone();
     for sample in &input.samples {
         if catalog.bindings.iter().any(|b| b.regime == sample.regime && b.weights.is_some()) {
@@ -309,12 +365,38 @@ pub fn assemble_statistical_laws(
                 "sample intervention world disagrees with its regime",
             ));
         }
-        let key = sample_key(sample);
-        let fitted =
-            fit_empirical_joint(sample, &axes, options, row_indexes.get(&key).map(Vec::as_slice))?;
+        let key = bound_sample_key(catalog, sample);
+        let fitted = if let Some(joint) = fitted_joints.get(&key) {
+            if joint.axes() != axes {
+                return Err(EstimationError::data_msg(
+                    "forwarded aliases have different measured domains",
+                ));
+            }
+            ExactDiscreteLaw::try_empirical(
+                sample.population.clone(),
+                sample.regime,
+                sample.interventions.clone(),
+                axes,
+                joint.probabilities().to_vec(),
+                sample.snapshot_identity.clone(),
+                joint.tolerance(),
+            )
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?
+        } else {
+            let joint = fit_empirical_joint(
+                sample,
+                &axes,
+                options,
+                row_indexes.get(&key).map(Vec::as_slice),
+            )?;
+            fitted_joints.insert(key, joint.clone());
+            joint
+        };
         laws.push(fitted);
     }
-    require_leaf_providers(functional, &laws, input)?;
+    if require_coverage {
+        require_leaf_providers(functional, &laws, input)?;
+    }
     ExactTransportData::try_new(laws, options.max_joint_cells.max(1))
         .map_err(|e| EstimationError::data_msg(e.to_string()))
 }
@@ -329,6 +411,17 @@ pub fn assemble_point_laws(
     options: &EmpiricalTableOptions,
 ) -> Result<ExactTransportData, EstimationError> {
     assemble_statistical_laws(input, functional, options, &BTreeMap::new())
+}
+
+/// Assemble available grid providers, leaving missing factors to located per-point preflight.
+/// # Errors
+/// Invalid supplied providers or sampling contracts; missing providers are retained by the grid.
+pub fn assemble_grid_point_laws(
+    input: &StatisticalTransportInput,
+    functional: &BoundTransportFunctional,
+    options: &EmpiricalTableOptions,
+) -> Result<ExactTransportData, EstimationError> {
+    assemble_laws(input, functional, options, &BTreeMap::new(), false)
 }
 
 /// Catalog-declared finite axes for one sample's measured non-intervention coordinates.
