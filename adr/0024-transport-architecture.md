@@ -35,7 +35,7 @@ Keep these distinct. A type or function belongs to exactly one:
 | --- | --- | --- |
 | Theoretical evidence availability | What the named theorem family treats as given (observed vars, allowed experiments, distribution family) | A particular supplied table, learner, or thread budget |
 | Concrete supplied catalog | Environments, regimes, bindings, target sampling that the caller actually has | Completeness claims; implicit `do(A,B)` from `do(A)` and `do(B)` |
-| Statistical provider | How a certified factor is estimated (tables in T4; learners in T6) | Identification search; physical execution policy |
+| Statistical provider | How a certified factor is estimated (exact supplied tables in T4; empirical frequency tables in T6.1; learners later) | Identification search; physical execution policy |
 | Physical execution | `ExecutionContext` budget, cancellation, kernels | Scientific meaning of a formula or catalog |
 
 `antecedent-learn` (ADR 0023) is a statistical provider when T6 consumes it.
@@ -147,5 +147,7 @@ population or regime swap is a different `ExprId` and fails certificate bind.
   refusals; identify still uses dotted certificate ids on the outcome record.
 - Python `antecedent.transport` grows catalog dataclasses. Existing
   `TransportQuery(source_experiments=..., trial=...)` stays byte-compatible.
-- T3–T10 (classical sID completeness, table evaluators,
-  learner-backed uncertainty, multi-source search) remain out of this decision.
+- T3–T5 (classical sID completeness, exact table evaluators, prepared
+  lifecycle) are implemented. T6.1–T6.2 license empirical frequency joints and
+  their IID outer bootstrap on that handle. Learner-backed factors, cluster
+  bootstrap, and multi-source search remain later.

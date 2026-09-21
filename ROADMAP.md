@@ -740,44 +740,46 @@ identification work is reused; stale or substituted certificates are rejected.
 
 ## T6 — Statistical execution and uncertainty
 
+Review, corrections, and calibration scope: [T6 audit](docs/audits/transport-t6-review.md).
+
 **Owner:** estimate transport, existing inference/calibration/provider machinery.
 **Depends on:** T4–T5. License each estimator separately.
 
 ### T6.1 — First statistical provider
 
-- [ ] Start with finite categorical empirical tables under explicitly independent
+- [x] Start with finite categorical empirical tables under explicitly independent
       IID sampling groups, fixed finite domains, and stated positivity/regularity
       conditions. Register a plug-in estimator for the supported recursive
       functionals. High-dimensional sparse tables do not gain automatic support.
-- [ ] Keep known supplied laws fixed and refit estimated factors in each
+- [x] Keep known supplied laws fixed and refit estimated factors in each
       replicate. A target law estimated from target data contributes uncertainty.
-- [ ] Reuse a single fitted joint law when several factors come from the same
+- [x] Reuse a single fitted joint law when several factors come from the same
       regime/sample. Do not fit or resample those factors as independent studies.
-- [ ] Define smoothing, pseudocounts, or model-based extrapolation as explicit
+- [x] Define smoothing, pseudocounts, or model-based extrapolation as explicit
       estimator choices with separate licenses. Defaults must not hide empty
       cells or turn a support failure into a confident answer.
-- [ ] Adapt existing trial IPW/AIPW evaluators only when their certificate,
+- [x] Adapt existing trial IPW/AIPW evaluators only when their certificate,
       sampling design, treatment, and target-factor requirements match. State
       their robustness conditions precisely; they do not apply to every sID
       expression or to arbitrary compositions of augmented factors.
 
 ### T6.2 — Joint uncertainty and dependence
 
-- [ ] Implement a joint outer bootstrap for the licensed empirical-table path:
+- [x] Implement a joint outer bootstrap for the licensed empirical-table path:
       independently resample independent datasets; reuse each dataset replicate
       for every consuming factor and every treatment-grid point; refit the
       complete functional inside each replicate.
-- [ ] Represent shared units and clusters in the evidence contract. Implement
+- [x] Represent shared units and clusters in the evidence contract. Implement
       synchronized resampling only for explicitly supported designs; otherwise
       return uncertainty unavailable with the unsupported dependence reason.
       Unknown dependence never defaults to independence.
-- [ ] Record interval method, coverage target, sample-size vector, support regime,
+- [x] Record interval method, coverage target, sample-size vector, support regime,
       replicate count, failures, seed, and calibration binding. Failed replicates
       cannot be silently dropped until nominal coverage appears acceptable.
-- [ ] Preserve covariance across contrasts/grid points through retained joint
+- [x] Preserve covariance across contrasts/grid points through retained joint
       replicates or a licensed covariance representation. Document whether
       intervals are marginal, pointwise, or simultaneous over a specified family.
-- [ ] Separate sampling uncertainty from model assumptions, invariance, and
+- [x] Separate sampling uncertainty from model assumptions, invariance, and
       graph uncertainty. Bootstrap variation cannot quantify an unmodeled
       mechanism difference or an unidentified target effect.
 - [ ] Calibrate every licensed interval row against known SCM truth, varying
