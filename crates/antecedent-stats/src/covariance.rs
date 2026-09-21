@@ -381,21 +381,39 @@ fn multiway_meat(
             abs_diag[j] += (sign * scale * part[j * ncols + j]).abs();
         }
     }
-    // Fail closed on material negative diagonal (same tolerance as scalar IE).
-    for j in 0..ncols {
-        let v = meat[j * ncols + j];
-        if v < 0.0 {
-            let tol = 64.0 * f64::EPSILON * abs_diag[j];
-            if (-v) <= tol {
-                meat[j * ncols + j] = 0.0;
-            } else {
-                return Err(StatsError::NonPositiveVariance {
-                    message: "multiway inclusion-exclusion meat is materially negative",
-                });
-            }
+    // CGM meat can be indefinite with nonnegative diagonals; refuse rather than
+    // project onto the PSD cone (downstream SE clamps would otherwise publish 0).
+    ensure_multiway_meat_psd(&meat, ncols, &abs_diag)?;
+    Ok(meat)
+}
+
+/// Refuse a multiway meat with any eigenvalue materially below zero.
+///
+/// Tolerance is `64 ε` times the scale of the diagonal (max absolute IE
+/// contribution to any diagonal entry), matching scalar inclusion–exclusion.
+/// Matrices that are PSD within that tolerance are left unchanged.
+fn ensure_multiway_meat_psd(
+    meat: &[f64],
+    ncols: usize,
+    abs_diag: &[f64],
+) -> Result<(), StatsError> {
+    if ncols == 0 {
+        return Ok(());
+    }
+    let mat = faer::Mat::<f64>::from_fn(ncols, ncols, |r, c| meat[r * ncols + c]);
+    let eigs = mat.self_adjoint_eigenvalues(faer::Side::Lower).map_err(|_| {
+        StatsError::Backend("multiway meat eigendecomposition failed".into())
+    })?;
+    let scale = abs_diag.iter().copied().fold(0.0_f64, f64::max);
+    let tol = 64.0 * f64::EPSILON * scale;
+    for &lam in &eigs {
+        if lam < -tol {
+            return Err(StatsError::NonPositiveVariance {
+                message: "multiway inclusion-exclusion meat is not positive semidefinite",
+            });
         }
     }
-    Ok(meat)
+    Ok(())
 }
 
 fn newey_west_meat(
@@ -771,6 +789,50 @@ mod tests {
             coefficient_covariance(&x, n, 1, &e, SandwichKind::Multiway { dimensions: &dims })
                 .unwrap_err();
         assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
+    }
+
+    #[test]
+    fn multiway_refuses_indefinite_two_way_meat() {
+        // Two-way IE meat with nonnegative diagonals but a negative eigenvalue
+        // (indefinite). Diagonals alone would pass; full PSD check must refuse.
+        let n = 8usize;
+        let x = vec![
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, // intercept
+            0.0625, 0.1875, 0.3125, 0.4375, 0.5625, 0.6875, 0.8125, 0.9375,
+        ];
+        let e = [-1.5, -1.25, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25];
+        let dim_a = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let dim_b = [0u32, 1, 0, 1, 0, 1, 0, 1];
+        let dims: [&[u32]; 2] = [&dim_a, &dim_b];
+        let err =
+            coefficient_covariance(&x, n, 2, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                StatsError::NonPositiveVariance {
+                    message: "multiway inclusion-exclusion meat is not positive semidefinite"
+                }
+            ),
+            "err={err}"
+        );
+    }
+
+    #[test]
+    fn multiway_one_way_cluster_remains_psd() {
+        let n = 8usize;
+        let x = vec![
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, // intercept
+            0.0625, 0.1875, 0.3125, 0.4375, 0.5625, 0.6875, 0.8125, 0.9375,
+        ];
+        let e = [-1.5, -1.25, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25];
+        let dim_a = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let dims: [&[u32]; 1] = [&dim_a];
+        let cov =
+            coefficient_covariance(&x, n, 2, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap();
+        assert!(cov.iter().all(|v| v.is_finite()));
+        assert!(cov[0] > 0.0 && cov[3] > 0.0);
     }
 
     #[test]
