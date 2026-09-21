@@ -6,7 +6,7 @@
 
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresFit, LeastSquaresWorkspace};
-use crate::special::{gamma_q, normal_ppf};
+use crate::special::{gamma_q, normal_ppf, student_t_ppf};
 
 /// Fit weighted least squares by row-scaling with `sqrt(weight)`.
 ///
@@ -235,6 +235,9 @@ fn first_stage_f_test(
 }
 
 /// χ² critical value `c` with `P(χ²_df > c) = 1 - level` via bisection on [`gamma_q`].
+///
+/// Prefer [`f_critical`] / [`anderson_rubin_kf_critical`] for AR inversion; this remains
+/// for asymptotic χ² comparisons.
 #[must_use]
 pub fn chi2_critical(level: f64, df: usize) -> f64 {
     if df == 0 || !(level.is_finite() && (0.0..1.0).contains(&level)) {
@@ -266,11 +269,61 @@ pub fn chi2_critical(level: f64, df: usize) -> f64 {
     0.5 * (lo + hi)
 }
 
+/// Upper `level` critical value of `F(d1, d2)`: `P(F ≤ f) = level`.
+///
+/// For `d1 == 1` this is exactly `t_{d2, (1+level)/2}²`. Otherwise it bisects the
+/// regularized incomplete-beta F CDF.
+#[must_use]
+pub fn f_critical(level: f64, d1: usize, d2: usize) -> f64 {
+    if d1 == 0 || d2 == 0 || !(level.is_finite() && (0.0..1.0).contains(&level)) {
+        return f64::NAN;
+    }
+    if d1 == 1 {
+        let t = student_t_ppf(0.5 + 0.5 * level, d2 as f64);
+        return t * t;
+    }
+    let a = 0.5 * d1 as f64;
+    let b = 0.5 * d2 as f64;
+    let mut lo = 0.0;
+    let mut hi = 1.0;
+    while f_cdf(hi, a, b) < level {
+        hi *= 2.0;
+        if !hi.is_finite() || hi > 1e14 {
+            return f64::INFINITY;
+        }
+    }
+    for _ in 0..120 {
+        let mid = 0.5 * (lo + hi);
+        if f_cdf(mid, a, b) < level {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
+fn f_cdf(f: f64, a: f64, b: f64) -> f64 {
+    if !(f.is_finite() && f >= 0.0) {
+        return f64::NAN;
+    }
+    // P(F ≤ f) = I_{d1 f / (d1 f + d2)}(d1/2, d2/2) with a=d1/2, b=d2/2.
+    let x = (2.0 * a * f) / (2.0 * a * f + 2.0 * b);
+    crate::special::regularized_incomplete_beta(x, a, b)
+}
+
+/// Critical value for [`anderson_rubin_statistic`] (`k · F`) at finite-sample level
+/// `F_{k, df, level}`: accept when `anderson_rubin_statistic ≤ anderson_rubin_kf_critical`.
+#[must_use]
+pub fn anderson_rubin_kf_critical(level: f64, k: usize, df: usize) -> f64 {
+    k as f64 * f_critical(level, k, df)
+}
+
 /// Homoskedastic Anderson–Rubin statistic for `H₀: β = beta0`.
 ///
 /// Forms `ỹ = y − beta0 · t` and returns `k · F` from the partial F-test that the
-/// excluded instruments are jointly insignificant in `ỹ ~ [Z | X]`. Under the null
-/// and homoskedasticity this is asymptotically `χ²_k` with `k = z_ncols`.
+/// excluded instruments are jointly insignificant in `ỹ ~ [Z | X]`. Compare against
+/// [`anderson_rubin_kf_critical`] (finite-sample `k · F_{k, df, level}`), not a bare χ².
 ///
 /// # Errors
 ///
@@ -325,14 +378,98 @@ pub fn anderson_rubin_statistic(
     Ok(k as f64 * f.max(0.0))
 }
 
-/// Invert the homoskedastic Anderson–Rubin test at `level`, returning a single
-/// confidence interval when the non-rejection set is connected (possibly unbounded).
+fn residualize_on_exogenous(
+    v: &[f64],
+    exogenous_colmajor: &[f64],
+    nrows: usize,
+    x_ncols: usize,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<Vec<f64>, StatsError> {
+    if x_ncols == 0 {
+        return Ok(v.to_vec());
+    }
+    let fit = backend.least_squares(exogenous_colmajor, nrows, x_ncols, v, workspace)?;
+    Ok(fit.residuals)
+}
+
+/// Invert `A β² + B β + C ≤ 0` into an Anderson–Rubin acceptance set.
+fn classify_quadratic_le_zero(a: f64, b: f64, c: f64) -> QuadraticAcceptance {
+    let scale = a.abs().max(b.abs()).max(c.abs()).max(1.0);
+    let eps = 1e-12 * scale;
+    if a.abs() <= eps {
+        // Linear (or constant): B β + C ≤ 0.
+        if b.abs() <= eps {
+            return if c <= eps {
+                QuadraticAcceptance::WholeLine
+            } else {
+                QuadraticAcceptance::Empty
+            };
+        }
+        let root = -c / b;
+        return if b > 0.0 {
+            QuadraticAcceptance::Ray {
+                lo: f64::NEG_INFINITY,
+                hi: root,
+            }
+        } else {
+            QuadraticAcceptance::Ray { lo: root, hi: f64::INFINITY }
+        };
+    }
+    let disc = b * b - 4.0 * a * c;
+    if disc < -eps * eps {
+        // No real roots: sign follows A.
+        return if a < 0.0 {
+            QuadraticAcceptance::WholeLine
+        } else {
+            QuadraticAcceptance::Empty
+        };
+    }
+    let sqrt_disc = disc.max(0.0).sqrt();
+    let r1 = (-b - sqrt_disc) / (2.0 * a);
+    let r2 = (-b + sqrt_disc) / (2.0 * a);
+    let (lo, hi) = if r1 <= r2 { (r1, r2) } else { (r2, r1) };
+    if disc <= eps * eps {
+        // Tangent: a single point when A > 0; whole line when A < 0.
+        return if a > 0.0 {
+            QuadraticAcceptance::Interval { lo, hi: lo }
+        } else {
+            QuadraticAcceptance::WholeLine
+        };
+    }
+    if a > 0.0 {
+        QuadraticAcceptance::Interval { lo, hi }
+    } else {
+        QuadraticAcceptance::Union { lo, hi }
+    }
+}
+
+#[derive(Clone, Debug)]
+enum QuadraticAcceptance {
+    Empty,
+    WholeLine,
+    Interval { lo: f64, hi: f64 },
+    Ray { lo: f64, hi: f64 },
+    /// Accepts (−∞, lo] ∪ [hi, ∞).
+    Union {
+        #[allow(dead_code)]
+        lo: f64,
+        #[allow(dead_code)]
+        hi: f64,
+    },
+}
+
+/// Invert the homoskedastic Anderson–Rubin test at `level` by solving the exact
+/// quadratic inequality in β after residualizing on the exogenous block (including
+/// the intercept).
 ///
-/// On a union of disjoint components, returns `(None, Some("anderson_rubin_set_is_union"))`.
+/// After Frisch–Waugh, `N(β) = ‖P_Z ỹ(β)‖²` and `D(β) = ‖M_Z ỹ(β)‖²` are quadratic in
+/// β. Acceptance `F(β) ≤ F_{k, df, level}` rearranges to `A β² + B β + C ≤ 0`. The
+/// critical value is the finite-sample F quantile (not a probe-grid χ² screen).
 ///
 /// # Errors
 ///
-/// Shape mismatch or backend failure while evaluating the AR statistic.
+/// Shape mismatch or backend failure while residualizing / projecting.
 #[allow(clippy::too_many_arguments)]
 pub fn anderson_rubin_confidence_set(
     y: &[f64],
@@ -352,143 +489,64 @@ pub fn anderson_rubin_confidence_set(
     if !(level.is_finite() && (0.0..1.0).contains(&level)) {
         return Ok((None, Some("anderson_rubin_invalid_level")));
     }
-    let crit = chi2_critical(level, z_ncols);
-    if !crit.is_finite() {
+    if y.len() != z_nrows || t.len() != z_nrows {
+        return Err(StatsError::Shape { message: "y/t length != nrows" });
+    }
+    if instruments_colmajor.len() < z_nrows.saturating_mul(z_ncols) {
+        return Err(StatsError::Shape { message: "instruments buffer too short" });
+    }
+    if exogenous_colmajor.len() < z_nrows.saturating_mul(x_ncols) {
+        return Err(StatsError::Shape { message: "exogenous buffer too short" });
+    }
+    let df = z_nrows.saturating_sub(z_ncols + x_ncols);
+    if df == 0 {
         return Ok((None, Some("anderson_rubin_critical_value_failed")));
     }
-
-    // Probe grid: dense near zero on a log-spaced absolute scale so weak-IV
-    // exterior sets and distant rays are visible without depending on a Wald SE.
-    let mut probes = Vec::with_capacity(256);
-    probes.push(0.0);
-    for exp in -6..=8 {
-        let base = 10f64.powi(exp);
-        for mult in [1.0, 2.0, 5.0] {
-            let v = mult * base;
-            probes.push(v);
-            probes.push(-v);
-        }
+    let f_crit = f_critical(level, z_ncols, df);
+    if !f_crit.is_finite() {
+        return Ok((None, Some("anderson_rubin_critical_value_failed")));
     }
-    // Fill a linear mesh on [-20, 20] for typical structural effects.
-    for i in -200..=200 {
-        probes.push(0.1 * f64::from(i));
-    }
-    probes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    probes.dedup_by(|a, b| (*a - *b).abs() < 1e-15);
+    // Compare k·F to k·F_crit ⇔ df·N ≤ (k·F_crit)·D.
+    let c = z_ncols as f64 * f_crit;
 
-    let mut values = Vec::with_capacity(probes.len());
-    for &b in &probes {
-        let ar = anderson_rubin_statistic(
-            y,
-            t,
-            instruments_colmajor,
-            z_nrows,
-            z_ncols,
-            exogenous_colmajor,
-            x_ncols,
-            b,
-            backend,
-            workspace,
-        )?;
-        values.push((b, ar));
+    let y_star =
+        residualize_on_exogenous(y, exogenous_colmajor, z_nrows, x_ncols, backend, workspace)?;
+    let t_star =
+        residualize_on_exogenous(t, exogenous_colmajor, z_nrows, x_ncols, backend, workspace)?;
+    let mut z_star = vec![0.0; z_nrows * z_ncols];
+    for j in 0..z_ncols {
+        let col = &instruments_colmajor[j * z_nrows..(j + 1) * z_nrows];
+        let resid =
+            residualize_on_exogenous(col, exogenous_colmajor, z_nrows, x_ncols, backend, workspace)?;
+        z_star[j * z_nrows..(j + 1) * z_nrows].copy_from_slice(&resid);
     }
 
-    // Refine crossings of the critical value between adjacent probes.
-    let mut refined = Vec::with_capacity(values.len() * 2);
-    for w in values.windows(2) {
-        let (b0, ar0) = w[0];
-        let (b1, ar1) = w[1];
-        refined.push((b0, ar0));
-        let accept0 = ar0.is_finite() && ar0 <= crit;
-        let accept1 = ar1.is_finite() && ar1 <= crit;
-        if accept0 != accept1 && ar0.is_finite() && ar1.is_finite() {
-            let mut lo_b = b0;
-            let mut hi_b = b1;
-            let mut lo_ar = ar0;
-            for _ in 0..40 {
-                let mid = 0.5 * (lo_b + hi_b);
-                let mid_ar = anderson_rubin_statistic(
-                    y,
-                    t,
-                    instruments_colmajor,
-                    z_nrows,
-                    z_ncols,
-                    exogenous_colmajor,
-                    x_ncols,
-                    mid,
-                    backend,
-                    workspace,
-                )?;
-                let mid_accept = mid_ar.is_finite() && mid_ar <= crit;
-                if mid_accept == accept0 {
-                    lo_b = mid;
-                    lo_ar = mid_ar;
-                } else {
-                    hi_b = mid;
-                }
-                let _ = lo_ar;
-            }
-            let root = 0.5 * (lo_b + hi_b);
-            let root_ar = anderson_rubin_statistic(
-                y,
-                t,
-                instruments_colmajor,
-                z_nrows,
-                z_ncols,
-                exogenous_colmajor,
-                x_ncols,
-                root,
-                backend,
-                workspace,
-            )?;
-            refined.push((root, root_ar));
-        }
-    }
-    if let Some(last) = values.last().copied() {
-        refined.push(last);
-    }
+    let fit_y = backend.least_squares(&z_star, z_nrows, z_ncols, &y_star, workspace)?;
+    let fit_t = backend.least_squares(&z_star, z_nrows, z_ncols, &t_star, workspace)?;
+    let yy: f64 = y_star.iter().map(|v| v * v).sum();
+    let tt: f64 = t_star.iter().map(|v| v * v).sum();
+    let yt: f64 = y_star.iter().zip(t_star.iter()).map(|(a, b)| a * b).sum();
+    let m_yy = fit_y.rss;
+    let m_tt = fit_t.rss;
+    let m_yt: f64 = fit_y.residuals.iter().zip(fit_t.residuals.iter()).map(|(a, b)| a * b).sum();
+    let n_yy = (yy - m_yy).max(0.0);
+    let n_tt = (tt - m_tt).max(0.0);
+    let n_yt = yt - m_yt;
 
-    // Connected components of the acceptance set on the probe line.
-    let mut components: Vec<(f64, f64)> = Vec::new();
-    let mut i = 0;
-    while i < refined.len() {
-        let accept = refined[i].1.is_finite() && refined[i].1 <= crit;
-        if !accept {
-            i += 1;
-            continue;
-        }
-        let start = refined[i].0;
-        let mut end = start;
-        while i < refined.len() && refined[i].1.is_finite() && refined[i].1 <= crit {
-            end = refined[i].0;
-            i += 1;
-        }
-        components.push((start, end));
-    }
+    let df_f = df as f64;
+    let a = df_f * n_tt - c * m_tt;
+    let b = -2.0 * df_f * n_yt + 2.0 * c * m_yt;
+    let c0 = df_f * n_yy - c * m_yy;
 
-    // Extend to ±∞ when the outermost probes accept.
-    if let Some(first) = components.first_mut() {
-        if let Some(&(b, ar)) = refined.first() {
-            if (first.0 - b).abs() < 1e-12 && ar.is_finite() && ar <= crit {
-                first.0 = f64::NEG_INFINITY;
-            }
+    match classify_quadratic_le_zero(a, b, c0) {
+        QuadraticAcceptance::Empty => Ok((None, Some("anderson_rubin_set_empty"))),
+        QuadraticAcceptance::WholeLine => {
+            Ok((Some((f64::NEG_INFINITY, f64::INFINITY, level)), None))
         }
-    }
-    if let Some(last) = components.last_mut() {
-        if let Some(&(b, ar)) = refined.last() {
-            if (last.1 - b).abs() < 1e-12 && ar.is_finite() && ar <= crit {
-                last.1 = f64::INFINITY;
-            }
-        }
-    }
-
-    match components.len() {
-        0 => Ok((None, Some("anderson_rubin_set_empty"))),
-        1 => {
-            let (lo, hi) = components[0];
+        QuadraticAcceptance::Interval { lo, hi } | QuadraticAcceptance::Ray { lo, hi } => {
             Ok((Some((lo, hi, level)), None))
         }
-        _ => Ok((None, Some("anderson_rubin_set_is_union"))),
+        QuadraticAcceptance::Union { .. } => Ok((None, Some("anderson_rubin_set_is_union"))),
     }
 }
 
@@ -688,6 +746,83 @@ mod tests {
         assert_eq!(level, 0.95);
         assert!(lo <= 2.0 && 2.0 <= hi, "AR [{lo}, {hi}] should cover 2");
         assert!(lo.is_finite() && hi.is_finite());
+    }
+
+    #[test]
+    fn anderson_rubin_quadratic_recovers_narrow_interval_off_mesh() {
+        // True β = 2.05 with a strong first stage and tiny residual noise so the 95%
+        // AR set is narrower than the old 0.1 probe mesh and contains no mesh point.
+        // A grid inversion would report empty; the quadratic must publish a finite
+        // interval covering 2.05.
+        let n = 400usize;
+        let beta = 2.05;
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let x = vec![1.0; n];
+        for i in 0..n {
+            let zi = (i as f64) / n as f64 - 0.5;
+            z[i] = zi;
+            t[i] = 3.0 * zi + 1e-6 * ((i % 7) as f64 - 3.0);
+            y[i] = beta * t[i] + 1e-6 * ((i % 5) as f64 - 2.0);
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let (ar, reason) = anderson_rubin_confidence_set(
+            &y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws,
+        )
+        .unwrap();
+        assert!(reason.is_none(), "unexpected withhold: {reason:?}");
+        let (lo, hi, level) = ar.expect("narrow AR set must exist");
+        assert_eq!(level, 0.95);
+        assert!(lo.is_finite() && hi.is_finite(), "narrow set must be finite [{lo}, {hi}]");
+        assert!(
+            hi - lo < 0.1,
+            "fixture must be narrower than the old 0.1 mesh, got width {}",
+            hi - lo
+        );
+        // No 0.1-mesh point lies in (lo, hi) when the interval sits between 2.0 and 2.1.
+        let mesh_hit = (0..=400).any(|i| {
+            let p = -20.0 + 0.1 * f64::from(i);
+            lo <= p && p <= hi
+        });
+        assert!(
+            !mesh_hit,
+            "fixture must miss the 0.1 mesh so a grid inversion would fail; got [{lo}, {hi}]"
+        );
+        assert!(lo <= beta && beta <= hi, "AR [{lo}, {hi}] must cover {beta}");
+    }
+
+    #[test]
+    fn anderson_rubin_large_finite_interval_is_not_reported_infinite() {
+        // Half-width well past 20 must stay finite endpoints — the old grid promoted
+        // any outermost accepting probe to ±∞.
+        let n = 200usize;
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let x = vec![1.0; n];
+        for i in 0..n {
+            let zi = (i as f64) / n as f64 - 0.5;
+            z[i] = zi;
+            // Strong first stage (keeps A > 0 → connected finite set) with huge
+            // outcome noise so the roots sit far past ±20.
+            t[i] = zi + 0.02 * ((i % 7) as f64 - 3.0);
+            y[i] = 2.0 * t[i] + 40.0 * ((i % 11) as f64 - 5.0);
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let (ar, reason) = anderson_rubin_confidence_set(
+            &y, &t, &z, n, 1, &x, 1, 0.95, &FaerBackend, &mut ws,
+        )
+        .unwrap();
+        assert!(reason.is_none(), "unexpected withhold: {reason:?}");
+        let (lo, hi, _) = ar.expect("connected AR set");
+        assert!(lo.is_finite() && hi.is_finite(), "expected finite endpoints, got [{lo}, {hi}]");
+        assert!(
+            hi - lo > 40.0,
+            "fixture must have half-width ≫ 20 (width {}), got [{lo}, {hi}]",
+            hi - lo
+        );
+        assert!(lo <= 2.0 && 2.0 <= hi, "AR [{lo}, {hi}] should still cover 2");
     }
 
     #[test]
