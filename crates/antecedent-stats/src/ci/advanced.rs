@@ -134,11 +134,11 @@ impl ConditionalIndependenceTest for KnnDependence {
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             // Blocking is well defined only for an empty conditioning set, where
-            // `coarse_z_strata` degenerates to one stratum holding every row in original time
-            // order. With conditioning the strata are rank-bin hashes scattered across time, so
-            // preserving `Y|Z` and preserving serial dependence cannot both hold — that case is
-            // rejected rather than silently downgraded to an exchangeable null. Checked per
-            // query because `z` varies across a batch.
+            // `z_permutation_strata` degenerates to one stratum holding every row in original time
+            // order. With conditioning the strata are Z-level or local-neighbourhood groups
+            // scattered across time, so preserving `Y|Z` and preserving serial dependence cannot
+            // both hold — that case is rejected rather than silently downgraded to an
+            // exchangeable null. Checked per query because `z` varies across a batch.
             if block_size > 1 && !z.is_empty() {
                 reject_unsupported_block_size(request.significance, "KnnDependence")?;
             }
@@ -146,10 +146,11 @@ impl ConditionalIndependenceTest for KnnDependence {
             ensure_knn_index(request.columns, q.x, q.y, z, n, dim, &mut workspace.knn)?;
             let builds_before = workspace.knn.index_builds;
             let stat = knn_stat_from_index(&mut workspace.knn, self.k)?;
-            // Null: permute Y within coarse Z strata so the Y–Z link is preserved under
-            // H0 (a full unconditional shuffle would inflate type-I error when Y depends
-            // on Z). See `coarse_z_strata`.
-            let strata = coarse_z_strata(request.columns, z, n);
+            // Null: permute Y within local Z neighbourhoods (or exact Z-level strata when
+            // Z is discrete) so the Y–Z link is preserved under H0. A full unconditional
+            // shuffle — or coarse tercile bins on continuous Z — inflates type-I error
+            // whenever Y depends on Z. See `z_permutation_strata`.
+            let strata = z_permutation_strata(request.columns, z, n, self.k)?;
             let mut y_perm = request.columns[q.y].to_vec();
             let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
             let mut null_ge = 0u32;
@@ -276,33 +277,142 @@ fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64
     Ok(-mean)
 }
 
-/// Coarse Z strata for permutation nulls: each Z column is binned into terciles
-/// (rank-based) and rows are grouped by the joint bin key. Permuting Y within these
-/// strata approximately preserves the Y–Z dependence under H0 — a documented coarse
-/// approximation to a full within-neighborhood conditional permutation scheme.
-/// Deterministic order (sorted keys) keeps the seeded RNG stream reproducible.
-fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
-    const BINS: usize = 3;
+/// Strata for the kNN conditional permutation null.
+///
+/// - Empty `Z`: one stratum (every row), so exchangeable / block shuffles are well defined.
+/// - Discrete `Z` (few distinct joint levels): exact level strata.
+/// - Continuous `Z`: contiguous windows after ordering in standardised Z-space so that
+///   permuting Y within a window preserves local Y–Z dependence under H0.
+///
+/// Non-finite Z values are refused: rank/sort paths must not coerce NaN into a finite stratum.
+fn z_permutation_strata(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+    _k: usize,
+) -> Result<Vec<Vec<usize>>, StatsError> {
     if z.is_empty() {
-        return vec![(0..n).collect()];
+        return Ok(vec![(0..n).collect()]);
     }
-    let mut keys = vec![0u64; n];
+    ensure_finite_z(columns, z, n)?;
+    let keys = joint_z_keys(columns, z, n);
+    let mut distinct = keys.clone();
+    distinct.sort_unstable();
+    distinct.dedup();
+    // Few distinct levels → exact strata (permuting within a level keeps Y|Z).
+    // Many distinct levels (continuous or high-cardinality) → local neighbourhoods.
+    let discrete_cap = (n / 4).max(8);
+    if distinct.len() <= discrete_cap {
+        let mut map: HashMap<u64, Vec<usize>> = HashMap::new();
+        for (r, key) in keys.iter().enumerate() {
+            map.entry(*key).or_default().push(r);
+        }
+        let mut sorted_keys: Vec<u64> = map.keys().copied().collect();
+        sorted_keys.sort_unstable();
+        return Ok(sorted_keys.into_iter().filter_map(|key| map.remove(&key)).collect());
+    }
+    // Pairwise (size-2) windows: larger local groups re-break Y–Z and inflate type I.
+    local_z_neighbourhood_strata(columns, z, n, 2)
+}
+
+fn ensure_finite_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<(), StatsError> {
     for &zc in z {
-        let col = columns[zc];
-        let mut idx: Vec<usize> = (0..n).collect();
-        idx.sort_by(|&a, &b| col[a].partial_cmp(&col[b]).unwrap_or(std::cmp::Ordering::Equal));
-        for (rank, &r) in idx.iter().enumerate() {
-            let bin = rank * BINS / n;
-            keys[r] = keys[r].wrapping_mul(31).wrapping_add(bin as u64 + 1);
+        let col = columns.get(zc).ok_or(StatsError::Shape {
+            message: "Z column index out of range for kNN strata",
+        })?;
+        if col.len() < n || col.iter().take(n).any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape {
+                message: "non-finite Z in conditional permutation strata",
+            });
         }
     }
-    let mut map: HashMap<u64, Vec<usize>> = HashMap::new();
-    for r in 0..n {
-        map.entry(keys[r]).or_default().push(r);
+    Ok(())
+}
+
+fn joint_z_keys(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<u64> {
+    let mut keys = vec![0xcbf2_9ce4_8422_2325_u64; n];
+    for &zc in z {
+        let col = columns[zc];
+        for (r, key) in keys.iter_mut().enumerate() {
+            *key ^= col[r].to_bits();
+            *key = key.wrapping_mul(0x0100_0000_01b3);
+        }
     }
-    let mut sorted_keys: Vec<u64> = map.keys().copied().collect();
-    sorted_keys.sort_unstable();
-    sorted_keys.into_iter().filter_map(|k| map.remove(&k)).collect()
+    keys
+}
+
+/// Order rows along a 1-D embedding of standardised Z, then cut into contiguous
+/// windows of size `neighbourhood`. For univariate Z this is an ordinary sort;
+/// for multivariate Z the embedding is distance from the origin in Z-space
+/// (with the first coordinate as a tie-break), which keeps nearby Z together.
+fn local_z_neighbourhood_strata(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+    neighbourhood: usize,
+) -> Result<Vec<Vec<usize>>, StatsError> {
+    let zdim = z.len();
+    let mut feats = vec![0.0; n * zdim];
+    for (j, &zc) in z.iter().enumerate() {
+        let col = columns[zc];
+        let mean = col.iter().take(n).sum::<f64>() / n as f64;
+        let var = col
+            .iter()
+            .take(n)
+            .map(|v| {
+                let d = v - mean;
+                d * d
+            })
+            .sum::<f64>()
+            / n as f64;
+        let sd = var.sqrt();
+        if sd.is_finite() && sd > 0.0 {
+            for r in 0..n {
+                feats[r * zdim + j] = (col[r] - mean) / sd;
+            }
+        }
+    }
+    let mut order: Vec<usize> = (0..n).collect();
+    if zdim == 1 {
+        order.sort_by(|&a, &b| {
+            feats[a]
+                .partial_cmp(&feats[b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.cmp(&b))
+        });
+    } else {
+        order.sort_by(|&a, &b| {
+            let da: f64 = (0..zdim).map(|j| feats[a * zdim + j].powi(2)).sum();
+            let db: f64 = (0..zdim).map(|j| feats[b * zdim + j].powi(2)).sum();
+            da.partial_cmp(&db)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| {
+                    feats[a * zdim]
+                        .partial_cmp(&feats[b * zdim])
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then_with(|| a.cmp(&b))
+        });
+    }
+    let m = neighbourhood.clamp(2, n);
+    let mut strata = Vec::new();
+    let mut start = 0usize;
+    while start < n {
+        let mut end = (start + m).min(n);
+        if end < n && n - end < m {
+            // Absorb a tiny remainder into the last full window.
+            end = n;
+        }
+        strata.push(order[start..end].to_vec());
+        start = end;
+    }
+    Ok(strata)
+}
+
+/// Former name retained as a thin wrapper for call sites / docs that still say "coarse".
+#[cfg(test)]
+fn coarse_z_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Result<Vec<Vec<usize>>, StatsError> {
+    z_permutation_strata(columns, z, n, 5)
 }
 
 /// Mixed-data kNN distance dependence: ranks discrete-looking columns then runs [`KnnDependence`].
@@ -330,6 +440,13 @@ impl ConditionalIndependenceTest for MixedKnnDependence {
         prepared.ensure_compatible(request)?;
         let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
+        for col in request.columns {
+            if col.iter().any(|v| !v.is_finite()) {
+                return Err(StatsError::Shape {
+                    message: "non-finite value in MixedKnnDependence rank path",
+                });
+            }
+        }
         let mut owned: Vec<Vec<f64>> = request.columns.iter().map(|c| c.to_vec()).collect();
         for col in &mut owned {
             if looks_discrete(col) {
@@ -653,21 +770,53 @@ fn gp_residual(
     gp: &Gpdc,
 ) -> Result<Vec<f64>, StatsError> {
     let n = y.len();
+    if y.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape { message: "non-finite response in GPDC residualization" });
+    }
     let mean = y.iter().sum::<f64>() / n as f64;
     let centered: Vec<f64> = y.iter().map(|value| value - mean).collect();
     if z.is_empty() {
         return Ok(centered);
     }
-    // Build Gram on Z (sum of RBF over Z dims) and solve (K+λI)α = y.
+    // Standardise each Z column before the fixed RBF length scale so conditioning
+    // does not silently fail when Z is far from unit scale (stats-ci-4).
+    let zdim = z.len();
+    let mut z_std = vec![0.0; n * zdim];
+    for (j, &zc) in z.iter().enumerate() {
+        let col = columns.get(zc).ok_or(StatsError::Shape {
+            message: "Z column index out of range for GPDC",
+        })?;
+        if col.len() < n || col.iter().take(n).any(|v| !v.is_finite()) {
+            return Err(StatsError::Shape { message: "non-finite Z in GPDC residualization" });
+        }
+        let mean_z = col.iter().take(n).sum::<f64>() / n as f64;
+        let var_z = col
+            .iter()
+            .take(n)
+            .map(|v| {
+                let d = v - mean_z;
+                d * d
+            })
+            .sum::<f64>()
+            / n as f64;
+        let sd = var_z.sqrt();
+        if sd.is_finite() && sd > 0.0 {
+            for r in 0..n {
+                z_std[r * zdim + j] = (col[r] - mean_z) / sd;
+            }
+        }
+    }
+    // Build Gram on standardised Z (sum of RBF over Z dims) and solve (K+λI)α = y.
     let mut k = vec![0.0; n * n];
+    let ls2 = gp.length_scale * gp.length_scale;
     for i in 0..n {
         for j in 0..=i {
             let mut d2 = 0.0;
-            for &zc in z {
-                let d = columns[zc][i] - columns[zc][j];
-                d2 += d * d;
+            for d in 0..zdim {
+                let diff = z_std[i * zdim + d] - z_std[j * zdim + d];
+                d2 += diff * diff;
             }
-            let kij = (-0.5 * d2 / (gp.length_scale * gp.length_scale)).exp();
+            let kij = (-0.5 * d2 / ls2).exp();
             k[i * n + j] = kij;
             k[j * n + i] = kij;
         }
@@ -782,8 +931,8 @@ mod tests {
     /// three draw that line in different places, and this pins all three.
     ///
     /// `KnnDependence` and `SymbolicCmi` build their null as an exchange within Z strata
-    /// (`coarse_z_strata` / `symbol_strata_sorted`). **With a conditioning set** those strata are
-    /// rank-bin or symbol hashes whose members are scattered across time: preserving `Y|Z` needs
+    /// (`z_permutation_strata` / `symbol_strata_sorted`). **With a conditioning set** those strata are
+    /// Z-level or local-neighbourhood groups whose members are scattered across time: preserving `Y|Z` needs
     /// permutation within scattered index sets, preserving serial dependence needs contiguous
     /// runs, and the two cannot both hold. A caller asking for `block_size = 20` to preserve
     /// 20-step serial dependence must not silently receive an ordinary within-stratum exchange,
@@ -1064,5 +1213,165 @@ mod tests {
         let ctx = ExecutionContext::for_tests(14);
         let out = KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value > 0.05, "p={}", out.results[0].p_value);
+    }
+
+    /// stats-ci-1: continuous Z with Y←Z must not yield Type I ≈ 1 under X ⊥ Y | Z.
+    #[test]
+    fn knn_continuous_z_null_type_i_not_near_one() {
+        let n = 120usize;
+        let trials = 200u32;
+        let alpha = 0.05;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(0xC11_C0u64);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let ci = KnnDependence::new(5);
+        let mut rejects = 0u32;
+        for t in 0..trials {
+            let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(u64::from(t)));
+            let z: Vec<f64> = (0..n).map(|_| {
+                let u = (rng.next_u64() as f64) / (u64::MAX as f64);
+                // Box–Muller half: approximate N(0,1)
+                let v = (rng.next_u64() as f64) / (u64::MAX as f64);
+                let r = (-2.0 * (u.max(1e-12)).ln()).sqrt();
+                r * (2.0 * std::f64::consts::PI * v).cos()
+            }).collect();
+            let y: Vec<f64> = z
+                .iter()
+                .map(|&zi| {
+                    let e = (rng.next_u64() as f64) / (u64::MAX as f64) - 0.5;
+                    zi + 0.35 * e
+                })
+                .collect();
+            let x: Vec<f64> = (0..n)
+                .map(|_| (rng.next_u64() as f64) / (u64::MAX as f64) - 0.5)
+                .collect();
+            let cols: [&[f64]; 3] = [&x, &y, &z];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::None,
+            };
+            let out = ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+            if out.results[0].p_value < alpha {
+                rejects += 1;
+            }
+        }
+        let rate = f64::from(rejects) / f64::from(trials);
+        // Coarse tercile nulls reject ≈ 1.0 here; local neighbourhoods must stay far below that.
+        assert!(
+            rate < 0.25,
+            "continuous-Z kNN type I near 1 (or badly inflated): {rate} ({rejects}/{trials})"
+        );
+    }
+
+    /// stats-ci-4: standardised Z lets GPDC condition when Z is scaled by ~100.
+    #[test]
+    fn gpdc_scaled_z_null_and_power() {
+        let n = 80usize;
+        let trials = 80u32;
+        let alpha = 0.05;
+        let scale = 100.0;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(0x69DC_5Cu64);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let ci = Gpdc::new();
+        let mut null_rej = 0u32;
+        let mut alt_rej = 0u32;
+        for t in 0..trials {
+            let noise_z = lcg_noise(n, 100 + u64::from(t));
+            let noise_x = lcg_noise(n, 200 + u64::from(t));
+            let noise_y = lcg_noise(n, 300 + u64::from(t));
+            let z: Vec<f64> = noise_z.iter().map(|e| scale * e).collect();
+            // Null: X ⊥ Y | Z with both driven by Z.
+            let x_null: Vec<f64> =
+                z.iter().zip(&noise_x).map(|(zi, e)| 0.01 * zi + e).collect();
+            let y_null: Vec<f64> =
+                z.iter().zip(&noise_y).map(|(zi, e)| 0.02 * zi + e).collect();
+            let cols_null: [&[f64]; 3] = [&x_null, &y_null, &z];
+            let req = CiBatchRequest {
+                columns: &cols_null,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::None,
+            };
+            let out = ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+            if out.results[0].p_value < alpha {
+                null_rej += 1;
+            }
+            // Alt: residual X–Y dependence after conditioning on Z.
+            let x_alt = x_null.clone();
+            let y_alt: Vec<f64> =
+                x_alt.iter().zip(&y_null).map(|(xi, yi)| xi + yi).collect();
+            let cols_alt: [&[f64]; 3] = [&x_alt, &y_alt, &z];
+            let req_alt = CiBatchRequest {
+                columns: &cols_alt,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::None,
+            };
+            let out_alt = ci.test_batch_adhoc(&req_alt, &mut ws, &ctx).unwrap();
+            if out_alt.results[0].p_value < alpha {
+                alt_rej += 1;
+            }
+        }
+        let type_i = f64::from(null_rej) / f64::from(trials);
+        let power = f64::from(alt_rej) / f64::from(trials);
+        assert!(
+            type_i < 0.25,
+            "scaled-Z GPDC null rejects near 1 without standardisation: {type_i}"
+        );
+        assert!(power > 0.5, "scaled-Z GPDC lost power after standardisation: {power}");
+    }
+
+    /// stats-ci-5: non-finite Z must not become a finite stratum / rank result.
+    #[test]
+    fn nonfinite_z_and_rank_path_return_errors() {
+        let n = 30usize;
+        let mut z: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        z[7] = f64::NAN;
+        let x = lcg_noise(n, 1);
+        let y = lcg_noise(n, 2);
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        assert!(
+            KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).is_err(),
+            "KnnDependence must refuse non-finite Z"
+        );
+        assert!(
+            coarse_z_strata(&cols, &[2], n).is_err(),
+            "coarse_z_strata / z_permutation_strata must refuse non-finite Z"
+        );
+
+        let mut x_nan = x.clone();
+        x_nan[3] = f64::INFINITY;
+        let z_ok: Vec<f64> = (0..n).map(|i| (i % 4) as f64).collect();
+        let cols_rank: [&[f64]; 3] = [&x_nan, &y, &z_ok];
+        let req_rank = CiBatchRequest {
+            columns: &cols_rank,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        assert!(
+            MixedKnnDependence::new(3).test_batch_adhoc(&req_rank, &mut ws, &ctx).is_err(),
+            "MixedKnnDependence rank path must refuse non-finite input"
+        );
     }
 }
