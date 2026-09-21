@@ -582,6 +582,11 @@ fn eig_graph_entropy(
 
     let prior_h = shannon_entropy(&graphs.weights);
     let reliability = observation_reliability(candidate);
+    // A zero-information design must not enter the soft channel: reliability 0 would
+    // zero the matched-category likelihood and invent anti-information.
+    if reliability <= 0.0 {
+        return 0.0;
+    }
     let true_cat = cat_index(labels[graph_idx]);
 
     // Sample soft observation of the true graph's categorical feature.
@@ -610,22 +615,24 @@ fn eig_graph_entropy(
 /// This is `1 − exp(−c · k)` (or a sample-size saturating map), not a likelihood
 /// `p(y | G, design)`. Scores that call this are heuristic channel entropy, not EIG.
 fn observation_reliability(candidate: &CandidateDesign) -> f64 {
+    // Lower bound is 0, not a positive floor: clamping a no-op up to 0.05 made
+    // zero-information designs score like weakly informative ones (attr-design-state-5).
     match candidate {
         CandidateDesign::Measure(p) => {
             let k = p.variables.len() as f64;
-            (1.0 - (-0.75 * k).exp()).clamp(0.05, 0.99)
+            (1.0 - (-0.75 * k).exp()).clamp(0.0, 0.99)
         }
         CandidateDesign::Intervene(p) => {
             let k = p.targets.len() as f64;
-            (1.0 - (-1.0 * k).exp()).clamp(0.05, 0.99)
+            (1.0 - (-1.0 * k).exp()).clamp(0.0, 0.99)
         }
         CandidateDesign::ObserveEnvironment(p) => {
             let n = p.additional_rows as f64;
-            (1.0 - (1.0 + n / 50.0).recip()).clamp(0.05, 0.95)
+            (1.0 - (1.0 + n / 50.0).recip()).clamp(0.0, 0.95)
         }
         CandidateDesign::IncreaseSamplingRate(p) => {
             let n = p.additional_samples as f64;
-            (1.0 - (1.0 + n / 50.0).recip()).clamp(0.05, 0.95)
+            (1.0 - (1.0 + n / 50.0).recip()).clamp(0.0, 0.95)
         }
     }
 }
@@ -1015,23 +1022,45 @@ mod tests {
     #[test]
     fn ranks_measurement_above_noop_sampling_for_entropy() {
         let graphs = toy_graphs();
-        let candidates = vec![
-            CandidateDesign::IncreaseSamplingRate(SamplingPlan {
-                additional_samples: 1,
-                cost: DesignCost::zero(),
-                tag: 1,
-            }),
-            CandidateDesign::Measure(MeasurementPlan {
-                variables: Arc::from([VariableId::from_raw(2)]),
-                cost: DesignCost::zero(),
-                tag: 20,
-            }),
-        ];
+        // additional_samples = 0 is a true no-op (raw reliability 0). The old
+        // clamp(0.05, …) floored it, so a no-op scored like weakly informative
+        // sampling; the previous sorted[0] >= sorted[1] check could never fail.
+        let noop = CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: 0,
+            cost: DesignCost::zero(),
+            tag: 1,
+        });
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 20,
+        });
+        let mut rng = CausalRng::from_seed(20_260_921);
+        let n_draw = 4_000;
+        let mut sum_noop = 0.0;
+        let mut sum_measure = 0.0;
+        for _ in 0..n_draw {
+            let g = (rng.next_u64() as usize) % graphs.n_samples;
+            sum_noop += eig_graph_entropy(&noop, &graphs, g, None, &mut rng);
+            sum_measure += eig_graph_entropy(&measure, &graphs, g, None, &mut rng);
+        }
+        let mean_noop = sum_noop / n_draw as f64;
+        let mean_measure = sum_measure / n_draw as f64;
+        assert!(
+            mean_noop.abs() < 1e-12,
+            "no-op must score zero information under the entropy channel, got {mean_noop}"
+        );
+        assert!(
+            mean_measure > mean_noop,
+            "measure ({mean_measure}) must strictly beat no-op ({mean_noop})"
+        );
+
+        let candidates = vec![noop, measure];
         let ranker = DesignRanker::new().with_config(DesignRankConfig {
-            min_batches: 2,
-            max_batches: 8,
-            batch_size: 4,
-            rank_uncertainty_threshold: 0.5,
+            min_batches: 8,
+            max_batches: 32,
+            batch_size: 8,
+            rank_uncertainty_threshold: 0.05,
         });
         let ctx = ExecutionContext::for_tests(7);
         let eval = DesignEvaluationContext::<(), ()> {
@@ -1048,9 +1077,9 @@ mod tests {
             .rank(&DesignObjective::ReduceGraphEntropy, &candidates, &eval, &ctx)
             .expect("rank");
         assert_eq!(ranking.ranked.len(), 2);
-        assert!(ranking.budget.samples > 0);
-        // Higher-reliability Measure should not score below tiny sampling on average.
-        assert!(ranking.ranked[0].score >= ranking.ranked[1].score - 1e-9);
+        assert_eq!(ranking.ranked[0].candidate.tag(), 20);
+        assert!(ranking.ranked[0].score > ranking.ranked[1].score);
+        assert!(ranking.ranked[1].score.abs() < 1e-12);
     }
 
     #[test]
