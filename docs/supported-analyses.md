@@ -3,7 +3,10 @@
 Support depends on the question, graph, how the graph was obtained, inference
 method, and validation settings. In these docs, **licensed** means that this
 combination has a supported execution path with recorded evidence and limits.
-It does not establish that your graph is correct or your data are adequate.
+It does not establish that your graph is correct or your data are adequate,
+and it does not mean the cell's interval coverage was measured: the
+[support matrix](support-matrix.md) counts the licensed cells that have no
+coverage measurement for their estimator.
 
 Start with the closest worked example, then check its exact settings:
 

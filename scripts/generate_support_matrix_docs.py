@@ -242,6 +242,8 @@ def main() -> int:
         "on internal evidence only."
     )
 
+    calibration_md = calibration_summary(cells)
+
     text = f"""# Support matrix
 
 Want to check a particular analysis? Start with [supported analyses](supported-analyses.md).
@@ -286,6 +288,8 @@ but the current matrix has no active allowlist entries.
 Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
+
+{calibration_md}
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
@@ -392,6 +396,36 @@ that class came from that discovery strategy.
     return 0
 
 
+def calibration_summary(cells: list[dict]) -> str:
+    """One sentence saying how many licensed cells carry interval-coverage records.
+
+    A licensed cell is not necessarily a cell whose interval was ever measured;
+    the split by `calibration_reason` keeps that visible.
+    """
+    total = len(cells)
+    recorded = sum(1 for c in cells if c.get("calibration"))
+    not_measured = sum(
+        1 for c in cells if c.get("calibration_reason") == "estimator_grid_not_measured"
+    )
+    no_interval = sum(
+        1 for c in cells if c.get("calibration_reason") == "no_interval_reported"
+    )
+    other = total - recorded - not_measured - no_interval
+    if other:
+        raise AssertionError(
+            f"{other} licensed cells have neither calibration records nor a known "
+            "calibration_reason"
+        )
+    return (
+        f"Interval calibration of the {total} licensed cells: {recorded} cite coverage "
+        f"records; {not_measured} have no coverage measurement for their estimator "
+        f"(`estimator_grid_not_measured`); {no_interval} report no interval "
+        "(`no_interval_reported`). A licensed cell therefore does not imply that its "
+        "interval coverage was measured, and cited records do not by themselves make "
+        "a result `calibrated` (see `result.calibration`)."
+    )
+
+
 def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
     """Compact only graph classes with identical rectangular cell products."""
     from itertools import product as iproduct
@@ -478,6 +512,8 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
         f"{counts['reason_backed_refused']} refused with a reason on file; "
         f"{counts['unreasoned_refused']} refused without a reason; "
         f"{counts['allowed']} active `allowed_unlicensed` compatibility entries.",
+        "",
+        calibration_summary(cells),
         "",
     ] + render_release_licensed(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END

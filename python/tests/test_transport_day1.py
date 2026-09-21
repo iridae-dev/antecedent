@@ -344,3 +344,36 @@ def test_provider_refused_on_ordinary_query():
         assert error.reason_code == "option_not_applicable"
     else:
         raise AssertionError("provider= must be refused on non-transport queries")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "DirectFormula",
+        "NonTransportableCertificate",
+        "PopulationFactor",
+        "RecursiveFactorizationFormula",
+        "SelectionDiagram",
+        "StandardizationFormula",
+        "TransportCertificate",
+        "TransportIdentification",
+        "TransportQuery",
+        "TrialTransportEstimate",
+        "estimate_trial_effect",
+        "identify",
+    ],
+)
+def test_names_moved_in_2_0_point_at_advanced(name):
+    # The 1.11 spelling is gone, the 2.0 spelling exists, and the error says where.
+    with pytest.raises(AttributeError, match=f"transport.advanced.{name}"):
+        getattr(transport, name)
+    assert hasattr(transport.advanced, name)
+    assert name not in transport.__all__
+
+
+def test_root_transport_query_removal_names_its_replacement():
+    import antecedent
+
+    with pytest.raises(AttributeError, match="antecedent.transport.advanced.TransportQuery"):
+        antecedent.TransportQuery  # noqa: B018
+    assert "TransportQuery" not in antecedent.__all__

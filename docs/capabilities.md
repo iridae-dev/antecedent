@@ -5,8 +5,8 @@ mental model or a promise that every combination can run. Read
 [what “supported” means](guarantees.md) for the distinction between capability,
 licensed execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
-is the public **license** for analysis cells. 1.11 inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/1.11/parity/compiler.toml)
+is the public **license** for analysis cells. Inspect / claim / reuse /
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v2.0.0/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -65,8 +65,7 @@ distinct `StreamDomain` RNG streams) at Imbens–Manski tails; both are flagged
 completion enumeration. Temporal PAG results retain MAG
 completions and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: TemporalPag
-mediation, temporal graph-posterior responses,
-partial-graph derivatives, graph-posterior / nested counterfactuals,
+mediation, partial-graph derivatives, graph-posterior / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
 
@@ -102,9 +101,9 @@ licensed (explicit/accepted, Frequentist and Bayesian) via a MEC envelope;
 runtime class stays `Cpdag`. Completing the graph yourself is still the `Dag`
 cell. Pulse and single-step Sustained on incomplete `TemporalCpdag` /
 `TemporalPag` are licensed (explicit/accepted, Frequentist) via a completion
-envelope. A fully oriented supplied class stays that class. Completing those
-graphs yourself is still the `TemporalDag` coordinate. Bayesian
-incomplete-class temporal cells stay refused.
+envelope, and the Bayesian counterparts are licensed as well. A fully oriented
+supplied class stays that class. Completing those graphs yourself is still the
+`TemporalDag` coordinate.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
 CBOR artifacts.
@@ -249,9 +248,16 @@ Implemented identification strategies:
 * temporal mediation;
 * pairwise backdoor identification for continuous-response functionals;
 * sharp binary-IV Balke–Pearl ATE bounds by response-type enumeration;
-* single-source selection-diagram transport on a sound sID subset (direct,
-  S-admissible / exogenous standardization, singleton c-components), with
-  `NotCertified` outside that subset.
+* classical single-source sID (Bareinboim–Pearl Figure-5 recursion, access to
+  all source experiments): an independently checked symbolic distribution, an
+  independently verified s-hedge `ProvenNonTransportable` certificate, or
+  `NotCertified` where the recursion meets an obstruction it cannot certify;
+  meta-transport does the same across sources. Completeness holds only in
+  those experimental-information families;
+* catalog-bound single-source transport on a sound but incomplete subset
+  (direct, S-admissible / exogenous standardization, singleton c-components),
+  with `NotCertified` outside that subset. Failing to bind a formula to a finite
+  supplied catalog is not a non-transportability proof.
 
 `AutoIdentifier` reports applicable strategies. It does not silently choose an
 estimator.
@@ -272,8 +278,10 @@ implemented, and there is no PAG-native IDC. A circle-free graph that is not a
 maximal ancestral graph (for example the front-door ADMG `T -> M -> Y`,
 `T <-> Y`) has no completion and identifies nothing as a `Pag`; hold it as an
 `Admg`. This is not a path-specific, distribution, or mediation surface.
-General multi-node sID recursion and definitive non-transportability
-certificates are outside the 0.9 transport contract.
+Transport completeness is per theorem family (see
+[transport scope](guides/transport-scope.md)): classical sID and meta-transport
+are complete only in their experimental-information families, and the finite
+catalog search is sound and incomplete.
 
 ## Estimation
 
@@ -316,7 +324,8 @@ the structure before estimating a response.
 The list above is inventory. Derivative cells are licensed on explicit or
 accepted DAGs under Frequentist and Bayesian inference at validation `none`;
 partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
-licensed on `Dag`, `TemporalDag`, `Admg`, `Cpdag`, and `Pag` under Frequentist
+licensed on `Dag`, `Admg`, `Cpdag`, `Pag`, `TemporalDag`, `TemporalCpdag`, and
+`TemporalPag` under Frequentist
 and Bayesian inference with validation `none` (class graphs via the completion
 envelope: generalized adjustment per completion, then, for `Pag`, the sound but
 incomplete visibility-aware ID described under identification; see the
@@ -540,7 +549,7 @@ invariant rather than the license.
 
 Conditional effects, temporal mediation and DBN-posterior pulse/sustained effects license query-native `cheap` and `full` validation. Multi-step Sustained refuters re-estimate the complete sequential model. Bayesian checks retain each child mechanism for PPC; full prior sensitivity refits the composed effect. Single-regression sensitivity formulas are inapplicable to composed effects, while sequential unobserved-confounder perturbations remain available. Composed mediation and
 multi-step sustained posteriors support conjugate and Laplace backends; HMC
-composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
+composition remains refused. Per-cell evidence is in the [support matrix](support-matrix.md).
 
 ## Observation, transport, and interference
 
@@ -558,10 +567,11 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   censored, truncated, and selected mechanisms. Assumptions are declared
   separately from the recorded columns; MAR / independent censoring is never
   inferred from column presence.
-* **Structural transport** (`antecedent.transport`): single-source selection
-  diagrams, the `identify` stage, and `TransportQuery`, whose trial-to-target
+* **Structural transport** (`antecedent.transport`, theorem-stage types in
+  `antecedent.transport.advanced`): single-source selection
+  diagrams, the `identify` stage, and `advanced.TransportQuery`, whose trial-to-target
   IPW reports separate selection and treatment overlap diagnostics
-  (`result.transport_overlap`). `transport.estimate_trial_effect` remains an
+  (`result.transport_overlap`). `transport.advanced.estimate_trial_effect` remains an
   unlicensed IPW/AIPW utility that returns bare numbers. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,

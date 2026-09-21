@@ -8,6 +8,19 @@ the interval can under-cover, and the result carries
 `estimate.temporal.circular_block_se.short_series`. This page records the
 measurement behind when that warning fires.
 
+## Level of the measurement
+
+Results render one interval, `estimate ± 1.96·SE` at 0.95. The sweeps below
+measure a different object: a nominal-0.90 normal interval
+`estimate ± z₀.₉₀·SE` formed from the same published, 95%-scaled SE, because the
+calibration gates' 400-replicate band is defined at that level (a failure line of
+0.855 is 4.5 points under 0.90; at 0.95 the corresponding gate lower edge is
+0.917). Both intervals scale the same SE, so a series too short for its serial
+dependence understates that SE at either level, but the thresholds themselves
+were set from the 0.90 sweeps only. A statement in this page that a cell
+"covers" or "fails" refers to that 0.90 interval, never to the interval a result
+shows.
+
 ## Statistic
 
 The warning reads the *score effective rows*

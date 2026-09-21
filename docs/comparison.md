@@ -18,7 +18,9 @@ in the codebase is not necessarily a licensed `analyze()` combination.
 The active 2.0 preparation matrix composes **463 licensed combinations** of
 1403 meaningful cells into an inspectable, reusable execution workflow. Each combination
 fixes the question, graph class, structure source, inference method, and
-validation level. A successful licensed Python analysis retains a study and
+validation level. Licensed does not mean interval coverage was measured: the
+support matrix counts the cells with no coverage measurement for their
+estimator. A successful licensed Python analysis retains a study and
 exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
@@ -31,12 +33,14 @@ Some important distinctions when choosing a workflow:
 - Static DAG graph-posterior paths include average effects, conditional effects,
   response curves, and one-coordinate intervention responses. Each has its own
   inference and validation restrictions.
-- Temporal DAG graph-posterior paths include Pulse and Sustained effects under
-  both inference modes. Temporal mediation supports Bayesian validation
-  `none`/`cheap`/`full` and Frequentist validation `none`.
-- Bayesian envelopes on incomplete `TemporalCpdag` and `TemporalPag` graphs
-  are supported for licensed queries. A caller-supplied `ClassPrior` can provide
-  mixture weights; enumerating completions alone does not assign probabilities.
+- Temporal graph-posterior paths include Pulse and Sustained effects under
+  both inference modes, and temporal mediation on `TemporalDag` and
+  `TemporalCpdag` under both inference modes at validation
+  `none`/`cheap`/`full`. `TemporalPag` mediation is not licensed.
+- Frequentist and Bayesian envelopes on incomplete `TemporalCpdag` and
+  `TemporalPag` graphs are supported for licensed queries. A caller-supplied
+  `ClassPrior` can provide mixture weights; enumerating completions alone does
+  not assign probabilities.
 - Derivatives on explicit or accepted DAGs support Frequentist and Bayesian
   inference at validation `none`. Partial-graph derivatives remain refused.
 - ADMG interventional distributions run through Python `analyze`/`prepare` and
@@ -46,9 +50,9 @@ Some important distinctions when choosing a workflow:
 - Licensed transport and interference queries run through both Python `analyze`
   and Rust `Study`, with their explicit design assumptions.
 
-Graph-posterior response surfaces on temporal DAGs and posterior mixing over
-`TemporalCpdag`/`TemporalPag` atoms remain refused. ADMG graph-posterior
-AverageEffect at validation `none` identifies each atom with `general.id` and
+`ResponseCurve` and `InterventionResponse` are licensed on temporal DAG,
+`TemporalCpdag` and `TemporalPag` graph-posterior cells (see the matrix for
+the validation levels each admits). ADMG graph-posterior AverageEffect at validation `none` identifies each atom with `general.id` and
 estimates `functional.effect`; cheap/full stay closed. These are different
 requests from incomplete-class envelopes and from CPDAG/PAG graph-posterior
 AverageEffect, which evaluates each atom with the class ATE envelope and
@@ -75,7 +79,7 @@ black-box outputs from pinned external packages:
   reference outputs claimed by the capability manifests.
 - bpbounds 0.1.8 supplies the canonical binary-IV Balke–Pearl bounds fixture;
   causaleffect 1.3.15 supplies formula-class references only for Antecedent's
-  explicitly scoped sound sID subset.
+  explicitly scoped sound catalog-bound sID subset.
 
 Each external claim has an immutable record under `parity/baselines`, a frozen
 fixture, and an executing conformance test. See
@@ -105,9 +109,11 @@ CATE path (`estimators.DRLearner`) and a native honest causal forest
 (`estimators.CausalForest`). DR-Learner reports the marginal ATE and its IID
 interval from cross-fitted AIPW scores. A linear final stage also reports HC0
 pointwise CATE standard errors of those orthogonal scores; penalized or
-nonlinear finals withhold CATE intervals. The honest forest reports per-row
-SEs from the mean of two-sample leaf variances across trees — not GRF
-infinitesimal-jackknife inference. Robinson PLR
+nonlinear finals withhold CATE intervals. The honest forest's per-row `cate_se` is a
+leaf-dispersion diagnostic (the mean of two-sample leaf variances across
+trees). It omits between-tree and adaptive-neighbourhood variability, so it is
+not a pointwise standard error and `cate ± 1.96·cate_se` is not a confidence
+band; forest CATE predictions carry no pointwise intervals. Robinson PLR
 requires a constant conditional effect to interpret its slope as the ATE.
 The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
 covers a binary-treatment linear SCM at one sample size; it does not license
@@ -159,9 +165,12 @@ The following are current product boundaries or explicit matrix refusals:
 - no plotting module;
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
-- no complete general sID recursion;
-- no temporal graph-posterior response surface; for incomplete-class response
-  uncertainty, use the query-specific contracts in [causal responses](causal-responses.md);
+- transport identification is complete only within the experimental-information
+  families stated in [transport scope](guides/transport-scope.md); catalog-bound
+  search is sound and incomplete, and `NotCertified` is not a
+  non-transportability proof;
+- for incomplete-class response uncertainty, use the query-specific contracts in
+  [causal responses](causal-responses.md);
 - no partial-graph derivative cells;
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.

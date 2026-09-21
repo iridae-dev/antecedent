@@ -96,6 +96,7 @@ cargo run -p antecedent --example <name>
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |
 
-The three transport scripts share one workflow and differ only in evidence.
+The three transport scripts need Antecedent 2.0 (in preparation); the 1.11
+release does not have `antecedent.transport.Transport`. They share one workflow and differ only in evidence.
 Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`.
 Exact and complementary-source examples make no sampling-coverage claim.

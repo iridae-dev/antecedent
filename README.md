@@ -90,6 +90,9 @@ preparation tree. Read `result.calibration`: `calibrated` means a coverage
 record matches the execution, the execution is inside that record's scope, and
 the record still attests the current code. Existing records have drifted facets
 and do not attest this tree, so a `calibrated` slot is not expected here.
+Licensed also does not mean measured: of the 463 licensed cells, 167 have no
+coverage measurement for their estimator and 4 report no interval (counts in the
+[support matrix](docs/support-matrix.md)).
 
 See the [2.0 draft release notes](docs/release-notes/v2.0.0.md),
 [architecture](docs/architecture.md), [artifacts](docs/artifacts.md), and

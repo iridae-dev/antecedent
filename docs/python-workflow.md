@@ -1,7 +1,9 @@
 # Your first Python analysis
 
 Estimate an effect, check the answer, and reuse the analysis on new data.
-This guide uses Antecedent 1.11.
+This guide uses Antecedent 1.11 except for the [transport](#transport-the-same-way)
+section, which needs 2.0 (in preparation; the 1.11 release has no
+`antecedent.transport.Transport`).
 
 ## Install
 
@@ -87,7 +89,7 @@ Calibration describes the evidence for the reported interval:
 
 An identified effect or a passing diagnostic does not establish calibration.
 
-Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated only when a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code; scope_not_assessed when a record matches but the execution is outside its scope, the record is a boundary, or the record is stale / non-attesting; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 
@@ -147,6 +149,11 @@ See [supported analyses](supported-analyses.md) and the
 
 ## Transport the same way
 
+This section needs Antecedent 2.0. Its `data` and `graph` are not the
+quickstart's: `data` holds `price`, `sales`, and `preference` columns for the
+trial, and `graph` is an `Admg` over those three variables, for example
+`ant.Admg.from_edges(["price", "sales", "preference"], [("price", "sales"), ("preference", "sales")])`.
+
 Wrap an ordinary question. Source identity, intervention regime, and sampling
 are scientific claims on `evidence`; the table only supplies columns and a
 snapshot digest.
@@ -176,6 +183,13 @@ identified but a joint is unbound, `identify(...).inspect()` and
 Not-certified, missing evidence, local support failure, an uncalibrated
 interval, and a budget refusal are different outcomes. Do not treat them as
 one error.
+
+A transport result exports through its own day-1 view, not the contracted
+execution the sections above describe. `ant.load(result.export())` rebuilds the
+result view from the verified identification and specialist artifacts and
+returns that view (`AnalysisResult` or `CausalResponseView`), not a
+`LoadedResult`: there is no `acceptance` slot to read, it is not a verified
+analysis program, and it does not restore a live study.
 
 See [the 2.0 transport UX migration](migrations/2.0-transport-day1.md),
 [the failure guide](guides/transport-failure.md), and

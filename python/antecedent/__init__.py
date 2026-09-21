@@ -274,4 +274,11 @@ def __getattr__(name: str) -> _NoReturn:
             "builders moved to antecedent.population "
             "(e.g. antecedent.population.target_all())"
         )
+    if name == "TransportQuery":
+        raise AttributeError(
+            "antecedent.TransportQuery was removed from the root in 2.0; the trial-IPW "
+            "query is antecedent.transport.advanced.TransportQuery, and the ordinary "
+            "question wrapper is antecedent.transport.Transport "
+            "(see docs/migrations/2.0-transport-day1.md)"
+        )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

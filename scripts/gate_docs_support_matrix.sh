@@ -219,6 +219,57 @@ for row in claims.get("forbidden", []):
                 f"(line {line} of the scanned text)"
             )
 
+# Prose that quotes how many licensed cells lack a coverage measurement must
+# quote the registry's counts.
+licensed_cells = tomllib.load(open(root / "parity/support_licensed.toml", "rb")).get("cell", [])
+not_measured = sum(
+    1 for c in licensed_cells if c.get("calibration_reason") == "estimator_grid_not_measured"
+)
+no_interval = sum(
+    1 for c in licensed_cells if c.get("calibration_reason") == "no_interval_reported"
+)
+for rel, phrases in (
+    (
+        "docs/guarantees.md",
+        (
+            f"Of the {len(licensed_cells)} licensed cells",
+            f"{not_measured} have no coverage measurement",
+            f"{no_interval} report no interval",
+        ),
+    ),
+    (
+        "README.md",
+        (
+            f"of the {len(licensed_cells)} licensed cells, {not_measured} have no",
+            f"{no_interval} report no interval",
+        ),
+    ),
+):
+    text = (root / rel).read_text()
+    for phrase in phrases:
+        if phrase not in text:
+            fail.append(f"{rel}: calibration-coverage count must read {phrase!r}")
+
+# The temporal-response short-series threshold is quoted in prose; the prose
+# must carry the constant the code warns on.
+dispersion = root / "crates/antecedent-estimate/src/temporal_response_dispersion.rs"
+threshold = re.search(
+    r"pub const RESPONSE_SHORT_SERIES_ROWS: f64 = ([0-9.]+);", dispersion.read_text()
+)
+if threshold is None:
+    fail.append(f"{dispersion}: RESPONSE_SHORT_SERIES_ROWS not found")
+else:
+    rows = threshold.group(1).removesuffix(".0")
+    for rel, phrase in (
+        ("docs/causal-responses.md", f"fewer than {rows} effective rows"),
+        ("docs/capabilities.md", f"short_series` warns below {rows}"),
+    ):
+        if phrase not in (root / rel).read_text():
+            fail.append(
+                f"{rel}: temporal-response short-series threshold must read "
+                f"{phrase!r} (RESPONSE_SHORT_SERIES_ROWS = {threshold.group(1)})"
+            )
+
 if fail:
     print("Docs support-matrix gate FAILED:")
     for item in fail:
