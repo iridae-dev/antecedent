@@ -33,6 +33,7 @@ pub mod dag;
 pub mod dsep;
 pub mod error;
 pub mod marked_storage;
+mod mec_search;
 pub mod msep;
 pub mod named;
 pub mod overlay;

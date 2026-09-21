@@ -209,39 +209,31 @@ impl Admg {
         }
 
         // Bidirected-connected districts in the ancestral subgraph; clique C ∪ pa(C).
-        let mut district = vec![u32::MAX; n];
-        let mut n_districts = 0u32;
-        let mut stack = Vec::new();
-        for i in 0..n {
-            let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
-            if !ws.ancestral.contains(u) || district[i] != u32::MAX {
-                continue;
+        let n_districts = self.districts_into(
+            Some(&ws.ancestral),
+            &mut ws.district_label,
+            &mut ws.district_stack,
+        ) as usize;
+        let mut groups = core::mem::take(&mut ws.district_groups);
+        groups.iter_mut().for_each(Vec::clear);
+        groups.resize_with(n_districts.max(groups.len()), Vec::new);
+        for (i, &label) in ws.district_label.iter().enumerate() {
+            if label != u32::MAX {
+                groups[label as usize]
+                    .push(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
             }
-            district[i] = n_districts;
-            stack.push(u);
-            while let Some(v) = stack.pop() {
-                for &w in self.bidirected_neighbors(v) {
-                    let wi = w.as_usize();
-                    if ws.ancestral.contains(w) && district[wi] == u32::MAX {
-                        district[wi] = n_districts;
-                        stack.push(w);
-                    }
-                }
-            }
-            n_districts += 1;
         }
-        for d in 0..n_districts {
-            let mut clique = Vec::new();
-            for (i, &label) in district.iter().enumerate() {
-                if label != d {
-                    continue;
-                }
-                let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
-                if !clique.iter().any(|&x| x == u) {
+        let mut clique = core::mem::take(&mut ws.clique);
+        for members in &groups[..n_districts] {
+            clique.clear();
+            for &u in members {
+                if !ws.clique_mark.contains(u) {
+                    ws.clique_mark.insert(u);
                     clique.push(u);
                 }
                 for &p in self.parents(u) {
-                    if ws.ancestral.contains(p) && !clique.iter().any(|&x| x == p) {
+                    if ws.ancestral.contains(p) && !ws.clique_mark.contains(p) {
+                        ws.clique_mark.insert(p);
                         clique.push(p);
                     }
                 }
@@ -251,7 +243,12 @@ impl Admg {
                     Self::add_undirected(ws, a, b);
                 }
             }
+            for &u in &clique {
+                ws.clique_mark.remove(u);
+            }
         }
+        ws.clique = clique;
+        ws.district_groups = groups;
     }
 
     /// m-separation Markov blanket of `node`: neighbors in the Richardson-moralized
@@ -543,7 +540,7 @@ impl Pag {
                 return false;
             }
             examined += 1;
-            if self.path_is_definite_status(path) && self.path_active_given(path, z) {
+            if self.path_is_definite_status(path) && self.path_active_on_edges(path, z) {
                 definite_active = Some(path.to_vec());
                 return false;
             }
@@ -741,7 +738,7 @@ mod pag_msep_tests {
         g.insert_directed(a, b).unwrap();
         assert!(!g.is_m_separated(a, b, &[a], 32, 8).unwrap());
         assert!(!g.is_m_separated(a, b, &[b], 32, 8).unwrap());
-        assert!(g.path_active_given(&[a, b], &[a]));
+        assert!(g.path_active_given(&[a, b], &[a]).unwrap());
     }
 
     #[test]

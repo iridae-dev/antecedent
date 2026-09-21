@@ -182,22 +182,22 @@ impl Admg {
         }
     }
 
-    /// Children of `id` (directed).
+    /// Children of `id` (directed; empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.children[id.as_usize()]
+        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
-    /// Parents of `id` (directed).
+    /// Parents of `id` (directed; empty for an id outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.parents[id.as_usize()]
+        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
-    /// Bidirected neighbors of `id`.
+    /// Bidirected neighbors of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn bidirected_neighbors(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.bidirected[id.as_usize()]
+        self.bidirected.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
     /// Whether any bidirected edge is present.
@@ -258,21 +258,46 @@ impl Admg {
     /// Returns a district id per dense node (`0..n_districts-1`).
     #[must_use]
     pub fn districts(&self) -> Vec<u32> {
+        let mut label = Vec::new();
+        self.districts_into(None, &mut label, &mut Vec::new());
+        label
+    }
+
+    /// Districts of the subgraph induced on `within`: bidirected-connected components using
+    /// only nodes of `within`. Returns a district id per dense node; nodes outside `within`
+    /// carry `u32::MAX`.
+    #[must_use]
+    pub fn districts_within(&self, within: &BitSet) -> Vec<u32> {
+        let mut label = Vec::new();
+        self.districts_into(Some(within), &mut label, &mut Vec::new());
+        label
+    }
+
+    /// Allocation-reusing core of [`Self::districts`] / [`Self::districts_within`]; returns
+    /// the number of districts.
+    pub(crate) fn districts_into(
+        &self,
+        within: Option<&BitSet>,
+        label: &mut Vec<u32>,
+        stack: &mut Vec<DenseNodeId>,
+    ) -> u32 {
         let n = self.node_count();
-        let mut label = vec![u32::MAX; n];
+        let inside = |v: DenseNodeId| within.is_none_or(|w| w.contains(v));
+        label.clear();
+        label.resize(n, u32::MAX);
+        stack.clear();
         let mut next = 0u32;
-        let mut stack = Vec::new();
         for i in 0..n {
-            if label[i] != u32::MAX {
+            let root = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            if label[i] != u32::MAX || !inside(root) {
                 continue;
             }
-            let root = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             label[i] = next;
             stack.push(root);
             while let Some(u) = stack.pop() {
                 for &v in self.bidirected_neighbors(u) {
                     let vi = v.as_usize();
-                    if label[vi] == u32::MAX {
+                    if label[vi] == u32::MAX && inside(v) {
                         label[vi] = next;
                         stack.push(v);
                     }
@@ -280,7 +305,7 @@ impl Admg {
             }
             next += 1;
         }
-        label
+        next
     }
 
     /// Number of districts.

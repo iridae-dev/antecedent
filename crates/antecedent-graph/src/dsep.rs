@@ -65,6 +65,16 @@ pub struct DSeparationWorkspace {
     pub pred: Vec<Option<DenseNodeId>>,
     /// Graph traversal workspace.
     pub graph_ws: GraphWorkspace,
+    /// District label per node (ADMG moralization scratch).
+    pub(crate) district_label: Vec<u32>,
+    /// District search stack (ADMG moralization scratch).
+    pub(crate) district_stack: Vec<DenseNodeId>,
+    /// Nodes of each district, ascending (ADMG moralization scratch).
+    pub(crate) district_groups: Vec<Vec<DenseNodeId>>,
+    /// Clique `C ∪ pa(C)` under construction (ADMG moralization scratch).
+    pub(crate) clique: Vec<DenseNodeId>,
+    /// Membership marks for [`Self::clique`].
+    pub(crate) clique_mark: BitSet,
 }
 
 impl DSeparationWorkspace {
@@ -81,6 +91,8 @@ impl DSeparationWorkspace {
         self.pred.clear();
         self.pred.resize(n, None);
         self.graph_ws.prepare(n);
+        self.clique_mark.resize(n);
+        self.clique_mark.clear();
     }
 }
 

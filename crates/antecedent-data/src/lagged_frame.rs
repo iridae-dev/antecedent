@@ -12,8 +12,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, Lag, VariableId};
-use antecedent_kernels::{F64VectorView, gather};
 
+use crate::buffer::F64Buffer;
 use crate::column::{ColumnView, ValidityBitmap};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
@@ -37,7 +37,10 @@ impl Default for LaggedFrameOptions {
     }
 }
 
-/// Pre-materialized lagged frame: one contiguous column per `(variable, lag)`.
+/// Lagged frame: one contiguous column per `(variable, lag)`.
+///
+/// Frames built from a series borrow every column as a window of the source buffer (no
+/// copy); stacking, compacting or appending dummy columns materialises a gathered copy.
 ///
 /// Layout is column-major over slots `variable_slot * (max_lag + 1) + lag`.
 /// Per-column [`ValidityBitmap`]s record whether each effective row's source
@@ -52,10 +55,21 @@ pub struct LaggedFrame {
     max_lag: u32,
     n_effective: usize,
     n_lags: usize,
-    /// Column-major values: `n_cols * n_effective`.
-    values: Vec<f64>,
+    values: ColumnValues,
     /// Per lagged-column validity (`ncols` bitmaps, each length `n_effective`).
     validity: Vec<ValidityBitmap>,
+}
+
+/// Backing storage for a frame's value columns.
+#[derive(Clone, Debug)]
+enum ColumnValues {
+    /// Column-major gathered copy: `n_cols * n_effective`. Needed once rows are
+    /// stacked, compacted or synthesised.
+    Gathered(Vec<f64>),
+    /// Zero-copy: one shared source buffer per variable slot. Lag `l` of sample
+    /// `i` reads raw row `base_t + i - l`, so every `(variable, lag)` column is the
+    /// contiguous window `src[base_t - l ..][..n_effective]`.
+    Shared { sources: Vec<F64Buffer>, base_t: usize },
 }
 
 /// Variable → slot map for O(1) [`LaggedFrame::column_index`].
@@ -123,7 +137,7 @@ impl LaggedFrame {
         max_lag: u32,
         reference: ReferencePointPolicy,
         options: LaggedFrameOptions,
-        policy: &KernelPolicy,
+        _policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
         if variables.is_empty() {
             return Err(DataError::InvalidArgument {
@@ -134,17 +148,15 @@ impl LaggedFrame {
         let n_effective = lag_map.n_effective();
         let n_lags = max_lag as usize + 1;
         let n_cols = variables.len().saturating_mul(n_lags);
-        let mut values = vec![0.0; n_cols.saturating_mul(n_effective)];
+        let mut sources = Vec::with_capacity(variables.len());
         let mut validity = Vec::with_capacity(n_cols);
-
-        // Row indexes depend only on the lag: compute each lag's gather once.
-        let mut lag_rows = vec![vec![0usize; n_effective]; n_lags];
-        for (lag, rows) in lag_rows.iter_mut().enumerate() {
-            lag_map.fill_row_indexes(Lag::from_raw(lag as u32), rows)?;
-        }
+        let base_t = lag_map.base_row();
 
         let analysis = data.storage().analysis_mask();
-        for (slot, &var) in variables.iter().enumerate() {
+        let mask_all_valid = analysis.is_none_or(ValidityBitmap::is_all_valid);
+        // Shared by every column whose source and mask are fully valid.
+        let all_valid = ValidityBitmap::all_valid(n_effective);
+        for &var in variables {
             let ColumnView::Float64(src) = data.column(var)? else {
                 return Err(DataError::TypeMismatch { id: var, expected: "float64" });
             };
@@ -165,18 +177,24 @@ impl LaggedFrame {
                     }
                 }
             }
-            let src_view = F64VectorView::contiguous(src.values.as_slice());
-            for (lag, rows) in lag_rows.iter().enumerate() {
-                let col = slot * n_lags + lag;
-                let dst = &mut values[col * n_effective..(col + 1) * n_effective];
-                gather(policy, src_view, rows, dst);
-                let col_valid = gather_column_validity(src, analysis, options.mask, rows)?;
-                validity.push(col_valid);
+            let clean = src.validity.is_all_valid()
+                && (options.mask == MaskPolicy::Ignore || mask_all_valid);
+            for lag in 0..n_lags {
+                if clean {
+                    validity.push(all_valid.clone());
+                } else {
+                    // Lag `lag` reads the contiguous raw rows `base_t - lag ..`.
+                    let start = base_t - lag;
+                    let rows: Vec<usize> = (start..start + n_effective).collect();
+                    validity.push(gather_column_validity(src, analysis, options.mask, &rows)?);
+                }
             }
+            sources.push(src.values.clone());
         }
 
         let variables: Arc<[VariableId]> = Arc::from(variables);
         let slot_index = slot_map(&variables);
+        let values = ColumnValues::Shared { sources, base_t };
         Ok(Self { variables, slot_index, max_lag, n_effective, n_lags, values, validity })
     }
 
@@ -210,10 +228,14 @@ impl LaggedFrame {
         self.validity.iter().all(ValidityBitmap::is_all_valid)
     }
 
-    /// Byte size of the gathered value buffer.
+    /// Logical byte size of the value columns (`ncols * n_effective * 8`).
+    ///
+    /// A frame built by `from_series*` borrows its columns from the source buffers
+    /// and copies nothing; stacked, compacted or dummy-augmented frames own this many
+    /// bytes.
     #[must_use]
     pub fn values_bytes(&self) -> u64 {
-        (self.values.len() * core::mem::size_of::<f64>()) as u64
+        (self.ncols().saturating_mul(self.n_effective) * core::mem::size_of::<f64>()) as u64
     }
 
     /// Dense column index for `(variable, lag)`, or `None` if unknown / out of range.
@@ -235,7 +257,14 @@ impl LaggedFrame {
     #[must_use]
     pub fn column(&self, idx: usize) -> &[f64] {
         let n = self.n_effective;
-        &self.values[idx * n..(idx + 1) * n]
+        match &self.values {
+            ColumnValues::Gathered(values) => &values[idx * n..(idx + 1) * n],
+            ColumnValues::Shared { sources, base_t } => {
+                assert!(idx < self.ncols(), "column index {idx} out of range");
+                let start = base_t - idx % self.n_lags;
+                &sources[idx / self.n_lags].as_slice()[start..start + n]
+            }
+        }
     }
 
     /// Borrow per-row validity for lagged column `idx`.
@@ -321,7 +350,7 @@ impl LaggedFrame {
             max_lag: self.max_lag,
             n_effective: n_new,
             n_lags: self.n_lags,
-            values,
+            values: ColumnValues::Gathered(values),
             validity,
         })
     }
@@ -377,7 +406,7 @@ impl LaggedFrame {
             max_lag: first.max_lag,
             n_effective: n_eff,
             n_lags: first.n_lags,
-            values,
+            values: ColumnValues::Gathered(values),
             validity,
         })
     }
@@ -423,7 +452,9 @@ impl LaggedFrame {
         let new_slots = columns.len();
         let n_cols = old_cols + new_slots * n_lags;
         let mut values = vec![0.0; n_cols.saturating_mul(n_eff)];
-        values[..old_cols * n_eff].copy_from_slice(&self.values);
+        for c in 0..old_cols {
+            values[c * n_eff..(c + 1) * n_eff].copy_from_slice(self.column(c));
+        }
         let mut validity = self.validity.clone();
         for (s, (_id, col)) in columns.iter().enumerate() {
             for lag in 0..n_lags {
@@ -439,7 +470,7 @@ impl LaggedFrame {
             max_lag: self.max_lag,
             n_effective: n_eff,
             n_lags,
-            values,
+            values: ColumnValues::Gathered(values),
             validity,
         })
     }
@@ -568,6 +599,34 @@ mod tests {
         assert!((frame.column(i)[0] - 2.0).abs() < 1e-12);
         let j = frame.column_index(vars[1], Lag::from_raw(1)).unwrap();
         assert!((frame.column(j)[0] - 101.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn columns_borrow_source_windows_without_copying() {
+        let data = float_series(20, 2);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let policy = KernelPolicy::default_policy();
+        for (reference, base) in [
+            (ReferencePointPolicy::SeriesOrigin, 2usize),
+            (ReferencePointPolicy::AbsoluteOrigin { origin_row: 5 }, 5usize),
+        ] {
+            let frame =
+                LaggedFrame::from_series_with_reference(&data, &vars, 2, reference, &policy)
+                    .unwrap();
+            assert_eq!(frame.n_effective(), 20 - base);
+            for &v in &vars {
+                let ColumnView::Float64(src) = data.column(v).unwrap() else { panic!() };
+                for lag in 0..=2u32 {
+                    let idx = frame.column_index(v, Lag::from_raw(lag)).unwrap();
+                    let start = base - lag as usize;
+                    let want = &src.values.as_slice()[start..start + frame.n_effective()];
+                    assert_eq!(frame.column(idx), want);
+                    // A view, not a gathered copy.
+                    assert!(std::ptr::eq(frame.column(idx).as_ptr(), want.as_ptr()));
+                }
+            }
+            assert!(frame.is_fully_valid());
+        }
     }
 
     #[test]

@@ -458,8 +458,26 @@ impl Pag {
     /// Whether a definite-status path is active given `z` (m-connecting).
     ///
     /// A collider is open if it **or any definite directed descendant** is in `z`.
-    #[must_use]
-    pub fn path_active_given(&self, path: &[DenseNodeId], z: &[DenseNodeId]) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::InvalidEndpoints`] when `path` is not a walk over existing edges of this
+    /// graph (an unknown node, or two consecutive nodes that are not adjacent).
+    pub fn path_active_given(
+        &self,
+        path: &[DenseNodeId],
+        z: &[DenseNodeId],
+    ) -> Result<bool, GraphError> {
+        if path.windows(2).any(|w| self.edge_between(w[0], w[1]).is_none()) {
+            return Err(GraphError::InvalidEndpoints {
+                message: "path_active_given: consecutive path nodes must be adjacent",
+            });
+        }
+        Ok(self.path_active_on_edges(path, z))
+    }
+
+    /// [`Self::path_active_given`] for a path already known to follow existing edges.
+    pub(crate) fn path_active_on_edges(&self, path: &[DenseNodeId], z: &[DenseNodeId]) -> bool {
         if path.len() < 2 {
             return false;
         }
@@ -471,8 +489,10 @@ impl Pag {
             let pred = path[i - 1];
             let v = path[i];
             let succ = path[i + 1];
-            let e1 = self.edge_between(pred, v).expect("path edge");
-            let e2 = self.edge_between(v, succ).expect("path edge");
+            let (Some(e1), Some(e2)) = (self.edge_between(pred, v), self.edge_between(v, succ))
+            else {
+                return false;
+            };
             let mark_from_pred = if e1.a == v { e1.at_a } else { e1.at_b };
             let mark_from_succ = if e2.a == v { e2.at_a } else { e2.at_b };
             let collider = matches!(mark_from_pred, Endpoint::Arrow)
@@ -526,8 +546,13 @@ mod tests {
         g.insert_directed(b, c).unwrap();
         let paths = g.definite_status_paths(a, c, 10, 8).unwrap();
         assert!(!paths.paths.is_empty());
-        assert!(g.path_active_given(&paths.paths[0].nodes, &[]));
-        assert!(!g.path_active_given(&paths.paths[0].nodes, &[b]));
+        assert!(g.path_active_given(&paths.paths[0].nodes, &[]).unwrap());
+        assert!(!g.path_active_given(&paths.paths[0].nodes, &[b]).unwrap());
+        // Non-paths and unknown nodes are errors, not panics.
+        assert!(g.path_active_given(&[a, c], &[]).is_err());
+        assert!(g.path_active_given(&[a, DenseNodeId::from_raw(99)], &[]).is_err());
+        // Accessors on out-of-range ids are empty rather than panicking.
+        assert_eq!(g.neighbors(DenseNodeId::from_raw(99)).count(), 0);
     }
 }
 
