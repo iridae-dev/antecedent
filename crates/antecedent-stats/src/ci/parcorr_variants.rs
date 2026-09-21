@@ -25,7 +25,12 @@ use crate::error::StatsError;
 use crate::gram::{chol_log_det, cholesky_spd, invert_square};
 
 #[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
-pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
+pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) -> Result<(), StatsError> {
+    if col.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "non-finite values in rank transform",
+        });
+    }
     let n = col.len();
     let mut idx: Vec<usize> = (0..n).collect();
     idx.sort_by(|&i, &j| col[i].partial_cmp(&col[j]).unwrap_or(std::cmp::Ordering::Equal));
@@ -42,6 +47,25 @@ pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) {
             out[idx[k]] = avg_rank;
         }
         i = j + 1;
+    }
+    Ok(())
+}
+
+/// Kish effective sample size after the same [`sanitize_weight`] the weighted
+/// statistic applies: `n_eff = (Σw)² / Σw²`. Zero / non-finite / negative
+/// weights contribute nothing and cannot inflate df.
+fn kish_effective_n(weights: &[f64]) -> f64 {
+    let mut sum = 0.0;
+    let mut sum_sq = 0.0;
+    for &w in weights {
+        let w = sanitize_weight(w);
+        sum += w;
+        sum_sq += w * w;
+    }
+    if sum_sq > 0.0 {
+        (sum * sum) / sum_sq
+    } else {
+        0.0
     }
 }
 
@@ -72,7 +96,7 @@ impl ConditionalIndependenceTest for RobustPartialCorrelation {
         let n = request.nrows()?;
         let mut ranked: Vec<Vec<f64>> = request.columns.iter().map(|_| vec![0.0; n]).collect();
         for (c, col) in request.columns.iter().enumerate() {
-            rank_column(col, &mut ranked[c]);
+            rank_column(col, &mut ranked[c])?;
         }
         let refs: Vec<&[f64]> = ranked.iter().map(Vec::as_slice).collect();
         let req = CiBatchRequest {
@@ -128,7 +152,7 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
         for (qi, q) in request.queries.iter().enumerate() {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let r = weighted_parcorr_stat(request.columns, q.x, q.y, z, weights, n, policy)?;
-            let df = (n as f64) - 2.0 - (q.z_len as f64);
+            let df = kish_effective_n(weights) - 2.0 - (q.z_len as f64);
             let result = match request.significance {
                 SignificanceMethod::Analytic => {
                     if df <= 0.0 {
@@ -725,11 +749,40 @@ mod tests {
     #[allow(clippy::float_cmp)] // Exact midranks are integer or half-integer values.
     fn review_ranks_preserve_distinct_values_under_rescaling() {
         let mut ranks = [0.0; 4];
-        rank_column(&[3e-20, 1e-20, 1e-20, 2e-20], &mut ranks);
+        rank_column(&[3e-20, 1e-20, 1e-20, 2e-20], &mut ranks).unwrap();
         assert_eq!(ranks, [4.0, 1.5, 1.5, 3.0]);
     }
 
+    #[test]
+    fn review_rank_column_refuses_nonfinite() {
+        let mut ranks = [0.0; 3];
+        let err = rank_column(&[1.0, f64::NAN, 2.0], &mut ranks).unwrap_err();
+        assert!(matches!(err, StatsError::Shape { .. }));
+        assert!(ranks.iter().all(|&r| r == 0.0), "must not publish finite ranks on error");
+        let err = rank_column(&[1.0, f64::INFINITY, 2.0], &mut ranks).unwrap_err();
+        assert!(matches!(err, StatsError::Shape { .. }));
+    }
+
     use super::*;
+
+    #[test]
+    fn review_robust_refuses_nan_before_statistic() {
+        let x = [1.0, 2.0, 3.0, 4.0];
+        let y = [1.0, f64::NAN, 3.0, 4.0];
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let err = RobustPartialCorrelation::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        assert!(matches!(err, StatsError::Shape { .. }));
+    }
 
     #[test]
     fn robust_detects_monotonic_dependence() {
@@ -763,6 +816,69 @@ mod tests {
         let ys: Vec<f64> = y.iter().map(|v| v * scale).collect();
         let r2 = weighted_pearson(&policy, &xs, &ys, &w).expect("small-scale correlation");
         assert!((r1 - r2).abs() < 1e-12, "r1={r1} r2={r2}");
+    }
+
+    #[test]
+    fn review_weighted_df_uses_kish_effective_n() {
+        let n = 40usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 0.5 * i as f64 + 0.1).collect();
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(9);
+
+        let equal = WeightedPartialCorrelation::new(vec![1.0; n])
+            .test_batch_adhoc(&req, &mut ws, &ctx)
+            .unwrap();
+        let unweighted_df = (n as f64) - 2.0;
+        assert!(
+            (equal.results[0].df - unweighted_df).abs() < 1e-12,
+            "equal weights must reproduce unweighted df; got {}",
+            equal.results[0].df
+        );
+
+        // One weight near 1, the rest near 0 (still enough mass that df > 0).
+        let mut concentrated = vec![0.02; n];
+        concentrated[0] = 1.0;
+        let sum: f64 = concentrated.iter().sum();
+        let sum_sq: f64 = concentrated.iter().map(|w| w * w).sum();
+        let expected_n_eff = (sum * sum) / sum_sq;
+        let expected_df = expected_n_eff - 2.0;
+        assert!(expected_n_eff < 4.0, "fixture n_eff={expected_n_eff}");
+        assert!(expected_df > 0.0);
+
+        let out = WeightedPartialCorrelation::new(concentrated.clone())
+            .test_batch_adhoc(&req, &mut ws, &ctx)
+            .unwrap();
+        let r = out.results[0].statistic;
+        let df = out.results[0].df;
+        let p = out.results[0].p_value;
+        assert!((df - expected_df).abs() < 1e-12, "df={df} expected={expected_df}");
+        assert!(df < unweighted_df / 5.0);
+        let p_naive = crate::ci::analytic::analytic_parcorr_pvalue(r, unweighted_df);
+        assert!(
+            p > p_naive,
+            "Kish df must inflate the p-value vs n−2−|Z|; p={p} p_naive={p_naive} df={df} r={r}"
+        );
+
+        // Explicit zeros must not inflate df (same positive mass as five unit weights).
+        let mut with_zeros = vec![0.0; n];
+        for w in &mut with_zeros[..5] {
+            *w = 1.0;
+        }
+        assert!((kish_effective_n(&with_zeros) - 5.0).abs() < 1e-12);
+        let zero_padded = WeightedPartialCorrelation::new(with_zeros)
+            .test_batch_adhoc(&req, &mut ws, &ctx)
+            .unwrap();
+        assert!((zero_padded.results[0].df - 3.0).abs() < 1e-12);
     }
 
     #[test]
