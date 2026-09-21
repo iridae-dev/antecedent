@@ -10,6 +10,22 @@ from numpy.typing import NDArray
 
 from .errors import CausalTypeError, CausalValueError
 
+# Integers beyond this are not exactly representable as float64.
+_EXACT_INT_LIMIT = 2**53
+
+
+def _refuse_column(message: str) -> CausalTypeError:
+    """Typed refusal for non-numeric or unsafe column coercions."""
+    return CausalTypeError(message, reason_code="invalid_argument")
+
+
+def _is_missing_scalar(value: Any) -> bool:
+    """True for ``None`` and pandas-style NA sentinels (not NumPy NaN floats)."""
+    if value is None:
+        return True
+    name = type(value).__name__
+    return name in {"NAType", "NaTType", "_NaT"}
+
 
 def ingest_columns(
     data: Mapping[str, Any] | Any,
@@ -27,14 +43,16 @@ def as_columns(
     """Normalize a mapping or pandas DataFrame to ``(names, float64 columns)``."""
     if isinstance(data, Mapping):
         names = list(data.keys())
-        cols = [to_f64(data[n]) for n in names]
+        cols = [to_f64(data[n], name=str(n)) for n in names]
+        _check_column_lengths([str(n) for n in names], cols)
         return names, cols
     if hasattr(data, "columns") and hasattr(data, "to_numpy"):
         names = [str(c) for c in data.columns]
         duplicated = sorted({n for n in names if names.count(n) > 1})
         if duplicated:
             raise CausalValueError(f"data has duplicate column names: {duplicated}")
-        cols = [to_f64(data[c].to_numpy()) for c in data.columns]
+        cols = [to_f64(data[c].to_numpy(), name=str(c)) for c in data.columns]
+        _check_column_lengths(names, cols)
         return names, cols
     arrow = try_as_arrow_c_columns(data)
     if arrow is not None:
@@ -134,8 +152,8 @@ def try_as_arrow_c_columns(
     return None
 
 
-def to_f64(arr: Any) -> NDArray[np.float64]:
-    """One numeric column as float64.
+def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
+    """One numeric column as float64, naming the column in errors when known.
 
     Only numeric inputs are accepted: floats, integers within 2**53 (larger ones
     do not survive the cast), and booleans (as 0/1). Strings, datetimes,
@@ -143,9 +161,10 @@ def to_f64(arr: Any) -> NDArray[np.float64]:
     (digit strings are labels, and a datetime is not a number of nanoseconds).
     A nullable pandas column's ``NA`` and ``None`` become NaN, which is missing.
     """
+    label = f" {name!r}" if name is not None else ""
     raw = np.asarray(arr)
     if raw.ndim != 1:
-        raise CausalValueError(f"expected 1-d column, got shape {raw.shape}")
+        raise CausalValueError(f"expected 1-d column{label}, got shape {raw.shape}")
     kind = raw.dtype.kind
     if kind == "O":
         values: list[float] = []
@@ -158,29 +177,45 @@ def to_f64(arr: Any) -> NDArray[np.float64]:
                 if abs(int(value)) > _EXACT_INT_LIMIT:
                     raise _refuse_column(
                         f"integer {int(value)} exceeds 2**53 and would lose precision as float64"
+                        + (f" (column{label})" if name is not None else "")
                     )
                 values.append(float(value))
             elif isinstance(value, (float, np.floating)):
                 values.append(float(value))
             else:
                 raise _refuse_column(
-                    f"column holds {type(value).__name__} values; only numeric values are "
-                    "accepted (encode categories and parse dates explicitly)"
+                    f"column{label} holds {type(value).__name__} values; only numeric values are "
+                    "accepted (encode categories / one-hot, or exclude the column; "
+                    "typed numeric Arrow columns can use try_as_arrow_c_columns for zero-copy)"
                 )
         return np.asarray(values, dtype=np.float64)
     if kind not in "fiub":
         raise _refuse_column(
-            f"column dtype {raw.dtype} is not numeric; only float, integer and boolean "
-            "columns are accepted (encode categories and parse dates explicitly)"
+            f"column{label} dtype {raw.dtype} is not numeric; only float, integer and boolean "
+            "columns are accepted (encode categories / one-hot, or exclude the column; "
+            "typed numeric Arrow columns can use try_as_arrow_c_columns for zero-copy)"
         )
     if kind in "iu" and raw.size:
         lowest, highest = int(raw.min()), int(raw.max())
         if highest > _EXACT_INT_LIMIT or lowest < -_EXACT_INT_LIMIT:
             raise _refuse_column(
-                f"integer column spans [{lowest}, {highest}], beyond 2**53, and would lose "
+                f"integer column{label} spans [{lowest}, {highest}], beyond 2**53, and would lose "
                 "precision as float64"
             )
     return np.asarray(raw, dtype=np.float64)
+
+
+def _check_column_lengths(names: list[str], cols: list[NDArray[np.float64]]) -> None:
+    if len(cols) < 2:
+        return
+    lengths = [int(c.shape[0]) for c in cols]
+    n0 = lengths[0]
+    if all(n == n0 for n in lengths):
+        return
+    detail = ", ".join(f"{name}={n}" for name, n in zip(names, lengths, strict=True))
+    raise ValueError(
+        f"column length mismatch ({detail}); align rows or subset to a common index"
+    )
 
 
 def _materialize_f64(column: Any) -> NDArray[np.float64]:
@@ -225,4 +260,7 @@ def coerce_data_args(
         return as_columns(data)
     if names is None or columns is None:
         raise TypeError("provide data=… or both names= and columns=")
-    return list(names), [to_f64(c) for c in columns]
+    out_names = list(names)
+    cols = [to_f64(c, name=str(n)) for n, c in zip(out_names, columns, strict=True)]
+    _check_column_lengths(out_names, cols)
+    return out_names, cols

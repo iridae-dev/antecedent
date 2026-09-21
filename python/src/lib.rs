@@ -2223,9 +2223,13 @@ pub(crate) fn columns_to_batch(
         return Err(PyValueError::new_err("at least one column required"));
     }
     let n = columns[0].as_array().len();
-    for col in columns {
-        if col.as_array().len() != n {
-            return Err(PyValueError::new_err("column length mismatch"));
+    for (i, col) in columns.iter().enumerate() {
+        let len = col.as_array().len();
+        if len != n {
+            return Err(PyValueError::new_err(format!(
+                "column length mismatch: '{}' has length {}, '{}' has length {}",
+                names[0], n, names[i], len
+            )));
         }
     }
     let fields: Vec<Field> =
