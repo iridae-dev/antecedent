@@ -6,9 +6,43 @@
 
 use antecedent_core::CausalRng;
 
-use crate::ci::SignificanceMethod;
-use crate::ci::nonparametric_permutation_count;
 use crate::error::StatsError;
+
+/// Permutations used by the mechanism-change tests when the caller does not choose: the
+/// smallest attainable p-value is `1 / (DEFAULT_MECHANISM_PERMUTATIONS + 1) = 0.001`, low
+/// enough to survive Bonferroni / BH over dozens of targets.
+pub const DEFAULT_MECHANISM_PERMUTATIONS: usize = 999;
+
+/// Segment size below which the Gaussian likelihood-ratio p-value is calibrated by
+/// permutation instead of the `χ²₂` asymptotics. At 5 rows per segment the asymptotic test
+/// rejects a true null about 11% of the time at nominal 5%; at 30 it is about 5.6%.
+const LR_ASYMPTOTIC_MIN_SEGMENT: usize = 30;
+
+/// Outcome of a Monte-Carlo permutation test, carrying the resolution of its p-value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PermutationTestResult {
+    /// Test statistic on the observed data.
+    pub statistic: f64,
+    /// Add-one permutation p-value `(1 + #{null ≥ observed}) / (1 + n_permutations)`.
+    pub p_value: f64,
+    /// Permutations drawn.
+    pub n_permutations: usize,
+    /// Smallest attainable p-value, `1 / (1 + n_permutations)`. A p-value at this floor
+    /// means "no permutation was as extreme", not "exactly zero".
+    pub p_floor: f64,
+}
+
+impl PermutationTestResult {
+    fn new(statistic: f64, exceed: usize, n_permutations: usize) -> Self {
+        let denom = (n_permutations + 1) as f64;
+        Self {
+            statistic,
+            p_value: (((exceed + 1) as f64) / denom).clamp(0.0, 1.0),
+            n_permutations,
+            p_floor: 1.0 / denom,
+        }
+    }
+}
 
 /// Gaussian KL divergence `KL(N(μ0,σ0²) ‖ N(μ1,σ1²))`.
 ///
@@ -83,14 +117,19 @@ pub fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
     Some(sorted[lo] + (h - lo as f64) * (sorted[hi] - sorted[lo]))
 }
 
-/// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a Welch-SE
-/// z-test p-value approximation (normal).
+/// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a Welch t-test
+/// p-value (Satterthwaite degrees of freedom, two-sided).
+///
+/// The reference distribution is Student-t, not normal: with the two or three observations
+/// per arm this function admits, a normal reference rejects a true null 12–19% of the time
+/// at nominal 5%. Two exactly constant samples with different means have zero standard
+/// error and return `p = 0`; identical constant samples return `p = 1`.
 ///
 /// Returns `(statistic, p_value)`.
 ///
 /// # Errors
 ///
-/// Empty samples.
+/// Fewer than two observations in a sample, or non-finite observations.
 pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsError> {
     if a.len() < 2 || b.len() < 2 {
         return Err(StatsError::Shape {
@@ -108,17 +147,21 @@ pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsErr
     let sb = sample_std(b);
     let va = sa * sa;
     let vb = sb * sb;
-    let se = (va / a.len() as f64 + vb / b.len() as f64).sqrt();
+    let (na, nb) = (a.len() as f64, b.len() as f64);
+    let (qa, qb) = (va / na, vb / nb);
+    let se = (qa + qb).sqrt();
     let difference = (ma - mb).abs();
-    let z = if se > 0.0 {
-        difference / se
+    let p = if se > 0.0 {
+        let t = difference / se;
+        // Welch–Satterthwaite: (qa + qb)² / (qa²/(na−1) + qb²/(nb−1)).
+        let df = (qa + qb).powi(2) / (qa * qa / (na - 1.0) + qb * qb / (nb - 1.0));
+        2.0 * crate::special::student_t_sf(t, df)
     } else if difference == 0.0 {
-        0.0
+        1.0
     } else {
-        f64::INFINITY
+        0.0
     };
-    let p = antecedent_kernels::erfc(z / std::f64::consts::SQRT_2);
-    Ok(((ma - mb).abs(), p.clamp(0.0, 1.0)))
+    Ok((difference, p.clamp(0.0, 1.0)))
 }
 
 /// Classifier two-sample test via Mann–Whitney U on 1-D scores (AUC-style).
@@ -201,7 +244,12 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
 ///
 /// Statistic is `n ln v̂₀ − n₀ ln v̂₀_seg − n₁ ln v̂₁_seg` (MLE variances),
 /// asymptotically `χ²₂` under equal mean and variance (Wilks). Returns
-/// `(lr_statistic, p_value)`. The chi-square calibration assumes positive
+/// `(lr_statistic, p_value)`. When both segments have at least 30 rows the p-value is the
+/// `χ²₂` tail; below that the asymptotics are anti-conservative (type-I error 33% at 2 v 2,
+/// 18% at 3 v 3, 11% at 5 v 5 for a nominal 5%), so the p-value is instead an exact
+/// permutation p-value (999 label permutations of the pooled residuals, seeded from the
+/// segments' order pattern so the result is reproducible and unit-free). The chi-square
+/// calibration assumes positive
 /// segment variances: constant pooled data return (0, 1) (nothing to compare), but a
 /// segment that is itself exactly constant — including the single-row case, whose
 /// sample variance is always exactly zero — is refused rather than reported. The
@@ -233,12 +281,37 @@ pub fn residual_likelihood_ratio(
 /// All-identical samples use bandwidth 1. P-value is a permutation
 /// null that reshuffles the pooled labels while keeping sample sizes fixed.
 ///
-/// Returns `(mmd², p_value)`.
+/// Returns `(mmd², p_value)` using [`DEFAULT_MECHANISM_PERMUTATIONS`] permutations; see
+/// [`kernel_two_sample_with_permutations`] for the permutation count and p-value floor.
 ///
 /// # Errors
 ///
-/// Empty samples.
+/// Empty or non-finite samples.
 pub fn kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
+    let r = kernel_two_sample_with_permutations(a, b, rng_seed, DEFAULT_MECHANISM_PERMUTATIONS)?;
+    Ok((r.statistic, r.p_value))
+}
+
+/// Pooled sample size up to which the pooled RBF Gram matrix is held in memory (`N² · 8`
+/// bytes, ≤ 128 MiB) so each permutation costs additions instead of `N²` exponentials.
+const MMD_GRAM_CACHE_MAX_POOLED: usize = 4096;
+
+/// [`kernel_two_sample`] with a caller-chosen permutation count, returning the p-value's
+/// resolution.
+///
+/// The pooled RBF Gram matrix is computed once and each permutation only re-partitions
+/// indices, so the cost is one `O(N²)` kernel evaluation plus `O(n_permutations · N²)`
+/// additions (kernel values are recomputed per permutation above 4096 pooled rows).
+///
+/// # Errors
+///
+/// Empty or non-finite samples, or `n_permutations == 0`.
+pub fn kernel_two_sample_with_permutations(
+    a: &[f64],
+    b: &[f64],
+    rng_seed: u64,
+    n_permutations: usize,
+) -> Result<PermutationTestResult, StatsError> {
     if a.is_empty() || b.is_empty() {
         return Err(StatsError::Shape { message: "kernel_two_sample requires non-empty samples" });
     }
@@ -247,30 +320,48 @@ pub fn kernel_two_sample(a: &[f64], b: &[f64], rng_seed: u64) -> Result<(f64, f6
             message: "kernel_two_sample requires finite observations",
         });
     }
-    let n_perm = nonparametric_permutation_count(SignificanceMethod::Analytic);
+    if n_permutations == 0 {
+        return Err(StatsError::Shape {
+            message: "permutation tests need at least one permutation",
+        });
+    }
+    let n_perm = n_permutations;
     // Separate, salted stream from the permutation shuffle below so bandwidth selection
     // and the null distribution don't share draws.
     let mut bandwidth_rng = CausalRng::from_seed(rng_seed ^ 0xB4E5_1C7A_9D02_33F1);
     let bandwidth = rbf_bandwidth_median_heuristic(a, b, &mut bandwidth_rng);
-    let observed = biased_mmd2(a, b, bandwidth);
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
     pooled.extend_from_slice(b);
     let na = a.len();
+    let n = pooled.len();
+    let gram = (n <= MMD_GRAM_CACHE_MAX_POOLED).then(|| pooled_rbf_gram(&pooled, bandwidth));
+    // Observed and null statistics take the same route so their fp rounding agrees.
+    let mut order: Vec<usize> = (0..n).collect();
+    let mmd2 = |order: &[usize], values: &[f64]| match &gram {
+        Some(k) => mmd2_from_gram(k, n, &order[..na], &order[na..]),
+        None => biased_mmd2(&values[..na], &values[na..], bandwidth),
+    };
+    let observed = mmd2(&order, &pooled);
     let mut rng = CausalRng::from_seed(rng_seed);
     let mut ge = 0usize;
     for _ in 0..n_perm {
-        fisher_yates_shuffle(&mut pooled, &mut rng);
-        let (pa, pb) = pooled.split_at(na);
-        let null_stat = biased_mmd2(pa, pb, bandwidth);
-        if null_stat >= observed {
+        if gram.is_some() {
+            fisher_yates_shuffle_index(&mut order, &mut rng);
+        } else {
+            fisher_yates_shuffle(&mut pooled, &mut rng);
+        }
+        let null_stat = mmd2(&order, &pooled);
+        if null_stat >= observed - MMD_TIE_TOLERANCE {
             ge += 1;
         }
     }
-    // Add-one smoothing so p ∈ (0, 1].
-    let p = ((ge + 1) as f64) / ((n_perm + 1) as f64);
-    Ok((observed, p.clamp(0.0, 1.0)))
+    Ok(PermutationTestResult::new(observed, ge, n_perm))
 }
+
+/// A permutation that reproduces the observed partition sums the same kernel values in a
+/// different order; treat statistics equal to within rounding as ties, not exceedances.
+const MMD_TIE_TOLERANCE: f64 = 1e-12;
 
 /// Known-split two-segment Gaussian change test on concatenated residuals.
 ///
@@ -322,28 +413,47 @@ pub fn change_point_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), Stats
 /// `max_k |S_k|` with `S_k = Σᵢ₌₁ᵏ (xᵢ − x̄)`, and a permutation null under
 /// exchangeability (reshuffles the series).
 ///
-/// Returns `(max_|CUSUM|, p_value)`.
+/// Returns `(max_|CUSUM|, p_value)` using [`DEFAULT_MECHANISM_PERMUTATIONS`] permutations.
 ///
 /// # Errors
 ///
 /// Series shorter than 4.
 pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
+    let r = change_point_scan_with_permutations(series, rng_seed, DEFAULT_MECHANISM_PERMUTATIONS)?;
+    Ok((r.statistic, r.p_value))
+}
+
+/// [`change_point_scan`] with a caller-chosen permutation count, returning the p-value's
+/// resolution.
+///
+/// # Errors
+///
+/// Series shorter than 4, or `n_permutations == 0`.
+pub fn change_point_scan_with_permutations(
+    series: &[f64],
+    rng_seed: u64,
+    n_permutations: usize,
+) -> Result<PermutationTestResult, StatsError> {
     if series.len() < 4 {
         return Err(StatsError::Shape { message: "change_point_scan requires len≥4" });
     }
+    if n_permutations == 0 {
+        return Err(StatsError::Shape {
+            message: "permutation tests need at least one permutation",
+        });
+    }
     let observed = max_abs_cusum(series);
-    let n_perm = nonparametric_permutation_count(SignificanceMethod::Analytic);
+    let n_perm = n_permutations;
     let mut buf = series.to_vec();
     let mut rng = CausalRng::from_seed(rng_seed);
     let mut ge = 0usize;
     for _ in 0..n_perm {
         fisher_yates_shuffle(&mut buf, &mut rng);
-        if max_abs_cusum(&buf) >= observed {
+        if max_abs_cusum(&buf) >= observed - 1e-12 * (1.0 + observed) {
             ge += 1;
         }
     }
-    let p = ((ge + 1) as f64) / ((n_perm + 1) as f64);
-    Ok((observed, p.clamp(0.0, 1.0)))
+    Ok(PermutationTestResult::new(observed, ge, n_perm))
 }
 
 /// Pair count below which the exact median pairwise-|diff| is affordable to compute.
@@ -414,6 +524,38 @@ fn biased_mmd2(a: &[f64], b: &[f64], bandwidth: f64) -> f64 {
     kxx / (na * na) + kyy / (nb * nb) - 2.0 * kxy / (na * nb)
 }
 
+/// Pooled RBF Gram matrix (row-major `n × n`).
+fn pooled_rbf_gram(pooled: &[f64], bandwidth: f64) -> Vec<f64> {
+    let n = pooled.len();
+    let mut k = vec![0.0; n * n];
+    for i in 0..n {
+        k[i * n + i] = 1.0;
+        for j in (i + 1)..n {
+            let v = rbf(pooled[i], pooled[j], bandwidth);
+            k[i * n + j] = v;
+            k[j * n + i] = v;
+        }
+    }
+    k
+}
+
+/// Biased MMD² for the index sets `ia` / `ib` of a precomputed pooled Gram matrix.
+fn mmd2_from_gram(k: &[f64], n: usize, ia: &[usize], ib: &[usize]) -> f64 {
+    let block_sum = |rows: &[usize], cols: &[usize]| -> f64 {
+        let mut s = 0.0;
+        for &i in rows {
+            let row = &k[i * n..(i + 1) * n];
+            for &j in cols {
+                s += row[j];
+            }
+        }
+        s
+    };
+    let (na, nb) = (ia.len() as f64, ib.len() as f64);
+    block_sum(ia, ia) / (na * na) + block_sum(ib, ib) / (nb * nb)
+        - 2.0 * block_sum(ia, ib) / (na * nb)
+}
+
 #[inline]
 fn rbf(x: f64, y: f64, bandwidth: f64) -> f64 {
     let d = (x - y) / bandwidth;
@@ -421,6 +563,10 @@ fn rbf(x: f64, y: f64, bandwidth: f64) -> f64 {
 }
 
 fn fisher_yates_shuffle(xs: &mut [f64], rng: &mut CausalRng) {
+    antecedent_kernels::shuffle(rng, xs);
+}
+
+fn fisher_yates_shuffle_index(xs: &mut [usize], rng: &mut CausalRng) {
     antecedent_kernels::shuffle(rng, xs);
 }
 
@@ -474,8 +620,43 @@ fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsE
     }
     // Gaussian mean+var change: 2(ℓ_alt−ℓ_null) = n ln v0 − n1 ln v1 − n2 ln v2 ~ χ²_2.
     let stat = (n * v0.ln() - n1 * v1.ln() - n2 * v2.ln()).max(0.0);
-    let p = crate::special::gamma_q(1.0, stat * 0.5).clamp(0.0, 1.0);
+    if left.len().min(right.len()) >= LR_ASYMPTOTIC_MIN_SEGMENT {
+        let p = crate::special::gamma_q(1.0, stat * 0.5).clamp(0.0, 1.0);
+        return Ok((stat, p));
+    }
+    // Small segments: the Wilks χ²₂ is far too liberal, so calibrate by permuting the
+    // segment labels of the pooled (scaled) residuals. Exact under exchangeability of the
+    // two segments, valid at any size. A permuted segment that is constant has an infinite
+    // statistic, which counts as at least as extreme as the observed one.
+    let mut pooled: Vec<f64> = scaled_left.iter().chain(&scaled_right).copied().collect();
+    let mut rng = CausalRng::from_seed(segment_order_seed(&pooled, left.len()));
+    let mut exceed = 0usize;
+    for _ in 0..DEFAULT_MECHANISM_PERMUTATIONS {
+        antecedent_kernels::shuffle(&mut rng, &mut pooled);
+        let (_, w1) = mean_var(&pooled[..left.len()]);
+        let (_, w2) = mean_var(&pooled[left.len()..]);
+        let null_stat = n * v0.ln() - n1 * w1.ln() - n2 * w2.ln();
+        if null_stat >= stat - 1e-12 * (1.0 + stat) {
+            exceed += 1;
+        }
+    }
+    let p = PermutationTestResult::new(stat, exceed, DEFAULT_MECHANISM_PERMUTATIONS).p_value;
     Ok((stat, p))
+}
+
+/// Seed for the small-segment permutation null, derived from which segment each pooled
+/// value belongs to in sorted order. That pattern is invariant to any positive rescaling
+/// of the residuals, so the p-value stays unit-free, and it is fully determined by the
+/// data, so repeated calls agree.
+fn segment_order_seed(pooled: &[f64], n_left: usize) -> u64 {
+    let mut idx: Vec<usize> = (0..pooled.len()).collect();
+    idx.sort_by(|&i, &j| pooled[i].total_cmp(&pooled[j]).then(i.cmp(&j)));
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ (pooled.len() as u64) ^ ((n_left as u64) << 32);
+    for i in idx {
+        h ^= u64::from(i < n_left) + 1;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
 }
 
 /// Max absolute CUSUM of demeaned `series` (interior points only).
@@ -597,11 +778,78 @@ mod tests {
     }
 
     #[test]
-    fn mean_diff_matches_direct_welch_normal_formula() {
+    fn mean_diff_is_a_welch_t_test_with_satterthwaite_df() {
+        // Both samples have n = 2 and variance 2, so se² = 1 + 1 and the Satterthwaite df is
+        // 2² / (1 + 1) = 2. A Student-t with 2 df has the closed-form two-sided tail
+        // 1 − t / √(2 + t²); the old normal reference gave erfc(t/√2) instead.
         let (stat, p) = mean_diff_two_sample(&[0.0, 2.0], &[1.0, 3.0]).unwrap();
-        let expected = antecedent_kernels::erfc(0.5);
         assert!((stat - 1.0).abs() <= 1e-12);
-        assert!((p - expected).abs() <= 1e-12);
+        // t = 1/√2 ⇒ 1 − (1/√2)/√(2.5) = 1 − 1/√5.
+        assert!((p - (1.0 - 1.0 / 5.0_f64.sqrt())).abs() <= 1e-9, "p={p}");
+
+        // Larger shift: t = 10/√2, t² = 50 ⇒ p = 1 − √(50/52) = 1 − 5/√26 ≈ 0.0194,
+        // against 1.5e-12 from the normal reference.
+        let (_, p) = mean_diff_two_sample(&[0.0, 2.0], &[10.0, 12.0]).unwrap();
+        assert!((p - (1.0 - 5.0 / 26.0_f64.sqrt())).abs() <= 1e-9, "p={p}");
+    }
+
+    #[test]
+    fn residual_lr_small_segments_use_a_permutation_null() {
+        // Pooled {0,1,2,3}, 2 v 2. The observed split {0,1 | 2,3} attains the maximal
+        // statistic, which exactly two of the C(4,2) = 6 label assignments reach ({01|23}
+        // and {23|01}) ⇒ exact permutation p = 2/6. The χ²₂ tail of the statistic
+        // (4 ln 1.25 + 4 ln 4 ≈ 6.44) is exp(−3.22) ≈ 0.04, i.e. a false "change".
+        let (stat, p) = residual_likelihood_ratio(&[0.0, 1.0], &[2.0, 3.0]).unwrap();
+        assert!((stat - (4.0 * 1.25_f64.ln() + 4.0 * 4.0_f64.ln())).abs() < 1e-9, "stat={stat}");
+        assert!((p - 1.0 / 3.0).abs() < 0.07, "p={p}");
+        // Reproducible: the seed is derived from the data.
+        assert_eq!(p, residual_likelihood_ratio(&[0.0, 1.0], &[2.0, 3.0]).unwrap().1);
+        // Large segments keep the asymptotic tail.
+        let a: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.01).collect();
+        let b: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.03).collect();
+        let (s, p) = residual_likelihood_ratio(&a, &b).unwrap();
+        assert!((p - (-0.5 * s).exp()).abs() < 1e-9, "χ²₂ tail is exp(−stat/2): p={p} stat={s}");
+    }
+
+    #[test]
+    fn permutation_tests_report_count_and_p_value_floor() {
+        let a = lcg_noise(20, 1);
+        let b: Vec<f64> = lcg_noise(20, 2).into_iter().map(|x| x + 10.0).collect();
+        let r = kernel_two_sample_with_permutations(&a, &b, 7, 999).unwrap();
+        assert_eq!(r.n_permutations, 999);
+        assert!((r.p_floor - 0.001).abs() < 1e-15);
+        // A gross shift beats every permutation: p sits exactly at the floor.
+        assert!((r.p_value - 0.001).abs() < 1e-15, "p={}", r.p_value);
+        let r = kernel_two_sample_with_permutations(&a, &b, 7, 199).unwrap();
+        assert!((r.p_floor - 0.005).abs() < 1e-15 && (r.p_value - 0.005).abs() < 1e-15);
+        assert!(kernel_two_sample_with_permutations(&a, &b, 7, 0).is_err());
+        // The default is no longer the 49-permutation floor of 0.02.
+        assert!(kernel_two_sample(&a, &b, 7).unwrap().1 < 0.0011);
+
+        let mut series: Vec<f64> = (0..80).map(|i| f64::from(i) * 0.01).collect();
+        for v in &mut series[40..] {
+            *v += 4.0;
+        }
+        let r = change_point_scan_with_permutations(&series, 3, 999).unwrap();
+        assert!((r.p_value - 0.001).abs() < 1e-15 && (r.p_floor - 0.001).abs() < 1e-15);
+    }
+
+    #[test]
+    fn cached_gram_mmd_matches_direct_evaluation() {
+        let pooled: Vec<f64> = lcg_noise(30, 5);
+        let bandwidth = 0.3;
+        let gram = pooled_rbf_gram(&pooled, bandwidth);
+        let ia: Vec<usize> = (0..12).collect();
+        let ib: Vec<usize> = (12..30).collect();
+        let cached = mmd2_from_gram(&gram, 30, &ia, &ib);
+        let direct = biased_mmd2(&pooled[..12], &pooled[12..], bandwidth);
+        assert!((cached - direct).abs() < 1e-13, "cached={cached} direct={direct}");
+        // A permuted partition matches the direct value on the correspondingly permuted data.
+        let order: Vec<usize> = (0..30).rev().collect();
+        let permuted: Vec<f64> = order.iter().map(|&i| pooled[i]).collect();
+        let cached = mmd2_from_gram(&gram, 30, &order[..12], &order[12..]);
+        let direct = biased_mmd2(&permuted[..12], &permuted[12..], bandwidth);
+        assert!((cached - direct).abs() < 1e-13);
     }
 
     #[test]

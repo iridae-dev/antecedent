@@ -19,7 +19,6 @@ pub mod gam;
 pub mod glm;
 pub mod gram;
 pub mod interference;
-mod la_ops;
 pub mod linalg;
 pub mod m_estimate;
 pub mod matching;
@@ -44,9 +43,10 @@ pub use ci::{
     nonparametric_permutation_count, pairwise_multivariate_test,
 };
 pub use cluster::{
-    MAX_CLUSTER_DIMENSIONS, bartlett_weight, combine_inclusion_exclusion, effective_nw_lag,
-    few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks, multiway_subset_sign,
-    panel_hac_meat_matrix, panel_hac_meat_scalar,
+    MAX_CLUSTER_DIMENSIONS, bartlett_weight, cluster_meat_scalar, combine_inclusion_exclusion,
+    effective_nw_lag, few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks,
+    multiway_subset_sign, newey_west_meat_scalar, panel_effective_lag, panel_hac_meat_matrix,
+    panel_hac_meat_scalar,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use dcor::distance_correlation;
@@ -56,9 +56,10 @@ pub use design::{
     standardize_columns,
 };
 pub use divergence::{
-    change_point_known_split, change_point_scan, change_point_two_sample, classifier_two_sample,
-    gaussian_kl, kernel_two_sample, max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7,
-    residual_likelihood_ratio, sample_std,
+    DEFAULT_MECHANISM_PERMUTATIONS, PermutationTestResult, change_point_known_split,
+    change_point_scan, change_point_scan_with_permutations, change_point_two_sample,
+    classifier_two_sample, gaussian_kl, kernel_two_sample, kernel_two_sample_with_permutations,
+    max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7, residual_likelihood_ratio, sample_std,
 };
 pub use error::StatsError;
 pub use faer_backend::FaerBackend;
@@ -76,8 +77,8 @@ pub use glm::{
     fit_multinomial_logit_weighted,
 };
 pub use gram::{
-    accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, form_xtx,
-    invert_square,
+    accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd,
+    column_is_constant, form_xtx, invert_square,
 };
 pub use interference::{
     ExposureProbabilities, ExposureProbabilityMethod, RandomizationContrast, RandomizationMean,

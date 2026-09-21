@@ -50,6 +50,25 @@ pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f
     }
 }
 
+/// Relative pivot tolerance shared by [`cholesky_spd`] and [`invert_square`]: a pivot that
+/// has lost all but `64 ε` of its original magnitude to cancellation carries no information.
+const PIVOT_REL_TOL: f64 = 64.0 * f64::EPSILON;
+
+/// Whether column `col` of column-major `X` is constant, judged against the column's own
+/// magnitude (`|v − v₀| ≤ 64 ε · max|v|`), so the verdict does not depend on the unit the
+/// column is measured in. An all-zero column is constant; an empty column is constant.
+#[must_use]
+pub fn column_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
+    if nrows == 0 {
+        return true;
+    }
+    let base = col * nrows;
+    let column = &x_colmajor[base..base + nrows];
+    let v0 = column[0];
+    let max_abs = column.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+    column.iter().all(|&v| (v - v0).abs() <= PIVOT_REL_TOL * max_abs)
+}
+
 /// Lower-triangular Cholesky of an SPD matrix (row-major `n×n`).
 ///
 /// Returns `None` on a NaN, non-positive, or numerically singular pivot. The
@@ -103,22 +122,43 @@ pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
 
 /// Invert a small dense matrix via Gauss–Jordan; returns `None` on singular pivot.
 ///
-/// Singularity is judged relative to the input matrix's largest absolute diagonal entry
-/// (matching `antecedent-kernels::parcorr`'s scale-relative tolerance) so the verdict does
-/// not depend on the data's units — an absolute threshold would quietly accept a direction
-/// that is singular relative to the matrix's own scale.
+/// The matrix is first equilibrated symmetrically, `B = D⁻¹ A D⁻¹` with `Dᵢ = √|aᵢᵢ|` (the
+/// row/column magnitude when the diagonal entry is zero), and singularity is judged on the
+/// pivots of `B`, whose unit-scale rows make the tolerance independent of each column's
+/// unit. A Gram of `[1, x]` with `x` of order `1e6` is therefore inverted (its
+/// equilibrated form is the identity), while a genuinely collinear pair is still refused.
+/// The inverse is un-scaled, `A⁻¹ = D⁻¹ B⁻¹ D⁻¹`. Any non-finite entry returns `None`.
 #[must_use]
 pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
-    let mut scale = 0.0_f64;
-    for i in 0..ncols {
-        scale = scale.max(a_in[i * ncols + i].abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
+    if ncols == 0
+        || a_in.len() < ncols * ncols
+        || a_in[..ncols * ncols].iter().any(|v| !v.is_finite())
+    {
         return None;
     }
-    let tol = 1e-12 * scale;
+    let mut d = vec![0.0_f64; ncols];
+    for i in 0..ncols {
+        let diag = a_in[i * ncols + i].abs();
+        let magnitude = if diag > 0.0 {
+            diag.sqrt()
+        } else {
+            (0..ncols).fold(0.0_f64, |m, j| {
+                m.max(a_in[i * ncols + j].abs().max(a_in[j * ncols + i].abs()))
+            })
+        };
+        if !(magnitude.is_finite() && magnitude > 0.0) {
+            return None;
+        }
+        d[i] = magnitude;
+    }
+    let tol = 1e-12;
 
-    let mut a = a_in.to_vec();
+    let mut a = vec![0.0; ncols * ncols];
+    for i in 0..ncols {
+        for j in 0..ncols {
+            a[i * ncols + j] = a_in[i * ncols + j] / (d[i] * d[j]);
+        }
+    }
     let mut inv = vec![0.0; ncols * ncols];
     for i in 0..ncols {
         inv[i * ncols + i] = 1.0;
@@ -154,6 +194,11 @@ pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
                 a[row * ncols + j] -= factor * a[col * ncols + j];
                 inv[row * ncols + j] -= factor * inv[col * ncols + j];
             }
+        }
+    }
+    for i in 0..ncols {
+        for j in 0..ncols {
+            inv[i * ncols + j] /= d[i] * d[j];
         }
     }
     Some(inv)
@@ -204,6 +249,60 @@ mod tests {
         // the matrix's own magnitude (~1e10).
         let a = [1e10, 1e10, 1e10, 1e10 + 1e-6];
         assert!(invert_square(&a, 2).is_none());
+    }
+
+    #[test]
+    fn invert_square_accepts_heterogeneous_column_units() {
+        // Gram of [1, x] with x of sd 3e6 and n = 100: diag(100, 9e14) is perfectly
+        // conditioned once each column is measured in its own unit. A tolerance tied to the
+        // largest diagonal (9e14 · 1e-12 = 900 > 100) wrongly declared it singular.
+        let a = [100.0, 0.0, 0.0, 9e14];
+        let inv = invert_square(&a, 2).expect("well-conditioned after column scaling");
+        assert!((inv[0] - 0.01).abs() < 1e-15);
+        assert!(inv[1].abs() < 1e-30 && inv[2].abs() < 1e-30);
+        assert!((inv[3] / (1.0 / 9e14) - 1.0).abs() < 1e-12);
+
+        // A = D B D with D = diag(10, 3e7), B = [[1, .5], [.5, 1]]:
+        // A⁻¹ = D⁻¹ B⁻¹ D⁻¹, B⁻¹ = (4/3) [[1, -.5], [-.5, 1]].
+        let a = [100.0, 1.5e8, 1.5e8, 9e14];
+        let inv = invert_square(&a, 2).expect("coupled, well-conditioned after scaling");
+        let expect = [4.0 / 3.0 / 100.0, -2.0 / 3.0 / 3e8, -2.0 / 3.0 / 3e8, 4.0 / 3.0 / 9e14];
+        for (g, e) in inv.iter().zip(expect) {
+            assert!((g / e - 1.0).abs() < 1e-10, "got {inv:?} expected {expect:?}");
+        }
+    }
+
+    #[test]
+    fn invert_square_rejects_collinear_columns_at_any_unit() {
+        // Second column is exactly 3e6 × the first: singular regardless of units.
+        let a = [1.0, 3e6, 3e6, 9e12];
+        assert!(invert_square(&a, 2).is_none());
+        assert!(invert_square(&[1.0, f64::NAN, f64::NAN, 1.0], 2).is_none());
+    }
+
+    #[test]
+    fn cholesky_spd_tolerance_is_relative_and_rejects_nan() {
+        // Unit-free: tiny and huge well-conditioned diagonals both factor.
+        assert!(cholesky_spd(&[1e-20, 0.0, 0.0, 1.0], 2).is_some());
+        assert!(cholesky_spd(&[100.0, 0.0, 0.0, 9e14], 2).is_some());
+        // Numerically singular (pivot cancels to ~1e-15 of the diagonal).
+        assert!(cholesky_spd(&[1.0, 1.0, 1.0, 1.0 + 1e-15], 2).is_none());
+        assert!(cholesky_spd(&[f64::NAN, 0.0, 0.0, 1.0], 2).is_none());
+    }
+
+    #[test]
+    fn column_is_constant_is_relative_to_column_magnitude() {
+        // Small-unit columns that genuinely vary are not constant, at any magnitude.
+        let varying = [1e-8, 2e-8, 3e-8, 4e-8];
+        assert!(!column_is_constant(&varying, 4, 0));
+        let varying_tiny = [1e-13, 2e-13, 3e-13, 4e-13];
+        assert!(!column_is_constant(&varying_tiny, 4, 0));
+        assert!(column_is_constant(&[5.0, 5.0, 5.0, 5.0], 4, 0));
+        assert!(column_is_constant(&[0.0; 4], 4, 0));
+        // Two columns: only the second varies.
+        let two = [1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 3.0, 4.0];
+        assert!(column_is_constant(&two, 4, 0));
+        assert!(!column_is_constant(&two, 4, 1));
     }
 
     #[test]

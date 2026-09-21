@@ -143,8 +143,13 @@ pub struct GamFit {
     pub fitted: Vec<f64>,
     /// Residuals `y − fitted`.
     pub residuals: Vec<f64>,
-    /// Approximate effective degrees of freedom (roughness-penalty trace + intercept).
+    /// Approximate effective degrees of freedom (roughness-penalty trace + intercept) at the
+    /// final smoothing parameters.
     pub edf_approx: f64,
+    /// Indices (into `smooths`) of auto-λ smooths whose selected λ sits at the edge of the
+    /// GCV grid (`1e-6` or `1e6`): the score was still improving there, so the true
+    /// optimum may lie outside the searched range.
+    pub boundary_lambda_smooths: Vec<usize>,
     /// Backfitting iterations used.
     pub iterations: u32,
     /// Whether the outer loop converged.
@@ -320,6 +325,9 @@ pub fn fit_gam_weighted(
     if y.len() != nrows {
         return Err(StatsError::Shape { message: "y length != nrows" });
     }
+    if y.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape { message: "GAM response must be finite" });
+    }
     validate_raw_layout(x_colmajor, nrows, n_raw_cols, specs)?;
     for s in specs {
         if !(s.auto_lambda || (s.lambda.is_finite() && s.lambda >= 0.0)) {
@@ -364,6 +372,23 @@ pub fn fit_gam_weighted(
         .iter()
         .map(|basis| basis.iter().enumerate().map(|(i, v)| v * weights[i % nrows].sqrt()).collect())
         .collect();
+    let sqrt_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
+    // `B'B` and the penalty depend on neither λ nor the response: form them once per
+    // smooth. `(B'B + λP)⁻¹` is cached per smooth and only recomputed when λ changes, so
+    // a backfit sweep costs `O(n K)` per smooth (the right-hand side `B'r`) rather than an
+    // `O(n K²)` Gram plus a dense inverse.
+    let smoothers: Vec<PenalizedSmoother> = weighted_bases
+        .iter()
+        .zip(specs)
+        .map(|(basis, spec)| PenalizedSmoother::new(basis, nrows, spec.n_basis))
+        .collect::<Result<_, _>>()?;
+    let mut inverses: Vec<Option<Vec<f64>>> = vec![None; specs.len()];
+    let mut boundary_lambda = vec![false; specs.len()];
+    // Auto-λ is re-selected against the current partial residuals every sweep until a full
+    // sweep leaves every λ unchanged (or the sweep cap freezes it), because the partial
+    // residual of smooth `j` only stops containing the other smooths' unfitted signal once
+    // they have been fitted. Convergence is not declared while λ is still moving.
+    let mut lambda_settled = !specs.iter().any(|s| s.auto_lambda);
     let mut weighted_partial = vec![0.0; nrows];
     let mut coefficients = vec![0.0; total_coefs];
     // Per-smooth fitted contributions.
@@ -374,13 +399,12 @@ pub fn fit_gam_weighted(
     workspace.fitted.fill(intercept);
     let mut converged = false;
     let mut iterations = 0u32;
-    let mut edf_approx = 1.0; // intercept (unpenalized)
     let mut prev_rss = f64::INFINITY;
-    let mut selected_lambda = false;
 
     for iter in 1..=options.max_iter {
         iterations = iter;
         let mut max_delta = 0.0_f64;
+        let mut lambda_changed = false;
         for (j, spec) in specs.iter().enumerate() {
             // partial = y - intercept - sum_{k≠j} f_k
             for r in 0..nrows {
@@ -395,29 +419,29 @@ pub fn fit_gam_weighted(
             let basis = bases[j].as_ref();
             let solve_basis = weighted_bases[j].as_slice();
             for r in 0..nrows {
-                weighted_partial[r] = workspace.partial[r] * weights[r].sqrt();
+                weighted_partial[r] = workspace.partial[r] * sqrt_weights[r];
             }
-            if !selected_lambda && spec.auto_lambda {
-                chosen_lambda[j] = select_lambda_gcv(
+            if spec.auto_lambda && !lambda_settled {
+                let (lambda, at_boundary) = select_lambda_gcv(
+                    &smoothers[j],
                     solve_basis,
                     nrows,
-                    spec.n_basis,
                     &weighted_partial,
-                    &mut workspace.gram,
-                    &mut workspace.rhs,
+                    &sqrt_weights,
                 )?;
-                smooth_meta[j].lambda = chosen_lambda[j];
+                boundary_lambda[j] = at_boundary;
+                if inverses[j].is_none() || lambda.to_bits() != chosen_lambda[j].to_bits() {
+                    chosen_lambda[j] = lambda;
+                    smooth_meta[j].lambda = lambda;
+                    inverses[j] = None;
+                    lambda_changed = true;
+                }
             }
-            let lambda = chosen_lambda[j];
-            let beta = roughness_basis_solve(
-                solve_basis,
-                nrows,
-                spec.n_basis,
-                &weighted_partial,
-                lambda,
-                &mut workspace.gram,
-                &mut workspace.rhs,
-            )?;
+            if inverses[j].is_none() {
+                inverses[j] = Some(smoothers[j].inverse(chosen_lambda[j])?);
+            }
+            let inverse = inverses[j].as_deref().expect("inverse cached above");
+            let beta = smoothers[j].coefficients(inverse, solve_basis, nrows, &weighted_partial);
             let off = coef_offsets[j];
             coefficients[off..off + spec.n_basis].copy_from_slice(&beta);
 
@@ -435,21 +459,10 @@ pub fn fit_gam_weighted(
                 max_delta = max_delta.max((workspace.smooth_fit[r] - smooth_fits[j][r]).abs());
                 smooth_fits[j][r] = workspace.smooth_fit[r];
             }
-
-            if iter == 1 {
-                // `roughness_edf` is tr(S₁) for the *uncentered* smoother S₁ = B(BᵀB+λP)⁻¹Bᵀ.
-                // The B-spline basis is a partition of unity and P annihilates constant
-                // coefficient vectors, so S₁·1 = 1 exactly for every λ — the constant is an
-                // eigenvector with eigenvalue 1. The centering step above projects that
-                // direction out, so the smoother actually applied has tr(S₁) − 1 degrees of
-                // freedom. Without the −1 the constant is counted twice (once here, once in
-                // the intercept) and edf_approx runs high by exactly one per smooth term.
-                edf_approx +=
-                    roughness_edf(solve_basis, nrows, spec.n_basis, lambda, &mut workspace.gram)?
-                        - 1.0;
-            }
         }
-        selected_lambda = true;
+        if !lambda_settled && (!lambda_changed || iter >= MAX_LAMBDA_RESELECT_SWEEPS) {
+            lambda_settled = true;
+        }
         // Refresh intercept: mean(y - Σ f_j)
         let mut sum = 0.0;
         for r in 0..nrows {
@@ -476,11 +489,29 @@ pub fn fit_gam_weighted(
             workspace.fitted[..nrows].iter().fold(0.0_f64, |acc, &v| acc.max(v.abs())).max(1.0);
         let rss_delta = (prev_rss - rss).abs();
         prev_rss = rss;
-        if max_delta < options.tol * fit_scale || rss_delta < options.tol * (1.0 + rss) {
+        if lambda_settled
+            && (max_delta < options.tol * fit_scale || rss_delta < options.tol * (1.0 + rss))
+        {
             converged = true;
             break;
         }
     }
+
+    // `smoothers[j].edf` is tr(S₁) for the *uncentered* smoother S₁ = B(BᵀB+λP)⁻¹Bᵀ. The
+    // B-spline basis is a partition of unity and P annihilates constant coefficient vectors,
+    // so S₁·1 = 1 exactly for every λ — the constant is an eigenvector with eigenvalue 1.
+    // The centering step projects that direction out, so the smoother actually applied has
+    // tr(S₁) − 1 degrees of freedom. Without the −1 the constant is counted twice (once
+    // here, once in the intercept) and edf_approx runs high by exactly one per smooth term.
+    // Evaluated at the final λ, not the first sweep's.
+    let mut edf_approx = 1.0; // intercept (unpenalized)
+    for (smoother, inverse) in smoothers.iter().zip(&inverses) {
+        if let Some(inverse) = inverse {
+            edf_approx += smoother.edf(inverse) - 1.0;
+        }
+    }
+    let boundary_lambda_smooths: Vec<usize> =
+        (0..specs.len()).filter(|&j| specs[j].auto_lambda && boundary_lambda[j]).collect();
 
     let mut residuals = vec![0.0; nrows];
     for r in 0..nrows {
@@ -504,7 +535,9 @@ pub fn fit_gam_weighted(
         centers[j] = sum / nrows as f64;
     }
 
-    let rank = 1 + specs.iter().map(|s| s.n_basis).sum::<usize>();
+    // Every B-spline block spans the constants (partition of unity), so the additive design
+    // has one shared constant direction: identifiable rank is `1 + Σ (n_basis − 1)`.
+    let rank = 1 + specs.iter().map(|s| s.n_basis - 1).sum::<usize>();
     let raw_cols: Vec<usize> = specs.iter().map(|s| s.raw_col).collect();
     Ok(GamFit {
         intercept,
@@ -513,6 +546,7 @@ pub fn fit_gam_weighted(
         fitted: workspace.fitted[..nrows].to_vec(),
         residuals,
         edf_approx,
+        boundary_lambda_smooths,
         iterations,
         converged,
         diagnostics: FitDiagnostics::new(rank, None, "gam", workspace.grow_count),
@@ -920,77 +954,64 @@ fn second_difference_penalty(n_basis: usize) -> Result<Vec<f64>, StatsError> {
     Ok(p)
 }
 
-fn add_scaled_penalty(gram: &mut [f64], penalty: &[f64], n_basis: usize, lambda: f64) {
-    if lambda == 0.0 {
-        return;
-    }
-    for i in 0..n_basis * n_basis {
-        gram[i] += lambda * penalty[i];
-    }
+/// Sweeps after which auto-λ selection is frozen even if λ is still changing.
+const MAX_LAMBDA_RESELECT_SWEEPS: u32 = 20;
+
+/// The λ-independent pieces of one smooth's penalized normal equations
+/// `(B'B + λP)β = B'y`, for a (possibly `√w`-scaled) basis `B`.
+struct PenalizedSmoother {
+    n_basis: usize,
+    /// `B'B`, `K×K` row-major.
+    xtx: Vec<f64>,
+    /// Roughness penalty `P = D₂'D₂`, `K×K` row-major.
+    penalty: Vec<f64>,
 }
 
-fn roughness_basis_solve(
-    basis: &[f64],
-    nrows: usize,
-    n_basis: usize,
-    y: &[f64],
-    lambda: f64,
-    gram: &mut [f64],
-    rhs: &mut [f64],
-) -> Result<Vec<f64>, StatsError> {
-    if gram.len() < n_basis * n_basis || rhs.len() < n_basis {
-        return Err(StatsError::Backend("GAM workspace too small".into()));
+impl PenalizedSmoother {
+    fn new(basis: &[f64], nrows: usize, n_basis: usize) -> Result<Self, StatsError> {
+        let mut xtx = vec![0.0; n_basis * n_basis];
+        form_xtx(basis, nrows, n_basis, &mut xtx);
+        Ok(Self { n_basis, xtx, penalty: second_difference_penalty(n_basis)? })
     }
-    let penalty = second_difference_penalty(n_basis)?;
-    form_xtx(basis, nrows, n_basis, gram);
-    add_scaled_penalty(gram, &penalty, n_basis, lambda);
-    for c in 0..n_basis {
-        let mut s = 0.0;
-        let col = &basis[c * nrows..(c + 1) * nrows];
-        for r in 0..nrows {
-            s += col[r] * y[r];
-        }
-        rhs[c] = s;
-    }
-    let Some(inv) = invert_square(&gram[..n_basis * n_basis], n_basis) else {
-        return Err(StatsError::Backend("GAM: singular B'B+λP".into()));
-    };
-    let mut beta = vec![0.0; n_basis];
-    for i in 0..n_basis {
-        let mut s = 0.0;
-        for j in 0..n_basis {
-            s += inv[i * n_basis + j] * rhs[j];
-        }
-        beta[i] = s;
-    }
-    Ok(beta)
-}
 
-fn roughness_edf(
-    basis: &[f64],
-    nrows: usize,
-    n_basis: usize,
-    lambda: f64,
-    gram: &mut [f64],
-) -> Result<f64, StatsError> {
-    let penalty = second_difference_penalty(n_basis)?;
-    form_xtx(basis, nrows, n_basis, gram);
-    let xtx = gram[..n_basis * n_basis].to_vec();
-    let mut penalized = xtx.clone();
-    add_scaled_penalty(&mut penalized, &penalty, n_basis, lambda);
-    let Some(inv) = invert_square(&penalized, n_basis) else {
-        return Err(StatsError::Backend("GAM: singular B'B+λP for EDF".into()));
-    };
-    // edf = tr((B'B+λP)^{-1} B'B)
-    let mut edf = 0.0;
-    for i in 0..n_basis {
-        let mut s = 0.0;
-        for j in 0..n_basis {
-            s += inv[i * n_basis + j] * xtx[j * n_basis + i];
+    /// `(B'B + λP)⁻¹`.
+    fn inverse(&self, lambda: f64) -> Result<Vec<f64>, StatsError> {
+        let mut penalized = self.xtx.clone();
+        if lambda != 0.0 {
+            for (g, p) in penalized.iter_mut().zip(&self.penalty) {
+                *g += lambda * p;
+            }
         }
-        edf += s;
+        invert_square(&penalized, self.n_basis)
+            .ok_or_else(|| StatsError::Backend("GAM: singular B'B+λP".into()))
     }
-    Ok(edf)
+
+    /// `β = (B'B + λP)⁻¹ B'y` given the cached inverse.
+    fn coefficients(&self, inverse: &[f64], basis: &[f64], nrows: usize, y: &[f64]) -> Vec<f64> {
+        let k = self.n_basis;
+        let mut rhs = vec![0.0; k];
+        for c in 0..k {
+            let col = &basis[c * nrows..(c + 1) * nrows];
+            rhs[c] = col.iter().zip(y).map(|(b, y)| b * y).sum();
+        }
+        let mut beta = vec![0.0; k];
+        for i in 0..k {
+            beta[i] = (0..k).map(|j| inverse[i * k + j] * rhs[j]).sum();
+        }
+        beta
+    }
+
+    /// `tr((B'B + λP)⁻¹ B'B)` — the trace of the uncentered smoother.
+    fn edf(&self, inverse: &[f64]) -> f64 {
+        let k = self.n_basis;
+        let mut edf = 0.0;
+        for i in 0..k {
+            for j in 0..k {
+                edf += inverse[i * k + j] * self.xtx[j * k + i];
+            }
+        }
+        edf
+    }
 }
 
 const GCV_LAMBDA_GRID: [f64; 25] = [
@@ -998,57 +1019,92 @@ const GCV_LAMBDA_GRID: [f64; 25] = [
     100.0, 300.0, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6,
 ];
 
+/// Grid λ minimizing the centered-smoother GCV, and whether the winner is an edge of the
+/// grid (the optimum may then lie outside the searched range).
+///
+/// `basis` and `y` are the `√w`-scaled design and response; `sqrt_w` the `√w` vector.
 fn select_lambda_gcv(
+    smoother: &PenalizedSmoother,
     basis: &[f64],
     nrows: usize,
-    n_basis: usize,
     y: &[f64],
-    gram: &mut [f64],
-    rhs: &mut [f64],
-) -> Result<f64, StatsError> {
-    let mut best_lambda = GCV_LAMBDA_GRID[0];
+    sqrt_w: &[f64],
+) -> Result<(f64, bool), StatsError> {
+    let mut best_index = 0usize;
     let mut best_gcv = f64::INFINITY;
-    for &lambda in &GCV_LAMBDA_GRID {
-        let gcv = centered_smooth_gcv(basis, nrows, n_basis, y, lambda, gram, rhs)?;
+    for (index, &lambda) in GCV_LAMBDA_GRID.iter().enumerate() {
+        let inverse = smoother.inverse(lambda)?;
+        let gcv = centered_smooth_gcv(smoother, &inverse, basis, nrows, y, sqrt_w);
         if gcv < best_gcv {
             best_gcv = gcv;
-            best_lambda = lambda;
+            best_index = index;
         }
     }
-    Ok(best_lambda)
+    Ok((GCV_LAMBDA_GRID[best_index], best_index == 0 || best_index == GCV_LAMBDA_GRID.len() - 1))
 }
 
 /// GCV of the smoother actually applied in backfitting: centered `Bβ` with
 /// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
+///
+/// Inputs are in `√w`-scaled coordinates (`basis = √w B`, `y = √w y₀`), so with
+/// `fᵣ = (Bβ)ᵣ` the weighted-centered residual `√wᵣ (y₀ᵣ − fᵣ + f̄_w)` is
+/// `yᵣ − (√w B β)ᵣ + f̄_w √wᵣ`, where `f̄_w = Σ wᵣ fᵣ / n = Σ √wᵣ (√w B β)ᵣ / n`. The
+/// centering constant multiplies `√w`, it is not subtracted from the scaled prediction —
+/// the two coincide only when every weight is equal.
 fn centered_smooth_gcv(
+    smoother: &PenalizedSmoother,
+    inverse: &[f64],
     basis: &[f64],
     nrows: usize,
-    n_basis: usize,
     y: &[f64],
-    lambda: f64,
-    gram: &mut [f64],
-    rhs: &mut [f64],
-) -> Result<f64, StatsError> {
-    let beta = roughness_basis_solve(basis, nrows, n_basis, y, lambda, gram, rhs)?;
-    let mut pred_sum = 0.0;
-    let mut preds = vec![0.0; nrows];
+    sqrt_w: &[f64],
+) -> f64 {
+    let n_basis = smoother.n_basis;
+    let beta = smoother.coefficients(inverse, basis, nrows, y);
+    let mut scaled_pred = vec![0.0; nrows];
     for r in 0..nrows {
         let mut pred = 0.0;
         for b in 0..n_basis {
             pred += basis[b * nrows + r] * beta[b];
         }
-        preds[r] = pred;
-        pred_sum += pred;
+        scaled_pred[r] = pred;
     }
-    let pred_mean = pred_sum / nrows as f64;
+    let weighted_mean: f64 =
+        scaled_pred.iter().zip(sqrt_w).map(|(p, w)| p * w).sum::<f64>() / nrows as f64;
     let mut rss = 0.0;
     for r in 0..nrows {
-        let e = y[r] - (preds[r] - pred_mean);
+        let e = y[r] - scaled_pred[r] + weighted_mean * sqrt_w[r];
         rss += e * e;
     }
-    let edf = (roughness_edf(basis, nrows, n_basis, lambda, gram)? - 1.0).max(0.0);
+    let edf = (smoother.edf(inverse) - 1.0).max(0.0);
     let denom = (nrows as f64 - edf).max(1e-8);
-    Ok((nrows as f64) * rss / (denom * denom))
+    (nrows as f64) * rss / (denom * denom)
+}
+
+/// `β = (B'B + λP)⁻¹ B'y` (test helper over [`PenalizedSmoother`]).
+#[cfg(test)]
+fn roughness_basis_solve(
+    basis: &[f64],
+    nrows: usize,
+    n_basis: usize,
+    y: &[f64],
+    lambda: f64,
+) -> Result<Vec<f64>, StatsError> {
+    let smoother = PenalizedSmoother::new(basis, nrows, n_basis)?;
+    let inverse = smoother.inverse(lambda)?;
+    Ok(smoother.coefficients(&inverse, basis, nrows, y))
+}
+
+/// `tr((B'B + λP)⁻¹ B'B)` (test helper over [`PenalizedSmoother`]).
+#[cfg(test)]
+fn roughness_edf(
+    basis: &[f64],
+    nrows: usize,
+    n_basis: usize,
+    lambda: f64,
+) -> Result<f64, StatsError> {
+    let smoother = PenalizedSmoother::new(basis, nrows, n_basis)?;
+    Ok(smoother.edf(&smoother.inverse(lambda)?))
 }
 
 #[cfg(test)]
@@ -1435,7 +1491,7 @@ mod tests {
         let (basis, _) = expand_bspline(&x1, 12, None).unwrap();
         let mut gram = vec![0.0; 12 * 12];
         let mut rhs = vec![0.0; 12];
-        let beta_r = roughness_basis_solve(&basis, n, 12, &y, 1.0, &mut gram, &mut rhs).unwrap();
+        let beta_r = roughness_basis_solve(&basis, n, 12, &y, 1.0).unwrap();
         // Identity ridge baseline (local to this test).
         form_xtx(&basis, n, 12, &mut gram);
         for c in 0..12 {
@@ -1548,22 +1604,22 @@ mod tests {
         let y_mean = y.iter().sum::<f64>() / n as f64;
         let centered: Vec<f64> = y.iter().map(|v| v - y_mean).collect();
         let (basis, _) = expand_bspline(&x1, 10, None).unwrap();
-        let mut gram = vec![0.0; 10 * 10];
-        let mut rhs = vec![0.0; 10];
-        let chosen = select_lambda_gcv(&basis, n, 10, &centered, &mut gram, &mut rhs).unwrap();
+        let ones = vec![1.0; n];
+        let smoother = PenalizedSmoother::new(&basis, n, 10).unwrap();
+        let (chosen, _) = select_lambda_gcv(&smoother, &basis, n, &centered, &ones).unwrap();
         let mut best_lambda = GCV_LAMBDA_GRID[0];
         let mut best_gcv = f64::INFINITY;
         let mut uncentered_winner = GCV_LAMBDA_GRID[0];
         let mut best_uncentered_gcv = f64::INFINITY;
         for &lambda in &GCV_LAMBDA_GRID {
+            let inverse = smoother.inverse(lambda).unwrap();
             let centered_gcv =
-                centered_smooth_gcv(&basis, n, 10, &centered, lambda, &mut gram, &mut rhs).unwrap();
+                centered_smooth_gcv(&smoother, &inverse, &basis, n, &centered, &ones);
             if centered_gcv < best_gcv {
                 best_gcv = centered_gcv;
                 best_lambda = lambda;
             }
-            let beta = roughness_basis_solve(&basis, n, 10, &centered, lambda, &mut gram, &mut rhs)
-                .unwrap();
+            let beta = roughness_basis_solve(&basis, n, 10, &centered, lambda).unwrap();
             let mut rss = 0.0;
             for r in 0..n {
                 let mut pred = 0.0;
@@ -1573,7 +1629,7 @@ mod tests {
                 let e = centered[r] - pred;
                 rss += e * e;
             }
-            let edf = roughness_edf(&basis, n, 10, lambda, &mut gram).unwrap();
+            let edf = roughness_edf(&basis, n, 10, lambda).unwrap();
             let denom = (n as f64 - edf).max(1e-8);
             let uncentered_gcv = (n as f64) * rss / (denom * denom);
             if uncentered_gcv < best_uncentered_gcv {
@@ -1588,6 +1644,128 @@ mod tests {
                 "centered GCV must not inherit the uncentered argmin"
             );
         }
+    }
+
+    #[test]
+    fn weighted_gcv_centers_by_the_weighted_mean_of_the_unscaled_smooth() {
+        // Independent truth in original coordinates: with weights w (Σw = n),
+        // f = Bβ from the weighted penalized fit, f̄ = Σ w f / n, RSS_w = Σ w (y − f + f̄)²,
+        // GCV = n RSS_w / (n − (tr S₁ − 1))². The scaled-coordinate implementation used to
+        // subtract the *unweighted* mean of √w·f from the √w-scaled vector, which is the same
+        // number only when all weights are equal.
+        let n = 12usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let raw_w = [0.2, 0.5, 3.0, 0.1, 1.7, 2.2, 0.4, 0.9, 1.3, 0.05, 1.6, 0.05];
+        let total: f64 = raw_w.iter().sum();
+        let w: Vec<f64> = raw_w.iter().map(|v| v * n as f64 / total).collect();
+        let y: Vec<f64> = x1
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (3.0 * v).sin() + 0.3 * ((i * 7) % 5) as f64)
+            .collect();
+        let (basis, _) = expand_bspline(&x1, 6, None).unwrap();
+        let sqrt_w: Vec<f64> = w.iter().map(|v| v.sqrt()).collect();
+        let scaled_basis: Vec<f64> =
+            basis.iter().enumerate().map(|(i, v)| v * sqrt_w[i % n]).collect();
+        let scaled_y: Vec<f64> = y.iter().zip(&sqrt_w).map(|(v, s)| v * s).collect();
+        let smoother = PenalizedSmoother::new(&scaled_basis, n, 6).unwrap();
+        for lambda in [1e-3, 0.1, 10.0] {
+            let inverse = smoother.inverse(lambda).unwrap();
+            let got =
+                centered_smooth_gcv(&smoother, &inverse, &scaled_basis, n, &scaled_y, &sqrt_w);
+
+            let beta = smoother.coefficients(&inverse, &scaled_basis, n, &scaled_y);
+            let f: Vec<f64> =
+                (0..n).map(|r| (0..6).map(|b| basis[b * n + r] * beta[b]).sum()).collect();
+            let f_bar: f64 = f.iter().zip(&w).map(|(f, w)| f * w).sum::<f64>() / n as f64;
+            let rss: f64 =
+                (0..n).map(|r| w[r] * (y[r] - f[r] + f_bar) * (y[r] - f[r] + f_bar)).sum();
+            let edf = smoother.edf(&inverse) - 1.0;
+            let want = n as f64 * rss / ((n as f64 - edf) * (n as f64 - edf));
+            assert!((got - want).abs() <= 1e-10 * want.abs(), "λ={lambda}: {got} vs {want}");
+        }
+    }
+
+    #[test]
+    fn auto_lambda_is_a_fixed_point_of_gcv_on_the_final_partial_residuals() {
+        // Two auto smooths: smooth 0's partial residual initially contains all of smooth 1's
+        // signal. λ must be re-selected until each smooth's λ minimizes GCV on its final
+        // partial residual (compared by score, robust to near-ties on the coarse grid).
+        let n = 160usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let x2: Vec<f64> = (0..n).map(|i| ((i * 37 + 11) % n) as f64 / n as f64).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                (2.0 * std::f64::consts::PI * x1[i]).sin()
+                    + 2.0 * (3.0 * std::f64::consts::PI * x2[i]).cos()
+                    + 0.05 * (((i * 13) % 7) as f64 - 3.0)
+            })
+            .collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone(), x2.clone()]);
+        let specs = [SmoothSpec::auto(0, 8), SmoothSpec::auto(1, 8)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        assert!(fit.converged);
+        let cols = [&x1, &x2];
+        let ones = vec![1.0; n];
+        for j in 0..2 {
+            let other = 1 - j;
+            let partial: Vec<f64> = (0..n)
+                .map(|r| y[r] - fit.intercept - fit.smooth_partial(other, cols[other][r]).unwrap())
+                .collect();
+            let (basis, _) =
+                expand_bspline(cols[j], 8, Some(fit.smooths[j].knots.as_ref())).unwrap();
+            let smoother = PenalizedSmoother::new(&basis, n, 8).unwrap();
+            let score = |lambda: f64| {
+                let inverse = smoother.inverse(lambda).unwrap();
+                centered_smooth_gcv(&smoother, &inverse, &basis, n, &partial, &ones)
+            };
+            let best = GCV_LAMBDA_GRID.iter().map(|&l| score(l)).fold(f64::INFINITY, f64::min);
+            let chosen = score(fit.smooths[j].lambda);
+            assert!(
+                chosen <= best * (1.0 + 1e-3),
+                "smooth {j}: chosen GCV {chosen} vs best {best}"
+            );
+        }
+    }
+
+    #[test]
+    fn gcv_reports_when_the_winner_is_a_grid_edge() {
+        // An all-zero response has GCV 0 at every λ; the first grid point wins and is an edge.
+        let n = 40usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let (basis, _) = expand_bspline(&x1, 6, None).unwrap();
+        let smoother = PenalizedSmoother::new(&basis, n, 6).unwrap();
+        let ones = vec![1.0; n];
+        let (lambda, boundary) =
+            select_lambda_gcv(&smoother, &basis, n, &vec![0.0; n], &ones).unwrap();
+        assert_eq!(lambda, GCV_LAMBDA_GRID[0]);
+        assert!(boundary);
+    }
+
+    #[test]
+    fn additive_rank_excludes_the_shared_constant_and_response_must_be_finite() {
+        let n = 60usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let x2: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % n) as f64 / n as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| x1[i] * x1[i] + x2[i]).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1, x2]);
+        let specs = [SmoothSpec::new(0, 6, 0.1), SmoothSpec::new(1, 5, 0.1)];
+        let mut ws = GamWorkspace::default();
+        let fit =
+            fit_gam(&x, nrows, ncols, &y, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .unwrap();
+        // Both partitions of unity span the constant: 1 + (6 − 1) + (5 − 1) = 10, not 12.
+        assert_eq!(fit.diagnostics.rank, 10);
+        assert!(fit.boundary_lambda_smooths.is_empty());
+        let mut bad = y.clone();
+        bad[3] = f64::NAN;
+        assert!(
+            fit_gam(&x, nrows, ncols, &bad, &specs, &GamOptions::default(), &FaerBackend, &mut ws)
+                .is_err()
+        );
     }
 
     #[test]

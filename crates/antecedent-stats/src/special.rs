@@ -201,19 +201,28 @@ pub fn ln_gamma(z: f64) -> f64 {
 /// Regularized incomplete beta `I_x(a, b)`.
 #[must_use]
 pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
+    regularized_incomplete_beta_with_complement(x, 1.0 - x, a, b)
+}
+
+/// `I_x(a, b)` given both `x` and its complement `y = 1 − x`.
+///
+/// Callers that can form `y` directly (the Student-t survival function has
+/// `y = t²/(df + t²)`) pass it so that `x` near 1 does not lose `y`'s leading digits to the
+/// subtraction `1 − x`, which otherwise limits accuracy near the median.
+fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -> f64 {
     if x <= 0.0 {
         return 0.0;
     }
-    if x >= 1.0 {
+    if x >= 1.0 || y <= 0.0 {
         return 1.0;
     }
     // Use the symmetry I_x(a,b) = 1 - I_{1-x}(b,a) where the continued fraction
     // converges fastest (Numerical Recipes criterion).
     if x > (a + 1.0) / (a + b + 2.0) {
-        return 1.0 - regularized_incomplete_beta(1.0 - x, b, a);
+        return 1.0 - regularized_incomplete_beta_with_complement(y, x, b, a);
     }
     let ln_beta = ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b);
-    let front = (x.ln() * a + (1.0 - x).ln() * b - ln_beta).exp() / a;
+    let front = (x.ln() * a + y.ln() * b - ln_beta).exp() / a;
     let mut c = 1.0;
     let mut d = 1.0 - (a + b) * x / (a + 1.0);
     if d.abs() < 1e-30 {
@@ -255,7 +264,7 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
         d = 1.0 / d;
         let delta = d * c;
         f *= delta;
-        if (delta - 1.0).abs() < 1e-10 {
+        if (delta - 1.0).abs() < 1e-15 {
             break;
         }
     }
@@ -274,12 +283,18 @@ pub fn student_t_sf(t: f64, df: f64) -> f64 {
     if t == f64::NEG_INFINITY {
         return 1.0;
     }
-    let x = df / (df + t * t);
-    let half_tail = 0.5 * regularized_incomplete_beta(x, 0.5 * df, 0.5);
+    let denom = df + t * t;
+    let half_tail =
+        0.5 * regularized_incomplete_beta_with_complement(df / denom, t * t / denom, 0.5 * df, 0.5);
     if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
-/// Inverse Student-t CDF (quantile function) via bisection on [`student_t_sf`].
+/// Degrees of freedom above which [`student_t_ppf`] uses the Cornish–Fisher expansion about
+/// the normal quantile.
+const STUDENT_T_NORMAL_SERIES_FROM_DF: f64 = 1.0e7;
+
+/// Inverse Student-t CDF (quantile function) via bisection on [`student_t_sf`]
+/// (Cornish–Fisher expansion about the normal quantile above `1e7` degrees of freedom).
 ///
 /// Returns `t` such that `P(T <= t) = p` for `T ~ Student-t(df)`. `p` must lie strictly
 /// inside `(0, 1)`; returns `NaN` otherwise.
@@ -298,6 +313,18 @@ pub fn student_t_ppf(p: f64, df: f64) -> f64 {
     }
     if (p - 0.5).abs() < 1e-15 {
         return 0.0;
+    }
+    // For very large df the quantile is the normal one plus a Cornish–Fisher series in 1/df
+    // whose truncation error (`O(df⁻⁴)`, below 1e-28 here) is far under double precision;
+    // bisecting the survival function instead loses digits to the incomplete-beta
+    // cancellation as `x = df/(df+t²) → 1`.
+    if df > STUDENT_T_NORMAL_SERIES_FROM_DF {
+        let z = normal_ppf(p);
+        let z2 = z * z;
+        let g1 = z * (z2 + 1.0) / 4.0;
+        let g2 = z * (5.0 * z2 * z2 + 16.0 * z2 + 3.0) / 96.0;
+        let g3 = z * (3.0 * z2 * z2 * z2 + 19.0 * z2 * z2 + 17.0 * z2 - 15.0) / 384.0;
+        return z + g1 / df + g2 / (df * df) + g3 / (df * df * df);
     }
     // student_t_sf(t, df) is strictly decreasing in t, from 1 (t -> -inf) to 0 (t -> +inf).
     // Solve for the non-negative root and mirror by symmetry for p < 0.5.
@@ -421,6 +448,34 @@ mod tests {
         let (nodes, weights) = gauss_hermite_standard_normal(2);
         assert!((nodes[0] - 1.0).abs() < 1e-13 && (nodes[1] + 1.0).abs() < 1e-13);
         assert!((weights[0] - 0.5).abs() < 1e-13 && (weights[1] - 0.5).abs() < 1e-13);
+    }
+
+    #[test]
+    fn student_t_ppf_is_accurate_next_to_the_median() {
+        // df = 1 is Cauchy: t = tan(π (p − ½)). df = 2: t = (2p − 1) / √(2p(1 − p)).
+        // The continued fraction stopped at relative 1e-10, which left 1.4e-5 (df = 1) and
+        // 9.9e-4 (df = 2) relative error in the quantile at p = ½ + 1e-7.
+        let p = 0.5 + 1e-7;
+        let cauchy = (std::f64::consts::PI * (p - 0.5)).tan();
+        assert!((student_t_ppf(p, 1.0) / cauchy - 1.0).abs() < 1e-6, "{}", student_t_ppf(p, 1.0));
+        let df2 = (2.0 * p - 1.0) / (2.0 * p * (1.0 - p)).sqrt();
+        assert!((student_t_ppf(p, 2.0) / df2 - 1.0).abs() < 1e-6, "{}", student_t_ppf(p, 2.0));
+        // Mirror image.
+        assert!((student_t_ppf(1.0 - p, 2.0) + df2).abs() < 1e-6 * df2);
+    }
+
+    #[test]
+    fn student_t_ppf_is_smooth_across_the_large_df_series_switch() {
+        // Two independent methods (bisection on the survival function below 1e7 df,
+        // Cornish–Fisher above) must agree on either side of the switch, and at huge df
+        // the quantile is the normal one plus g₁/df with g₁ = z(z² + 1)/4.
+        let below = student_t_ppf(0.975, 1.0e7 * (1.0 - 1e-9));
+        let above = student_t_ppf(0.975, 1.0e7 * (1.0 + 1e-9));
+        assert!((below - above).abs() < 1e-9, "below={below} above={above}");
+        let z = normal_ppf(0.975);
+        let huge = student_t_ppf(0.975, 1.0e10);
+        assert!((huge - (z + z * (z * z + 1.0) / 4.0 / 1.0e10)).abs() < 1e-14, "{huge}");
+        assert!((student_t_ppf(0.025, 1.0e10) + huge).abs() < 1e-14);
     }
 
     #[test]

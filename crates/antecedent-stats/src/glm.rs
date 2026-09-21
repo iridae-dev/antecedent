@@ -13,7 +13,7 @@
 use antecedent_kernels::{norm_cdf, norm_pdf};
 
 use crate::error::StatsError;
-use crate::gram::invert_square;
+use crate::gram::{column_is_constant, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 
 /// Family for the GLM path.
@@ -130,8 +130,17 @@ pub struct GlmFit {
     pub iterations: u32,
     /// Whether the IRLS loop converged.
     pub converged: bool,
-    /// Whether fitted means hit the soft clamp band (logistic separation signal).
+    /// (Quasi-)complete separation: fitted probabilities saturate *and* either the iteration
+    /// did not converge or the fitted linear predictor classifies every row perfectly, so no
+    /// finite maximum-likelihood estimate exists. A ridge refit keeps the unpenalized verdict.
     pub separated: bool,
+    /// Some fitted probability lies within `1e-8` of 0 or 1. Weaker than `separated`: a
+    /// converged fit with a strong predictor can saturate while its MLE exists, but such
+    /// scores are still unusable as propensities, so [`GlmFit::require_ok`] refuses them.
+    pub boundary_saturated: bool,
+    /// The coefficients minimise a ridge-penalized objective (the deliberate
+    /// [`fit_glm_ridge`] or the separation fallback), not the unpenalized likelihood.
+    pub penalized: bool,
     /// Final deviance.
     pub deviance: f64,
     /// Estimated or fixed NB2 `α` when family is [`GlmFamily::NegativeBinomial`].
@@ -155,6 +164,13 @@ impl GlmFit {
         if self.separated {
             return Err(StatsError::Backend(
                 "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores"
+                    .into(),
+            ));
+        }
+        if self.boundary_saturated {
+            return Err(StatsError::Backend(
+                "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
+                 necessarily separation); refuse propensity/outcome scores"
                     .into(),
             ));
         }
@@ -209,15 +225,34 @@ fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64]) -> f64 {
     deviance
 }
 
-/// Binomial (Bernoulli) deviance and separation flag at `β`.
+/// Binomial deviance and separation evidence at `β`.
+struct BinomialDiagnostics {
+    deviance: f64,
+    /// Some fitted probability is outside `[1e-8, 1 − 1e-8]`.
+    saturated: bool,
+    /// `η > 0` for every `y = 1` row and `η < 0` for every `y = 0` row: `β` itself is a
+    /// separating direction, which proves complete separation.
+    perfectly_classified: bool,
+}
+
+impl BinomialDiagnostics {
+    /// Separation verdict: saturated probabilities that either failed to converge or sit on
+    /// a perfectly separating hyperplane. Saturation alone (a strong predictor) is not
+    /// separation.
+    fn separated(&self, converged: bool) -> bool {
+        self.saturated && (!converged || self.perfectly_classified)
+    }
+}
+
 fn binomial_diagnostics_at(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
     beta: &[f64],
-) -> (f64, bool) {
+) -> BinomialDiagnostics {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut deviance = 0.0;
-    let mut separated = false;
+    let mut saturated = false;
+    let mut perfectly_classified = true;
     for r in 0..nrows {
         let eta = eta_at(x_colmajor, nrows, ncols, beta, r);
         let mu = match family {
@@ -226,7 +261,10 @@ fn binomial_diagnostics_at(
             _ => unreachable!("binomial diagnostics require a binomial family"),
         };
         if !(1e-8..=1.0 - 1e-8).contains(&mu) {
-            separated = true;
+            saturated = true;
+        }
+        if (y[r] > 0.0 && eta <= 0.0) || (y[r] <= 0.0 && eta >= 0.0) {
+            perfectly_classified = false;
         }
         let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
         if y[r] > 0.0 {
@@ -235,7 +273,7 @@ fn binomial_diagnostics_at(
             deviance += -2.0 * (1.0 - mu_clamped).ln();
         }
     }
-    (deviance, separated)
+    BinomialDiagnostics { deviance, saturated, perfectly_classified }
 }
 
 /// Validate that `y` matches `nrows` and `x_colmajor` holds at least `nrows * ncols` entries.
@@ -284,6 +322,8 @@ fn fit_gaussian(
         iterations: 1,
         converged: true,
         separated: false,
+        boundary_saturated: false,
+        penalized: false,
         deviance: fit.rss,
         nb_alpha: None,
         diagnostics: fit.diagnostics,
@@ -297,7 +337,7 @@ fn fit_poisson(
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
     validate_glm_shape(design)?;
-    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let GlmDesignRef { ncols, y, .. } = design;
     for &yi in y {
         if !(yi.is_finite() && yi >= 0.0) {
             return Err(StatsError::Shape {
@@ -306,45 +346,12 @@ fn fit_poisson(
         }
     }
 
-    let mut beta = vec![0.0; ncols];
-    let mut x_w = vec![0.0; nrows * ncols];
-    let mut z = vec![0.0; nrows];
-    let mut converged = false;
-    let mut iterations = 0u32;
-
-    for iter in 1..=options.max_iter {
-        iterations = iter;
-        let mut max_delta = 0.0_f64;
-        for r in 0..nrows {
-            // Standard IRLS initialization: start from the data (eta0 = ln(y + 0.5))
-            // rather than beta = 0, which diverges for ordinary count magnitudes.
-            let eta = if iter == 1 {
-                (y[r] + 0.5).ln()
-            } else {
-                let mut acc = 0.0;
-                for c in 0..ncols {
-                    acc += x_colmajor[c * nrows + r] * beta[c];
-                }
-                acc
-            };
+    let (beta, iterations, converged) =
+        irls_fit(design, backend, workspace, options, true, |eta, yi| {
             let mu = eta.exp().max(1e-12);
             let w = mu.sqrt();
-            let yi = y[r];
-            z[r] = (eta + (yi - mu) / mu) * w;
-            for c in 0..ncols {
-                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-            }
-        }
-        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
-        for c in 0..ncols {
-            max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
-            beta[c] = fit.coefficients[c];
-        }
-        if max_delta < options.tol {
-            converged = true;
-            break;
-        }
-    }
+            (w, (eta + (yi - mu) / mu) * w)
+        })?;
 
     // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
     let deviance = poisson_deviance_at(design, &beta);
@@ -354,26 +361,29 @@ fn fit_poisson(
         iterations,
         converged,
         separated: false,
+        boundary_saturated: false,
+        penalized: false,
         deviance,
         nb_alpha: None,
         diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
-fn fit_logistic(
+/// Iteratively reweighted least squares shared by every non-Gaussian family.
+///
+/// `working(eta, y)` returns `(√w, √w · z)`: the square-root Fisher weight and the weighted
+/// working response for one row. `data_start` initialises `η₀ = ln(y + 0.5)` (count
+/// families, which diverge from `β = 0` at ordinary magnitudes) instead of `η₀ = 0`.
+/// Returns `(β, iterations, converged)`.
+fn irls_fit(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
-) -> Result<GlmFit, StatsError> {
-    validate_glm_shape(design)?;
+    data_start: bool,
+    working: impl Fn(f64, f64) -> (f64, f64),
+) -> Result<(Vec<f64>, u32, bool), StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    for &yi in y {
-        if !(yi == 0.0 || yi == 1.0) {
-            return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
-        }
-    }
-
     let mut beta = vec![0.0; ncols];
     let mut x_w = vec![0.0; nrows * ncols];
     let mut z = vec![0.0; nrows];
@@ -384,21 +394,17 @@ fn fit_logistic(
         iterations = iter;
         let mut max_delta = 0.0_f64;
         for r in 0..nrows {
-            let mut eta = 0.0;
-            for c in 0..ncols {
-                eta += x_colmajor[c * nrows + r] * beta[c];
-            }
-            let mu = 1.0 / (1.0 + (-eta).exp());
-            let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
-            let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
-            let yi = y[r];
-            z[r] = eta + (yi - mu_clamped) / (mu_clamped * (1.0 - mu_clamped));
-            z[r] *= w;
+            let eta = if data_start && iter == 1 {
+                (y[r] + 0.5).ln()
+            } else {
+                eta_at(x_colmajor, nrows, ncols, &beta, r)
+            };
+            let (w, zw) = working(eta, y[r]);
+            z[r] = zw;
             for c in 0..ncols {
                 x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
             }
         }
-
         let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
         for c in 0..ncols {
             max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
@@ -409,20 +415,69 @@ fn fit_logistic(
             break;
         }
     }
+    Ok((beta, iterations, converged))
+}
 
+fn fit_logistic(
+    design: GlmDesignRef<'_>,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<GlmFit, StatsError> {
+    validate_glm_shape(design)?;
+    let GlmDesignRef { y, .. } = design;
+    for &yi in y {
+        if !(yi == 0.0 || yi == 1.0) {
+            return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+        }
+    }
+
+    let (beta, iterations, converged) =
+        irls_fit(design, backend, workspace, options, false, |eta, yi| {
+            let mu = 1.0 / (1.0 + (-eta).exp());
+            let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
+            let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
+            let z = eta + (yi - mu_clamped) / (mu_clamped * (1.0 - mu_clamped));
+            (w, z * w)
+        })?;
+
+    finish_binomial(
+        GlmFamily::BinomialLogit,
+        design,
+        workspace,
+        options,
+        beta,
+        iterations,
+        converged,
+    )
+}
+
+/// Deviance and separation diagnostics for an unpenalized binomial IRLS result, with the
+/// optional ridge refit when the fitted probabilities saturate.
+#[allow(clippy::too_many_arguments)]
+fn finish_binomial(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+    beta: Vec<f64>,
+    iterations: u32,
+    converged: bool,
+) -> Result<GlmFit, StatsError> {
     // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
-    let (deviance, separated) = binomial_diagnostics_at(GlmFamily::BinomialLogit, design, &beta);
+    let diag = binomial_diagnostics_at(family, design, &beta);
+    let separated = diag.separated(converged);
 
-    if separated {
+    if diag.saturated {
         if let Some(lambda) = options.ridge_on_separation {
             if lambda > 0.0 {
                 return fit_binomial_ridge(
-                    GlmFamily::BinomialLogit,
+                    family,
                     design,
-                    backend,
                     workspace,
                     options,
                     lambda,
+                    Some(separated),
                 );
             }
         }
@@ -433,9 +488,11 @@ fn fit_logistic(
         iterations,
         converged,
         separated,
-        deviance,
+        boundary_saturated: diag.saturated,
+        penalized: false,
+        deviance: diag.deviance,
         nb_alpha: None,
-        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
+        diagnostics: FitDiagnostics::new(design.ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
@@ -446,78 +503,32 @@ fn fit_probit(
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
     validate_glm_shape(design)?;
-    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
+    let GlmDesignRef { y, .. } = design;
     for &yi in y {
         if !(yi == 0.0 || yi == 1.0) {
             return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
         }
     }
 
-    let mut beta = vec![0.0; ncols];
-    let mut x_w = vec![0.0; nrows * ncols];
-    let mut z = vec![0.0; nrows];
-    let mut converged = false;
-    let mut iterations = 0u32;
-
-    for iter in 1..=options.max_iter {
-        iterations = iter;
-        let mut max_delta = 0.0_f64;
-        for r in 0..nrows {
-            let mut eta = 0.0;
-            for c in 0..ncols {
-                eta += x_colmajor[c * nrows + r] * beta[c];
-            }
+    let (beta, iterations, converged) =
+        irls_fit(design, backend, workspace, options, false, |eta, yi| {
             let mu = norm_cdf(eta);
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
             let phi = norm_pdf(eta).max(1e-12);
             let denom = (mu_clamped * (1.0 - mu_clamped)).max(1e-12);
-            let w_fisher = (phi * phi) / denom;
-            let w = w_fisher.sqrt();
-            let yi = y[r];
-            z[r] = (eta + (yi - mu_clamped) / phi) * w;
-            for c in 0..ncols {
-                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-            }
-        }
+            let w = ((phi * phi) / denom).sqrt();
+            (w, (eta + (yi - mu_clamped) / phi) * w)
+        })?;
 
-        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
-        for c in 0..ncols {
-            max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
-            beta[c] = fit.coefficients[c];
-        }
-        if max_delta < options.tol {
-            converged = true;
-            break;
-        }
-    }
-
-    // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
-    let (deviance, separated) = binomial_diagnostics_at(GlmFamily::BinomialProbit, design, &beta);
-
-    if separated {
-        if let Some(lambda) = options.ridge_on_separation {
-            if lambda > 0.0 {
-                return fit_binomial_ridge(
-                    GlmFamily::BinomialProbit,
-                    design,
-                    backend,
-                    workspace,
-                    options,
-                    lambda,
-                );
-            }
-        }
-    }
-
-    Ok(GlmFit {
-        coefficients: beta,
+    finish_binomial(
+        GlmFamily::BinomialProbit,
+        design,
+        workspace,
+        options,
+        beta,
         iterations,
         converged,
-        separated,
-        deviance,
-        nb_alpha: None,
-        diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
-    })
+    )
 }
 
 /// NB2 IRLS with fixed, `MoM`, or nested-MLE dispersion α (`Var = μ + α μ²`).
@@ -653,45 +664,14 @@ fn fit_negbin_fixed_alpha(
     options: &GlmOptions,
     alpha: f64,
 ) -> Result<GlmFit, StatsError> {
-    let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
-    let mut beta = vec![0.0; ncols];
-    let mut x_w = vec![0.0; nrows * ncols];
-    let mut z = vec![0.0; nrows];
-    let mut converged = false;
-    let mut iterations = 0u32;
-
-    for iter in 1..=options.max_iter {
-        iterations = iter;
-        let mut max_delta = 0.0_f64;
-        for r in 0..nrows {
-            let eta = if iter == 1 {
-                (y[r] + 0.5).ln()
-            } else {
-                let mut acc = 0.0;
-                for c in 0..ncols {
-                    acc += x_colmajor[c * nrows + r] * beta[c];
-                }
-                acc
-            };
+    let ncols = design.ncols;
+    let (beta, iterations, converged) =
+        irls_fit(design, backend, workspace, options, true, |eta, yi| {
             let mu = eta.exp().max(1e-12);
             let var = mu * (1.0 + alpha * mu);
             let w = (mu * mu / var).sqrt();
-            let yi = y[r];
-            z[r] = (eta + (yi - mu) / mu) * w;
-            for c in 0..ncols {
-                x_w[c * nrows + r] = x_colmajor[c * nrows + r] * w;
-            }
-        }
-        let fit = backend.least_squares(&x_w, nrows, ncols, &z, workspace)?;
-        for c in 0..ncols {
-            max_delta = max_delta.max((fit.coefficients[c] - beta[c]).abs());
-            beta[c] = fit.coefficients[c];
-        }
-        if max_delta < options.tol {
-            converged = true;
-            break;
-        }
-    }
+            (w, (eta + (yi - mu) / mu) * w)
+        })?;
 
     // Diagnostics at the returned coefficients (not the pre-update IRLS iterate).
     let deviance = negbin_deviance_at(design, &beta, alpha);
@@ -701,20 +681,24 @@ fn fit_negbin_fixed_alpha(
         iterations,
         converged,
         separated: false,
+        boundary_saturated: false,
+        penalized: false,
         deviance,
         nb_alpha: Some(alpha),
         diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
 }
 
-/// Ridge-penalized binomial IRLS used as optional separation fallback.
+/// Ridge-penalized binomial IRLS: the separation fallback (`fallback_separated` is the
+/// unpenalized fit's verdict, which the penalized fit must not clear) or the deliberate
+/// always-on ridge of [`fit_glm_ridge`] (`None`: the verdict is taken at the ridge solution).
 fn fit_binomial_ridge(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
-    _backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
     lambda: f64,
+    fallback_separated: Option<bool>,
 ) -> Result<GlmFit, StatsError> {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut beta = vec![0.0; ncols];
@@ -757,7 +741,7 @@ fn fit_binomial_ridge(
                 }
             }
         }
-        let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
+        let unpenalize0 = ncols > 0 && column_is_constant(x_colmajor, nrows, 0);
         for c in 0..ncols {
             if c == 0 && unpenalize0 {
                 continue;
@@ -783,16 +767,20 @@ fn fit_binomial_ridge(
         }
     }
 
-    // Ridge fits remain `separated: true`: penalized scores are not a substitute for
-    // an unpenalized MLE. Estimation paths (`require_ok`) must refuse them.
-    let (deviance, _) = binomial_diagnostics_at(family, design, &beta);
+    // A separation fallback keeps the unpenalized fit's verdict: penalized scores are not a
+    // substitute for an unpenalized MLE, so estimation paths (`require_ok`) still refuse
+    // them. A deliberate ridge fit is judged at its own solution and is `penalized`.
+    let diag = binomial_diagnostics_at(family, design, &beta);
+    let separated = fallback_separated.unwrap_or_else(|| diag.separated(converged));
 
     Ok(GlmFit {
         coefficients: beta,
         iterations,
         converged,
-        separated: true,
-        deviance,
+        separated,
+        boundary_saturated: diag.saturated || fallback_separated.is_some(),
+        penalized: true,
+        deviance: diag.deviance,
         nb_alpha: None,
         diagnostics: FitDiagnostics::new(ncols, None, "glm-irls", workspace.grow_count),
     })
@@ -810,7 +798,7 @@ fn fit_binomial_ridge(
 pub fn fit_glm_ridge(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
-    backend: &impl DenseLinearAlgebra,
+    _backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
     lambda: f64,
@@ -827,16 +815,7 @@ pub fn fit_glm_ridge(
     if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
         return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
     }
-    fit_binomial_ridge(family, design, backend, workspace, options, lambda)
-}
-
-fn col_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool {
-    if nrows == 0 {
-        return true;
-    }
-    let base = col * nrows;
-    let v0 = x_colmajor[base];
-    x_colmajor[base..base + nrows].iter().all(|&v| (v - v0).abs() < 1e-12)
+    fit_binomial_ridge(family, design, workspace, options, lambda, None)
 }
 
 /// Multinomial logit design: column-major `X` and integer category codes.
@@ -866,7 +845,8 @@ pub struct MultinomialFit {
     pub iterations: u32,
     /// Whether the score updates converged.
     pub converged: bool,
-    /// Whether fitted probabilities hit the soft clamp band (separation signal).
+    /// Whether fitted probabilities hit the soft clamp band (separation signal), or the
+    /// Fisher information became singular and had to be ridge-regularized to continue.
     pub separated: bool,
     /// Final deviance (`−2` log-likelihood).
     pub deviance: f64,
@@ -903,8 +883,8 @@ impl MultinomialFit {
 ///
 /// # Errors
 ///
-/// Shape mismatch, invalid category codes, singular Fisher information, or
-/// linear-algebra failure (binary path).
+/// Shape mismatch, invalid category codes, a rank-deficient design
+/// ([`StatsError::RankDeficient`]), or linear-algebra failure (binary path).
 pub fn fit_multinomial_logit(
     design: MultinomialDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -997,6 +977,31 @@ fn fit_multinomial_binary(
     })
 }
 
+/// Whether `XᵀWX` (`W = diag(weights)`, identity when `None`) is numerically nonsingular.
+fn weighted_gram_is_full_rank(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    weights: Option<&[f64]>,
+) -> bool {
+    let mut gram = vec![0.0; ncols * ncols];
+    for r in 0..nrows {
+        let w = weights.map_or(1.0, |w| w[r]);
+        for c1 in 0..ncols {
+            let a = w * x_colmajor[c1 * nrows + r];
+            for c2 in c1..ncols {
+                gram[c1 * ncols + c2] += a * x_colmajor[c2 * nrows + r];
+            }
+        }
+    }
+    for c1 in 0..ncols {
+        for c2 in 0..c1 {
+            gram[c1 * ncols + c2] = gram[c2 * ncols + c1];
+        }
+    }
+    invert_square(&gram, ncols).is_some()
+}
+
 fn fit_multinomial_fisher(
     design: MultinomialDesignRef<'_>,
     options: &GlmOptions,
@@ -1013,6 +1018,13 @@ fn fit_multinomial_fisher(
     let mut converged = false;
     let mut iterations = 0u32;
     let mut prev_deviance = f64::INFINITY;
+    let mut regularized = false;
+
+    // Identifiability is a property of the design, not of the sample size: a rank-deficient
+    // (weighted) design is refused outright instead of being made invertible by a ridge.
+    if ncols > 0 && !weighted_gram_is_full_rank(x_colmajor, nrows, ncols, weights) {
+        return Err(StatsError::RankDeficient { rank: 0, ncols });
+    }
 
     for iter in 1..=options.max_iter {
         iterations = iter;
@@ -1021,30 +1033,7 @@ fn fit_multinomial_fisher(
         let mut loop_deviance = 0.0;
 
         for r in 0..nrows {
-            // η_0 = 0; η_j = x·β_j for j = 1..K-1
-            eta[0] = 0.0;
-            let mut max_eta = 0.0_f64;
-            for j in 1..k {
-                let mut acc = 0.0;
-                let base = (j - 1) * ncols;
-                for c in 0..ncols {
-                    acc += x_colmajor[c * nrows + r] * beta_free[base + c];
-                }
-                eta[j] = acc;
-                if acc > max_eta {
-                    max_eta = acc;
-                }
-            }
-            let mut zsum = 0.0;
-            for j in 0..k {
-                let e = (eta[j] - max_eta).exp();
-                pi[j] = e;
-                zsum += e;
-            }
-            let inv_z = 1.0 / zsum.max(f64::EPSILON);
-            for j in 0..k {
-                pi[j] *= inv_z;
-            }
+            softmax_row(design, &beta_free, r, &mut eta, &mut pi);
             let yi = y_category[r] as usize;
             // In-loop deviance is for convergence only; final diagnostics recomputed below.
             loop_deviance += weights.map_or(1.0, |w| w[r]) * -2.0 * pi[yi].max(1e-300).ln();
@@ -1075,11 +1064,23 @@ fn fit_multinomial_fisher(
             }
         }
 
-        // Ridge for near-singular Fisher information under quasi-separation.
-        for i in 0..m {
-            h[i * m + i] += 1e-8;
-        }
-        let h_inv = invert_square(&h, m).ok_or(StatsError::RankDeficient { rank: 0, ncols: m })?;
+        // At interior probabilities the information is nonsingular exactly when the design
+        // has full column rank (checked before the loop), so a singular `h` here means the
+        // fitted probabilities have saturated (quasi-separation). Only then is a small ridge
+        // applied, and the fit is flagged so `require_ok` refuses it.
+        let h_inv = if let Some(inv) = invert_square(&h, m) {
+            inv
+        } else {
+            let scale = (0..m).fold(0.0_f64, |acc, i| acc.max(h[i * m + i]));
+            if !(scale.is_finite() && scale > 0.0) {
+                return Err(StatsError::RankDeficient { rank: 0, ncols: m });
+            }
+            for i in 0..m {
+                h[i * m + i] += 1e-8 * scale;
+            }
+            regularized = true;
+            invert_square(&h, m).ok_or(StatsError::RankDeficient { rank: 0, ncols: m })?
+        };
         let mut delta = vec![0.0; m];
         let mut max_delta = 0.0_f64;
         let mut score_norm = 0.0_f64;
@@ -1109,7 +1110,8 @@ fn fit_multinomial_fisher(
     }
 
     // Diagnostics at the returned coefficients (not the pre-update scoring iterate).
-    let (deviance, separated) = multinomial_diagnostics_at(design, &beta_free, weights);
+    let (deviance, saturated) = multinomial_diagnostics_at(design, &beta_free, weights);
+    let separated = saturated || regularized;
 
     let mut coefficients = vec![0.0; k * ncols];
     for j in 1..k {
@@ -1129,41 +1131,57 @@ fn fit_multinomial_fisher(
     })
 }
 
+/// Baseline-category softmax probabilities for row `r`: `η₀ = 0`, `ηⱼ = x·βⱼ` for
+/// `j = 1..K-1`, computed against the maximum `η` so the exponentials cannot overflow.
+/// `η₀ = 0` is always a candidate for the maximum, so the normaliser is at least 1.
+fn softmax_row(
+    design: MultinomialDesignRef<'_>,
+    beta_free: &[f64],
+    r: usize,
+    eta: &mut [f64],
+    pi: &mut [f64],
+) {
+    let MultinomialDesignRef { x_colmajor, nrows, ncols, n_categories: k, .. } = design;
+    eta[0] = 0.0;
+    let mut max_eta = 0.0_f64;
+    for j in 1..k {
+        let mut acc = 0.0;
+        let base = (j - 1) * ncols;
+        for c in 0..ncols {
+            acc += x_colmajor[c * nrows + r] * beta_free[base + c];
+        }
+        eta[j] = acc;
+        if acc > max_eta {
+            max_eta = acc;
+        }
+    }
+    let mut zsum = 0.0;
+    for j in 0..k {
+        let e = (eta[j] - max_eta).exp();
+        pi[j] = e;
+        zsum += e;
+    }
+    let inv_z = 1.0 / zsum;
+    for p in pi.iter_mut().take(k) {
+        *p *= inv_z;
+    }
+}
+
 /// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
 fn multinomial_diagnostics_at(
     design: MultinomialDesignRef<'_>,
     beta_free: &[f64],
     weights: Option<&[f64]>,
 ) -> (f64, bool) {
-    let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
+    let MultinomialDesignRef { nrows, y_category, n_categories: k, .. } = design;
     let mut deviance = 0.0;
     let mut separated = false;
     let mut pi = vec![0.0; k];
     let mut eta = vec![0.0; k];
     for r in 0..nrows {
-        eta[0] = 0.0;
-        let mut max_eta = 0.0_f64;
-        for j in 1..k {
-            let mut acc = 0.0;
-            let base = (j - 1) * ncols;
-            for c in 0..ncols {
-                acc += x_colmajor[c * nrows + r] * beta_free[base + c];
-            }
-            eta[j] = acc;
-            if acc > max_eta {
-                max_eta = acc;
-            }
-        }
-        let mut zsum = 0.0;
-        for j in 0..k {
-            let e = (eta[j] - max_eta).exp();
-            pi[j] = e;
-            zsum += e;
-        }
-        let inv_z = 1.0 / zsum.max(f64::EPSILON);
-        for j in 0..k {
-            pi[j] *= inv_z;
-            if pi[j] < 1e-8 || pi[j] > 1.0 - 1e-8 {
+        softmax_row(design, beta_free, r, &mut eta, &mut pi);
+        for &p in &pi {
+            if p < 1e-8 || p > 1.0 - 1e-8 {
                 separated = true;
             }
         }
@@ -1754,5 +1772,99 @@ mod tests {
                 assert!((fit.coefficients[j] - (weights[j] / weights[0]).ln()).abs() < 1e-5);
             }
         }
+    }
+
+    #[test]
+    fn multinomial_collinear_design_errors_at_every_sample_size() {
+        // Intercept + x + a duplicate of x: the coefficients on x and x' are not identified.
+        // An unconditional 1e-8 ridge used to make this fit "converge" for small n and error
+        // only once the Gram scale exceeded 1e4; the verdict is now a property of the design.
+        for n in [60usize, 6000] {
+            let mut x = vec![0.0; n * 3];
+            let mut y = vec![0u32; n];
+            for i in 0..n {
+                let t = i as f64 / n as f64;
+                x[i] = 1.0;
+                x[n + i] = t;
+                x[2 * n + i] = t;
+                y[i] = ((i * 7 + i / 3) % 3) as u32;
+            }
+            let err = fit_multinomial_logit(
+                MultinomialDesignRef {
+                    x_colmajor: &x,
+                    nrows: n,
+                    ncols: 3,
+                    y_category: &y,
+                    n_categories: 3,
+                },
+                &FaerBackend,
+                &mut LeastSquaresWorkspace::default(),
+                &GlmOptions::new(100, 1e-8),
+            )
+            .unwrap_err();
+            assert!(matches!(err, StatsError::RankDeficient { .. }), "n={n} err={err}");
+        }
+    }
+
+    #[test]
+    fn separation_verdict_needs_more_than_saturation() {
+        let saturated_only =
+            BinomialDiagnostics { deviance: 1.0, saturated: true, perfectly_classified: false };
+        // A converged fit that saturates but misclassifies a row has a finite MLE.
+        assert!(!saturated_only.separated(true));
+        // The same saturation without convergence is divergence: separation.
+        assert!(saturated_only.separated(false));
+        let perfect =
+            BinomialDiagnostics { deviance: 0.0, saturated: true, perfectly_classified: true };
+        assert!(perfect.separated(true));
+        let interior =
+            BinomialDiagnostics { deviance: 0.0, saturated: false, perfectly_classified: true };
+        assert!(!interior.separated(false));
+    }
+
+    #[test]
+    fn require_ok_names_the_actual_defect() {
+        let base = GlmFit {
+            coefficients: vec![0.0],
+            iterations: 1,
+            converged: true,
+            separated: false,
+            boundary_saturated: false,
+            penalized: false,
+            deviance: 0.0,
+            nb_alpha: None,
+            diagnostics: FitDiagnostics::new(1, None, "glm-irls", 0),
+        };
+        assert!(base.require_ok().is_ok());
+        let separated = GlmFit { separated: true, boundary_saturated: true, ..base.clone() };
+        assert!(separated.require_ok().unwrap_err().to_string().contains("separation"));
+        let extreme = GlmFit { boundary_saturated: true, ..base.clone() };
+        let msg = extreme.require_ok().unwrap_err().to_string();
+        assert!(msg.contains("within 1e-8") && !msg.contains("(quasi-)complete"), "{msg}");
+    }
+
+    #[test]
+    fn deliberate_ridge_fit_is_penalized_but_not_separated() {
+        let n = 80usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = if i % 10 == 0 { 1.0 - t } else { t };
+        }
+        let fit = fit_glm_ridge(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+            &GlmOptions::new(200, 1e-8),
+            0.5,
+        )
+        .unwrap();
+        assert!(fit.converged);
+        assert!(fit.penalized && !fit.separated && !fit.boundary_saturated);
+        assert!(fit.require_ok().is_ok(), "an ordinary ridge fit must pass require_ok");
     }
 }

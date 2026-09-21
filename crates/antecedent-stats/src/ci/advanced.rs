@@ -269,7 +269,7 @@ fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64
         knn.distances.truncate(n);
     }
     let idx = knn.index.as_ref().ok_or(StatsError::Shape { message: "missing kNN index" })?;
-    idx.kth_distances(&knn.features, n, k, &mut knn.distances)?;
+    idx.kth_self_distances_of_donors(k, &mut knn.distances)?;
     let mean = knn.distances.iter().sum::<f64>() / n as f64;
     Ok(-mean)
 }
