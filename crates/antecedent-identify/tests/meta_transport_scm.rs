@@ -288,9 +288,17 @@ fn ordered_three_node_meta_graphs_match_every_target_atom_and_contrast() {
     };
     branches.extend(proof.rules());
     assert!(positives > 100 && negatives > 0);
-    for rule in
-        ["sid.line1", "sid.line2", "sid.line3", "sid.line4", "sid.line7", "sid.line8", "sid.line10"]
-    {
+    // Multi-source recursion never reaches Figure 5 line 10 proper: an available source
+    // answers a state directly, or the state is an obstruction.
+    for rule in [
+        "sid.line1",
+        "sid.line2",
+        "sid.line3",
+        "sid.line4",
+        "sid.line7",
+        "sid.line8",
+        "transport.direct",
+    ] {
         assert!(branches.contains(rule), "unexercised rule {rule}: {branches:?}");
     }
 }

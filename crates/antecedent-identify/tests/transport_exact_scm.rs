@@ -184,14 +184,41 @@ fn three_node_selection_sweep(x: u32) {
     // Domain: all 64 ordered three-node ADMGs × 8 selection patterns × 3
     // independent Bernoulli latent-SCM parameterizations. Truth is the target
     // interventional P(Y=1 | do(X=x)), not a second wrapper of the same formula.
+    sweep(&[x], 2, &[(0.12, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07), (0.18, 0.10, 0.08, 0.05)]);
+}
+
+#[test]
+fn every_treatment_position_and_joint_interventions_agree_with_the_oracle() {
+    // Edges always point from lower to higher index, so a treatment other than
+    // node 0 has parents and pretreatment confounders, and enlargement (line 3),
+    // recursion through carried kernels (line 8) and external-parent source
+    // leaves are all exercised numerically, as are two-treatment queries.
+    let parameterization = [(0.12, 0.16, 0.12, 0.09)];
+    for (treatments, outcome) in [
+        (&[0u32][..], 1u32),
+        (&[1][..], 2),
+        (&[1][..], 0),
+        (&[2][..], 0),
+        (&[2][..], 1),
+        (&[0, 1][..], 2),
+        (&[0, 2][..], 1),
+        (&[1, 2][..], 0),
+    ] {
+        sweep(treatments, outcome, &parameterization);
+    }
+}
+
+#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
+fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, f64)]) {
     let ctx = ExecutionContext::for_tests(42);
     let edges = [(0usize, 1usize), (0, 2), (1, 2)];
     let query = ClassicalTransportQuery {
-        outcomes: Arc::from([v(2)]),
-        treatments: Arc::from([v(x)]),
+        outcomes: Arc::from([v(outcome)]),
+        treatments: treatments.iter().map(|t| v(*t)).collect::<Vec<_>>().into(),
         source: Arc::from("source"),
         target: Arc::from("target"),
     };
+    let treatment_mask: usize = treatments.iter().map(|t| 1usize << t).sum();
     for directed_mask in 0..8usize {
         for bidirected_mask in 0..8usize {
             for selected in 0..8usize {
@@ -223,11 +250,7 @@ fn three_node_selection_sweep(x: u32) {
                         "inconclusive uncapped three-node case: directed={directed_mask} bidirected={bidirected_mask} selected={selected}"
                     ),
                 };
-                for (base, parent_w, shared_w, sel_w) in [
-                    (0.12_f64, 0.16, 0.12, 0.09),
-                    (0.08, 0.14, 0.11, 0.07),
-                    (0.18, 0.10, 0.08, 0.05),
-                ] {
+                for &(base, parent_w, shared_w, sel_w) in parameterizations {
                     let enumerate =
                         |target: bool, intervention_mask: usize, intervention_values: usize| {
                             let axes: Vec<usize> =
@@ -372,24 +395,42 @@ fn three_node_selection_sweep(x: u32) {
                     let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
                     let bound = proof.bind_catalog(&catalog).unwrap();
                     let data = ExactTransportData::try_new(laws, 1000).unwrap();
-                    for level in 0..2 {
-                        let (_, truth) = enumerate(true, 1 << x, level << x);
-                        let expected = truth[1] + truth[3];
-                        let plan = ExactEvaluationPlan::compile(
-                            bound.arena(),
-                            bound.root(),
-                            data.clone(),
-                            [v(2)],
-                            Assignment::from_pairs([(v(x), Value::Int64(level as i64))]),
-                            ExactEvaluationLimits::default(),
-                            LawTolerance::default(),
-                            &ctx,
-                        )
-                        .unwrap();
+                    for level in 0..(1usize << treatments.len()) {
+                        let assigned: usize = treatments
+                            .iter()
+                            .enumerate()
+                            .filter(|(j, _)| (level >> j) & 1 == 1)
+                            .map(|(_, t)| 1usize << t)
+                            .sum();
+                        let (truth_axes, truth) = enumerate(true, treatment_mask, assigned);
+                        let outcome_axis =
+                            truth_axes.iter().position(|axis| *axis == outcome as usize).unwrap();
+                        let expected: f64 = truth
+                            .iter()
+                            .enumerate()
+                            .filter(|(row, _)| {
+                                (row >> (truth_axes.len() - 1 - outcome_axis)) & 1 == 1
+                            })
+                            .map(|(_, mass)| *mass)
+                            .sum();
+                        let plan =
+                            ExactEvaluationPlan::compile(
+                                bound.arena(),
+                                bound.root(),
+                                data.clone(),
+                                [v(outcome)],
+                                Assignment::from_pairs(treatments.iter().enumerate().map(
+                                    |(j, t)| (v(*t), Value::Int64(((level >> j) & 1) as i64)),
+                                )),
+                                ExactEvaluationLimits::default(),
+                                LawTolerance::default(),
+                                &ctx,
+                            )
+                            .unwrap();
                         let result = plan.evaluate(&ctx).unwrap();
                         assert!(
-                            (result.mean(v(2)).unwrap() - expected).abs() < 1e-10,
-                            "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} level={level} base={base} treatment=v({x})"
+                            (result.mean(v(outcome)).unwrap() - expected).abs() < 1e-10,
+                            "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} treatments={treatments:?} outcome={outcome} level={level} base={base}"
                         );
                     }
                 }
@@ -671,6 +712,8 @@ fn unavailable_target_formula_does_not_hide_available_source_alternative() {
             .iter()
             .all(|binding| binding.population.as_ref() == "source")
     );
+    // Empty standardization is direct transport, not Figure 5 line 10.
+    assert_eq!(bound.derivation().rules(), ["transport.direct"]);
     let empty = identify_catalog_transport(
         &diagram,
         &query,
@@ -1116,4 +1159,243 @@ fn six_node_recursive_districts_match_joint_latent_scm_truth() {
             }
         }
     }
+}
+
+fn binary_axis(i: u32) -> DiscreteAxis {
+    DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0), Value::Int64(1)]) }
+}
+
+#[test]
+fn enlargement_does_not_require_the_child_at_levels_the_data_cannot_reach() {
+    // W -> X -> Y with the Y mechanism selected. P*(y | do x) = P*(y | x). The
+    // enlarged child P*(y | x, w) is a conditional on a null event at (w=0, x=1),
+    // because P*(X=1 | W=0) = 0 while P*(X=1) > 0 and P*(W=0) > 0. Weighting by
+    // P*(w) would need that undefined cell; weighting by P*(w | x) does not.
+    let mut graph = Admg::with_variables(3);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_directed(d(1), d(2)).unwrap();
+    let diagram = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(2)]),
+        treatments: Arc::from([v(1)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let ctx = ExecutionContext::for_tests(21);
+    let ClassicalTransportResult::Identified(derivation) =
+        identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap()
+    else {
+        panic!("target DAG identifies");
+    };
+    assert!(derivation.rules().contains(&"sid.line3"));
+    let regime = EvidenceRegime::try_new(
+        RegimeId::from_raw(7),
+        RegimeKind::Observational,
+        EvidenceKind::Available,
+        [],
+        [],
+        [v(0), v(1), v(2)],
+        "target",
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    let catalog = EvidenceCatalog::try_new([], [regime], [], None).unwrap();
+    let functional = derivation.bind_catalog(&catalog).unwrap();
+    let mut observational = vec![0.0; 8];
+    for w in 0..2usize {
+        for x in 0..2usize {
+            for y in 0..2usize {
+                let p_x1 = if w == 1 { 0.6 } else { 0.0 };
+                observational[w * 4 + x * 2 + y] +=
+                    0.5 * bernoulli(x, p_x1) * bernoulli(y, 0.2 + 0.5 * x as f64);
+            }
+        }
+    }
+    let law = ExactDiscreteLaw::try_new(
+        "target",
+        RegimeId::from_raw(7),
+        [],
+        [binary_axis(0), binary_axis(1), binary_axis(2)],
+        observational,
+        "oracle",
+        LawTolerance::default(),
+    )
+    .unwrap();
+    let data = ExactTransportData::try_new([law], 1000).unwrap();
+    for x in 0..2i64 {
+        let plan = ExactEvaluationPlan::compile(
+            functional.arena(),
+            functional.root(),
+            data.clone(),
+            [v(2)],
+            Assignment::from_pairs([(v(1), Value::Int64(x))]),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap();
+        let result = plan.evaluate(&ctx).unwrap();
+        // Y depends on X alone, so do(x) and conditioning on x agree: P(Y=1) = 0.2 + 0.5 x.
+        let truth = 0.2 + 0.5 * x as f64;
+        assert!((result.mean(v(2)).unwrap() - truth).abs() < 1e-12, "x={x}");
+        assert!((result.probabilities[0] - (1.0 - truth)).abs() < 1e-12, "x={x}");
+    }
+}
+
+/// W -> X -> Y, X <-> Y with selection on W: only the law of W (hence of X) differs.
+fn confounded_treatment_with_selected_parent() -> (SelectionDiagram, ClassicalTransportQuery) {
+    let mut graph = Admg::with_variables(3);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    graph.insert_directed(d(1), d(2)).unwrap();
+    graph.insert_bidirected(d(1), d(2)).unwrap();
+    let diagram = SelectionDiagram::try_new(graph, [v(0)]).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(2)]),
+        treatments: Arc::from([v(1)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    (diagram, query)
+}
+
+#[test]
+fn irrelevant_selection_upstream_of_the_treatment_is_direct_transport_at_the_root() {
+    let (diagram, query) = confounded_treatment_with_selected_parent();
+    let ctx = ExecutionContext::for_tests(22);
+    let ClassicalTransportResult::Identified(derivation) =
+        identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap()
+    else {
+        panic!("S is independent of Y under do(x), so the source experiment answers the query");
+    };
+    // Not enlarged over W: that would demand do(X, W) experiments and a target law of W.
+    assert_eq!(derivation.rules(), ["transport.direct"]);
+    let regime = EvidenceRegime::try_new(
+        RegimeId::from_raw(1),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [v(1)],
+        [],
+        [v(2)],
+        "source",
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    let catalog = EvidenceCatalog::try_new([], [regime], [], None).unwrap();
+    let bound = derivation.bind_catalog(&catalog).unwrap();
+    // Latent U confounds X and Y; W only shifts X. P(Y=1 | do(x)) = sum_u 0.5 (0.1 + 0.5 x + 0.3 u).
+    let mut laws = Vec::new();
+    for x in 0..2usize {
+        let mut world = vec![0.0; 2];
+        for u in 0..2usize {
+            for (y, mass) in world.iter_mut().enumerate() {
+                *mass += 0.5 * bernoulli(y, 0.1 + 0.5 * x as f64 + 0.3 * u as f64);
+            }
+        }
+        laws.push(
+            ExactDiscreteLaw::try_new(
+                "source",
+                RegimeId::from_raw(1),
+                [antecedent_expr::InterventionAssignment {
+                    variable: v(1),
+                    value: Value::Int64(x as i64),
+                }],
+                [binary_axis(2)],
+                world,
+                "oracle",
+                LawTolerance::default(),
+            )
+            .unwrap(),
+        );
+    }
+    let data = ExactTransportData::try_new(laws, 1000).unwrap();
+    for x in 0..2i64 {
+        let plan = ExactEvaluationPlan::compile(
+            bound.arena(),
+            bound.root(),
+            data.clone(),
+            [v(2)],
+            Assignment::from_pairs([(v(1), Value::Int64(x))]),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap();
+        let truth = 0.25 + 0.5 * x as f64;
+        assert!((plan.evaluate(&ctx).unwrap().mean(v(2)).unwrap() - truth).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn a_direct_transport_step_cannot_be_relabelled_as_figure_five_line_ten() {
+    use antecedent_identify::sid::{ClassicalTransportDerivation, Rule};
+    let (diagram, query) = confounded_treatment_with_selected_parent();
+    let ctx = ExecutionContext::for_tests(23);
+    let ClassicalTransportResult::Identified(derivation) =
+        identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap()
+    else {
+        panic!("direct transport");
+    };
+    let record = derivation.to_record();
+    assert_eq!(record.steps[record.root_step].rule, Rule::DirectTransport);
+    let check = |record| {
+        ClassicalTransportDerivation::from_record_checked(
+            record,
+            derivation.arena().clone(),
+            &diagram,
+            &query,
+            SidLimits::default(),
+            &ctx,
+        )
+    };
+    check(record.clone()).unwrap();
+    // The root state is enlargeable (W is not an ancestor of Y in G_X-bar), so line 10 cannot fire.
+    let mut relabelled = record;
+    let root = relabelled.root_step;
+    relabelled.steps[root].rule = Rule::Source;
+    assert!(check(relabelled).is_err());
+}
+
+#[test]
+fn exhausting_the_standardizer_subset_budget_is_an_obligation_not_an_error() {
+    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
+    // X, Y and 17 pretreatment parents of Y; the first parent's mechanism is selected, so
+    // every admissible standardizer contains it and none can be bound from a catalog that
+    // holds only the source experiment. 2^17 subsets exceed the step budget.
+    let n = 19u32;
+    let mut graph = Admg::with_variables(n);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    for z in 2..n {
+        graph.insert_directed(d(z), d(1)).unwrap();
+    }
+    let diagram = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(1)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    let regime = EvidenceRegime::try_new(
+        RegimeId::from_raw(1),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [v(0)],
+        [],
+        [v(1)],
+        "source",
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    let catalog = EvidenceCatalog::try_new([], [regime], [], None).unwrap();
+    let ctx = ExecutionContext::for_tests(24);
+    let limits = SidLimits { steps: 20_000, depth: 256 };
+    let result = identify_catalog_transport(&diagram, &query, &catalog, limits, &ctx)
+        .expect("subset-search exhaustion must not fail the call");
+    let CatalogTransportResult::MissingEvidence { searched, obligations } = result else {
+        panic!("nothing binds, and nothing here is a proof of impossibility: {result:?}");
+    };
+    assert_eq!(searched.len(), 3, "the source-first strategy must still run");
+    assert!(
+        obligations.iter().any(|o| o.contains("stopped after 20000 candidate subsets of 17")),
+        "{obligations:?}"
+    );
 }

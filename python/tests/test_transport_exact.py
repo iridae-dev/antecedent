@@ -104,7 +104,7 @@ def test_catalog_search_uses_available_source_when_target_formula_cannot_bind():
         identified, catalog, transport.ExactTransportData((law,)), at={"x": 1.0}
     )
     assert result.probabilities == pytest.approx((0.2, 0.8))
-    assert result.rules == ("sid.line10",)
+    assert result.rules == ("transport.direct",)
     assert result.formula != identified.formula
 
 
