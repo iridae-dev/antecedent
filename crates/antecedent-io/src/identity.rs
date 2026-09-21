@@ -284,6 +284,9 @@ fn population_label(population: &TargetPopulationWire) -> String {
             format!("custom_distribution:{handle}")
         }
         TargetPopulationWire::RowWeights { .. } => "row_weights".into(),
+        TargetPopulationWire::LocalAtCutoff { running, cutoff } => {
+            format!("local_at_cutoff:{running}:{cutoff}")
+        }
     }
 }
 

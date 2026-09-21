@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::ids::{DistributionRef, EnvironmentId, VariableId};
 
+use super::attribution::OrderedFloatBits;
 use super::error::QueryError;
 
 /// Portable predicate over units/rows.
@@ -84,17 +85,49 @@ pub enum TargetPopulation {
         /// Covariates the weights are declared to depend on.
         depends_on: Arc<[VariableId]>,
     },
+    /// Units at the threshold of a running variable: the limit population `R = c`.
+    ///
+    /// This is the population a sharp regression-discontinuity design speaks for. It is
+    /// not a row subset: the effect over it is the difference of the one-sided limits of
+    /// `E[Y | R = r]` at `c`, and it says nothing about units away from the cutoff.
+    LocalAtCutoff {
+        /// Running (assignment) variable `R`.
+        running: VariableId,
+        /// Cutoff `c` (finite; `-0.0` is stored as `0.0`).
+        cutoff: OrderedFloatBits,
+    },
 }
 
 impl TargetPopulation {
+    /// Units at the cutoff `cutoff` of `running` ([`Self::LocalAtCutoff`]).
+    #[must_use]
+    pub fn local_at_cutoff(running: VariableId, cutoff: f64) -> Self {
+        // One bit pattern per cutoff, so equal designs compare and hash equal.
+        let cutoff = if cutoff == 0.0 { 0.0 } else { cutoff };
+        Self::LocalAtCutoff { running, cutoff: OrderedFloatBits::from_f64(cutoff) }
+    }
+
+    /// Whether this is the cutoff population of exactly this design.
+    #[must_use]
+    pub fn is_local_at_cutoff(&self, running: VariableId, cutoff: f64) -> bool {
+        *self == Self::local_at_cutoff(running, cutoff)
+    }
+
     /// Validate population geometry for Planned / structured variants.
     ///
     /// # Errors
     ///
-    /// Empty predicate name or empty row set.
+    /// Empty predicate name, empty row set, or a non-finite cutoff.
     pub fn validate(&self) -> Result<(), QueryError> {
         match self {
             Self::Predicate(expr) => expr.validate(),
+            Self::LocalAtCutoff { cutoff, .. } => {
+                if cutoff.to_f64().is_finite() {
+                    Ok(())
+                } else {
+                    Err(QueryError::NonFiniteCutoff)
+                }
+            }
             Self::AllObserved
             | Self::Treated
             | Self::Untreated

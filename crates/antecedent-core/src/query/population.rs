@@ -135,6 +135,7 @@ impl TargetPopulation {
                 Ok(PopulationSelection { keep: Arc::from(keep), weights: None })
             }
             Self::Environment(_) => Err(QueryError::PopulationEnvironmentUnsupported),
+            Self::LocalAtCutoff { .. } => Err(QueryError::PopulationLocalAtCutoffNotRows),
             Self::Predicate(expr) => {
                 let rows: &[usize] = match expr {
                     PredicateExpr::Rows(rows) => rows.as_ref(),
@@ -181,6 +182,21 @@ impl TargetPopulation {
 mod tests {
     use super::*;
     use crate::ids::DistributionRef;
+
+    #[test]
+    fn cutoff_population_is_a_limit_not_a_row_subset() {
+        let local = TargetPopulation::local_at_cutoff(crate::VariableId::from_raw(2), -0.0);
+        assert!(local.is_local_at_cutoff(crate::VariableId::from_raw(2), 0.0));
+        assert!(!local.is_local_at_cutoff(crate::VariableId::from_raw(2), 0.5));
+        assert!(!local.is_local_at_cutoff(crate::VariableId::from_raw(1), 0.0));
+        assert!(local.validate().is_ok());
+        assert!(matches!(
+            local.resolve(3, None, None),
+            Err(QueryError::PopulationLocalAtCutoffNotRows)
+        ));
+        let bad = TargetPopulation::local_at_cutoff(crate::VariableId::from_raw(2), f64::INFINITY);
+        assert!(matches!(bad.validate(), Err(QueryError::NonFiniteCutoff)));
+    }
 
     #[test]
     fn resolves_rows_and_named_and_weights() {
