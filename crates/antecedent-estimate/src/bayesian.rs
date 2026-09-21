@@ -109,6 +109,13 @@ pub const HMC_MIN_DRAWS: usize = 3_000;
 /// raised the requested draw count (`requested=<n> used=<m>`).
 pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
 
+/// Diagnostics note when `unit_ids` request random-intercept GLS whitening under a
+/// non-Gaussian likelihood. Whitening is a Gaussian linear transform and must not be
+/// applied to count or binary outcomes.
+pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str =
+    "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
+     GaussianIdentity; unit_ids were ignored for this likelihood";
+
 /// `(requested, used)` draw counts when the HMC draw floor raised the request.
 #[must_use]
 pub fn hmc_draw_floor_from_notes(notes: &[Arc<str>]) -> Option<(usize, usize)> {
@@ -1072,15 +1079,22 @@ impl BayesianGComputationAte {
                 ));
             }
         }
-        let whitened = problem.unit_ids.as_deref().and_then(|ids| {
-            random_intercept_gls_whiten(
+        // GLS whitening is a Gaussian residual transform. Applying it to Poisson /
+        // binomial / other GLM outcomes silently corrupts the likelihood.
+        let whitened = match (likelihood, problem.unit_ids.as_deref()) {
+            (BayesLikelihood::GaussianIdentity, Some(ids)) => random_intercept_gls_whiten(
                 &problem.design.matrix,
                 &problem.design.outcome,
                 problem.design.nrows,
                 problem.design.ncols,
                 ids,
-            )
-        });
+            ),
+            (_, Some(_)) => {
+                extra_notes.push(Arc::from(RANDOM_INTERCEPT_WHITEN_SKIP_NOTE));
+                None
+            }
+            (_, None) => None,
+        };
         let (x_fit, y_fit) = match &whitened {
             Some((x, y)) => (x.as_slice(), y.as_slice()),
             None => (problem.design.matrix.as_ref(), problem.design.outcome.as_ref()),
@@ -1521,6 +1535,9 @@ fn apply_coefficient_names(quantities: &mut [PosteriorQuantityKind], names: &[Ar
 }
 
 /// Compound-symmetry GLS whitening for a random intercept (coefficient fit only).
+///
+/// Callers must gate on [`BayesLikelihood::GaussianIdentity`]: this transform is a
+/// Gaussian linear residual map and is not valid for non-Gaussian GLM outcomes.
 ///
 /// Returns `None` when unit ids are unusable (length mismatch, <2 units, all
 /// singleton units, or non-finite MOM variance components). The transform
@@ -2475,6 +2492,153 @@ mod tests {
         assert!(
             err.to_string().contains("unit_ids"),
             "length mismatch must fail closed, got {err}"
+        );
+    }
+
+    /// estimate-bayes-transport-response-3 / R15: GLS whitening must not feed a
+    /// Poisson likelihood. With unit_ids present, the fit must consume the raw
+    /// count column (same posterior as stacked iid) and disclose the skip.
+    #[test]
+    fn poisson_random_intercept_does_not_consume_whitened_outcome() {
+        use crate::adjustment::LinearAdjustmentAte;
+        use antecedent_core::AverageEffectQuery;
+
+        let n_units = 20usize;
+        let t_len = 6usize;
+        let n = n_units * t_len;
+        let mut t = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut z = Vec::with_capacity(n);
+        let mut unit_ids = Vec::with_capacity(n);
+        for u in 0..n_units {
+            let a = if u % 2 == 0 { 1.0 } else { 0.0 };
+            // Unit intercepts vary within each treatment arm so MOM τ²>0 after OLS.
+            let unit_base = 4.0 + (u % 5) as f64;
+            for k in 0..t_len {
+                t.push(a);
+                z.push(0.0);
+                // Within-unit count variation so residual σ²>0 (required by the whitener).
+                let rate: f64 =
+                    unit_base * if a > 0.5 { 2.0 } else { 1.0 } + (k % 3) as f64;
+                y.push(rate.round().max(0.0));
+                unit_ids.push(u as u32);
+            }
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "T",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y.clone()), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(z), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([] as [VariableId; 0]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = freq.prepare(&data, &estimand, &query).unwrap();
+
+        // Whitening is applicable on this panel and would change the outcome column.
+        let (x_star, y_star) = random_intercept_gls_whiten(
+            &prep.design.matrix,
+            &prep.design.outcome,
+            prep.design.nrows,
+            prep.design.ncols,
+            &unit_ids,
+        )
+        .expect("panel with shared unit intercepts must admit GLS whitening");
+        assert!(
+            y_star.iter().zip(prep.design.outcome.iter()).any(|(a, b)| (a - b).abs() > 1e-9),
+            "sanity: whitened outcome must differ from the raw counts"
+        );
+        assert_eq!(x_star.len(), prep.design.matrix.len());
+
+        let stacked = BayesianGComputationAte::from_prepared_estimation(&prep);
+        let mut hierarchical = stacked.clone();
+        hierarchical.unit_ids = Some(unit_ids);
+
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::Laplace,
+            likelihood: BayesLikelihood::PoissonLog,
+            n_draws: 200,
+            seed: 19,
+            prior_scale: 10.0,
+            ..BayesianGComputationAte::new()
+        };
+        let mut ws = BayesianGCompWorkspace::default();
+        let ctx = ExecutionContext::for_tests(2);
+        let post_plain = bayes
+            .fit(&stacked, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+            .unwrap();
+        let post_ri = bayes
+            .fit(&hierarchical, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+            .unwrap();
+
+        let eq = post_plain.effect_column().unwrap();
+        let mean_plain = post_plain.summaries.mean[eq];
+        let mean_ri = post_ri.summaries.mean[eq];
+        assert!(
+            (mean_plain - mean_ri).abs() < 1e-12,
+            "Poisson + unit_ids must not consume the whitened column \
+             (stacked={mean_plain}, with_unit_ids={mean_ri})"
+        );
+        assert!(
+            post_ri
+                .diagnostics
+                .notes
+                .iter()
+                .any(|n| n.as_ref() == RANDOM_INTERCEPT_WHITEN_SKIP_NOTE),
+            "non-Gaussian random-intercept skip must be disclosed, got {:?}",
+            post_ri.diagnostics.notes
+        );
+        assert!(
+            !post_plain
+                .diagnostics
+                .notes
+                .iter()
+                .any(|n| n.as_ref() == RANDOM_INTERCEPT_WHITEN_SKIP_NOTE),
+            "stacked fit must not emit the skip note"
         );
     }
 
