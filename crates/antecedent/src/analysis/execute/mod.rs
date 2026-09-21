@@ -133,6 +133,10 @@ pub struct Study {
     /// `None`); `None` here means no downgrade happened. Surfaced to the
     /// caller as diagnostic `exec.refute.default_suite_unsupported`.
     pub(crate) refute_default_downgrade: Option<RefuteSuite>,
+    /// `(tier_replicates, configured_replicates)` when a latency tier mapped a
+    /// bootstrap budget but the configured estimator's own replicate count won.
+    /// Surfaced as diagnostic `latency.bootstrap_not_applied`.
+    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
     pub(crate) bootstrap_replicates: u32,
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
@@ -214,6 +218,7 @@ impl std::fmt::Debug for Study {
             .field("query", &"<query>")
             .field("refute", &self.refute)
             .field("refute_default_downgrade", &self.refute_default_downgrade)
+            .field("latency_bootstrap_not_applied", &self.latency_bootstrap_not_applied)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
             .field("split", &self.split)
             .field("identifier", &self.identifier)

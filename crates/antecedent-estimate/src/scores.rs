@@ -63,6 +63,20 @@ impl ScoreTable {
         self.columns.len()
     }
 
+    /// Number of distinct outcome thresholds across the columns.
+    ///
+    /// Thresholds are equal only when bit-identical under `total_cmp`: a threshold is a
+    /// data value or a grid point, so an absolute tolerance would merge distinct
+    /// thresholds of small-unit outcomes and equal exact ones at large magnitudes. The one
+    /// definition every scalar-vs-grid decision uses.
+    #[must_use]
+    pub fn distinct_threshold_count(&self) -> usize {
+        let mut thresholds: Vec<f64> = self.columns.iter().filter_map(|c| c.threshold).collect();
+        thresholds.sort_by(f64::total_cmp);
+        thresholds.dedup_by(|a, b| a.total_cmp(b).is_eq());
+        thresholds.len()
+    }
+
     /// Borrow score column `j`.
     ///
     /// # Errors
@@ -627,6 +641,37 @@ mod tests {
             assert!((events - 2.0).abs() < 1e-12);
             assert!((non_events - 2.0).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn distinct_thresholds_are_bitwise_not_absolute_tolerance() {
+        let table_with = |thresholds: &[Option<f64>]| ScoreTable {
+            observed_arm: Arc::from([]),
+            propensities: Arc::from([]),
+            observed_outcome: Arc::from([]),
+            n_rows: 0,
+            row_index: Arc::from([]),
+            fold_ids: Arc::from([]),
+            n_folds: 2,
+            scores: Arc::from([]),
+            columns: thresholds
+                .iter()
+                .enumerate()
+                .map(|(i, &threshold)| ScoreColumn { arm: (i % 2) as u32, threshold })
+                .collect(),
+            adjustment_set: Arc::from([]),
+            nuisance_provenance: Arc::from("test"),
+            treatment: VariableId::from_raw(0),
+            intervened: Arc::from([]),
+        };
+        // Two arms at one threshold are one threshold; the mean functional has none.
+        assert_eq!(table_with(&[Some(0.5), Some(0.5)]).distinct_threshold_count(), 1);
+        assert_eq!(table_with(&[None, None]).distinct_threshold_count(), 0);
+        // Outcomes in tiny units: 1e-17 and 3e-17 differ by less than f64::EPSILON but are
+        // different thresholds, and 1e30 and its next float are different too.
+        assert_eq!(table_with(&[Some(1e-17), Some(3e-17)]).distinct_threshold_count(), 2);
+        let next = f64::from_bits(1e30_f64.to_bits() + 1);
+        assert_eq!(table_with(&[Some(1e30), Some(next)]).distinct_threshold_count(), 2);
     }
 
     #[test]

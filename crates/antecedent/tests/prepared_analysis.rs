@@ -1653,3 +1653,23 @@ fn admg_frontdoor_distribution_known_truth() {
         }
     }
 }
+
+#[test]
+fn claim_refuses_a_result_that_carries_no_execution_stamp() {
+    let (data, dag, query) = confounded_scm(300, 3);
+    let ctx = ExecutionContext::for_tests(1);
+    let study = build_analysis(data.clone(), dag, query);
+    let prepared = study.clone().prepare(&ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+
+    // A plain run was never executed under this (or any) prepared contract.
+    let unstamped = study.run(&ctx).unwrap();
+    match unstamped.claim(&contract, &ctx) {
+        Err(antecedent::CausalError::Conflict { what, .. }) => assert_eq!(what, "result"),
+        other => panic!("an unstamped result must not be sealed: {other:?}"),
+    }
+
+    // The prepared handle's own execution still seals.
+    let stamped = prepared.estimate(&data, &ctx).unwrap();
+    assert!(stamped.claim(&contract, &ctx).is_ok());
+}

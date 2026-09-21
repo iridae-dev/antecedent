@@ -482,7 +482,8 @@ impl PreparedStudy {
     }
 
     /// Score-table reuse key. Stricter than identification: folds, rows,
-    /// nuisance provenance, and the snapshot are part of the digest.
+    /// nuisance provenance, the inference binding (estimator options, overlap, backend)
+    /// and the snapshot are part of the digest.
     ///
     /// # Errors
     ///
@@ -513,6 +514,7 @@ impl PreparedStudy {
             table.treatment,
             &table.intervened,
             self.study().bootstrap_replicates,
+            identities.inference_binding,
         ))
     }
 
@@ -837,7 +839,9 @@ impl StudyResult {
     ///
     /// # Errors
     ///
-    /// Canonical-encoding failures, or mass totals that do not conserve.
+    /// [`CausalError::Conflict`] when the result carries no execution stamp or was
+    /// executed under other identities; canonical-encoding failures, or mass totals
+    /// that do not conserve.
     pub fn claim(
         &self,
         contract: &CausalContract,
@@ -858,13 +862,21 @@ impl StudyResult {
         contract: &CausalContract,
         ctx: &ExecutionContext,
     ) -> Result<(ClaimEnvelope, AnalysisResultWire), CausalError> {
-        if let Some(executed) = &self.executed_contract {
-            if executed.identities != contract.identities {
-                return Err(CausalError::Conflict {
-                    what: "program",
-                    detail: "result was not executed under this contract",
-                });
-            }
+        // A claim seals the result under the contract's identities, so the result must
+        // prove which contract it ran under. An unstamped result (a plain `Study::run`, a
+        // mixed-execution refutation) would be sealed under identities it never carried.
+        let Some(executed) = &self.executed_contract else {
+            return Err(CausalError::Conflict {
+                what: "result",
+                detail: "result carries no execution stamp; only a prepared handle's execution \
+                         can be sealed into a claim",
+            });
+        };
+        if executed.identities != contract.identities {
+            return Err(CausalError::Conflict {
+                what: "program",
+                detail: "result was not executed under this contract",
+            });
         }
         let body = body_for(&contract.body, self)?;
         let mut reasoning =

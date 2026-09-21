@@ -114,7 +114,7 @@ pub use empirical_table::{
     EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN, EmpiricalTableEstimator,
     EmpiricalTableOptions, RegimeSample, StatisticalTransportInput, assemble_point_laws,
     assemble_statistical_laws, catalog_axes, dependence_refusal, fit_empirical_joint,
-    licensed_iid_dependence,
+    licensed_iid_dependence, licensed_iid_regimes,
 };
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,

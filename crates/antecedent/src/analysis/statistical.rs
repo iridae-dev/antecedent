@@ -15,7 +15,7 @@ use antecedent_estimate::{
     TransportUncertaintyRow, assemble_point_laws,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
-use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
+use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
 use antecedent_io::transport_grid_wire::{SampleSummary, StatisticalOptionsWire};
 use antecedent_io::{
@@ -27,13 +27,7 @@ use std::sync::Arc;
 
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
-fn err(error: impl std::fmt::Display) -> IoError {
-    IoError::Convert(error.to_string())
-}
-
-fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
-    Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())
-}
+use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
 
 /// Native retained statistical-transport state.
 #[derive(Clone, Debug)]
@@ -472,17 +466,15 @@ impl PreparedStudy<StatisticalPreparedState> {
         self.state.options
     }
 
+    /// The estimator's own license rule: an earned percentile floor plus iid,
+    /// unweighted, independent-study dependence for every estimated regime.
     fn licensed_interval(&self) -> bool {
         self.state.options.bootstrap_replicates >= PERCENTILE_95_MIN_REPLICATES
-            && !self.state.samples.is_empty()
-            && self.state.samples.iter().all(|sample| {
-                self.evidence_catalog().bindings.iter().any(|b| {
-                    b.regime.raw() == sample.regime
-                        && b.sampling == antecedent_core::SamplingDesign::Independent
-                        && b.dependence == antecedent_core::DependenceGroup::IndependentStudies
-                        && b.weights.is_none()
-                })
-            })
+            && !self.state.input.samples.is_empty()
+            && antecedent_estimate::licensed_iid_dependence(
+                self.state.functional.catalog(),
+                &self.state.input.samples,
+            )
     }
 
     /// Drop percentile edges that cannot earn the options' nominal coverage label.
@@ -563,6 +555,9 @@ impl PreparedStudy<StatisticalPreparedState> {
                     false,
                 )]))
             }
+            None if self.state.input.samples.is_empty() => {
+                SlotAvailability::unavailable("exact_supplied_law_no_sampling_uncertainty")
+            }
             None if self.state.options.bootstrap_replicates == 0 => {
                 SlotAvailability::unavailable("bootstrap_not_requested")
             }
@@ -574,7 +569,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                     self.state.functional.catalog(),
                     &self.state.input.samples,
                 )
-                .unwrap_or("exact_supplied_law_no_sampling_uncertainty"),
+                .unwrap_or("transport.unsupported_dependence"),
             ),
         };
         ReasoningView::new(
@@ -863,21 +858,13 @@ impl PreparedStudy<StatisticalPreparedState> {
         }
         let data = assemble_point_laws(&input, &self.state.functional, &self.state.options, ctx)
             .map_err(err)?;
-        let mut catalog = self.state.functional.catalog().clone();
-        let mut bindings = catalog.bindings.to_vec();
-        for binding in &mut bindings {
-            let mut snapshots = data
-                .laws()
+        let catalog = rebind_snapshots(self.state.functional.catalog(), |regime| {
+            data.laws()
                 .iter()
-                .filter(|law| law.regime() == binding.regime)
-                .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity);
-            let snapshot = snapshots.next().ok_or_else(|| err("missing bound snapshot"))?;
-            if snapshots.any(|other| other != snapshot) {
-                return Err(err("regime has inconsistent snapshot identities"));
-            }
-            binding.snapshot_identity = Arc::from(snapshot);
-        }
-        catalog.bindings = bindings.into();
+                .filter(|law| law.regime() == regime)
+                .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
+                .collect()
+        })?;
         let functional = self.state.functional.derivation().bind_catalog(&catalog).map_err(err)?;
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
@@ -1007,43 +994,15 @@ impl PreparedStudy<StatisticalPreparedState> {
         {
             return Err(err("transport artifact format/limits"));
         }
-        let mut graph = Admg::empty();
-        for node in &wire.nodes {
-            graph.add_node(NodeRef::Static(VariableId::from_raw(*node))).map_err(err)?;
-        }
-        for &(a, b) in &wire.directed {
-            graph
-                .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(err)?;
-        }
-        for &(a, b) in &wire.bidirected {
-            graph
-                .insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(err)?;
-        }
-        graph.validate().map_err(err)?;
-        let diagram = SelectionDiagram::try_new(
-            graph,
-            wire.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
-        )
-        .map_err(err)?;
-        let query = ClassicalTransportQuery {
-            outcomes: wire.proof.proof.outcomes.iter().copied().map(VariableId::from_raw).collect(),
-            treatments: wire
-                .proof
-                .proof
-                .treatments
-                .iter()
-                .copied()
-                .map(VariableId::from_raw)
-                .collect(),
-            source: Arc::from(wire.proof.proof.source.as_str()),
-            target: Arc::from(wire.proof.proof.target.as_str()),
-        };
-        let proof = wire.proof.check(
-            &diagram,
-            &query,
-            SidLimits { steps: limits.operations, depth: limits.depth },
+        let (diagram, proof) = rebuild_checked_proof(
+            &GraphFields {
+                nodes: &wire.nodes,
+                directed: &wire.directed,
+                bidirected: &wire.bidirected,
+                selections: &wire.selections,
+            },
+            &wire.proof,
+            limits,
             ctx,
         )?;
         let functional = proof.bind_catalog(&wire.catalog.to_catalog()?).map_err(err)?;
@@ -1421,14 +1380,10 @@ fn validate_uncertainty(
     {
         return Err(bad());
     }
-    if !wire.samples.iter().all(|sample| {
-        prepared.evidence_catalog().bindings.iter().any(|b| {
-            b.regime.raw() == sample.regime
-                && b.sampling == antecedent_core::SamplingDesign::Independent
-                && b.dependence == antecedent_core::DependenceGroup::IndependentStudies
-                && b.weights.is_none()
-        })
-    }) {
+    if !antecedent_estimate::licensed_iid_regimes(
+        prepared.evidence_catalog(),
+        wire.samples.iter().map(|sample| antecedent_core::RegimeId::from_raw(sample.regime)),
+    ) {
         return Err(bad());
     }
     let rows = wire.atom_replicates.as_ref().ok_or_else(bad)?;
@@ -1505,6 +1460,7 @@ fn validate_uncertainty(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_graph::{Admg, DenseNodeId};
     use std::collections::BTreeMap;
 
     use antecedent_core::{
@@ -1547,6 +1503,20 @@ mod tests {
         snapshot: &str,
         counts: [usize; 4],
         bootstrap_replicates: u32,
+    ) -> PreparedStudy<StatisticalPreparedState> {
+        prepared_with_dependence(
+            snapshot,
+            counts,
+            bootstrap_replicates,
+            DependenceGroup::IndependentStudies,
+        )
+    }
+
+    fn prepared_with_dependence(
+        snapshot: &str,
+        counts: [usize; 4],
+        bootstrap_replicates: u32,
+        dependence: DependenceGroup,
     ) -> PreparedStudy<StatisticalPreparedState> {
         let mut graph = Admg::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1605,7 +1575,7 @@ mod tests {
                 schema_names: Arc::from([]),
                 sampling: SamplingDesign::Independent,
                 weights: None,
-                dependence: DependenceGroup::IndependentStudies,
+                dependence,
             }],
             Some(TargetSampling::RepresentativeSample),
         )
@@ -1652,6 +1622,26 @@ mod tests {
         let earned = prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES);
         assert!(earned.licensed_interval());
         assert!(earned.inspect().reasoning.uncertainty.is_available());
+    }
+
+    #[test]
+    fn dependent_binding_withholds_interval_with_the_estimators_reason() {
+        for dependence in [DependenceGroup::LinkedUnits, DependenceGroup::UnknownDependence] {
+            let study = prepared_with_dependence(
+                "one",
+                [20, 5, 10, 15],
+                PERCENTILE_95_MIN_REPLICATES,
+                dependence,
+            );
+            assert!(!study.licensed_interval(), "{dependence:?} cannot license an iid bootstrap");
+            let inspect = study.inspect();
+            match &inspect.reasoning.uncertainty {
+                SlotAvailability::Unavailable { reason } => {
+                    assert_eq!(reason.as_ref(), "transport.unsupported_dependence");
+                }
+                _ => panic!("dependent evidence must withhold the interval"),
+            }
+        }
     }
 
     #[test]

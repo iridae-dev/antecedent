@@ -1239,6 +1239,11 @@ pub struct ScoreReuseIdentityWire {
     pub intervened: Vec<u32>,
     /// Requested bootstrap / shared-draw count.
     pub bootstrap_replicates: u32,
+    /// Inference binding the scores were produced under: the estimator configuration, GLM
+    /// options, overlap policy and backend all change the cross-fitted scores while the
+    /// provenance tag stays constant. Absent on a design-only share key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_binding: Option<[u8; 32]>,
 }
 
 impl ScoreReuseIdentityWire {
@@ -1256,6 +1261,7 @@ impl ScoreReuseIdentityWire {
         treatment: VariableId,
         intervened: &[VariableId],
         bootstrap_replicates: u32,
+        inference_binding: SemanticDigest,
     ) -> Self {
         Self {
             format: IDENTITY_FORMAT,
@@ -1270,6 +1276,7 @@ impl ScoreReuseIdentityWire {
             treatment: Some(treatment.raw()),
             intervened: vars_to_raw(intervened),
             bootstrap_replicates,
+            inference_binding: Some(*inference_binding.as_bytes()),
         }
     }
 
@@ -1296,6 +1303,7 @@ impl ScoreReuseIdentityWire {
             treatment: None,
             intervened: Vec::new(),
             bootstrap_replicates: 0,
+            inference_binding: None,
         }
     }
 }
@@ -2499,6 +2507,7 @@ mod tests {
     fn score_reuse_keys_are_stricter_than_identification() {
         let identification = SemanticDigest::from_bytes([1; 32]);
         let snapshot = SemanticDigest::from_bytes([2; 32]);
+        let inference = SemanticDigest::from_bytes([4; 32]);
         let treatment = VariableId::from_raw(0);
         let z = VariableId::from_raw(2);
         let table = ScoreReuseIdentityWire::score_table(
@@ -2512,6 +2521,7 @@ mod tests {
             treatment,
             &[],
             0,
+            inference,
         );
         let share = ScoreReuseIdentityWire::batch_share(snapshot, &[0, 1, 0, 1], 2, &[z]);
         let table_digest = score_reuse_digest(&table).unwrap();
@@ -2530,6 +2540,7 @@ mod tests {
             treatment,
             &[],
             0,
+            inference,
         );
         assert_ne!(score_reuse_digest(&other_folds).unwrap(), table_digest);
         let other_rows = ScoreReuseIdentityWire::score_table(
@@ -2543,12 +2554,19 @@ mod tests {
             treatment,
             &[],
             0,
+            inference,
         );
         assert_ne!(score_reuse_digest(&other_rows).unwrap(), table_digest);
 
         let mut other_snapshot = table.clone();
         other_snapshot.data_snapshot = [3; 32];
         assert_ne!(score_reuse_digest(&other_snapshot).unwrap(), table_digest);
+
+        // Same folds, rows and tag under another estimator / GLM / overlap configuration
+        // produce different scores, so they must not share a key.
+        let mut other_inference = table.clone();
+        other_inference.inference_binding = Some([5; 32]);
+        assert_ne!(score_reuse_digest(&other_inference).unwrap(), table_digest);
 
         let mut other_nuisance = table;
         other_nuisance.nuisance_provenance = Some("crossfit.cell_aipw".into());

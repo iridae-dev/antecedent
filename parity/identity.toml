@@ -90,7 +90,7 @@ contract_key = "identities.score_reuse"
 python = "inspect().score_reuse_id"
 availability = "prepared|loaded"
 naming_row = "Score reuse identity"
-covers = "identification, data snapshot, row index, folds, adjustment set, nuisance provenance, treatment, replicates"
+covers = "identification, data snapshot, row index, folds, adjustment set, nuisance provenance, treatment, replicates, inference binding"
 
 [[identity]]
 domain = "target_weights"

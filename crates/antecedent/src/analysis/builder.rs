@@ -1336,6 +1336,8 @@ impl StudyBuilder {
             (None, None) => return Err(CausalError::Missing { field: "graph" }),
         };
         let mut refute = self.refute;
+        let mut refute_default_downgrade: Option<RefuteSuite> = None;
+        let mut latency_bootstrap_not_applied: Option<(u32, u32)> = None;
         let mut bootstrap_replicates = self.bootstrap_replicates;
         let mut inference = self.inference;
         let latency_mode = self.latency_mode;
@@ -1356,12 +1358,18 @@ impl StudyBuilder {
             }
             inference = match inference {
                 InferenceMode::Bayesian(cfg) => {
+                    // A budget field wins, then a count the caller set on the config; only
+                    // a backend-default count is resized by the tier.
                     let draws = if self.n_draws_explicit {
                         self.compute_budget.n_draws.unwrap_or(cfg.n_draws)
+                    } else if cfg.n_draws_explicit {
+                        cfg.n_draws
                     } else {
                         resolved.n_draws
                     };
-                    InferenceMode::Bayesian(cfg.n_draws(draws))
+                    let mut cfg = cfg;
+                    cfg.n_draws = draws;
+                    InferenceMode::Bayesian(cfg)
                 }
                 InferenceMode::Frequentist => InferenceMode::Frequentist,
             };
@@ -1424,6 +1432,9 @@ impl StudyBuilder {
             // A configured estimator owns its replicate count (an explicit
             // builder count beside it is refused above). The study reports and
             // executes that same count instead of its own omitted default.
+            if latency_mode.is_some() && bootstrap_replicates != configured {
+                latency_bootstrap_not_applied = Some((bootstrap_replicates, configured));
+            }
             bootstrap_replicates = configured;
         }
         if !self.bootstrap_explicit && !omitted_bootstrap_resamples(&query, &inference) {
@@ -1520,10 +1531,16 @@ impl StudyBuilder {
                     message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
                 });
             }
-            if self.refute != crate::RefuteSuite::None {
-                return Err(CausalError::Unsupported {
-                    message: "quantile functionals currently require refute=none; mean-effect refuters do not validate a quantile",
-                });
+            if refute != crate::RefuteSuite::None {
+                // An omitted suite is a default the study may drop; a suite the caller
+                // asked for (directly or through a validator budget) is refused.
+                if self.refute_explicit {
+                    return Err(CausalError::Unsupported {
+                        message: "quantile functionals currently require refute=none; mean-effect refuters do not validate a quantile",
+                    });
+                }
+                refute_default_downgrade = Some(refute);
+                refute = crate::RefuteSuite::None;
             }
         }
 
@@ -1712,8 +1729,7 @@ impl StudyBuilder {
             }
         }
 
-        let mut refute_default_downgrade: Option<RefuteSuite> = None;
-        if !self.refute_explicit {
+        if !self.refute_explicit && refute_default_downgrade.is_none() {
             let requested = crate::support::support_cell_named(
                 &query,
                 matrix_class,
@@ -1901,6 +1917,7 @@ impl StudyBuilder {
             query,
             refute,
             refute_default_downgrade,
+            latency_bootstrap_not_applied,
             bootstrap_replicates,
             split: self.split,
             identifier: self.identifier,

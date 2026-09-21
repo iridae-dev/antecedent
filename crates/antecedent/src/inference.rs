@@ -56,6 +56,9 @@ pub struct BayesianConfig {
     pub likelihood: BayesLikelihood,
     /// Posterior draws.
     pub n_draws: usize,
+    /// Whether the draw count was chosen by the caller (the `n_draws(..)` setter) rather
+    /// than left at the backend default. A latency tier resizes only a default count.
+    pub n_draws_explicit: bool,
     /// Isotropic prior scale (used when [`Self::prior`] and artifact are unset).
     pub prior_scale: f64,
     /// Explicit coefficient prior (e.g. hydrated from a previous posterior artifact).
@@ -82,6 +85,7 @@ impl BayesianConfig {
             backend: BayesianBackendKind::Laplace,
             likelihood: BayesLikelihood::GaussianIdentity,
             n_draws: 1000,
+            n_draws_explicit: false,
             prior_scale: 10.0,
             prior: None,
             prior_artifact: None,
@@ -97,6 +101,7 @@ impl BayesianConfig {
             backend: BayesianBackendKind::ConjugateGaussian,
             likelihood: BayesLikelihood::GaussianIdentity,
             n_draws: 1000,
+            n_draws_explicit: false,
             prior_scale: 10.0,
             prior: None,
             prior_artifact: None,
@@ -115,6 +120,7 @@ impl BayesianConfig {
             backend: BayesianBackendKind::Hmc,
             likelihood: BayesLikelihood::GaussianIdentity,
             n_draws: 4_000,
+            n_draws_explicit: false,
             prior_scale: 10.0,
             prior: None,
             prior_artifact: None,
@@ -146,6 +152,7 @@ impl BayesianConfig {
     #[must_use]
     pub fn n_draws(mut self, n: usize) -> Self {
         self.n_draws = n;
+        self.n_draws_explicit = true;
         self
     }
 

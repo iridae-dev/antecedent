@@ -9,8 +9,8 @@ use antecedent_estimate::{EmpiricalTableOptions, StatisticalTransportInput};
 use antecedent_expr::{
     Assignment, EvalError, ExactDistribution, ExactEvaluationLimits, ExactTransportData,
 };
-use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
-use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
+use antecedent_graph::SelectionDiagram;
+use antecedent_identify::{BoundTransportFunctional, SidLimits};
 use antecedent_io::transport_grid_wire::TransportGridFailureWire;
 use antecedent_io::transport_grid_wire::{
     GridPointWire, GridWire, SampleSummary, StatisticalOptionsWire,
@@ -19,15 +19,10 @@ use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 
-fn err(e: impl std::fmt::Display) -> IoError {
-    IoError::Convert(e.to_string())
-}
-fn digest(value: &impl Serialize) -> Result<String, IoError> {
-    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Execution, value)?.to_hex())
-}
+use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
 fn assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
     let mut values: Vec<_> =
         request.entries().iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
@@ -157,7 +152,7 @@ fn point_evidence(point: &TransportGridPoint) -> Result<String, IoError> {
             )
         }
         TransportGridPoint::Unavailable(failure) => {
-            digest(&TransportGridFailureWire::from_failure(failure))
+            digest(IdentityDomain::Execution, &TransportGridFailureWire::from_failure(failure))
         }
     }
 }
@@ -187,39 +182,9 @@ impl TransportGridResult {
     /// All four durable reasoning slots; per-point inference is retained in each point.
     #[must_use]
     pub fn reasoning(&self) -> antecedent_core::ReasoningView {
-        use antecedent_core::{
-            AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
-            IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
-            SlotAvailability, SupportSlot,
-        };
         let unavailable =
             self.points.iter().filter(|p| matches!(p, TransportGridPoint::Unavailable(_))).count();
-        ReasoningView::new(
-            SlotAvailability::Available(IdentificationSlot::identified_singleton(
-                IdentificationStatus::NonparametricallyIdentified,
-            )),
-            SlotAvailability::Available(SupportSlot::new(
-                "stage_contract",
-                Some(Arc::from("transport.response_grid")),
-                SlotAvailability::Available(Arc::from(format!(
-                    "{} executable; {unavailable} unavailable; population positivity assumed",
-                    self.points.len() - unavailable
-                ))),
-            )),
-            SlotAvailability::unavailable(if self.wire.statistical {
-                "pointwise_components_in_retained_points; calibration_not_bound"
-            } else {
-                "exact_supplied_law_no_sampling_uncertainty"
-            }),
-            SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
-                "transport.population_selection_graph",
-                ObligationScope::Program,
-                AssumptionSource::UserDeclared,
-                ObligationKind::UserAssertion,
-                AssumptionStatus::Declared,
-                "The accepted graph and source-specific mechanism selections describe the declared populations.",
-            )])),
-        )
+        grid_reasoning_view(self.points.len(), unavailable, self.wire.statistical)
     }
     /// Complete family, evidence, provider and inference identity.
     #[must_use]
@@ -303,37 +268,51 @@ impl TransportGridResult {
     }
 }
 
-fn grid_reasoning(
-    proof: &TransportProofWire,
-    points: &[GridPointWire],
+/// The one author of a grid's reasoning slots: the in-memory view and the portable section
+/// both derive from it, so the two can never disagree.
+fn grid_reasoning_view(
+    total: usize,
+    unavailable: usize,
     statistical: bool,
-) -> antecedent_io::contract_section::ReasoningSectionWire {
-    use antecedent_io::contract_section::{SlotSectionWire, SupportSlotWire};
-    let mut slots = antecedent_io::transport_certificate::structural_reasoning(
-        &antecedent_io::transport_certificate::CertificateOutcome::Identified(proof.clone()),
-    );
-    let unavailable = points.iter().filter(|p| matches!(p, GridPointWire::Unavailable(_))).count();
-    slots.support = SlotSectionWire {
-        value: Some(SupportSlotWire {
-            matrix_status: "exact_validation_only".into(),
-            matrix_coordinate: None,
-            empirical: format!(
-                "{} executable; {} unavailable; population positivity assumed",
-                points.len() - unavailable,
-                unavailable
-            ),
-        }),
-        unavailable: None,
+) -> antecedent_core::ReasoningView {
+    use antecedent_core::{
+        AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
+        IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
+        SlotAvailability, SupportSlot,
     };
-    slots.uncertainty.unavailable = Some(
-        if statistical {
+    ReasoningView::new(
+        SlotAvailability::Available(IdentificationSlot::identified_singleton(
+            IdentificationStatus::NonparametricallyIdentified,
+        )),
+        SlotAvailability::Available(SupportSlot::new(
+            "stage_contract",
+            Some(Arc::from("transport.response_grid")),
+            SlotAvailability::Available(Arc::from(format!(
+                "{} executable; {unavailable} unavailable; population positivity assumed",
+                total - unavailable
+            ))),
+        )),
+        SlotAvailability::unavailable(if statistical {
             "pointwise_components_in_retained_points; calibration_not_bound"
         } else {
             "exact_supplied_law_no_sampling_uncertainty"
-        }
-        .into(),
-    );
-    slots
+        }),
+        SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
+            "transport.population_selection_graph",
+            ObligationScope::Program,
+            AssumptionSource::UserDeclared,
+            ObligationKind::UserAssertion,
+            AssumptionStatus::Declared,
+            "The accepted graph and source-specific mechanism selections describe the declared populations.",
+        )])),
+    )
+}
+fn grid_reasoning(
+    points: &[GridPointWire],
+    statistical: bool,
+) -> antecedent_io::contract_section::ReasoningSectionWire {
+    let unavailable = points.iter().filter(|p| matches!(p, GridPointWire::Unavailable(_))).count();
+    super::contract::reasoning_section(&grid_reasoning_view(points.len(), unavailable, statistical))
 }
 fn validate_grid(
     functional: &BoundTransportFunctional,
@@ -557,11 +536,7 @@ impl StudyBuilder {
             options,
             points: vec![],
             point_evidence: vec![],
-            reasoning: grid_reasoning(
-                &TransportProofWire::from_checked(query.functional.derivation())?,
-                &[],
-                matches!(input, TransportGridData::Statistical(..)),
-            ),
+            reasoning: grid_reasoning(&[], matches!(input, TransportGridData::Statistical(..))),
         };
         Ok(PreparedStudy {
             state: TransportGridState {
@@ -611,19 +586,26 @@ impl PreparedStudy<TransportGridState> {
             ctx.memory.hard_limit_bytes.map(|n| n / query.at.len() as u64);
         let mut failures = Vec::new();
         let mut eligible = Vec::new();
+        // An exact point's eligibility pass already computes its distribution; keep it
+        // rather than evaluating the same plan again.
+        let mut evaluated_exact = Vec::new();
         for (at, plan) in query.at.iter().zip(&self.state.plans) {
             let evaluated = match plan {
                 Ok(plan) => plan.evaluate(&ctx).map_err(|e| local_failure(e, &query.functional)),
                 Err(failure) => Err(Ok(failure.clone())),
             };
             match evaluated {
-                Ok(_) => {
+                Ok(distribution) => {
                     failures.push(None);
                     eligible.push(at.clone());
+                    if matches!(input, TransportGridData::Exact(_)) {
+                        evaluated_exact.push(distribution);
+                    }
                 }
                 Err(e) => failures.push(Some(e?)),
             }
         }
+        let mut evaluated_exact = evaluated_exact.into_iter();
         let mut statistical = if let TransportGridData::Statistical(input, options) = input {
             if let Some(first) = eligible.first() {
                 let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
@@ -671,7 +653,9 @@ impl PreparedStudy<TransportGridState> {
                         plan.as_ref().map_err(|_| err("missing compiled grid point"))?.clone(),
                         false,
                     )?;
-                    let result = study.estimate(&ctx)?;
+                    let result = study.result_from_evaluation(
+                        evaluated_exact.next().ok_or_else(|| err("missing exact grid result"))?,
+                    );
                     wire.points.push(GridPointWire::Exact(vec![]));
                     points.push(TransportGridPoint::Exact(study, Box::new(result)));
                 }
@@ -686,7 +670,7 @@ impl PreparedStudy<TransportGridState> {
         if ctx.cancellation.is_cancelled() {
             return Err(err("transport.cancelled"));
         }
-        wire.reasoning = grid_reasoning(&wire.proof, &wire.points, wire.statistical);
+        wire.reasoning = grid_reasoning(&wire.points, wire.statistical);
         wire.point_evidence = points.iter().map(point_evidence).collect::<Result<_, _>>()?;
         Ok(TransportGridResult {
             identity: antecedent_io::transport_grid_wire::grid_identity(&wire)?,
@@ -727,42 +711,26 @@ impl PreparedStudy<TransportGridState> {
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
         let mut query = self.state.query.clone();
-        let mut catalog = query.functional.catalog().clone();
-        let mut bindings = catalog.bindings.to_vec();
-        for binding in &mut bindings {
-            let mut snapshots: Vec<&str> = match &input {
-                TransportGridData::Exact(data) => data
-                    .laws()
-                    .iter()
-                    .filter(|l| l.regime() == binding.regime)
-                    .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
-                    .collect(),
-                TransportGridData::Statistical(data, _) => data
-                    .samples
-                    .iter()
-                    .filter(|s| s.regime == binding.regime)
-                    .map(|s| s.snapshot_identity.as_ref())
-                    .chain(
-                        data.supplied
-                            .iter()
-                            .filter(|l| l.regime() == binding.regime)
-                            .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity),
-                    )
-                    .collect(),
-            };
-            snapshots.sort_unstable();
-            snapshots.dedup();
-            if snapshots.is_empty() {
-                continue;
-            }
-            if snapshots.len() != 1 {
-                return Err(err(
-                    "snapshot replacement requires one consistent snapshot per regime",
-                ));
-            }
-            binding.snapshot_identity = Arc::from(snapshots[0]);
-        }
-        catalog.bindings = bindings.into();
+        let catalog = rebind_snapshots(query.functional.catalog(), |regime| match &input {
+            TransportGridData::Exact(data) => data
+                .laws()
+                .iter()
+                .filter(|l| l.regime() == regime)
+                .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity)
+                .collect(),
+            TransportGridData::Statistical(data, _) => data
+                .samples
+                .iter()
+                .filter(|s| s.regime == regime)
+                .map(|s| s.snapshot_identity.as_ref())
+                .chain(
+                    data.supplied
+                        .iter()
+                        .filter(|l| l.regime() == regime)
+                        .map(antecedent_expr::ExactDiscreteLaw::snapshot_identity),
+                )
+                .collect(),
+        })?;
         query.functional = query.functional.derivation().bind_catalog(&catalog).map_err(err)?;
         let mut frozen = ctx.clone();
         frozen.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
@@ -829,7 +797,7 @@ impl PreparedStudy<TransportGridState> {
     ) -> Result<antecedent_core::TransformationReport, IoError> {
         use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
         let id = SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
-            &digest(&self.state.template)?,
+            &digest(IdentityDomain::Execution, &self.state.template)?,
         )?);
         let report = TransformationReport::new(
             intent,
@@ -896,7 +864,7 @@ impl PreparedStudy<TransportGridState> {
         {
             return Err(err("unsupported transport grid features/version/limits"));
         }
-        if wire.reasoning != grid_reasoning(&wire.proof, &wire.points, wire.statistical) {
+        if wire.reasoning != grid_reasoning(&wire.points, wire.statistical) {
             return Err(err("grid reasoning mismatch"));
         }
         if antecedent_io::transport_grid_wire::grid_identity(&wire)?
@@ -904,43 +872,15 @@ impl PreparedStudy<TransportGridState> {
         {
             return Err(err("transport grid identity mismatch"));
         }
-        let mut graph = Admg::empty();
-        for node in &wire.nodes {
-            graph.add_node(NodeRef::Static(VariableId::from_raw(*node))).map_err(err)?;
-        }
-        for (a, b) in &wire.directed {
-            graph
-                .insert_directed(DenseNodeId::from_raw(*a), DenseNodeId::from_raw(*b))
-                .map_err(err)?;
-        }
-        for (a, b) in &wire.bidirected {
-            graph
-                .insert_bidirected(DenseNodeId::from_raw(*a), DenseNodeId::from_raw(*b))
-                .map_err(err)?;
-        }
-        graph.validate().map_err(err)?;
-        let diagram = SelectionDiagram::try_new(
-            graph,
-            wire.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
-        )
-        .map_err(err)?;
-        let query = ClassicalTransportQuery {
-            outcomes: wire.proof.proof.outcomes.iter().copied().map(VariableId::from_raw).collect(),
-            treatments: wire
-                .proof
-                .proof
-                .treatments
-                .iter()
-                .copied()
-                .map(VariableId::from_raw)
-                .collect(),
-            source: Arc::from(wire.proof.proof.source.as_str()),
-            target: Arc::from(wire.proof.proof.target.as_str()),
-        };
-        let proof = wire.proof.check(
-            &diagram,
-            &query,
-            SidLimits { steps: limits.operations, depth: limits.depth },
+        let (diagram, proof) = rebuild_checked_proof(
+            &GraphFields {
+                nodes: &wire.nodes,
+                directed: &wire.directed,
+                bidirected: &wire.bidirected,
+                selections: &wire.selections,
+            },
+            &wire.proof,
+            limits,
             ctx,
         )?;
         let catalog = wire.catalog.to_catalog()?;
@@ -1112,6 +1052,8 @@ mod tests {
         RegimeId, RegimeKind, Value, VariableCoordinate,
     };
     use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
+    use antecedent_graph::{Admg, DenseNodeId};
+    use antecedent_identify::ClassicalTransportQuery;
     fn v(n: u32) -> VariableId {
         VariableId::from_raw(n)
     }
@@ -1193,6 +1135,21 @@ mod tests {
         .unwrap()
     }
     #[test]
+    fn portable_grid_reasoning_is_the_in_memory_view() {
+        let ctx = ExecutionContext::for_tests(0);
+        let result = fixture().estimate(&ctx).unwrap();
+        assert_eq!(
+            result.wire.reasoning,
+            crate::analysis::contract::reasoning_section(&result.reasoning()),
+            "one author for the in-memory and the exported slots"
+        );
+        let support = result.wire.reasoning.support.value.as_ref().expect("support slot");
+        assert_eq!(support.matrix_status, "stage_contract");
+        assert_eq!(support.matrix_coordinate.as_deref(), Some("transport.response_grid"));
+        assert_eq!(support.empirical, "1 executable; 1 unavailable; population positivity assumed");
+    }
+
+    #[test]
     fn native_partial_grid_checks_semantics_beyond_container_checksums() {
         let ctx = ExecutionContext::for_tests(0);
         let study = fixture();
@@ -1220,7 +1177,8 @@ mod tests {
         legacy.point_evidence.clear();
         legacy.required_features =
             vec!["checked_transport_proof_v1".into(), "retained_transport_grid_v1".into()];
-        let legacy_bytes = legacy.export(&digest(&legacy).unwrap()).unwrap();
+        let legacy_bytes =
+            legacy.export(&digest(IdentityDomain::Execution, &legacy).unwrap()).unwrap();
         let (_, legacy_result) = PreparedStudy::<TransportGridState>::consume(
             &legacy_bytes,
             ExactEvaluationLimits::default(),
