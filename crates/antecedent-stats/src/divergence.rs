@@ -192,13 +192,18 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
 /// Statistic is `n ln v̂₀ − n₀ ln v̂₀_seg − n₁ ln v̂₁_seg` (MLE variances),
 /// asymptotically `χ²₂` under equal mean and variance (Wilks). Returns
 /// `(lr_statistic, p_value)`. The chi-square calibration assumes positive
-/// segment variances. Constant pooled data return (0, 1); an exactly constant
-/// segment with varying pooled data returns the limiting (infinity, 0), where
-/// the regular Wilks calibration does not apply.
+/// segment variances: constant pooled data return (0, 1) (nothing to compare), but a
+/// segment that is itself exactly constant — including the single-row case, whose
+/// sample variance is always exactly zero — is refused rather than reported. The
+/// unrestricted Gaussian likelihood diverges as a segment's variance shrinks to zero, so
+/// the naive "limiting ratio" is `(∞, p = 0)`: the strongest possible change claim from a
+/// segment with no measured variation at all, which the Wilks asymptotics this p-value
+/// relies on do not cover.
 ///
 /// # Errors
 ///
-/// Empty residuals.
+/// Empty residuals, or a segment with fewer than two observations or exactly zero
+/// variance.
 pub fn residual_likelihood_ratio(
     resid_baseline: &[f64],
     resid_comparison: &[f64],
@@ -409,6 +414,18 @@ fn fisher_yates_shuffle(xs: &mut [f64], rng: &mut CausalRng) {
     antecedent_kernels::shuffle(rng, xs);
 }
 
+/// Whether every observation is bit-identical to the first (a degenerate, zero-variance
+/// segment). Checked directly on the raw values rather than by comparing a computed
+/// sample variance to `0.0`: summing then dividing by `n` rounds when `n` does not divide
+/// evenly, so even genuinely constant input (e.g. three copies of the same value) can
+/// come back with a variance that is a tiny nonzero number instead of exact zero.
+fn is_constant(xs: &[f64]) -> bool {
+    match xs.split_first() {
+        Some((first, rest)) => rest.iter().all(|v| v == first),
+        None => true,
+    }
+}
+
 fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsError> {
     let n1 = left.len() as f64;
     let n2 = right.len() as f64;
@@ -433,11 +450,17 @@ fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsE
     if v0 == 0.0 {
         return Ok((0.0, 1.0));
     }
-    // With an exactly constant segment the unrestricted Gaussian likelihood
-    // is unbounded as its variance tends to zero. Report that limiting ratio
-    // explicitly instead of choosing a unit-dependent variance floor.
-    if v1 == 0.0 || v2 == 0.0 {
-        return Ok((f64::INFINITY, 0.0));
+    // A segment with fewer than two observations, or whose observations are all
+    // identical, has zero sample variance. The unrestricted Gaussian likelihood is then
+    // unbounded as its variance shrinks to zero, so "infinite evidence, p = 0" here is a
+    // calibration artifact of a degenerate segment, not a finding — refuse it instead of
+    // reporting a p-value the Wilks asymptotics were never meant to cover.
+    if is_constant(left) || is_constant(right) {
+        return Err(StatsError::Shape {
+            message: "Gaussian likelihood ratio requires each segment to have measured \
+                      variation; a single-row or exactly constant segment cannot support \
+                      a calibrated likelihood-ratio p-value",
+        });
     }
     // Gaussian mean+var change: 2(ℓ_alt−ℓ_null) = n ln v0 − n1 ln v1 − n2 ln v2 ~ χ²_2.
     let stat = (n * v0.ln() - n1 * v1.ln() - n2 * v2.ln()).max(0.0);
@@ -496,7 +519,11 @@ mod tests {
             assert!((actual.1 - expected.1).abs() < 1e-12);
         }
         assert_eq!(residual_likelihood_ratio(&[1.0; 2], &[1.0; 2]).unwrap(), (0.0, 1.0));
-        assert_eq!(residual_likelihood_ratio(&[1.0; 2], &[2.0; 2]).unwrap(), (f64::INFINITY, 0.0));
+        // Two exactly-constant segments carry no within-segment variation at all; this
+        // used to be pinned as the limiting ratio (∞, p = 0.0) — a "certain change" claim
+        // manufactured from zero evidence. It is refused instead
+        // (`residual_lr_refuses_single_row_or_constant_segments` below).
+        assert!(residual_likelihood_ratio(&[1.0; 2], &[2.0; 2]).is_err());
         assert!(residual_likelihood_ratio(&[f64::NAN], &[1.0]).is_err());
     }
 
@@ -609,6 +636,23 @@ mod tests {
     fn classifier_rejects_non_finite_scores() {
         assert!(classifier_two_sample(&[0.0, f64::NAN], &[1.0]).is_err());
         assert!(classifier_two_sample(&[0.0], &[f64::NEG_INFINITY]).is_err());
+    }
+
+    #[test]
+    fn residual_lr_refuses_single_row_or_constant_segments() {
+        // A single-row segment has zero sample variance by construction (there is
+        // nothing to vary against). Before the fix this reached the `v1 == 0.0` branch
+        // and returned `(inf, 0.0)` — a definitive "changed" verdict from one
+        // observation, with no minimum-segment-size gate anywhere in the call chain.
+        assert!(residual_likelihood_ratio(&[1.0], &[2.0, 2.5, 1.8]).is_err());
+        assert!(residual_likelihood_ratio(&[1.0, 2.5, 1.8], &[2.0]).is_err());
+        // A multi-row but exactly constant segment is the same failure in disguise: no
+        // within-segment variation to estimate a variance from.
+        assert!(residual_likelihood_ratio(&[1.0, 1.0, 1.0], &[2.0, 2.5, 1.8]).is_err());
+        // A genuinely varying segment on both sides is unaffected.
+        let (stat, p) = residual_likelihood_ratio(&[1.0, 2.0, 1.5], &[5.0, 6.0, 5.5]).unwrap();
+        assert!(stat.is_finite() && stat >= 0.0);
+        assert!((0.0..=1.0).contains(&p));
     }
 
     #[test]
