@@ -54,8 +54,8 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use common::calibration::{
-    CoverageTally, PRECISION_N_SIM, RecordKey, SampleGrid, gaussian, grid_n, map_replicates, n_sim,
-    stream_seed,
+    CoverageTally, GRID_POINTS, PRECISION_N_SIM, RecordKey, SampleGrid, gaussian, grid_n,
+    map_replicates, n_sim, stream_seed,
 };
 use common::calibration_bind::bind;
 use common::reported::{
@@ -148,7 +148,7 @@ fn coverage_over(
     replicates: u32,
     cells: &[Cell],
     replicate: impl Fn(u64) -> Option<Replicate> + Sync,
-    measured: &[Option<f64>],
+    measured: &[Option<[f64; GRID_POINTS]>],
 ) {
     let mut tallies: Vec<CoverageTally> = cells
         .iter()
@@ -207,7 +207,7 @@ fn coverage(
     test: &'static str,
     cells: &[Cell],
     replicate: impl Fn(u64) -> Option<Replicate> + Sync,
-    measured: &[Option<f64>],
+    measured: &[Option<[f64; GRID_POINTS]>],
 ) {
     coverage_over(test, n_sim(), cells, replicate, measured);
 }
@@ -776,13 +776,22 @@ fn conditional_effect_pag_bayesian_default_nominal_coverage() {
 /// design's 600 rows the Bayesian-bootstrap posterior of that atom is
 /// discrete and skewed and its equal-tailed interval covers
 /// [`DISTRIBUTION_NEAR_ONE_MEASURED`] / [`DISTRIBUTION_NEAR_ZERO_MEASURED`]
-/// (measured over 2000 replicates). The shortfall is small-count, not a defect
-/// in the interval: the same construction on the same law covers 0.950 / 0.892
-/// at 2400 rows. Each cell is asserted against its measured coverage.
-const DISTRIBUTION_NEAR_ONE_MEASURED: [f64; 2] = [0.932, 0.877];
-const DISTRIBUTION_NEAR_ZERO_MEASURED: [f64; 2] = [0.923, 0.866];
+/// (measured over 2000 replicates at the base grid point, index 1; the other
+/// points are the gate's 400-replicate measurement). The shortfall is small-count,
+/// not a defect in the interval: the same construction on the same law covers
+/// 0.950 / 0.892 at 2400 rows. Each cell is asserted against its measured coverage
+/// at every grid point, `[reported 0.95, gate 0.90]`.
+const DISTRIBUTION_NEAR_ONE_MEASURED: [[f64; GRID_POINTS]; 2] =
+    [[0.910, 0.932, 0.960], [0.875, 0.877, 0.900]];
+const DISTRIBUTION_NEAR_ZERO_MEASURED: [[f64; GRID_POINTS]; 2] =
+    [[0.900, 0.923, 0.925], [0.848, 0.866, 0.883]];
 
-fn distribution_case(test: &'static str, base: f64, family: u64, measured: [f64; 2]) {
+fn distribution_case(
+    test: &'static str,
+    base: f64,
+    family: u64,
+    measured: [[f64; GRID_POINTS]; 2],
+) {
     let cell = Cell {
         query: "InterventionalDistribution",
         graph_class: "Dag",
@@ -1015,8 +1024,10 @@ fn path_specific_two_path_bayesian_default_nominal_coverage() {
 /// same law covers 0.948 / 0.905 at `n = 1200`. The mean ITE is a functional
 /// of three refitted mechanisms (`a -> m`, `a -> y`, `m -> y`), so at 300 rows
 /// the posterior of `3 + 4·2` is slightly tighter than the sampling law of its
-/// mean. The assertion is the band around the measured coverage.
-const COUNTERFACTUAL_MEASURED: [f64; 2] = [0.942, 0.886];
+/// mean. The assertion is the band around the measured coverage at each grid point
+/// (index 1 at 2000 replicates, the others at the gate's 400).
+const COUNTERFACTUAL_MEASURED: [[f64; GRID_POINTS]; 2] =
+    [[0.9475, 0.942, 0.9325], [0.890, 0.886, 0.875]];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1292,7 +1303,7 @@ fn derivative_case(
     bandwidth: Option<f64>,
     gam: bool,
     truth: &[f64],
-    measured: &[Option<f64>],
+    measured: &[Option<[f64; GRID_POINTS]>],
 ) {
     let labels: Vec<String> = (0..truth.len()).map(|j| format!("{j}")).collect();
     let cells = response_cells(query, estimator, dgp, design, &labels);

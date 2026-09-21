@@ -94,7 +94,7 @@ def test_coerce_data_dataframe_like():
 
 
 def test_coerce_data_rejects_unsupported_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="data must be a mapping"):
         _coerce.coerce_data(5)
 
 
@@ -179,7 +179,7 @@ def test_coerce_query_accepts_each_query_type(query):
 
 
 def test_coerce_query_rejects_unsupported_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unsupported query type"):
         _coerce.coerce_query({"kind": "average"})
 
 
@@ -189,7 +189,7 @@ def test_coerce_query_rejects_unsupported_type():
 
 
 def test_coerce_refute_true_raises_type_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="refute=True is ambiguous"):
         _coerce.coerce_refute(True)
 
 
@@ -208,7 +208,7 @@ def test_coerce_refute_string_passthrough():
 
 
 def test_coerce_refute_rejects_unsupported_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unsupported refute type"):
         _coerce.coerce_refute(5)
 
 
@@ -237,5 +237,5 @@ def test_coerce_latency_rejects_unknown_string():
 
 
 def test_coerce_latency_rejects_unsupported_type():
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unsupported latency type"):
         _coerce.coerce_latency(5)

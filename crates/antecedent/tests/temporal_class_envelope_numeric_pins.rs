@@ -468,6 +468,55 @@ fn temporal_class_response_returns_completion_identified_set() {
     }
 }
 
+/// The identified set must contain the structural value, not only agree with an in-test
+/// OLS that shares the estimator's lag convention. `class_response_columns` with noise
+/// added to the outcome equation `y_t = 1 + 2 t_{t-1} + 0.6 z_{t-1} + 0.3 e_t`: at h = 1 the
+/// level of `E[y | do(t@-1 := 1)]` is `1 + 2 + 0.6 mean(z)`. The completion that adjusts for
+/// `z` estimates it within sampling error, so the set's lower end sits within a few
+/// standard errors of it, and a set whose completions all share a shifted alignment
+/// (both ends off the same way) is caught. The `z`-as-mediator completion is biased up.
+#[test]
+fn temporal_class_response_identified_set_contains_the_structural_level() {
+    const N: usize = 300;
+    let mut columns = class_response_columns(N);
+    let mut noise = common::calibration::gaussian(0x20_2609);
+    for i in 1..N {
+        columns[1][i] = 1.0 + 2.0 * columns[0][i - 1] + 0.6 * columns[2][i - 1] + 0.3 * noise();
+    }
+    let mean_z = columns[2][..N - 1].iter().sum::<f64>() / (N - 1) as f64;
+    let truth = 1.0 + 2.0 * 1.0 + 0.6 * mean_z;
+    let (_, query, _) =
+        class_response_queries().into_iter().find(|(kind, ..)| *kind == "set").unwrap();
+    let cases = [
+        (
+            "cpdag",
+            ClassGraph::Cpdag(two_completion_cpdag()),
+            class_response_series(&columns, false),
+        ),
+        ("pag", ClassGraph::Pag(mixed_id_pag()), class_response_series(&columns, true)),
+    ];
+    for (class, graph, data) in &cases {
+        let result =
+            build(data, graph, false, query.clone()).run(&ExecutionContext::for_tests(17)).unwrap();
+        let envelope = result
+            .structural_response
+            .as_ref()
+            .and_then(|s| s.identified_set.as_ref())
+            .expect("identified set");
+        // Cell 0 is horizon 1 (cells are dose-major, horizons 1 and 2 within a dose).
+        let (lower, upper) = (envelope.lower[0], envelope.upper[0]);
+        assert!(
+            lower - 0.2 <= truth && truth <= upper + 0.2,
+            "{class}: identified set [{lower:.4}, {upper:.4}] misses the structural level {truth:.4}"
+        );
+        assert!(
+            (lower - truth).abs() < 0.2,
+            "{class}: the z-adjusting completion must estimate the level: {lower:.4} vs {truth:.4}"
+        );
+        assert!(upper >= lower);
+    }
+}
+
 #[test]
 fn temporal_class_single_step_sustained_matches_pulse() {
     let pin = pin();

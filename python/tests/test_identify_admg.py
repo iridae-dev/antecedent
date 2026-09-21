@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import antecedent
 import pytest
+from _refusal import assert_registered_refusal
 from antecedent.errors import CausalError
 
 QUERY = antecedent.AverageEffect(treatment="T", outcome="Y")
@@ -35,8 +36,9 @@ def _observed_dag() -> antecedent.Dag:
 
 def test_latent_confounding_is_not_identifiable_as_an_admg() -> None:
     admg = _confounded_dag().latent_project(["T", "Y"])
-    with pytest.raises(CausalError):
+    with pytest.raises(CausalError) as caught:
         antecedent.identify(graph=admg, query=QUERY)
+    assert_registered_refusal(caught.value)
 
 
 def test_the_same_graph_as_a_dag_adjusts_on_the_unmeasurable_node() -> None:

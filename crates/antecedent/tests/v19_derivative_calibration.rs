@@ -50,7 +50,9 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, SampleGrid, coverage_band, gaussian, n_sim};
+use common::calibration::{
+    CoverageTally, GRID_POINTS, RecordKey, SampleGrid, coverage_band, gaussian, n_sim,
+};
 use common::calibration_bind::{bind, bind_all};
 
 const LEVEL: f64 = 0.9;
@@ -685,16 +687,24 @@ fn gam_coverage(
 /// covers 0.894 / 0.898 / 0.906 / 0.898 there. The assertion is the band
 /// around each coordinate's measured coverage; the directional cell, the same
 /// estimator read through a fixed direction, is gated at nominal below.
-const JACOBIAN_MEASURED: [f64; 4] = [0.883, 0.893, 0.904, 0.890];
+///
+/// Per coordinate, one value per sample-size grid point: the base point (index 1) is
+/// the 2000-replicate figure above, the other two the gate's 400-replicate measurement.
+const JACOBIAN_MEASURED: [[f64; GRID_POINTS]; 4] = [
+    [0.8725, 0.883, 0.9075],
+    [0.9075, 0.893, 0.9075],
+    [0.8775, 0.904, 0.8925],
+    [0.9075, 0.890, 0.8675],
+];
 
 /// Assert every coordinate against the band around its measured coverage,
 /// printing every line before failing on any of them.
-fn assert_all_boundary(tallies: &[CoverageTally], measured: &[f64]) {
+fn assert_all_boundary(tallies: &[CoverageTally], measured: &[[f64; GRID_POINTS]]) {
     let failures: Vec<String> = tallies
         .iter()
         .zip(measured)
         .filter_map(|(tally, &m)| {
-            std::panic::catch_unwind(|| tally.assert_boundary(m)).err().map(|e| {
+            std::panic::catch_unwind(|| tally.assert_boundary_at(m.map(Some))).err().map(|e| {
                 e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
             })
         })

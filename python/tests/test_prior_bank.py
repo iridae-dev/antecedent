@@ -8,6 +8,7 @@ import antecedent
 import numpy as np
 import pytest
 
+from _refusal import assert_registered_refusal
 
 def _confounded(n: int = 120, seed: int = 7):
     rng = np.random.default_rng(seed)
@@ -224,7 +225,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
     auto_mean = float(auto.posterior.effect_mean)
     assert abs(auto_mean - source_mean) < abs(baseline_mean - source_mean)
 
-    with pytest.raises(antecedent.CausalError):
+    with pytest.raises(antecedent.CausalError) as caught:
         antecedent.analyze(
             data_b,
             graph=edges_b,
@@ -239,6 +240,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
             seed=5,
             return_posterior_artifact=True,
         )
+    assert_registered_refusal(caught.value)
 
 
 def test_summary_only_artifact_round_trips_and_hydrates_prior():

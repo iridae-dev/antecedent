@@ -188,20 +188,24 @@ pub fn skip_pair(tallies: &mut [super::calibration::CoverageTally; 2]) {
 }
 
 /// Gate every tally, printing every line before failing on any of them.
-/// `measured[i] = Some(m)` asserts tally `i` as a named boundary cell against
-/// its measured coverage `m`; `None` asserts it at nominal.
+/// `measured[i] = Some([m0, m1, m2])` asserts tally `i` as a named boundary cell
+/// against its measured coverage at each sample-size grid point; `None` asserts it
+/// at nominal.
 ///
 /// # Panics
 ///
 /// When any tally fails its gate.
-pub fn gate(tallies: &[super::calibration::CoverageTally], measured: &[Option<f64>]) {
+pub fn gate(
+    tallies: &[super::calibration::CoverageTally],
+    measured: &[Option<[f64; super::calibration::GRID_POINTS]>],
+) {
     assert_eq!(tallies.len(), measured.len(), "one gate entry per tally");
     let failures: Vec<String> = tallies
         .iter()
         .zip(measured)
         .filter_map(|(tally, measured)| {
             std::panic::catch_unwind(|| match measured {
-                Some(m) => tally.assert_boundary(*m),
+                Some(m) => tally.assert_boundary_at(m.map(Some)),
                 None => tally.assert(),
             })
             .err()

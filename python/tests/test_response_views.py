@@ -192,7 +192,7 @@ def test_uncertainty_rejects_nonfinite_standard_error(standard_error: float) -> 
 def test_uncertainty_rejects_malformed_bounds(
     lower: list[list[float]], upper: list[list[float]]
 ) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="same width|ordered and cannot contain NaN"):
         ResponseUncertainty("pointwise", lower=lower, upper=upper)
 
 

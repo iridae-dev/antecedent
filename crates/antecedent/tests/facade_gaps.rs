@@ -215,7 +215,9 @@ fn conditional_effect_via_causal_analysis() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.estimate.ate.is_finite());
+    // y = 1 + 2t + 0.5 t w, so the conditional effect at w is 2 + 0.5 w; over the fixture's
+    // w = i mod 5 (mean 2, balanced across the two arms) the average conditional effect is 3.
+    assert!((result.estimate.ate - 3.0).abs() < 0.05, "average CATE {}", result.estimate.ate);
 }
 
 #[test]

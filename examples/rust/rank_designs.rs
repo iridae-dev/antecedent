@@ -33,7 +33,8 @@ fn candidate_kind(c: &CandidateDesign) -> &'static str {
     }
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let graphs = WeightedGraphSamples::new(
         vec![0.5, 0.3, 0.2],
         vec![
@@ -100,6 +101,9 @@ fn main() -> Result<(), CausalError> {
 
     let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
     println!("best_index={best} mc_samples={}", ranking.budget.samples);
+    assert_eq!(ranking.ranked.len(), candidates.len(), "every candidate is ranked");
+    assert!(best < candidates.len());
+    assert!(ranking.budget.samples > 0);
     for row in ranking.ranked.iter() {
         println!(
             "  candidate={} kind={} score={:.4}",
@@ -109,4 +113,8 @@ fn main() -> Result<(), CausalError> {
         );
     }
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

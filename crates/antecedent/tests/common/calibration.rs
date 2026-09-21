@@ -38,7 +38,7 @@
 //! `common::calibration_bind::bind`), which takes the construction from the
 //! runtime's own calibration match key, so a record describes exactly what
 //! the facade reported. [`CoverageTally::assert`] then prints a
-//! `calibration-record` line (boundary `false`), [`CoverageTally::assert_boundary`]
+//! `calibration-record` line (boundary `false`), [`CoverageTally::assert_boundary_at`]
 //! one flagged boundary, and [`CoverageTally::emit`] one for an
 //! [`CoverageTally::unasserted`] second level scored on the same replicates
 //! (boundary when it misses the nominal band). `scripts/collect_coverage_records.py`
@@ -435,7 +435,7 @@ impl CoverageTally {
     ///
     /// The single emission entry point. Bind every scored replicate's
     /// execution with [`Self::bind`]; [`Self::assert`] /
-    /// [`Self::assert_boundary`] (or [`Self::emit`] for an
+    /// [`Self::assert_boundary_at`] (or [`Self::emit`] for an
     /// [`Self::unasserted`] tally) then print one `calibration-record <json>`
     /// line, which `scripts/collect_coverage_records.py` collects.
     #[must_use]
@@ -855,59 +855,25 @@ fn snake(name: &str) -> String {
 }
 
 impl CoverageTally {
-    /// Assert a named boundary cell against its *measured* coverage: the rate
-    /// must lie within `measured ± 3·MCSE` at the replicate count. No recheck
-    /// and no precision floor apply, because the cell is documented as
-    /// under-covering (the mechanism is named where the test is defined); the
-    /// assertion guards against a regression below, or a silent change above,
-    /// the measured level.
+    /// Assert a cell per sample-size grid point. At a point with
+    /// `Some(measured)` the cell is a named boundary held to `measured ± 3·MCSE`:
+    /// the rate must lie inside that band at the replicate count. No recheck and
+    /// no precision floor apply, because the cell is documented as under-covering
+    /// (the mechanism is named where the test is defined). At a point with `None`
+    /// it must pass the nominal band (and floor or recheck) like [`Self::assert`].
     ///
-    /// `measured` is the coverage measured at the base grid point. At the other
-    /// sample-size grid points the cell is recorded as a boundary without a
-    /// band (nothing was measured there to hold it to); once those points are
-    /// measured, [`Self::assert_boundary_at`] holds each point to its own value.
-    ///
-    /// # Panics
-    ///
-    /// When coverage falls outside `measured ± 3·MCSE` or too many replicates
-    /// were skipped.
-    pub fn assert_boundary(&self, measured: f64) {
-        if smoke() {
-            self.emit_smoke(true, "named_boundary");
-            return;
-        }
-        if grid_point() != BASE_GRID_POINT {
-            self.check_skips();
-            let attempts = self.attempts();
-            eprintln!(
-                "calibration-boundary {} (grid point {}; measured {measured:.3} at the base point \
-                 only, recorded, not gated): nominal={:.2} coverage={:.3} mean_length={:.4} \
-                 ({}/{} covered, {} skipped)",
-                self.name,
-                grid_point(),
-                self.level,
-                self.rate(),
-                self.mean_length(),
-                self.covered,
-                attempts,
-                self.skipped
-            );
-            self.emit_record(true, "named_boundary");
-            return;
-        }
-        self.assert_measured_band(measured);
-    }
-
-    /// Assert a cell per sample-size grid point: at a point with
-    /// `Some(measured)` the cell is a named boundary held to
-    /// `measured ± 3·MCSE`; at a point with `None` it must pass the nominal
-    /// band (and floor or recheck) like [`Self::assert`]. The record is a
-    /// boundary over its whole range when any point is one, with the coverage
-    /// measured at each point.
+    /// A named boundary gives every point its own measured value: a cell held
+    /// at one point only would let a regression at the others pass. The value
+    /// comes from the gate's own deterministic seeds, so the band is a change
+    /// detector around the measured level, not a claim about the true coverage;
+    /// a pass does not show nominal coverage. The record is a boundary over
+    /// its whole range when any point is one, with the coverage measured at
+    /// each point.
     ///
     /// # Panics
     ///
-    /// As [`Self::assert`] or [`Self::assert_boundary`] at this run's point.
+    /// As [`Self::assert`], or when coverage falls outside `measured ± 3·MCSE`
+    /// or too many replicates were skipped, at this run's point.
     pub fn assert_boundary_at(&self, measured: [Option<f64>; GRID_POINTS]) {
         match measured[grid_point()] {
             Some(value) => self.assert_measured_band(value),

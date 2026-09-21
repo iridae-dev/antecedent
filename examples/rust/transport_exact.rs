@@ -115,7 +115,8 @@ fn prepare(
     )?)
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (diagram, functional) = identify()?;
     let ctx = ExecutionContext::for_tests(0);
     let mut means = Vec::new();
@@ -137,4 +138,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = refreshed.estimate_checked(&before.identities.execution, &ctx)?;
     assert!((result.distribution().mean(v(1)).expect("P(Y=1)") - 0.7).abs() < 1e-12);
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run()
 }

@@ -127,7 +127,7 @@ def test_fit_gcm_oo_sample_do_shift_moves_outcome_by_coefficient_times_delta():
 def test_fit_gcm_oo_sample_do_rejects_variable_in_both_interventions_and_shifts():
     names, cols, edges, _coef = _linear_chain(n=100)
     gcm = antecedent.model.fit_gcm(names, cols, edges)
-    with pytest.raises(antecedent.CausalError):
+    with pytest.raises(antecedent.CausalError, match="present in both"):
         gcm.sample_do({"x": 1.0}, 10, shifts={"x": 2.0}, seed=1)
 
 

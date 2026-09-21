@@ -672,6 +672,18 @@ def reachability_cases() -> list[bool]:
             },
             ["conformance/bayesian/dag_posterior is consumed by no executing"],
         ),
+        # A calibration test that says it runs via the gate but that no group selects.
+        case(
+            g,
+            "orphan_calibration_test",
+            {
+                "crates/antecedent/tests/v19_calibration.rs": append(
+                    '\n#[test]\n#[ignore = "calibration: run via scripts/gate_calibration.sh"]\n'
+                    "fn orphan_cell_nominal_90_coverage() {}\n"
+                )
+            },
+            ["`orphan_cell_nominal_90_coverage` claims to run via scripts/gate_calibration.sh"],
+        ),
     ]
 
 

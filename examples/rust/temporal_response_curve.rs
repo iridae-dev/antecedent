@@ -27,7 +27,8 @@ use antecedent_data::{
 };
 use antecedent_graph::{TemporalDag, ensure_lagged};
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let n = 400usize;
     let mut pressure = vec![0.0; n];
     let mut defect = vec![0.0; n];
@@ -128,5 +129,21 @@ fn main() -> Result<(), CausalError> {
     for i in 0..mean.len() {
         println!("  cell {i}: mean={:.4}  [{:.4}, {:.4}]", mean[i], lower[i], upper[i]);
     }
+    // defect[t] = 0.9 pressure[t-1] + 0.1 pressure[t-2]: at doses 0, 0.5, 1 the two horizons
+    // read 0.9 * dose and 0.1 * dose, whatever order the surface lists its cells in.
+    let mut sorted = mean.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let truth = [0.0, 0.0, 0.05, 0.1, 0.45, 0.9];
+    assert_eq!(sorted.len(), truth.len());
+    for (got, want) in sorted.iter().zip(truth) {
+        assert!((got - want).abs() < 0.05, "surface {sorted:?} vs {truth:?}");
+    }
+    for i in 0..mean.len() {
+        assert!(lower[i] <= mean[i] && mean[i] <= upper[i], "band must contain its own mean");
+    }
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

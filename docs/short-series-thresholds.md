@@ -121,8 +121,8 @@ recheck rule such a cell could pass a 400-replicate gate even though at 2000
 replicates it measures significantly low; the recheck now fails it, and a
 gated design that still measures below the floor after the SE work below is
 named as a boundary cell (`*_boundary_within_band`): its test asserts the
-band around its *measured* coverage (`CoverageTally::assert_boundary`), with
-the mechanism named at the test.
+band around its *measured* coverage at each grid point
+(`CoverageTally::assert_boundary_at`), with the mechanism named at the test.
 
 ### Where the remaining shortfall comes from
 

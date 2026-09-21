@@ -5264,9 +5264,11 @@ fn partially_identified_answers_are_not_calibrated_against_point_records() {
     let contract = point.contract().unwrap();
     let mut basis = result.calibration_bases(&contract).unwrap()[0].clone();
     assert_eq!(basis.key.identification, "point");
-    if record_for(&basis).is_none() {
-        return; // nothing measures this construction yet; the rule below is still checked in io
-    }
+    assert!(
+        record_for(&basis).is_some(),
+        "the registry must measure this construction: {:?}",
+        basis.key
+    );
     assert_eq!(
         antecedent_io::calibration::calibration_slot(&basis).status,
         "calibrated",
@@ -5286,9 +5288,11 @@ fn calibration_slot_only_matches_the_level_it_measured() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let mut basis = result.calibration_bases(&contract).unwrap()[0].clone();
-    if record_for(&basis).is_none() {
-        return;
-    }
+    assert!(
+        record_for(&basis).is_some(),
+        "the registry must measure the construction this study builds: {:?}",
+        basis.key
+    );
     assert_eq!(antecedent_io::calibration::calibration_slot(&basis).status, "calibrated");
     basis.key.level = 0.99;
     let other = antecedent_io::calibration::calibration_slot(&basis);

@@ -86,9 +86,9 @@ def test_overlap_config_dict_spelling_and_validation() -> None:
     )
     typed = _frequentist(Aipw(bootstrap=0, overlap=Overlap(clip=0.05)))
     assert dict_spelled.answer == typed.answer
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Overlap.clip must lie in"):
         Overlap(clip=0.5)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="is not valid for estimator"):
         ant.analyze(
             _low_overlap(),
             graph=STATIC_DAG,

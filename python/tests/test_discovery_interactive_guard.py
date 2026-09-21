@@ -39,27 +39,24 @@ def test_discovery_plus_interactive_raises_unsupported():
 
 
 def test_discovery_plus_standard_still_allowed():
-    data, _edges = _confounded_scm(n=500, seed=13)
-    # May Ready-estimate or fail closed on incomplete CPDAG; both prove the path
-    # is not blocked by the Interactive guard.
-    try:
-        result = antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            latency="standard",
-            seed=1,
-            refute=False,
-            accept_discovered=True,
-        )
-        assert math.isfinite(result.ate)
-    except (
-        antecedent.errors.CausalReviewError,
-        ValueError,
-        antecedent.errors.CausalUnsupportedError,
-    ) as exc:
-        # Incomplete auto-accept / review is fine; Interactive-style refuse is not.
-        assert "interactive estimate path" not in str(exc).lower()
+    # A collider design (t -> y <- w, independent causes) that PC orients fully, so the
+    # standard path must estimate: the Interactive guard does not block it, and the
+    # estimate is the structural coefficient, not merely a finite number.
+    rng = np.random.default_rng(13)
+    n = 1000
+    t = rng.normal(size=n)
+    w = rng.normal(size=n)
+    y = 1.5 * t + w + rng.normal(size=n) * 0.3
+    result = antecedent.analyze(
+        {"t": t, "y": y, "w": w},
+        discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        latency="standard",
+        seed=1,
+        refute=False,
+        accept_discovered=True,
+    )
+    assert abs(result.ate - 1.5) < 4.0 * result.estimate.se_analytic
 
 
 def test_interactive_with_supplied_graph_ok():

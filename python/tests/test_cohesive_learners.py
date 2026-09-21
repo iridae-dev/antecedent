@@ -30,16 +30,16 @@ def analyze(estimator):
 
 
 @pytest.mark.parametrize(
-    "factory",
+    "factory, message",
     [
-        lambda: Ridge(float("nan")),
-        lambda: ElasticNet(l1_ratio=2),
-        lambda: GradientBoostedTrees(trees=0),
-        lambda: NeuralNet(epochs=True),
+        (lambda: Ridge(float("nan")), "penalty must be finite and nonnegative"),
+        (lambda: ElasticNet(l1_ratio=2), "l1_ratio must be finite and between zero and one"),
+        (lambda: GradientBoostedTrees(trees=0), "trees must be a positive 32-bit integer"),
+        (lambda: NeuralNet(epochs=True), "epochs must be a positive 32-bit integer"),
     ],
 )
-def test_invalid_learner_settings_refuse(factory):
-    with pytest.raises(ValueError):
+def test_invalid_learner_settings_refuse(factory, message):
+    with pytest.raises(ValueError, match=message):
         factory()
 
 
@@ -69,9 +69,9 @@ def test_fitted_effect_predicts_after_verified_reload(estimator):
     assert len(expected.values) == 3
     assert expected.parent_claim == model.parent_claim
     assert expected.to_dict()["uncertainty"]["status"] == "unavailable"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="missing prediction features"):
         loaded.predict({"wrong": [1.0]})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be finite one-dimensional columns"):
         loaded.predict({"z": [float("nan")]})
 
 

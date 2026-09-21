@@ -236,6 +236,64 @@ for expected in sorted((root / "conformance").glob("**/expected.json")):
         if "command" not in document and "reference" not in document:
             fail.append(f"{expected}: names an external oracle but records no command")
 
+# ------------------------------------ 6. calibration tests are run by the gate
+# A test whose `#[ignore]` reason says it runs via scripts/gate_calibration.sh must
+# be selected by a group of that gate (its dry-run list): a whole-file group of
+# its suite, or a cargo filter contained in its name. An orphan is silently never
+# measured while the diagnostics and registries describe the coverage in the
+# present tense.
+import os
+import subprocess
+
+_gate_env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
+_gate_env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
+_dry = subprocess.run(
+    ["bash", "scripts/gate_calibration.sh"], env=_gate_env, capture_output=True, text=True
+)
+_groups = []
+for _line in _dry.stdout.splitlines():
+    _m = re.fullmatch(r"group \d+: (.+)", _line)
+    if _m:
+        _head, _, _filt = _m.group(1).partition(": ")
+        _groups.append((_head, _filt))
+if _dry.returncode != 0 or not _groups:
+    fail.append("scripts/gate_calibration.sh dry run listed no groups")
+CLAIM = re.compile(r'#\[ignore\s*=\s*"calibration: run via scripts/gate_calibration\.sh"\]')
+FN = re.compile(r"\s*(?:pub\s+)?fn\s+([A-Za-z_]\w*)")
+n_claimed = 0
+for p in sorted(root.glob("crates/**/*.rs")):
+    if "target" in p.parts:
+        continue
+    lines = p.read_text(errors="ignore").splitlines()
+    for i, line in enumerate(lines):
+        if not CLAIM.search(line):
+            continue
+        fn = next(
+            (m.group(1) for m in (FN.match(x) for x in lines[i + 1 : i + 6]) if m), None
+        )
+        if fn is None:
+            continue  # macro-generated test name: covered by its macro's group
+        n_claimed += 1
+        parts = p.parts
+        owner = parts[1] if parts[0] == "crates" else ""
+        in_src = "src" in parts
+        covered = False
+        for head, filt in _groups:
+            same_file = head == p.stem or (in_src and head == owner)
+            if not same_file:
+                continue
+            # No filter: the group runs the whole file. A filter matches by
+            # substring (module path included), or exactly under --exact.
+            if not filt or filt.rsplit("::", 1)[-1] in fn:
+                covered = True
+                break
+        if not covered:
+            fail.append(
+                f"{p}:{i + 1} `{fn}` claims to run via scripts/gate_calibration.sh but "
+                "no group of that gate selects it — add it to the gate, or change its "
+                "#[ignore] reason to say what it really is"
+            )
+
 if fail:
     print("Evidence reachability gate FAILED:")
     for f in fail:

@@ -36,7 +36,7 @@ def test_asarray_default_is_readonly_view():
     assert arr.shape == (4,)
     assert np.allclose(arr, [1.0, 2.0, 3.0, 4.0])
     assert not arr.flags.writeable
-    with pytest.raises((ValueError, BufferError)):
+    with pytest.raises(ValueError, match="read-only"):
         arr[0] = 99.0
 
 
@@ -61,7 +61,7 @@ def test_asarray_keeps_artifact_alive_after_name_drop():
 
 def test_asarray_copy_false_dtype_cast_errors():
     art = _artifact_with_draws()
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError), match="copy"):
         np.asarray(art, dtype=np.float32, copy=False)
 
 
@@ -99,5 +99,5 @@ def test_posterior_view_forwards_copy():
     # Round-trip decode still matches (copy did not mutate artifact bytes).
     decoded = decode_posterior_artifact(encoded)
     assert np.allclose(np.asarray(decoded, copy=True), owned)
-    with pytest.raises((ValueError, TypeError)):
+    with pytest.raises((ValueError, TypeError), match="copy"):
         np.asarray(view, dtype=np.float32, copy=False)

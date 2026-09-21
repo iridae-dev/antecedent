@@ -10,6 +10,8 @@ guarantee, and the `rd.sharp` triple expressed through `estimator_config`.
 
 from __future__ import annotations
 
+import re
+
 import antecedent
 import numpy as np
 import pytest
@@ -399,7 +401,7 @@ def test_public_analyze_estimator_config_changes_the_standard_error():
 def test_public_analyze_rejects_bad_estimator_config(config, needle):
     data, graph = _public_scm()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
-    with pytest.raises(Exception) as excinfo:
+    with pytest.raises(Exception, match=re.escape(needle)):
         antecedent.analyze(
             data,
             graph=graph,
@@ -408,7 +410,6 @@ def test_public_analyze_rejects_bad_estimator_config(config, needle):
             estimator="linear.adjustment.ate",
             estimator_config=config,
         )
-    assert needle in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------

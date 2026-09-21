@@ -30,7 +30,7 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
+    CoverageTally, GRID_POINTS, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
 };
 use common::calibration_bind::bind_all;
 use common::reported::{
@@ -266,7 +266,7 @@ const INTERFERENCE_CELL: Cell =
 /// coverage, not nominal: an interval that started to miss would be a
 /// regression in the bound, and the bound cannot be sharpened into a
 /// nominal interval without the Aronow–Samii joint-exposure variance.
-const INTERFERENCE_MEASURED: f64 = 1.0;
+const INTERFERENCE_MEASURED: [f64; GRID_POINTS] = [1.0; GRID_POINTS];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]

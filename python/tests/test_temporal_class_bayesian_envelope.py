@@ -247,7 +247,7 @@ def test_class_curve_prior_survives_artifact_roundtrip() -> None:
 
 @pytest.mark.parametrize("masses", [[float("inf")], [float("nan")], [1e308, 1e308]])
 def test_class_prior_rejects_nonfinite_total(masses) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite and nonnegative|total mass"):
         antecedent.ClassPrior.from_ordered(masses)
 
 

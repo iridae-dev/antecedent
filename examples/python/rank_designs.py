@@ -30,5 +30,8 @@ ranking = antecedent.design.rank_designs(
 )
 
 print(f"best_index={ranking.best_index} mc_samples={ranking.mc_samples}")
+assert len(ranking.ranked) == 4  # every candidate is ranked
+assert ranking.best_index in {row.candidate_index for row in ranking.ranked}
+assert ranking.mc_samples > 0
 for row in ranking.ranked:
     print(f"  candidate={row.candidate_index} kind={row.kind} score={row.score:.4f}")

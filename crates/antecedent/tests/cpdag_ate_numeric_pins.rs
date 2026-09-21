@@ -302,3 +302,50 @@ fn cpdag_ate_envelope_numeric_pin() {
         }
     }
 }
+
+/// The frozen 64-draw Bayesian pin is checked against the table's own closed forms,
+/// so the pin cannot enshrine a rank-coupling or prior-scale defect present when it
+/// was frozen. The two completion effects come from the contingency table by
+/// arithmetic alone (stratified difference in means; crude difference), the
+/// equal-weight mixture is their mean, and the pin must lie within four Monte Carlo
+/// standard errors of it. Under the conjugate prior (scale 10, n = 1000) the
+/// posterior mean differs from the least-squares effect by far less than that, and
+/// each draw picks a completion, so one draw's SD is
+/// `sqrt(se² + (gap/2)²)` with `se` the pinned per-completion joint-IF SE.
+#[test]
+fn cpdag_ate_envelope_bayesian_pin_matches_closed_form_mixture() {
+    let pin = cpdag_pin();
+    let cell = |z: f64, t: f64, y: f64| -> f64 {
+        pin["contingency_table"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["z"] == z && c["t"] == t && c["y"] == y)
+            .map_or(0.0, |c| c["count"].as_f64().unwrap())
+    };
+    let n_of = |z: f64, t: f64| cell(z, t, 0.0) + cell(z, t, 1.0);
+    let mean_y = |z: f64, t: f64| cell(z, t, 1.0) / n_of(z, t);
+    let n_total: f64 = [0.0, 1.0].iter().flat_map(|&z| [0.0, 1.0].map(|t| n_of(z, t))).sum();
+    // Z -> T completion: adjust for Z (backdoor formula over the observed law of Z).
+    let adjusted: f64 = [0.0, 1.0]
+        .iter()
+        .map(|&z| (n_of(z, 0.0) + n_of(z, 1.0)) / n_total * (mean_y(z, 1.0) - mean_y(z, 0.0)))
+        .sum();
+    // T -> Z completion: Z is a mediator, so the effect is the crude contrast.
+    let crude_mean =
+        |t: f64| (cell(0.0, t, 1.0) + cell(1.0, t, 1.0)) / (n_of(0.0, t) + n_of(1.0, t));
+    let crude = crude_mean(1.0) - crude_mean(0.0);
+    assert!((adjusted - 0.40).abs() < 1e-12, "adjusted completion effect {adjusted}");
+    assert!((crude - 0.52).abs() < 1e-12, "crude completion effect {crude}");
+    let mixture = 0.5 * (adjusted + crude);
+    let se = pin["frequentist"]["expected_se"].as_f64().unwrap();
+    let draws = pin["bayesian"]["n_draws"].as_f64().unwrap();
+    let draw_sd = se.hypot(0.5 * (crude - adjusted));
+    let mc_se = draw_sd / draws.sqrt();
+    let pinned = pin["bayesian"]["expected_ate"].as_f64().unwrap();
+    assert!(
+        (pinned - mixture).abs() <= 4.0 * mc_se,
+        "Bayesian pin {pinned} is {:.2} Monte Carlo SEs from the closed-form mixture {mixture}",
+        (pinned - mixture).abs() / mc_se
+    );
+}

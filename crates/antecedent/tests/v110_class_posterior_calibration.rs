@@ -1,8 +1,11 @@
 //! Coverage of CPDAG class graph-posterior ATE intervals.
 //!
-//! Two identified CPDAG posterior atoms share an empty backdoor adjustment on
-//! the `known_truth_mixtures` tabular DGP (`Y = 2T + 2Z ± 0.2`), so the scalar
-//! mixture is the direct effect 3.0 with a joint influence-function SE.
+//! Two identified CPDAG posterior atoms share an empty backdoor adjustment. Neither
+//! atom has an edge from `Z` into `T`, so the DGP is one in which that is true:
+//! `Y = 2T + 2Z ± 0.2` with `T` and `Z` independent fair draws. The empty-adjustment
+//! contrast is then the causal effect 2.0 (a `Z -> T` edge would make it the
+//! confounded contrast 2 + 2·(P(Z=1|T=1) − P(Z=1|T=0)), which is not the ATE),
+//! and the scalar mixture carries a joint influence-function SE.
 //!
 //! Ignored tests run via `scripts/gate_calibration.sh`.
 //!
@@ -27,7 +30,7 @@ use common::calibration_bind::bind_all;
 const N: usize = 320;
 const LEVEL: f64 = 0.9;
 const WEIGHTS: [f64; 2] = [0.6, 0.4];
-const TRUTH: f64 = 3.0;
+const TRUTH: f64 = 2.0;
 
 const SEED_STRIDE: u64 = 7_919;
 const SEED_BASE: u64 = 0x110C_0000;
@@ -60,7 +63,7 @@ fn draw_data(seed: u64) -> TabularData {
         (Vec::with_capacity(rows), Vec::with_capacity(rows), Vec::with_capacity(rows));
     for _ in 0..rows {
         let zi = f64::from(u8::from(unif() < 0.5));
-        let ti = f64::from(u8::from(unif() < 0.25 + 0.5 * zi));
+        let ti = f64::from(u8::from(unif() < 0.5));
         let epsilon = if unif() < 0.5 { -0.2 } else { 0.2 };
         t.push(ti);
         z.push(zi);

@@ -131,10 +131,8 @@ artifact consumption and mutation, atomic refresh and resource controls.
 `test_bounded_multisource_calibration_fixture` checks deterministic execution and
 paired bookkeeping only. It is **not a coverage measurement**.
 
-The explicitly opt-in `test_deferred_multisource_grid_calibration` records
-candidate mean and contrast interval hit counts across two parameterizations.
-It is skipped by default. Running it requires
-`ANTECEDENT_RUN_META_CALIBRATION=1`; its outputs still require scientific review
-and registry binding before any coverage license changes. No hours-long
-calibration was run for T7–T9 implementation, and the calibration-dependent T7
+No coverage measurement of the multi-source grid exists: an env-gated hit-count
+script that printed counts without asserting a band was removed rather than kept
+as evidence. No hours-long calibration
+was run for T7–T9 implementation, and the calibration-dependent T7
 and T8 completion gates remain open.

@@ -452,6 +452,28 @@ for i, row in enumerate(cells, 1):
     if all(cell.values()) and is_allowed(cell):
         fail.append(f"{label}: cell matches support_allowlist.toml; cannot license it")
 
+# --- cross-check-only cells need a known-truth sibling -------------------------
+# A cell whose only evidence is an internal cross-check (the estimator against an
+# in-test recomputation that may share its convention) and that carries no measured
+# coverage has nothing tying it to the truth. It is licensed only while another cell of
+# the same query and inference mode has known-truth or external-oracle evidence, so the
+# estimand itself is checked against a simulation truth somewhere.
+_truth_kinds = {"internal_known_truth", "frozen_external_oracle"}
+_truthful = {
+    (c.get("query"), c.get("inference"))
+    for c in cells
+    if c.get("evidence_kind") in _truth_kinds
+}
+for row in cells:
+    if row.get("evidence_kind") == "internal_cross_check" and not row.get("calibration"):
+        if (row.get("query"), row.get("inference")) not in _truthful:
+            fail.append(
+                f"{row.get('query')}/{row.get('graph_class')}/{row.get('structure')}/"
+                f"{row.get('inference')}/{row.get('validation')}: internal_cross_check with no "
+                "calibration and no known-truth sibling cell of the same query and inference "
+                "mode; add known-truth evidence or a measured calibration"
+            )
+
 # --- evidence_test ratchet ---------------------------------------------------
 backlog_rel = "parity/_evidence_test_backlog.txt"
 backlog_path = root / backlog_rel

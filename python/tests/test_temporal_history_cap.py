@@ -30,7 +30,7 @@ AUTOREGRESSIVE_DAG = [("t", 1, "t", 0), ("z", 1, "t", 0), ("z", 2, "y", 0), ("t"
 def test_max_history_lag_is_a_query_field(query_type: Any) -> None:
     assert query_type("t", "y").max_history_lag is None
     assert query_type("t", "y", max_history_lag=3).max_history_lag == 3
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="max_history_lag must be non-negative"):
         query_type("t", "y", max_history_lag=-1)
 
 

@@ -267,28 +267,26 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
     }
 }
 
+/// The point-identified response value; any other response shape is a failure, not a value
+/// to be replaced by the scalar `estimate.ate` (which would compare the wrong quantity).
 fn response_mean(result: &antecedent::StudyResult) -> f64 {
-    match result.response.as_ref().and_then(|r| match &r.estimate {
-        ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => Some(*v),
-        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
-            mean.first().copied()
-        }
-        _ => None,
-    }) {
-        Some(v) if v.is_finite() => v,
-        _ => result.estimate.ate,
-    }
+    let response = result.response.as_ref().expect("response payload");
+    let value = match &response.estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => *v,
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean[0],
+        other => panic!("expected a point-identified response, got {other:?}"),
+    };
+    assert!(value.is_finite(), "response mean {value} is not finite");
+    value
 }
 
 fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
-    match result.response.as_ref().and_then(|r| match &r.estimate {
+    let response = result.response.as_ref().expect("response payload");
+    match &response.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
-            Some(mean.to_vec())
+            mean.to_vec()
         }
-        _ => None,
-    }) {
-        Some(v) => v,
-        None => vec![result.estimate.ate],
+        other => panic!("expected a point-identified surface, got {other:?}"),
     }
 }
 

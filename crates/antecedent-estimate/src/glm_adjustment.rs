@@ -1273,7 +1273,11 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.ate.is_finite());
+        // The data are logistic, logit(P) = -0.5 + 2t + z with z uniform on (-0.5, 0.5), so the
+        // risk difference is the mean over z of sigma(1.5 + z) - sigma(-0.5 + z) = 0.4338
+        // (numerical quadrature); the probit fit approximates it to sampling error at n = 200
+        // (SD about 0.05). A constant or sign-flipped effect would miss it.
+        assert!((effect.ate - 0.4338).abs() < 0.15, "probit ATE {} vs 0.4338", effect.ate);
         assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
     }
 
