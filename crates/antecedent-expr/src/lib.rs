@@ -107,12 +107,36 @@ impl InterventionSetId {
 }
 
 /// One hard intervention assignment in an interned set.
+///
+/// Symbolic coordinates (`do(V)` with unspecified level) use
+/// [`Value::symbolic_intervention`] in [`Self::value`], matching the wire
+/// form's `symbolic: bool`. A genuine non-finite float is never that mark.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct InterventionAssignment {
     /// Target variable.
     pub variable: VariableId,
-    /// Assigned value under `do(·)`.
+    /// Assigned value under `do(·)`, or the symbolic marker.
     pub value: Value,
+}
+
+impl InterventionAssignment {
+    /// Concrete hard intervention `do(variable = value)`.
+    #[must_use]
+    pub const fn concrete(variable: VariableId, value: Value) -> Self {
+        Self { variable, value }
+    }
+
+    /// Symbolic intervention coordinate `do(variable)` (level unspecified).
+    #[must_use]
+    pub fn symbolic(variable: VariableId) -> Self {
+        Self { variable, value: Value::symbolic_intervention() }
+    }
+
+    /// Whether this assignment is a symbolic (unspecified-level) coordinate.
+    #[must_use]
+    pub fn is_symbolic(&self) -> bool {
+        self.value.is_symbolic_intervention()
+    }
 }
 
 /// Contrast operator between two expressions.
@@ -402,14 +426,13 @@ impl CausalExprArena {
         id
     }
 
-    /// Intern an intervention over variables only (value unspecified / placeholder).
+    /// Intern an intervention over variables only (symbolic / unspecified level).
     pub fn intern_intervention_set(
         &mut self,
         vars: impl IntoIterator<Item = VariableId>,
     ) -> InterventionSetId {
         self.intern_intervention_assignments(
-            vars.into_iter()
-                .map(|variable| InterventionAssignment { variable, value: Value::f64(f64::NAN) }),
+            vars.into_iter().map(InterventionAssignment::symbolic),
         )
     }
 
@@ -1127,5 +1150,22 @@ mod tests {
         let err =
             a.substitute(id, &[(VariableId::from_raw(9), VariableId::from_raw(8))]).unwrap_err();
         assert_eq!(err, ExprError::MissingBinding);
+    }
+
+    #[test]
+    fn identical_symbolic_intervention_sets_intern_to_same_id() {
+        let mut arena = CausalExprArena::new();
+        let t = VariableId::from_raw(0);
+        let z = VariableId::from_raw(2);
+        let a = arena.intern_intervention_set([t, z]);
+        let b = arena.intern_intervention_set([z, t]);
+        assert_eq!(a, b, "symbolic sets must hash-cons (NaN sentinel never did)");
+        let assignments = arena.intervention_assignments(a);
+        assert_eq!(assignments.len(), 2);
+        assert!(assignments.iter().all(InterventionAssignment::is_symbolic));
+        assert!(!assignments.iter().any(|x| matches!(
+            x.value,
+            Value::Float64(v) if v.is_nan()
+        )));
     }
 }

@@ -355,7 +355,7 @@ pub(crate) fn free_vars(
             let bound: Vec<VariableId> = arena
                 .intervention_assignments(intervention)
                 .iter()
-                .filter(|a| !matches!(a.value, antecedent_core::Value::Float64(x) if x.is_nan()))
+                .filter(|a| !a.is_symbolic())
                 .map(|a| a.variable)
                 .collect();
             for &v in arena.var_set(conditioned_on) {
@@ -367,7 +367,7 @@ pub(crate) fn free_vars(
                 arena
                     .intervention_assignments(intervention)
                     .iter()
-                    .filter(|a| matches!(a.value, antecedent_core::Value::Float64(x) if x.is_nan()))
+                    .filter(|a| a.is_symbolic())
                     .map(|a| a.variable),
             );
             arena.intern_var_set(vars)
