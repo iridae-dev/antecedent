@@ -1,22 +1,50 @@
 //! General response identification: adjustment first, then Shpitser–Pearl ID.
 //!
-//! On a DAG, ID runs on the DAG read as an ADMG. On a MAG a directed edge rules
-//! out a latent common cause only when it is visible (Zhang 2008), so ID runs on
-//! the ADMG that keeps every MAG edge and adds `A <-> B` beside each invisible
-//! `A -> B`. Every DAG the MAG represents projects to an edge-subgraph of that
-//! ADMG, so a functional derived there holds for all of them. Whatever ID can
-//! derive on the ADMG it is given, the MAG route inherits no completeness from
-//! it: the confounded ADMG is a worst case, so the route is sound and strictly
-//! stronger than generalized adjustment, but not complete for MAGs. The
-//! subgraph property and the exactness of every identified mean are checked by
-//! brute force over all DAGs with at most four observed and two latent binary
-//! nodes and sampled five-observed DAGs (`mag_id_bruteforce`), with no
-//! exception found; on at most four observed nodes the gain over adjustment is
-//! confined to null effects, and non-null gains start at five.
+//! **What ID establishes.** [`IdIdentifier`] is the complete ID algorithm on the ADMG it is
+//! given: every valid query ends in an identified functional or in a hedge that
+//! [`crate::HedgeCertificate::verify`] accepts. That is the published theorem (Shpitser &
+//! Pearl 2006; Huang & Valtorta 2006); for this implementation it is evidenced, not
+//! proved: every single-treatment, single-outcome query on every ADMG with at most four
+//! nodes, sampled five- and six-node joint queries, and the napkin family are checked
+//! against exactly enumerated latent SCMs (`tests/id_completeness.rs`), with no query
+//! ending in an error or an unverified refusal. A `NotIdentified` from ID on an ADMG is
+//! therefore a scientific negative about that ADMG. An identified functional may keep a
+//! variable outside the query free (the napkin's `z`); it holds at each of its supported
+//! values and consumers must evaluate it there, never sum over it.
 //!
-//! A PAG is handled by enumerating its valid MAG completions and identifying
-//! each; it is not PAG-native ID. The complete algorithm for PAGs is IDP
-//! (Jaber, Zhang & Bareinboim 2019), which this module does not implement.
+//! **What the MAG and PAG routes establish.** On a DAG, ID runs on the DAG read as an
+//! ADMG, and the statement above applies unchanged. On a MAG a directed edge rules out a
+//! latent common cause only when it is visible (Zhang 2008), so ID runs on the ADMG that
+//! keeps every MAG edge and adds `A <-> B` beside each invisible `A -> B`. Every DAG the
+//! MAG represents projects to an edge-subgraph of that ADMG, so a functional derived there
+//! holds for all of them: the route is sound. It is not complete. The confounded ADMG is a
+//! worst case that need not belong to the MAG's class, so completeness of ID on that ADMG
+//! says nothing about the MAG: a refusal here is not a proof of non-identifiability, the
+//! hedge found in the supergraph is withheld when an invisible edge was confounded, and
+//! the refusal is reported as [`MAG_ID_REFUSED_DIAGNOSTIC_CODE`]. The route is strictly
+//! stronger than generalized adjustment. The subgraph property and the exactness of every
+//! identified mean, at every value of any free variable, are checked by brute force over
+//! all DAGs with at most four observed and two latent binary nodes and sampled
+//! five-observed DAGs (`mag_id_bruteforce`), with no exception found; on at most four
+//! observed nodes the gain over adjustment is confined to null effects, and non-null gains
+//! start at five.
+//!
+//! A PAG is handled by enumerating its valid MAG completions and identifying each; it is
+//! not PAG-native ID, and inherits the MAG route's incompleteness. Completions identified
+//! through different functionals share no class-wide estimand, which the envelope reports
+//! as partial identification. The complete algorithm for PAGs is IDP (Jaber, Zhang &
+//! Bareinboim, "Causal Identification under Markov Equivalence: Completeness Results",
+//! ICML 2019), which this module does not implement.
+//!
+//! **Errors.** With ID complete, an `Err` from these routes is never a statement about
+//! identifiability. What remains is an unsupported or invalid query
+//! ([`IdentificationError::UnsupportedQuery`], [`IdentificationError::InvalidQuery`]), a
+//! variable or graph the input does not define ([`IdentificationError::UnknownVariable`],
+//! [`IdentificationError::Graph`]), and a broken internal invariant of the ID recursion
+//! ([`IdentificationError::InvariantViolated`], unreachable in every enumerated case). ID
+//! has no search budget and takes no cancellation token; the bounded parts of these routes
+//! are the adjustment search and the completion enumeration, which report an exhausted
+//! budget as a bounded-search diagnostic on an `Ok` result, not as an error.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -28,7 +56,7 @@ use antecedent_core::{
 };
 use antecedent_graph::{Cpdag, Dag, Pag};
 
-use crate::envelope::{GraphFeature, IdentificationEnvelope};
+use crate::envelope::IdentificationEnvelope;
 use crate::error::IdentificationError;
 use crate::generalized::{
     GeneralizedAdjustmentIdentifier, identify_on_mag_completion, identify_on_mag_completion_mean,
@@ -218,36 +246,7 @@ pub fn identify_pag_response_general(
     query: &ResponseQuery,
 ) -> Result<IdentificationEnvelope<Pag>, IdentificationError> {
     let id = GeneralizedAdjustmentIdentifier::new();
-    let mut envelope = id.pag_envelope_with(pag, |mag| {
-        identify_mag_response(mag, query, id.config.max_candidates)
-    })?;
-    downgrade_divergent_functionals(&mut envelope);
-    Ok(envelope)
-}
-
-/// General-ID estimands carry no adjustment set, so two completions can share a
-/// method tag while their functionals differ. A class-wide point claim needs
-/// one functional; otherwise the class is only partially identified.
-fn downgrade_divergent_functionals(envelope: &mut IdentificationEnvelope<Pag>) {
-    let mut functionals = envelope
-        .cases
-        .iter()
-        .filter(|case| is_identified(&case.result))
-        .map(|case| case.result.arena.pretty(case.result.estimands[0].functional));
-    let Some(first) = functionals.next() else { return };
-    if functionals.all(|other| other == first) {
-        return;
-    }
-    envelope.invariant = None;
-    if envelope.status == IdentificationStatus::NonparametricallyIdentified {
-        envelope.status = IdentificationStatus::PartiallyIdentified;
-    }
-    envelope.push_features([GraphFeature {
-        kind: Arc::from("completion_functionals_differ"),
-        detail: Arc::from(
-            "identified MAG completions yield different functionals; no single estimand holds across the class",
-        ),
-    }]);
+    id.pag_envelope_with(pag, |mag| identify_mag_response(mag, query, id.config.max_candidates))
 }
 
 /// Identify a single-treatment CPDAG response by back-door, then general ID.
