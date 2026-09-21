@@ -1,7 +1,7 @@
 //! Numerical evidence for temporal latent-confounded MAG adjustment.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,

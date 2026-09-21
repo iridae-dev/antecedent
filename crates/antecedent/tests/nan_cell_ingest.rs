@@ -9,8 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy,

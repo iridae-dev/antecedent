@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use crate::admg::Admg;
 use crate::dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 use crate::error::GraphError;

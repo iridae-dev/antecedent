@@ -3,15 +3,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+source scripts/python_smoke.sh
 
-cargo test -p antecedent-io causal_artifact --no-fail-fast
+bash scripts/counted_cargo.sh test -p antecedent-io causal_artifact --no-fail-fast
 
-if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
-  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
-elif ! command -v uv >/dev/null 2>&1; then
-  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
-else
-  (cd python && uv run pytest -q tests/test_causal_artifacts.py)
-fi
+python_smoke tests/test_causal_artifacts.py
 
 echo "gate_causal_artifacts: ok"

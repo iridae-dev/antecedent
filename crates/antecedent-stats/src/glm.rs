@@ -3,12 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::needless_range_loop,
     clippy::float_cmp,
-    clippy::similar_names,
-    clippy::many_single_char_names,
     clippy::too_many_lines,
     clippy::cast_sign_loss
 )]

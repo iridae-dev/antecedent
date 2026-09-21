@@ -19,9 +19,7 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::doc_markdown,
-    clippy::many_single_char_names,
     clippy::needless_pass_by_value,
     clippy::too_many_lines
 )]

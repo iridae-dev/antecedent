@@ -1,7 +1,6 @@
 //! Known-truth licensing evidence for staged derivatives.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::many_single_char_names, clippy::too_many_lines, clippy::cast_precision_loss)]
+#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, ResponseFunctional as F,

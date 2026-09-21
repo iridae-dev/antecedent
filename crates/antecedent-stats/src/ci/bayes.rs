@@ -9,14 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::similar_names, // xtx / xty, cxx / cxy conjugate notation
-    clippy::many_single_char_names // Marsaglia gamma / conjugate scalars
-)]
+#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop, clippy::too_many_arguments)]
 
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_kernels::{sample_inv_gamma, standard_normal};

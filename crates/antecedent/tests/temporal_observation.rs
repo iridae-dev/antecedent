@@ -1,7 +1,7 @@
 //! Temporal observation pairs on `ResponseCurve` / `InterventionResponse`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 

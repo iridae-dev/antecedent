@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _confounded(n: int = 160, seed: int = 3):
@@ -60,9 +58,10 @@ def test_sequential_prior_from_artifact():
     # Sequential must move relative to a flat-prior fit on the same batch B
     # (prior ignored ⇒ means equal).
     assert flat_b.posterior is not None
-    assert abs(b.posterior.effect_mean - flat_b.posterior.effect_mean) > 1e-3 or abs(
-        (b.posterior.effect_sd or 0.0) - (flat_b.posterior.effect_sd or 0.0)
-    ) > 1e-3
+    assert (
+        abs(b.posterior.effect_mean - flat_b.posterior.effect_mean) > 1e-3
+        or abs((b.posterior.effect_sd or 0.0) - (flat_b.posterior.effect_sd or 0.0)) > 1e-3
+    )
 
 
 def test_prior_and_data_both_influence_posterior():

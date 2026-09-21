@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use crate::error::StatsError;
 use crate::glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm};
 use crate::linalg::{DenseLinearAlgebra, LeastSquaresWorkspace};

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-
-import antecedent
 from antecedent.errors import CausalIdentifyError, CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
 from antecedent.handoff import econml

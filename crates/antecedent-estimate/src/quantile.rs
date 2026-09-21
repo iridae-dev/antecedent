@@ -8,8 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use crate::error::EstimationError;
 
 /// Minimum finite-difference density licensed for inversion, in units of the

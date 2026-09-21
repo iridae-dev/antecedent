@@ -18,11 +18,8 @@ effect, so both must report `None`, never one an overclaimed number).
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 from antecedent import artifacts
 from antecedent.estimation import PreparedAnalysis
 

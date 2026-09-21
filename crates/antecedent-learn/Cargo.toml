@@ -17,8 +17,6 @@ readme = "README.md"
 workspace = true
 
 [features]
-default = ["ml-faer"]
-ml-faer = []
 ml-gbdt = ["dep:forust-ml"]
 ml-forest = ["dep:smartcore"]
 ml-full = ["ml-gbdt", "ml-forest"]

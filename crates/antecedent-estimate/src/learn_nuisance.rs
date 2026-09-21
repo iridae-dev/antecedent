@@ -4,7 +4,6 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::needless_pass_by_value,
     clippy::needless_lifetimes,
     clippy::too_many_arguments,

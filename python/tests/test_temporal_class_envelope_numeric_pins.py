@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import pathlib
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import load_json
-
-antecedent = pytest.importorskip("antecedent")
-
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 _PIN = load_json(_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json")

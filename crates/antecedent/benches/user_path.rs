@@ -6,12 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    missing_docs,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines,
-    clippy::many_single_char_names
-)]
+#![allow(missing_docs, clippy::too_many_lines)]
 
 use std::time::Instant;
 

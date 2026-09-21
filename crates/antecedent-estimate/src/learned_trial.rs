@@ -1,5 +1,5 @@
 //! Cross-fitted trial-to-nonparticipant transport with explicit sampling design.
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_truncation)]
 use crate::{EstimationError, trial_to_target_effect};
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_identify::{TransportFormula, TransportIdentification};

@@ -142,8 +142,9 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 ## Licensing
 
 - Project: `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`, ADR 0008).
-- Dependencies audited with **cargo-deny** (`deny.toml` license allow-list); run
-  locally (`cargo deny check`) — not part of CI.
+- Dependencies audited with **cargo-deny** (`deny.toml` license allow-list and
+  advisories): the CI `deny` job runs `cargo deny check` on every PR and push, and
+  the release-candidate gate refuses to run without cargo-deny installed.
 - Default features must remain wheel-distributable without system BLAS
   ([ADR 0001](https://github.com/iridae-dev/antecedent/blob/main/adr/0001-linear-algebra-backend.md)).
 

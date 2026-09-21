@@ -26,13 +26,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::doc_markdown,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::too_many_arguments
-)]
+#![allow(clippy::doc_markdown, clippy::float_cmp, clippy::too_many_arguments)]
 
 mod common;
 

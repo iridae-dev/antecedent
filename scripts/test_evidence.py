@@ -24,6 +24,7 @@ gate_parity_schema.sh and gate_metadata_consistency.sh (fixture consumers).
 
 from __future__ import annotations
 
+import ast
 import functools
 import re
 import subprocess
@@ -476,29 +477,90 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
     return full, problems
 
 
+_SKIP_ATTRS = {"skip", "skipif", "xfail"}
+
+
+def _mark_names(node: ast.AST) -> set[str]:
+    """Names of the marks an expression applies: `pytest.mark.skipif(c)` -> {"skipif"}.
+
+    Only the mark expression itself is read (through a call's callee, and through a
+    list or tuple of marks), never a call's arguments."""
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return set().union(*(_mark_names(e) for e in node.elts)) if node.elts else set()
+    if isinstance(node, ast.Call):
+        return _mark_names(node.func)
+    if isinstance(node, ast.Attribute):
+        return {node.attr} | _mark_names(node.value)
+    return set()
+
+
+def _is_pytest_call(node: ast.AST, attr: str) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == attr
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "pytest"
+    )
+
+
 @functools.cache
 def static_python_test(path: Path, name: str) -> list[str]:
+    """Why `name` in `path` is not a collected, runnable pytest function (empty = it is).
+
+    Read from the syntax tree, so a decorator spread over several lines, a
+    multi-line `pytestmark = [...]`, an unconditional `pytest.skip()` in the
+    body and a parametrisation over an empty list are all seen."""
     problems = []
     if not path.is_file():
         return [f"{path} does not exist"]
-    text = _strip_python(path.read_text(errors="ignore"))
     if not path.name.startswith("test_"):
         problems.append(f"{path} is not a pytest module (test_*.py)")
     if not name.startswith("test"):
         problems.append(f"{name} is not a collected pytest name (test*)")
-    m = re.search(
-        rf"((?:^[ \t]*@[^\n]*\n)*)^([ \t]*)(?:async\s+)?def\s+{re.escape(name)}\s*\(", text, re.M
-    )
-    if not m:
+    try:
+        tree = ast.parse(path.read_text(errors="ignore"))
+    except SyntaxError as error:
+        return problems + [f"{path} does not parse: {error.msg}"]
+    funcs = [
+        n
+        for n in tree.body
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name
+    ]
+    if not funcs:
+        nested = [
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name
+        ]
+        if nested:
+            return problems + [f"def {name} is not a module-level test function"]
         return problems + [f"no def {name} outside comments and strings"]
-    if m.group(2):
-        problems.append(f"def {name} is not a module-level test function")
-    if re.search(r"\bskip|xfail", m.group(1)):
-        problems.append(f"def {name} carries a skip/xfail marker")
-    if re.search(
-        r"^pytestmark\s*=.*(skip|xfail)|^\s*pytest\.skip\(.*allow_module_level", text, re.M
-    ):
-        problems.append(f"{path} skips the whole module")
+    fn = funcs[-1]
+    for dec in fn.decorator_list:
+        if _mark_names(dec) & _SKIP_ATTRS:
+            problems.append(f"def {name} carries a skip/xfail marker")
+        if (
+            isinstance(dec, ast.Call)
+            and isinstance(dec.func, ast.Attribute)
+            and dec.func.attr == "parametrize"
+            and len(dec.args) >= 2
+            and isinstance(dec.args[1], (ast.List, ast.Tuple))
+            and not dec.args[1].elts
+        ):
+            problems.append(f"def {name} is parametrised over an empty list, so it never runs")
+    for stmt in fn.body:
+        if isinstance(stmt, ast.Expr) and _is_pytest_call(stmt.value, "skip"):
+            problems.append(f"def {name} calls pytest.skip() unconditionally")
+            break
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(tg, ast.Name) and tg.id == "pytestmark" for tg in node.targets
+        ):
+            if _mark_names(node.value) & _SKIP_ATTRS:
+                problems.append(f"{path} skips the whole module")
+        elif isinstance(node, ast.Expr) and _is_pytest_call(node.value, "skip"):
+            problems.append(f"{path} skips the whole module")
     return problems
 
 

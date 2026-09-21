@@ -7,12 +7,7 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
-)]
+#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop, clippy::too_many_arguments)]
 
 use burn::backend::{Autodiff, NdArray};
 use burn::module::{AutodiffModule, Module};

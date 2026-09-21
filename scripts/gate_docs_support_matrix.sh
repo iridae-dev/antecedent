@@ -34,13 +34,39 @@ HEDGE = re.compile(
     re.I,
 )
 
-# Overclaims that read as licensed analyze support unless already hedged.
-# Conservative: match the banned phrases only; do not scan every "PAG".
-OVERCLAIMS = (
+# Overclaims that read as licensed analyze support unless already hedged: three
+# fixed phrases, plus one pattern per closed rule of the matrix
+# (parity/support_closed.toml: `queries` x `graph_classes`, rules that narrow no
+# other axis): a sentence naming a closed query and a closed graph class next to
+# "support" is a support claim about a cell the matrix refuses.
+OVERCLAIMS = [
     re.compile(r"PAG\s+responses?", re.I),
     re.compile(r"PAG\s+curve", re.I),
     re.compile(r"we\s+support\s+PAG", re.I),
-)
+]
+CLASS_WORDS = {"Dag": r"DAGs?", "Admg": r"ADMGs?", "Cpdag": r"CPDAGs?", "Pag": r"PAGs?"}
+SUPPORT_VERB = re.compile(r"\bsupport(?:s|ed|ing)?\b", re.I)
+
+
+def query_words(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "[ _-]?", name)
+
+
+closed_pairs: list[tuple[re.Pattern[str], str]] = []
+for rule in tomllib.loads((root / "parity/support_closed.toml").read_text()).get("closed", []):
+    if not rule.get("queries") or not rule.get("graph_classes"):
+        continue
+    if any(k not in ("queries", "graph_classes", "reason") for k in rule):
+        continue
+    for q in rule["queries"]:
+        for g in rule["graph_classes"]:
+            if g in CLASS_WORDS:
+                closed_pairs.append(
+                    (
+                        re.compile(rf"(?=.*\b{query_words(q)}\b)(?=.*\b{CLASS_WORDS[g]}\b)", re.I | re.S),
+                        f"{q} x {g}",
+                    )
+                )
 
 
 def paragraphs(text: str) -> list[tuple[int, int, str]]:
@@ -98,6 +124,21 @@ for rel in DOCS:
                 f"{rel}: overclaim {snippet!r} without refuse/not licensed/"
                 f"inventory/support matrix nearby"
             )
+
+    # Closed cells: no unhedged sentence may pair a closed query with a closed
+    # graph class and a support verb.
+    for para_start, _, para in paras:
+        for s_start, _, sent in sentences(para, para_start):
+            if not SUPPORT_VERB.search(sent) or HEDGE.search(sent) or HEDGE.search(para):
+                continue
+            for pattern, cell in closed_pairs:
+                if pattern.search(sent):
+                    fail.append(
+                        f"{rel}: sentence claims support for closed cell {cell} without "
+                        f"refuse/not licensed/inventory/support matrix nearby: "
+                        f"{re.sub(chr(10), ' ', sent.strip())[:100]!r}"
+                    )
+                    break
 
 # Counterfactual is licensed on one cell; remaining coordinates stay refused.
 caps = root / "docs/capabilities.md"
@@ -169,6 +210,54 @@ else:
                     f"{notes_path}: zero-cell root query {query!r} is absent from "
                     "the explicit-refusals section"
                 )
+
+# docs/short-series-thresholds.md is a measured table the licensed-cell prose quotes
+# ("below 155 score effective rows"). The Rust constants are the source: the table's
+# rows and every threshold quoted next to a link to the page must equal them.
+threshold_doc = root / "docs/short-series-thresholds.md"
+# Arms like `Self::Mediation | Self::Sequential => 40.0` name several families.
+rust_thresholds = {
+    name: int(m.group(2))
+    for m in re.finditer(
+        r"((?:Self::\w+\s*\|\s*)*Self::\w+)\s*=>\s*(\d+)\.0",
+        (root / "crates/antecedent-estimate/src/temporal_block.rs").read_text(),
+    )
+    for name in re.findall(r"Self::(\w+)", m.group(1))
+}
+FAMILY_ROWS = {
+    "SingleWindow": "single-window adjustment",
+    "Mediation": "temporal mediation",
+    "Sequential": "multi-step sequential",
+    "Mixture": "multi-atom mixture",
+}
+if set(rust_thresholds) != set(FAMILY_ROWS):
+    fail.append(
+        "crates/antecedent-estimate/src/temporal_block.rs: min_effective_rows arms "
+        f"{sorted(rust_thresholds)} differ from the families this gate pins {sorted(FAMILY_ROWS)}"
+    )
+else:
+    table = {
+        m.group(1).strip(): int(m.group(2))
+        for m in re.finditer(r"^\|\s*([^|]+?)\s*\|[^|]*\|\s*(\d+)\s*\|\s*$", threshold_doc.read_text(), re.M)
+    }
+    for family, row in FAMILY_ROWS.items():
+        if table.get(row) != rust_thresholds[family]:
+            fail.append(
+                f"docs/short-series-thresholds.md: {row!r} threshold is {table.get(row)}, "
+                f"but {family} is {rust_thresholds[family]} in temporal_block.rs"
+            )
+    quoted = set()
+    for cell in tomllib.loads((root / "parity/support_licensed.toml").read_text()).get("cell", []):
+        limits = str(cell.get("limitations", ""))
+        quoted |= {
+            int(n)
+            for n in re.findall(r"(?:below|fall below)\s+(\d+)(?:\s+score)?(?:\s+effective\s+rows)?[^.]{0,120}short-series-thresholds", limits)
+        }
+    for n in sorted(quoted - set(rust_thresholds.values())):
+        fail.append(
+            f"support_licensed.toml quotes a short-series threshold of {n}, "
+            f"but temporal_block.rs has {sorted(set(rust_thresholds.values()))}"
+        )
 
 claims = tomllib.loads((root / "parity/claims.toml").read_text())
 products = tomllib.loads((root / "parity/python_products.toml").read_text())
@@ -309,6 +398,9 @@ if fail:
 print(
     "Docs support-matrix OK (capabilities/comparison link the matrix; current "
     "release notes enumerate every zero-cell root query; Counterfactual "
-    "license + remaining refusals are described; no unhedged overclaims)"
+    "license + remaining refusals are described; no unhedged PAG overclaim and "
+    "no unhedged support claim on a closed query x graph-class cell; "
+    "short-series thresholds match temporal_block.rs; claims.toml sentences and "
+    "forbidden patterns hold)"
 )
 PY

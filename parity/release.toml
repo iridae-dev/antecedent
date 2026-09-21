@@ -46,4 +46,4 @@ notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow 
 id = "release.ci_required_jobs"
 status = "done"
 notes = "Job ids from .github/workflows/ci.yml that must succeed on the candidate SHA"
-required_jobs = ["rust", "gates", "python-lint", "python-wheels"]
+required_jobs = ["rust", "features", "deny", "gates", "python-lint", "python-wheels"]

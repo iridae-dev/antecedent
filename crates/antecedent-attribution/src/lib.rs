@@ -21,9 +21,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::too_many_lines

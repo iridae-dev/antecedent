@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Create an annotated release tag from the workspace version (or an explicit semver).
+# Create an annotated release tag from the committed workspace version.
 # Usage (tagging runs scripts/gate_release_candidate.sh first):
-#   CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh        # tag Cargo.toml version
-#   ... bash scripts/tag_release.sh X.Y.Z   # set version, then tag (commit the bump first)
+#   CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh
+#
+# The version bump is its own commit (`bash scripts/set_version.sh X.Y.Z`, then
+# commit). This script tags HEAD, never rewrites files, and refuses a dirty tree:
+# the RC gate's local steps test the working tree while the tag names HEAD, so
+# the two must be the same thing.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -22,21 +26,20 @@ print(vm.group(1))
 PY
 }
 
-if [[ $# -gt 1 ]]; then
-  echo "usage: $0 [X.Y.Z]" >&2
+if [[ $# -ne 0 ]]; then
+  echo "usage: $0   (no arguments; commit the version bump first)" >&2
   exit 2
 fi
 
-if [[ $# -eq 1 ]]; then
-  VERSION="$1"
-  VERSION="${VERSION#v}"
-  bash scripts/set_version.sh "$VERSION"
-  echo "Version files updated to $VERSION."
-  echo "Commit the bump on main before tagging if this is a permanent version change:"
-  echo "  git add Cargo.toml python/pyproject.toml && git commit -m \"chore: bump version to $VERSION\""
-else
-  VERSION="$(read_workspace_version)"
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  echo "FAIL: tagging requires a clean working tree (commit or stash first)" >&2
+  git status --short >&2
+  exit 1
 fi
+
+VERSION="$(read_workspace_version)"
+# Every version-bearing file must already agree with the workspace version.
+bash scripts/set_version.sh --check "$VERSION"
 
 TAG="v${VERSION}"
 if git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -54,4 +57,4 @@ CI_RUN_ID="${CI_RUN_ID}" bash scripts/gate_release_candidate.sh
 git tag -a "$TAG" -m "Release $TAG"
 echo "Created annotated tag $TAG."
 echo "Push with: git push origin $TAG"
-echo "Release CI syncs versions from the tag and publishes wheels + docs."
+echo "Release workflows verify the tag against main, CI and the committed version, then publish wheels + docs + crates."

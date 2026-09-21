@@ -4,13 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
-)]
+#![allow(clippy::float_cmp, clippy::needless_range_loop, clippy::too_many_lines)]
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::{categorical_from_u, standard_normal};

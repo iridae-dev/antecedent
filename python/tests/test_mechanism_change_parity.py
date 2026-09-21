@@ -12,11 +12,8 @@ decided from.
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 
 
 def _shifted_mechanism(n: int = 160, seed: int = 5):

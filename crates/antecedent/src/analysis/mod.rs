@@ -2,13 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
 mod batch;
 mod builder;

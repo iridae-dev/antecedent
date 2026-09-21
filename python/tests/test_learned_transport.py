@@ -30,7 +30,9 @@ def trial_fixture(sampling="independent_samples"):
     outcome = [1.0 + 2.0 * t for t in treatment[:120]] + [0.0] * 80
     data = tr.TrialAipwData({}, outcome, treatment, source, [0.5] * 200, sampling)
     graph = ac.Admg.from_edges(["a", "y"], [("a", "y")])
-    query = advanced.TrialAipwQuery(graph, advanced.SelectionDiagram("trial", "target", []), "a", "y")
+    query = advanced.TrialAipwQuery(
+        graph, advanced.SelectionDiagram("trial", "target", []), "a", "y"
+    )
     return query, data
 
 
@@ -125,7 +127,9 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
         "independent_samples",
     )
     graph = ac.Admg.from_edges(["z", "a", "y"], [("z", "y"), ("a", "y")])
-    query = advanced.TrialAipwQuery(graph, advanced.SelectionDiagram("trial", "target", ["z"]), "a", "y")
+    query = advanced.TrialAipwQuery(
+        graph, advanced.SelectionDiagram("trial", "target", ["z"]), "a", "y"
+    )
     result = advanced.prepare(
         query, data, provider=tr.TrialAipw(outcome=Linear()), inference=tr.TransportInference(0)
     ).estimate()

@@ -9,11 +9,9 @@ contract across atoms — and is refused permanently.
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.errors import CausalUnsupportedError
 
 _POSTERIOR_REFUSED = "graph-posterior structures are refused"

@@ -2,12 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::many_single_char_names,
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments,
-    clippy::unused_self
-)]
+#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments, clippy::unused_self)]
 
 use std::collections::HashMap;
 use std::sync::Arc;

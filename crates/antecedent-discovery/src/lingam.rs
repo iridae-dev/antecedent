@@ -12,14 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::manual_let_else,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_lines
-)]
+#![allow(clippy::cast_possible_truncation, clippy::manual_let_else, clippy::too_many_lines)]
 
 use std::sync::Arc;
 

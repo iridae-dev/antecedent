@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use antecedent_core::ExecutionContext;
 
 use crate::crossfit::{NuisanceDiagnostics, cross_fit};

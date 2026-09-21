@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _confounded(n: int = 120, seed: int = 7):

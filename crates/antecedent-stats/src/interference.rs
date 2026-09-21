@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use antecedent_core::{
     AssignmentDesign, CausalRng, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
 };

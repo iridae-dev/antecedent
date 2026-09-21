@@ -7,28 +7,10 @@ cd "$ROOT"
 bash scripts/gate_parity_schema.sh
 
 python3 - <<'PY'
-from pathlib import Path
-import re
 import sys
 
-root = Path(".")
-text = (root / "parity/gcm.toml").read_text()
-
-def caps(text: str):
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({
-            "id": g("id"),
-            "status": g("status"),
-        })
-    return out
+sys.path.insert(0, "scripts")
+import parity_rows as pr
 
 EVIDENCE = {
     "gcm.model.compiled_plans": "crates/antecedent-model/src/compile.rs",
@@ -49,22 +31,7 @@ EVIDENCE = {
     "gcm.attribution.basic": "crates/antecedent/tests/gcm.rs",
 }
 
-missing = []
-# Only gate the GCM/CF evidence set (attribution inventory is gated separately).
-by_id = {c["id"]: c for c in caps(text)}
-for cid, ev in EVIDENCE.items():
-    c = by_id.get(cid)
-    if c is None:
-        missing.append(f"{cid} missing from gcm.toml")
-        continue
-    if c["status"] != "done":
-        missing.append(f"{cid} status={c['status']}")
-        continue
-    p = root / ev
-    if not p.exists():
-        missing.append(f"{cid} evidence missing: {ev}")
-
-for path in [
+EXIT_ARTIFACTS = [
     "conformance/gcm/gcm_fit_intervene/expected.json",
     "conformance/gcm/gcm_anomaly/expected.json",
     "conformance/gcm/gcm_cf_ite/expected.json",
@@ -74,53 +41,25 @@ for path in [
     "crates/antecedent-model/benches/sample_overlay.rs",
     "crates/antecedent-counterfactual/benches/counterfactual_batch.rs",
     "parity/gcm.toml",
-]:
-    if not (root / path).exists():
-        missing.append(f"required exit artifact missing: {path}")
+]
 
-# Domain inventory rows
-estimate_inv = (root / "parity/estimate.toml").read_text()
-for cid in ("gcm.surface", "gcm.do_sampling"):
-    block = None
-    for b in re.split(r"\n\[\[capabilities\]\]\n", estimate_inv)[1:]:
-        if re.search(rf'^id\s*=\s*"{cid}"', b, re.M):
-            block = b
-            break
-    if not block:
-        missing.append(f"{cid} missing from estimate.toml")
-        continue
-    m = re.search(r'^status\s*=\s*"([^"]*)"', block, re.M)
-    if not m or m.group(1) != "done":
-        missing.append(f"{cid} must be status=done when GCM gate passes")
-
-bayes = (root / "parity/bayesian.toml").read_text()
-for b in re.split(r"\n\[\[capabilities\]\]\n", bayes)[1:]:
-    if re.search(r'^id\s*=\s*"bayes.model.pcm_scm_registry"', b, re.M):
-        m = re.search(r'^status\s*=\s*"([^"]*)"', b, re.M)
-        if not m or m.group(1) != "done":
-            missing.append("bayes.model.pcm_scm_registry must be status=done")
-        break
-else:
-    missing.append("bayes.model.pcm_scm_registry missing from bayesian.toml")
-
-if missing:
-    print("GCM gate FAILED:")
-    for m in missing:
-        print(" -", m)
-    sys.exit(1)
-
-print("GCM inventory evidence map OK")
+# Only the GCM/CF evidence set is gated here (the attribution inventory is gated separately).
+problems = pr.evidence_map_problems(EVIDENCE, ["parity/gcm.toml"])
+problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+problems += pr.require_done("parity/estimate.toml", ("gcm.surface", "gcm.do_sampling"), "GCM")
+problems += pr.require_done("parity/bayesian.toml", ("bayes.model.pcm_scm_registry",), "GCM")
+pr.finish("GCM", problems, "GCM inventory evidence map OK")
 PY
 
 echo "== cargo test antecedent-model / counterfactual / attribution / facade GCM =="
-cargo test -p antecedent-model --lib
-cargo test -p antecedent-model --test scm_oracle
-cargo test -p antecedent-model --features gaussian-process --lib \
+bash scripts/counted_cargo.sh test -p antecedent-model --lib
+bash scripts/counted_cargo.sh test -p antecedent-model --test scm_oracle
+bash scripts/counted_cargo.sh test -p antecedent-model --features gaussian-process --lib \
   gaussian_process_matches_exact_logdet_oracle
-cargo test -p antecedent-counterfactual --lib
-cargo test -p antecedent-attribution --lib
-cargo test -p antecedent --test gcm
-cargo test -p antecedent --lib
+bash scripts/counted_cargo.sh test -p antecedent-counterfactual --lib
+bash scripts/counted_cargo.sh test -p antecedent-attribution --lib
+bash scripts/counted_cargo.sh test -p antecedent --test gcm
+bash scripts/counted_cargo.sh test -p antecedent --lib
 
 echo "== criterion smoke (overlay + CF batch) =="
 cargo bench -p antecedent-model --bench sample_overlay -- --test

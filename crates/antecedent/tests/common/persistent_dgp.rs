@@ -9,7 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, clippy::many_single_char_names)]
+#![allow(dead_code)]
 
 use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TimeSeriesData;

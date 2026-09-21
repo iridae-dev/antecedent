@@ -1,7 +1,5 @@
 //! Frozen clean-room oracle checks for bounded graph-operation motifs.
 
-#![allow(clippy::many_single_char_names)]
-
 use antecedent_graph::{
     CompletionSampler, Cpdag, Dag, DenseNodeId, Endpoint, GraphError, MarkedEdge, Pag,
     PagSeparation, is_mag_completion, latent_project,

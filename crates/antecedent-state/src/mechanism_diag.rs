@@ -2,12 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_lossless,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::implicit_hasher
-)]
+#![allow(clippy::cast_lossless, clippy::cast_possible_truncation, clippy::implicit_hasher)]
 
 use std::collections::VecDeque;
 

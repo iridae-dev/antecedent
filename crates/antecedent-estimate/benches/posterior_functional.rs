@@ -1,5 +1,5 @@
 //! Batched posterior functional evaluation benchmark .
-#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(missing_docs, clippy::cast_possible_truncation)]
 
 use std::sync::Arc;
 

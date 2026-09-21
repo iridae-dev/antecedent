@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.estimators import DML, DRLearner
 
 

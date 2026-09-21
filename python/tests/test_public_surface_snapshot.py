@@ -20,8 +20,6 @@ import sys
 
 import pytest
 
-pytest.importorskip("antecedent")
-
 _DUMP = """
 import dataclasses, json, sys
 import antecedent

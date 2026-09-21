@@ -7,7 +7,6 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::cast_sign_loss,
     clippy::needless_range_loop,
     clippy::neg_cmp_op_on_partial_ord,

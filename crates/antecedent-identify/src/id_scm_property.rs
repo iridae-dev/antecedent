@@ -8,8 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use antecedent_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, VariableId};
 use antecedent_expr::{
     Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec, InterventionAssignment,

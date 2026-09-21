@@ -1,7 +1,7 @@
 //! Visibility-certified MAG estimation against y = 1 + 2t.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines, clippy::many_single_char_names)]
+#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,

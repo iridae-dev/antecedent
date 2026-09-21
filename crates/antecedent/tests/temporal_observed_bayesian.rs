@@ -1,11 +1,6 @@
 //! Consuming observed-data posterior pins; no pseudo-outcome Gaussian likelihood.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::too_many_lines,
-    clippy::many_single_char_names,
-    clippy::float_cmp
-)]
+#![allow(clippy::too_many_lines, clippy::float_cmp)]
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,

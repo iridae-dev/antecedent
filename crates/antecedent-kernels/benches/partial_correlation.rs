@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_precision_loss)]
+#![allow(missing_docs)]
 
 use antecedent_kernels::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};

@@ -20,8 +20,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use crate::ar_kernel::kernel_bias_factor;
 use crate::temporal_block::score_effective_rows;
 

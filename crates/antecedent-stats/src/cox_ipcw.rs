@@ -1,6 +1,6 @@
 //! Conditional censoring survival with a Cox model and Breslow ties.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
+#![allow(clippy::float_cmp)]
 use crate::{StatsError, chol_solve, cholesky_spd};
 
 /// Executed censoring-model fit. No outcome-regression uncertainty is implied.

@@ -1,12 +1,26 @@
 #!/usr/bin/env bash
 # Sync workspace + Python package version to a semver (no leading v).
-# Usage: bash scripts/set_version.sh X.Y.Z
+# Usage: bash scripts/set_version.sh [--check] X.Y.Z
+#
+# Every new file content is computed before the first write, so a failure
+# (a missing key, an unreadable file) leaves the tree untouched rather than
+# half bumped. Cargo.lock is refreshed offline afterwards so `--locked`
+# publishing sees the same version.
+#
+# --check writes nothing: it exits non-zero, naming each file, when the tree is
+# not already at X.Y.Z. Release workflows use it to verify that the tag names
+# the version the committed tree carries instead of rewriting the tree.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+CHECK=0
+if [[ "${1:-}" == "--check" ]]; then
+  CHECK=1
+  shift
+fi
 if [[ $# -ne 1 ]]; then
-  echo "usage: $0 X.Y.Z" >&2
+  echo "usage: $0 [--check] X.Y.Z" >&2
   exit 2
 fi
 
@@ -16,15 +30,19 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   exit 1
 fi
 
-python3 - "$VERSION" <<'PY'
+python3 - "$VERSION" "$CHECK" <<'PY'
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 version = sys.argv[1]
+check = sys.argv[2] == "1"
 root = Path(".")
 script = root / "scripts" / "generate_support_matrix_docs.py"
+
+# path -> new text; nothing is written until every entry has been computed.
+edits: dict[Path, str] = {}
 
 cargo = root / "Cargo.toml"
 text = cargo.read_text()
@@ -44,19 +62,18 @@ block_new, n = re.subn(
 )
 if n != 1:
     sys.exit("Cargo.toml: workspace.package version not updated")
-cargo.write_text(text[: m.start()] + block_new + text[m.end() :])
+edits[cargo] = text[: m.start()] + block_new + text[m.end() :]
 
 pyproject = root / "python" / "pyproject.toml"
-py_text = pyproject.read_text()
 py_new, n = re.subn(
     r'(?m)^(version\s*=\s*")[^"]*(")',
     rf"\g<1>{version}\2",
-    py_text,
+    pyproject.read_text(),
     count=1,
 )
 if n != 1:
     sys.exit("python/pyproject.toml: version not updated")
-pyproject.write_text(py_new)
+edits[pyproject] = py_new
 
 # Path-dep version pins must match for crates.io packaging.
 path_pat = re.compile(
@@ -68,49 +85,67 @@ for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo
     t = path.read_text()
     t2, n = path_pat.subn(rf"\g<1>{version}\2", t)
     if n:
-        path.write_text(t2)
+        edits[path] = t2
 
 init = root / "python" / "antecedent" / "__init__.py"
-init_text = init.read_text()
 init_new, n = re.subn(
     r'(__version__\s*=\s*")[^"]+(")',
     rf"\g<1>{version}\2",
-    init_text,
+    init.read_text(),
     count=1,
 )
 if n != 1:
     sys.exit("python/antecedent/__init__.py: fallback __version__ not updated")
-init.write_text(init_new)
+edits[init] = init_new
 
 uv = root / "python" / "uv.lock"
 if uv.is_file():
-    uv_text = uv.read_text()
     uv_new, n = re.subn(
         r'(name = "antecedent"\nversion = ")[^"]+(")',
         rf"\g<1>{version}\2",
-        uv_text,
+        uv.read_text(),
         count=1,
     )
     if n == 1:
-        uv.write_text(uv_new)
+        edits[uv] = uv_new
 
 cff = root / "CITATION.cff"
 if cff.is_file():
-    cff_text = cff.read_text()
     cff_new, n = re.subn(
         r"(?m)^(version:\s*)\S+",
         rf"\g<1>{version}",
-        cff_text,
+        cff.read_text(),
         count=1,
     )
     if n != 1:
         sys.exit("CITATION.cff: version not updated")
-    cff.write_text(cff_new)
+    edits[cff] = cff_new
+
+changed = [p for p, new in edits.items() if p.read_text() != new]
+
+if check:
+    lock = root / "Cargo.lock"
+    lock_ok = lock.is_file() and re.search(
+        rf'name = "antecedent"\nversion = "{re.escape(version)}"', lock.read_text()
+    )
+    stale = [str(p) for p in changed] + ([] if lock_ok else ["Cargo.lock"])
+    if stale:
+        print(f"tree is not at version {version}; stale files:", file=sys.stderr)
+        for p in stale:
+            print(f"  {p}", file=sys.stderr)
+        sys.exit(1)
+    print(f"tree is at version {version}")
+    sys.exit(0)
+
+for path in changed:
+    path.write_text(edits[path])
 
 if old_version != version:
-    subprocess.check_call(
-        [sys.executable, str(script), "--freeze", old_version]
-    )
+    subprocess.check_call([sys.executable, str(script), "--freeze", old_version])
 
 print(f"set version to {version}")
 PY
+
+if [[ "$CHECK" -eq 0 ]]; then
+  cargo update --workspace --offline
+fi

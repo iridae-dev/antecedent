@@ -25,12 +25,9 @@ import inspect
 from pathlib import Path
 from typing import Any
 
-import pytest
+from antecedent import _native
 
 from _repo_text import read_text
-
-pytest.importorskip("antecedent")
-from antecedent import _native
 
 _STUB = Path(_native.__file__).with_name("_native.pyi")
 

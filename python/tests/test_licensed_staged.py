@@ -5,13 +5,11 @@ from __future__ import annotations
 import math
 import pathlib
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import load_json
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _confounded(n: int = 240, seed: int = 19):

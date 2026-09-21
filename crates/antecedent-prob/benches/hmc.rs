@@ -2,12 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    missing_docs,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names
-)]
+#![allow(missing_docs, clippy::cast_possible_truncation)]
 
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior, HmcOptions,

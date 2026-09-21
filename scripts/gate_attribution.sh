@@ -7,28 +7,10 @@ cd "$ROOT"
 bash scripts/gate_parity_schema.sh
 
 python3 - <<'PY'
-from pathlib import Path
-import re
 import sys
 
-root = Path(".")
-text = (root / "parity/attribution.toml").read_text()
-
-def caps(text: str):
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({
-            "id": g("id"),
-            "status": g("status"),
-        })
-    return out
+sys.path.insert(0, "scripts")
+import parity_rows as pr
 
 EVIDENCE = {
     "attribution.shapley": "crates/antecedent-attribution/src/shapley.rs",
@@ -46,21 +28,7 @@ EVIDENCE = {
     "attribution.facade": "crates/antecedent/tests/attribution.rs",
 }
 
-missing = []
-for c in caps(text):
-    if c["status"] == "intentional_deviation":
-        missing.append(f"{c['id']}: intentional_deviation is retired; use pending or done")
-        continue
-    if c["status"] != "done":
-        continue
-    ev = EVIDENCE.get(c["id"])
-    if not ev:
-        missing.append(f"{c['id']} (status={c['status']}) has no evidence mapping")
-        continue
-    if not (root / ev).exists():
-        missing.append(f"{c['id']} evidence missing: {ev}")
-
-for path in [
+EXIT_ARTIFACTS = [
     "conformance/attribution/path_allocation/expected.json",
     "conformance/attribution/distribution_change_grid/expected.json",
     "conformance/attribution/structure_change_grid/expected.json",
@@ -79,46 +47,24 @@ for path in [
     "crates/antecedent-attribution/benches/shapley.rs",
     "benches/baselines/shapley.md",
     "parity/attribution.toml",
-]:
-    if not (root / path).exists():
-        missing.append(f"required exit artifact missing: {path}")
+]
 
-def require_done(path, cid):
-    text = (root / path).read_text()
-    block = None
-    for b in re.split(r"\n\[\[capabilities\]\]\n", text)[1:]:
-        if re.search(rf'^id\s*=\s*"{cid}"', b, re.M):
-            block = b
-            break
-    if not block:
-        missing.append(f"{cid} missing from {path}")
-        return
-    m = re.search(r'^status\s*=\s*"([^"]*)"', block, re.M)
-    if not m or m.group(1) != "done":
-        missing.append(f"{cid} must be status=done when Attribution gate passes")
-
-for cid in (
+problems = pr.honesty_problems("parity/attribution.toml", EVIDENCE)
+problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+problems += pr.require_done("parity/gcm.toml", (
     "gcm.attribution.shapley",
     "gcm.attribution.distribution_change",
     "gcm.attribution.robust",
     "gcm.attribution.unit_change",
     "gcm.attribution.feature_relevance",
     "gcm.attribution.structure",
-):
-    require_done("parity/gcm.toml", cid)
-
-if missing:
-    print("Attribution gate FAILED:")
-    for m in missing:
-        print(" -", m)
-    sys.exit(1)
-
-print("Attribution inventory evidence map OK")
+), "Attribution")
+pr.finish("Attribution", problems, "Attribution inventory evidence map OK")
 PY
 
 echo "== cargo test attribution / facade attribution =="
-cargo test -p antecedent-attribution --lib
-cargo test -p antecedent --test attribution
+bash scripts/counted_cargo.sh test -p antecedent-attribution --lib
+bash scripts/counted_cargo.sh test -p antecedent --test attribution
 
 echo "== criterion smoke (shapley) =="
 cargo bench -p antecedent-attribution --bench shapley -- --test

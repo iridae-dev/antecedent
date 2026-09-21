@@ -1,6 +1,6 @@
 //! Conditional censoring response truth, including refusal of marginal substitution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+#![allow(clippy::too_many_lines)]
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ObservationAssumption,

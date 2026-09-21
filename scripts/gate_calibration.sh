@@ -54,6 +54,34 @@ grid_group() {
   esac
 }
 
+# The commit every log below was measured at. Each group log ends with a
+# `calibration-measured-at <sha>` line, which scripts/collect_coverage_records.py
+# requires to equal the sha it stamps on the registry: logs collected after a
+# checkout, or copied from another machine, carry the sha they were measured at
+# instead of whatever HEAD is when the collector runs.
+MEASURED_SHA="$(git rev-parse HEAD)"
+
+stamp_log() {
+  printf 'calibration-measured-at %s\n' "$MEASURED_SHA" >>"$1"
+}
+
+# A group that matches no test exits 0 ("running 0 tests"), so a renamed test
+# would stop being measured with the gate still green. Every group's log must
+# show at least one passed test.
+ran_tests() {
+  awk '/^test result: ok\./ { n += $4 } END { exit !(n >= 1) }' "$1"
+}
+
+# Turn a zero status into a failure when the group's log shows no passed test.
+require_ran() {
+  local status="$1" log="$2"
+  if [ "$status" -eq 0 ] && ! ran_tests "$log"; then
+    echo "FAIL: no test ran for this group (renamed or filtered away): $log" >&2
+    return 1
+  fi
+  return "$status"
+}
+
 # Run one gate group; record it as failed instead of aborting the gate.
 #
 # A coverage cell that passes its 400-replicate band but lands more than 2
@@ -86,6 +114,8 @@ check() {
       log="${stem}.log"
       ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@" 2>&1 | tee "$log"
       status="${PIPESTATUS[0]}"
+      require_ran "$status" "$log" || status=1
+      stamp_log "$log"
       if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
         echo "== recheck at ${RECHECK_NSIM} replicates: ${shown} =="
         RECHECKED="${RECHECKED}  ${shown}"$'\n'
@@ -94,6 +124,8 @@ check() {
         ANTECEDENT_CALIBRATION_GRID_POINT="$point" ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
           "$@" 2>&1 | tee "${stem}.recheck.log"
         status="${PIPESTATUS[0]}"
+        require_ran "$status" "${stem}.recheck.log" || status=1
+        stamp_log "${stem}.recheck.log"
       fi
       if [ "$status" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
@@ -105,12 +137,16 @@ check() {
   log="$ROOT/target/calibration-records/${safe}.log"
   env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@" 2>&1 | tee "$log"
   status="${PIPESTATUS[0]}"
+  require_ran "$status" "$log" || status=1
+  stamp_log "$log"
   if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
     echo "== recheck at ${RECHECK_NSIM} replicates: ${label} =="
     RECHECKED="${RECHECKED}  ${label}"$'\n'
     env -u ANTECEDENT_CALIBRATION_GRID_POINT ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
       "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
     status="${PIPESTATUS[0]}"
+    require_ran "$status" "$ROOT/target/calibration-records/${safe}.recheck.log" || status=1
+    stamp_log "$ROOT/target/calibration-records/${safe}.recheck.log"
   fi
   if [ "$status" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
