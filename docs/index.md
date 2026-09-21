@@ -22,6 +22,7 @@ number.
 | What does an analysis contract contain? | [The causal contract](causal-contract.md) |
 | How should I read a result? | [A result is a claim](result-is-a-claim.md) |
 | Why does Antecedent refuse some requests? | [Refusal and partial knowledge](refusal-and-partial-knowledge.md) |
+| How do I read graph uncertainty and unidentified mass? | [Graph uncertainty](graph_uncertainty.md) |
 | What does “supported” mean? | [Guarantees and support](guarantees.md) |
 
 ## Then use it
