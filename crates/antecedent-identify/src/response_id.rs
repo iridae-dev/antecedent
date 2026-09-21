@@ -4,8 +4,15 @@
 //! out a latent common cause only when it is visible (Zhang 2008), so ID runs on
 //! the ADMG that keeps every MAG edge and adds `A <-> B` beside each invisible
 //! `A -> B`. Every DAG the MAG represents projects to an edge-subgraph of that
-//! ADMG, so a functional derived there holds for all of them. This is sound and
-//! strictly stronger than generalized adjustment, but not complete for MAGs.
+//! ADMG, so a functional derived there holds for all of them. Whatever ID can
+//! derive on the ADMG it is given, the MAG route inherits no completeness from
+//! it: the confounded ADMG is a worst case, so the route is sound and strictly
+//! stronger than generalized adjustment, but not complete for MAGs. The
+//! subgraph property and the exactness of every identified mean are checked by
+//! brute force over all DAGs with at most four observed and two latent binary
+//! nodes and sampled five-observed DAGs (`mag_id_bruteforce`), with no
+//! exception found; on at most four observed nodes the gain over adjustment is
+//! confined to null effects, and non-null gains start at five.
 //!
 //! A PAG is handled by enumerating its valid MAG completions and identifying
 //! each; it is not PAG-native ID. The complete algorithm for PAGs is IDP
@@ -283,7 +290,7 @@ mod tests {
     use antecedent_core::{
         IdentificationStatus, Intervention, ResponseFunctional, ResponseQuery, Value, VariableId,
     };
-    use antecedent_graph::{DenseNodeId, Pag};
+    use antecedent_graph::{DenseNodeId, Endpoint, Pag};
 
     use super::*;
     use crate::generalized::identify_on_mag_completion;
@@ -393,6 +400,84 @@ mod tests {
                 .iter()
                 .any(|d| d.code.as_ref() == MAG_ID_REFUSED_DIAGNOSTIC_CODE)
         );
+    }
+
+    #[test]
+    fn mag_visibility_id_conformance_cases() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/mag_visibility_id/expected.json"
+        ))
+        .unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 8);
+        for case in cases {
+            let id = case["id"].as_str().unwrap();
+            let nodes: Vec<&str> =
+                case["nodes"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+            let index = |name: &str| {
+                u32::try_from(nodes.iter().position(|n| *n == name).expect("named node")).unwrap()
+            };
+            let mut pag = Pag::with_variables(u32::try_from(nodes.len()).unwrap());
+            for edge in case["edges"].as_array().unwrap() {
+                let edge = edge.as_str().unwrap();
+                let (a, b, at_a, at_b) = ["<->", "o->", "o-o", "->"]
+                    .iter()
+                    .find_map(|sep| {
+                        let (a, b) = edge.split_once(sep)?;
+                        let (at_a, at_b) = match *sep {
+                            "<->" => (Endpoint::Arrow, Endpoint::Arrow),
+                            "o->" => (Endpoint::Circle, Endpoint::Arrow),
+                            "o-o" => (Endpoint::Circle, Endpoint::Circle),
+                            _ => (Endpoint::Tail, Endpoint::Arrow),
+                        };
+                        Some((n(index(a)), n(index(b)), at_a, at_b))
+                    })
+                    .unwrap_or_else(|| panic!("{id}: unparsed edge {edge}"));
+                let mut marked = antecedent_graph::MarkedEdge::directed(a, b);
+                marked.at_a = at_a;
+                marked.at_b = at_b;
+                pag.insert_marked(marked).unwrap();
+            }
+            let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(index("Y")),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(index("T")),
+                    Value::f64(1.0),
+                )]),
+            });
+            let env = identify_pag_response_general(&pag, &query).unwrap();
+            assert_eq!(
+                env.identified_weight.0,
+                case["identified_weight"].as_f64().unwrap(),
+                "{id}"
+            );
+            assert_eq!(
+                env.unidentified_weight.0,
+                case["unidentified_weight"].as_f64().unwrap(),
+                "{id}"
+            );
+            let expected = match case["status"].as_str().unwrap() {
+                "identified" => IdentificationStatus::NonparametricallyIdentified,
+                "graph_dependent" => IdentificationStatus::GraphDependent,
+                "refused" | "not_a_mag" => IdentificationStatus::NotIdentified,
+                other => panic!("{id}: unknown status {other}"),
+            };
+            assert_eq!(env.status, expected, "{id}");
+            assert_eq!(env.cases.is_empty(), case["status"] == "not_a_mag", "{id}");
+            if let Some(method) = case["method"].as_str() {
+                assert_eq!(env.cases[0].result.estimands[0].method.as_ref(), method, "{id}");
+            }
+            if case["status"] == "refused" {
+                assert!(
+                    env.cases[0]
+                        .result
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code.as_ref() == MAG_ID_REFUSED_DIAGNOSTIC_CODE),
+                    "{id}: a refusal is typed"
+                );
+            }
+        }
     }
 
     fn adjustment_mag() -> Pag {

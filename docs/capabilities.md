@@ -88,7 +88,10 @@ Graph operations:
 * districts;
 * latent projection;
 * Markov-equivalence completions;
-* definite-status separation;
+* PAG m-separation as a statement about every MAG in the class: `separated`,
+  `connected`, or `undetermined` (definite-status paths first, then the
+  enumerated completions; never "separated" because a path was of indefinite
+  status);
 * temporal unfolding;
 * intervention overlays.
 
@@ -252,13 +255,22 @@ Implemented identification strategies:
 `AutoIdentifier` reports applicable strategies. It does not silently choose an
 estimator.
 
-For PAGs, Antecedent uses generalized adjustment, identification envelopes, or
-explicit graph completions. Licensed PAG analysis is `AverageEffect`,
-`ResponseCurve` / `InterventionResponse`, and `ConditionalEffect` after a MAG
-visibility check; this is a sufficient adjustment criterion, not a licensed
-complete identification theory for MAG or PAG response functionals, and not a
-path-specific, distribution, or mediation surface. Full PAG-native ID and IDC
-are outside the supported scope.
+For PAGs, Antecedent enumerates the valid MAG completions (maximal, ancestral,
+same unshielded colliders, one Markov class) and identifies each; the envelope
+keeps unidentified mass. `AverageEffect` and `ConditionalEffect` use generalized
+adjustment after a MAG visibility check. Single-treatment `ResponseCurve` /
+`InterventionResponse` try that adjustment first and then Shpitser–Pearl ID on
+the completion with every *invisible* directed edge `A -> B` (Zhang 2008) also
+read as `A <-> B`. Every DAG a MAG represents projects to a subgraph of that
+ADMG, so a functional found there holds for all of them; a directed MAG edge is
+never read as unconfounded unless it is visible. This is sound and reaches
+effects no adjustment set identifies, but it is not complete: a refusal
+(`identify.response.mag_id_refused`) is not a proof of non-identifiability. The
+complete algorithm for PAGs, IDP (Jaber, Zhang & Bareinboim 2019), is not
+implemented, and there is no PAG-native IDC. A circle-free graph that is not a
+maximal ancestral graph (for example the front-door ADMG `T -> M -> Y`,
+`T <-> Y`) has no completion and identifies nothing as a `Pag`; hold it as an
+`Admg`. This is not a path-specific, distribution, or mediation surface.
 General multi-node sID recursion and definitive non-transportability
 certificates are outside the 0.9 transport contract.
 
@@ -303,9 +315,11 @@ The list above is inventory. Derivative cells are licensed on explicit or
 accepted DAGs under Frequentist and Bayesian inference at validation `none`;
 partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
 licensed on `Dag`, `TemporalDag`, `Admg`, `Cpdag`, and `Pag` under Frequentist
-and Bayesian inference with validation `none` (class graphs via the same
-generalized-adjustment envelope as ATE; see the [support matrix](support-matrix.md)).
-That is not MAG/PAG-native response identification. Graph-posterior
+and Bayesian inference with validation `none` (class graphs via the completion
+envelope: generalized adjustment per completion, then, for `Pag`, the sound but
+incomplete visibility-aware ID described under identification; see the
+[support matrix](support-matrix.md)). That is not PAG-native (IDP) response
+identification. Graph-posterior
 `ResponseCurve` cheap/full on `Admg` / `Cpdag` / `Pag`, and Bayesian
 graph-posterior `InterventionResponse` cheap/full on `Cpdag` / `Pag`, stay
 refused. Bayesian responses require the documented Gaussian additive models and

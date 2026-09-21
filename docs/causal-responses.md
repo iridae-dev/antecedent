@@ -133,13 +133,21 @@ When the accepted graph is a DAG, this is the same response identification and
 estimation path as a hand-authored DAG. The artifact version does not change on
 an estimate click.
 
-`Cpdag` and `Pag` response queries are licensed through the same
-generalized-adjustment envelope as ATE: `analyze()` and `PreparedAnalysis`
-mass-weight identified completions and keep the runtime class. Influence
+`Cpdag` and `Pag` response queries are licensed through the same completion
+envelope as ATE: `analyze()` and `PreparedAnalysis` mass-weight identified
+completions and keep the runtime class. Each completion is identified by
+(generalized) adjustment first. A single-treatment response on a completion
+with no adjustment set then falls back to Shpitser–Pearl ID: on a `Cpdag`
+completion, which is a DAG; on a `Pag` completion, on the MAG with every
+invisible directed edge also read as latent-confounded, so an edge such as a
+lone `T -> Y` that a latent common cause could explain is refused rather than
+read as `P(y | t)`. That fallback is sound, not complete (the complete PAG
+algorithm, IDP, is not implemented), and a completion it refuses keeps its mass
+as unidentified, which makes the class answer graph-dependent. Influence
 is mixed only when every completion is identified and every contributing
 atom supplies an aligned IF; unidentified mass NaNs the envelope SE
 rather than publishing a primary-atom interval. That is not
-MAG/PAG response identification. `Admg` response, TemporalCpdag/Pag response,
+PAG-native response identification. `Admg` response, TemporalCpdag/Pag response,
 and mixtures over graph posteriors remain refused by the
 [support matrix](support-matrix.md). See the
 [1.4 evidence ledger](v1.4-evidence.md).
