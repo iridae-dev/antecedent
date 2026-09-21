@@ -59,6 +59,13 @@ pub enum CircularBlockFamily {
 }
 
 impl CircularBlockFamily {
+    /// Family of a shared mediation bootstrap over `atoms` frozen-weight atoms: one atom is
+    /// plain temporal mediation, several are a mixture resampled on one shared replicate.
+    #[must_use]
+    pub const fn for_mediation_atoms(atoms: usize) -> Self {
+        if atoms == 1 { Self::Mediation } else { Self::Mixture }
+    }
+
     /// Threshold on [`score_effective_rows`] of the family's estimating scores
     /// below which the interval carries a `short_series` warning.
     ///

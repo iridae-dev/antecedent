@@ -241,8 +241,53 @@ impl AipwAte {
     ///
     /// Target population other than ATE/ATT/ATC, empty treated/control arm, or GLM/OLS
     /// backend failure.
-    #[allow(clippy::too_many_lines)]
     pub fn fit(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let point = self.fit_point(problem, workspace, ctx, assumptions)?;
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage), without refitting the nuisance models. The resampling scheme is
+    /// the one the point fit's route implies: cross-fitted score-table refits for custom
+    /// weights and the untrimmed ATE, per-replicate nuisance refits otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let boot = if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
+            let weights = problem
+                .target_weights
+                .as_deref()
+                .ok_or_else(|| EstimationError::data_msg("missing custom target weights"))?;
+            self.crossfit_bootstrap(problem, ctx, Some(weights))?
+        } else if matches!(problem.target_population, TargetPopulation::AllObserved)
+            && trim_of(problem.overlap).is_none()
+        {
+            self.crossfit_bootstrap(problem, ctx, None)?
+        } else {
+            self.bootstrap_se(problem, workspace, ctx)?
+        };
+        Ok(point.with_bootstrap(Some(boot)))
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn fit_point(
         &self,
         problem: &PreparedPropensityProblem,
         workspace: &mut AipwWorkspace,
@@ -373,11 +418,6 @@ impl AipwAte {
             self.panel_times.as_deref(),
             retained.as_deref(),
         )?;
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, workspace, ctx)?)
-        };
         let overlap_report = Some(crate::propensity::propensity_overlap_report(
             problem,
             &model.fit.scores,
@@ -387,7 +427,6 @@ impl AipwAte {
         let estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_se_kind(self.se_kind)
             .with_overlap_report(overlap_report)
-            .with_bootstrap(boot)
             .with_influence(Some(Arc::from(workspace.psi.as_slice())));
         Ok(estimate)
     }
@@ -422,21 +461,9 @@ impl AipwAte {
         weights: Option<&[f64]>,
         refuse_overlap: bool,
     ) -> Result<EffectEstimate, EstimationError> {
-        // The recorded cross-fit seed must govern the fold plan, not only the learners.
-        let mut seeded = problem.clone();
-        seeded.fold_seed = ctx.rng.master_seed();
+        let seeded = self.crossfit_problem(problem, ctx);
         let problem = &seeded;
-        let build = |p: &PreparedPropensityProblem| {
-            crate::crossfit_aipw::build_binary_scores(
-                p,
-                p.treatment_id,
-                &[None],
-                crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
-                &self.glm_options,
-                self.backend,
-            )
-        };
-        let table = build(problem)?;
+        let table = self.crossfit_table(problem)?;
         let summary = table.summarize(weights)?;
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
         let iid_se = matches!(self.se_kind, AnalyticSeKind::Homoskedastic);
@@ -453,39 +480,6 @@ impl AipwAte {
                     .collect()
             }
             None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
-        };
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
-                let mut p = problem.clone();
-                let mut design = Vec::new();
-                select_rows_colmajor(
-                    &problem.design_matrix,
-                    problem.nrows,
-                    problem.design_ncols,
-                    idx,
-                    &mut design,
-                );
-                p.design_matrix = design.into();
-                p.treatment = gather(&problem.treatment, idx).into();
-                p.outcome = gather(&problem.outcome, idx).into();
-                // Copies of one original row keep that row's identity (and shared fold), so
-                // no unit is both in a training set and in its own validation fold.
-                p.row_index = idx.iter().map(|&i| problem.row_index[i]).collect::<Vec<_>>().into();
-                p.fold_assignment = problem
-                    .fold_assignment
-                    .as_deref()
-                    .map(|ids| idx.iter().map(|&i| ids[i]).collect::<Vec<_>>().into());
-                if let Some(w) = weights {
-                    p.target_weights = Some(gather(w, idx).into());
-                }
-                let Ok(t) = build(&p) else {
-                    return Ok(None);
-                };
-                let ss = t.summarize(p.target_weights.as_deref())?;
-                Ok(Some(ss.means[1] - ss.means[0]))
-            })?)
         };
         // The score table's covariance and simultaneous bands are iid objects; under a
         // dependence-robust SE kind they would contradict `se_analytic`, so they are withheld
@@ -524,11 +518,76 @@ impl AipwAte {
                 .with_se_kind(self.se_kind)
                 .with_overlap_report(overlap_report)
                 .with_joint_covariance(iid_se.then_some(summary.covariance))
-                .with_bootstrap(boot)
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
         result.score_inference = iid_se.then_some(inference);
         Ok(result)
+    }
+
+    /// The recorded cross-fit seed must govern the fold plan, not only the learners.
+    fn crossfit_problem(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> PreparedPropensityProblem {
+        let mut seeded = problem.clone();
+        seeded.fold_seed = ctx.rng.master_seed();
+        seeded
+    }
+
+    fn crossfit_table(
+        &self,
+        p: &PreparedPropensityProblem,
+    ) -> Result<crate::scores::ScoreTable, EstimationError> {
+        crate::crossfit_aipw::build_binary_scores(
+            p,
+            p.treatment_id,
+            &[None],
+            crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+            &self.glm_options,
+            self.backend,
+        )
+    }
+
+    /// Row-resample bootstrap of the cross-fitted contrast: each replicate rebuilds the score
+    /// table on the resampled rows. `weights` are the custom-target weights (`None` = uniform).
+    fn crossfit_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        weights: Option<&[f64]>,
+    ) -> Result<BootstrapSeResult, EstimationError> {
+        let seeded = self.crossfit_problem(problem, ctx);
+        let problem = &seeded;
+        bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
+            let mut p = problem.clone();
+            let mut design = Vec::new();
+            select_rows_colmajor(
+                &problem.design_matrix,
+                problem.nrows,
+                problem.design_ncols,
+                idx,
+                &mut design,
+            );
+            p.design_matrix = design.into();
+            p.treatment = gather(&problem.treatment, idx).into();
+            p.outcome = gather(&problem.outcome, idx).into();
+            // Copies of one original row keep that row's identity (and shared fold), so
+            // no unit is both in a training set and in its own validation fold.
+            p.row_index = idx.iter().map(|&i| problem.row_index[i]).collect::<Vec<_>>().into();
+            p.fold_assignment = problem
+                .fold_assignment
+                .as_deref()
+                .map(|ids| idx.iter().map(|&i| ids[i]).collect::<Vec<_>>().into());
+            if let Some(w) = weights {
+                p.target_weights = Some(gather(w, idx).into());
+            }
+            let Ok(t) = self.crossfit_table(&p) else {
+                return Ok(None);
+            };
+            let ss = t.summarize(p.target_weights.as_deref())?;
+            Ok(Some(ss.means[1] - ss.means[0]))
+        })
     }
 
     fn bootstrap_se(
@@ -1015,6 +1074,29 @@ mod tests {
 
     fn ctx() -> ExecutionContext {
         ExecutionContext::for_tests(7)
+    }
+
+    /// The facade attaches the bootstrap to a replicate-free point fit; every AIPW route
+    /// (cross-fitted untrimmed ATE, trimmed/ATT nuisance refit) must publish the same estimate.
+    #[test]
+    fn aipw_attached_bootstrap_equals_the_one_shot_fit_on_every_route() {
+        let (data, estimand) = confounded_scm(400, 3);
+        let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let att = ate.clone().with_target_population(TargetPopulation::Treated);
+        for query in [ate, att] {
+            let boot = AipwAte { bootstrap_replicates: 30, ..AipwAte::new() };
+            let prep = boot.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = AipwWorkspace::default();
+            let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            let point_only = AipwAte { bootstrap_replicates: 0, ..boot.clone() };
+            let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            assert!(point.se_bootstrap.is_none());
+            let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+            assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+            assert!(full.se_bootstrap.is_some());
+            assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+            assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        }
     }
 
     #[test]

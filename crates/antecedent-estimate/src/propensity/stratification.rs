@@ -136,6 +136,39 @@ impl PropensityStratification {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let point = self.fit_point(problem, workspace, assumptions)?;
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage). Equal to what `fit` publishes when `bootstrap_replicates > 0`,
+    /// without refitting the point model.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let n_strata = (self.n_strata.max(1)) as usize;
+        let trim = trim_of(problem.overlap);
+        let boot = self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?;
+        Ok(point.with_bootstrap(Some(boot)))
+    }
+
+    fn fit_point(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
         if !matches!(
             problem.target_population,
             TargetPopulation::AllObserved
@@ -168,12 +201,6 @@ impl PropensityStratification {
         let result =
             stratified_ate(&t_used, &y_used, &stratum, n_strata, &problem.target_population)?;
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, n_strata, trim, workspace, ctx)?)
-        };
-
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
         let mut report = crate::propensity::propensity_overlap_report(
             problem,
@@ -191,8 +218,7 @@ impl PropensityStratification {
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
-            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
-            .with_bootstrap(boot))
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 
     fn bootstrap_se(

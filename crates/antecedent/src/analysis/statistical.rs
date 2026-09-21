@@ -708,13 +708,36 @@ impl PreparedStudy<StatisticalPreparedState> {
         requests: &[Assignment],
         ctx: &ExecutionContext,
     ) -> Result<Vec<(Self, StatisticalStudyResult)>, IoError> {
+        self.estimate_grid_with(requests, None, ctx)
+    }
+
+    /// [`Self::estimate_grid`] for a caller that already evaluated each request's plan on this
+    /// study's retained point laws: `evaluated[i]` is the exact evaluation of `requests[i]`,
+    /// used as that point's estimate instead of evaluating it again.
+    /// # Errors
+    /// Misaligned evaluations, absent source samples, or a failed joint execution.
+    pub(super) fn estimate_grid_evaluated(
+        &self,
+        requests: &[Assignment],
+        evaluated: Vec<antecedent_expr::ExactDistribution>,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<(Self, StatisticalStudyResult)>, IoError> {
+        self.estimate_grid_with(requests, Some(evaluated), ctx)
+    }
+
+    fn estimate_grid_with(
+        &self,
+        requests: &[Assignment],
+        evaluated: Option<Vec<antecedent_expr::ExactDistribution>>,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<(Self, StatisticalStudyResult)>, IoError> {
         if self.state.loaded_only {
             return Err(err("transport.samples_not_embedded"));
         }
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
-        let estimates =
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
+        let estimates = match evaluated {
+            Some(distributions) => antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_evaluated_point_laws(
                 &self.state.functional,
                 &self.state.input,
                 requests,
@@ -722,8 +745,19 @@ impl PreparedStudy<StatisticalPreparedState> {
                 &self.state.options,
                 &frozen_ctx,
                 &self.state.data,
-            )
-            .map_err(err)?;
+                distributions,
+            ),
+            None => antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
+                &self.state.functional,
+                &self.state.input,
+                requests,
+                self.state.limits,
+                &self.state.options,
+                &frozen_ctx,
+                &self.state.data,
+            ),
+        }
+        .map_err(err)?;
         requests
             .iter()
             .zip(estimates)

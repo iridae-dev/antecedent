@@ -190,11 +190,10 @@ impl super::Study {
         for record in &designs[0].estimate().effect.assumptions.entries {
             assumptions.push(record.clone());
         }
-        let family = if designs.len() == 1 {
-            antecedent_estimate::CircularBlockFamily::Mediation
-        } else {
-            antecedent_estimate::CircularBlockFamily::Mixture
-        };
+        let family = shared.as_ref().map_or_else(
+            || antecedent_estimate::CircularBlockFamily::for_mediation_atoms(designs.len()),
+            |s| s.family,
+        );
         let estimate = EffectEstimate::from_parts(
             point,
             f64::NAN,
