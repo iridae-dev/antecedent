@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::StreamDomain;
 use smartcore::ensemble::extra_trees_regressor::{
     ExtraTreesRegressor, ExtraTreesRegressorParameters,
 };
@@ -69,7 +70,7 @@ impl LearnerFactory for ForestLearner {
             require_binary_labels(&gathered_y)?;
         }
         let matrix = dense_row_major(&design, nrows, ncols)?;
-        let mut rng = ctx.rng.stream(2);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Learner, 2);
         let seed = rng.next_u64();
         let model = if self.spec.extra_trees {
             FittedForest::Extra(

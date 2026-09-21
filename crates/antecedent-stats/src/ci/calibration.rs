@@ -10,6 +10,7 @@
 )]
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::StreamDomain;
 use antecedent_kernels::standard_normal;
 
 use super::parcorr_variants::MultivariatePartialCorrelation;
@@ -74,7 +75,7 @@ pub fn calibrate_parcorr_like(
     let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
 
     for t in 0..trials {
-        let mut rng = ctx.rng.stream(0xCA11_u64.wrapping_add(u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xCA11_u64 ^ u64::from(t));
         let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let y_null: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
@@ -147,7 +148,7 @@ pub fn calibrate_multivariate_parcorr_block(
     let mut alt_rej = 0u32;
 
     for t in 0..trials {
-        let mut rng = ctx.rng.stream(0xCC15_u64.wrapping_add(u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xCC15_u64 ^ u64::from(t));
         let x_cols: Vec<Vec<f64>> =
             (0..px).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
         let y_null: Vec<Vec<f64>> =
@@ -202,7 +203,7 @@ pub fn calibrate_multivariate_parcorr_block_shuffle(
     let mut alt_rej = 0u32;
 
     for t in 0..trials {
-        let mut rng = ctx.rng.stream(0xCC16_u64.wrapping_add(u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xCC16_u64 ^ u64::from(t));
         let x_cols: Vec<Vec<f64>> =
             (0..px).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
         let y_null: Vec<Vec<f64>> =
@@ -284,7 +285,7 @@ pub fn calibrate_gsquared(
     let levels = 3i32;
 
     for t in 0..trials {
-        let mut rng = ctx.rng.stream(0x65_u64.wrapping_add(u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x65_u64 ^ u64::from(t));
         let x: Vec<f64> =
             (0..n).map(|_| (rng.next_u64() % u64::try_from(levels).unwrap_or(1)) as f64).collect();
         let y_null: Vec<f64> =
@@ -418,7 +419,7 @@ pub fn collect_null_pvalues_parcorr_like(
     let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
     let mut out = Vec::with_capacity(trials as usize);
     for t in 0..trials {
-        let mut rng = ctx.rng.stream(0xCA11_u64.wrapping_add(u64::from(t)));
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xCA11_u64 ^ u64::from(t));
         let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let y: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let cols: [&[f64]; 2] = [&x, &y];
@@ -554,7 +555,7 @@ mod tests {
         let mut alt_rej = 0u32;
         let ci = KnnDependence::new(3);
         for t in 0..trials {
-            let mut rng = ctx.rng.stream(0x4e4e_u64.wrapping_add(u64::from(t)));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x4e4e_u64 ^ u64::from(t));
             let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
             let y_null: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
             let cols_null: [&[f64]; 2] = [&x, &y_null];
@@ -636,7 +637,7 @@ mod tests {
         let ci = KnnDependence::new(3);
         let mut pvals = Vec::with_capacity(trials as usize);
         for t in 0..trials {
-            let mut rng = ctx.rng.stream(0x6e4e_u64.wrapping_add(u64::from(t)));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x6e4e_u64 ^ u64::from(t));
             let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
             let y: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
             let cols: [&[f64]; 2] = [&x, &y];
@@ -666,7 +667,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(19);
         let n = 80usize;
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
-        let mut rng = ctx.rng.stream(0x4e4e);
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x4e4e);
         let x: Vec<f64> = (0..n).map(|_| (rng.next_u64() as f64) / (u64::MAX as f64)).collect();
         let y_null: Vec<f64> =
             (0..n).map(|_| (rng.next_u64() as f64) / (u64::MAX as f64)).collect();
@@ -827,7 +828,7 @@ mod tests {
         let gpdc = crate::ci::Gpdc::new();
         let mut null_rej = 0u32;
         for t in 0..trials {
-            let mut rng = ctx.rng.stream(0x6165_u64.wrapping_add(u64::from(t)));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x6165_u64 ^ u64::from(t));
             let z = ar1_series(n, phi, &mut rng);
             let ex = ar1_series(n, phi, &mut rng);
             let ey = ar1_series(n, phi, &mut rng);
@@ -889,7 +890,7 @@ mod tests {
         let knn = crate::ci::KnnDependence::new(5);
         let mut null_rej = 0u32;
         for t in 0..trials {
-            let mut rng = ctx.rng.stream(0x4B4E_u64.wrapping_add(u64::from(t)));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x4B4E_u64 ^ u64::from(t));
             let x = ar1_series(n, phi, &mut rng);
             let y = ar1_series(n, phi, &mut rng);
             let cols: [&[f64]; 2] = [&x, &y];
@@ -919,7 +920,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(29);
         let n = 100usize;
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
-        let mut rng = ctx.rng.stream(0x51);
+        let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x51);
         let x: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
         let y_null: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];

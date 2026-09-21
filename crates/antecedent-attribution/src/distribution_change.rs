@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, VariableId,
+    ShapleyConfig, StreamDomain, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
@@ -334,7 +334,7 @@ impl MechanismSwapPayoff<'_> {
         let store = CompiledMechanismStore { slots: self.slot_scratch.iter().cloned().collect() };
 
         let model = self.template.clone().with_mechanisms(store);
-        let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
+        let mut rng = self.ctx.rng.stream_for(StreamDomain::Attribution, 0xDC01_u64 ^ self.seed);
         let n_rows = self.n_samples.max(1);
         let n_nodes = model.n_nodes();
         let need = n_rows.saturating_mul(n_nodes);

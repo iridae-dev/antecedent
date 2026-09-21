@@ -425,6 +425,8 @@ impl PreparedSequenceLevel {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use antecedent_core::{
         AssumptionSet, ExecutionContext, IdentificationStatus, Lag, TargetPopulation, VariableId,
     };
@@ -438,7 +440,7 @@ mod tests {
     fn fixture() -> (TimeSeriesData, TemporalDag) {
         let n = 240usize;
         let ctx = ExecutionContext::for_tests(11);
-        let mut rng = ctx.rng.stream(3);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 3);
         let mut draw = || 2.0 * rng.next_f64() - 1.0;
         let z: Vec<f64> = (0..n).map(|_| draw()).collect();
         let t: Vec<f64> = z.iter().map(|z| 0.5 * z + draw()).collect();

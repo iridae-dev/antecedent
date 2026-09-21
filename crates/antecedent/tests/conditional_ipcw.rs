@@ -5,7 +5,7 @@ use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ObservationAssumption,
     ObservationSpec, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, VariableId,
+    ResponseUncertainty, ResponseValue, StreamDomain, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -18,7 +18,7 @@ fn conditional_response_known_truth() {
     ))
     .unwrap();
     let ctx = ExecutionContext::for_tests(1300);
-    let mut rng = ctx.rng.stream(17);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 17);
     let mut a = Vec::new();
     let mut z = Vec::new();
     let mut y = Vec::new();

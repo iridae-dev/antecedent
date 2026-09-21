@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use antecedent_core::{ExecutionContext, KernelPolicy};
+use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::unbiased_index;
 
 use super::block_shuffle::block_permute_contiguous;
@@ -88,7 +88,7 @@ impl ConditionalIndependenceTest for GSquared {
                     let n_perm = replicates.max(1) as usize;
                     let strata = gsq_strata(request.columns, z, n)?;
                     let mut y_perm = request.columns[q.y].to_vec();
-                    let mut rng = ctx.rng.stream(0x65C0_u64.wrapping_add(qi as u64));
+                    let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x65C0_u64 ^ qi as u64);
                     let mut null_ge = 0u32;
                     // X codes and Z strata are invariant under a Y-only
                     // permutation; only the Y codes change per replicate.

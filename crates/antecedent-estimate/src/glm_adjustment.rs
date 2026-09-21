@@ -907,6 +907,8 @@ fn gcomp_gradient(
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -924,7 +926,8 @@ mod tests {
 
     /// Binary-outcome SCM: `Z ~ U(-0.5, 0.5)`, `T ∈ {0,1}`, `logit(Y=1) = -0.5 + 2T + Z`.
     fn binary_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xABCD_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xABCD_u64);
         let mut t = vec![0.0; n];
         let mut z = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -1156,7 +1159,8 @@ mod tests {
 
     /// Gaussian SCM with homogeneous contrasts: `Y = 1 + 2T + Z + noise` (no interactions).
     fn gaussian_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xFEED_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xFEED_u64);
         let mut t = vec![0.0; n];
         let mut z = vec![0.0; n];
         let mut y = vec![0.0; n];

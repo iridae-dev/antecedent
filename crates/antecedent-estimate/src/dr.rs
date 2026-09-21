@@ -281,6 +281,8 @@ fn linear_cate_pointwise_se(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -296,7 +298,8 @@ mod tests {
     use super::*;
 
     fn interaction_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand, Vec<f64>) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x51u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x51u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];

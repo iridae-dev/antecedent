@@ -665,6 +665,8 @@ fn compose_linear_natural(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use super::*;
     use antecedent_core::{Intervention, Value};
 
@@ -672,7 +674,8 @@ mod tests {
     /// `w` confounds the mediator-outcome relation but not `t -> y`.
     #[allow(clippy::many_single_char_names)]
     fn confounded_mediator(n: usize) -> TabularData {
-        let mut rng = ExecutionContext::for_tests(5).rng.stream(0x0057_A71C);
+        let mut rng =
+            ExecutionContext::for_tests(5).rng.stream_for(StreamDomain::Estimate, 0x0057_A71C);
         let mut draw = || rng.next_f64() - 0.5;
         let (mut t, mut m, mut y, mut w) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {

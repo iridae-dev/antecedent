@@ -57,8 +57,11 @@ rows the short-memory designs cover nominally (n = 40–60) while the persistent
 ones fail (n = 60–160). The thresholds therefore follow the persistent designs.
 A threshold is the smallest multiple of 5 at which every cell covering below
 0.855 (the lower edge of the 400-replicate gate band) warns on at least 90% of
-its replicates, taking the larger of the sweep below and an independent
-replication (`ANTECEDENT_SHORT_SERIES_SEED_OFFSET=5000`, 1000 replicates):
+its replicates, taking the larger of the sweep below and a second master-seed
+sweep (`ANTECEDENT_SHORT_SERIES_SEED_OFFSET=5000`, 1000 replicates). The offset
+shifts the master seed of each fit; replicate streams are mixed non-additively
+from `(master, StreamDomain, index)`, so the offset is not an additive stream
+id shift:
 
 | family | sweep | replication | threshold |
 |---|---|---|---|

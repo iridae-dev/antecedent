@@ -5,6 +5,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::StreamDomain;
 use antecedent_learn_burn::TrainedMlp;
 
 use crate::dense::{gather_physical, materialize_dense_colmajor};
@@ -61,7 +62,7 @@ impl LearnerFactory for NeuralNetLearner {
         }
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
-        let mut rng = ctx.rng.stream(0x4E45_5500);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Learner, 0x4E45_5500);
         let seed = rng.next_u64();
         let binary = matches!(self.task, PredictionTask::BinaryProbability);
         let model = antecedent_learn_burn::train(

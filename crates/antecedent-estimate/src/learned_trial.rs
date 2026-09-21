@@ -1,7 +1,7 @@
 //! Cross-fitted trial-to-nonparticipant transport with explicit sampling design.
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 use crate::{EstimationError, trial_to_target_effect};
-use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
     DesignView, LearnerSpec, PredictionTask, TargetView, cross_fit_selected, resolve_for,
@@ -261,9 +261,10 @@ pub fn estimate_trial_aipw(
         };
         let mut rows = Vec::with_capacity(n);
         for (group, members) in groups.iter().enumerate() {
-            let mut rng = ctx
-                .rng
-                .stream(0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate));
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::Estimate,
+                0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
+            );
             let mut selected = Vec::new();
             fill_resample_indexes(
                 ResamplingPlan::IidBootstrap,

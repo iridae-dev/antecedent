@@ -36,8 +36,9 @@ use std::sync::{Arc, Mutex};
 
 use antecedent_core::{
     AssumptionSet, CausalRng, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
-    IdentificationStatus, Intervention, InterventionalDistributionQuery, SupportDiagnostic,
-    SupportRegion, SupportReport, SupportStatus, TargetPopulation, Value, VariableId,
+    IdentificationStatus, Intervention, InterventionalDistributionQuery, StreamDomain,
+    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, Value,
+    VariableId,
 };
 use antecedent_data::{ColumnView, TableView, TabularData};
 use antecedent_expr::{
@@ -780,7 +781,7 @@ impl FunctionalDistribution {
             name: Arc::from(format!("probability_atom_{i}")),
         }));
         let mut values = vec![0.0; draws * quantities.len()];
-        let mut rng = ctx.rng.stream(0xF01E_u64);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF01E_u64);
         let mut draw_prepared = prepared.clone();
         let mut draw_ws = FunctionalDistributionWorkspace::default();
         for draw in 0..draws {
@@ -1041,7 +1042,7 @@ impl FunctionalEffect {
         }
         let draws = crate::require_bayesian_n_draws(n_draws)?;
         let mut values = Vec::with_capacity(draws);
-        let mut rng = ctx.rng.stream(0xF02E_u64);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF02E_u64);
         for _ in 0..draws {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("functional Bayesian cancelled"));
@@ -2117,7 +2118,7 @@ mod tests {
             Arc::from([InterventionAssignment { variable: x, value: f(1.0) }]);
         let signatures =
             vec![(Arc::from([y]), Arc::from([x]), interventions.clone(), DomainRef::Observational)];
-        let mut rng = ExecutionContext::for_tests(42).rng.stream(1);
+        let mut rng = ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Estimate, 1);
         let mut draws = Vec::new();
         for _ in 0..4000 {
             let p = provider_from_bayesian_bootstrap(&columns, 4, &factors, &signatures, &mut rng)

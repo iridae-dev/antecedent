@@ -5,6 +5,7 @@
 #![allow(clippy::cast_possible_truncation, clippy::needless_pass_by_value)]
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::StreamDomain;
 use forust_ml::data::Matrix;
 use forust_ml::gradientbooster::GradientBooster;
 use forust_ml::objective::ObjectiveType;
@@ -68,7 +69,7 @@ impl LearnerFactory for GbtLearner {
         // Forust exposes a global-pool boolean, not a bounded thread lease.
         // Outer folds own the ExecutionContext parallelism budget.
         let parallel = false;
-        let mut seed_rng = ctx.rng.stream(1);
+        let mut seed_rng = ctx.rng.stream_for(StreamDomain::Learner, 1);
         let objective = match self.task {
             PredictionTask::Regression => ObjectiveType::SquaredLoss,
             PredictionTask::BinaryProbability => ObjectiveType::LogLoss,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use antecedent_core::StreamDomain;
 
 impl super::Study {
     pub(super) fn execute_counterfactual(
@@ -47,7 +48,7 @@ impl super::Study {
             // Column-major `units × draws`: one posterior column per unit, read by
             // the same summary that publishes the mean-ITE interval.
             let mut unit_draws = vec![0.0; n_units * n_draws];
-            let mut rng = ctx.rng.stream(0x0CF0);
+            let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
             let n = data.row_count();
             for draw in 0..n_draws {
                 if ctx.cancellation.is_cancelled() {

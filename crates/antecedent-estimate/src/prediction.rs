@@ -136,6 +136,8 @@ impl TemporalLinearPredictor {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use antecedent_core::{
         CausalSchemaBuilder, KernelPolicy, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         VariableId,
@@ -192,7 +194,9 @@ mod tests {
         // U_t drives X_t and Y_{t+1}; X has no effect on Y, so E[Y | do(X=1)] = E[Y] = 0.
         // The fitted predictor can only return the association E[Y_t | X_{t-1}=1] = 0.8.
         let n = 20_000usize;
-        let mut rng = antecedent_core::ExecutionContext::for_tests(7).rng.stream(0x9ED1_u64);
+        let mut rng = antecedent_core::ExecutionContext::for_tests(7)
+            .rng
+            .stream_for(StreamDomain::Estimate, 0x9ED1_u64);
         let mut x = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut u_prev = 0.0;

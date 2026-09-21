@@ -18,8 +18,8 @@ use std::sync::Arc;
 use antecedent_core::IdentificationStatus;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, AverageEffectQuery, ExecutionContext, PriorAssumption, TargetPopulation,
-    VariableId,
+    AssumptionStatus, AverageEffectQuery, ExecutionContext, PriorAssumption, StreamDomain,
+    TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
@@ -1872,7 +1872,8 @@ pub fn nonidentified_with_prior(
     let (mean, scale) = prior_predictive_effect_params(prior);
     let n = n_draws.max(1);
     let mut values = vec![0.0; n];
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xBA7E_u64);
+    let mut rng =
+        ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Bayesian, 0xBA7E_u64);
     for v in &mut values {
         *v = mean + scale * antecedent_kernels::standard_normal(&mut rng);
     }

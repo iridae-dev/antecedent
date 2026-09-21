@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use antecedent_core::StreamDomain;
 
 /// Nominal level of the identified-set interval published on class structural mixtures.
 pub const IDENTIFIED_SET_INTERVAL_LEVEL: f64 = 0.9;
@@ -9,7 +10,7 @@ pub const IDENTIFIED_SET_INTERVAL_LEVEL: f64 = 0.9;
 /// Seed for one completion's posterior fit: an independent stream per
 /// completion key, so draw `k` of different completions shares no random numbers.
 pub fn completion_fit_seed(ctx: &ExecutionContext, completion_key: u64) -> u64 {
-    ctx.rng.stream(completion_key).next_u64()
+    ctx.rng.stream_for(StreamDomain::Completion, completion_key).next_u64()
 }
 
 /// Whether two prepared Bayesian problems fit the same model on the same rows

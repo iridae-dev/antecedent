@@ -731,6 +731,8 @@ fn parse_coefficients(spec: &str) -> Option<Vec<f64>> {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use super::*;
     use antecedent_core::{
         CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
@@ -739,7 +741,7 @@ mod tests {
     use antecedent_kernels::standard_normal;
 
     fn interaction_dgp(n: usize) -> TabularData {
-        let mut rng = ExecutionContext::for_tests(9).rng.stream(0xC11);
+        let mut rng = ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xC11);
         let mut a = vec![0.0; n];
         let mut d = vec![0.0; n];
         let mut z = vec![0.0; n];

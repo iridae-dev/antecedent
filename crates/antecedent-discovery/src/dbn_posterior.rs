@@ -24,7 +24,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Lag, NodeRef, VariableId};
+use antecedent_core::{ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag};
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
@@ -229,7 +229,7 @@ impl DbnPosterior {
         let mut rejected = 0u64;
 
         for chain in 0..n_chains {
-            let mut rng = ctx.rng.stream(3000 + chain as u64);
+            let mut rng = ctx.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
             let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
                 data_version: 1,
                 family: score_family,

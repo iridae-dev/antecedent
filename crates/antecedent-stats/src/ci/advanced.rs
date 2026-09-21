@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, KernelPolicy};
+use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{shuffle, unbiased_index};
 
 use super::block_shuffle::block_permute_contiguous;
@@ -152,7 +152,7 @@ impl ConditionalIndependenceTest for KnnDependence {
             // whenever Y depends on Z. See `z_permutation_strata`.
             let strata = z_permutation_strata(request.columns, z, n, self.k)?;
             let mut y_perm = request.columns[q.y].to_vec();
-            let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(qi as u64));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xC11_u64 ^ qi as u64);
             let mut null_ge = 0u32;
             // The primary index's feature matrix has exactly the x/y/z layout the
             // null needs; clone it once per query and rewrite the Y column per
@@ -514,7 +514,7 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             // Y depends on Z).
             let strata = symbol_strata_sorted(request.columns, z, n);
             let mut y_perm = request.columns[q.y].to_vec();
-            let mut rng = ctx.rng.stream(0x51C_u64.wrapping_add(qi as u64));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x51C_u64 ^ qi as u64);
             // As for `KnnDependence`: blocking is well defined only when the conditioning set
             // is empty, where `symbol_strata_sorted` yields a single time-ordered stratum. With
             // conditioning, the strata are Z-symbol hashes scattered across time and blocking is
@@ -692,7 +692,7 @@ impl ConditionalIndependenceTest for Gpdc {
             // contiguous blocks so the residual's serial dependence survives into the null;
             // otherwise it is an ordinary exchangeable shuffle.
             let mut ry_perm = ry.clone();
-            let mut rng = ctx.rng.stream(0x69DC_u64.wrapping_add(qi as u64));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x69DC_u64 ^ qi as u64);
             let mut null_ge = 0u32;
             for _ in 0..n_perm {
                 if block_size > 1 {
@@ -1232,7 +1232,7 @@ mod tests {
         let ci = KnnDependence::new(5);
         let mut rejects = 0u32;
         for t in 0..trials {
-            let mut rng = ctx.rng.stream(0xC11_u64.wrapping_add(u64::from(t)));
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xC11_u64 ^ u64::from(t));
             let z: Vec<f64> = (0..n)
                 .map(|_| {
                     let u = (rng.next_u64() as f64) / (u64::MAX as f64);

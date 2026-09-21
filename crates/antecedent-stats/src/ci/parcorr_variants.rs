@@ -13,7 +13,7 @@
     clippy::trivially_copy_pass_by_ref
 )]
 
-use antecedent_core::{ExecutionContext, KernelPolicy};
+use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{sanitize_weight, weighted_mean};
 
 use super::parcorr::PartialCorrelation;
@@ -294,7 +294,7 @@ fn weighted_block_shuffle_pvalue(
     let n_blocks = n.div_ceil(block_size);
     let mut block_perm: Vec<usize> = (0..n_blocks).collect();
     let mut shuffled = vec![0.0; n];
-    let mut rng = ctx.rng.stream(0x77C1_u64.wrapping_add(stream_salt));
+    let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x77C1_u64 ^ stream_salt);
     let mut extreme = 0u32;
     let abs_obs = observed.abs();
     for _ in 0..replicates {
@@ -472,7 +472,7 @@ impl MultivariatePartialCorrelation {
                 // honest permutation test.
                 let n_blocks = n.div_ceil(block_size);
                 let mut block_perm: Vec<usize> = (0..n_blocks).collect();
-                let mut rng = ctx.rng.stream(0x77C2);
+                let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x77C2);
                 let mut permuted = vec![0.0; n * px];
                 let mut at_least_as_extreme = 0u32;
                 for _ in 0..replicates {

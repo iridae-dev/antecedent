@@ -1,3 +1,5 @@
+use antecedent_core::StreamDomain;
+
 // Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -260,7 +262,7 @@ pub(super) fn interactive_subsample_graphs_accounted(
     if latency_mode != Some(LatencyMode::Interactive) {
         return Ok((graphs, InteractiveSubsampleDrop::default()));
     }
-    let mut rng = ctx.rng.stream(0xE11E_u64);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Execute, 0xE11E_u64);
     let sub = graphs
         .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;

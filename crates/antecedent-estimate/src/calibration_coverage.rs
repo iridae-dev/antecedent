@@ -41,7 +41,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext,
-    MeasurementSpec, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
+    MeasurementSpec, RoleHint, SmallRoleSet, StreamDomain, TargetPopulation, ValueType, VariableId,
 };
 use antecedent_data::column::{Float64Column, ValidityBitmap};
 use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
@@ -502,8 +502,9 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
         "propensity_ipw_conformance_scm",
     );
     for s in 0..n_sim() {
-        let mut rng =
-            ExecutionContext::for_tests(grid_seed(3 + 1000 * u64::from(s))).rng.stream(0x5051_u64);
+        let mut rng = ExecutionContext::for_tests(grid_seed(3 + 1000 * u64::from(s)))
+            .rng
+            .stream_for(StreamDomain::Estimate, 0x5051_u64);
         let n = grid_n(1200);
         let data = propensity_ipw_conformance_scm(n, &mut rng);
         let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();

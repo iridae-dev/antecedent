@@ -275,6 +275,8 @@ pub fn weighted_support(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use super::*;
     use crate::aipw::AipwAte;
     use antecedent_core::{
@@ -289,7 +291,8 @@ mod tests {
     use std::sync::Arc;
 
     fn confounded(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x51);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x51);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];

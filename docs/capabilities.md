@@ -59,8 +59,9 @@ bootstrap uncertainty. TemporalCpdag/TemporalPag class envelopes publish a
 shared circular-block mixture SE (frozen-weight aggregate over identified
 atoms; unidentified mass is retained, not mixed) and Imbens–Manski
 identified-set intervals with per-completion endpoints; Bayesian class envelopes
-publish the product-posterior envelope quantile (independently seeded completion
-posteriors) at Imbens–Manski tails; both are flagged `truncated` over a capped
+publish the product-posterior envelope quantile (completion posteriors from
+distinct `StreamDomain` RNG streams) at Imbens–Manski tails; both are flagged
+`truncated` over a capped
 completion enumeration. Temporal PAG results retain MAG
 completions and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: TemporalPag

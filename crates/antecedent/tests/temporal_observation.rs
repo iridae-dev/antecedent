@@ -9,7 +9,7 @@ use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention, StreamDomain,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
@@ -55,7 +55,7 @@ fn generate(pin: &serde_json::Value) -> GeneratedObservationData {
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(stream);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, stream);
     let mut t = Vec::with_capacity(n);
     let mut latent = Vec::with_capacity(n);
     let mut selected = Vec::with_capacity(n);

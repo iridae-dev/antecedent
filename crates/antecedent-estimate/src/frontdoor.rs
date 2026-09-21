@@ -767,6 +767,8 @@ fn stacked_cluster_meat(
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp, clippy::cast_sign_loss)]
 pub(crate) mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -789,7 +791,8 @@ pub(crate) mod tests {
     /// `antecedent_identify::frontdoor::tests::classic_frontdoor_with_unmeasured_confounder`).
     /// True effect through the mediator path = `2 * 3 = 6`.
     fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xF400_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xF400_u64);
         let mut t = vec![0.0; n];
         let mut m = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -946,7 +949,8 @@ pub(crate) mod tests {
         // T → M1 → Y and T → M2 → Y: M1=1·T, M2=2·T, Y=3·M1+4·M2 (+ noise, no U).
         // Path sum = 1·3 + 2·4 = 11.
         let n = 3000usize;
-        let mut rng = ExecutionContext::for_tests(9).rng.stream(0xF401_u64);
+        let mut rng =
+            ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xF401_u64);
         let mut t = vec![0.0; n];
         let mut m1 = vec![0.0; n];
         let mut m2 = vec![0.0; n];
@@ -1037,7 +1041,8 @@ pub(crate) mod tests {
     fn stacked_se_captures_cross_stage_covariance_and_matches_bootstrap() {
         // Correlated stage residuals → nonzero Cov(a,b); analytic SE ≈ paired bootstrap.
         let n = 2500usize;
-        let mut rng = ExecutionContext::for_tests(11).rng.stream(0xF402_u64);
+        let mut rng =
+            ExecutionContext::for_tests(11).rng.stream_for(StreamDomain::Estimate, 0xF402_u64);
         let mut t = vec![0.0; n];
         let mut m = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -1131,7 +1136,8 @@ pub(crate) mod tests {
     #[test]
     fn two_mediator_stacked_se_matches_bootstrap() {
         let n = 3000usize;
-        let mut rng = ExecutionContext::for_tests(12).rng.stream(0xF403_u64);
+        let mut rng =
+            ExecutionContext::for_tests(12).rng.stream_for(StreamDomain::Estimate, 0xF403_u64);
         let mut t = vec![0.0; n];
         let mut m1 = vec![0.0; n];
         let mut m2 = vec![0.0; n];

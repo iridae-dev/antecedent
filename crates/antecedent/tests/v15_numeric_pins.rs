@@ -14,7 +14,8 @@ use antecedent::{
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
     IdentificationStatus, Intervention, OutcomeFunctional, PopulationRegistry, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, SupportStatus, TargetPopulation, Value, VariableId,
+    ResponseIdentification, ResponseQuery, StreamDomain, SupportStatus, TargetPopulation, Value,
+    VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{
@@ -28,7 +29,7 @@ fn cols(pairs: &[(&str, Vec<f64>)]) -> TabularData {
 }
 
 fn confounded_hetero(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery, Vec<f64>, f64) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x15);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x15);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -102,7 +103,7 @@ fn variance_shift_binary(
     n: usize,
     seed: u64,
 ) -> (TabularData, Dag, AverageEffectQuery, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, seed);
     let q90 = 1.281_551_565_544_600_4;
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -141,7 +142,7 @@ fn codetermined_background_siblings(
     n: usize,
     seed: u64,
 ) -> (TabularData, TieredBackground, AverageEffectQuery, Vec<f64>, VariableId, VariableId) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, seed);
     let mut z = vec![0.0; n];
     let mut u = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -178,7 +179,7 @@ fn codetermined_treatment_sibling(
     n: usize,
     seed: u64,
 ) -> (TabularData, TieredBackground, AverageEffectQuery, Vec<f64>, VariableId) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, seed);
     let mut z = vec![0.0; n];
     let mut u = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -358,7 +359,7 @@ fn retarget_refuses_treatment_dependence() {
 
 #[test]
 fn retarget_weighted_overlap_is_support() {
-    let mut rng = ExecutionContext::for_tests(17).rng.stream(1);
+    let mut rng = ExecutionContext::for_tests(17).rng.stream_for(StreamDomain::Test, 1);
     let n = 800usize;
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -392,7 +393,7 @@ fn variance_only_exceedance_covers_and_mean_misses() {
     let mean_tol = pin["mean_tolerance"].as_f64().unwrap();
     let exceedance_delta = pin["exceedance_delta"].as_f64().unwrap();
     assert_eq!(pin["estimator"], "aipw");
-    let mut rng = ExecutionContext::for_tests(18).rng.stream(2);
+    let mut rng = ExecutionContext::for_tests(18).rng.stream_for(StreamDomain::Test, 2);
     let n = 3_000usize;
     let q90 = 1.281_551_565_544_600_4;
     let mut t = vec![0.0; n];
@@ -461,7 +462,7 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
 }
 
 fn interaction_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xAD);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xAD);
     let mut a = vec![0.0; n];
     let mut d = vec![0.0; n];
     let mut z = vec![0.0; n];
@@ -557,7 +558,7 @@ fn additive_interaction_is_structurally_zero_cell_aipw_recovers() {
 
 #[test]
 fn cell_aipw_k3_and_empty_cell_refuse() {
-    let mut rng = ExecutionContext::for_tests(20).rng.stream(3);
+    let mut rng = ExecutionContext::for_tests(20).rng.stream_for(StreamDomain::Test, 3);
     let n = 2_400usize;
     let mut a = vec![0.0; n];
     let mut b = vec![0.0; n];
@@ -601,7 +602,7 @@ fn cell_aipw_k3_and_empty_cell_refuse() {
         .unwrap();
     assert!(ok.estimate.score_table.as_ref().is_some_and(|t| t.n_columns() == 8));
 
-    let mut rng = ExecutionContext::for_tests(21).rng.stream(4);
+    let mut rng = ExecutionContext::for_tests(21).rng.stream_for(StreamDomain::Test, 4);
     let n = 600usize;
     let mut a = vec![0.0; n];
     let mut d = vec![0.0; n];
@@ -635,7 +636,7 @@ fn cell_aipw_k3_and_empty_cell_refuse() {
 
 #[test]
 fn unknown_tier_envelope_straddles_zero() {
-    let mut rng = ExecutionContext::for_tests(22).rng.stream(5);
+    let mut rng = ExecutionContext::for_tests(22).rng.stream_for(StreamDomain::Test, 5);
     let n = 2_000usize;
     let mut era = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -712,7 +713,7 @@ fn unknown_tier_conditional_and_single_response_refuse() {
 
 #[test]
 fn static_cpdag_and_pag_envelope_se_is_finite() {
-    let mut rng = ExecutionContext::for_tests(23).rng.stream(6);
+    let mut rng = ExecutionContext::for_tests(23).rng.stream_for(StreamDomain::Test, 6);
     let n = 1_200usize;
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -929,7 +930,7 @@ fn kernel_target_population_coverage_over_seed_grid() {
 fn cpdag_shared_row_aggregate_coverage_over_seed_grid() {
     let mut covered = 0;
     for seed in 200..280 {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(15);
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 15);
         let n = 500;
         let mut z = Vec::new();
         let mut t = Vec::new();
@@ -1144,7 +1145,7 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
     let n = 800;
     let mut names = Vec::with_capacity(n_nodes as usize);
     let mut columns: Vec<Vec<f64>> = Vec::with_capacity(n_nodes as usize);
-    let mut rng = ExecutionContext::for_tests(200).rng.stream(0xC8);
+    let mut rng = ExecutionContext::for_tests(200).rng.stream_for(StreamDomain::Test, 0xC8);
     let latent: Vec<Vec<f64>> =
         (0..20).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
     for i in 0..n_nodes as usize {
@@ -1364,7 +1365,7 @@ fn prepared_batch_cells_reuse_joint_plans() {
 }
 
 fn zero_effect_pair_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xCE);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xCE);
     let mut a = vec![0.0; n];
     let mut d = vec![0.0; n];
     let mut z = vec![0.0; n];
@@ -1546,7 +1547,7 @@ fn linear_plan_has_no_score_table_and_refuses_retarget() {
 
 #[test]
 fn class_aware_conditional_grid_mixes_envelope_atoms() {
-    let mut rng = ExecutionContext::for_tests(205).rng.stream(0xCD);
+    let mut rng = ExecutionContext::for_tests(205).rng.stream_for(StreamDomain::Test, 0xCD);
     let n = 1_200usize;
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -2043,7 +2044,7 @@ fn batch_tiered_codetermined_prepare_and_estimate() {
 #[test]
 fn plugin_zero_shift_influence_equals_sample_mean_influence() {
     let n = 400usize;
-    let mut rng = ExecutionContext::for_tests(301).rng.stream(0x301);
+    let mut rng = ExecutionContext::for_tests(301).rng.stream_for(StreamDomain::Test, 0x301);
     let t: Vec<_> = (0..n).map(|_| standard_normal(&mut rng)).collect();
     let y: Vec<_> = t.iter().map(|v| 1.0 + v + standard_normal(&mut rng)).collect();
     let mean = y.iter().sum::<f64>() / n as f64;
@@ -2074,7 +2075,7 @@ fn plugin_set_intervals_include_model_fit_uncertainty() {
     let mut covered = 0;
     for seed in 300..340 {
         let n = 300;
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x302);
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x302);
         let t: Vec<_> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let y: Vec<_> = (0..n).map(|_| 1.5 + standard_normal(&mut rng)).collect();
         let data = cols(&[("t", t), ("y", y)]);
@@ -2209,7 +2210,7 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
 #[test]
 fn pag_multi_atom_response_mixes_aligned_ifs() {
     let n = 1_200usize;
-    let mut rng = ExecutionContext::for_tests(212).rng.stream(0xD4);
+    let mut rng = ExecutionContext::for_tests(212).rng.stream_for(StreamDomain::Test, 0xD4);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2290,7 +2291,7 @@ fn pag_multi_atom_response_mixes_aligned_ifs() {
 #[test]
 fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
     let n = 800usize;
-    let mut rng = ExecutionContext::for_tests(213).rng.stream(0xD5);
+    let mut rng = ExecutionContext::for_tests(213).rng.stream_for(StreamDomain::Test, 0xD5);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2396,7 +2397,7 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
 #[test]
 fn pag_unidentified_mass_does_not_publish_class_conditional_cdf() {
     let n = 800usize;
-    let mut rng = ExecutionContext::for_tests(213).rng.stream(0xD5);
+    let mut rng = ExecutionContext::for_tests(213).rng.stream_for(StreamDomain::Test, 0xD5);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2443,7 +2444,7 @@ fn pag_unidentified_mass_does_not_publish_class_conditional_cdf() {
 #[test]
 fn quantile_treatment_effect_inverts_aipw_cdf() {
     let n = 2_400usize;
-    let mut rng = ExecutionContext::for_tests(215).rng.stream(0x51);
+    let mut rng = ExecutionContext::for_tests(215).rng.stream_for(StreamDomain::Test, 0x51);
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
     let mut z = vec![0.0; n];
@@ -2700,7 +2701,7 @@ fn pag_general_id_response_empty_required_cell_is_not_supported() {
 fn pag_adjustment_response_is_single_arm_mean() {
     // R→T witnesses visibility of T→Y. Z is the backdoor. Control mean is 0.3, not the ATE (0.6).
     let n = 4_000;
-    let mut rng = ExecutionContext::for_tests(41).rng.stream(0xA11);
+    let mut rng = ExecutionContext::for_tests(41).rng.stream_for(StreamDomain::Test, 0xA11);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2778,7 +2779,7 @@ fn same_tier_joint_query(schema: &antecedent_core::CausalSchema) -> ResponseQuer
 }
 
 fn same_tier_joint_dgp(n: usize, seed: u64) -> (TabularData, TieredBackground, ResponseQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xC0);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xC0);
     let mut z = vec![0.0; n];
     let mut t1 = vec![0.0; n];
     let mut t2 = vec![0.0; n];
@@ -2962,7 +2963,7 @@ fn zero_effect_three_pair_dgp(
     n: usize,
     seed: u64,
 ) -> (TabularData, TieredBackground, [ResponseQuery; 3]) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xC3);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xC3);
     let mut z = vec![0.0; n];
     let mut t1 = vec![0.0; n];
     let mut t2 = vec![0.0; n];
@@ -3135,7 +3136,7 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
     )));
 
     let n = 280usize;
-    let mut rng = ExecutionContext::for_tests(20).rng.stream(0x14);
+    let mut rng = ExecutionContext::for_tests(20).rng.stream_for(StreamDomain::Test, 0x14);
     let mut names = vec!["z".to_string(), "t1".to_string(), "t2".to_string()];
     names.extend(facets.iter().cloned());
     names.push("y".to_string());
@@ -3377,7 +3378,7 @@ fn pag_two_atom_response_coverage_preserves_shared_row_dependence() {
     for seed in 400..440 {
         let n = 800;
         let ctx = ExecutionContext::for_tests(seed);
-        let mut rng = ctx.rng.stream(0xD4);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0xD4);
         let mut r = Vec::new();
         let mut z = Vec::new();
         let mut t = Vec::new();
@@ -3461,7 +3462,7 @@ fn scalar_conditional_empty_tail_has_no_zero_width_inference() {
 #[test]
 fn conditional_quantile_matches_cdf_and_prepared_paths() {
     let n = 2400;
-    let mut rng = ExecutionContext::for_tests(615).rng.stream(0x51);
+    let mut rng = ExecutionContext::for_tests(615).rng.stream_for(StreamDomain::Test, 0x51);
     let mut t = Vec::new();
     let mut y = Vec::new();
     let mut z = Vec::new();
@@ -3517,7 +3518,7 @@ fn conditional_quantile_matches_cdf_and_prepared_paths() {
 #[test]
 fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
     let n = 3200;
-    let mut rng = ExecutionContext::for_tests(616).rng.stream(0x52);
+    let mut rng = ExecutionContext::for_tests(616).rng.stream_for(StreamDomain::Test, 0x52);
     let mut t1 = Vec::new();
     let mut t2 = Vec::new();
     let mut y = Vec::new();
@@ -3582,7 +3583,7 @@ fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
 
 #[test]
 fn conditional_quantile_is_not_a_mean_effect() {
-    let mut rng = ExecutionContext::for_tests(619).rng.stream(0x53);
+    let mut rng = ExecutionContext::for_tests(619).rng.stream_for(StreamDomain::Test, 0x53);
     let n = 3200;
     let mut t = Vec::new();
     let mut y = Vec::new();
@@ -3625,7 +3626,7 @@ fn conditional_quantile_is_not_a_mean_effect() {
 fn pag_two_atom_conditional_quantile_retains_joint_influence() {
     let n = 2400;
     let ctx = ExecutionContext::for_tests(620);
-    let mut rng = ctx.rng.stream(0xD4);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0xD4);
     let mut r = Vec::new();
     let mut z = Vec::new();
     let mut t = Vec::new();

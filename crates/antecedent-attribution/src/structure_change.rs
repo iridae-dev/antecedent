@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, VariableId,
+    ShapleyConfig, StreamDomain, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
@@ -420,7 +420,7 @@ impl StructureSwapPayoff<'_> {
         }
         let model = compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
 
-        let mut rng = self.ctx.rng.stream(0x5C01_u64.wrapping_add(self.seed));
+        let mut rng = self.ctx.rng.stream_for(StreamDomain::Attribution, 0x5C01_u64 ^ self.seed);
         let n_rows = self.n_samples.max(1);
         let n_nodes = model.n_nodes();
         let need = n_rows.saturating_mul(n_nodes);
@@ -701,7 +701,7 @@ mod tests {
             }
             let model =
                 compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
-            let mut rng = ctx.rng.stream(0x5C01_u64.wrapping_add(seed));
+            let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x5C01_u64 ^ seed);
             let mut ws = MechanismWorkspace::default();
             let batch = sample_observational(&model, n_samples, &mut rng, &mut ws, &ctx).unwrap();
             let (mu_ref, var_ref) = mean_var(batch.column(y.as_usize()).unwrap());

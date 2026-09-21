@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
@@ -152,7 +152,7 @@ impl StructureMcmc {
                 let mut local_rej = 0u64;
                 for li in 0..(end - start) {
                     let chain = start + li;
-                    let mut rng = ctx.rng.stream(1000 + chain as u64);
+                    let mut rng = ctx.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                     let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
                         data_version: 1,
                         family: score_family,

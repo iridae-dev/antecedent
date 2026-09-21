@@ -840,6 +840,8 @@ fn residualize_aipw_psi(
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -864,7 +866,8 @@ mod tests {
     }
 
     fn confounded_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
 
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
@@ -994,7 +997,8 @@ mod tests {
     #[test]
     fn att_if_doubly_robust_under_mu1_misspecification() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(42).rng.stream(0xA11u64);
+        let mut rng =
+            ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Estimate, 0xA11u64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1041,7 +1045,8 @@ mod tests {
     #[test]
     fn atc_if_doubly_robust_under_mu0_misspecification() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(42).rng.stream(0xA7Cu64);
+        let mut rng =
+            ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Estimate, 0xA7Cu64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1073,7 +1078,8 @@ mod tests {
     #[test]
     fn atc_if_doubly_robust_under_propensity_misspecification() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(43).rng.stream(0xBEEFu64);
+        let mut rng =
+            ExecutionContext::for_tests(43).rng.stream_for(StreamDomain::Estimate, 0xBEEFu64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1105,7 +1111,8 @@ mod tests {
     #[test]
     fn atc_if_doubly_robust_when_both_correct() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(44).rng.stream(0xCAFEu64);
+        let mut rng =
+            ExecutionContext::for_tests(44).rng.stream_for(StreamDomain::Estimate, 0xCAFEu64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];

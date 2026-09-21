@@ -10,7 +10,7 @@
     clippy::trivially_copy_pass_by_ref
 )]
 
-use antecedent_core::{CausalRng, ExecutionContext, KernelPolicy};
+use antecedent_core::{CausalRng, ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{partial_correlation, shuffle};
 
 use super::types::{CiQuery, CiWorkspace};
@@ -67,7 +67,7 @@ pub(crate) fn block_shuffle_pvalue(
     for (i, slot) in workspace.block_perm.iter_mut().enumerate().take(n_blocks) {
         *slot = i;
     }
-    let mut rng = ctx.rng.stream(0xC1_u64.wrapping_add(stream_salt));
+    let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0xC1_u64 ^ stream_salt);
     let mut extreme = 0u32;
     let abs_obs = observed.abs();
     let z_refs: Vec<&[f64]> = z_idxs.iter().map(|&i| columns[i]).collect();
