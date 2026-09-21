@@ -10,6 +10,7 @@ import pytest
 
 pytest.importorskip("antecedent")
 import antecedent
+from antecedent.graph import TemporalCpdag, TemporalPag
 
 
 def _patch_discovery(monkeypatch, name, fn):
@@ -180,6 +181,46 @@ def test_json_roundtrip_preserves_node_names_cpdag():
     restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert isinstance(restored.graph, antecedent.Cpdag)
     assert set(restored.graph.nodes()) == {"z", "t", "y"}
+
+
+def test_temporal_cpdag_to_json_refuses_unoriented_rather_than_fabricating():
+    """An unoriented ``TemporalCpdag`` must never serialize as an edgeless graph.
+
+    ``x[t-1] -- y[t]`` is a real undirected edge; ``to_json()`` cannot recover
+    it (the native layer exposes no edge accessor for an unoriented temporal
+    CPDAG), so it must refuse rather than silently emit ``{"names": ["v0",
+    "v1"], "directed": [], "undirected": []}`` — a graph with invented names
+    and zero edges that a caller cannot distinguish from an honest empty
+    discovery result.
+    """
+    tcpdag = TemporalCpdag.from_lagged_edges(["x", "y"], [], [("x", 1, "y", 0)])
+    accepted = antecedent.AcceptedGraph.from_graph(tcpdag, algorithm_id="lpcmci")
+    with pytest.raises(antecedent.errors.CausalUnsupportedError):
+        accepted.to_json()
+
+
+def test_temporal_cpdag_to_json_round_trips_when_fully_oriented():
+    """A fully oriented ``TemporalCpdag`` reduces to a ``TemporalDag`` and round-trips."""
+    tcpdag = TemporalCpdag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)], None)
+    accepted = antecedent.AcceptedGraph.from_graph(tcpdag, algorithm_id="lpcmci")
+    restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
+    assert isinstance(restored.graph, antecedent.TemporalDag)
+    assert set(restored.graph.edges()) == {("x", 1, "y", 0)}
+
+
+def test_temporal_pag_to_json_refuses_rather_than_fabricating():
+    """Every ``TemporalPag`` must refuse ``to_json()``, never fabricate an edgeless graph.
+
+    The native layer exposes no edge accessor for ``TemporalPag`` at all (see
+    ``_pending_edges``'s identical refusal for the same reason), so
+    ``AcceptedGraph.to_json()`` must not silently emit
+    ``{"names": ["v0", "v1"], "edges": []}`` for a PAG that actually has a
+    marked edge.
+    """
+    tpag = TemporalPag.from_marked_lagged_edges(["x", "y"], [("x", 1, "y", 0, "tail", "arrow")])
+    accepted = antecedent.AcceptedGraph.from_graph(tpag, algorithm_id="lpcmci")
+    with pytest.raises(antecedent.errors.CausalUnsupportedError):
+        accepted.to_json()
 
 
 def test_prepare_on_accepted_graph():
