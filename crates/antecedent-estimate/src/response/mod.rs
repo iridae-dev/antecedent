@@ -2993,38 +2993,6 @@ fn median_sorted(sorted: &[f64]) -> f64 {
     if n % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] }
 }
 
-/// Linear interpolation on the sorted sample: `p` in [0, 1] indexes `0 .. n-1`.
-fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let max_idx = sorted.len() - 1;
-    if max_idx == 0 {
-        return sorted[0];
-    }
-    let rank = max_idx as f64 * p.clamp(0.0, 1.0);
-    let lo_rank = rank.floor();
-    let hi_rank = rank.ceil();
-    let lo = (0..=max_idx)
-        .min_by(|&a, &b| {
-            (a as f64 - lo_rank)
-                .abs()
-                .partial_cmp(&(b as f64 - lo_rank).abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(0);
-    let hi = (0..=max_idx)
-        .min_by(|&a, &b| {
-            (a as f64 - hi_rank)
-                .abs()
-                .partial_cmp(&(b as f64 - hi_rank).abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(max_idx);
-    let w = rank - lo_rank;
-    sorted[lo].mul_add(1.0 - w, sorted[hi] * w)
-}
-
 fn mad_scale(values: &[f64]) -> f64 {
     if values.is_empty() {
         return 0.0;
@@ -3054,8 +3022,13 @@ fn outcome_tail_ratio(values: &[f64]) -> f64 {
 
 fn winsorize(values: &[f64], p: f64) -> Vec<f64> {
     let sorted = sort_finite(values);
-    let lo = quantile_sorted(&sorted, p);
-    let hi = quantile_sorted(&sorted, 1.0 - p);
+    // An empty sample has no tail quantiles to clamp to; leave the values as they are.
+    let (Some(lo), Some(hi)) = (
+        antecedent_stats::quantile_type7(&sorted, p),
+        antecedent_stats::quantile_type7(&sorted, 1.0 - p),
+    ) else {
+        return values.to_vec();
+    };
     let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
     values.iter().map(|&v| v.clamp(lo, hi)).collect()
 }

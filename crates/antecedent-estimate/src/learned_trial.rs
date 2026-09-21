@@ -250,51 +250,64 @@ pub fn estimate_trial_aipw(
     }
     let mut result = fit_point(id, input, options, &folds, ctx)?;
     use antecedent_data::{ResamplingPlan, fill_resample_indexes};
-    for replicate in 0..options.bootstrap {
-        cancelled(ctx)?;
-        let groups = match input.sampling {
-            TrialSampling::NestedCohort => vec![(0..n).collect::<Vec<_>>()],
-            TrialSampling::IndependentSamples => vec![
-                (0..n).filter(|i| input.source[*i]).collect(),
-                (0..n).filter(|i| !input.source[*i]).collect(),
-            ],
-        };
-        let mut rows = Vec::with_capacity(n);
-        for (group, members) in groups.iter().enumerate() {
-            let mut rng = ctx.rng.stream_for(
-                StreamDomain::Estimate,
-                0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
-            );
-            let mut selected = Vec::new();
-            fill_resample_indexes(
-                ResamplingPlan::IidBootstrap,
-                members.len(),
-                &mut rng,
-                &mut selected,
-            )
-            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-            rows.extend(selected.into_iter().map(|i| members[i as usize]));
-        }
-        let draw = TrialAipwInput {
-            features: input.features.clone(),
-            covariates: input
-                .covariates
-                .iter()
-                .map(|col| rows.iter().map(|i| col[*i]).collect())
-                .collect(),
-            outcome: rows.iter().map(|i| input.outcome[*i]).collect(),
-            treatment: rows.iter().map(|i| input.treatment[*i]).collect(),
-            source: rows.iter().map(|i| input.source[*i]).collect(),
-            randomization: rows.iter().map(|i| input.randomization[*i]).collect(),
-            sampling: input.sampling,
-        };
-        let draw_folds: Vec<_> = rows.iter().map(|i| folds[*i]).collect();
-        match fit_point(id, &draw, options, &draw_folds, ctx) {
-            Ok(estimate) => result.replicates.push((replicate, estimate.estimate)),
-            Err(_) => {
-                cancelled(ctx)?;
-                result.failures += 1;
+    let groups = match input.sampling {
+        TrialSampling::NestedCohort => vec![(0..n).collect::<Vec<_>>()],
+        TrialSampling::IndependentSamples => vec![
+            (0..n).filter(|i| input.source[*i]).collect(),
+            (0..n).filter(|i| !input.source[*i]).collect(),
+        ],
+    };
+    // Replicates are independent: each draws from a stream keyed by (group, replicate)
+    // and refits every nuisance on its own resample, so they run under the context's
+    // thread budget (inner fits stay serial) and come back in replicate order.
+    let outcomes = ctx.map_indexed(
+        options.bootstrap as usize,
+        |index, inner| -> Result<_, EstimationError> {
+            cancelled(inner)?;
+            let replicate = u32::try_from(index).unwrap_or(u32::MAX);
+            let mut rows = Vec::with_capacity(n);
+            for (group, members) in groups.iter().enumerate() {
+                let mut rng = inner.rng.stream_for(
+                    StreamDomain::Estimate,
+                    0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
+                );
+                let mut selected = Vec::new();
+                fill_resample_indexes(
+                    ResamplingPlan::IidBootstrap,
+                    members.len(),
+                    &mut rng,
+                    &mut selected,
+                )
+                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                rows.extend(selected.into_iter().map(|i| members[i as usize]));
             }
+            let draw = TrialAipwInput {
+                features: input.features.clone(),
+                covariates: input
+                    .covariates
+                    .iter()
+                    .map(|col| rows.iter().map(|i| col[*i]).collect())
+                    .collect(),
+                outcome: rows.iter().map(|i| input.outcome[*i]).collect(),
+                treatment: rows.iter().map(|i| input.treatment[*i]).collect(),
+                source: rows.iter().map(|i| input.source[*i]).collect(),
+                randomization: rows.iter().map(|i| input.randomization[*i]).collect(),
+                sampling: input.sampling,
+            };
+            let draw_folds: Vec<_> = rows.iter().map(|i| folds[*i]).collect();
+            match fit_point(id, &draw, options, &draw_folds, inner) {
+                Ok(estimate) => Ok((replicate, Some(estimate.estimate))),
+                Err(_) => {
+                    cancelled(inner)?;
+                    Ok((replicate, None))
+                }
+            }
+        },
+    )?;
+    for (replicate, estimate) in outcomes {
+        match estimate {
+            Some(value) => result.replicates.push((replicate, value)),
+            None => result.failures += 1,
         }
     }
     if options.bootstrap >= 2 && result.failures == 0 {
@@ -439,4 +452,65 @@ pub fn validate_trial_query(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::{NonZeroThreadCount, Parallelism};
+    use antecedent_identify::{PopulationFactor, TransportCertificate};
+    use std::sync::Arc;
+
+    fn direct_certificate() -> TransportIdentification {
+        TransportIdentification::Transportable {
+            formula: TransportFormula::Direct(PopulationFactor {
+                population: Arc::from("target"),
+                regime: None,
+                variables: Arc::from([]),
+                conditioned_on: Arc::from([]),
+                interventions: Arc::from([]),
+            }),
+            certificate: TransportCertificate {
+                rule: Arc::from("test"),
+                selection_targets: Arc::from([]),
+                premises: Arc::from([]),
+            },
+        }
+    }
+
+    /// Randomized source trial (rows 0..80) plus target nonparticipants (rows 80..120).
+    fn intercept_only_input(sampling: TrialSampling) -> TrialAipwInput {
+        let n = 120u32;
+        TrialAipwInput {
+            features: vec![],
+            covariates: vec![],
+            outcome: (0..n).map(|i| 1.0 + f64::from(i % 2) + (f64::from(i) * 0.9).sin()).collect(),
+            treatment: (0..n).map(|i| i % 2 == 1).collect(),
+            source: (0..n).map(|i| i < 80).collect(),
+            randomization: vec![0.5; n as usize],
+            sampling,
+        }
+    }
+
+    #[test]
+    fn bootstrap_replicates_do_not_depend_on_the_thread_budget() {
+        let options = TrialAipwOptions { bootstrap: 12, ..TrialAipwOptions::default() };
+        for sampling in [TrialSampling::NestedCohort, TrialSampling::IndependentSamples] {
+            let input = intercept_only_input(sampling);
+            let serial_ctx = ExecutionContext::for_tests(11);
+            let mut parallel_ctx = ExecutionContext::for_tests(11);
+            parallel_ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(4).unwrap());
+            let serial =
+                estimate_trial_aipw(&direct_certificate(), &input, &options, &serial_ctx).unwrap();
+            let parallel =
+                estimate_trial_aipw(&direct_certificate(), &input, &options, &parallel_ctx)
+                    .unwrap();
+            assert_eq!(serial.replicates.len() + serial.failures as usize, 12);
+            assert!(serial.replicates.windows(2).all(|pair| pair[0].0 < pair[1].0));
+            assert_eq!(serial.replicates, parallel.replicates);
+            assert_eq!(serial.failures, parallel.failures);
+            assert_eq!(serial.interval, parallel.interval);
+            assert_eq!(serial.estimate, parallel.estimate);
+        }
+    }
 }

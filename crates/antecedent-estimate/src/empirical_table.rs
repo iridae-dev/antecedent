@@ -742,16 +742,21 @@ fn discrete_column(
         return Err(EstimationError::data_msg("column length mismatch"));
     }
     let validity = view.validity();
+    // Rows outside the analysis mask are excluded from the sample exactly like missing
+    // cells, as in the functional-distribution reader.
+    let analyzed = |i: usize| {
+        validity.is_valid(i) && data.storage().analysis_mask().is_none_or(|m| m.is_valid(i))
+    };
     let mut values = Vec::with_capacity(n);
     match view {
         ColumnView::Float64(c) => {
             for i in 0..n {
-                values.push(validity.is_valid(i).then_some(c.values[i]));
+                values.push(analyzed(i).then_some(c.values[i]));
             }
         }
         ColumnView::Int64(c) => {
             for i in 0..n {
-                if validity.is_valid(i) {
+                if analyzed(i) {
                     let code = u32::try_from(c.values[i]).map_err(|_| {
                         EstimationError::data_msg("categorical code is outside the finite domain")
                     })?;
@@ -825,6 +830,29 @@ mod tests {
             interventions: Arc::from([]),
             columns: BTreeMap::from([(v(0), x), (v(1), y)]),
         }
+    }
+
+    #[test]
+    fn rows_outside_the_analysis_mask_are_not_in_the_sample() {
+        // x = 0,0,1,1 and y = 0,1,0,1; rows 1 and 2 are masked out.
+        let data = TabularData::from_f64_columns([
+            ("x", &[0.0, 0.0, 1.0, 1.0][..]),
+            ("y", &[0.0, 1.0, 0.0, 1.0][..]),
+        ])
+        .unwrap();
+        let mask = antecedent_data::ValidityBitmap::from_bytes(vec![0b1001u8], 4).unwrap();
+        let masked = data.with_analysis_mask(mask).unwrap();
+        let sample = RegimeSample::from_tabular(
+            "target",
+            RegimeId::from_raw(0),
+            "s",
+            Vec::<InterventionAssignment>::new(),
+            &masked,
+            &[v(0), v(1)],
+        )
+        .unwrap();
+        assert_eq!(sample.columns[&v(0)], vec![Some(0.0), None, None, Some(1.0)]);
+        assert_eq!(sample.columns[&v(1)], vec![Some(0.0), None, None, Some(1.0)]);
     }
 
     #[test]

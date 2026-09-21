@@ -354,11 +354,15 @@ pub fn aggregate_mixture_functional_envelope(
     Ok(posterior)
 }
 
+/// Slack for rounding when checking that a coupling matrix is a correlation.
+const PSD_TOLERANCE: f64 = 1e-9;
+
 /// Rank-coupled mixture draws `Σ_g w_g τ_g^(d)` (weights already normalized).
 ///
 /// # Errors
 ///
-/// Empty or ragged draws, or a correlation of the wrong size.
+/// Empty or ragged draws, or a correlation that is the wrong size, asymmetric,
+/// off the unit diagonal, or not positive semidefinite.
 #[allow(clippy::many_single_char_names)]
 pub fn couple_mixture_functional_draws(
     atoms: &[(f64, &[f64])],
@@ -373,13 +377,33 @@ pub fn couple_mixture_functional_draws(
     if n == 0 || atoms.iter().any(|(_, d)| d.len() != n) {
         return Err(EstimationError::stats_msg("coupled atoms need equal, nonempty draw counts"));
     }
-    // Positive-semidefinite Cholesky: a zero pivot marks an atom that is a
-    // linear function of earlier ones (e.g. an identical estimand).
+    for i in 0..k {
+        if (correlation[i * k + i] - 1.0).abs() > PSD_TOLERANCE {
+            return Err(EstimationError::stats_msg(
+                "coupling correlation must have a unit diagonal",
+            ));
+        }
+        for j in 0..i {
+            if (correlation[i * k + j] - correlation[j * k + i]).abs() > PSD_TOLERANCE {
+                return Err(EstimationError::stats_msg("coupling correlation must be symmetric"));
+            }
+        }
+    }
+    // Positive-semidefinite Cholesky. A zero pivot marks an atom that is a linear
+    // function of earlier ones (e.g. an identical estimand) and is fine, but only if
+    // everything below it is consistent with that; a clearly negative Schur
+    // complement means the matrix is not a correlation, and truncating it would
+    // couple the atoms under a dependence other than the one supplied.
+    let not_psd =
+        || EstimationError::stats_msg("coupling correlation is not positive semidefinite");
     let mut l = vec![0.0; k * k];
     for j in 0..k {
         let mut s = correlation[j * k + j];
         for p in 0..j {
             s -= l[j * k + p] * l[j * k + p];
+        }
+        if s < -PSD_TOLERANCE {
+            return Err(not_psd());
         }
         let pivot = if s > 1e-12 { s.sqrt() } else { 0.0 };
         l[j * k + j] = pivot;
@@ -388,15 +412,15 @@ pub fn couple_mixture_functional_draws(
             for p in 0..j {
                 v -= l[i * k + p] * l[j * k + p];
             }
-            l[i * k + j] = if pivot > 0.0 { v / pivot } else { 0.0 };
+            if pivot > 0.0 {
+                l[i * k + j] = v / pivot;
+            } else if v.abs() > PSD_TOLERANCE {
+                return Err(not_psd());
+            }
         }
     }
     let mut rng = CausalRng::from_seed(seed);
-    let mut normal = move || {
-        let u1 = rng.next_f64().max(1e-300);
-        let u2 = rng.next_f64();
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    };
+    let mut normal = move || antecedent_kernels::standard_normal(&mut rng);
     let mut latent = vec![0.0; n * k];
     let mut e = vec![0.0; k];
     for d in 0..n {
@@ -424,6 +448,28 @@ pub fn couple_mixture_functional_draws(
 mod tests {
     use super::*;
     use antecedent_prob::InferenceDiagnostics;
+
+    #[test]
+    fn indefinite_asymmetric_or_non_unit_diagonal_coupling_is_refused() {
+        let n = 64;
+        let a: Vec<f64> = (0..n).map(f64::from).collect();
+        let atoms3: Vec<(f64, &[f64])> = vec![(1.0 / 3.0, &a), (1.0 / 3.0, &a), (1.0 / 3.0, &a)];
+        // rho12 = rho13 = 0.9, rho23 = -0.9: the third Schur complement is 1 - 0.81 - 1.7^2/0.19 < 0.
+        let indefinite = [1.0, 0.9, 0.9, 0.9, 1.0, -0.9, 0.9, -0.9, 1.0];
+        // Zero pivot at the second atom with a column below it that no factor can reproduce.
+        let zero_pivot = [1.0, 1.0, 0.5, 1.0, 1.0, 0.2, 0.5, 0.2, 1.0];
+        for bad in [indefinite, zero_pivot] {
+            let err = couple_mixture_functional_draws(&atoms3, &bad, 1).unwrap_err();
+            assert!(err.to_string().contains("not positive semidefinite"), "{err}");
+        }
+        let atoms2: Vec<(f64, &[f64])> = vec![(0.5, &a), (0.5, &a)];
+        let asymmetric = couple_mixture_functional_draws(&atoms2, &[1.0, 0.5, 0.2, 1.0], 1);
+        assert!(asymmetric.unwrap_err().to_string().contains("symmetric"));
+        let bad_diagonal = couple_mixture_functional_draws(&atoms2, &[2.0, 0.5, 0.5, 1.0], 1);
+        assert!(bad_diagonal.unwrap_err().to_string().contains("unit diagonal"));
+        // A rank-deficient but valid correlation is still accepted.
+        assert!(couple_mixture_functional_draws(&atoms2, &[1.0, 1.0, 1.0, 1.0], 1).is_ok());
+    }
 
     #[test]
     fn coupled_mixture_keeps_marginals_and_tracks_correlation() {

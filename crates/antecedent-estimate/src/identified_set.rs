@@ -138,16 +138,9 @@ fn selection_threshold(rows: usize) -> f64 {
     (rows.max(3) as f64).ln().sqrt().max(1.0)
 }
 
-fn sample_sd<I>(values: I) -> f64
-where
-    I: ExactSizeIterator<Item = f64> + Clone,
-{
-    let n = values.len();
-    if n < 2 {
-        return f64::NAN;
-    }
-    let mean = values.clone().sum::<f64>() / n as f64;
-    (values.map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt()
+/// Sample standard deviation of an iterator of draws (`NaN` below two draws).
+fn sample_sd(values: impl Iterator<Item = f64>) -> f64 {
+    antecedent_stats::sample_std(&values.collect::<Vec<_>>())
 }
 
 /// IM critical value: solve `Φ(c + r) − Φ(−c) = level` for `c ≥ 0` with
@@ -359,18 +352,14 @@ impl Selection {
     }
 }
 
-/// Linear-interpolated empirical quantile (type 7).
+/// Type-7 quantile of the replicate bounds. Draws are finite by construction
+/// ([`BoundDraws::new`] keeps only complete finite draws), so nothing is filtered
+/// here and the sample behind the quantile is exactly the replicate count reported;
+/// an empty set is `NaN`.
 fn quantile(values: &[f64], p: f64) -> f64 {
-    let mut sorted: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
-    if sorted.is_empty() {
-        return f64::NAN;
-    }
+    let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let h = (sorted.len() - 1) as f64 * p.clamp(0.0, 1.0);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let (i, frac) = (h.floor() as usize, h - h.floor());
-    let next = sorted[(i + 1).min(sorted.len() - 1)];
-    sorted[i] + frac * (next - sorted[i])
+    antecedent_stats::quantile_type7(&sorted, p).unwrap_or(f64::NAN)
 }
 
 #[cfg(test)]
@@ -379,6 +368,15 @@ mod tests {
 
     fn column_sd(draws: &[Vec<f64>], g: usize) -> f64 {
         sample_sd(draws.iter().map(|d| d[g]))
+    }
+
+    #[test]
+    fn bound_quantile_is_type7_over_every_draw_and_nan_when_empty() {
+        // h = 0.9 * 4 = 3.6 -> 4 + 0.6 * (5 - 4).
+        assert!((quantile(&[5.0, 1.0, 3.0, 2.0, 4.0], 0.9) - 4.6).abs() < 1e-12);
+        assert!(quantile(&[], 0.5).is_nan());
+        // A non-finite draw is not removed to shrink the sample behind the quantile.
+        assert!(quantile(&[1.0, 2.0, f64::NAN], 1.0).is_nan());
     }
 
     #[test]

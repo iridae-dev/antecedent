@@ -92,12 +92,7 @@ pub(crate) fn summarize_linear_response_draws(
     let sd =
         (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
     values.sort_by(f64::total_cmp);
-    let quantile = |p: f64| {
-        let x = p * (values.len() - 1) as f64;
-        let lo = x.floor() as usize;
-        let hi = x.ceil() as usize;
-        values[lo] + (values[hi] - values[lo]) * (x - lo as f64)
-    };
+    let quantile = |p: f64| antecedent_stats::quantile_type7(&values, p).unwrap_or(f64::NAN);
     Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
 }
 
@@ -296,9 +291,10 @@ pub fn hydrate_prior_from_quantity_summaries(
     }
     if let Some(expected) = expected_n_coef {
         if n_coef != expected {
-            return Err(EstimationError::stats_msg(format!(
-                "posterior coefficient dimension {n_coef} != expected n_coef {expected}"
-            )));
+            return Err(EstimationError::PriorDimensionMismatch {
+                posterior: n_coef,
+                design: expected,
+            });
         }
     }
     for (i, (index, _)) in coef_cols.iter().enumerate() {

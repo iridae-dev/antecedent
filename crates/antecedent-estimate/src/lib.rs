@@ -163,8 +163,8 @@ pub use retarget::{
     check_depends_on, exceedance_cdf_values, retarget, summarize_functional,
 };
 pub use scores::{
-    LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreTable, ScoreTableWire,
-    inference_from_influence_columns,
+    LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
+    ScoreTableWire, inference_from_influence_columns,
 };
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};

@@ -269,36 +269,8 @@ pub fn inference_from_influence_columns(
         ));
     }
     let covariance = joint_influence_covariance(columns, None)?;
-    let active: Vec<_> =
-        (0..columns.len()).filter(|&j| threshold_supported[j] && covariance.se(j) > 0.0).collect();
-    let critical_value = if active.is_empty() {
-        0.0
-    } else {
-        let mut values = Vec::new();
-        for &j in &active {
-            for &i in &active {
-                values.push(covariance.get(i, j));
-            }
-        }
-        crate::joint_if::max_t_critical(
-            &crate::joint_if::JointCovariance { dim: active.len(), values: values.into() },
-            0.95,
-            4096,
-            0x15,
-        )?
-    };
-    let mut lower = Vec::with_capacity(columns.len());
-    let mut upper = Vec::with_capacity(columns.len());
-    for (j, &supported) in threshold_supported.iter().enumerate() {
-        if !supported {
-            lower.push(f64::NAN);
-            upper.push(f64::NAN);
-            continue;
-        }
-        let radius = critical_value * covariance.se(j);
-        lower.push(raw_means[j] - radius);
-        upper.push(raw_means[j] + radius);
-    }
+    let (critical_value, lower, upper) =
+        simultaneous_bands(raw_means, &covariance, threshold_supported)?;
     Ok(ScoreInference {
         raw_means: raw_means.to_vec(),
         lower,
@@ -311,10 +283,75 @@ pub fn inference_from_influence_columns(
     })
 }
 
+/// Max-t critical value and simultaneous endpoints over the supported columns.
+///
+/// The family is the supported columns with a positive plug-in SE: unsupported
+/// columns publish no band, so they must not widen the others', and a degenerate
+/// coordinate has a zero-width plug-in band. The support flags prevent reading an
+/// empty observed tail as established zero risk. Unsupported columns get `NaN`
+/// endpoints.
+fn simultaneous_bands(
+    means: &[f64],
+    covariance: &JointCovariance,
+    supported: &[bool],
+) -> Result<(f64, Vec<f64>, Vec<f64>), EstimationError> {
+    let active: Vec<_> =
+        (0..means.len()).filter(|&j| supported[j] && covariance.se(j) > 0.0).collect();
+    let critical_value = if active.is_empty() {
+        0.0
+    } else {
+        let mut values = Vec::with_capacity(active.len() * active.len());
+        for &j in &active {
+            for &i in &active {
+                values.push(covariance.get(i, j));
+            }
+        }
+        crate::joint_if::max_t_critical(
+            &JointCovariance { dim: active.len(), values: values.into() },
+            0.95,
+            4096,
+            0x15,
+        )?
+    };
+    let mut lower = Vec::with_capacity(means.len());
+    let mut upper = Vec::with_capacity(means.len());
+    for (j, &is_supported) in supported.iter().enumerate() {
+        if is_supported {
+            let radius = critical_value * covariance.se(j);
+            lower.push(means[j] - radius);
+            upper.push(means[j] + radius);
+        } else {
+            lower.push(f64::NAN);
+            upper.push(f64::NAN);
+        }
+    }
+    Ok((critical_value, lower, upper))
+}
+
+/// Empirical support of a score table under a target weighting.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScoreSupport {
+    /// Weighted effective sample size of observed rows in each arm/threshold event.
+    pub event_n_eff: Vec<f64>,
+    /// Whether at least ten effective events and non-events exist at each threshold.
+    pub threshold_supported: Vec<bool>,
+    /// Target-local joint-cell overlap.
+    pub overlap: crate::crossfit_aipw::WeightedSupport,
+}
+
 impl ScoreTable {
-    /// Simultaneous bands for the fixed declared family; does not cover data-driven selection.
-    pub fn inference(&self, weights: Option<&[f64]>) -> Result<ScoreInference, EstimationError> {
-        let summary = self.summarize(weights)?;
+    /// Weighted column means only (no covariance, no simultaneous critical value).
+    ///
+    /// # Errors
+    ///
+    /// Weight length mismatch or empty mass.
+    pub fn weighted_means(&self, weights: Option<&[f64]>) -> Result<Vec<f64>, EstimationError> {
+        (0..self.n_columns()).map(|j| weighted_mean(self.column(j)?, weights)).collect()
+    }
+
+    /// Kish event counts, threshold support flags, and target overlap.
+    #[must_use]
+    pub fn support(&self, weights: Option<&[f64]>) -> ScoreSupport {
         let ones;
         let w: &[f64] = if let Some(weights) = weights {
             weights
@@ -322,32 +359,10 @@ impl ScoreTable {
             ones = vec![1.0; self.n_rows];
             &ones
         };
-        let support = crate::retarget::score_weighted_support(self, w);
-        // Degenerate coordinates have a zero-width plug-in band. The support
-        // flags prevent interpreting an empty observed tail as established zero risk.
-        let active: Vec<_> =
-            (0..self.n_columns()).filter(|&j| summary.covariance.se(j) > 0.0).collect();
-        let critical_value = if active.is_empty() {
-            0.0
-        } else {
-            let mut values = Vec::new();
-            for &j in &active {
-                for &i in &active {
-                    values.push(summary.covariance.get(i, j));
-                }
-            }
-            crate::joint_if::max_t_critical(
-                &crate::joint_if::JointCovariance { dim: active.len(), values: values.into() },
-                0.95,
-                4096,
-                0x15,
-            )?
-        };
-        let mut lower = Vec::new();
-        let mut upper = Vec::new();
-        let mut event_n_eff = Vec::new();
-        let mut threshold_supported = Vec::new();
-        for (j, col) in self.columns.iter().enumerate() {
+        let overlap = crate::retarget::score_weighted_support(self, w);
+        let mut event_n_eff = Vec::with_capacity(self.n_columns());
+        let mut threshold_supported = Vec::with_capacity(self.n_columns());
+        for col in self.columns.iter() {
             let (ne, n_non) = kish_threshold_support(
                 &self.observed_arm,
                 &self.observed_outcome,
@@ -356,27 +371,29 @@ impl ScoreTable {
                 col.threshold,
             );
             event_n_eff.push(ne);
-            let supported = ne >= MIN_THRESHOLD_EVENTS
-                && (col.threshold.is_none() || n_non >= MIN_THRESHOLD_EVENTS);
-            threshold_supported.push(supported);
-            if !supported {
-                lower.push(f64::NAN);
-                upper.push(f64::NAN);
-                continue;
-            }
-            let radius = critical_value * summary.covariance.se(j);
-            lower.push(summary.means[j] - radius);
-            upper.push(summary.means[j] + radius);
+            threshold_supported.push(
+                ne >= MIN_THRESHOLD_EVENTS
+                    && (col.threshold.is_none() || n_non >= MIN_THRESHOLD_EVENTS),
+            );
         }
+        ScoreSupport { event_n_eff, threshold_supported, overlap }
+    }
+
+    /// Simultaneous bands for the fixed declared family; does not cover data-driven selection.
+    pub fn inference(&self, weights: Option<&[f64]>) -> Result<ScoreInference, EstimationError> {
+        let summary = self.summarize(weights)?;
+        let support = self.support(weights);
+        let (critical_value, lower, upper) =
+            simultaneous_bands(&summary.means, &summary.covariance, &support.threshold_supported)?;
         Ok(ScoreInference {
             raw_means: summary.means.to_vec(),
             lower,
             upper,
             level: 0.95,
             critical_value,
-            event_n_eff,
-            threshold_supported,
-            support,
+            event_n_eff: support.event_n_eff,
+            threshold_supported: support.threshold_supported,
+            support: support.overlap,
         })
     }
 }
@@ -498,6 +515,77 @@ impl ScoreTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Thirty rows, one arm; column 1 is an exceedance at 0.5 with only five events.
+    fn thin_tail_table() -> ScoreTable {
+        let n = 30;
+        let mut scores: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
+        scores.extend((0..n).map(|i| f64::from(u32::try_from((i * 7) % 5).unwrap()) * 0.2));
+        ScoreTable {
+            observed_arm: vec![0; n].into(),
+            propensities: vec![0.5; 2 * n].into(),
+            observed_outcome: (0..n).map(|i| if i < 5 { 1.0 } else { 0.0 }).collect(),
+            n_rows: n,
+            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            fold_ids: (0..n).map(|i| u32::try_from(i % 2).unwrap()).collect(),
+            n_folds: 2,
+            scores: scores.into(),
+            columns: Arc::from([
+                ScoreColumn { arm: 0, threshold: None },
+                ScoreColumn { arm: 0, threshold: Some(0.5) },
+            ]),
+            adjustment_set: Arc::from([]),
+            nuisance_provenance: Arc::from("test"),
+            treatment: VariableId::from_raw(0),
+            intervened: Arc::from([]),
+        }
+    }
+
+    #[test]
+    fn means_and_support_match_the_full_summary_and_inference() {
+        let table = thin_tail_table();
+        let weights: Vec<f64> = (0..30).map(|i| 1.0 + f64::from(i % 3)).collect();
+        for w in [None, Some(weights.as_slice())] {
+            let summary = table.summarize(w).unwrap();
+            let inference = table.inference(w).unwrap();
+            let support = table.support(w);
+            assert_eq!(table.weighted_means(w).unwrap(), summary.means.to_vec());
+            assert_eq!(support.event_n_eff, inference.event_n_eff);
+            assert_eq!(support.threshold_supported, inference.threshold_supported);
+            assert_eq!(support.overlap, inference.support);
+        }
+        // Five events (< 10) leave the tail unsupported; the mean column stays supported.
+        assert_eq!(table.support(None).threshold_supported, vec![true, false]);
+    }
+
+    #[test]
+    fn max_t_family_is_the_supported_columns_only() {
+        let table = thin_tail_table();
+        let inference = table.inference(None).unwrap();
+        let summary = table.summarize(None).unwrap();
+        let only_supported = crate::joint_if::max_t_critical(
+            &JointCovariance { dim: 1, values: Arc::from([summary.covariance.get(0, 0)]) },
+            0.95,
+            4096,
+            0x15,
+        )
+        .unwrap();
+        assert!(summary.covariance.se(1) > 0.0, "the unsupported column must not be degenerate");
+        assert_eq!(inference.critical_value, only_supported);
+        assert!(inference.lower[1].is_nan() && inference.upper[1].is_nan());
+    }
+
+    #[test]
+    fn simultaneous_bands_ignore_unsupported_columns_and_blank_their_endpoints() {
+        let covariance = JointCovariance { dim: 2, values: Arc::from([1.0, 0.0, 0.0, 100.0]) };
+        let (both, ..) = simultaneous_bands(&[0.0, 0.0], &covariance, &[true, true]).unwrap();
+        let (one, lower, upper) =
+            simultaneous_bands(&[3.0, 0.0], &covariance, &[true, false]).unwrap();
+        // Two independent standardized coordinates need a wider max-t than one.
+        assert!(both > one + 0.1, "{both} vs {one}");
+        assert!((lower[0] - (3.0 - one)).abs() < 1e-12 && (upper[0] - (3.0 + one)).abs() < 1e-12);
+        assert!(lower[1].is_nan() && upper[1].is_nan());
+    }
 
     #[test]
     fn review_invalid_contrast_variance_is_not_zero_uncertainty() {

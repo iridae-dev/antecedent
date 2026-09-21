@@ -56,7 +56,7 @@ pub use design::{
 };
 pub use divergence::{
     change_point_known_split, change_point_scan, change_point_two_sample, classifier_two_sample,
-    gaussian_kl, kernel_two_sample, max_abs_cusum, mean_diff_two_sample, mean_var,
+    gaussian_kl, kernel_two_sample, max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7,
     residual_likelihood_ratio, sample_std,
 };
 pub use error::StatsError;
