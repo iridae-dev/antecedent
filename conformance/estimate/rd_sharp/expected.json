@@ -3,7 +3,7 @@
   "tolerance": 0.5,
   "identifier": "rd.sharp",
   "estimator": "rd.sharp",
-  "notes": "sharp RD jump",
+  "notes": "sharp RD jump: the effect for units at the cutoff (LocalAtCutoff), not a population average effect",
   "generation": {
     "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/dowhy.toml",

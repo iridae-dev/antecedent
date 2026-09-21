@@ -12,8 +12,9 @@ papers = [
 
 implementation_deviations = [
  "Uses an unweighted rectangular window with a user-supplied symmetric bandwidth and a fixed local-linear specification; it does not implement kernel choice, data-driven bandwidth selection, or robust bias correction.",
- "Reports a homoskedastic OLS intercept-difference standard error, with an optional ordinary row bootstrap, rather than modern heteroskedasticity-robust and bias-corrected local-polynomial RD inference.",
- "Synthesizes treatment as the indicator that the running variable is at or above the cutoff and never reads or verifies the query's treatment column; treatment miscoding, noncompliance, and fuzzy RD are therefore not detected or estimated.",
+ "Estimates the average effect for units at the cutoff (TargetPopulation::LocalAtCutoff) and refuses a query that names any other target population, including the population-wide default; the number is never presented as a population or window-average effect.",
+ "Reports the HC1 residual-sandwich SE of the jump coefficient by default (HC0/HC2/HC3 and an explicit homoskedastic opt-in are available), with an optional ordinary row bootstrap; there is no robust bias correction.",
+ "Builds the design from the indicator that the running variable is at or above the cutoff, and verifies that the query's treatment column equals that indicator on every complete row; a non-0/1 column or any mismatch is refused with rd_assignment_not_sharp. Noncompliance is therefore detected and refused; fuzzy RD is not estimated.",
  "Supports neither covariate-adjusted RD nor manipulation, density, or continuity diagnostics.",
 ]
 
@@ -23,5 +24,6 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic sharp-RD SCM with known jump size at the cutoff",
+ "closed-form heterogeneous-effect design (tau(r) = 2 + 6r, cubic baseline, non-uniform running variable) whose cutoff effect, window-average effect and population average effect are 2, 2.32 and 8",
  "conformance/estimate/rd_sharp (known-truth recovery fixture; its recorded DoWhy 0.14 attempt was unavailable and is not treated as parity evidence)",
 ]

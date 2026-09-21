@@ -185,11 +185,11 @@ calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analy
 [[capabilities]]
 id = "estimate.rd"
 group = "estimation"
-description = "Regression discontinuity"
+description = "Sharp regression discontinuity: average effect for units at the cutoff (TargetPopulation::LocalAtCutoff), not a population average effect"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/rd_sharp"
-limitations = "No external oracle exists for this scenario: the fixture's DoWhy reference records available=false (upstream RD crashed)."
+limitations = "Estimand is the effect at the cutoff only; other target populations are refused. Sharp assignment is verified against the treatment column (rd_assignment_not_sharp); fuzzy RD is not implemented. Continuity and no-manipulation are declared, not tested. Known truth: a heterogeneous-effect, curved-baseline design whose cutoff effect (2), window average (2.32) and population average (8) differ, plus the constant-slope jump fixture. Both coverage records use an exactly piecewise-linear outcome with the running variable uniform on the window, so they do not measure smoothing bias under curvature. No external oracle exists for this scenario: the fixture's DoWhy reference records available=false (upstream RD crashed)."
 owner = "estimate"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_hc1_heteroskedastic_ci_coverage"]
 

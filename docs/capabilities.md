@@ -232,7 +232,7 @@ Implemented identification strategies:
 * efficient backdoor adjustment;
 * front-door identification;
 * instrumental variables;
-* sharp regression discontinuity;
+* sharp regression discontinuity, for the effect at the cutoff only (see below);
 * Shpitser–Pearl ID/IDC for DAGs and ADMGs with hard `Set` interventions on
   finite domains. Every valid ID query ends either in a functional or in a
   hedge; this is checked exhaustively against enumerated SCMs on all ADMGs of
@@ -288,7 +288,7 @@ certificates are outside the 0.9 transport contract.
 * front-door two-stage estimation;
 * Wald estimation;
 * 2SLS;
-* sharp local-linear regression discontinuity;
+* sharp local-linear regression discontinuity (effect at the cutoff);
 * linear conditional effect models;
 * temporal adjustment;
 * temporal mediation;
@@ -340,7 +340,24 @@ at runtime:
   estimator. It assumes linear structural equations and no direct treatment to
   outcome edge. The general nonparametric front-door formula is reached through
   the ID path and functional plug-in estimation, not through this estimator.
-* **Sharp regression discontinuity** uses a caller-supplied bandwidth with a
+* **Sharp regression discontinuity identifies and estimates one effect: the
+  average effect for units at the cutoff,**
+  `lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]`. It is not the population
+  average effect and not the average over the bandwidth window; with an effect
+  that varies in the running variable these are different numbers. The result's
+  target population is `LocalAtCutoff { running, cutoff }`: a study that selects
+  `rd.sharp` and leaves the population at its default is retargeted to it, the
+  `identify.rd.local_estimand` diagnostic says the population-wide effect is not
+  identified, and any other target population is refused. `AutoIdentifier` uses
+  a supplied design only for a query that asks for that population, and never
+  infers a running variable or cutoff. The design is checked where it can be:
+  the graph must make the running variable the treatment's only parent, and the
+  estimator compares the treatment column with `T = 1{R ≥ c}` on every complete
+  row and refuses (`rd_assignment_not_sharp`) on any violation, so imperfect
+  compliance is not reported as a treatment effect (fuzzy RD is not
+  implemented). Continuity of the potential-outcome regressions at the cutoff
+  and no manipulation of the running variable are recorded as assumptions and
+  are not tested. The estimator uses a caller-supplied bandwidth with a
   uniform kernel and reports a conventional, not bias-corrected, interval; its
   default SE is the HC1 residual sandwich, and the homoskedastic SE is an
   explicit opt-in (`RdConfig::with_se_kind`). There
