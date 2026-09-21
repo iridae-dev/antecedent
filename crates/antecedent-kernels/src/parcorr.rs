@@ -296,10 +296,10 @@ fn partial_correlation_scalar_impl(
     if !residualize_into_scalar(y, z_cols, design, gram, beta, ry) {
         return None;
     }
-    // A zero-variance residual means Z explains that variable exactly: nothing is left
-    // to correlate, so conditional independence holds trivially (r = 0) rather than the
-    // statistic being an error.
-    pearson(&workspace.rx[..n], &workspace.ry[..n]).or(Some(0.0))
+    // Finite zero-variance residuals ⇒ trivial conditional independence (r = 0).
+    // Non-finite residuals must stay None: `constant_column` also fires on NaN css,
+    // so pearson alone cannot distinguish them from a real constant residual.
+    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], pearson)
 }
 
 /// Portable optimized path: design built once, Gram reformed once between X/Y
@@ -345,8 +345,24 @@ fn partial_correlation_portable_impl(
         let ry = &mut workspace.ry[..n];
         residual_from_beta(y, design, beta, n, ncols, ry);
     }
-    // See the scalar path: zero-variance residual ⇒ trivial conditional independence.
-    pearson_fused(&workspace.rx[..n], &workspace.ry[..n]).or(Some(0.0))
+    // See the scalar path: finite constant residual ⇒ Some(0.0); non-finite ⇒ None.
+    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], pearson_fused)
+}
+
+/// Pearson on residuals, restoring `Some(0.0)` only for finite constant residuals.
+///
+/// `constant_column` returns true for both non-finite css and a finite near-zero css,
+/// so a bare `pearson(..).or(Some(0.0))` would turn NaN input into false independence.
+fn pearson_after_residualize(
+    rx: &[f64],
+    ry: &[f64],
+    corr: fn(&[f64], &[f64]) -> Option<f64>,
+) -> Option<f64> {
+    match corr(rx, ry) {
+        Some(r) => Some(r),
+        None if rx.iter().chain(ry.iter()).all(|v| v.is_finite()) => Some(0.0),
+        None => None,
+    }
 }
 
 fn residual_from_beta(
@@ -686,5 +702,69 @@ mod tests {
         assert_eq!(select_impl(&policy), KernelImpl::Scalar);
         let r = partial_correlation(&policy, &x, &y, &[], &mut ws).unwrap();
         assert!(ToleranceClass::StableFloat.close(r, 1.0));
+    }
+
+    /// Non-empty Z + a NaN in X/Y must not collapse to r = 0 (false independence);
+    /// a finite exact residual (Z explains the variable) must still yield Some(0.0).
+    #[test]
+    fn parcorr_nan_with_nonempty_z_is_not_independence() {
+        let z = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
+        let y = [0.1, -0.2, 0.3, -0.1, 0.2, -0.3, 0.1, -0.2];
+        let mut x = [0.2, -0.1, 0.4, -0.3, 0.1, -0.4, 0.2, -0.1];
+        x[3] = f64::NAN;
+        let mut ws = ParCorrWorkspace::default();
+        let scalar = partial_correlation_scalar(&x, &y, &[&z], &mut ws);
+        let portable = partial_correlation_portable(&x, &y, &[&z], &mut ws);
+        assert_ne!(scalar, Some(0.0), "scalar NaN-in-X must not report r=0");
+        assert_ne!(portable, Some(0.0), "portable NaN-in-X must not report r=0");
+        assert!(scalar.is_none() || !scalar.unwrap().is_finite());
+        assert!(portable.is_none() || !portable.unwrap().is_finite());
+
+        let mut y_nan = y;
+        y_nan[1] = f64::NAN;
+        let x_clean = [0.2, -0.1, 0.4, -0.3, 0.1, -0.4, 0.2, -0.1];
+        let scalar_y = partial_correlation_scalar(&x_clean, &y_nan, &[&z], &mut ws);
+        let portable_y = partial_correlation_portable(&x_clean, &y_nan, &[&z], &mut ws);
+        assert_ne!(scalar_y, Some(0.0), "scalar NaN-in-Y must not report r=0");
+        assert_ne!(portable_y, Some(0.0), "portable NaN-in-Y must not report r=0");
+
+        // Y is an affine function of Z → zero Y residual, finite X residual leftover.
+        let y_exact: Vec<f64> = z.iter().map(|&zi| 2.0 * zi + 1.0).collect();
+        let x_var: Vec<f64> = z
+            .iter()
+            .enumerate()
+            .map(|(i, &zi)| zi + ((i % 3) as f64 - 1.0) * 0.5)
+            .collect();
+        assert_eq!(
+            partial_correlation_scalar(&x_var, &y_exact, &[&z], &mut ws),
+            Some(0.0),
+            "scalar: finite exact Y residual ⇒ r=0"
+        );
+        assert_eq!(
+            partial_correlation_portable(&x_var, &y_exact, &[&z], &mut ws),
+            Some(0.0),
+            "portable: finite exact Y residual ⇒ r=0"
+        );
+
+        // Both residuals constant and finite (X and Y both affine in Z).
+        let x_exact: Vec<f64> = z.iter().map(|&zi| -0.5 * zi + 3.0).collect();
+        assert_eq!(
+            partial_correlation_scalar(&x_exact, &y_exact, &[&z], &mut ws),
+            Some(0.0),
+            "scalar: both residuals finite-constant ⇒ r=0"
+        );
+        assert_eq!(
+            partial_correlation_portable(&x_exact, &y_exact, &[&z], &mut ws),
+            Some(0.0),
+            "portable: both residuals finite-constant ⇒ r=0"
+        );
+
+        // Clean finite independent sample still yields a finite correlation.
+        let n = 64usize;
+        let z_ok: Vec<f64> = (0..n).map(|i| (i as f64) * 0.17).collect();
+        let x_ok: Vec<f64> = (0..n).map(|i| ((i * 3) % 7) as f64 - 3.0).collect();
+        let y_ok: Vec<f64> = (0..n).map(|i| ((i * 5) % 11) as f64 - 5.0).collect();
+        let r = partial_correlation_scalar(&x_ok, &y_ok, &[&z_ok], &mut ws);
+        assert!(r.is_some_and(f64::is_finite), "finite independent sample → finite r, got {r:?}");
     }
 }
