@@ -94,7 +94,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 limitations = "Locally measured Type-I calibration only; the upstream oracle errored on this pin, so no external reference value exists."
 owner = "ci"
-notes = "Python discover_pcmci(_plus) accepts weights= when ci=weighted_parcorr."
+notes = "Python discover_pcmci(_plus) accepts weights= when ci=weighted_parcorr; the facade aligns full-series weights to the trailing rows of lagged frames, while the Rust constructor requires one weight per row."
 
 [[capabilities]]
 id = "discovery.ci.robust_partial_corr"
@@ -104,6 +104,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 limitations = "Locally measured Type-I calibration only. Tigramite robust_parcorr reference values exist in conformance/discovery/ci_stats but no test consumes them."
 owner = "ci"
+notes = "Van der Waerden normal scores of the ranks, then partial correlation; block-preserving nulls residualise on Z first."
 
 [[capabilities]]
 id = "discovery.ci.regression"
@@ -151,7 +152,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/discovery/advanced_ci"
 limitations = "Evidence is four reject/accept decisions at alpha 0.05 (conditional and unconditional nonlinear dependence, conditional null, two-conditioner dependence) plus statistic ordering. The fixture records Tigramite 5.2.1.30 reference statistics, but the statistic band (atol 0.35 + rtol 1.0) covers the whole distance-correlation range for every dependent case, so the reference values do not constrain the statistic; this row is not external-oracle parity."
 owner = "ci"
-notes = "Native RBF-GP + distance correlation (product contract; not torch-backed). Seeded permutation null on residual dcorr."
+notes = "Native RBF-GP + distance correlation (product contract; not torch-backed). Seeded permutation null on residual dcorr, keyed by the query. Refuses more than 4000 rows."
 
 [[capabilities]]
 id = "discovery.ci.gsquared"

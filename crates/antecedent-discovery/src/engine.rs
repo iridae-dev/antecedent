@@ -180,10 +180,10 @@ impl PcmciEngine {
                 p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
-            // Multi-query CI batches salt permutation RNGs by batch index. Sequential
-            // `ci_statistic` always used a 1-query batch (salt 0). Keep that salt for
-            // BlockShuffle so parent selection stays bit-identical to sequential; Analytic
-            // ignores the salt and benefits from the batched statistic path.
+            // Permutation nulls are keyed by the query (x, y, sorted Z), not by its position in
+            // a batch, so a batched and a sequential BlockShuffle p-value agree. BlockShuffle
+            // stays on the sequential path here; Analytic benefits from the batched statistic
+            // path.
             let use_batch = frame.is_fully_valid()
                 && !matches!(
                     self.constraints.significance,
@@ -446,6 +446,12 @@ impl PcmciEngine {
             &self.constraints.vector_groups,
             &frame,
             variables,
+        )?;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*ci,
+            self.constraints.significance,
+            self.constraints.alpha,
+            false,
         )?;
         let engine = PcmciEngine { constraints: self.constraints.clone(), ci, column_blocks };
 

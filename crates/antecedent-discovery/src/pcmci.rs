@@ -64,6 +64,12 @@ impl Pcmci {
                  tiebreaking",
             ));
         }
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
+            self.engine.constraints.alpha,
+            self.fdr.is_some(),
+        )?;
         let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
         let alpha = self.engine.constraints.alpha;
 

@@ -13,6 +13,7 @@ implementation_deviations = [
  "Conditional tests stratify on the conditioning set and sum the per-stratum statistic; each stratum's degrees of freedom are (observed X levels - 1)(observed Y levels - 1), so a stratum in which X or Y is constant contributes zero degrees of freedom. A conditional table in which no stratum has positive degrees of freedom is refused rather than reported as independence. This per-stratum rule is not the single Wilks likelihood-ratio reference for a fixed table; it is the pgmpy-style convention.",
  "An optional permutation null (Y codes permuted within strata, or block-permuted when the conditioning set is empty) replaces the chi-square reference; it is not part of the cited Wilks result.",
  "The Tigramite comparison covers unconditional two-way tables only; the stratified conditional statistic used by discovery has no external reference.",
+ "The test refuses sparse contingency tables (an expected cell count below 5) and tables with no positive degrees of freedom instead of reporting a chi-square p-value, and reports no confidence interval for the statistic.",
 ]
 
 upstream_implementations_observed = [
