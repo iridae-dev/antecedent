@@ -185,7 +185,7 @@ impl IdcIdentifier {
                     vec![estimand],
                     arena,
                     derivation,
-                    prepared.declared_assumptions().clone(),
+                    crate::id::with_causal_markov(prepared, "general.idc"),
                     perf,
                 ))
             }
@@ -511,5 +511,36 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn conditional_records_causal_markov() {
+        // IDC's rule-2 reduction and the underlying ID calls both depend on
+        // the Causal Markov condition; it must appear in the returned
+        // assumption set, not just in the unconditional ID path.
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let idc = IdcIdentifier::new();
+        let prep = idc.prepare_dag(&dag).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = idc
+            .identify_conditional(
+                &prep,
+                &[VariableId::from_raw(2)],
+                &[Intervention::set(VariableId::from_raw(1), Value::f64(1.0))],
+                &[VariableId::from_raw(0)],
+                &mut ws,
+            )
+            .unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            res.required_assumptions
+                .entries
+                .iter()
+                .any(|r| matches!(r.assumption, antecedent_core::Assumption::CausalMarkov)),
+            "IDC must record the Causal Markov assumption it relies on"
+        );
     }
 }

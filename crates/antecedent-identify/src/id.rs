@@ -397,7 +397,7 @@ impl IdIdentifier {
             vec![estimand],
             arena,
             derivation,
-            prepared.declared_assumptions().clone(),
+            with_causal_markov(&prepared, "general.id"),
             perf,
         ))
     }
@@ -524,7 +524,7 @@ impl IdIdentifier {
             vec![estimand],
             arena,
             derivation,
-            prepared.declared_assumptions().clone(),
+            with_causal_markov(&prepared, "general.id"),
             perf,
         ))
     }
@@ -573,7 +573,7 @@ impl IdIdentifier {
                     vec![estimand],
                     arena,
                     derivation,
-                    prepared.declared_assumptions().clone(),
+                    with_causal_markov(&prepared, "general.id"),
                     perf,
                 ))
             }
@@ -586,6 +586,16 @@ impl IdIdentifier {
             )),
         }
     }
+}
+
+/// Declared assumptions plus the Causal Markov condition, attributed to
+/// `algorithm`: truncated-factorization / g-formula identification (every
+/// success path of general ID) depends on it, so it belongs alongside
+/// whatever the caller declared on every identified result.
+pub(crate) fn with_causal_markov(prepared: &PreparedAdmg, algorithm: &str) -> AssumptionSet {
+    let mut assumptions = prepared.declared_assumptions().clone();
+    assumptions.push(crate::assumptions::causal_markov(algorithm));
+    assumptions
 }
 
 /// Reject a malformed distribution query before any graph work.
@@ -1314,6 +1324,27 @@ mod tests {
         let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].method_kind().unwrap(), EstimandMethod::GeneralId);
+    }
+
+    #[test]
+    fn general_id_records_causal_markov() {
+        // Truncated-factorization / g-formula identification is only valid
+        // under the Causal Markov condition on the graph; every other
+        // identifier in the crate (backdoor, IV, RD) records its structural
+        // assumptions, and general ID must not be the exception.
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            res.required_assumptions
+                .entries
+                .iter()
+                .any(|r| matches!(r.assumption, antecedent_core::Assumption::CausalMarkov)),
+            "general ID must record the Causal Markov assumption it relies on"
+        );
     }
 
     #[test]
