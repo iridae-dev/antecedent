@@ -2292,8 +2292,10 @@ impl PanelUnitBootstrap {
 /// Units are prepared once; a replicate only restacks and refits. The replicate SD
 /// is scaled by `sqrt(G/(G−1))` (the Arellano finite-sample factor the analytic SE
 /// carries) and by `t_{G−1}/z`, so both SEs read on the same `t_{G−1}` scale. The SE is
-/// withheld unless at least two replicates succeeded and successes outnumber
-/// failures.
+/// withheld unless at least [`super::PERCENTILE_95_BAND_MIN_SUCCESSES`] replicates
+/// succeeded, successes outnumber failures, and the run was not cancelled.
+/// Cancellation is not adaptive early-stop: a cancel after the success floor still
+/// withholds the SE.
 fn panel_unit_bootstrap(
     atoms: &[PanelPulseAtom],
     replicates: u32,
@@ -2353,7 +2355,7 @@ fn panel_unit_bootstrap(
         }
     }
     out.completed = u32::try_from(draws.len()).unwrap_or(u32::MAX);
-    if bootstrap_has_enough_successes(draws.len(), attempted) {
+    if !out.cancelled && bootstrap_has_enough_successes(draws.len(), attempted) {
         let g = units as f64;
         let sd = antecedent_stats::sample_std(&draws);
         let se = sd

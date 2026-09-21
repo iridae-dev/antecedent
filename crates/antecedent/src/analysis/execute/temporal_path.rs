@@ -4600,8 +4600,10 @@ const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation o
 
 /// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
 ///
-/// Matches the estimator bootstrap policy: fewer than two successes or more than half
-/// failed attempts cannot justify a reported interval.
+/// Matches the facade bootstrap licence: fewer than
+/// [`super::PERCENTILE_95_BAND_MIN_SUCCESSES`] successes, more than half failed
+/// attempts, or a cancelled run (even at the success floor) cannot justify a
+/// reported nominal 0.95 interval. Cancellation is not adaptive early-stop.
 fn summarize_observation_bootstrap(
     draws: &[Vec<f64>],
     center: &[f64],
@@ -4618,7 +4620,8 @@ fn summarize_observation_bootstrap(
         cancelled,
         block: None,
     };
-    if !bootstrap_has_enough_successes(completed as usize, attempted as usize)
+    if cancelled
+        || !bootstrap_has_enough_successes(completed as usize, attempted as usize)
         || draws.iter().any(|draw| draw.len() != center.len())
         || center.iter().any(|value| !value.is_finite())
     {
@@ -5383,6 +5386,17 @@ mod observation_bootstrap_tests {
         assert!(!band.upper.is_empty());
         assert_eq!(band.completed, 40);
         assert_eq!(band.attempted, 40);
+    }
+
+    #[test]
+    fn cancelled_at_earned_minimum_withholds_band() {
+        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![i as f64]).collect();
+        let band = summarize_observation_bootstrap(&draws, &[19.5], 40, true);
+        assert!(band.cancelled);
+        assert_eq!(band.completed, 40);
+        assert_eq!(band.attempted, 40);
+        assert!(band.lower.is_empty());
+        assert!(band.upper.is_empty());
     }
 }
 
