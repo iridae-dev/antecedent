@@ -625,4 +625,63 @@ mod tests {
         assert!(!result.path_breakdown.is_empty(), "path_breakdown should be populated");
         assert!(result.total_change.is_finite());
     }
+
+    /// Adversarial fixture: X's law is identical between populations (same 40
+    /// values repeated); only Y's intercept moves by +5. The true change
+    /// decomposition is X = 0, Y = `total_change` — X's mechanism never moved, so
+    /// swapping it between baseline and comparison cannot move the outcome law.
+    /// `PathBased` must not attribute a share of the change to X merely because
+    /// X→Y has a nonzero path coefficient in the (pooled) model used for
+    /// structure.
+    #[test]
+    fn path_based_attributes_only_the_mechanism_that_changed() {
+        let (model, data) = two_period_chain();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::PathBased);
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 400,
+            seed: 7,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        let x_contrib = result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(0))
+            .map_or(0.0, |c| c.contribution);
+        let y_contrib = result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(1))
+            .expect("y component")
+            .contribution;
+        assert!(
+            x_contrib.abs() < 0.25,
+            "X's mechanism did not change; expected ~0, got x={x_contrib} y={y_contrib} \
+             total={}",
+            result.total_change
+        );
+        assert!(
+            (y_contrib - result.total_change).abs() < 0.25,
+            "all of the change is Y's; expected y≈total, got x={x_contrib} y={y_contrib} \
+             total={}",
+            result.total_change
+        );
+        // Efficiency: shares still sum exactly to the measured total change.
+        let sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        assert!(
+            (sum - result.total_change).abs() < 1e-6,
+            "sum={sum} total={}",
+            result.total_change
+        );
+    }
 }
