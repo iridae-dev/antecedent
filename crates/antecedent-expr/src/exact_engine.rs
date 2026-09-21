@@ -1,5 +1,5 @@
 //! Provider-frozen memoized elimination with checked zero-mass extensions.
-use crate::eval::{EvalOp, with_scoped_bindings};
+use crate::eval::{with_scoped_bindings, EvalOp};
 use crate::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, EvalContext, EvalError,
     FactorSpec,
@@ -191,6 +191,12 @@ impl<'a> ExactSession<'a> {
                 Term::Defined(value)
             }
             EvalOp::Ratio { numerator, denominator } => {
+                // Ratio-form conditionals (`P(x,y)/Σ_y P(x,y)`) never hit the
+                // conditional-leaf `sampling_zero` guard. Probe the equivalent
+                // leaf factor first so empty empirical conditioners refuse
+                // here too; structural `zero_conditioning_mass` still falls
+                // through to the zero-mass extension path below.
+                self.refuse_empirical_empty_ratio_conditioner(numerator, denominator, env)?;
                 let num = self.slot(numerator, env)?.required()?;
                 let den = self.slot(denominator, env)?.required()?;
                 denominator_value = Some(den);
@@ -233,6 +239,71 @@ impl<'a> ExactSession<'a> {
         } else {
             self.cache.insert(key, result.clone());
             Ok(result)
+        }
+    }
+
+    /// Apply the conditional-leaf empirical-support guard to `joint / Σ joint`.
+    ///
+    /// Structural `zero_conditioning_mass` is ignored so the Ratio arm can still
+    /// emit an extendable null-event term; every other provider error, including
+    /// `sampling_zero`, refuses.
+    fn refuse_empirical_empty_ratio_conditioner(
+        &self,
+        numerator: usize,
+        denominator: usize,
+        env: &mut Assignment,
+    ) -> Result<(), EvalError> {
+        let EvalOp::SumOut { variables: summed, body } = self.plan.ops[denominator].clone() else {
+            return Ok(());
+        };
+        if body != numerator {
+            return Ok(());
+        }
+        let EvalOp::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        } = self.plan.ops[numerator].clone()
+        else {
+            return Ok(());
+        };
+        if !self.arena.var_set(conditioned_on).is_empty() {
+            return Ok(());
+        }
+        let joint = self.arena.var_set(variables);
+        let outcomes = self.arena.var_set(summed);
+        if !outcomes.iter().all(|v| joint.binary_search(v).is_ok()) {
+            return Ok(());
+        }
+        let conditions: Vec<VariableId> =
+            joint.iter().copied().filter(|v| outcomes.binary_search(v).is_err()).collect();
+        let mut assignments = self.arena.intervention_assignments(intervention).to_vec();
+        for a in &mut assignments {
+            if matches!(a.value, Value::Float64(x) if x.is_nan()) {
+                a.value =
+                    env.get(a.variable).cloned().ok_or(EvalError::MissingBinding(a.variable))?;
+            }
+        }
+        let spec = FactorSpec {
+            variables: outcomes,
+            conditioned_on: &conditions,
+            intervention: &assignments,
+            domain,
+            population: self.arena.population(population),
+            regime,
+        };
+        match with_scoped_bindings(env, assignments.iter().map(|a| a.variable), |env| {
+            for a in &assignments {
+                env.set(a.variable, a.value.clone());
+            }
+            self.provider.probability(&spec, env, &EvalContext::default())
+        }) {
+            Ok(_) => Ok(()),
+            Err(EvalError::ExactLaw(error)) if error.kind == "zero_conditioning_mass" => Ok(()),
+            Err(error) => Err(error),
         }
     }
 }

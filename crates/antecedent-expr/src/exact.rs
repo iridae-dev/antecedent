@@ -688,18 +688,16 @@ mod tests {
         let probabilities = [0.1, 0.2, 0.3, 0.400_000_000_001];
         let table = law("source", &probabilities).unwrap();
         assert_eq!(table.probabilities(), &probabilities);
-        assert!(
-            ExactDiscreteLaw::try_new(
-                "p",
-                RegimeId::from_raw(0),
-                [],
-                [axis(0), axis(0)],
-                [0.25; 4],
-                "s",
-                LawTolerance::default()
-            )
-            .is_err()
-        );
+        assert!(ExactDiscreteLaw::try_new(
+            "p",
+            RegimeId::from_raw(0),
+            [],
+            [axis(0), axis(0)],
+            [0.25; 4],
+            "s",
+            LawTolerance::default()
+        )
+        .is_err());
     }
     #[test]
     fn conditions_and_marginalizes_by_axis_coordinate() {
@@ -762,6 +760,83 @@ mod tests {
         };
         let assignment = Assignment::from_pairs([(v(0), Value::Int64(0)), (v(1), Value::Int64(1))]);
         assert_eq!(data.probability_checked(&spec, &assignment).unwrap_err().kind, "sampling_zero");
+    }
+    fn ratio_form_conditional(arena: &mut crate::CausalExprArena) -> crate::ExprId {
+        let variables = arena.intern_var_set([v(0), v(1)]);
+        let conditioned_on = arena.empty_var_set();
+        let intervention = arena.intern_intervention_set([]);
+        let population = arena.intern_population("target");
+        let joint = arena.intern(crate::ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            population,
+            domain: DomainRef::Observational,
+            regime: Some(RegimeId::from_raw(0)),
+        });
+        let summed = arena.intern_var_set([v(1)]);
+        let marginal = arena.intern(crate::ExprNode::SumOut { variables: summed, expr: joint });
+        arena.intern(crate::ExprNode::Ratio { numerator: joint, denominator: marginal })
+    }
+    #[test]
+    fn ratio_form_empirical_empty_conditioner_is_sampling_zero() {
+        // X=0 never appears in the sample, but the query binds it — a DGP that
+        // cannot produce the empty cell would not earn this claim.
+        let table = ExactDiscreteLaw::try_empirical(
+            "target",
+            RegimeId::from_raw(0),
+            [],
+            [axis(0), axis(1)],
+            [0.0, 0.0, 0.3, 0.7],
+            "snapshot",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([table], 16).unwrap();
+        let mut arena = crate::CausalExprArena::new();
+        let root = ratio_form_conditional(&mut arena);
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let plan = crate::ExactEvaluationPlan::compile(
+            &arena,
+            root,
+            data,
+            [v(1)],
+            Assignment::from_pairs([(v(0), Value::Int64(0))]),
+            crate::ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap();
+        let EvalError::ExactLaw(error) = plan.evaluate(&ctx).unwrap_err() else {
+            panic!("ratio-form empty empirical conditioner must be sampling_zero");
+        };
+        assert_eq!(error.kind, "sampling_zero");
+    }
+    #[test]
+    fn ratio_form_positive_learned_probabilities_do_not_authorize_empty_empirical_conditioners() {
+        let predicted = law("target", &[0.25, 0.25, 0.25, 0.25])
+            .unwrap()
+            .with_empirical_counts(vec![0, 0, 3, 7])
+            .unwrap();
+        let data = ExactTransportData::try_new([predicted], 16).unwrap();
+        let mut arena = crate::CausalExprArena::new();
+        let root = ratio_form_conditional(&mut arena);
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let plan = crate::ExactEvaluationPlan::compile(
+            &arena,
+            root,
+            data,
+            [v(1)],
+            Assignment::from_pairs([(v(0), Value::Int64(0))]),
+            crate::ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap();
+        let EvalError::ExactLaw(error) = plan.evaluate(&ctx).unwrap_err() else {
+            panic!("ratio-form empty empirical conditioner must be sampling_zero");
+        };
+        assert_eq!(error.kind, "sampling_zero");
     }
     #[test]
     fn locates_zero_condition_and_preserves_structural_zeros() {
