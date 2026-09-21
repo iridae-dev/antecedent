@@ -37,7 +37,7 @@ id = "attribution.mechanism_change_detection"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/attribution/mechanism_change_detect"
-limitations = "Qualitative detection truth (which mechanism changed), not a numeric magnitude."
+limitations = "Qualitative detection truth (which mechanism changed), not a numeric magnitude. Baseline and comparison populations each need at least 10 rows (refused otherwise); the baseline is cross-fit (k-fold) so both residual samples are out-of-sample, matching the comparison side and avoiding anti-conservative Type-I inflation under a covariate shift with no mechanism change."
 python_facade = "full"
 notes = "Detection separate from attribution (LR / mean-diff / classifier proxy); antecedent.attribution.mechanism_change_detection"
 
@@ -46,7 +46,7 @@ id = "attribution.mechanism_change_kernel"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/attribution/mechanism_change_kernel_shift"
-limitations = "Qualitative detection truth, not a numeric magnitude."
+limitations = "Qualitative detection truth, not a numeric magnitude. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection."
 notes = "MMD² RBF kernel two-sample on residuals"
 
 [[capabilities]]
@@ -54,7 +54,7 @@ id = "attribution.mechanism_change_change_point"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/attribution/mechanism_change_change_point"
-limitations = "Qualitative detection truth, not a numeric magnitude."
+limitations = "Qualitative detection truth, not a numeric magnitude. Same minimum-population-size and cross-fitted-baseline caveats as attribution.mechanism_change_detection; a comparison (or baseline) segment with no measured variation is refused rather than reported as a p=0 certainty."
 notes = "Known-split Gaussian change-point on concatenated residuals"
 
 [[capabilities]]
