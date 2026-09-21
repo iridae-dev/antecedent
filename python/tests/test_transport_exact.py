@@ -188,6 +188,43 @@ def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     assert prepared.refresh(data) == result
 
 
+def test_changed_evidence_contract_cannot_use_stale_preparation():
+    from antecedent import prepare
+
+    identified, catalog, data = fixture()
+    prepared = prepare(data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}))
+    result = prepared.estimate()
+    before = prepared.inspect()
+    # The same regime name now denotes an experiment on x; its law is a different object.
+    experimental = replace(
+        catalog,
+        regimes=(
+            transport.EvidenceRegime(
+                "obs", "target", kind="experimental", interventions=["x"], measured=["y"]
+            ),
+        ),
+    )
+    world = transport.ExactTransportData(
+        (
+            transport.ExactDiscreteLaw(
+                "target",
+                "obs",
+                (("y", (0.0, 1.0)),),
+                (0.3, 0.7),
+                "snapshot-1",
+                interventions=(("x", 1.0),),
+            ),
+        )
+    )
+    with pytest.raises(ValueError, match="evidence regime"):
+        prepared.refresh(world)
+    assert prepared.inspect().execution_id == before.execution_id
+    assert prepared.refresh(data) == result
+    # The old identification does not bind under the changed contract either.
+    with pytest.raises(ValueError, match="missing_evidence"):
+        prepare(world, query=transport.ExactTransportQuery(identified, experimental, {"x": 1.0}))
+
+
 def test_catalog_standardization_uses_only_supplied_target_covariate_marginal():
     graph = Admg.from_edges(["z", "x", "y"], [("z", "x"), ("z", "y"), ("x", "y")], [("x", "y")])
     identified = transport.identify_classical(

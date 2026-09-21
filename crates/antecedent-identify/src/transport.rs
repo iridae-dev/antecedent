@@ -834,6 +834,27 @@ mod tests {
     }
 
     #[test]
+    fn post_treatment_selected_mediator_is_never_a_standardizer() {
+        // X -> M -> Y with M's mechanism varying. Σ_m P_trial(y | do(x), m) P_target(m) is
+        // wrong: the target's observational law of M is not its law under do(x).
+        let (x, m, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(dense(x), dense(m)).unwrap();
+        graph.insert_directed(dense(m), dense(y)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [m]).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
+        let TransportIdentification::Transportable { formula, certificate } = &result else {
+            panic!("singleton districts identify this diagram: {result:?}");
+        };
+        assert_eq!(&*certificate.rule, "transport.sid.singleton_c_components");
+        let TransportFormula::RecursiveFactorization { factors, .. } = formula else {
+            panic!("a post-treatment selection target must not be standardized over: {formula:?}");
+        };
+        let mediator = factors.iter().find(|f| f.variables.contains(&m)).unwrap();
+        assert_eq!(&*mediator.population, "target");
+    }
+
+    #[test]
     fn multi_node_district_returns_scoped_negative_certificate() {
         let mut graph = Admg::with_variables(3);
         graph
