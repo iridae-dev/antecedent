@@ -25,7 +25,7 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 ///
 /// # Errors
 ///
-/// Size limits, abduction, or Shapley failures.
+/// Size limits, out-of-range `unit_rows`, abduction, or Shapley failures.
 pub fn unit_change(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -38,6 +38,15 @@ pub fn unit_change(
         Some(r) => r.to_vec(),
         None => (0..n_all).collect(),
     };
+    for &row in &rows {
+        if row >= n_all {
+            return Err(AttributionError::PopulationOutOfRange {
+                kind: "row",
+                index: row,
+                limit: n_all,
+            });
+        }
+    }
     if rows.len() > query.max_units {
         return Err(AttributionError::SizeLimit {
             kind: "units",
@@ -254,5 +263,58 @@ mod tests {
             assert!((actual - expected).abs() < 1e-10, "actual={actual} expected={expected}");
         }
         assert!((result.mean_contributions[0] - fixture.unit_case.mean_contribution).abs() < 1e-10);
+    }
+
+    /// `unit_rows` equal to `n` (first past the last valid index) must be a typed
+    /// [`AttributionError::PopulationOutOfRange`], never a panic on column index.
+    #[test]
+    fn unit_change_rejects_out_of_range_unit_row() {
+        let n = 8usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let yv: Vec<f64> = xv.iter().map(|x| 2.0 * x).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        // Bounds check runs before abduction / Shapley; an unfitted model is enough.
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let q = UnitChangeQuery::new(VariableId::from_raw(1), 20)
+            .with_unit_rows([n])
+            .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let err = unit_change(&model, &data, &q, &ExecutionContext::for_tests(1)).unwrap_err();
+        assert_eq!(
+            err,
+            AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n }
+        );
     }
 }

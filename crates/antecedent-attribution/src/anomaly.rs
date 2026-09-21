@@ -136,7 +136,7 @@ pub struct AnomalyScores {
 ///
 /// # Errors
 ///
-/// Size limit or data/model failures.
+/// Size limit, out-of-range `unit_rows`, or data/model failures.
 pub fn score_anomalies(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -148,6 +148,15 @@ pub fn score_anomalies(
         Some(r) => r.to_vec(),
         None => (0..n).collect(),
     };
+    for &row in &rows {
+        if row >= n {
+            return Err(AttributionError::PopulationOutOfRange {
+                kind: "row",
+                index: row,
+                limit: n,
+            });
+        }
+    }
     if rows.len() > query.max_units {
         return Err(AttributionError::SizeLimit {
             kind: "units",
@@ -541,6 +550,20 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         (compiled.with_mechanisms(store), data)
+    }
+
+    /// `unit_rows` equal to `n` must be [`AttributionError::PopulationOutOfRange`],
+    /// not a panic on `y_all[row]` / exo indexing.
+    #[test]
+    fn score_anomalies_rejects_out_of_range_unit_row() {
+        let n = 12usize;
+        let (model, data) = scaled_anomaly_fixture(n, 1.0);
+        let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100).with_unit_rows([n]);
+        let err = score_anomalies(&model, &data, &q).unwrap_err();
+        assert_eq!(
+            err,
+            AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n }
+        );
     }
 
     /// The IT score must be invariant to the target's scale.

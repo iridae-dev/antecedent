@@ -429,6 +429,13 @@ fn map_attr(e: AttributionError) -> CausalError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_core::{
+        AllocationMethod, CausalSchemaBuilder, MeasurementSpec, RoleHint, ShapleyConfig,
+        SmallRoleSet, ValueType,
+    };
+    use antecedent_data::column::{Float64Column, ValidityBitmap};
+    use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
+    use antecedent_graph::DenseNodeId;
 
     /// A mechanism that still does not converge is a reason-coded refusal naming
     /// the remedy, never a raw deviance in a compile error; every other fit
@@ -449,5 +456,78 @@ mod tests {
 
         let numerical = map_mechanism_fit(ModelError::Numerical { message: "sigma".into() });
         assert!(matches!(numerical, CausalError::Model(ModelError::Numerical { .. })));
+    }
+
+    fn chain_xy(n: usize) -> (CompiledCausalModel, TabularData) {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let yv: Vec<f64> = xv.iter().map(|x| 1.0 + 2.0 * x).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        (fit_gcm(g, &data).unwrap().model, data)
+    }
+
+    /// Facade must surface a typed out-of-range `unit_rows` error (row == n), not panic.
+    #[test]
+    fn attribute_unit_change_rejects_out_of_range_unit_row() {
+        let n = 10usize;
+        let (model, data) = chain_xy(n);
+        let q = UnitChangeQuery::new(VariableId::from_raw(1), 20)
+            .with_unit_rows([n])
+            .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let err = attribute_unit_change(&model, &data, &q, &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            CausalError::Attribution(AttributionError::PopulationOutOfRange {
+                kind: "row",
+                index,
+                limit,
+            }) if index == n && limit == n
+        ));
+    }
+
+    /// Facade `score_anomalies` must likewise refuse row == n as typed error.
+    #[test]
+    fn score_anomalies_rejects_out_of_range_unit_row_through_facade() {
+        let n = 10usize;
+        let (model, data) = chain_xy(n);
+        let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100).with_unit_rows([n]);
+        let err = score_anomalies(&model, &data, &q).unwrap_err();
+        assert_eq!(
+            err,
+            AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n }
+        );
     }
 }
