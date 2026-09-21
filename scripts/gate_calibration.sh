@@ -49,7 +49,7 @@ done
 grid_group() {
   case "$1" in
     "antecedent-estimate: bayesian_"*) return 1 ;;
-    antecedent-estimate:*|v19_*|v110_*) return 0 ;;
+    antecedent-estimate:*|v19_*|v110_*|v20_*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -512,6 +512,19 @@ run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_defaul
 run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
 run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
 run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
+
+echo "== 2.0 statistical transport: empirical-table IID bootstrap (antecedent) =="
+run_v20() {
+  local filter="$1"
+  echo "== antecedent: v20_transport_statistical_calibration ${filter} =="
+  check "v20_transport_statistical_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v20_transport_statistical_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_v20 shared_factor_target_observational_nominal_coverage
+run_v20 source_target_imbalance_standardize_nominal_coverage
+run_v20 recursive_frontdoor_nominal_coverage
+run_v20 weak_overlap_near_empty_conditioner_boundary
 
 echo "== 0.5.0 response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh
