@@ -135,6 +135,10 @@ impl CausalForest {
             ));
         }
         let n = problem.nrows;
+        // Trees index rows as `u32`; a larger table would wrap subsample indices.
+        if u32::try_from(n).is_err() {
+            return Err(EstimationError::data_msg("CausalForest rows exceed u32 index capacity"));
+        }
         if n < self.min_leaf.saturating_mul(2) {
             return Err(EstimationError::data_msg(
                 "CausalForest needs more complete-case rows than 2 × min_leaf",

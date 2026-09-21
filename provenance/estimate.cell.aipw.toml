@@ -13,7 +13,7 @@ papers = [
 implementation_deviations = [
  "Restricted to at most three jointly intervened binary treatments (eight cells). A continuous coordinate is refused; coarsening a continuous factor onto a grid is not treated as do(D=d0).",
  "Nuisances are a multinomial-logit propensity over the occupied cells and a per-cell GLM outcome, not the arbitrary ML learners the DML analysis admits.",
- "Cross-fitting uses a fixed five folds. Empty cells required by a requested contrast, or a fold that misses a cell present in the data, refuse rather than impute.",
+ "Cross-fitting uses a fixed five folds from a seeded, cell-stratified, unit-level fold plan. Empty cells required by a requested contrast, a fold that misses a cell present in the data, or a training cell with no more rows than design columns (no residual degrees of freedom for its outcome model) refuse rather than impute. With no propensity clip, a cell propensity of exactly zero refuses instead of being floored.",
  "Licensed contrasts are cell means and cell-minus-control; a named interaction contrast is identified only for the mean functional, not for exceedance grids.",
 ]
 

@@ -296,21 +296,30 @@ pub(crate) fn stratified_ate(
     target: &TargetPopulation,
 ) -> Result<StratifiedResult, EstimationError> {
     let mut sum1 = vec![0.0; n_strata];
-    let mut sq1 = vec![0.0; n_strata];
     let mut cnt1 = vec![0usize; n_strata];
     let mut sum0 = vec![0.0; n_strata];
-    let mut sq0 = vec![0.0; n_strata];
     let mut cnt0 = vec![0usize; n_strata];
     for i in 0..treatment.len() {
         let s = stratum[i];
         if treatment[i] > 0.5 {
             sum1[s] += outcome[i];
-            sq1[s] += outcome[i] * outcome[i];
             cnt1[s] += 1;
         } else {
             sum0[s] += outcome[i];
-            sq0[s] += outcome[i] * outcome[i];
             cnt0[s] += 1;
+        }
+    }
+    // Second pass: centred sums of squares. `Σy² − n·ȳ²` cancels catastrophically when the
+    // outcome's mean dwarfs its spread (relative error ≈ ε·(ȳ/s)²), then the `max(0)` would
+    // hide the negative result as a zero variance.
+    let mut ss1 = vec![0.0; n_strata];
+    let mut ss0 = vec![0.0; n_strata];
+    for i in 0..treatment.len() {
+        let s = stratum[i];
+        if treatment[i] > 0.5 {
+            ss1[s] += (outcome[i] - sum1[s] / cnt1[s] as f64).powi(2);
+        } else {
+            ss0[s] += (outcome[i] - sum0[s] / cnt0[s] as f64).powi(2);
         }
     }
     let mut diffs = Vec::new();
@@ -329,8 +338,8 @@ pub(crate) fn stratified_ate(
         let n0 = cnt0[s] as f64;
         let mean1 = sum1[s] / n1;
         let mean0 = sum0[s] / n0;
-        let var1 = sample_variance_from_moments(sq1[s], mean1, cnt1[s]);
-        let var0 = sample_variance_from_moments(sq0[s], mean0, cnt0[s]);
+        let var1 = ss1[s] / (n1 - 1.0);
+        let var0 = ss0[s] / (n0 - 1.0);
         let w = match target {
             TargetPopulation::Treated => n1,
             TargetPopulation::Untreated => n0,
@@ -352,13 +361,6 @@ pub(crate) fn stratified_ate(
     Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction, n_obs: retained_n })
 }
 
-/// Unbiased sample variance from `Σy²`, the mean, and a count of at least two.
-fn sample_variance_from_moments(sum_sq: f64, mean: f64, count: usize) -> f64 {
-    debug_assert!(count >= 2);
-    let n = count as f64;
-    ((sum_sq - n * mean * mean) / (n - 1.0)).max(0.0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,6 +378,22 @@ mod tests {
             Err(err) => err,
         };
         assert!(matches!(err, EstimationError::Data(_)));
+    }
+
+    #[test]
+    fn stratification_variance_survives_a_large_outcome_offset() {
+        // Each arm's outcomes are 1e8 ± 0.1: sample variance 0.02, so
+        // SE² = 0.02/2 + 0.02/2. Raw second moments (Σy² ≈ 2e16, ulp 4) cannot resolve it.
+        let result = stratified_ate(
+            &[1.0, 1.0, 0.0, 0.0],
+            &[1e8 + 0.1, 1e8 - 0.1, 1e8 + 0.1, 1e8 - 0.1],
+            &[0, 0, 0, 0],
+            1,
+            &TargetPopulation::AllObserved,
+        )
+        .unwrap();
+        assert!(result.ate.abs() < 1e-7);
+        assert!((result.se_analytic - 0.02_f64.sqrt()).abs() < 1e-6, "se {}", result.se_analytic);
     }
 
     #[test]

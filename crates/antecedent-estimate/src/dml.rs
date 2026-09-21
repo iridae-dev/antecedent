@@ -58,7 +58,7 @@ impl DmlScore {
 /// Cross-fitted DML / AIPW average-treatment-effect estimator.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DmlAte {
-    /// Cross-fit folds (`i % folds` on complete-case rows).
+    /// Cross-fit folds (seeded, arm-stratified plan over the distinct units).
     pub folds: usize,
     /// Outcome nuisance spec.
     pub outcome: LearnerSpec,

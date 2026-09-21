@@ -62,6 +62,29 @@ pub struct LassoFit {
     pub diagnostics: FitDiagnostics,
 }
 
+/// `(XᵀX + λP)⁻¹` (row-major) for the ridge penalty `P = I`, with a leading constant column
+/// left unpenalized. It is both the ridge solve's matrix and the bread of the ridge
+/// estimator's sampling variance `A⁻¹ XᵀΣX A⁻¹` (`A` is not `XᵀX`, so an OLS bread misstates
+/// it). `None` when the penalized Gram matrix is singular.
+#[must_use]
+pub fn ridge_gram_inverse(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    lambda: f64,
+) -> Option<Vec<f64>> {
+    let mut xtx = vec![0.0; ncols * ncols];
+    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
+    let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
+    for c in 0..ncols {
+        if c == 0 && unpenalize0 {
+            continue;
+        }
+        xtx[c * ncols + c] += lambda;
+    }
+    invert_square(&xtx, ncols)
+}
+
 /// Ridge regression: solve `(XᵀX + λ I)β = Xᵀy`, leaving a constant intercept column unpenalized.
 ///
 /// # Errors
@@ -86,15 +109,6 @@ pub fn fit_ridge(
         return Err(StatsError::Shape { message: "ridge lambda must be finite and ≥ 0" });
     }
 
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let unpenalize0 = col_is_constant(x_colmajor, nrows, 0);
-    for c in 0..ncols {
-        if c == 0 && unpenalize0 {
-            continue;
-        }
-        xtx[c * ncols + c] += lambda;
-    }
     let mut xty = vec![0.0; ncols];
     for c in 0..ncols {
         let mut s = 0.0;
@@ -103,7 +117,7 @@ pub fn fit_ridge(
         }
         xty[c] = s;
     }
-    let Some(inv) = invert_square(&xtx, ncols) else {
+    let Some(inv) = ridge_gram_inverse(x_colmajor, nrows, ncols, lambda) else {
         return Err(StatsError::Backend("ridge: singular X'X+λI".into()));
     };
     let mut coefficients = vec![0.0; ncols];

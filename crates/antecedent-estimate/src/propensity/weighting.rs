@@ -387,8 +387,9 @@ pub(crate) fn hajek_influence_se(
     }
 
     if let Some(p) = propensity {
-        let mut information = vec![0.0; ncols * ncols];
-        let mut derivative = vec![0.0; ncols];
+        let mut score_mult = vec![0.0; n];
+        let mut information_weight = vec![0.0; n];
+        let mut derivative_weight = vec![0.0; n];
         for i in 0..n {
             let e = p.scores[i];
             let clipped = p.clip.is_some_and(|c| e <= c || e >= 1.0 - c);
@@ -403,21 +404,19 @@ pub(crate) fn hajek_influence_se(
                     (IpwTarget::Atc, true) => -1.0,
                 }
             };
-            for c in 0..ncols {
-                let xc = p.design[c * n + i];
-                derivative[c] += psi[i] * log_weight_derivative * xc / nf;
-                for d in 0..ncols {
-                    information[c * ncols + d] += e * (1.0 - e) * xc * p.design[d * n + i] / nf;
-                }
-            }
+            score_mult[i] = treatment[i] - e;
+            information_weight[i] = e * (1.0 - e);
+            derivative_weight[i] = psi[i] * log_weight_derivative;
         }
-        let Some(alpha) = solve_symmetric_posdef(&mut information, &mut derivative, ncols) else {
-            return Err(EstimationError::stats_msg("singular logistic information in Hajek SE"));
-        };
-        for i in 0..n {
-            let adjustment = (0..ncols).map(|c| p.design[c * n + i] * alpha[c]).sum::<f64>();
-            psi[i] += adjustment * (treatment[i] - p.scores[i]);
-        }
+        crate::se::add_nuisance_correction(
+            &mut psi,
+            p.design,
+            ncols,
+            &score_mult,
+            &information_weight,
+            &derivative_weight,
+            "singular logistic information in Hajek SE",
+        )?;
     }
 
     let mean = psi.iter().sum::<f64>() / nf;

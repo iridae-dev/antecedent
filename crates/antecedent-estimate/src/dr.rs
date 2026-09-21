@@ -10,7 +10,7 @@ use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Targe
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, RidgeSpec};
-use antecedent_stats::{form_xtx, invert_square};
+use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -22,7 +22,7 @@ use crate::overlap::OverlapPolicy;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
     PreparedPropensityProblem, clip_of, default_propensity_overlap,
-    prepare_propensity_problem_with_registry,
+    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
 };
 
 /// Cross-fitted DR-Learner: CATE from a final-stage regression on the DR score.
@@ -157,8 +157,30 @@ impl DrLearner {
             problem.nrows,
             problem.design_ncols,
         )?;
+        // The reported ATE averages the common-support rows only, so the CATE regression is
+        // fitted on those rows too; trimmed extreme-weight rows would otherwise dominate the
+        // final stage while being excluded from the estimand.
+        let retained = trim_retained_rows(raw_e, trim_of(problem.overlap))?;
+        let retained_u32: Option<Vec<u32>> = retained
+            .as_ref()
+            .map(|rows| {
+                rows.iter()
+                    .map(|&i| {
+                        u32::try_from(i).map_err(|_| {
+                            EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                        })
+                    })
+                    .collect::<Result<Vec<u32>, _>>()
+            })
+            .transpose()?;
+        let fit_view = match &retained_u32 {
+            Some(rows) => {
+                view.with_rows(antecedent_learn::RowSelection::new(rows)).map_err(learn_err)?
+            }
+            None => view,
+        };
         let fitted = factory
-            .fit(view, antecedent_learn::TargetView::new(&phi), None, ctx)
+            .fit(fit_view, antecedent_learn::TargetView::new(&phi), None, ctx)
             .map_err(learn_err)?;
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
@@ -180,7 +202,13 @@ impl DrLearner {
             raw_e.clone(),
         )?
         .with_cate(Some(Arc::from(cate.clone())))
-        .with_cate_se(linear_cate_pointwise_se(self.final_learner, view, &phi, &cate));
+        .with_cate_se(linear_cate_pointwise_se(
+            self.final_learner,
+            view,
+            &phi,
+            &cate,
+            retained.as_deref(),
+        ));
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
         effect.learner_provenance = treat.model_provenance.clone();
@@ -205,14 +233,17 @@ impl DrLearner {
 
 /// HC0 sandwich SEs for a linear CATE regression of orthogonal scores.
 ///
-/// Cross-fitting plus Neyman orthogonality of φ makes first-stage estimation
-/// second-order. Penalized or nonlinear finals are not this OLS map, so they
-/// return `None` instead of an invented interval.
+/// The regression uses `rows` (the retained common-support rows; all rows when `None`) and the
+/// covariance is the stats crate's HC0 `(XᵀX)⁻¹ Σ e² x xᵀ (XᵀX)⁻¹`, evaluated at every row's
+/// features. Cross-fitting plus Neyman orthogonality of φ makes first-stage estimation
+/// second-order. Penalized or nonlinear finals are not this OLS map, so they return `None`
+/// instead of an invented interval.
 fn linear_cate_pointwise_se(
     spec: LearnerSpec,
     x: antecedent_learn::DesignView<'_>,
     phi: &[f64],
     cate: &[f64],
+    rows: Option<&[usize]>,
 ) -> Option<Arc<[f64]>> {
     if !matches!(spec, LearnerSpec::Linear(_)) {
         return None;
@@ -228,39 +259,23 @@ fn linear_cate_pointwise_se(
             design[c * n + r] = x.get(r, c).ok()?;
         }
     }
-    let mut xtx = vec![0.0; p.saturating_mul(p)];
-    form_xtx(&design, n, p, &mut xtx);
-    let inv = invert_square(&xtx, p)?;
-    let mut meat = vec![0.0; p.saturating_mul(p)];
-    for i in 0..n {
-        let e2 = (phi[i] - cate[i]).powi(2);
-        for j in 0..p {
-            let xj = design[j * n + i];
-            for k in 0..p {
-                meat[j * p + k] += xj * design[k * n + i] * e2;
-            }
+    let all_rows: Vec<usize>;
+    let used: &[usize] = match rows {
+        Some(rows) => rows,
+        None => {
+            all_rows = (0..n).collect();
+            &all_rows
+        }
+    };
+    let m = used.len();
+    let mut sub = vec![0.0; m * p];
+    for c in 0..p {
+        for (k, &r) in used.iter().enumerate() {
+            sub[c * m + k] = design[c * n + r];
         }
     }
-    let mut tmp = vec![0.0; p.saturating_mul(p)];
-    for i in 0..p {
-        for j in 0..p {
-            let mut s = 0.0;
-            for k in 0..p {
-                s += inv[i * p + k] * meat[k * p + j];
-            }
-            tmp[i * p + j] = s;
-        }
-    }
-    let mut cov = vec![0.0; p.saturating_mul(p)];
-    for i in 0..p {
-        for j in 0..p {
-            let mut s = 0.0;
-            for k in 0..p {
-                s += tmp[i * p + k] * inv[k * p + j];
-            }
-            cov[i * p + j] = s;
-        }
-    }
+    let residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
+    let cov = coefficient_covariance(&sub, m, p, &residuals, SandwichKind::Hc0).ok()?;
     let mut se = vec![0.0; n];
     for i in 0..n {
         let mut v = 0.0;
@@ -415,5 +430,58 @@ mod tests {
         let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
         assert!(effect.cate.is_some());
         assert!(effect.cate_se.is_none());
+    }
+
+    #[test]
+    fn linear_cate_se_is_hc0_on_the_retained_rows() {
+        // Design [1 | z] on 6 rows; the regression uses rows 1..=4 only. With the hand-coded
+        // 2×2 sandwich `(XᵀX)⁻¹ Σ e² x xᵀ (XᵀX)⁻¹` on those rows, SE(x) = √(xᵀ V x).
+        let z = [9.0, 0.0, 1.0, 2.0, 3.0, -7.0];
+        let mut design = vec![1.0; 6];
+        design.extend_from_slice(&z);
+        let view = antecedent_learn::DesignView::from_column_major(&design, 6, 2).unwrap();
+        let phi = [50.0, 1.0, 2.5, 2.0, 4.5, -40.0];
+        // OLS of φ on [1, z] over rows 1..=4: z̄ = 1.5, φ̄ = 2.5, Sxx = 5, Sxy = 5.
+        let slope = 5.0 / 5.0;
+        let intercept = 2.5 - slope * 1.5;
+        let cate: Vec<f64> = z.iter().map(|zi| intercept + slope * zi).collect();
+        let rows = [1usize, 2, 3, 4];
+        let se = linear_cate_pointwise_se(
+            LearnerSpec::Linear(LinearSpec::default()),
+            view,
+            &phi,
+            &cate,
+            Some(&rows),
+        )
+        .unwrap();
+        // XᵀX = [[4, 6], [6, 14]], inverse = 1/20 · [[14, −6], [−6, 4]].
+        let inv = [[0.7, -0.3], [-0.3, 0.2]];
+        let mut meat = [[0.0; 2]; 2];
+        for &r in &rows {
+            let e2 = (phi[r] - cate[r]).powi(2);
+            let x = [1.0, z[r]];
+            for a in 0..2 {
+                for b in 0..2 {
+                    meat[a][b] += e2 * x[a] * x[b];
+                }
+            }
+        }
+        let mut tmp = [[0.0; 2]; 2];
+        let mut v = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                tmp[a][b] = (0..2).map(|k| inv[a][k] * meat[k][b]).sum();
+            }
+        }
+        for a in 0..2 {
+            for b in 0..2 {
+                v[a][b] = (0..2).map(|k| tmp[a][k] * inv[k][b]).sum();
+            }
+        }
+        for (i, &zi) in z.iter().enumerate() {
+            let x = [1.0, zi];
+            let var: f64 = (0..2).map(|a| (0..2).map(|b| x[a] * v[a][b] * x[b]).sum::<f64>()).sum();
+            assert!((se[i] - var.sqrt()).abs() < 1e-10, "row {i}: {} vs {}", se[i], var.sqrt());
+        }
     }
 }

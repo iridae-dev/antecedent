@@ -10,6 +10,11 @@ use antecedent_core::TargetPopulation;
 
 use crate::error::EstimationError;
 
+/// Library-default propensity clip: propensities are clamped into `[0.01, 0.99]` unless a
+/// policy says otherwise. Also the reference bound of the weighted-support gate, which asks how
+/// much target mass sits where a default fit would have re-weighted.
+pub const DEFAULT_PROPENSITY_CLIP: f64 = 0.01;
+
 /// Overlap / positivity handling.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverlapPolicy {
@@ -29,6 +34,29 @@ impl OverlapPolicy {
     #[must_use]
     pub const fn require_diagnostics() -> Self {
         Self::RequireDiagnostics { clip: None, trim: None }
+    }
+
+    /// Check that clip / trim thresholds lie in `(0, 0.5)`.
+    ///
+    /// A threshold at or above one half makes `clamp(clip, 1 − clip)` an empty interval, and
+    /// a non-finite one poisons every comparison, so both are refused before any fit.
+    ///
+    /// # Errors
+    ///
+    /// A threshold outside `(0, 0.5)` or not finite.
+    pub fn validate(self) -> Result<(), EstimationError> {
+        if let Self::RequireDiagnostics { clip, trim } = self {
+            for (name, bound) in [("clip", clip), ("trim", trim)] {
+                if let Some(v) = bound {
+                    if !(v.is_finite() && v > 0.0 && v < 0.5) {
+                        return Err(EstimationError::data_msg(format!(
+                            "overlap {name} must lie in (0, 0.5), got {v}"
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -479,5 +507,19 @@ mod tests {
         let bare = observed_ipw_weights(&t, &e, IpwTarget::Custom, clip, None);
         let (ess_bare, _) = weight_summary(&bare);
         assert!((ess_bare - ess_prod).abs() > 1e-6);
+    }
+
+    #[test]
+    fn overlap_thresholds_outside_the_open_half_interval_are_refused() {
+        assert!(OverlapPolicy::require_diagnostics().validate().is_ok());
+        assert!(OverlapPolicy::ExplicitOverride.validate().is_ok());
+        let ok = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.49) };
+        assert!(ok.validate().is_ok());
+        for bad in [0.0, 0.5, 0.6, -0.1, f64::NAN, f64::INFINITY] {
+            let clip = OverlapPolicy::RequireDiagnostics { clip: Some(bad), trim: None };
+            let trim = OverlapPolicy::RequireDiagnostics { clip: None, trim: Some(bad) };
+            assert!(clip.validate().is_err(), "clip {bad}");
+            assert!(trim.validate().is_err(), "trim {bad}");
+        }
     }
 }

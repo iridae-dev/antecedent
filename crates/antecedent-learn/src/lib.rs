@@ -34,7 +34,10 @@ pub mod transform;
 
 pub use auto::resolve_auto;
 pub use crossfit::cross_fit_selected;
-pub use crossfit::{CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, diagnose};
+pub use crossfit::{
+    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, cross_fit_with_folds,
+    diagnose,
+};
 pub use design::{
     DenseDesign, DesignStorage, DesignView, Layout, RowSelection, SparseDesignView, TargetView,
 };

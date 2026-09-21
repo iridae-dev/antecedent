@@ -20,7 +20,7 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
     LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
-    form_xtx, invert_square, predict_lasso,
+    form_xtx, invert_square, predict_lasso, ridge_gram_inverse,
 };
 
 use crate::error::EstimationError;
@@ -28,7 +28,7 @@ use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::prepare::{
     require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
 };
-use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
+use crate::se::{AnalyticSeKind, residual_sandwich_coef_se, score_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -503,6 +503,10 @@ pub enum LinearFitKind {
     /// Ordinary least squares.
     Ols,
     /// Ridge with penalty `lambda` (intercept unpenalized when constant).
+    ///
+    /// The treatment coefficient is penalized, so the point estimate is shrunk and an
+    /// interval around it has no bias term: no analytic SE is published (`se_analytic` is
+    /// NaN); use bootstrap. The exported influence function is the ridge one.
     Ridge {
         /// Ridge penalty λ.
         lambda: f64,
@@ -517,6 +521,9 @@ pub enum LinearFitKind {
         lambda: f64,
     },
     /// Huber M-estimation with tuning constant `c`.
+    ///
+    /// Analytic SE is the M-estimator's sandwich (Huber 1981), not the OLS formula on Huber
+    /// residuals. The MAD scale is treated as known.
     Huber {
         /// Huber tuning constant (default 1.345).
         c: f64,
@@ -585,7 +592,8 @@ impl LinearAdjustmentAte {
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
-    /// (`NaN` when [`Self::with_fit_kind`] is [`LinearFitKind::Lasso`]).
+    /// (`NaN` when [`Self::with_fit_kind`] is [`LinearFitKind::Lasso`] or
+    /// [`LinearFitKind::Ridge`]).
     #[must_use]
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
         self.bootstrap_replicates = replicates;
@@ -741,55 +749,130 @@ impl LinearAdjustmentAte {
         workspace: &mut EstimationWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let (coefficients, residuals, rss, analytic_se_ok) =
-            self.fit_coefficients(problem, workspace)?;
+        let fit = self.fit_coefficients(problem, workspace)?;
         let t_col = problem
             .design
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-        let ate = gcomp_or_coef_ate(problem, &coefficients, t_col)?;
+        let ate = gcomp_or_coef_ate(problem, &fit.coefficients, t_col)?;
         let nrows = problem.design.nrows;
-        let ncols = problem.design.ncols;
-        let n = nrows as f64;
-        let p = ncols as f64;
-        // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
-        // the influence function its treatment row.
-        let xtx_inv = gram_inverse(&problem.design.matrix, nrows, ncols);
-        let se_coef = if !analytic_se_ok {
-            f64::NAN
-        } else if let Some(se) = residual_sandwich_coef_se(
-            self.se_kind,
-            &problem.design.matrix,
-            nrows,
-            ncols,
-            &residuals,
-            t_col,
-            self.cluster_ids.as_deref(),
-            self.multiway_ids.as_deref(),
-            self.panel_times.as_deref(),
-        )? {
-            se
-        } else {
-            let sigma2 = rss / (n - p).max(1.0);
-            xtx_inv
-                .as_ref()
-                .map_or(f64::NAN, |inv| (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
-        };
+        let (se_coef, influence) = self.coefficient_se_and_influence(problem, &fit, t_col)?;
         let se_analytic = se_coef * problem.treatment_delta.abs();
-        let influence = treatment_coef_influence(
-            &problem.design.matrix,
-            nrows,
-            ncols,
-            t_col,
-            &residuals,
-            problem.treatment_delta,
-            xtx_inv.as_deref(),
-        );
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
             .with_se_kind(self.se_kind)
-            .with_influence(Some(Arc::from(influence))))
+            .with_influence(influence.map(Arc::from)))
+    }
+
+    /// Treatment-coefficient SE and influence function of the estimator that actually ran.
+    ///
+    /// OLS: `RSS/(n−p)·[(XᵀX)⁻¹]_tt` or the residual sandwich. Huber: the M-estimator's
+    /// sandwich, bread `Σ ψ′ x xᵀ` and scores `s·ψ(r/s)`. Ridge and Lasso publish no analytic
+    /// SE (shrinkage bias is not in a sampling variance, and post-selection inference is
+    /// invalid); their influence function is the ridge one, resp. none, never the OLS one.
+    fn coefficient_se_and_influence(
+        &self,
+        problem: &PreparedEstimationProblem,
+        fit: &LinearFit,
+        t_col: usize,
+    ) -> Result<(f64, Option<Vec<f64>>), EstimationError> {
+        let x = &problem.design.matrix;
+        let nrows = problem.design.nrows;
+        let ncols = problem.design.ncols;
+        let n = nrows as f64;
+        let p = ncols as f64;
+        let delta = problem.treatment_delta;
+        match &fit.variance {
+            FitVariance::Ols => {
+                // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
+                // the influence function its treatment row.
+                let xtx_inv = gram_inverse(x, nrows, ncols);
+                let se_coef = if let Some(se) = residual_sandwich_coef_se(
+                    self.se_kind,
+                    x,
+                    nrows,
+                    ncols,
+                    &fit.residuals,
+                    t_col,
+                    self.cluster_ids.as_deref(),
+                    self.multiway_ids.as_deref(),
+                    self.panel_times.as_deref(),
+                )? {
+                    se
+                } else {
+                    let sigma2 = fit.rss / (n - p).max(1.0);
+                    xtx_inv.as_ref().map_or(f64::NAN, |inv| {
+                        (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
+                    })
+                };
+                let influence = treatment_coef_influence(
+                    x,
+                    nrows,
+                    ncols,
+                    t_col,
+                    &fit.residuals,
+                    delta,
+                    xtx_inv.as_deref(),
+                );
+                Ok((se_coef, Some(influence)))
+            }
+            FitVariance::Ridge { lambda } => {
+                let bread = ridge_gram_inverse(x, nrows, ncols, *lambda);
+                let influence = treatment_coef_influence(
+                    x,
+                    nrows,
+                    ncols,
+                    t_col,
+                    &fit.residuals,
+                    delta,
+                    bread.as_deref(),
+                );
+                Ok((f64::NAN, Some(influence)))
+            }
+            FitVariance::Lasso => Ok((f64::NAN, None)),
+            FitVariance::Huber { scores, curvature } => {
+                let bread = curvature_gram_inverse(x, nrows, ncols, curvature);
+                let mean_curvature = curvature.iter().sum::<f64>() / n;
+                let se_coef = if let Some(se) = score_sandwich_coef_se(
+                    self.se_kind,
+                    x,
+                    nrows,
+                    ncols,
+                    scores,
+                    curvature,
+                    t_col,
+                    self.cluster_ids.as_deref(),
+                    self.multiway_ids.as_deref(),
+                    self.panel_times.as_deref(),
+                )? {
+                    se
+                } else if mean_curvature > 0.0 && n > p {
+                    // Huber (1981, §7.10): Var(β̂) = κ² · [Σ s²ψ²/(n−p)] / m² · (XᵀX)⁻¹ with
+                    // m = mean ψ′ and κ = 1 + (p/n) var(ψ′)/m². For an indicator ψ′,
+                    // var(ψ′) = m(1−m).
+                    let kappa = 1.0 + (p / n) * (1.0 - mean_curvature) / mean_curvature;
+                    let tau2 = scores.iter().map(|e| e * e).sum::<f64>()
+                        / (n - p)
+                        / (mean_curvature * mean_curvature);
+                    gram_inverse(x, nrows, ncols).map_or(f64::NAN, |inv| {
+                        (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
+                    })
+                } else {
+                    f64::NAN
+                };
+                let influence = treatment_coef_influence(
+                    x,
+                    nrows,
+                    ncols,
+                    t_col,
+                    scores,
+                    delta,
+                    bread.as_deref(),
+                );
+                Ok((se_coef, Some(influence)))
+            }
+        }
     }
 
     /// Attach bootstrap SE onto a point estimate (progressive uncertainty stage).
@@ -820,7 +903,7 @@ impl LinearAdjustmentAte {
         &self,
         problem: &PreparedEstimationProblem,
         workspace: &mut EstimationWorkspace,
-    ) -> Result<(Vec<f64>, Vec<f64>, f64, bool), EstimationError> {
+    ) -> Result<LinearFit, EstimationError> {
         let x = &problem.design.matrix;
         let n = problem.design.nrows;
         let p = problem.design.ncols;
@@ -831,12 +914,22 @@ impl LinearAdjustmentAte {
                     .design
                     .fit_ols(&self.backend, &mut workspace.ols)
                     .map_err(EstimationError::from)?;
-                Ok((fit.coefficients, fit.residuals, fit.rss, true))
+                Ok(LinearFit {
+                    coefficients: fit.coefficients,
+                    residuals: fit.residuals,
+                    rss: fit.rss,
+                    variance: FitVariance::Ols,
+                })
             }
             LinearFitKind::Ridge { lambda } => {
                 let fit = fit_ridge(x, n, p, y, lambda, &self.backend, &mut workspace.ols)
                     .map_err(EstimationError::from)?;
-                Ok((fit.coefficients, fit.residuals, fit.rss, true))
+                Ok(LinearFit {
+                    coefficients: fit.coefficients,
+                    residuals: fit.residuals,
+                    rss: fit.rss,
+                    variance: FitVariance::Ridge { lambda },
+                })
             }
             LinearFitKind::Lasso { lambda } => {
                 let fit = fit_lasso_with_ones_column(
@@ -847,6 +940,7 @@ impl LinearAdjustmentAte {
                     &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
                 )
                 .map_err(EstimationError::from)?;
+                require_converged(fit.converged, LASSO_UNCONVERGED)?;
                 // Design keeps an all-ones column; stitch intercept back for g-computation.
                 let mut coefficients = Vec::with_capacity(p);
                 coefficients.push(fit.intercept);
@@ -864,34 +958,42 @@ impl LinearAdjustmentAte {
                     rss += e * e;
                 }
                 // Permanent policy: no analytic SE for Lasso (bootstrap only).
-                Ok((coefficients, residuals, rss, false))
+                Ok(LinearFit { coefficients, residuals, rss, variance: FitVariance::Lasso })
             }
             LinearFitKind::Huber { c } => {
                 let opts = MEstimateOptions { c, ..MEstimateOptions::default() };
                 let fit = fit_huber_m(x, n, p, y, &opts, &self.backend, &mut workspace.ols)
                     .map_err(EstimationError::from)?;
                 // An unconverged IRLS run is a snapshot of an unfinished reweighting
-                // sequence, not the M-estimator's fixed point; publishing it — and, via
-                // the `true` below, an analytic SE derived from it — would attach robust-
-                // estimand semantics to a number that has none. Mirrors the GAM backfit
-                // gate in `response.rs::fit_additive`.
-                if !fit.converged {
-                    return Err(EstimationError::unsupported(
-                        "Huber M-estimator did not converge; refuse rather than publish an unfinished fit",
-                    ));
-                }
+                // sequence, not the M-estimator's fixed point; publishing it — and an
+                // analytic SE derived from it — would attach robust-estimand semantics
+                // to a number that has none. Mirrors the GAM backfit gate in
+                // `response.rs::fit_additive`.
+                require_converged(fit.converged, HUBER_UNCONVERGED)?;
                 let mut residuals = vec![0.0; n];
                 let mut rss = 0.0;
                 for r in 0..n {
                     let mut pred = 0.0;
-                    for c in 0..p {
-                        pred += x[c * n + r] * fit.coefficients[c];
+                    for col in 0..p {
+                        pred += x[col * n + r] * fit.coefficients[col];
                     }
                     let e = y[r] - pred;
                     residuals[r] = e;
                     rss += e * e;
                 }
-                Ok((fit.coefficients, residuals, rss, true))
+                // Estimating equation `Σ x_i · s·ψ_c(r_i/s) = 0`: the score is the residual
+                // clipped at `c·s`, and its derivative in the linear predictor is the
+                // indicator of the unclipped region.
+                let bound = c * fit.scale;
+                let scores: Vec<f64> = residuals.iter().map(|r| r.clamp(-bound, bound)).collect();
+                let curvature: Vec<f64> =
+                    residuals.iter().map(|r| f64::from(u8::from(r.abs() <= bound))).collect();
+                Ok(LinearFit {
+                    coefficients: fit.coefficients,
+                    residuals,
+                    rss,
+                    variance: FitVariance::Huber { scores, curvature },
+                })
             }
         }
     }
@@ -995,6 +1097,9 @@ impl LinearAdjustmentAte {
                     &LassoOptions { lambda, fit_intercept: true, ..LassoOptions::default() },
                 )
                 .map_err(EstimationError::from)?;
+                // An unconverged replicate is a snapshot, not a draw from the estimator's
+                // sampling distribution; the caller counts it as a failed replicate.
+                require_converged(fit.converged, LASSO_UNCONVERGED)?;
                 let mut coefficients = Vec::with_capacity(p);
                 coefficients.push(fit.intercept);
                 coefficients.extend_from_slice(&fit.coefficients);
@@ -1005,6 +1110,7 @@ impl LinearAdjustmentAte {
                 let fit =
                     fit_huber_m(x_boot, n, p, y_boot, &opts, &self.backend, &mut workspace.ols)
                         .map_err(EstimationError::from)?;
+                require_converged(fit.converged, HUBER_UNCONVERGED)?;
                 Ok(fit.coefficients)
             }
         }
@@ -1092,6 +1198,57 @@ pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, Estim
         }),
         _ => Err(EstimationError::unsupported(" linear adjustment requires Set interventions")),
     }
+}
+
+/// Fitted coefficients plus the variance model of the estimator that produced them.
+struct LinearFit {
+    coefficients: Vec<f64>,
+    /// Raw residuals `y − Xβ̂`.
+    residuals: Vec<f64>,
+    rss: f64,
+    variance: FitVariance,
+}
+
+/// Which sampling-variance formula describes a [`LinearFit`].
+enum FitVariance {
+    Ols,
+    /// Bread `(XᵀX + λP)⁻¹`; no analytic SE (shrinkage bias is outside a sampling variance).
+    Ridge {
+        lambda: f64,
+    },
+    /// No analytic SE, no influence function (post-selection).
+    Lasso,
+    /// `scores[i] = s·ψ(r_i/s)`, `curvature[i] = ψ′(r_i/s)`.
+    Huber {
+        scores: Vec<f64>,
+        curvature: Vec<f64>,
+    },
+}
+
+/// Refuse an iterative fit that stopped at its iteration cap.
+fn require_converged(converged: bool, refusal: &'static str) -> Result<(), EstimationError> {
+    if converged { Ok(()) } else { Err(EstimationError::unsupported(refusal)) }
+}
+
+const LASSO_UNCONVERGED: &str =
+    "Lasso coordinate descent did not converge; refuse rather than publish an unfinished fit";
+const HUBER_UNCONVERGED: &str =
+    "Huber M-estimator did not converge; refuse rather than publish an unfinished fit";
+
+/// `(Σ d_i x_i x_iᵀ)⁻¹` (row-major) for nonnegative row weights `d`; `None` when singular.
+fn curvature_gram_inverse(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    d: &[f64],
+) -> Option<Vec<f64>> {
+    let mut scaled = x_colmajor[..nrows * ncols].to_vec();
+    for col in 0..ncols {
+        for (v, w) in scaled[col * nrows..(col + 1) * nrows].iter_mut().zip(d) {
+            *v *= w.sqrt();
+        }
+    }
+    gram_inverse(&scaled, nrows, ncols)
 }
 
 /// `(XᵀX)⁻¹` (row-major) of a column-major design; `None` when singular.
@@ -1186,6 +1343,10 @@ mod tests {
     use super::*;
 
     fn toy() -> (TabularData, IdentifiedEstimand) {
+        toy_with(|_, t, z| 1.0 + 2.0 * t + z)
+    }
+
+    fn toy_with(outcome: impl Fn(usize, f64, f64) -> f64) -> (TabularData, IdentifiedEstimand) {
         let n = 100usize;
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
@@ -1218,7 +1379,7 @@ mod tests {
         let schema = b.build().unwrap();
         let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
         let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
-        let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + z[i]).collect();
+        let y: Vec<f64> = (0..n).map(|i| outcome(i, t[i], z[i])).collect();
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(
@@ -1473,5 +1634,121 @@ mod tests {
         assert!(effect.se_analytic.is_nan());
         let boot = effect.se_bootstrap.expect("bootstrap SE");
         assert!(boot.is_finite() && boot >= 0.0, "se_bootstrap={boot}");
+    }
+
+    /// Deterministic bounded noise in `[-0.1, 0.1]`.
+    fn wiggle(i: usize) -> f64 {
+        0.1 * (7.31 * i as f64).sin()
+    }
+
+    fn fit_kind_effect(
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        fit_kind: LinearFitKind,
+        se_kind: AnalyticSeKind,
+    ) -> EffectEstimate {
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte {
+            bootstrap_replicates: 0,
+            fit_kind,
+            se_kind,
+            ..LinearAdjustmentAte::new()
+        };
+        let prep = est.prepare(data, estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        est.fit(&prep, &mut ws, &ExecutionContext::for_tests(5), AssumptionSet::new()).unwrap()
+    }
+
+    #[test]
+    fn huber_with_unclipped_scores_reproduces_ols_variance_and_influence() {
+        // With c so large that no residual is clipped, ψ(u)=u and ψ′=1, so the Huber
+        // sandwich collapses to the OLS one: τ² = RSS/(n−p), κ = 1, bread (XᵀX)⁻¹.
+        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
+        for se_kind in [AnalyticSeKind::Homoskedastic, AnalyticSeKind::Hc0, AnalyticSeKind::Hc3] {
+            let ols = fit_kind_effect(&data, &estimand, LinearFitKind::Ols, se_kind);
+            let hub = fit_kind_effect(&data, &estimand, LinearFitKind::Huber { c: 1e9 }, se_kind);
+            assert!((hub.ate - ols.ate).abs() < 1e-8, "{se_kind:?}");
+            let rel = (hub.se_analytic - ols.se_analytic).abs() / ols.se_analytic;
+            assert!(rel < 1e-7, "{se_kind:?}: huber {} ols {}", hub.se_analytic, ols.se_analytic);
+            let (hi, oi) = (hub.influence.as_ref().unwrap(), ols.influence.as_ref().unwrap());
+            for (a, b) in hi.iter().zip(oi.iter()) {
+                assert!((a - b).abs() < 1e-6 * (1.0 + b.abs()));
+            }
+        }
+    }
+
+    #[test]
+    fn huber_se_ignores_gross_outliers_the_estimator_downweights() {
+        // 10% of rows (one odd, one even index per 20, so both arms) carry a +50 shock. OLS
+        // RSS/(n−p) is dominated by them; Huber's τ² = E[ψ²]/E[ψ′]² only sees them clipped
+        // at c·s, with s ≈ MAD-scale of the ±0.1 noise, so its SE must be far below the OLS
+        // one and the effect stays near 2.
+        let (data, estimand) = toy_with(|i, t, z| {
+            let shock = if i % 20 == 3 || i % 20 == 8 { 50.0 } else { 0.0 };
+            1.0 + 2.0 * t + z + wiggle(i) + shock
+        });
+        let ols =
+            fit_kind_effect(&data, &estimand, LinearFitKind::Ols, AnalyticSeKind::Homoskedastic);
+        let hub = fit_kind_effect(
+            &data,
+            &estimand,
+            LinearFitKind::Huber { c: 1.345 },
+            AnalyticSeKind::Homoskedastic,
+        );
+        assert!((hub.ate - 2.0).abs() < 0.1, "huber ate {}", hub.ate);
+        assert!(
+            hub.se_analytic < 0.1 * ols.se_analytic,
+            "huber se {} vs ols se {}",
+            hub.se_analytic,
+            ols.se_analytic
+        );
+    }
+
+    #[test]
+    fn ridge_and_lasso_publish_no_analytic_se_and_no_ols_influence() {
+        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
+        let ols =
+            fit_kind_effect(&data, &estimand, LinearFitKind::Ols, AnalyticSeKind::Homoskedastic);
+        let ridge0 = fit_kind_effect(
+            &data,
+            &estimand,
+            LinearFitKind::Ridge { lambda: 0.0 },
+            AnalyticSeKind::Homoskedastic,
+        );
+        assert!(ridge0.se_analytic.is_nan());
+        // λ = 0 ridge is OLS, so its influence must be the OLS one.
+        let (ri, oi) = (ridge0.influence.as_ref().unwrap(), ols.influence.as_ref().unwrap());
+        for (a, b) in ri.iter().zip(oi.iter()) {
+            assert!((a - b).abs() < 1e-6 * (1.0 + b.abs()));
+        }
+        // Heavy ridge shrinks the treatment coefficient, so its bread differs from (XᵀX)⁻¹.
+        let ridge = fit_kind_effect(
+            &data,
+            &estimand,
+            LinearFitKind::Ridge { lambda: 20.0 },
+            AnalyticSeKind::Homoskedastic,
+        );
+        assert!(ridge.se_analytic.is_nan());
+        assert!(ridge.ate < ols.ate - 1e-3);
+        let heavy = ridge.influence.as_ref().unwrap();
+        assert!(heavy.iter().zip(oi.iter()).any(|(a, b)| (a - b).abs() > 1e-3));
+        let lasso = fit_kind_effect(
+            &data,
+            &estimand,
+            LinearFitKind::Lasso { lambda: 1e-4 },
+            AnalyticSeKind::Homoskedastic,
+        );
+        assert!(lasso.se_analytic.is_nan());
+        assert!(lasso.influence.is_none());
+    }
+
+    #[test]
+    fn unconverged_iterative_fits_are_refused() {
+        assert!(require_converged(true, LASSO_UNCONVERGED).is_ok());
+        for msg in [LASSO_UNCONVERGED, HUBER_UNCONVERGED] {
+            let err = require_converged(false, msg).unwrap_err();
+            assert!(err.to_string().contains("did not converge"), "{err}");
+        }
     }
 }

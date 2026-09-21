@@ -11,10 +11,10 @@
     clippy::type_complexity
 )]
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_learn::{
     CrossFittedPrediction, DesignView, LearnerFactory, LearnerSpec, NuisanceDiagnostics,
-    PredictionTask, RowSelection, TargetView, cross_fit, diagnose, resolve_for,
+    PredictionTask, RowSelection, TargetView, cross_fit_with_folds, diagnose, resolve_for,
 };
 
 use crate::error::EstimationError;
@@ -63,6 +63,61 @@ pub(crate) fn resolve_nuisance(
     Ok((resolve_for(spec, task).map_err(learn_err)?, NuisanceDiagnostics::default()))
 }
 
+/// Seeded, stratified, unit-level cross-fit fold plan (one fold id per row).
+///
+/// `units[i]` names the physical unit behind row `i` (the original row index): every row of a
+/// unit — a bootstrap resample's duplicates — shares one fold, so a unit is never both in a
+/// training set and in its own validation fold. Within each stratum (`strata[i]`, e.g. the
+/// treatment arm) the distinct units are permuted by a `seed`-keyed Fisher–Yates shuffle and
+/// dealt round-robin, so every fold sees every stratum and the plan is a function of the seed
+/// and the unit ids, not of any periodic structure in the file order.
+///
+/// # Errors
+///
+/// `folds < 2`, length mismatch, more distinct units than the fold count allows, or fewer
+/// distinct units than folds.
+pub(crate) fn crossfit_fold_plan(
+    strata: &[u32],
+    units: &[u32],
+    folds: usize,
+    seed: u64,
+) -> Result<Vec<u32>, EstimationError> {
+    if folds < 2 || u32::try_from(folds).is_err() {
+        return Err(EstimationError::unsupported("cross-fitting requires at least two folds"));
+    }
+    if strata.len() != units.len() {
+        return Err(EstimationError::data_msg("fold plan strata and unit ids must align"));
+    }
+    let mut stratum_of = std::collections::BTreeMap::new();
+    for (&u, &s) in units.iter().zip(strata) {
+        stratum_of.entry(u).or_insert(s);
+    }
+    if stratum_of.len() < folds {
+        return Err(EstimationError::data_msg("cross-fitting folds cannot exceed distinct units"));
+    }
+    // Units grouped by stratum, each group sorted by unit id (determinism), then shuffled.
+    let mut groups: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
+    for (&u, &s) in &stratum_of {
+        groups.entry(s).or_default().push(u);
+    }
+    let mut fold_of_unit = std::collections::HashMap::with_capacity(stratum_of.len());
+    let mut dealt = 0usize;
+    for (&stratum, members) in &mut groups {
+        let mut rng = CausalRng::from_seed(
+            seed ^ u64::from(stratum).wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03),
+        );
+        for i in (1..members.len()).rev() {
+            let j = (rng.next_f64() * (i as f64 + 1.0)) as usize;
+            members.swap(i, j.min(i));
+        }
+        for &u in members.iter() {
+            fold_of_unit.insert(u, (dealt % folds) as u32);
+            dealt += 1;
+        }
+    }
+    Ok(units.iter().map(|u| fold_of_unit[u]).collect())
+}
+
 pub(crate) fn cross_fit_nuisance(
     spec: LearnerSpec,
     task: PredictionTask,
@@ -75,7 +130,16 @@ pub(crate) fn cross_fit_nuisance(
 ) -> Result<CrossFittedPrediction, EstimationError> {
     let (factory, _) = resolve_nuisance(spec, task, design, nrows, ncols, y, ctx)?;
     let view = design_for_spec(spec, design, nrows, ncols)?;
-    cross_fit(factory.as_ref(), view, TargetView::new(y), folds, ctx, None).map_err(learn_err)
+    let rows: Vec<u32> = (0..nrows)
+        .map(|i| {
+            u32::try_from(i)
+                .map_err(|_| EstimationError::data_msg("rows exceed u32 index capacity"))
+        })
+        .collect::<Result<_, _>>()?;
+    let plan = crossfit_fold_plan(&vec![0; nrows], &rows, folds, ctx.rng.master_seed())?;
+    let plan: Vec<u16> = plan.into_iter().map(|f| f as u16).collect();
+    cross_fit_with_folds(factory.as_ref(), view, TargetView::new(y), plan, ctx, None)
+        .map_err(learn_err)
 }
 
 /// Per-arm outcome models + propensity, trained on `train ∩ arm` and scored on the valid fold.
@@ -351,13 +415,21 @@ pub(crate) fn cached_aipw_nuisances(
     {
         return Err(EstimationError::data_msg("invalid retained nuisance fold count"));
     }
-    let raw = problem.fold_assignment.as_deref().unwrap_or(&problem.row_index);
-    if raw.len() != problem.nrows
-        || problem.fold_assignment.is_some() && raw.iter().any(|f| *f as usize >= folds)
-    {
-        return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
-    }
-    let fold_ids = raw.iter().map(|f| (*f as usize % folds) as u16).collect();
+    let fold_ids: Vec<u16> = match problem.fold_assignment.as_deref() {
+        Some(raw) => {
+            if raw.len() != problem.nrows || raw.iter().any(|f| *f as usize >= folds) {
+                return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
+            }
+            raw.iter().map(|&f| f as u16).collect()
+        }
+        None => {
+            let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
+            crossfit_fold_plan(&arms, &problem.row_index, folds, ctx.rng.master_seed())?
+                .into_iter()
+                .map(|f| f as u16)
+                .collect()
+        }
+    };
     let result = Arc::new(cross_fit_aipw_nuisances(
         outcome,
         treatment,
@@ -373,4 +445,47 @@ pub(crate) fn cached_aipw_nuisances(
     check_cancel()?;
     *slot = Some(Arc::clone(&result));
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fold_plan_is_seeded_stratified_and_balanced() {
+        // 100 units, stratum = parity: each fold must hold exactly 10 units of each stratum,
+        // and the plan must change with the seed and not follow `i % folds`.
+        let units: Vec<u32> = (0..100).collect();
+        let strata: Vec<u32> = units.iter().map(|u| u % 2).collect();
+        let plan = crossfit_fold_plan(&strata, &units, 5, 11).unwrap();
+        for fold in 0..5u32 {
+            for stratum in 0..2u32 {
+                let count = (0..100).filter(|&i| plan[i] == fold && strata[i] == stratum).count();
+                assert_eq!(count, 10, "fold {fold} stratum {stratum}");
+            }
+        }
+        let modulo: Vec<u32> = (0..100).map(|i| i % 5).collect();
+        assert_ne!(plan, modulo);
+        assert_ne!(plan, crossfit_fold_plan(&strata, &units, 5, 12).unwrap());
+        assert_eq!(plan, crossfit_fold_plan(&strata, &units, 5, 11).unwrap());
+    }
+
+    #[test]
+    fn fold_plan_keeps_duplicated_units_together_and_refuses_too_few_units() {
+        // A bootstrap resample repeats unit ids; every copy must share its unit's fold.
+        let units = [7u32, 7, 3, 3, 3, 9, 1, 2, 4, 5, 6, 8];
+        let strata = [0u32; 12];
+        let plan = crossfit_fold_plan(&strata, &units, 4, 5).unwrap();
+        for (i, &u) in units.iter().enumerate() {
+            for (j, &v) in units.iter().enumerate() {
+                if u == v {
+                    assert_eq!(plan[i], plan[j], "unit {u}");
+                }
+            }
+        }
+        assert!(plan.iter().all(|&f| f < 4));
+        let err = crossfit_fold_plan(&[0, 0, 0], &[1, 1, 2], 3, 5).unwrap_err();
+        assert!(err.to_string().contains("distinct units"), "{err}");
+        assert!(crossfit_fold_plan(&[0, 0], &[1, 2], 1, 5).is_err());
+    }
 }

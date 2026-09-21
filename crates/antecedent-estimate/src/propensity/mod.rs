@@ -42,7 +42,7 @@ pub use prepare::{
 };
 pub(crate) use prepare::{
     clamp_scores, clip_of, gather, gather_into, prepare_propensity_problem_with_registry,
-    split_by_treatment, trim_of, trim_retained_rows,
+    require_interior_propensities, split_by_treatment, trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
 pub use weighting::PropensityWeighting;

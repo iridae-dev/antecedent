@@ -52,11 +52,14 @@ pub(crate) fn sample_std(values: &[f64]) -> f64 {
 }
 
 /// Monte Carlo critical value of a max-statistic band: the `⌈level·(B+1)⌉`-th
-/// smallest of `B` ascending-sorted replicate maxima (rank clamped to `[1, B]`).
+/// smallest of `B` ascending-sorted replicate maxima.
 ///
 /// The `B + 1` rank treats the observed statistic as one more exchangeable draw
-/// (Davison & Hinkley 1997, §4.2), so the band is conservative at every `B`;
-/// `⌈level·B⌉` sits one rank lower whenever `level·B` is not an integer. Every
+/// (Davison & Hinkley 1997, §4.2), so the band is conservative wherever the rank
+/// exists; `⌈level·B⌉` sits one rank lower whenever `level·B` is not an integer.
+/// When `⌈level·(B+1)⌉ > B` (`B < level/(1−level)`: 19 at 0.95, 99 at 0.99) the
+/// exact critical value is `+∞` — the sample maximum only covers `B/(B+1) < level`
+/// — so `+∞` is returned rather than a narrower, anti-conservative maximum. Every
 /// simultaneous response band (multiplier, Gaussian max-t and replicate sup-t)
 /// reads its critical value here. `NaN` for an empty slice.
 #[allow(clippy::cast_sign_loss)]
@@ -65,7 +68,12 @@ pub(crate) fn monte_carlo_critical(sorted_maxima: &[f64], level: f64) -> f64 {
     if b == 0 {
         return f64::NAN;
     }
-    let rank = ((level * (b as f64 + 1.0)).ceil() as usize).clamp(1, b);
+    // The tolerance keeps a product that lands one ulp above an exact integer (e.g.
+    // `0.95 · 20`) from bumping the rank past `B`.
+    let rank = ((level * (b as f64 + 1.0) - 1e-9).ceil().max(1.0)) as usize;
+    if rank > b {
+        return f64::INFINITY;
+    }
     sorted_maxima[rank - 1]
 }
 
@@ -639,5 +647,24 @@ mod tests {
         assert!(r.cancelled);
         assert!(!r.early_stopped);
         assert_eq!(r.replicates_ok, 0);
+    }
+
+    #[test]
+    fn monte_carlo_critical_is_infinite_when_the_exact_rank_does_not_exist() {
+        let maxima: Vec<f64> = (1..=10).map(f64::from).collect();
+        // ⌈0.95·11⌉ = 11 > 10: the sample maximum only covers 10/11 < 0.95.
+        assert!(monte_carlo_critical(&maxima, 0.95).is_infinite());
+        // B = 19: ⌈0.95·20⌉ = 19 ≤ 19, so the maximum is the exact critical value.
+        let nineteen: Vec<f64> = (1..=19).map(f64::from).collect();
+        assert!((monte_carlo_critical(&nineteen, 0.95) - 19.0).abs() < 1e-12);
+        // B = 99 at 0.99: ⌈0.99·100⌉ = 99.
+        let ninety_nine: Vec<f64> = (1..=99).map(f64::from).collect();
+        assert!((monte_carlo_critical(&ninety_nine, 0.99) - 99.0).abs() < 1e-12);
+        let ninety_eight: Vec<f64> = (1..=98).map(f64::from).collect();
+        assert!(monte_carlo_critical(&ninety_eight, 0.99).is_infinite());
+        // Interior rank: B = 100, ⌈0.95·101⌉ = 96.
+        let hundred: Vec<f64> = (1..=100).map(f64::from).collect();
+        assert!((monte_carlo_critical(&hundred, 0.95) - 96.0).abs() < 1e-12);
+        assert!(monte_carlo_critical(&[], 0.95).is_nan());
     }
 }
