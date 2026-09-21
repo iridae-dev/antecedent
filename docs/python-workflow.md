@@ -145,6 +145,40 @@ Do not add graph directions or assumptions solely to make a refusal disappear.
 See [supported analyses](supported-analyses.md) and the
 [workflow reference](python-options.md) for the relevant options.
 
+## Transport the same way
+
+Wrap an ordinary question. Source identity, intervention regime, and sampling
+are scientific claims on `evidence`; the table only supplies columns and a
+snapshot digest.
+
+```python
+evidence = ant.transport.Evidence(
+    source=ant.transport.Source(
+        "trial", kind="experimental", interventions=["price"], sampling="independent",
+    ),
+    target_sampling="representative_sample",
+)
+query = ant.transport.Transport(
+    ant.ResponseCurve("price", "sales", grid=[8, 9, 10, 11, 12]),
+    target="new_market",
+    evidence=evidence,
+    selections=["preference"],
+)
+result = ant.analyze(data, graph=graph, query=query)
+print(result.answer.kind, result.inspect().support.summary)
+```
+
+`EmpiricalTable` is the default provider. `LearnedCategorical` and `TrialAipw`
+change the assumption set and must be passed explicitly. If the formula is
+identified but a joint is unbound, `identify(...).inspect()` and
+`result.answer.detail` name the missing evidence.
+
+Not-certified, missing evidence, local support failure, an uncalibrated
+interval, and a budget refusal are different outcomes. Do not treat them as
+one error.
+
+See [the 2.0 transport UX migration](migrations/2.0-transport-day1.md).
+
 ## Next steps
 
 - [Choose an example](examples.md) for weighting, discovery, or temporal effects.

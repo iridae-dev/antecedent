@@ -165,7 +165,8 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
-    from .transport import TransportQuery
+    from .transport import Transport
+    from .transport.advanced import TransportQuery
 
     valid = (
         AnomalyAttribution,
@@ -188,6 +189,7 @@ def coerce_query(value: Any) -> Any:
         ResponseJacobian,
         InterventionResponse,
         TransportQuery,
+        Transport,
         InterferenceQuery,
     )
     if isinstance(value, valid):

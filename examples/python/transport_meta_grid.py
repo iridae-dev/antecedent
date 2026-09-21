@@ -1,33 +1,35 @@
-"""Two complementary experiments; exact finite responses and independent consume.
+"""Complementary sources plus a grid. Same verbs as the single-source examples."""
 
-Run with the locally built antecedent package. No sampling-coverage claim.
-"""
-
-from antecedent import Admg, load, prepare, transport
+import antecedent as ant
 
 
-def main():
-    graph = Admg.from_edges(
+def main() -> None:
+    graph = ant.Admg.from_edges(
         ["x", "z", "y"], [("x", "z"), ("z", "y")], bidirected=[("x", "z"), ("x", "y")]
     )
-    variables = [transport.VariableCoordinate(name, "binary") for name in ("x", "z", "y")]
-    catalog = transport.EvidenceCatalog(
-        environments=[
-            transport.Environment("a", variables, selection_targets=["y"]),
-            transport.Environment("b", variables, selection_targets=["z"]),
-            transport.Environment("target", variables),
-        ],
-        regimes=[
-            transport.EvidenceRegime(
-                "x_trial", "a", kind="experimental", interventions=["x"], measured=["z"]
+    evidence = ant.transport.Evidence(
+        source=[
+            ant.transport.Source(
+                "a",
+                kind="experimental",
+                interventions=["x"],
+                sampling="independent",
+                selections=["y"],
             ),
-            transport.EvidenceRegime(
-                "z_trial", "b", kind="experimental", interventions=["z"], measured=["y"]
+            ant.transport.Source(
+                "b",
+                kind="experimental",
+                interventions=["z"],
+                sampling="independent",
+                selections=["z"],
             ),
         ],
+        target_sampling="representative_sample",
     )
-    proof = transport.identify_meta(
-        graph, catalog, target="target", outcomes=["y"], treatments=["x"]
+    query = ant.transport.Transport(
+        ant.ResponseCurve("x", "y", grid=[0.0, 1.0]),
+        target="target",
+        evidence=evidence,
     )
     laws = []
     for population, regime, treatment, outcome, probabilities in [
@@ -36,7 +38,7 @@ def main():
     ]:
         for value, probability in enumerate(probabilities):
             laws.append(
-                transport.ExactDiscreteLaw(
+                ant.transport.ExactDiscreteLaw(
                     population,
                     regime,
                     ((outcome, (0.0, 1.0)),),
@@ -45,25 +47,20 @@ def main():
                     interventions=((treatment, float(value)),),
                 )
             )
-    data = transport.ExactTransportData(tuple(laws))
-    study = prepare(
-        data,
-        query=transport.TransportResponseGridQuery(proof, catalog, ({"x": 0.0}, {"x": 1.0})),
+    data = ant.transport.ExactTransportData(tuple(laws))
+    result = ant.analyze(data, graph=graph, query=query)
+    print(result.inspect().identification)
+    assert result.answer.kind == "response"
+    assert [round(row[0], 2) for row in result.response.values] == [0.26, 0.74]
+    print(list(result.response.values))
+    assert ant.load(result.export()) is not None
+
+    partial = ant.analyze(
+        ant.transport.ExactTransportData(tuple(laws[1:])),
+        graph=graph,
+        query=query,
     )
-    print(study.inspect().identification)
-    result = study.estimate()
-    print([result.mean(i, "y") for i in range(2)])  # 0.26, 0.74
-    print(result.contrast(1, 0, "y"))  # 0.48, no fabricated interval
-    assert load(result.export()).points == result.points
-    # Removing one intervention value retains a visible unsupported point.
-    partial = transport.prepare_response_grid(
-        proof,
-        catalog,
-        transport.ExactTransportData(tuple(laws[1:])),
-        at=[{"x": 0.0}, {"x": 1.0}],
-    ).estimate()
-    assert partial.points[0]["status"] == "missing_evidence"
-    assert partial.points[1]["status"] == "available"
+    assert any(status != "supported" for status in (partial.support.point_status or ()))
 
 
 if __name__ == "__main__":

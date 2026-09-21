@@ -51,23 +51,28 @@ def transport_example():
         randomization=[0.5] * 200,
         sampling="independent_samples",
     )
-    query = tr.TrialAipwQuery(
-        ac.Admg.from_edges(["a", "y"], [("a", "y")]),
-        tr.SelectionDiagram("trial", "target", []),
-        "a",
-        "y",
+    query = tr.Transport(
+        ac.AverageEffect("a", "y"),
+        target="target",
+        evidence=tr.Evidence(
+            source=tr.Source(
+                "trial", kind="experimental", interventions=["a"], sampling="independent"
+            ),
+            target_sampling="representative_sample",
+        ),
     )
-    study = tr.prepare(
-        query,
+    result = ac.analyze(
         data,
+        graph=ac.Admg.from_edges(["a", "y"], [("a", "y")]),
+        query=query,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
         inference=tr.TransportInference(bootstrap=9, seed=8),
     )
-    result = study.estimate()
     loaded = ac.load(result.export())
-    assert loaded.estimate == result.estimate
-    assert abs(result.estimate - 2.0) < 1e-10
-    return study, result
+    assert loaded.answer.kind == result.answer.kind
+    assert loaded.answer.value == result.answer.value
+    assert abs(result.answer.value - 2.0) < 1e-10
+    return result.study, result
 
 
 if __name__ == "__main__":

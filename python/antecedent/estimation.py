@@ -114,14 +114,21 @@ from .results import (
 )
 from .results.response import SupportStatus, UncertaintyKind
 from .transport import (
+    Transport,
+    TransportControls,
+    TransportInference,
+)
+from .transport._impl import (
     ExactTransportDistribution,
-    ExactTransportQuery,
     OverlapDiagnostic,
     StatisticalTransportDistribution,
-    StatisticalTransportQuery,
     TransportOverlapReport,
-    TransportQuery,
     TransportResponseGrid,
+)
+from .transport.advanced import (
+    ExactTransportQuery,
+    StatisticalTransportQuery,
+    TransportQuery,
     TransportResponseGridQuery,
 )
 
@@ -1479,6 +1486,7 @@ _PreparedQuery = (
     | ResponseJacobian
     | TemporalMediationEffect
     | TransportQuery
+    | Transport
     | ExactTransportQuery
     | StatisticalTransportQuery
     | TransportResponseGridQuery
@@ -2300,7 +2308,7 @@ class _PrepareRoute:
             )
 
     def _transport(self) -> tuple[Any, Any]:
-        from .transport import _response_args
+        from .transport._impl import _response_args
 
         query = cast(TransportQuery, self.query)
         self._refuse_design_options("TransportQuery", "transport.sid", "transport.trial_ipw")
@@ -2946,7 +2954,7 @@ class PreparedAnalysis(Generic[ResultT]):
         query: _PreparedQuery,
         graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
         discovery: Any | None = None,
-        inference: Frequentist | Bayesian | None = None,
+        inference: Frequentist | Bayesian | TransportInference | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | Any | None = None,
         estimator_config: Mapping[str, Any] | None = None,
@@ -2967,6 +2975,8 @@ class PreparedAnalysis(Generic[ResultT]):
         running_variable: str | None = None,
         cutoff: float | None = None,
         bandwidth: float | None = None,
+        provider: Any | None = None,
+        controls: TransportControls | None = None,
     ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
@@ -3025,16 +3035,73 @@ class PreparedAnalysis(Generic[ResultT]):
         routes that have them. The handle retains all three; a click may
         override them.
         """
-        from .transport import (
-            ExactTransportData,
+        from .transport import ExactTransportData, StatisticalTransportData
+        from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
+        from .transport.advanced import (
             ExactTransportQuery,
-            StatisticalTransportData,
             StatisticalTransportQuery,
             TransportResponseGridQuery,
             prepare_exact,
             prepare_response_grid,
             prepare_statistical,
         )
+
+        refuse_transport_only_kwargs(query, provider=provider, inference=inference, controls=controls)
+        if isinstance(query, Transport):
+            if not isinstance(graph, Admg):
+                raise CausalTypeError("transport.Transport requires graph=Admg(...)")
+            if isinstance(inference, (Frequentist, Bayesian)):
+                raise CausalUnsupportedError(
+                    "transport.Transport uses inference=TransportInference(...); "
+                    "Frequentist/Bayesian do not apply",
+                    reason_code="option_not_applicable",
+                )
+            if identifier not in (None, "transport.sid"):
+                raise CausalUnsupportedError(
+                    "transport.Transport is identified by transport.sid; "
+                    "another identifier= does not apply",
+                    reason_code="option_not_applicable",
+                )
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        discovery,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        bootstrap,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or seed != 1
+                or not accept_discovered
+            ):
+                raise CausalUnsupportedError(
+                    "transport.Transport uses provider=, inference=TransportInference, "
+                    "and controls=; ordinary analyze knobs do not apply",
+                    reason_code="option_not_applicable",
+                )
+            return prepare_transport(
+                data,
+                query=query,
+                graph=graph,
+                provider=provider,
+                inference=inference,
+                controls=controls,
+                cancel=cancel,
+            )
 
         if isinstance(query, TransportResponseGridQuery):
             if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
@@ -3383,6 +3450,20 @@ class PreparedAnalysis(Generic[ResultT]):
         runs. :meth:`preflight` is the cheap structural-only view.
         """
         if self._transport is not None:
+            if getattr(self, "_native", None) is None:
+                from .transport._day1 import identification_from_transport
+
+                query = self._query
+                stage = getattr(self, "_transport_stage", None) or {}
+                graph = stage.get("graph")
+                if graph is None:
+                    raise CausalValueError("transport inspect requires a retained graph")
+                return identification_from_transport(
+                    graph,
+                    query,
+                    catalog=stage.get("catalog"),
+                    identified=stage.get("identified"),
+                ).inspect()
             return InspectionReport(**json.loads(self._native.inspection_json()))
 
         from dataclasses import replace
@@ -3509,7 +3590,11 @@ class PreparedAnalysis(Generic[ResultT]):
         | TransportResponseGrid
     ):
         if self._transport is not None:
-            return self._run_click(
+            if getattr(self, "_native", None) is None:
+                from .transport._wrap import unavailable_from_stage
+
+                return unavailable_from_stage(self)
+            raw = self._run_click(
                 lambda: self._transport.execute(
                     self._native,
                     data,
@@ -3519,6 +3604,11 @@ class PreparedAnalysis(Generic[ResultT]):
                     controls=controls,
                 )
             )
+            if isinstance(self._query, Transport):
+                from .transport._wrap import wrap_transport_result
+
+                return wrap_transport_result(self, raw)
+            return raw
         seed = self._seed if seed is None else seed
         threads = self._threads if threads is None else threads
         response = self._kind in ("response_curve", "intervention_response")
@@ -3675,6 +3765,17 @@ class PreparedAnalysis(Generic[ResultT]):
         on_stage: Any = _UNSET,
     ) -> ResultT:
         """Replace retained data and re-estimate (controls as in :meth:`estimate`)."""
+        if isinstance(self._query, Transport):
+            from .transport._day1 import catalog_from_evidence
+
+            stage = getattr(self, "_transport_stage", None) or {}
+            _catalog, bound = catalog_from_evidence(
+                self._query, data, graph=stage.get("graph")
+            )
+            if bound is not None:
+                data = bound
+            if self._transport is not None and getattr(self, "_native", None) is not None:
+                self.replace_snapshot(data)
         return cast(
             ResultT,
             self._click(

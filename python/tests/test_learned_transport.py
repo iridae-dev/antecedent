@@ -6,14 +6,15 @@ import antecedent as ac
 import pytest
 from antecedent import transport as tr
 from antecedent.learners import Linear, Logistic
+from antecedent.transport import advanced
 
 from test_transport_statistical import fixture
 
 
 def test_categorical_provider_uses_common_lifecycle_and_verified_load():
     identified, catalog, data = fixture()
-    query = tr.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=9)
-    study = tr.prepare(query, data, provider=tr.LearnedCategorical(Logistic()))
+    query = advanced.StatisticalTransportQuery(identified, catalog, {"x": 1.0}, bootstrap=9)
+    study = advanced.prepare(query, data, provider=tr.LearnedCategorical(Logistic()))
     result = study.estimate()
     assert result.mean("y") == pytest.approx(0.8, abs=1e-6)
     loaded = ac.load(result.export())
@@ -29,14 +30,14 @@ def trial_fixture(sampling="independent_samples"):
     outcome = [1.0 + 2.0 * t for t in treatment[:120]] + [0.0] * 80
     data = tr.TrialAipwData({}, outcome, treatment, source, [0.5] * 200, sampling)
     graph = ac.Admg.from_edges(["a", "y"], [("a", "y")])
-    query = tr.TrialAipwQuery(graph, tr.SelectionDiagram("trial", "target", []), "a", "y")
+    query = advanced.TrialAipwQuery(graph, advanced.SelectionDiagram("trial", "target", []), "a", "y")
     return query, data
 
 
 @pytest.mark.parametrize("sampling", ["independent_samples", "nested_cohort"])
 def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
     query, data = trial_fixture(sampling)
-    study = tr.prepare(
+    study = advanced.prepare(
         query,
         data,
         provider=tr.TrialAipw(outcome=Linear(), folds=3),
@@ -62,15 +63,15 @@ def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
 def test_trial_rejects_unsupported_sampling_and_uncertified_covariates():
     query, data = trial_fixture()
     with pytest.raises(ValueError):
-        tr.prepare(query, dataclasses.replace(data, sampling="clustered"))
+        advanced.prepare(query, dataclasses.replace(data, sampling="clustered"))
     with pytest.raises(ValueError):
-        tr.prepare(query, dataclasses.replace(data, covariates={"a": [0.0] * 200}))
+        advanced.prepare(query, dataclasses.replace(data, covariates={"a": [0.0] * 200}))
 
 
 def test_trial_identity_binds_sampling_design():
     query, data = trial_fixture()
-    independent = tr.prepare(query, data, inference=tr.TransportInference(0)).estimate()
-    nested = tr.prepare(
+    independent = advanced.prepare(query, data, inference=tr.TransportInference(0)).estimate()
+    nested = advanced.prepare(
         query,
         dataclasses.replace(data, sampling="nested_cohort"),
         inference=tr.TransportInference(0),
@@ -90,10 +91,10 @@ def test_recursive_learned_provider_composes_complementary_sources():
         else s
         for s in data.samples
     )
-    query = tr.TransportResponseGridQuery(
+    query = advanced.TransportResponseGridQuery(
         identified, catalog, ({"x": 0.0}, {"x": 1.0}), bootstrap=9
     )
-    result = tr.prepare(
+    result = advanced.prepare(
         query, tr.StatisticalTransportData(samples), provider=tr.LearnedCategorical()
     ).estimate()
     assert [result.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74], abs=1e-6)
@@ -124,8 +125,8 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
         "independent_samples",
     )
     graph = ac.Admg.from_edges(["z", "a", "y"], [("z", "y"), ("a", "y")])
-    query = tr.TrialAipwQuery(graph, tr.SelectionDiagram("trial", "target", ["z"]), "a", "y")
-    result = tr.prepare(
+    query = advanced.TrialAipwQuery(graph, advanced.SelectionDiagram("trial", "target", ["z"]), "a", "y")
+    result = advanced.prepare(
         query, data, provider=tr.TrialAipw(outcome=Linear()), inference=tr.TransportInference(0)
     ).estimate()
     assert result.estimate == pytest.approx(2.0, abs=0.16)
@@ -134,7 +135,7 @@ def test_trial_nuisance_misspecification_cases_are_separate(misspecified):
 
 def test_trial_transformation_preview_uses_common_contract():
     query, data = trial_fixture()
-    study = tr.prepare(
+    study = advanced.prepare(
         query,
         data,
         provider=tr.TrialAipw(Linear(), Logistic(), folds=3),

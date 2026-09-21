@@ -11,10 +11,11 @@ from .errors import CausalSerializationError
 from .estimation import PreparedAnalysis, _PreparedQuery, _PreparedResult
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
+from .results import AnalysisResult, CausalResponseView
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._report import InspectionReport, as_inspection
 from .results._slots import ReasoningSlots
-from .transport import (
+from .transport._impl import (
     ClassicalTransportIdentification,
     ExactTransportDistribution,
     LearnedTrialEstimate,
@@ -29,7 +30,7 @@ def prepare(
     query: _PreparedQuery,
     graph: Any = None,
     discovery: Any = None,
-    inference: Frequentist | Bayesian | None = None,
+    inference: Frequentist | Bayesian | Any | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
@@ -50,6 +51,8 @@ def prepare(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
+    provider: Any | None = None,
+    controls: Any | None = None,
 ) -> PreparedAnalysis[_PreparedResult]:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
@@ -83,6 +86,8 @@ def prepare(
         running_variable=running_variable,
         cutoff=cutoff,
         bandwidth=bandwidth,
+        provider=provider,
+        controls=controls,
     )
 
 
@@ -157,6 +162,8 @@ def load(
     data: bytes,
 ) -> (
     LoadedResult
+    | AnalysisResult
+    | CausalResponseView
     | ExactTransportDistribution
     | StatisticalTransportDistribution
     | TransportResponseGrid
@@ -172,29 +179,33 @@ def load(
 
     prepared: PreparedAnalysis[Any]
     encoded = bytes(data)
+    if encoded.startswith(b"ANTECEDENT-TRANSPORT-VIEW\x01"):
+        from .transport._wrap import decode_transport_view
+
+        return decode_transport_view(encoded)
     if encoded.startswith(b"ANTECEDENT-LEARNED-TRIAL\x01"):
         from . import _native
-        from .transport import _learned_trial
+        from .transport._impl import _learned_trial
 
         native = _native.consume_learned_trial(encoded)
         return _learned_trial(native, native.last_result())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        from .transport import _exact_distribution, consume_exact
+        from .transport._impl import _exact_distribution, consume_exact
 
         prepared = consume_exact(encoded)
         return _exact_distribution(prepared._native, prepared._native.last_result())
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        from .transport import _statistical_distribution, consume_statistical
+        from .transport._impl import _statistical_distribution, consume_statistical
 
         prepared = consume_statistical(encoded)
         return _statistical_distribution(prepared._native, prepared._native.last_result())
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        from .transport import _response_grid, consume_response_grid
+        from .transport._impl import _response_grid, consume_response_grid
 
         prepared = consume_response_grid(encoded)
         return _response_grid(prepared._native, prepared._native.last_result())
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01"):
-        from .transport import consume_identification
+        from .transport.advanced import consume_identification
 
         return consume_identification(encoded)
     receipt = artifacts.accept(encoded)

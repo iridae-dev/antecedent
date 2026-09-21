@@ -26,6 +26,7 @@ from typing import Any
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent.transport.advanced import SelectionDiagram, TransportQuery
 
 
 def _static(seed: int, n: int = 1200) -> dict[str, np.ndarray]:
@@ -179,9 +180,9 @@ CASES = [
         "transport-trial-ipw",
         _transport,
         ant.Admg.from_edges(["a", "y", "trial", "s", "e", "x"], [("a", "y"), ("x", "y")]),
-        ant.TransportQuery(
+        TransportQuery(
             ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
-            ant.transport.SelectionDiagram("trial", "target", ["x"]),
+            SelectionDiagram("trial", "target", ["x"]),
             source_experiments=["a"],
             trial="trial",
             selection_probability="s",

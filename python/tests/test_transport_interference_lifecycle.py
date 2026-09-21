@@ -29,9 +29,11 @@ from pathlib import Path
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent import interference, transport
+from antecedent import interference
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
+from antecedent.transport import advanced as transport
+from antecedent.transport.advanced import TransportQuery
 
 from _repo_text import read_text
 
@@ -61,14 +63,14 @@ def _transport_graph() -> ant.Admg:
     return ant.Admg.from_edges(TRANSPORT_NAMES, [("a", "y"), ("x", "y")])
 
 
-def _transport_query(**overrides: object) -> ant.TransportQuery:
+def _transport_query(**overrides: object) -> TransportQuery:
     fields: dict[str, object] = {
         "trial": "trial",
         "selection_probability": "s",
         "treatment_probability": "e",
     }
     fields.update(overrides)
-    return ant.TransportQuery(
+    return TransportQuery(
         ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
         transport.SelectionDiagram("trial", "target", ["x"]),
         source_experiments=["a"],
@@ -247,7 +249,7 @@ def test_transport_analyze_reproduces_the_conformance_pin():
     result = ant.analyze(
         data,
         graph=ant.Admg.from_edges(names, [("a", "y")]),
-        query=ant.TransportQuery(
+        query=TransportQuery(
             ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
             transport.SelectionDiagram("trial", "target", []),
             source_experiments=["a"],
@@ -400,7 +402,7 @@ def test_constructions_outside_the_licensed_cells_refuse():
         ant.analyze(data, graph=[], query=complete)
     assert raised.value.reason_code == "construction_not_licensed"
 
-    derivative = ant.TransportQuery(
+    derivative = TransportQuery(
         ant.PointDerivative("a", "y", at=0.5),
         transport.SelectionDiagram("trial", "target", ["x"]),
         source_experiments=["a"],
@@ -455,7 +457,7 @@ def test_analyze_requires_the_design_facts():
 
 
 def test_root_query_classes_are_the_stage_module_classes():
-    assert ant.TransportQuery is transport.TransportQuery
+    assert TransportQuery is transport.TransportQuery
     assert ant.InterferenceQuery is interference.InterferenceQuery
     assert _transport_query().kind == "transport"
     assert _interference_query([True] * UNITS).kind == "interference"

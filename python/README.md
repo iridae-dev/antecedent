@@ -191,15 +191,15 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace contains 57 names: the analyze contract plus
-`prepare`, `load`, `TransportQuery`, `InterferenceQuery`, and `Analysis`. `AnomalyAttribution`
+The root namespace contains 56 names: the analyze contract plus
+`prepare`, `load`, `InterferenceQuery`, and `Analysis`. `AnomalyAttribution`
 and `ChangeAttribution` run their licensed Dag cells on `analyze()` and retain
-a study. `TransportQuery` and `InterferenceQuery`
+a study. `InterferenceQuery` and `antecedent.transport.advanced.TransportQuery`
 run their licensed cells on `analyze()` and retain a study like every other
 licensed route; `antecedent.transport` / `antecedent.interference` hold the
-selection diagram, designs, exposure mappings, the transport identification stage,
-and the unlicensed `estimate_trial_effect` / `estimate` utilities, which return
-bare numbers with no study or license.
+2.0 compiler, selection diagram, designs, exposure mappings, the transport
+identification stage, and the unlicensed `estimate_trial_effect` / `estimate`
+utilities, which return bare numbers with no study or license.
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
