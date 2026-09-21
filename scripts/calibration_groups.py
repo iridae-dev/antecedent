@@ -120,7 +120,7 @@ def is_grid(label: str) -> bool:
     """Is `label` measured over the sample-size grid (the gate's `grid_group`)?"""
     if label.startswith("antecedent-estimate: bayesian_"):
         return False
-    return label.startswith(("antecedent-estimate:", "v19_", "v110_"))
+    return label.startswith(("antecedent-estimate:", "v19_", "v110_", "v20_"))
 
 
 @dataclass
