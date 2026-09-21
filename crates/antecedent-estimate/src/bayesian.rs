@@ -1235,8 +1235,7 @@ impl BayesianGComputationAte {
             // path only runs for known-σ² Laplace, which has no residual column).
             let mechanism_draws = concat_coefficient_draws(&coef_draws, &extra_blocks)?;
             let mut quantities = mechanism_draws.schema.quantities.to_vec();
-            let residual_idx = if residual_sigma2_col.as_ref().is_some_and(|c| c.len() == n_draws)
-            {
+            let residual_idx = if residual_sigma2_col.as_ref().is_some_and(|c| c.len() == n_draws) {
                 quantities.push(PosteriorQuantityKind::ResidualVariance);
                 Some(quantities.len() - 1)
             } else {
@@ -1988,11 +1987,7 @@ mod tests {
         for i in 0..n {
             zv[i] = (i as f64) * 0.1;
             tv[i] = if i % 2 == 0 { 1.0 } else { 0.0 };
-            let e = if noise == 0.0 {
-                0.0
-            } else {
-                (((i + seed_off) % 7) as f64 - 3.0) * noise
-            };
+            let e = if noise == 0.0 { 0.0 } else { (((i + seed_off) % 7) as f64 - 3.0) * noise };
             yv[i] = 2.0 * tv[i] + 0.5 * zv[i] + e;
         }
         let validity = ValidityBitmap::all_valid(n);
@@ -3153,19 +3148,13 @@ mod tests {
         let m_flat = post_flat.summaries.mean[eq];
         let m_strong = post_strong.summaries.mean[eq];
         // True ATE ≈ 2; flat recovers it; strong isotropic prior at 0 pulls toward 0.
-        assert!(
-            (m_flat - m_strong).abs() > 0.15,
-            "prior ignored? flat={m_flat} strong={m_strong}"
-        );
+        assert!((m_flat - m_strong).abs() > 0.15, "prior ignored? flat={m_flat} strong={m_strong}");
         assert!(
             m_strong.abs() < m_flat.abs(),
             "strong prior should shrink toward 0: flat={m_flat} strong={m_strong}"
         );
         // Data not ignored: informative sample must move off the prior mean (0).
-        assert!(
-            m_strong.abs() > 0.05,
-            "data ignored? strong posterior {m_strong} ≈ prior mean 0"
-        );
+        assert!(m_strong.abs() > 0.05, "data ignored? strong posterior {m_strong} ≈ prior mean 0");
     }
 
     #[test]

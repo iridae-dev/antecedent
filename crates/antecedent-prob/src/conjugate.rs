@@ -701,10 +701,13 @@ mod tests {
             let vn_inv = lam0 + xtx;
             let vn = 1.0 / vn_inv;
             let mn = vn * (lam0 * m0 + xty);
-            let rss: f64 = y.iter().map(|&yi| {
-                let d = yi - mn;
-                d * d
-            }).sum();
+            let rss: f64 = y
+                .iter()
+                .map(|&yi| {
+                    let d = yi - mn;
+                    d * d
+                })
+                .sum();
             let prior_quad = (mn - m0) * (mn - m0) * lam0;
             let alpha_n = alpha0 + 0.5 * n as f64;
             let beta_n = beta0 + 0.5 * (rss + prior_quad);

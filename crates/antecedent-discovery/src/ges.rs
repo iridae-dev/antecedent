@@ -912,16 +912,10 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             if out_to_remaining {
                 continue;
             }
-            let mut adjacent: Vec<DenseNodeId> = work
-                .parents(x)
-                .into_iter()
-                .filter(|p| remaining.contains(p))
-                .collect();
-            adjacent.extend(
-                work.undirected_neighbors(x)
-                    .into_iter()
-                    .filter(|n| remaining.contains(n)),
-            );
+            let mut adjacent: Vec<DenseNodeId> =
+                work.parents(x).into_iter().filter(|p| remaining.contains(p)).collect();
+            adjacent
+                .extend(work.undirected_neighbors(x).into_iter().filter(|n| remaining.contains(n)));
             adjacent.sort_unstable_by_key(|node| node.raw());
             adjacent.dedup();
             // Clique among adjacent remaining vertices (Dor–Tarsi 1992).

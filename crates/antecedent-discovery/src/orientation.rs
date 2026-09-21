@@ -315,12 +315,12 @@ pub struct OrientationState {
 
 /// Canonical key for unshielded triple `a — b — c` (same as `c — b — a`).
 #[must_use]
-pub(crate) fn ambiguous_triple_key(a: DenseNodeId, b: DenseNodeId, c: DenseNodeId) -> (u32, u32, u32) {
-    if a.raw() <= c.raw() {
-        (a.raw(), b.raw(), c.raw())
-    } else {
-        (c.raw(), b.raw(), a.raw())
-    }
+pub(crate) fn ambiguous_triple_key(
+    a: DenseNodeId,
+    b: DenseNodeId,
+    c: DenseNodeId,
+) -> (u32, u32, u32) {
+    if a.raw() <= c.raw() { (a.raw(), b.raw(), c.raw()) } else { (c.raw(), b.raw(), a.raw()) }
 }
 
 impl OrientationState {

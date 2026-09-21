@@ -28,7 +28,8 @@ use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
 use crate::combinations::for_each_combination;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{
-    DiscoveryWorkspace, PcmciEngine, mci_conditioning_bounded, parents_of_target, refuse_truncated_mci,
+    DiscoveryWorkspace, PcmciEngine, mci_conditioning_bounded, parents_of_target,
+    refuse_truncated_mci,
 };
 use crate::error::DiscoveryError;
 use crate::evidence::{
@@ -1072,12 +1073,7 @@ mod tests {
             let results = request
                 .queries
                 .iter()
-                .map(|_| CiResult {
-                    statistic: 0.0,
-                    p_value: 1.0,
-                    df: 0.0,
-                    ci: None,
-                })
+                .map(|_| CiResult { statistic: 0.0, p_value: 1.0, df: 0.0, ci: None })
                 .collect();
             Ok(CiBatchResult { results })
         }
@@ -1095,9 +1091,7 @@ mod tests {
             _ctx: &ExecutionContext,
         ) -> Result<CiBatchResult, StatsError> {
             prepared.ensure_compatible(request)?;
-            Err(StatsError::Unsupported {
-                message: "forced CI failure for majority vote",
-            })
+            Err(StatsError::Unsupported { message: "forced CI failure for majority vote" })
         }
     }
 
@@ -1119,10 +1113,7 @@ mod tests {
         orient_majority_colliders(&engine, &frame, &[], &mut graph, &mut state, &mut ws, &ctx)
             .unwrap();
 
-        assert!(
-            state.is_ambiguous_triple(a, c, b),
-            "majority tie must mark a—c—b ambiguous"
-        );
+        assert!(state.is_ambiguous_triple(a, c, b), "majority tie must mark a—c—b ambiguous");
         assert!(graph.edge_between(a, c).unwrap().is_undirected());
         assert!(graph.edge_between(c, b).unwrap().is_undirected());
 
@@ -1143,20 +1134,9 @@ mod tests {
         let (graph, a, c, b) = unshielded_triple();
         let engine = PcmciEngine::new().with_ci(Arc::new(AlwaysCiError));
         let mut ws = DiscoveryWorkspace::default();
-        let err = majority_sep_counts(
-            &engine,
-            &frame,
-            &[],
-            &graph,
-            a,
-            b,
-            c,
-            1,
-            0.05,
-            &mut ws,
-            &ctx,
-        )
-        .expect_err("CI failure must not be swallowed as a non-vote");
+        let err =
+            majority_sep_counts(&engine, &frame, &[], &graph, a, b, c, 1, 0.05, &mut ws, &ctx)
+                .expect_err("CI failure must not be swallowed as a non-vote");
         let msg = err.to_string();
         assert!(
             msg.contains("forced CI failure") || msg.contains("Internal") || msg.contains("stats"),
