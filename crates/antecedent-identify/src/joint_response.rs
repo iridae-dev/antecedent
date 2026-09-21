@@ -49,9 +49,14 @@ impl GeneralizedAdjustmentIdentifier {
                     "completion is not a directed/bidirected MAG",
                 ));
             };
-            identify_joint(&admg, mag.nodes(), query, self.config.max_candidates, |from, to| {
-                visible(mag, from, to)
-            })
+            identify_joint(
+                &admg,
+                mag.nodes(),
+                query,
+                self.config.max_candidates,
+                JOINT_MAX_EXAMINATIONS,
+                |from, to| visible(mag, from, to),
+            )
         })
     }
 
@@ -89,7 +94,14 @@ impl GeneralizedAdjustmentIdentifier {
         graph: &Admg,
         query: &ResponseQuery,
     ) -> Result<IdentificationResult, IdentificationError> {
-        identify_joint(graph, graph.nodes(), query, self.config.max_candidates, |_, _| true)
+        identify_joint(
+            graph,
+            graph.nodes(),
+            query,
+            self.config.max_candidates,
+            JOINT_MAX_EXAMINATIONS,
+            |_, _| true,
+        )
     }
 }
 
@@ -186,6 +198,7 @@ fn identify_joint(
     nodes: &[NodeRef],
     response: &ResponseQuery,
     max_candidates: usize,
+    max_examinations: u64,
     visible_edge: impl Fn(DenseNodeId, DenseNodeId) -> bool,
 ) -> Result<IdentificationResult, IdentificationError> {
     let PreparedJointResponse { query, treatments, outcome, targets, y } =
@@ -206,12 +219,14 @@ fn identify_joint(
         .map(|&target| backdoor_graph(graph, target, &visible_edge))
         .collect::<Result<Vec<_>, _>>()?;
     let mut examined = 0u64;
+    let mut budget_exhausted = false;
     let mut found = None;
     let mut workspace = DSeparationWorkspace::default();
     for size in 0..=candidates.len() {
         let mut error = None;
         crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
-            if examined >= 1_000_000 {
+            if examined >= max_examinations {
+                budget_exhausted = true;
                 return true;
             }
             examined += 1;
@@ -239,9 +254,43 @@ fn identify_joint(
         }
     }
     let Some(z) = found else {
+        if budget_exhausted {
+            return Ok(joint_search_bounded(query, examined, max_examinations));
+        }
         return Ok(joint_scientifically_unidentified(query, examined));
     };
     Ok(joint_result(query, nodes, &z, &treatments, outcome, examined))
+}
+
+/// Separation tests one joint search may run before it stops undecided.
+pub(crate) const JOINT_MAX_EXAMINATIONS: u64 = 1_000_000;
+
+/// Diagnostic code of a joint search that spent [`JOINT_MAX_EXAMINATIONS`] before it
+/// finished: identifiability is undecided, not refuted.
+pub const JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.joint.search_bounded";
+
+/// The joint search stopped at its examination budget with subsets left untested.
+fn joint_search_bounded(
+    query: CausalQuery,
+    examined: u64,
+    max_examinations: u64,
+) -> IdentificationResult {
+    let mut result = not_identified(
+        query,
+        "joint generalized back-door search stopped at its examination budget; undecided",
+    );
+    result.performance.candidates_examined = examined;
+    result.diagnostics.push(Diagnostic::new(
+        JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Warning,
+        format!(
+            "joint adjustment search ran {examined} separation tests (budget \
+             {max_examinations}) without finding a set and without exhausting the candidate \
+             subsets; identifiability is undecided, not refuted"
+        ),
+    ));
+    result
 }
 
 /// Proven non-ID after an exhaustive joint search (not a budget miss).
@@ -439,8 +488,10 @@ mod tests {
             schema.id_of("y").unwrap(),
         );
         let mag_path =
-            identify_joint(&admg, pag.nodes(), &query, 16, |from, to| visible(&pag, from, to))
-                .unwrap();
+            identify_joint(&admg, pag.nodes(), &query, 16, JOINT_MAX_EXAMINATIONS, |from, to| {
+                visible(&pag, from, to)
+            })
+            .unwrap();
         assert_eq!(
             mag_path.status,
             IdentificationStatus::NotIdentified,
@@ -492,6 +543,46 @@ mod tests {
             }),
             "drawn T↔Y must not carry the cap diagnostic"
         );
+    }
+
+    /// Seventeen common causes of both treatments and the outcome: the only joint set is all
+    /// of them, reached last by a search that grows the set size. Stopping after three
+    /// separation tests decides nothing about identifiability.
+    #[test]
+    fn joint_examination_budget_exit_is_a_bounded_search_not_a_refutation() {
+        let mut admg = Admg::with_variables(20);
+        admg.insert_directed(n(0), n(2)).unwrap();
+        admg.insert_directed(n(1), n(2)).unwrap();
+        for i in 3..20 {
+            for child in [n(0), n(1), n(2)] {
+                admg.insert_directed(n(i), child).unwrap();
+            }
+        }
+        let query =
+            joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let bounded = identify_joint(&admg, admg.nodes(), &query, 40, 3, |_, _| true).unwrap();
+        assert_eq!(bounded.status, IdentificationStatus::NotIdentified);
+        assert_eq!(bounded.performance.candidates_examined, 3);
+        let kinds: Vec<_> =
+            bounded.diagnostics.iter().map(|d| (d.code.as_ref().to_owned(), d.kind)).collect();
+        assert_eq!(
+            kinds,
+            vec![(
+                JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE.to_owned(),
+                antecedent_core::DiagnosticKind::Execution
+            )],
+            "an unfinished search carries no scientific negative"
+        );
+        assert!(
+            crate::envelope::search_truncated(&bounded),
+            "a class envelope must count this completion as undecided, not as refuted"
+        );
+
+        let full =
+            identify_joint(&admg, admg.nodes(), &query, 40, JOINT_MAX_EXAMINATIONS, |_, _| true)
+                .unwrap();
+        assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(full.estimands[0].adjustment_set.len(), 17);
     }
 
     #[test]
