@@ -23,9 +23,11 @@
 //! additive and linear in the mediators with **no treatment–mediator interaction**. A latent
 //! `T`–`Y` confounder that modifies a mediator's effect on `Y` (the very setting front-door
 //! exists for) puts such an interaction into `E[Y|M,T]`, and the product of coefficients then
-//! converges to a variance-weighted slope rather than the identified effect. Every fit
-//! therefore records [`LINEAR_PATH_PRODUCT_ASSUMPTION_ID`] as an estimation-scope parametric
-//! restriction on the result.
+//! converges to a variance-weighted slope rather than the identified effect. The number is
+//! therefore the effect only under [`linear_path_product_restriction`], a restriction on how
+//! the latent confounder enters the outcome mechanism. It belongs to the identification claim
+//! of the result (as the constant-effect restriction does for a Wald ratio), so every fit
+//! records it at identification scope unless the caller's assumption set already carries it.
 //!
 //! The analytic standard error is a stacked M-estimator sandwich: every stage-1 mediator
 //! regression and the stage-2 outcome regression share one score vector per row so that
@@ -279,7 +281,7 @@ impl FrontDoorTwoStage {
         mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let (ate, se_analytic) = self.point_estimate(problem, workspace)?;
-        assumptions.push(linear_path_product_assumption());
+        assumptions.extend_unique(&[linear_path_product_restriction()]);
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -425,7 +427,13 @@ impl FrontDoorTwoStage {
     }
 }
 
-fn linear_path_product_assumption() -> antecedent_core::AssumptionRecord {
+/// The restriction under which the product of coefficients is the front-door effect.
+///
+/// Identification scope: the front-door criterion identifies the functional, and this
+/// estimator computes a different functional of the observed law that coincides with it only
+/// under this restriction.
+#[must_use]
+pub fn linear_path_product_restriction() -> antecedent_core::AssumptionRecord {
     antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(
             antecedent_core::ParametricAssumption {
@@ -438,7 +446,7 @@ fn linear_path_product_assumption() -> antecedent_core::AssumptionRecord {
         source: antecedent_core::AssumptionSource::AlgorithmDefault {
             algorithm: Arc::from("frontdoor.linear_two_stage"),
         },
-        scope: antecedent_core::AssumptionScope::Estimation,
+        scope: antecedent_core::AssumptionScope::Identification,
         status: antecedent_core::AssumptionStatus::Declared,
     }
 }

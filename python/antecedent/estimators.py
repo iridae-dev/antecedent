@@ -607,8 +607,10 @@ class FrontdoorLinearTwoStage:
 
     Multiplies OLS coefficients (``T -> M`` times ``M -> Y`` given ``T``) rather than
     evaluating the front-door functional, so it is exact only when ``E[M|T]`` is linear
-    and ``E[Y|M,T]`` has no treatment-mediator interaction; the result records that
-    restriction (``frontdoor.linear_path_product``). For a discrete treatment prefer
+    and ``E[Y|M,T]`` has no treatment-mediator interaction. The result is therefore
+    reported as identified under parametric restrictions, with
+    ``frontdoor.linear_path_product`` among its identification assumptions. For a
+    discrete treatment prefer
     ``estimator="frontdoor.functional"``, which estimates the functional itself.
 
     No ``multiway_ids``/``panel_times`` fields: the Rust struct carries only

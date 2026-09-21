@@ -5,7 +5,7 @@
 use std::str::FromStr;
 use std::sync::OnceLock;
 
-use antecedent_core::IdentificationStatus;
+use antecedent_core::{AssumptionRecord, IdentificationStatus};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_identify::IdentificationResult;
 
@@ -962,11 +962,51 @@ pub fn select_claim(
 ) -> Result<(IdentificationResult, IdentifiedEstimand), CausalError> {
     let index = select_estimand_index(&identification, estimator)?;
     let estimand = identification.estimands[index].clone();
-    if identification.estimand_claims.is_empty() {
-        return Ok((identification, estimand));
+    let mut claim = if identification.estimand_claims.is_empty() {
+        identification
+    } else {
+        identification.narrowed_to(index).unwrap_or(identification)
+    };
+    if let Some(restriction) = estimator_claim_restriction(estimator) {
+        restrict_claim(&mut claim, &restriction);
     }
-    let narrowed = identification.narrowed_to(index).unwrap_or(identification);
-    Ok((narrowed, estimand))
+    Ok((claim, estimand))
+}
+
+/// Restriction under which `estimator`'s target equals the identified functional.
+///
+/// An estimator that evaluates the identified functional keeps the identifier's claim; how
+/// it models a regression inside that functional is an estimation-scope record, because the
+/// regression is a feature of the observed law that a richer model can fit without changing
+/// the target. An estimator that computes a *different* functional of the observed law is
+/// the queried effect only under a restriction on the structural model, and that
+/// restriction is part of the identification claim: the constant-effect (or monotonicity)
+/// restriction of a Wald ratio, recorded by the IV identifier, and the restriction under
+/// which a product of regression coefficients is the front-door effect, recorded here
+/// because the front-door identifier cannot know which estimator will run.
+fn estimator_claim_restriction(estimator: EstimatorId) -> Option<AssumptionRecord> {
+    match estimator {
+        EstimatorId::FrontDoorTwoStage => {
+            Some(antecedent_estimate::linear_path_product_restriction())
+        }
+        _ => None,
+    }
+}
+
+/// Add `restriction` to a claim and weaken a nonparametric status to a parametric one.
+/// Statuses that are already weaker are kept.
+fn restrict_claim(claim: &mut IdentificationResult, restriction: &AssumptionRecord) {
+    let weaken = |status: &mut IdentificationStatus| {
+        if *status == IdentificationStatus::NonparametricallyIdentified {
+            *status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+        }
+    };
+    weaken(&mut claim.status);
+    claim.required_assumptions.extend_unique([restriction]);
+    for own in &mut claim.estimand_claims {
+        weaken(&mut own.status);
+        own.required_assumptions.extend_unique([restriction]);
+    }
 }
 
 fn select_estimand_index(
