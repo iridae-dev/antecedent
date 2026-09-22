@@ -25,9 +25,6 @@ from .._transport_results import (
     TransportGridPoint,
     TransportUncertainty,
 )
-from .._transport_results import (
-    TransportSupport as TransportSupport,  # re-exported via __all__, not used in this file
-)
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
 from ..learners import LearnerSpec, Logistic, Ridge, _learner_wire
@@ -1904,4 +1901,4 @@ __all__ += ["TransportContrast", "TransportUncertainty"]
 
 __all__ += ["TrialNuisanceDiagnostics"]
 
-__all__ += ["TransportGridPoint", "TransportSupport"]
+__all__ += ["TransportGridPoint"]
