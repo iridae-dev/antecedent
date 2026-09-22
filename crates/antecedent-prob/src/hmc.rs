@@ -1210,13 +1210,14 @@ mod tests {
             offsets: None,
         };
         let fit_opts = BayesFitOptions { n_draws: 2000, seed: 42, max_iter: 50, grad_tol: 1e-8 };
-        // Longer schedule + milder steps: R̂≤1.01 is tight on 2-parameter
-        // Gaussian HMC and was flaking on Linux CI around 1.012.
+        // Longer schedule + milder steps: R̂≤1.01 is tight on 2-parameter Gaussian HMC and was
+        // flaking on Linux CI around 1.012 at step_size 0.04 (rhat=1.0123, ess_bulk=431 here);
+        // 0.03 clears the gate with a wide margin (rhat=1.0018, ess_bulk=1836).
         let hmc = HmcOptions {
             n_chains: 4,
             n_warmup: 1500,
             leapfrog_steps: 16,
-            step_size: 0.04,
+            step_size: 0.03,
             target_accept: 0.85,
             mass: 1.0,
             adapt_metric: false,
