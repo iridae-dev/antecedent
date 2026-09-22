@@ -171,6 +171,12 @@ impl Fci {
                 "FCI FDR is refused until adjustment covers both adjacency and Possible-D-Sep CI tests",
             ));
         }
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.ci,
+            self.constraints.significance,
+            self.constraints.alpha,
+            false,
+        )?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "FCI requires at least one variable",

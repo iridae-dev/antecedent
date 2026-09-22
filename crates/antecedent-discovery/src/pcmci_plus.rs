@@ -144,6 +144,13 @@ impl PcmciPlus {
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
         let alpha = self.engine.constraints.alpha;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
+            alpha,
+            self.fdr.is_some(),
+        )?;
+        crate::ci::ensure_ci_fits_frame(&*self.engine.ci, frame)?;
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {

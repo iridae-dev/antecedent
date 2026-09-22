@@ -914,6 +914,13 @@ fn run_lpcmci_on_frame(
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
+    crate::ci::ensure_ci_decisions_meaningful(
+        &*engine.ci,
+        engine.constraints.significance,
+        alpha,
+        fdr.is_some(),
+    )?;
+    crate::ci::ensure_ci_fits_frame(&*engine.ci, frame)?;
     workspace.prepared_ci = None;
 
     let mut sepsets = PcSepsets::default();
