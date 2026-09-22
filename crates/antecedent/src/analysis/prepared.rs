@@ -480,7 +480,38 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let causal_query = CausalQuery::Response(query.clone());
+    // `estimate_admg_posterior_atom_response` reuses this atom's cached
+    // identification/estimand verbatim as the *first grid level's* claim (it
+    // only re-identifies per level from the second level on). A MeanCurve
+    // query identified whole produces one general.id estimand per grid
+    // level, and `select_estimand` then has no unique estimator match to
+    // pick among them (they all report the same method). Cache the first
+    // level's InterventionResponse claim instead, which is what downstream
+    // code actually consumes and — being a single intervention level — is
+    // exactly what `select_estimand` can disambiguate.
+    let causal_query = match &query.functional {
+        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+            let first_level = treatment
+                .grid
+                .values()
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+                .into_iter()
+                .next()
+                .ok_or_else(|| CausalError::Compile {
+                    message: "MeanCurve response requires a non-empty evaluation grid".into(),
+                })?;
+            let mut level_query = query.clone();
+            level_query.functional = antecedent_core::ResponseFunctional::InterventionResponse {
+                outcome: *outcome,
+                interventions: Arc::from([Intervention::set(
+                    treatment.variable,
+                    Value::f64(first_level),
+                )]),
+            };
+            CausalQuery::Response(level_query)
+        }
+        _ => CausalQuery::Response(query.clone()),
+    };
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
             let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
