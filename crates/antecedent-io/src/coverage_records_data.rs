@@ -1056,7 +1056,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         inference: "Frequentist",
         estimator: "aipw",
         interval_method: "analytic_se",
-        se_kind: "",
+        se_kind: "homoskedastic",
         dependence: "iid",
         posterior: "",
         functional: "all_observed.mean",
