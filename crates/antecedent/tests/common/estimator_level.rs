@@ -146,6 +146,62 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "hc1",
         "local_at_cutoff.mean",
     ),
+    case(
+        "wald_iv_weak_first_stage_adversarial_ci_coverage",
+        "iv.wald",
+        "analytic_se",
+        "homoskedastic",
+        "all_observed.mean",
+    ),
+    case(
+        "ipw_hajek_weak_overlap_adversarial_ci_coverage",
+        "propensity.weighting",
+        "analytic_se",
+        "",
+        "all_observed.mean",
+    ),
+    case(
+        "rd_sharp_hc1_curved_adversarial_ci_coverage",
+        "rd.sharp",
+        "analytic_se",
+        "hc1",
+        "local_at_cutoff.mean",
+    ),
+    case(
+        "matching_heteroskedastic_adversarial_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "treated.mean",
+    ),
+    case(
+        "matching_heterogeneous_att_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "treated.mean",
+    ),
+    case(
+        "matching_heterogeneous_atc_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "untreated.mean",
+    ),
+    case(
+        "matching_heterogeneous_ate_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "all_observed.mean",
+    ),
+    case(
+        "frontdoor_stacked_hc1_curved_mediator_ci_coverage",
+        "frontdoor.linear_two_stage",
+        "analytic_se",
+        "hc1",
+        "all_observed.mean",
+    ),
 ];
 
 const fn case(

@@ -60,6 +60,9 @@ grid_group() {
 # checkout, or copied from another machine, carry the sha they were measured at
 # instead of whatever HEAD is when the collector runs.
 MEASURED_SHA="$(git rev-parse HEAD)"
+# The harness prints it inside every `calibration-record` line (`measured_at`); the
+# collector refuses a record whose own sha is not the one it stamps.
+export ANTECEDENT_CALIBRATION_SHA="$MEASURED_SHA"
 
 stamp_log() {
   printf 'calibration-measured-at %s\n' "$MEASURED_SHA" >>"$1"
@@ -197,13 +200,18 @@ run_ignored antecedent-estimate rd_sharp_hc1_curved_heterogeneous_probe
 run_ignored antecedent-estimate dml_analytic_ci_coverage
 run_ignored antecedent-estimate dr_learner_analytic_ci_coverage
 run_ignored antecedent-estimate causal_forest_analytic_ci_coverage
-# Adversarial cells (weak IV / weak overlap / curved RD / heteroskedastic
-# matching): fixtures in static_dgp.rs + ignored tests in calibration_coverage.rs.
-# Enrol after the next full remesurement — do not uncomment until then.
-# run_ignored antecedent-estimate wald_iv_weak_first_stage_adversarial_ci_coverage
-# run_ignored antecedent-estimate ipw_hajek_weak_overlap_adversarial_ci_coverage
-# run_ignored antecedent-estimate rd_sharp_hc1_curved_adversarial_ci_coverage
-# run_ignored antecedent-estimate matching_heteroskedastic_adversarial_ci_coverage
+# Boundary cells (weak IV / weak overlap / curved RD / heteroskedastic and
+# heterogeneous-effect matching / curved front-door mediator): designs outside the
+# interval's stated assumptions, recorded as named boundaries and never gated
+# (fixtures in static_dgp.rs + tests in calibration_coverage.rs).
+run_ignored antecedent-estimate wald_iv_weak_first_stage_adversarial_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_weak_overlap_adversarial_ci_coverage
+run_ignored antecedent-estimate rd_sharp_hc1_curved_adversarial_ci_coverage
+run_ignored antecedent-estimate matching_heteroskedastic_adversarial_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_att_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_atc_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_ate_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc1_curved_mediator_ci_coverage
 
 run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage

@@ -19,9 +19,10 @@
 //!
 //! In-assumption DGPs gate the estimators under their stated models. DML,
 //! DR-Learner and causal forest each have a reported-level (0.95) cell on
-//! [`confounded_scm`]. Adversarial cells (weak IV, weak overlap, curved RD,
-//! heteroskedastic matching) live in [`static_dgp`] and as ignored tests
-//! below; the gate enrols them after the next full remesurement.
+//! [`confounded_scm`]. Boundary cells (weak IV, weak overlap, curved RD,
+//! heteroskedastic and heterogeneous-effect matching, a curved front-door
+//! mediator) sit outside the interval's stated assumptions: the gate runs them and
+//! records the measured coverage as a named boundary without gating it.
 //!
 //! **Coverage records.** Each gated test measures a construction the facade
 //! reports when a study selects that estimator configuration on a `Dag`
@@ -33,7 +34,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -216,6 +224,18 @@ impl Tally {
             self.covered,
             self.scored
         );
+    }
+
+    /// Print the `calibration ...` line and record the cell as a named boundary: its
+    /// coverage is measured on a design outside the interval's stated assumptions and is
+    /// never gated, so the record can only ever report the measured level.
+    fn emit_boundary(&self, label: &str) {
+        assert!(self.scored > 0, "{label}: no replicates scored");
+        self.report(label);
+        let Some((tally, _)) = self.record.as_ref() else {
+            panic!("{label}: a boundary cell needs a record tally")
+        };
+        tally.emit_named_boundary();
     }
 
     /// Assert a named boundary cell against its *measured* coverage at each
@@ -744,14 +764,30 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 }
 
 fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed: u64) {
+    wald_coverage_on(test, label, se_kind, seed, "binary_iv_scm", binary_iv_scm, 0.05, false);
+}
+
+/// Anderson–Rubin coverage of the Wald estimator on the design `make` draws (`dgp` names it).
+/// A `boundary` cell records the measured coverage without gating it.
+#[allow(clippy::too_many_arguments)]
+fn wald_coverage_on(
+    test: &'static str,
+    label: &str,
+    se_kind: AnalyticSeKind,
+    seed: u64,
+    dgp: &'static str,
+    make: fn(usize, u64) -> (TabularData, IdentifiedEstimand),
+    min_weak_share: f64,
+    boundary: bool,
+) {
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(seed);
-    let mut tally = Tally::for_record(test, "binary_iv_scm");
+    let mut tally = Tally::for_record(test, dgp);
     let mut weak_f = 0u32;
     for s in 0..n_sim() {
-        let (data, estimand) = binary_iv_scm(n_obs(), seed * 1000 + u64::from(s));
+        let (data, estimand) = make(n_obs(), seed * 1000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
         assert!(
@@ -815,10 +851,14 @@ fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed:
     if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
         let weak_share = f64::from(weak_f) / f64::from(n_sim().max(1));
         assert!(
-            weak_share > 0.05,
-            "{label}: DGP must leave a non-trivial F<10 share, got {weak_share}"
+            weak_share > min_weak_share,
+            "{label}: DGP must leave an F<10 share above {min_weak_share}, got {weak_share}"
         );
-        tally.assert(label);
+        if boundary {
+            tally.emit_boundary(label);
+        } else {
+            tally.assert(label);
+        }
     } else {
         // HC1 / robust: licensed product withheld; do not claim Wald coverage.
         tally.report(label);
@@ -1418,67 +1458,93 @@ fn causal_forest_analytic_ci_coverage() {
     tally.emit();
 }
 
-// ---------------------------------------------------------- adversarial cells
-// Fixtures the gate will enrol after the next full remesurement. Each sits
-// outside the estimator's comfort zone; they are ignored and not yet listed in
-// scripts/gate_calibration.sh so this commit does not start a 15–30 h run.
+// ---------------------------------------------------------- boundary cells
+// Designs outside an interval's stated assumptions. Each emits a named-boundary record
+// (`Tally::emit_boundary`): the measured coverage is reported, never gated, so an execution
+// of the construction on such data can only ever be described by what was measured here.
 
-/// Weak-IV Anderson–Rubin coverage on [`static_dgp::weak_iv_data`].
-#[test]
-#[ignore = "calibration: adversarial cell; enrol after remesurement"]
-fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
-    let query =
-        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    let est =
-        WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Homoskedastic, ..WaldIv::new() };
-    let ctx = ExecutionContext::for_tests(71);
-    let mut tally = Tally::default();
-    let mut weak_f = 0u32;
-    for s in 0..n_sim() {
-        let data = static_dgp::weak_iv_data(n_obs(), 71_000 + u64::from(s));
-        let estimand = IdentifiedEstimand::instrumental(
-            "iv",
-            Arc::from([VariableId::from_raw(2)]),
-            ExprId::from_raw(0),
-        );
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
-        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
-        if diag.f_statistic.is_finite() && diag.f_statistic < 10.0 {
-            weak_f += 1;
-        }
-        let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
-        tally.record_ar(effect.ate, interval, TRUE_ATE);
-    }
-    let weak_share = f64::from(weak_f) / f64::from(n_sim().max(1));
-    assert!(
-        weak_share > 0.2,
-        "weak_iv adversarial DGP must leave a large F<10 share, got {weak_share}"
+/// [`static_dgp::weak_iv_data`] with its instrument declared.
+fn weak_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+    let estimand = IdentifiedEstimand::instrumental(
+        "iv",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
     );
-    tally.report("wald_iv_weak_first_stage_adversarial");
+    (static_dgp::weak_iv_data(n, seed), estimand)
+}
+
+/// [`static_dgp::weak_overlap_data`] with its adjustment set declared.
+fn weak_overlap_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+    (static_dgp::weak_overlap_data(n, seed), backdoor_z())
+}
+
+/// [`static_dgp::heteroskedastic_matching_data`] with its adjustment set declared.
+fn heteroskedastic_matching_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+    (static_dgp::heteroskedastic_matching_data(n, seed), backdoor_z())
+}
+
+/// [`static_dgp::heterogeneous_effect_matching_data`] with its adjustment set declared.
+fn heterogeneous_effect_matching_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+    (static_dgp::heterogeneous_effect_matching_data(n, seed), backdoor_z())
+}
+
+/// Mean of the confounder among the treated, `E[z | T = 1]`, on the heterogeneous-effect
+/// matching design (`z ~ N(0,1)`, `T ~ Bern(σ(0.8z))`). The marginal treated share is 1/2 by
+/// symmetry, so `E[z | T = 1] = 2·E[z σ(0.8z)]` (and `E[z | T = 0]` is its negative); the
+/// integral is taken by trapezoid quadrature on `[−9, 9]`, independent of any estimator.
+fn heterogeneous_treated_confounder_mean() -> f64 {
+    const STEP: f64 = 1e-3;
+    let sum: f64 = (0..=18_000_u32)
+        .map(|i| {
+            let z = -9.0 + f64::from(i) * STEP;
+            let density = (-0.5 * z * z).exp() / (2.0 * std::f64::consts::PI).sqrt();
+            z * static_dgp::sigmoid(0.8 * z) * density
+        })
+        .sum();
+    2.0 * sum * STEP
+}
+
+/// Weak-IV Anderson–Rubin coverage on [`static_dgp::weak_iv_data`] (first stage 0.15 against
+/// unit-variance noise, so Stock–Yogo `F` sits far below 10).
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
+    wald_coverage_on(
+        "wald_iv_weak_first_stage_adversarial_ci_coverage",
+        "wald_iv_weak_first_stage_adversarial",
+        AnalyticSeKind::Homoskedastic,
+        71,
+        "weak_iv_scm",
+        weak_iv_scm,
+        0.2,
+        true,
+    );
 }
 
 /// IPW analytic SE under [`static_dgp::weak_overlap_data`].
 #[test]
-#[ignore = "calibration: adversarial cell; enrol after remesurement"]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
     let ctx = ExecutionContext::for_tests(72);
-    let mut tally = Tally::default();
+    let mut tally =
+        Tally::for_record("ipw_hajek_weak_overlap_adversarial_ci_coverage", "weak_overlap_scm");
     for s in 0..n_sim() {
-        let data = static_dgp::weak_overlap_data(grid_n(500), 72_000 + u64::from(s));
-        let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
+        let (data, estimand) = weak_overlap_scm(grid_n(500), 72_000 + u64::from(s));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.bind(grid_n(500), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    tally.report("ipw_hajek_weak_overlap_adversarial");
+    tally.emit_boundary("ipw_hajek_weak_overlap_adversarial");
 }
 
-/// Sharp-RD HC1 under [`static_dgp::curved_rd_data`] (cubic bias + heterogeneous τ).
+/// Sharp-RD HC1 under the curved, heterogeneous design [`rd_curved_heterogeneous_scm`]
+/// (cubic smoothing bias; scored against the cutoff effect).
 #[test]
-#[ignore = "calibration: adversarial cell; enrol after remesurement"]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
     const CUTOFF_EFFECT: f64 = 2.0;
     let query = rd_cutoff_query(0.0);
@@ -1488,40 +1554,165 @@ fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
         ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 0.8)
     };
     let ctx = ExecutionContext::for_tests(73);
-    let mut tally = Tally::default();
+    let mut tally = Tally::for_record(
+        "rd_sharp_hc1_curved_adversarial_ci_coverage",
+        "rd_curved_heterogeneous_scm",
+    );
     for s in 0..n_sim() {
-        let data = static_dgp::curved_rd_data(10 * n_obs(), 73_000 + u64::from(s));
-        // Map r → z column expected by table_tyz / rd estimator (ids t,y,r as 0,1,2).
-        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+        let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 73_000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.bind(10 * n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
     }
-    tally.report("rd_sharp_hc1_curved_adversarial");
+    tally.emit_boundary("rd_sharp_hc1_curved_adversarial");
 }
 
-/// Matching (homoskedastic SE) under [`static_dgp::heteroskedastic_matching_data`].
-#[test]
-#[ignore = "calibration: adversarial cell; enrol after remesurement"]
-fn matching_heteroskedastic_adversarial_ci_coverage() {
+/// Matching with the homoskedastic SE on `make`'s design, scored against `truth` for
+/// `population`; recorded as a boundary, never gated.
+#[allow(clippy::too_many_arguments)]
+fn matching_coverage_on(
+    test: &'static str,
+    label: &str,
+    dgp: &'static str,
+    make: fn(usize, u64) -> (TabularData, IdentifiedEstimand),
+    population: TargetPopulation,
+    truth: f64,
+    seed: u64,
+) {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
-        .with_target_population(TargetPopulation::Treated);
+        .with_target_population(population);
     let est = PropensityMatching {
         bootstrap_replicates: 0,
         se_kind: AnalyticSeKind::Homoskedastic,
         ..PropensityMatching::new()
     };
-    let ctx = ExecutionContext::for_tests(74);
-    let mut tally = Tally::default();
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut tally = Tally::for_record(test, dgp);
     for s in 0..n_sim() {
-        let data = static_dgp::heteroskedastic_matching_data(n_obs(), 74_000 + u64::from(s));
-        let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
+        let (data, estimand) = make(n_obs(), seed * 1000 + u64::from(s));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.bind(n_obs(), None);
+        tally.record(effect.ate, effect.se_analytic, truth);
     }
-    tally.report("matching_heteroskedastic_adversarial");
+    tally.emit_boundary(label);
+}
+
+/// Matching (homoskedastic SE) under [`static_dgp::heteroskedastic_matching_data`].
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn matching_heteroskedastic_adversarial_ci_coverage() {
+    matching_coverage_on(
+        "matching_heteroskedastic_adversarial_ci_coverage",
+        "matching_heteroskedastic_adversarial",
+        "heteroskedastic_matching_scm",
+        heteroskedastic_matching_scm,
+        TargetPopulation::Treated,
+        TRUE_ATE,
+        74,
+    );
+}
+
+/// Matching on a heterogeneous-effect design, `τ(z) = 2 + z`: the treated effect is
+/// `2 + E[z | T = 1]`, the untreated `2 − E[z | T = 1]`, and the average `2`, so the three
+/// target populations have three different truths and an SE that ignores effect
+/// heterogeneity is wrong for each in its own way.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn matching_heterogeneous_att_ci_coverage() {
+    matching_coverage_on(
+        "matching_heterogeneous_att_ci_coverage",
+        "matching_heterogeneous_att",
+        "heterogeneous_effect_matching_scm",
+        heterogeneous_effect_matching_scm,
+        TargetPopulation::Treated,
+        TRUE_ATE + heterogeneous_treated_confounder_mean(),
+        75,
+    );
+}
+
+/// Untreated-population twin of [`matching_heterogeneous_att_ci_coverage`].
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn matching_heterogeneous_atc_ci_coverage() {
+    matching_coverage_on(
+        "matching_heterogeneous_atc_ci_coverage",
+        "matching_heterogeneous_atc",
+        "heterogeneous_effect_matching_scm",
+        heterogeneous_effect_matching_scm,
+        TargetPopulation::Untreated,
+        TRUE_ATE - heterogeneous_treated_confounder_mean(),
+        76,
+    );
+}
+
+/// All-observed twin of [`matching_heterogeneous_att_ci_coverage`].
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn matching_heterogeneous_ate_ci_coverage() {
+    matching_coverage_on(
+        "matching_heterogeneous_ate_ci_coverage",
+        "matching_heterogeneous_ate",
+        "heterogeneous_effect_matching_scm",
+        heterogeneous_effect_matching_scm,
+        TargetPopulation::AllObserved,
+        TRUE_ATE,
+        77,
+    );
+}
+
+/// `T = U + 0.8ε` (`U` unobserved), curved mediator `M = T + 0.5T² + 0.7ε`, `Y = 2M + 1.5U +
+/// 0.5ε`. Columns `t, y, m`. `do(T = 1)` against `do(T = 0)` moves `M` by `1.5` and `Y` by
+/// `2·1.5 = 3`; the linear product of coefficients recovers the mediator slope at the
+/// treatment's own mean instead (`T` is centred, so the quadratic term drops out): `1 · 2`.
+fn frontdoor_curved_mediator_scm(n: usize, seed: u64) -> TabularData {
+    let mut rng = CausalRng::from_seed(grid_seed(seed));
+    let (mut t, mut y, mut m) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let u = standard_normal(&mut rng);
+        t[i] = u + 0.8 * standard_normal(&mut rng);
+        m[i] = t[i] + 0.5 * t[i] * t[i] + 0.7 * standard_normal(&mut rng);
+        y[i] = 2.0 * m[i] + 1.5 * u + 0.5 * standard_normal(&mut rng);
+    }
+    table(&[("t", &t), ("y", &y), ("m", &m)])
+}
+
+/// The linear front-door product of coefficients (HC1) on a curved mediator: the estimand
+/// it targets is not the `do(1)` versus `do(0)` contrast, so its interval is recorded as a
+/// boundary.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
+    const CURVED_TRUTH: f64 = 3.0;
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let estimand = IdentifiedEstimand::frontdoor(
+        "frontdoor",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let est = FrontDoorTwoStage {
+        bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Hc1,
+        ..FrontDoorTwoStage::new()
+    };
+    let ctx = ExecutionContext::for_tests(40);
+    let mut tally = Tally::for_record(
+        "frontdoor_stacked_hc1_curved_mediator_ci_coverage",
+        "frontdoor_curved_mediator_scm",
+    );
+    for s in 0..n_sim() {
+        let data = frontdoor_curved_mediator_scm(grid_n(400), 40_000 + u64::from(s));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.bind(grid_n(400), None);
+        tally.record(effect.ate, effect.se_analytic, CURVED_TRUTH);
+    }
+    tally.emit_boundary("frontdoor_stacked_hc1_curved_mediator");
 }
 
 // --------------------------------------------- precision-layer unit tests (R13)

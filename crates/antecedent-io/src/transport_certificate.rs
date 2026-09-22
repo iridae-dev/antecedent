@@ -8,7 +8,9 @@ use crate::{
     },
     transport_proof::TransportProofWire,
 };
-use antecedent_core::{ExecutionContext, IdentityDomain, NodeRef, VariableId};
+use antecedent_core::{
+    ExecutionContext, IdentityDomain, NodeRef, TransportOutcomeKind, VariableId,
+};
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
     ClassicalTransportQuery, ClassicalTransportResult, MetaSource, SidLimits,
@@ -67,7 +69,9 @@ pub fn structural_reasoning(outcome: &CertificateOutcome) -> ReasoningSectionWir
     let (status, identified, unidentified, incomplete) = match outcome {
         CertificateOutcome::Identified(_) => ("nonparametrically_identified", 1., 0., 0.),
         CertificateOutcome::ProvenNonTransportable(_) => ("proven_non_transportable", 0., 1., 0.),
-        CertificateOutcome::NotCertified { .. } => ("not_certified", 0., 0., 1.),
+        CertificateOutcome::NotCertified { .. } => {
+            (TransportOutcomeKind::NotCertified.as_str(), 0., 0., 1.)
+        }
     };
     ReasoningSectionWire {
         identification: SlotSectionWire {

@@ -66,7 +66,9 @@ impl ClassicalTransportStage {
         match &self.result {
             ClassicalTransportResult::Identified(_) => "identified",
             ClassicalTransportResult::ProvenNonTransportable(_) => "proven_non_transportable",
-            ClassicalTransportResult::NotCertified => "not_certified",
+            ClassicalTransportResult::NotCertified => {
+                antecedent_core::TransportOutcomeKind::NotCertified.as_str()
+            }
         }
     }
     #[getter]
@@ -140,7 +142,7 @@ impl ClassicalTransportStage {
                     searched,
                     obligations,
                 } => serde_json::json!({
-                    "outcome":"not_certified", "searched":searched.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+                    "outcome":antecedent_core::TransportOutcomeKind::NotCertified.as_str(), "searched":searched.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
                     "missing_factors":obligations.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"future_experiments":future,
                     "exhausted":!obligations.iter().any(|note|note.contains("capped")),"finite_catalog_complete":false}),
             };

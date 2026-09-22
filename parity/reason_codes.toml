@@ -224,7 +224,7 @@ meaning = "A required available transport regime or provider input is absent. Di
 [[code]]
 id = "transport_not_certified"
 applies_to = ["runtime_refusal"]
-meaning = "No implemented sound transport rule applies. Historical NotCertified meaning; not a proof of non-transportability."
+meaning = "No implemented sound transport rule applies. Historical NotCertified meaning; not a proof of non-transportability. The outcome kind of the same state is spelled `not_certified` (TransportOutcomeKind::NotCertified, the one owner of that literal); this code is the refusal-reason spelling and the two vocabularies never mix."
 max_uses = 1
 
 [[code]]

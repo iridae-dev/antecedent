@@ -9,7 +9,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 mod common;
 
@@ -168,13 +172,12 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             PropensityWeighting { bootstrap_replicates: 60, ..PropensityWeighting::new() }.into(),
             ate_query(),
         ),
-        "ipw_hajek_analytic_ci_coverage" | "ipw_hajek_analytic_conformance_scm_ci_coverage" => {
-            builder(
-                PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() }
-                    .into(),
-                ate_query(),
-            )
-        }
+        "ipw_hajek_analytic_ci_coverage"
+        | "ipw_hajek_analytic_conformance_scm_ci_coverage"
+        | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => builder(
+            PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() }.into(),
+            ate_query(),
+        ),
         "aipw_analytic_ci_coverage" => {
             builder(AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }.into(), ate_query())
         }
@@ -199,7 +202,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
-        "matching_homoskedastic_ci_coverage" => builder(
+        "matching_homoskedastic_ci_coverage"
+        | "matching_heteroskedastic_adversarial_ci_coverage"
+        | "matching_heterogeneous_att_ci_coverage" => builder(
             PropensityMatching {
                 bootstrap_replicates: 0,
                 se_kind: AnalyticSeKind::Homoskedastic,
@@ -208,7 +213,27 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
-        "wald_iv_analytic_ci_coverage" | "wald_iv_hc1_ci_coverage" => {
+        "matching_heterogeneous_atc_ci_coverage" => builder(
+            PropensityMatching {
+                bootstrap_replicates: 0,
+                se_kind: AnalyticSeKind::Homoskedastic,
+                ..PropensityMatching::new()
+            }
+            .into(),
+            ate_query().with_target_population(TargetPopulation::Untreated),
+        ),
+        "matching_heterogeneous_ate_ci_coverage" => builder(
+            PropensityMatching {
+                bootstrap_replicates: 0,
+                se_kind: AnalyticSeKind::Homoskedastic,
+                ..PropensityMatching::new()
+            }
+            .into(),
+            ate_query(),
+        ),
+        "wald_iv_analytic_ci_coverage"
+        | "wald_iv_weak_first_stage_adversarial_ci_coverage"
+        | "wald_iv_hc1_ci_coverage" => {
             let se_kind = if test == "wald_iv_hc1_ci_coverage" {
                 AnalyticSeKind::Hc1
             } else {
@@ -238,11 +263,13 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 })
                 .refute(RefuteSuite::None)
         }
-        "frontdoor_stacked_hc0_ci_coverage" | "frontdoor_stacked_hc1_ci_coverage" => {
-            let se_kind = if test == "frontdoor_stacked_hc1_ci_coverage" {
-                AnalyticSeKind::Hc1
-            } else {
+        "frontdoor_stacked_hc0_ci_coverage"
+        | "frontdoor_stacked_hc1_ci_coverage"
+        | "frontdoor_stacked_hc1_curved_mediator_ci_coverage" => {
+            let se_kind = if test == "frontdoor_stacked_hc0_ci_coverage" {
                 AnalyticSeKind::Hc0
+            } else {
+                AnalyticSeKind::Hc1
             };
             Study::tabular(frontdoor_data(12))
                 .graph(frontdoor_dag())
@@ -266,8 +293,10 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .bootstrap_replicates(0)
                 .refute(RefuteSuite::None)
         }
-        "rd_sharp_analytic_ci_coverage" | "rd_sharp_hc1_heteroskedastic_ci_coverage" => {
-            let se_kind = if test == "rd_sharp_hc1_heteroskedastic_ci_coverage" {
+        "rd_sharp_analytic_ci_coverage"
+        | "rd_sharp_hc1_heteroskedastic_ci_coverage"
+        | "rd_sharp_hc1_curved_adversarial_ci_coverage" => {
+            let se_kind = if test.starts_with("rd_sharp_hc1_") {
                 AnalyticSeKind::Hc1
             } else {
                 AnalyticSeKind::Homoskedastic
