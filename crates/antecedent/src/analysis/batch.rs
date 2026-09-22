@@ -1,10 +1,11 @@
 //! Batch multi-query: one table, N average-effect estimates.
 //!
 //! [`BatchStudy::prepare`] and [`BatchStudy::prepare_cells`] freeze a
-//! [`SharedBatchDesign`]: one fold-assignment object and, when every query
-//! shares a certified adjustment set, one compiled `[1 | Z…]` covariate
-//! design. Propensity and outcome residualization are still fit per query on
-//! that shared design. See [`SharedBatchDesign`].
+//! [`SharedBatchDesign`]: one fold seed/count every query cross-fits with and, when
+//! every query shares a certified adjustment set, one compiled `[1 | Z…]` covariate
+//! design. Propensity and outcome residualization are still fit per query, each
+//! drawing its own `crossfit_fold_plan` from that shared seed. See
+//! [`SharedBatchDesign`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -145,29 +146,39 @@ pub struct SharedCovariateDesign {
     pub row_index: Arc<[u32]>,
 }
 
-/// Shared fold assignment and optional shared covariate design for a batch.
+/// Shared fold seed/count and optional shared covariate design for a batch.
 ///
 /// What is shared
 ///
-/// - **Folds:** one original-row assignment, a seeded balanced shuffle of the
-///   rows (fold sizes differ by at most one; no periodic file-order structure).
-///   Every query restricts this object to its complete-case rows; it does not
-///   draw a private assignment.
+/// - **Fold count and seed:** every query in the batch cross-fits with the same
+///   `n_folds` and the same `fold_seed` (the run's master seed). That is enough for a
+///   batch query and the identical query run solo to draw the *same* fold plan,
+///   because both call the same `crossfit_fold_plan` with the same rows, the same
+///   stratification (treatment arm for AIPW, joint cell for cell.aipw) and the same
+///   seed — see [`Self::apply_to_propensity`]. [`Self::fold_ids`] is a seeded balanced
+///   shuffle used only as an opaque identity fingerprint (batch-share digests,
+///   introspection); it does not drive any query's actual cross-fit, precisely because
+///   different queries in one batch can stratify differently (different treatments,
+///   different cells) and no single row-level assignment could match all of them.
 /// - **Covariates:** when every query's certified adjustment set is the same,
 ///   `[1 | Z…]` is compiled once and gathered into each propensity/cell design.
 ///
 /// What is not shared
 ///
-/// - **Propensity:** still fit per query (and per treatment / cell coding) on
-///   the shared folds and design.
+/// - **Folds actually used for cross-fitting:** each query draws its own plan (see
+///   above); queries that share the same stratification (same treatment / same joint
+///   cells) end up with the identical plan as a consequence, not because one is copied
+///   into the other.
+/// - **Propensity:** still fit per query (and per treatment / cell coding).
 /// - **Outcome residualization:** still fit per outcome / threshold / cell.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SharedBatchDesign {
-    /// Fold id for every original row of the prepared table.
+    /// Opaque per-row identity fingerprint (not the fold plan any query actually
+    /// cross-fits with; see the struct docs).
     pub fold_ids: Arc<[u32]>,
-    /// Fold count used to build [`Self::fold_ids`].
+    /// Fold count every query in the batch cross-fits with.
     pub n_folds: u32,
-    /// Master seed the fold assignment was drawn from.
+    /// Master seed every query in the batch cross-fits with.
     pub fold_seed: u64,
     /// Shared covariate design, when adjustment sets agree.
     pub covariate: Option<SharedCovariateDesign>,
@@ -275,7 +286,15 @@ impl SharedBatchDesign {
         Ok(Some(out))
     }
 
-    /// Apply shared folds and, when the set matches, the shared design matrix.
+    /// Apply the shared design matrix, when the query's adjustment set matches it.
+    ///
+    /// Folds are deliberately *not* overridden here: `problem.fold_assignment` stays
+    /// `None` so the propensity/outcome cross-fit falls back to its own
+    /// `crossfit_fold_plan` call, stratified by this query's treatment arm and keyed by
+    /// `problem.fold_seed` (the batch's master seed). That is the same call a solo
+    /// analysis makes for the same query, seed, and rows, so it reproduces the solo
+    /// fold plan bit-for-bit instead of drawing a private, unstratified shuffle that a
+    /// solo run would never draw. See [`crate::analysis::batch`] module docs.
     ///
     /// # Errors
     ///
@@ -284,7 +303,6 @@ impl SharedBatchDesign {
         &self,
         problem: &mut PreparedPropensityProblem,
     ) -> Result<bool, CausalError> {
-        problem.fold_assignment = Some(self.folds_for(&problem.row_index)?.into());
         if let Some(design) = self.design_for(&problem.adjustment_set, &problem.row_index)? {
             if design.len() != problem.design_matrix.len() {
                 return Err(CausalError::Compile {
@@ -293,6 +311,7 @@ impl SharedBatchDesign {
                 });
             }
             problem.design_matrix = design.into();
+            problem.shared_design = true;
             return Ok(true);
         }
         Ok(false)
@@ -850,7 +869,7 @@ fn attach_shared_design_diagnostics(
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
             format!(
-                "shared fold assignment (n_folds={}); covariates={}; propensity and outcome residualization remain per-query fits on that design",
+                "shared fold seed/count (n_folds={}); covariates={}; each query draws its own matching fold plan, and propensity/outcome residualization remain per-query fits",
                 shared.n_folds,
                 if shares_covariates { "shared" } else { "per-query" }
             ),

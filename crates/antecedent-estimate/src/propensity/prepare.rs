@@ -62,6 +62,13 @@ pub struct PreparedPropensityProblem {
     /// Callers holding an execution context set it to the master seed so the recorded
     /// cross-fit seed controls the folds as well as the learners.
     pub fold_seed: u64,
+    /// Set when a batch's shared `[1 | Z…]` covariate design was gathered into
+    /// [`Self::design_matrix`] in place of a freshly compiled one (see
+    /// `SharedBatchDesign::apply_to_propensity`). Recorded on the score table's
+    /// `nuisance_provenance` for reuse-identity purposes; folds are never shared this way
+    /// (every query draws its own `crossfit_fold_plan`), so this reflects covariate sharing
+    /// only.
+    pub shared_design: bool,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -396,6 +403,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         treatment_id: treatment,
         fold_assignment: None,
         fold_seed: 0,
+        shared_design: false,
     })
 }
 

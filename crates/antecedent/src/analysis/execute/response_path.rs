@@ -763,7 +763,13 @@ impl super::Study {
         let est =
             antecedent_estimate::CellSaturatedAipw::new().with_fold_seed(ctx.rng.master_seed());
         let continuous = None;
-        let (fold_ids, design) = match self.shared_batch_design.as_ref() {
+        // Folds are deliberately not shared here: `fit_scores_with_assignment` leaves
+        // them unset so the cell path draws its own cell-stratified
+        // `crossfit_fold_plan` (keyed by `est.fold_seed`), reproducing the solo fold
+        // plan for this query's own cells bit-for-bit instead of a private,
+        // unstratified batch shuffle. See `SharedBatchDesign` docs.
+        let fold_ids: Option<Vec<u32>> = None;
+        let design = match self.shared_batch_design.as_ref() {
             Some(shared) => {
                 let ids: Vec<_> = treatments
                     .iter()
@@ -781,16 +787,13 @@ impl super::Study {
                         .collect::<Vec<_>>(),
                     Err(_) => Vec::new(),
                 };
-                let folds =
-                    if row_index.is_empty() { None } else { Some(shared.folds_for(&row_index)?) };
-                let design = if row_index.is_empty() {
+                if row_index.is_empty() {
                     None
                 } else {
                     shared.design_for(&estimand.adjustment_set, &row_index)?
-                };
-                (folds, design)
+                }
             }
-            None => (None, None),
+            None => None,
         };
         let table = est
             .fit_scores_with_assignment(

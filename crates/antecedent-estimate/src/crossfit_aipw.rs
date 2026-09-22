@@ -215,7 +215,7 @@ pub fn build_binary_scores(
         scores: Arc::from(scores),
         columns: Arc::from(columns),
         adjustment_set: Arc::clone(&problem.adjustment_set),
-        nuisance_provenance: Arc::from(if problem.fold_assignment.is_some() {
+        nuisance_provenance: Arc::from(if problem.shared_design {
             "aipw.crossfit.v1;batch.shared_design"
         } else {
             AIPW_CROSSFIT_PROVENANCE
