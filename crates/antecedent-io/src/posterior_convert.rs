@@ -155,6 +155,9 @@ mod tests {
 
     #[test]
     fn summary_payload_encoding_omits_draw_bytes() {
+        // Stored summaries must describe the embedded draws (validate_summaries_against_draws
+        // recomputes them with PosteriorDraws::summarize), so use constant per-quantity draws
+        // whose mean/sd/quantiles are exact: quantity 0 is 0.1 everywhere, quantity 1 is 2.0.
         let meta = CausalPosteriorWire {
             quantities: vec![
                 PosteriorQuantityWire::Coefficient { index: 0, name: Some("intercept".into()) },
@@ -162,9 +165,9 @@ mod tests {
             ],
             n_draws: 8192,
             mean: vec![0.1, 2.0],
-            sd: vec![0.05, 0.2],
-            q025: vec![0.0, 1.6],
-            q975: vec![0.2, 2.4],
+            sd: vec![0.0, 0.0],
+            q025: vec![0.1, 2.0],
+            q975: vec![0.1, 2.0],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,
@@ -180,7 +183,8 @@ mod tests {
 
         let mut full_meta = meta.clone();
         full_meta.draws_encoding = "f64_le_colmajor".into();
-        let draws = vec![0.0_f64; 8192 * 2];
+        let mut draws = vec![0.1_f64; 8192];
+        draws.extend(std::iter::repeat_n(2.0_f64, 8192));
         let full = encode_posterior_artifact(&full_meta, &draws, "full", VERSION).unwrap();
         let mut full_bytes = Vec::new();
         full.write_to(&mut full_bytes).unwrap();
@@ -196,6 +200,6 @@ mod tests {
         assert_eq!(wire.draws_encoding, "none");
         assert_eq!(wire.n_draws, 8192);
         assert_eq!(wire.mean, vec![0.1, 2.0]);
-        assert_eq!(wire.sd, vec![0.05, 0.2]);
+        assert_eq!(wire.sd, vec![0.0, 0.0]);
     }
 }
