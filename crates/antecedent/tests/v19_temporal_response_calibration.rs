@@ -65,7 +65,7 @@ use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use common::calibration::{
     BASE_GRID_POINT, CoverageTally, GRID_POINTS, RecordKey, ar1_noise, gaussian, grid_n,
-    grid_point, mix_seed, n_sim, smoke, stream_seed,
+    grid_point, map_replicates, mix_seed, n_sim, smoke, stream_seed,
 };
 use common::calibration_bind::bind_all;
 
@@ -549,10 +549,10 @@ fn frequentist_curve_tallies(
     );
     let truth = curve_truth();
     let mut disclosed = Disclosures::default();
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let data = dose_horizon_series_n(grid_n(rows), rho, seed);
-        let (study, result) = run_study(
+        let run_result = run_study(
             data.clone(),
             dose_horizon_dag(),
             curve_query(&DOSES, &HORIZONS),
@@ -560,8 +560,6 @@ fn frequentist_curve_tallies(
             BOOT,
             seed,
         );
-        disclosed.record(result.response.as_ref().expect("surface"));
-        boot.record_bound(&study, &result, &truth);
         let analytic_result = run(
             data,
             dose_horizon_dag(),
@@ -576,6 +574,11 @@ fn frequentist_curve_tallies(
             pointwise(analytic_result.response.as_ref().expect("surface")).is_none(),
             "zero replicates must not publish the analytic band"
         );
+        run_result
+    });
+    for (study, result) in &runs {
+        disclosed.record(result.response.as_ref().expect("surface"));
+        boot.record_bound(study, result, &truth);
     }
     (boot.all(), disclosed)
 }
@@ -846,10 +849,10 @@ fn persistent_treatment_tallies(
     let shift_truth = [1.0 + BETA[0] * shift];
     let mut curve_disclosed = Disclosures::default();
     let mut shift_disclosed = Disclosures::default();
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let data = persistent_treatment_series_n(grid_n(rows), phi, rho, seed);
-        let (study, result) = run_study(
+        let curve_run = run_study(
             data.clone(),
             dag(&[(0, 1, 1, 0)]),
             curve_query(&DOSES, &horizons),
@@ -857,9 +860,7 @@ fn persistent_treatment_tallies(
             BOOT,
             seed,
         );
-        curve_disclosed.record(result.response.as_ref().expect("surface"));
-        curve.record_bound(&study, &result, &curve_truth);
-        let (study, result) = run_study(
+        let shift_run = run_study(
             data,
             dag(&[(0, 1, 1, 0)]),
             intervention_query(
@@ -873,8 +874,13 @@ fn persistent_treatment_tallies(
             BOOT,
             seed,
         );
-        shift_disclosed.record(result.response.as_ref().expect("intervention path"));
-        intervention.record_bound(&study, &result, &shift_truth);
+        (curve_run, shift_run)
+    });
+    for ((curve_study, curve_result), (shift_study, shift_result)) in &runs {
+        curve_disclosed.record(curve_result.response.as_ref().expect("surface"));
+        curve.record_bound(curve_study, curve_result, &curve_truth);
+        shift_disclosed.record(shift_result.response.as_ref().expect("intervention path"));
+        intervention.record_bound(shift_study, shift_result, &shift_truth);
     }
     (curve.all(), intervention.all(), curve_disclosed, shift_disclosed)
 }
@@ -983,9 +989,9 @@ fn frequentist_intervention_coverage(
         SurfaceTallies::for_record(test, "dose_horizon_series", "circular_block_se", None, &labels);
     // E[T] = 0, so E[Y_h | do(T := T + 0.5)] = 1 + BETA[h-1]·0.5.
     let truth: Vec<f64> = BETA.iter().map(|b| 1.0 + b * shift).collect();
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
-        let (study, result) = run_study(
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
+        run_study(
             dose_horizon_series(rho, seed),
             dose_horizon_dag(),
             intervention_query(
@@ -998,9 +1004,11 @@ fn frequentist_intervention_coverage(
             InferenceMode::Frequentist,
             BOOT,
             seed,
-        );
+        )
+    });
+    for (study, result) in &runs {
         assert!(result.response.is_some(), "intervention path");
-        boot.record_bound(&study, &result, &truth);
+        boot.record_bound(study, result, &truth);
     }
     match (measured, at) {
         (_, Some(at)) => assert_all_at(&boot.all(), at),
@@ -1085,18 +1093,20 @@ fn frequentist_sequence_coverage(
     let labels: Vec<String> = HORIZONS.iter().map(|h| format!("seq,h={h}")).collect();
     let mut boot =
         SurfaceTallies::for_record(test, "dose_horizon_series", "circular_block_se", None, &labels);
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
-        let (study, result) = run_study(
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
+        run_study(
             dose_horizon_series(rho, seed),
             dose_horizon_dag(),
             intervention_query(two_step_sequence(), &HORIZONS),
             InferenceMode::Frequentist,
             BOOT,
             seed,
-        );
+        )
+    });
+    for (study, result) in &runs {
         assert!(result.response.is_some(), "Sequence path");
-        boot.record_bound(&study, &result, &SEQUENCE_TRUTH);
+        boot.record_bound(study, result, &SEQUENCE_TRUTH);
     }
     match measured {
         Some(measured) => assert_all_at(&boot.all(), measured),
@@ -1154,8 +1164,8 @@ fn bayesian_intervention_coverage(
     // quantiles run about half a point short). The per-horizon long-run tempering is what
     // keeps it nominal once the residual is serially dependent (the AR(1) cell below).
     let truth: Vec<f64> = BETA.iter().map(|b| 1.0 + b).collect();
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let (study, result) = run_study(
             dose_horizon_series(rho, seed),
             dose_horizon_dag(),
@@ -1175,7 +1185,10 @@ fn bayesian_intervention_coverage(
                 .expect("per-horizon tempering factor");
             assert!(kappa.len() == HORIZONS.len() && kappa.iter().all(|k| *k >= 1.0), "{kappa:?}");
         }
-        tallies.record_bound(&study, &result, &truth);
+        (study, result)
+    });
+    for (study, result) in &runs {
+        tallies.record_bound(study, result, &truth);
     }
     tallies.all()
 }
@@ -1234,26 +1247,28 @@ fn observation_coverage(
         SurfaceTallies::for_record(test, "selected_series", "circular_block_se", None, &labels);
     let truth: Vec<f64> = DOSES.iter().map(|a| 1.0 + 2.0 * a).collect();
     let id = VariableId::from_raw;
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let query = curve_query(&DOSES, &horizons).with_observation(
             ObservationSpec::Selected { latent: id(1), observed: id(1), indicator: id(2) },
             [ObservationAssumption::OutcomeIndependentGiven(Arc::from([id(0)]))],
         );
-        let (study, result) = run_study(
+        run_study(
             selected_series(rho, seed),
             dag(&[(0, 1, 1, 0)]),
             query,
             InferenceMode::Frequentist,
             BOOT,
             seed,
-        );
+        )
+    });
+    for (study, result) in &runs {
         let response = result.response.as_ref().expect("observation-adjusted surface");
         assert_eq!(
             response.provenance_id.as_ref(),
             "estimate.temporal_response.observation_adjusted"
         );
-        tallies.record_bound(&study, &result, &truth);
+        tallies.record_bound(study, result, &truth);
     }
     match measured {
         Some(measured) => assert_all_at(&tallies.all(), measured),
@@ -1349,26 +1364,28 @@ fn observation_sequence_coverage(
         &labels,
     );
     let id = VariableId::from_raw;
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let query = intervention_query(two_step_sequence(), &HORIZONS).with_observation(
             ObservationSpec::Selected { latent: id(1), observed: id(1), indicator: id(2) },
             [ObservationAssumption::OutcomeIndependentGiven(Arc::from([id(0)]))],
         );
-        let (study, result) = run_study(
+        run_study(
             selected_two_lag_series(rho, seed),
             dose_horizon_dag(),
             query,
             InferenceMode::Frequentist,
             BOOT,
             seed,
-        );
+        )
+    });
+    for (study, result) in &runs {
         let response = result.response.as_ref().expect("observation-adjusted Sequence");
         assert_eq!(
             response.provenance_id.as_ref(),
             "estimate.temporal_response.observation_adjusted"
         );
-        tallies.record_bound(&study, &result, &SEQUENCE_TRUTH);
+        tallies.record_bound(study, result, &SEQUENCE_TRUTH);
     }
     match measured {
         Some(measured) => assert_all_at(&tallies.all(), measured),
@@ -1426,8 +1443,8 @@ fn horizon_dependent_coverage(
         &labels,
     );
     let truth: Vec<f64> = doses.iter().flat_map(|&a| [1.0 + 2.0 * a, 1.0 + a]).collect();
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let data = horizon_dependent_series(rho, seed);
         let (study, result) = run_study(
             data.clone(),
@@ -1456,8 +1473,6 @@ fn horizon_dependent_coverage(
             );
             assert!(per_horizon[1].adjustment.is_empty());
         }
-        assert!(result.response.is_some(), "surface");
-        boot.record_bound(&study, &result, &truth);
         let analytic_result = run(
             data,
             horizon_dependent_dag(),
@@ -1472,6 +1487,11 @@ fn horizon_dependent_coverage(
             pointwise(analytic_result.response.as_ref().expect("surface")).is_none(),
             "zero replicates must not publish the analytic band"
         );
+        (study, result)
+    });
+    for (study, result) in &runs {
+        assert!(result.response.is_some(), "surface");
+        boot.record_bound(study, result, &truth);
     }
     match measured {
         Some(measured) => assert_all_at(&boot.all(), measured),
@@ -1544,8 +1564,8 @@ fn class_atom_coverage(
     let z_key = TemporalNodeKey { variable: VariableId::from_raw(2), offset: -1 };
     let mediator_slope = 2.0 + 1.5 * 0.6 / (0.36 + 1.0);
     let mut by_adjustment: Vec<(Vec<TemporalNodeKey>, SurfaceTallies)> = Vec::new();
-    for s in 0..n_sim() {
-        let seed = seed_base + u64::from(s);
+    let runs = map_replicates(n_sim(), |s| {
+        let seed = seed_base + s;
         let data = class_series(rho, seed, class == "pag");
         let query = curve_query(&CLASS_DOSES, &[1]);
         let result = if class == "pag" {
@@ -1553,6 +1573,16 @@ fn class_atom_coverage(
         } else {
             run(data.clone(), class_cpdag(), query, inference.clone(), replicates, seed)
         };
+        // Sample mean of Z over the lag-aligned rows (anchor s = 1..n): the Bayesian
+        // band is conditional on this covariate average.
+        let z_bar = {
+            let z = data_column(&data, 2);
+            z[..z.len() - 1].iter().sum::<f64>() / (z.len() - 1) as f64
+        };
+        (result, z_bar)
+    });
+    for (result, z_bar) in &runs {
+        let z_bar = *z_bar;
         let structural = result.structural_response.as_ref().expect("identified set");
         assert!(
             matches!(
@@ -1561,12 +1591,6 @@ fn class_atom_coverage(
             ),
             "the class response publishes no class-level band"
         );
-        // Sample mean of Z over the lag-aligned rows (anchor s = 1..n): the Bayesian
-        // band is conditional on this covariate average.
-        let z_bar = {
-            let z = data_column(&data, 2);
-            z[..z.len() - 1].iter().sum::<f64>() / (z.len() - 1) as f64
-        };
         let mut seen_this_replicate: Vec<Vec<TemporalNodeKey>> = Vec::new();
         for atom in structural.atoms.iter().filter(|atom| atom.value.is_some()) {
             let adjustment = atom_adjustment(atom);
