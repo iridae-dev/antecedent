@@ -1160,7 +1160,7 @@ pub fn run_fci_orientation_to_fixed_point(
 /// Schedule LPCMCI rules to a fixed point using a local delta queue.
 ///
 /// Seeds all nodes once. Subsequent rounds honor nodes enqueued by rules
-/// — no full-graph re-seed after each round. See [`drive_to_fixed_point`].
+/// — no full-graph re-seed after each round. See `drive_to_fixed_point`.
 ///
 /// # Errors
 ///

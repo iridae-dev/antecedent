@@ -125,7 +125,7 @@ fn positive_weight_scale(weights: &[f64]) -> Result<f64, EstimationError> {
 /// mean is `ψ_i = (n w_i / W) (φ_i − θ)` when weights are present, else
 /// `φ_i − θ`. Homoskedastic SE is `sqrt(Σ ψ² / n²)` via the sample SD of `ψ`
 /// over `sqrt(n)` with the same `n/(n-1)` correction for weighted and
-/// unweighted calls, matching [`crate::se::influence_se_kind`] for one column.
+/// unweighted calls, matching `crate::se::influence_se_kind` for one column.
 ///
 /// # Errors
 ///

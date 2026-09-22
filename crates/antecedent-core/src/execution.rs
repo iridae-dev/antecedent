@@ -465,7 +465,7 @@ impl RngFactory {
     /// Derive a stream for `(domain, index)`.
     ///
     /// Domain and index are packed without an additive family offset, then passed
-    /// through the single [`mix_seed`] mixer with the master seed.
+    /// through the single `mix_seed` mixer with the master seed.
     #[must_use]
     pub fn stream_for(&self, domain: StreamDomain, index: u64) -> CausalRng {
         // Odd multiplier so domain tags stay distinct under xor with index.

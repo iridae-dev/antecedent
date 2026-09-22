@@ -468,7 +468,7 @@ impl PcmciEngine {
         2 * self.constraints.temporal.max_lag.raw()
     }
 
-    /// [`Self::run_pc_mci`] on a pre-built lagged frame of depth [`Self::frame_depth`].
+    /// [`Self::run_pc_mci`] on a pre-built lagged frame of depth `Self::frame_depth`.
     ///
     /// # Errors
     ///

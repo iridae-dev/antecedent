@@ -20,7 +20,7 @@ pub enum MediationContrast {
     Total,
     /// Natural direct path-sum that avoids declared mediators.
     ///
-    /// Static `mediation.linear` aliases this to [`NaturalDirect`]. It is not a
+    /// Static `mediation.linear` aliases this to [`Self::NaturalDirect`]. It is not a
     /// general controlled direct effect that holds mediators fixed under
     /// treatment–mediator interaction.
     Direct,

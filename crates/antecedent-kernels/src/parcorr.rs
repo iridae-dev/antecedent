@@ -76,7 +76,7 @@ pub struct ParCorrQuery {
 /// Pearson correlation of two equal-length slices (population formula).
 ///
 /// `None` for fewer than two points, a non-finite column, or an effectively
-/// constant column (see [`constant_column`]).
+/// constant column (see `constant_column`).
 #[must_use]
 pub fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
     pearson_floored(x, y, None)
