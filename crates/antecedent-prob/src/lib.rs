@@ -35,6 +35,7 @@ pub(crate) mod linalg;
 pub mod mcmc_stats;
 pub mod posterior;
 pub mod prior;
+pub(crate) mod streams;
 pub mod transport;
 
 pub use backend::{

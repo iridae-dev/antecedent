@@ -21,7 +21,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, RngFactory, StreamDomain};
+use antecedent_core::{CausalRng, ExecutionContext};
+
+use crate::streams::chain_rng;
 use antecedent_kernels::standard_normal;
 
 use crate::backend::{
@@ -49,8 +51,17 @@ pub struct HmcOptions {
     pub step_size: f64,
     /// Dual-averaging target acceptance probability.
     pub target_accept: f64,
-    /// Diagonal mass-matrix scale (kinetic energy `½ Σ p² / mass`).
+    /// Initial diagonal mass-matrix scale (kinetic energy `½ Σ p² / mass`); the metric used
+    /// until [`Self::adapt_metric`] replaces it.
     pub mass: f64,
+    /// Adapt a diagonal mass matrix to the posterior scales during warmup: the per-coordinate
+    /// variance of the chain's own states over a slow window (regularised toward a small
+    /// floor, as in Stan) becomes the inverse mass, after which the step size is re-adapted.
+    /// Without it a leapfrog step small enough for the tightest coordinate crawls along the
+    /// loosest one, and badly scaled designs fail the ESS / R-hat gate. Needs
+    /// [`MIN_METRIC_WARMUP`] warmup iterations; shorter warmups keep the initial metric. The
+    /// estimate is refined over doubling slow windows, as in Stan.
+    pub adapt_metric: bool,
 }
 
 impl Default for HmcOptions {
@@ -62,6 +73,7 @@ impl Default for HmcOptions {
             step_size: 0.1,
             target_accept: 0.8,
             mass: 1.0,
+            adapt_metric: true,
         }
     }
 }
@@ -167,6 +179,109 @@ fn finalize_energy(delta_h: f64) -> (bool, f64) {
 const MIN_STEP: f64 = 1e-6;
 const MAX_STEP: f64 = 0.5;
 
+/// Shortest warmup that still leaves a usable slow window for metric adaptation.
+pub const MIN_METRIC_WARMUP: usize = 100;
+
+/// Slow-window schedule of metric adaptation over `n_warmup` iterations, as in Stan: a fast
+/// initial buffer, then windows that double in length (each re-estimating the metric), then a
+/// fast terminal buffer for the final step-size adaptation. Warmups too short for that fall
+/// back to one window between proportional buffers. Returns `[start, end)` per window.
+fn metric_windows(n_warmup: usize) -> Vec<(usize, usize)> {
+    if n_warmup < MIN_METRIC_WARMUP {
+        return Vec::new();
+    }
+    let (mut init, mut term, mut size) = (75usize, 50usize, 25usize);
+    if init + size + term > n_warmup {
+        init = n_warmup * 15 / 100;
+        term = n_warmup * 10 / 100;
+        size = n_warmup - init - term;
+    }
+    let slow_end = n_warmup - term;
+    let mut windows = Vec::new();
+    let mut start = init;
+    loop {
+        let mut end = start + size;
+        // A following doubled window that would not fit is absorbed into this one.
+        if end + 2 * size > slow_end {
+            end = slow_end;
+        }
+        windows.push((start, end));
+        if end == slow_end {
+            return windows;
+        }
+        start = end;
+        size *= 2;
+    }
+}
+
+/// Diagonal inverse-mass estimator: per-coordinate variance of the chain's own states over
+/// each slow window (Welford accumulation, restarted for every window).
+struct DiagonalMetric {
+    inv_mass: Vec<f64>,
+    windows: Vec<(usize, usize)>,
+    cursor: usize,
+    count: f64,
+    mean: Vec<f64>,
+    m2: Vec<f64>,
+}
+
+impl DiagonalMetric {
+    fn new(dim: usize, hmc: HmcOptions) -> Self {
+        let windows = if hmc.adapt_metric { metric_windows(hmc.n_warmup) } else { Vec::new() };
+        Self {
+            inv_mass: vec![1.0 / hmc.mass; dim],
+            windows,
+            cursor: 0,
+            count: 0.0,
+            mean: vec![0.0; dim],
+            m2: vec![0.0; dim],
+        }
+    }
+
+    /// Feed the state after warmup transition `t`.
+    fn observe(&mut self, t: usize, q: &[f64]) {
+        let Some(&(start, end)) = self.windows.get(self.cursor) else { return };
+        if t < start || t >= end {
+            return;
+        }
+        self.count += 1.0;
+        for (i, &v) in q.iter().enumerate() {
+            let delta = v - self.mean[i];
+            self.mean[i] += delta / self.count;
+            self.m2[i] += delta * (v - self.mean[i]);
+        }
+    }
+
+    /// After the last transition of a slow window, install its estimate (regularised toward a
+    /// small floor, `n/(n+5) var + 1e-3 · 5/(n+5)`, as Stan does) and open the next window.
+    /// Returns whether the metric changed, so the caller restarts step-size adaptation.
+    fn install_if_window_closed(&mut self, t: usize) -> bool {
+        let Some(&(_, end)) = self.windows.get(self.cursor) else { return false };
+        if t + 1 != end {
+            return false;
+        }
+        self.cursor += 1;
+        let n = self.count;
+        let installed = n >= 3.0 && {
+            let weight = n / (n + 5.0);
+            let proposal: Vec<f64> = self
+                .m2
+                .iter()
+                .map(|m2| weight * (m2 / (n - 1.0)) + (1.0 - weight) * 1e-3)
+                .collect();
+            let usable = proposal.iter().all(|v| v.is_finite() && *v > 0.0);
+            if usable {
+                self.inv_mass = proposal.into_iter().map(|v| v.clamp(1e-12, 1e12)).collect();
+            }
+            usable
+        };
+        self.count = 0.0;
+        self.mean.fill(0.0);
+        self.m2.fill(0.0);
+        installed
+    }
+}
+
 /// Post-warmup draws and transition counts from one chain.
 struct ChainRun {
     /// `n_keep × state_dim` retained states, draw-major.
@@ -174,12 +289,6 @@ struct ChainRun {
     stats: TransitionStats,
     /// Step size the retained draws were generated with.
     final_step: f64,
-}
-
-/// One stream per chain from the library's stream mixer, so chain streams are
-/// unrelated offsets rather than ad-hoc xor-derived seeds.
-fn chain_rng(seed: u64, chain: usize) -> CausalRng {
-    RngFactory::from_seed(seed).stream_for(StreamDomain::Bayesian, chain as u64)
 }
 
 /// Run multi-chain HMC and return columnar post-warmup draws.
@@ -307,6 +416,10 @@ fn run_glm_chain(
     let mut step_size = hmc.step_size;
     let mut log_eps_bar = step_size.ln();
     let mut h_bar = 0.0;
+    let mut metric = DiagonalMetric::new(ncols, hmc);
+    // Step-size adaptation is anchored at the step it (re)started from, counting from `since`.
+    let mut anchor = hmc;
+    let mut since = 0usize;
 
     // The current state's log-posterior and ∇U are carried across transitions:
     // after an accept they are exactly the trajectory's final-state values, after
@@ -352,7 +465,7 @@ fn run_glm_chain(
             &gradu_curr,
             step_size,
             hmc.leapfrog_steps,
-            hmc.mass,
+            &metric.inv_mass,
             lp_curr,
             ws,
             &mut rng,
@@ -368,10 +481,18 @@ fn run_glm_chain(
                 &mut h_bar,
                 &mut log_eps_bar,
                 &mut step_size,
-                hmc,
-                t,
+                anchor,
+                t - since,
                 step.accept_prob,
             );
+            metric.observe(t, &beta);
+            if metric.install_if_window_closed(t) {
+                // The trajectory geometry changed: restart step-size adaptation from the
+                // current step under the new metric.
+                anchor = HmcOptions { step_size, ..hmc };
+                since = t + 1;
+                (h_bar, log_eps_bar) = (0.0, step_size.ln());
+            }
         } else {
             samples[kept * ncols..(kept + 1) * ncols].copy_from_slice(&beta);
             kept += 1;
@@ -409,6 +530,9 @@ fn run_gaussian_chain(
     let mut step_size = hmc.step_size;
     let mut log_eps_bar = step_size.ln();
     let mut h_bar = 0.0;
+    let mut metric = DiagonalMetric::new(dim, hmc);
+    let mut anchor = hmc;
+    let mut since = 0usize;
 
     // Log-posterior and its gradient at the current state, carried across transitions.
     let mut lp_curr = target.logp_and_grad(&q, &mut ws.grad[..dim])?;
@@ -428,7 +552,7 @@ fn run_gaussian_chain(
             &grad_curr,
             step_size,
             hmc.leapfrog_steps,
-            hmc.mass,
+            &metric.inv_mass,
             ws,
             &mut rng,
         )?;
@@ -443,10 +567,16 @@ fn run_gaussian_chain(
                 &mut h_bar,
                 &mut log_eps_bar,
                 &mut step_size,
-                hmc,
-                t,
+                anchor,
+                t - since,
                 step.accept_prob,
             );
+            metric.observe(t, &q);
+            if metric.install_if_window_closed(t) {
+                anchor = HmcOptions { step_size, ..hmc };
+                since = t + 1;
+                (h_bar, log_eps_bar) = (0.0, step_size.ln());
+            }
         } else {
             samples[kept * dim..(kept + 1) * dim].copy_from_slice(&q);
             kept += 1;
@@ -554,15 +684,15 @@ fn pack_and_gate_hmc(
     diagnostics.converged = diagnostics.mcmc_publication_ok();
 
     if !diagnostics.allows_posterior() {
-        // The unit-mass sampler's step is bounded; an adapted step pinned at a
-        // bound means the posterior scale is outside what it can traverse.
+        // The step is bounded; an adapted step pinned at a bound means the posterior scale is
+        // outside what the (diagonal-metric) sampler can traverse.
         let at_bound =
             step_range.0 <= MIN_STEP * (1.0 + 1e-9) || step_range.1 >= MAX_STEP * (1.0 - 1e-9);
         let scale_hint = if at_bound {
             format!(
                 "; adapted step size reached its bound ({:.3e}..{:.3e}), so the posterior \
-                 scale is outside the range this unit-mass sampler can traverse: standardise \
-                 the design columns",
+                 scale is outside the range this sampler can traverse even with its diagonal \
+                 metric: check the design for near-collinear or wildly scaled columns",
                 step_range.0, step_range.1
             )
         } else {
@@ -602,7 +732,7 @@ fn hmc_step_target(
     grad_old: &[f64],
     step_size: f64,
     leapfrog_steps: u32,
-    mass: f64,
+    inv_mass: &[f64],
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
@@ -610,8 +740,8 @@ fn hmc_step_target(
     workspace.q[..dim].copy_from_slice(q0);
     let mut p0_energy = 0.0;
     for i in 0..dim {
-        workspace.p[i] = mass.sqrt() * standard_normal(rng);
-        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
+        workspace.p[i] = standard_normal(rng) / inv_mass[i].sqrt();
+        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
     }
 
     // ∇U = -∇ log π at q0, supplied by the caller (carried from the previous
@@ -625,7 +755,7 @@ fn hmc_step_target(
     let mut lp_last = lp_old;
     for step in 0..leapfrog_steps {
         for i in 0..dim {
-            workspace.q[i] += step_size * workspace.p[i] / mass;
+            workspace.q[i] += step_size * workspace.p[i] * inv_mass[i];
             if !workspace.q[i].is_finite() {
                 divergent = true;
                 break;
@@ -667,7 +797,7 @@ fn hmc_step_target(
     let lp_new = lp_last;
     let mut p_new_energy = 0.0;
     for i in 0..dim {
-        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
+        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
     }
 
     let h_old = -lp_old + p0_energy;
@@ -700,7 +830,7 @@ fn hmc_step_glm(
     gradu_old: &[f64],
     step_size: f64,
     leapfrog_steps: u32,
-    mass: f64,
+    inv_mass: &[f64],
     lp_old: f64,
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
@@ -710,8 +840,8 @@ fn hmc_step_glm(
     workspace.q[..ncols].copy_from_slice(beta);
     let mut p0_energy = 0.0;
     for i in 0..ncols {
-        workspace.p[i] = mass.sqrt() * standard_normal(rng);
-        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
+        workspace.p[i] = standard_normal(rng) / inv_mass[i].sqrt();
+        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
     }
 
     let reject_divergent = || HmcStepResult {
@@ -731,7 +861,7 @@ fn hmc_step_glm(
     let mut divergent = false;
     for lf in 0..leapfrog_steps {
         for i in 0..ncols {
-            workspace.q[i] += step_size * workspace.p[i] / mass;
+            workspace.q[i] += step_size * workspace.p[i] * inv_mass[i];
             if !workspace.q[i].is_finite() {
                 divergent = true;
                 break;
@@ -791,7 +921,7 @@ fn hmc_step_glm(
     };
     let mut p_new_energy = 0.0;
     for i in 0..ncols {
-        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] / mass;
+        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
     }
 
     let h_old = -lp_old + p0_energy;
@@ -873,6 +1003,7 @@ mod tests {
     use super::*;
     use crate::conjugate::fit_conjugate_gaussian;
     use crate::prior::{InvGammaPrior, PriorSpec};
+    use antecedent_core::{RngFactory, StreamDomain};
 
     /// Exact known-σ² Gaussian posterior `N(m, C)` with prior `N(0, v0·I)`:
     /// `C = (X'X/σ² + I/v0)⁻¹`, `m = C X'y/σ²` (column-major `x`, `p` columns).
@@ -918,6 +1049,7 @@ mod tests {
             step_size: 0.08,
             target_accept: 0.8,
             mass: 1.0,
+            adapt_metric: false,
         }
     }
 
@@ -975,7 +1107,7 @@ mod tests {
             &gradu,
             50.0,
             20,
-            1.0,
+            &[1.0],
             lp_old,
             &mut ws,
             &mut rng,
@@ -1081,6 +1213,7 @@ mod tests {
             step_size: 0.04,
             target_accept: 0.85,
             mass: 1.0,
+            adapt_metric: false,
         };
         let fit =
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
@@ -1250,6 +1383,7 @@ mod tests {
             step_size: 0.04,
             target_accept: 0.8,
             mass: 1.0,
+            adapt_metric: false,
         };
         let fit =
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
@@ -1351,7 +1485,7 @@ mod tests {
             &grad_old,
             0.05,
             leapfrog,
-            1.0,
+            &[1.0, 1.0],
             &mut ws,
             &mut rng,
         )
@@ -1453,5 +1587,121 @@ mod tests {
         .unwrap();
         assert_eq!(serial.draws.values, threaded.draws.values);
         assert_eq!(serial.map, threaded.map);
+    }
+
+    #[test]
+    fn metric_windows_follow_the_stan_schedule() {
+        // Too short to adapt.
+        assert!(metric_windows(99).is_empty());
+        // Short warmups: one window between proportional buffers (15% / 10%).
+        assert_eq!(metric_windows(100), vec![(15, 90)]);
+        // Stan's 75 / 25-doubling / 50 layout; a doubled window that would not fit is absorbed.
+        assert_eq!(metric_windows(200), vec![(75, 100), (100, 150)]);
+        assert_eq!(
+            metric_windows(1000),
+            vec![(75, 100), (100, 150), (150, 250), (250, 450), (450, 950)]
+        );
+        for n in [100, 137, 200, 350, 1000, 1500] {
+            let windows = metric_windows(n);
+            assert!(windows.windows(2).all(|w| w[0].1 == w[1].0), "n={n}");
+            assert!(windows.iter().all(|(s, e)| s < e), "n={n}");
+            assert!(windows.last().unwrap().1 < n, "n={n}");
+        }
+    }
+
+    #[test]
+    fn diagonal_metric_is_the_regularised_window_variance() {
+        let hmc = HmcOptions { n_warmup: 100, ..HmcOptions::default() };
+        let mut metric = DiagonalMetric::new(2, hmc);
+        assert_eq!(metric.inv_mass, vec![1.0, 1.0]);
+        let mut installed_at = None;
+        for t in 0..100 {
+            // Coordinate 0 walks 0, 1, 2, ...; coordinate 1 is ten times that.
+            let q = [t as f64, 10.0 * t as f64];
+            metric.observe(t, &q);
+            if metric.install_if_window_closed(t) {
+                installed_at = Some(t);
+            }
+        }
+        // The single window is iterations 15..90: n = 75 consecutive integers, whose sample
+        // variance is n(n + 1)/12.
+        assert_eq!(installed_at, Some(89));
+        let n = 75.0_f64;
+        let var0 = n * (n + 1.0) / 12.0;
+        let weight = n / (n + 5.0);
+        let expect = |var: f64| weight * var + (1.0 - weight) * 1e-3;
+        assert!((metric.inv_mass[0] - expect(var0)).abs() < 1e-9 * var0);
+        assert!((metric.inv_mass[1] - expect(100.0 * var0)).abs() < 1e-9 * 100.0 * var0);
+
+        // Disabled adaptation and too-short warmups leave the initial metric alone.
+        for hmc in [
+            HmcOptions { n_warmup: 100, adapt_metric: false, mass: 4.0, ..HmcOptions::default() },
+            HmcOptions { n_warmup: 60, mass: 4.0, ..HmcOptions::default() },
+        ] {
+            let mut metric = DiagonalMetric::new(2, hmc);
+            for t in 0..hmc.n_warmup {
+                metric.observe(t, &[t as f64, 1.0]);
+                assert!(!metric.install_if_window_closed(t));
+            }
+            assert_eq!(metric.inv_mass, vec![0.25, 0.25]);
+        }
+    }
+
+    /// A design whose columns differ in scale by 10^4 puts the posterior scales of intercept
+    /// and slope 10^4 apart: a unit-mass leapfrog step small enough for the slope crawls along
+    /// the intercept. With the adapted diagonal metric the fit publishes and recovers the exact
+    /// known-variance posterior.
+    #[test]
+    fn adapted_metric_samples_a_badly_scaled_design() {
+        let n = 60;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for r in 0..n {
+            let z = (r as f64 - 30.0) * 0.05;
+            x[r] = 1.0;
+            x[n + r] = 1.0e4 * z;
+            y[r] = 0.5 + 1.5 * z + ((r % 5) as f64 - 2.0) * 0.2;
+        }
+        let prior = PriorSet {
+            specs: vec![
+                PriorSpec::GaussianCoefficients(
+                    GaussianCoefficientPrior::shared(2, 0.0, 25.0).unwrap(),
+                ),
+                PriorSpec::KnownResidualVariance(1.0),
+            ],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        };
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let fit_opts = BayesFitOptions { n_draws: 2000, seed: 42, max_iter: 50, grad_tol: 1e-8 };
+        let hmc = HmcOptions {
+            n_chains: 4,
+            n_warmup: 1500,
+            leapfrog_steps: 16,
+            step_size: 0.04,
+            target_accept: 0.85,
+            mass: 1.0,
+            adapt_metric: true,
+        };
+        let mut ws = LaplaceWorkspace::default();
+        let fit =
+            fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
+                .expect("the adapted sampler publishes");
+        let (m, c) = exact_known_sigma2_posterior(&x, &y, 2, 25.0, 1.0);
+        let ess = fit.diagnostics.ess_bulk_min.unwrap();
+        for j in 0..2 {
+            let (mean, var) = column_moments(&fit, j);
+            let sd = c[j * 2 + j].sqrt();
+            assert!((mean - m[j]).abs() < 6.0 * sd / ess.sqrt(), "mean[{j}] {mean} vs {}", m[j]);
+            assert!((var.sqrt() / sd - 1.0).abs() < 0.15, "sd[{j}] {} vs {sd}", var.sqrt());
+        }
     }
 }

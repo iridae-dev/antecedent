@@ -45,6 +45,7 @@ fn bench_hmc(c: &mut Criterion) {
         step_size: 0.08,
         target_accept: 0.8,
         mass: 1.0,
+        adapt_metric: true,
     };
 
     let mut ws = LaplaceWorkspace::default();

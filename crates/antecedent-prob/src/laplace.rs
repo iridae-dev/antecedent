@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_core::ExecutionContext;
 use antecedent_kernels::standard_normal;
 
 use crate::backend::{
@@ -439,7 +439,7 @@ pub fn sample_gaussian_mvn(
         workspace.draw_scratch.resize(ncols, 0.0);
     }
     let chol = cholesky_spd(cov, ncols)?;
-    let mut rng = CausalRng::from_seed(seed);
+    let mut rng = crate::streams::direct_draw_rng(seed);
     let mut values = vec![0.0; n_draws * ncols];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
