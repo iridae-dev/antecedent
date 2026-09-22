@@ -167,12 +167,11 @@ fn validate_posterior_meta(
 /// Stored summaries must describe the embedded draws, so a summary-reading and a
 /// draw-reading consumer see one posterior.
 ///
-/// The quantiles are a deterministic function of the draws and are recomputed with the
-/// producer's own routine (`PosteriorDraws::summarize`), agreeing to a relative 1e-9. The
-/// mean and SD may legitimately be exact moments of a mixture whose draws are a Monte-Carlo
-/// sample (the structural-envelope posterior), so they are held to the draws' own sampling
-/// error rather than bit agreement: eight standard errors of the draw mean / draw SD, which
-/// still rejects any summary that belongs to a different distribution.
+/// Every summary is recomputed with the producer's own routine
+/// (`PosteriorDraws::summarize`) and must agree to a relative 1e-9. Producers whose summaries
+/// are analytic (the structural-envelope mixture) publish draws that carry those moments, so no
+/// sampling-error slack is needed, and none is allowed: a summary that differs from the draws by
+/// Monte Carlo noise is a summary of a different distribution.
 fn validate_summaries_against_draws(
     meta: &CausalPosteriorWire,
     draws: &[f64],
@@ -180,7 +179,6 @@ fn validate_summaries_against_draws(
     use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
     const RELATIVE: f64 = 1e-9;
-    const STANDARD_ERRORS: f64 = 8.0;
     let n_draws = meta.n_draws as usize;
     let schema = PosteriorSchema {
         quantities: (0..meta.quantities.len())
@@ -190,18 +188,14 @@ fn validate_summaries_against_draws(
     let recomputed = PosteriorDraws::from_column_major(schema, n_draws, draws.to_vec())
         .map_err(|err| IoError::Convert(err.to_string()))?
         .summarize();
-    let close = |stored: f64, derived: f64, slack: f64| {
-        (stored - derived).abs() <= RELATIVE * derived.abs().max(stored.abs()).max(1.0) + slack
+    let close = |stored: f64, derived: f64| {
+        (stored - derived).abs() <= RELATIVE * derived.abs().max(stored.abs()).max(1.0)
     };
-    let n = n_draws as f64;
     for q in 0..meta.quantities.len() {
-        let sd = recomputed.sd[q];
-        let mean_se = sd / n.sqrt();
-        let sd_se = if n_draws > 1 { sd / (2.0 * (n - 1.0)).sqrt() } else { 0.0 };
-        let agrees = close(meta.mean[q], recomputed.mean[q], STANDARD_ERRORS * mean_se)
-            && close(meta.sd[q], sd, STANDARD_ERRORS * sd_se)
-            && close(meta.q025[q], recomputed.q025[q], 0.0)
-            && close(meta.q975[q], recomputed.q975[q], 0.0);
+        let agrees = close(meta.mean[q], recomputed.mean[q])
+            && close(meta.sd[q], recomputed.sd[q])
+            && close(meta.q025[q], recomputed.q025[q])
+            && close(meta.q975[q], recomputed.q975[q]);
         if !agrees {
             return Err(IoError::Convert(format!(
                 "posterior summaries for quantity {q} disagree with the embedded draws"
@@ -354,8 +348,9 @@ mod tests {
             n_draws: 3,
             mean: vec![1.0],
             sd: vec![0.1],
-            q025: vec![0.9],
-            q975: vec![1.1],
+            // Type-7 quantiles of the draws (0.9, 1.0, 1.1): 0.9 + 0.05 * 0.1 and 1.0 + 0.95 * 0.1.
+            q025: vec![0.905],
+            q975: vec![1.095],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,
@@ -439,13 +434,13 @@ mod tests {
 
     #[test]
     fn posterior_summaries_must_describe_the_embedded_draws() {
-        // Draws centred at 0 (mean 0, sample SD 1, nearest-rank quantiles -1 / 1).
+        // Draws (-1, 0, 1): mean 0, sample SD 1, type-7 quantiles -0.95 / 0.95.
         let draws = vec![-1.0, 0.0, 1.0];
         let mut consistent = valid_meta();
         consistent.mean = vec![0.0];
         consistent.sd = vec![1.0];
-        consistent.q025 = vec![-1.0];
-        consistent.q975 = vec![1.0];
+        consistent.q025 = vec![-0.95];
+        consistent.q975 = vec![0.95];
         encode_posterior_artifact(&consistent, &draws, "ok", "0.1.0").unwrap();
 
         // Summary reader would see 5 +- 0.5 while a draw reader sees 0 +- 1.
@@ -457,20 +452,16 @@ mod tests {
             encode_posterior_artifact(&shifted, &draws, "bad", "0.1.0").unwrap_err().to_string();
         assert!(error.contains("disagree with the embedded draws"), "{error}");
 
-        // Quantiles are exact functions of the draws.
+        // Quantiles, mean and SD are all exact functions of the draws: no sampling slack.
         let mut narrowed = consistent.clone();
         narrowed.q975 = vec![0.5];
         assert!(encode_posterior_artifact(&narrowed, &draws, "bad", "0.1.0").is_err());
-
-        // Mean / SD tolerate Monte-Carlo scale (exact mixture moments) but not a
-        // different distribution.
-        let mut mc = consistent.clone();
-        mc.mean = vec![0.1];
-        mc.sd = vec![1.2];
-        encode_posterior_artifact(&mc, &draws, "mc", "0.1.0").unwrap();
-        let mut wide = consistent;
-        wide.sd = vec![40.0];
-        assert!(encode_posterior_artifact(&wide, &draws, "bad", "0.1.0").is_err());
+        let mut near_mean = consistent.clone();
+        near_mean.mean = vec![0.1];
+        assert!(encode_posterior_artifact(&near_mean, &draws, "bad", "0.1.0").is_err());
+        let mut near_sd = consistent;
+        near_sd.sd = vec![1.2];
+        assert!(encode_posterior_artifact(&near_sd, &draws, "bad", "0.1.0").is_err());
 
         // Summary-only artifacts have no draws to compare against.
         let mut summary = valid_meta();

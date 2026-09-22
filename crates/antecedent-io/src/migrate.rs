@@ -71,7 +71,6 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
             "artifact manifest section count does not match its section payloads".into(),
         ));
     }
-    let mut value_types_defaulted = false;
     for (desc, sec) in artifact.manifest.sections.iter_mut().zip(artifact.sections.iter_mut()) {
         if desc.id == "schema" {
             // Prefer already-v2 decode (`variables`); else upgrade skinny v01 (`variable_names`).
@@ -80,7 +79,6 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
                 w
             } else {
                 let v01: SchemaWireV01 = from_cbor(&sec.data)?;
-                value_types_defaulted = true;
                 schema_wire_from_v01(&v01)
             };
             let bytes = to_cbor(&upgraded)?;
@@ -94,29 +92,7 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
             *sec = SectionBytes::new(sec.id.clone(), bytes);
         }
     }
-    if value_types_defaulted {
-        // Format 0.1 recorded names only. The migrated schema types every variable
-        // `Continuous` because nothing better is known; say so durably, since a
-        // binary or categorical variable is otherwise indistinguishable from a
-        // declared-continuous one after the artifact is re-saved as 0.5.
-        let note = &mut artifact.manifest.provenance.note;
-        if !note.is_empty() {
-            note.push_str("; ");
-        }
-        note.push_str(VALUE_TYPES_DEFAULTED_MARKER);
-    }
     Ok(artifact)
-}
-
-/// Provenance marker left on artifacts whose schema was migrated from format 0.1.
-pub const VALUE_TYPES_DEFAULTED_MARKER: &str =
-    "migrated_from=0.1; value_types=defaulted_continuous";
-
-/// Whether the artifact's schema value types were invented by the 0.1 migration rather than
-/// observed or declared.
-#[must_use]
-pub fn schema_value_types_defaulted(artifact: &EncodedArtifact) -> bool {
-    artifact.manifest.provenance.note.contains(VALUE_TYPES_DEFAULTED_MARKER)
 }
 
 /// Read a container and migrate to [`STABLE_FORMAT`].
@@ -281,17 +257,19 @@ mod tests {
         assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
         let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
         assert_eq!(schema.variable_names(), vec!["x".to_string(), "y".to_string()]);
-        assert!(matches!(schema.variables[0].value_type, crate::wire::ValueTypeWire::Continuous));
-        // The invented types are recorded, so they cannot pass as declared ones.
-        assert!(schema_value_types_defaulted(&migrated));
-        assert_eq!(
-            migrated.manifest.provenance.note,
-            "t; migrated_from=0.1; value_types=defaulted_continuous"
+        // Nothing was stored, so nothing is claimed: every type is unspecified, not continuous.
+        assert!(
+            schema
+                .variables
+                .iter()
+                .all(|v| matches!(v.value_type, crate::wire::ValueTypeWire::Unspecified))
         );
+        assert!(schema.has_unspecified_value_types());
+        assert_eq!(migrated.manifest.provenance.note, "t");
     }
 
     #[test]
-    fn migrated_schema_that_already_carries_types_is_not_marked_defaulted() {
+    fn migrated_schema_that_already_carries_types_keeps_them() {
         let types = SchemaWire { variables: vec![] };
         let payload = to_cbor(&types).unwrap();
         let desc = section_descriptor("schema", "application/cbor", &payload);
@@ -308,7 +286,8 @@ mod tests {
             sections: vec![SectionBytes::new("schema", payload)],
         };
         let migrated = migrate_artifact(art).unwrap();
-        assert!(!schema_value_types_defaulted(&migrated));
+        let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+        assert!(!schema.has_unspecified_value_types());
         assert_eq!(migrated.manifest.provenance.note, "t");
     }
 

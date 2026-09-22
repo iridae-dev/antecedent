@@ -40,6 +40,10 @@ pub enum ValueType {
     Categorical,
     /// Ordered categorical.
     Ordinal,
+    /// Type not recorded: the schema came from a source that never stored one (an artifact
+    /// written before value types were persisted). Loaders must not treat it as any concrete
+    /// type; it is refused wherever the analysis depends on the measurement scale.
+    Unspecified,
     /// Fixed-width vector of scalar elements.
     Vector {
         /// Number of elements (non-zero).

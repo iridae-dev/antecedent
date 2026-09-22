@@ -343,12 +343,35 @@ pub struct HedgeCertificateWire {
     pub f_dense: Vec<u32>,
     /// Dense ids of `F'`.
     pub f_prime_dense: Vec<u32>,
+    /// The graph and query the hedge was found in; with it the witness re-verifies on load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem: Option<HedgeProblemWire>,
+}
+
+/// ADMG plus treatments and outcomes a hedge witnesses (see `HedgeProblem`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HedgeProblemWire {
+    /// Variable of each dense node, in dense order.
+    pub variables: Vec<u32>,
+    /// Directed edges by dense id.
+    pub directed: Vec<(u32, u32)>,
+    /// Bidirected edges by dense id.
+    pub bidirected: Vec<(u32, u32)>,
+    /// Treatment variables.
+    pub treatments: Vec<u32>,
+    /// Outcome variables.
+    pub outcomes: Vec<u32>,
 }
 
 impl HedgeCertificateWire {
     /// Every variable named by the witness.
     pub(crate) fn variables(&self) -> impl Iterator<Item = u32> + '_ {
-        self.f.iter().chain(&self.f_prime).copied()
+        let problem = self
+            .problem
+            .iter()
+            .flat_map(|p| p.variables.iter().chain(&p.treatments).chain(&p.outcomes).copied());
+        self.f.iter().chain(&self.f_prime).copied().chain(problem)
     }
 
     /// Structural conditions of a hedge that need no graph: strictly increasing dense
@@ -950,6 +973,13 @@ pub fn identification_to_wire_with_registry(
             f_prime: vars_to_raw(&h.f_prime),
             f_dense: h.f_dense.iter().map(|d| d.raw()).collect(),
             f_prime_dense: h.f_prime_dense.iter().map(|d| d.raw()).collect(),
+            problem: h.problem.as_ref().map(|p| HedgeProblemWire {
+                variables: vars_to_raw(&p.variables),
+                directed: p.directed.to_vec(),
+                bidirected: p.bidirected.to_vec(),
+                treatments: vars_to_raw(&p.treatments),
+                outcomes: vars_to_raw(&p.outcomes),
+            }),
         }),
     })
 }
@@ -975,7 +1005,7 @@ pub fn identification_from_wire(
                 ));
             }
             wire.validate()?;
-            Some(antecedent_identify::HedgeCertificate {
+            let certificate = antecedent_identify::HedgeCertificate {
                 f: vars_from_raw(&wire.f),
                 f_prime: vars_from_raw(&wire.f_prime),
                 f_dense: wire.f_dense.iter().copied().map(DenseNodeId::from_raw).collect(),
@@ -985,7 +1015,22 @@ pub fn identification_from_wire(
                     .copied()
                     .map(DenseNodeId::from_raw)
                     .collect(),
-            })
+                problem: wire.problem.as_ref().map(|p| antecedent_identify::HedgeProblem {
+                    variables: vars_from_raw(&p.variables),
+                    directed: p.directed.clone().into(),
+                    bidirected: p.bidirected.clone().into(),
+                    treatments: vars_from_raw(&p.treatments),
+                    outcomes: vars_from_raw(&p.outcomes),
+                }),
+            };
+            // A witness that carries its graph is re-checked from the definition on load, so a
+            // hand-edited or corrupted hedge cannot pass as a proof of non-identification.
+            if certificate.problem.is_some() {
+                certificate
+                    .verify_carried()
+                    .map_err(|e| IoError::Convert(format!("invalid hedge certificate: {e}")))?;
+            }
+            Some(certificate)
         }
         None => None,
     };
@@ -1271,7 +1316,34 @@ mod tests {
             f_prime: ids(&[1]),
             f_dense: dense(&[0, 1]),
             f_prime_dense: dense(&[1]),
+            problem: Some(antecedent_identify::HedgeProblem {
+                variables: ids(&[0, 1]),
+                directed: vec![(0, 1)].into(),
+                bidirected: vec![(0, 1)].into(),
+                treatments: ids(&[0]),
+                outcomes: ids(&[1]),
+            }),
         }
+    }
+
+    #[test]
+    fn carried_hedge_is_reverified_on_load() {
+        let mut result = empty_id_result(IdentificationStatus::NotIdentified);
+        result.hedge = Some(bow_hedge());
+        let wire = identification_to_wire(&result).unwrap();
+        // Untouched: verifies (X -> Y with X <-> Y really is a hedge).
+        assert!(identification_from_wire(&wire).is_ok());
+        // Remove the confounding edge: F is no longer bidirected-connected, so it is no hedge.
+        let mut no_confounding = wire.clone();
+        no_confounding.hedge.as_mut().unwrap().problem.as_mut().unwrap().bidirected.clear();
+        let err = identification_from_wire(&no_confounding).unwrap_err().to_string();
+        assert!(err.contains("not a hedge"), "{err}");
+        // The witness cannot certify a query whose treatment it does not contain.
+        let mut wrong_treatment = wire;
+        let problem = wrong_treatment.hedge.as_mut().unwrap().problem.as_mut().unwrap();
+        problem.treatments = vec![1];
+        problem.outcomes = vec![0];
+        assert!(identification_from_wire(&wrong_treatment).is_err());
     }
 
     #[test]

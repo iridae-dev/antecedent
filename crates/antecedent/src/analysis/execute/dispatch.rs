@@ -1000,7 +1000,11 @@ fn discrete_outcome_kind<'a>(
         match table.schema().get(outcome).ok().map(|variable| &variable.value_type) {
             Some(antecedent_core::ValueType::Binary) => return Some("binary"),
             Some(antecedent_core::ValueType::Count) => return Some("count"),
-            Some(antecedent_core::ValueType::Continuous) => {}
+            // An unspecified type claims nothing, so the observed values decide, as for a
+            // declared-continuous variable.
+            Some(
+                antecedent_core::ValueType::Continuous | antecedent_core::ValueType::Unspecified,
+            ) => {}
             _ => return None,
         }
         let values = table.float64_values(outcome).ok()?;

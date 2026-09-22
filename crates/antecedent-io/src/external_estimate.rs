@@ -58,6 +58,15 @@ pub struct ExternalEstimateAttach {
     pub data_snapshot: [u8; 32],
     /// Scalar ATE the caller labelled as such; omitted for arrays / unlabelled payloads.
     pub scalar_value: Option<f64>,
+    /// Value type of each name in `names`, when the caller declared them (`continuous`,
+    /// `binary`, `count`). Empty means none were declared: every variable is then recorded as
+    /// [`ValueType::Unspecified`] rather than guessed. Otherwise the length must match `names`.
+    pub value_types: Vec<ValueType>,
+    /// `(control, active)` treatment levels the estimate contrasts, when the caller stated
+    /// them. `None` records the conventional 0 -> 1 as a named placeholder, not a claim.
+    pub contrast: Option<(f64, f64)>,
+    /// Effect-modifier names the estimate is conditional on (empty for a marginal effect).
+    pub modifiers: Vec<String>,
 }
 
 /// Encode a contracted `analysis_result` whose claim is an attested external estimate.
@@ -114,8 +123,21 @@ fn require_identified_status(status: &str) -> Result<(), IoError> {
 fn receipt_body(
     attach: &ExternalEstimateAttach,
 ) -> Result<(AnalysisResultWire, TargetIdentityWire, Vec<String>), IoError> {
+    if !attach.value_types.is_empty() && attach.value_types.len() != attach.names.len() {
+        return Err(IoError::Convert(
+            "external estimate value types must be empty or one per schema name".into(),
+        ));
+    }
     let mut builder = CausalSchemaBuilder::new();
-    for name in &attach.names {
+    for (position, name) in attach.names.iter().enumerate() {
+        let value_type =
+            attach.value_types.get(position).cloned().unwrap_or(ValueType::Unspecified);
+        if value_type.requires_category_domain() {
+            return Err(IoError::Convert(format!(
+                "external estimate variable `{name}` is categorical or ordinal, which needs a \
+                 category domain the receipt does not carry"
+            )));
+        }
         let hint = if *name == attach.treatment {
             RoleHint::TreatmentCandidate
         } else if *name == attach.outcome {
@@ -126,7 +148,7 @@ fn receipt_body(
         builder
             .add_variable(
                 name.as_str(),
-                ValueType::Continuous,
+                value_type,
                 SmallRoleSet::from_hint(hint),
                 None,
                 None,
@@ -137,10 +159,18 @@ fn receipt_body(
     let schema = builder.build().map_err(|err| IoError::Convert(err.to_string()))?;
     let treatment = index_of(&attach.names, &attach.treatment)?;
     let outcome = index_of(&attach.names, &attach.outcome)?;
-    let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-        VariableId::from_raw(treatment),
-        VariableId::from_raw(outcome),
-    ));
+    let treatment_id = VariableId::from_raw(treatment);
+    let outcome_id = VariableId::from_raw(outcome);
+    let (control, active) = attach.contrast.unwrap_or((0.0, 1.0));
+    let modifiers = attach
+        .modifiers
+        .iter()
+        .map(|name| index_of(&attach.names, name).map(VariableId::from_raw))
+        .collect::<Result<Vec<_>, _>>()?;
+    let query = CausalQuery::AverageEffect(
+        AverageEffectQuery::with_levels(treatment_id, outcome_id, control, active)
+            .with_effect_modifiers(modifiers),
+    );
     let query_wire = causal_query_to_wire(&query)?;
     let status = wire_status(&attach.status);
     let body = AnalysisResultWire {
@@ -194,31 +224,48 @@ fn receipt_body(
     Ok((body, target, attach.names.clone()))
 }
 
-/// The receipt cannot know what the external learner estimated or the variables' value types.
-/// Its schema (all continuous) and query (a 0 -> 1 contrast) are placeholders the caller's
-/// label stands behind; the diagnostic says so where any reader of the body will see it.
+/// What the receipt states about its target, and what it does not. The learner's own target is
+/// never observed: the query is exactly what the caller declared (levels, modifiers), and a
+/// contrast the caller did not state is recorded as the conventional 0 -> 1 placeholder, named
+/// as such. Variable types not declared are `Unspecified`, never assumed continuous.
 fn target_attestation(attach: &ExternalEstimateAttach) -> DiagnosticWire {
+    let contrast = match attach.contrast {
+        Some((control, active)) => format!("do({control}) versus do({active}) as declared"),
+        None => "no contrast declared (do(0) versus do(1) recorded as a placeholder)".to_string(),
+    };
+    let types = if attach.value_types.is_empty() {
+        "variable value types were not declared and are recorded as unspecified"
+    } else {
+        "variable value types are as declared by the caller"
+    };
     let (labelled, message) = if attach.scalar_value.is_some() {
         (
             "average_effect",
-            "target attested by the caller as a scalar average effect (do(0) versus do(1)); \
-             variable value types were not observed and default to continuous",
+            format!(
+                "target attested by the caller as a scalar average effect; {contrast}; {types}"
+            ),
         )
     } else {
         (
             "unlabelled",
-            "the estimate was not labelled as a scalar average effect and may be a curve, \
-             heterogeneous-effect array or multi-valued contrast; the target query and variable \
-             value types recorded here are placeholders, not what the learner estimated",
+            format!(
+                "the estimate was not labelled as a scalar average effect and may be a curve, \
+                 heterogeneous-effect array or multi-valued contrast; {contrast}; {types}; the \
+                 recorded query is not what the learner estimated"
+            ),
         )
     };
+    let contrast_field = if attach.contrast.is_some() { "declared" } else { "placeholder" };
     DiagnosticWire {
         code: "external_estimate.target_attested".into(),
         kind: "scientific".into(),
         severity: "info".into(),
-        message: message.into(),
+        message,
         artifact_id: None,
-        fields: vec![("target".into(), labelled.into())],
+        fields: vec![
+            ("target".into(), labelled.into()),
+            ("contrast".into(), contrast_field.into()),
+        ],
     }
 }
 
@@ -480,6 +527,9 @@ mod tests {
             identification: None,
             data_snapshot: [7; 32],
             scalar_value: None,
+            value_types: Vec::new(),
+            contrast: None,
+            modifiers: Vec::new(),
         }
     }
 
@@ -570,7 +620,13 @@ mod tests {
             .iter()
             .find(|d| d.code == "external_estimate.target_attested")
             .expect("target attestation");
-        assert_eq!(diagnostic.fields, vec![("target".to_string(), "unlabelled".to_string())]);
+        assert_eq!(
+            diagnostic.fields,
+            vec![
+                ("target".to_string(), "unlabelled".to_string()),
+                ("contrast".to_string(), "placeholder".to_string()),
+            ]
+        );
         let mut labelled = attach_with_payload(&[0]);
         labelled.scalar_value = Some(1.2);
         let (body, _, _) =
@@ -578,8 +634,67 @@ mod tests {
                 .unwrap();
         assert_eq!(
             body.diagnostics[0].fields,
-            vec![("target".to_string(), "average_effect".to_string())]
+            vec![
+                ("target".to_string(), "average_effect".to_string()),
+                ("contrast".to_string(), "placeholder".to_string()),
+            ]
         );
+    }
+
+    #[test]
+    fn receipt_carries_declared_types_contrast_and_modifiers() {
+        use crate::wire::ValueTypeWire;
+        let mut attach = attach_with_payload(&[0]);
+        attach.scalar_value = Some(0.4);
+        attach.value_types = vec![ValueType::Binary, ValueType::Continuous, ValueType::Count];
+        attach.contrast = Some((2.0, 5.0));
+        attach.modifiers = vec!["z".into()];
+        let (body, contract, _) =
+            decode_external_estimate_claim(&encode_external_estimate_claim(&attach).unwrap())
+                .unwrap();
+        let types: Vec<_> =
+            contract.target.schema.variables.iter().map(|v| v.value_type.clone()).collect();
+        assert_eq!(
+            types,
+            vec![ValueTypeWire::Binary, ValueTypeWire::Continuous, ValueTypeWire::Count]
+        );
+        let expected = causal_query_to_wire(&CausalQuery::AverageEffect(
+            AverageEffectQuery::with_levels(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                2.0,
+                5.0,
+            )
+            .with_effect_modifiers(vec![VariableId::from_raw(2)]),
+        ))
+        .unwrap();
+        assert_eq!(body.query, expected);
+        assert_eq!(contract.target.query, expected);
+        assert_eq!(body.diagnostics[0].fields[1].1, "declared");
+    }
+
+    #[test]
+    fn undeclared_types_are_unspecified_not_continuous() {
+        use crate::wire::ValueTypeWire;
+        let bytes = encode_external_estimate_claim(&attach_with_payload(&[0])).unwrap();
+        let (_, contract, _) = decode_external_estimate_claim(&bytes).unwrap();
+        assert!(
+            contract
+                .target
+                .schema
+                .variables
+                .iter()
+                .all(|v| v.value_type == ValueTypeWire::Unspecified)
+        );
+    }
+
+    #[test]
+    fn mismatched_or_domainless_types_are_refused() {
+        let mut attach = attach_with_payload(&[0]);
+        attach.value_types = vec![ValueType::Binary];
+        assert!(encode_external_estimate_claim(&attach).is_err());
+        attach.value_types = vec![ValueType::Categorical, ValueType::Continuous, ValueType::Count];
+        assert!(encode_external_estimate_claim(&attach).is_err());
     }
 
     #[test]

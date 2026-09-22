@@ -507,7 +507,8 @@ fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
 /// Decide which family list a node draws from.
 ///
 /// A declared discrete value type (binary, categorical, ordinal) is
-/// authoritative. Otherwise the level count decides, but only when the levels
+/// authoritative; an unspecified type (schema migrated from a names-only artifact) is not a
+/// declaration. Otherwise the level count decides, but only when the levels
 /// are observed repeatedly ([`LOW_CARDINALITY_MIN_ROWS_PER_LEVEL`]): a short
 /// column of a continuous variable must not become a multinomial whose
 /// counterfactual support is the few values that happened to be observed.

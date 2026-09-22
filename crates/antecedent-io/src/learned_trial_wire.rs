@@ -180,4 +180,133 @@ mod tests {
         assert_eq!(scalar("bootstrap"), Some(ciborium::Value::Integer(199.into())));
         assert_eq!(scalar("coverage_level"), Some(ciborium::Value::Float(0.95)));
     }
+
+    fn cbor_keys(value: &ciborium::Value) -> Vec<String> {
+        value
+            .as_map()
+            .expect("serializes as a CBOR map")
+            .iter()
+            .map(|(key, _)| key.as_text().unwrap().to_owned())
+            .collect()
+    }
+
+    fn cbor_field<'a>(value: &'a ciborium::Value, name: &str) -> &'a ciborium::Value {
+        &value
+            .as_map()
+            .expect("serializes as a CBOR map")
+            .iter()
+            .find(|(key, _)| key.as_text() == Some(name))
+            .unwrap_or_else(|| panic!("missing field {name}"))
+            .1
+    }
+
+    fn cbor_of<T: Serialize>(value: &T) -> ciborium::Value {
+        let bytes = crate::to_cbor(value).unwrap();
+        ciborium::from_reader(bytes.as_slice()).unwrap()
+    }
+
+    /// Every other foreign type embedded in the learned-trial artifact, the fitted-effect
+    /// receipt and the transport grid is pinned the same way: a JSON document in the
+    /// current spelling must still decode, and re-encoding must keep the declaration order the
+    /// identity digest hashes.
+    #[test]
+    fn embedded_foreign_structs_keep_their_wire_spelling_and_order() {
+        let input: TrialAipwInput = serde_json::from_str(
+            r#"{"features":[0],"covariates":[[0.5]],"outcome":[1.0],"treatment":[true],
+                "source":[true],"randomization":[0.5],"sampling":"independent_samples"}"#,
+        )
+        .unwrap();
+        let value = cbor_of(&input);
+        assert_eq!(
+            cbor_keys(&value),
+            [
+                "features",
+                "covariates",
+                "outcome",
+                "treatment",
+                "source",
+                "randomization",
+                "sampling"
+            ]
+        );
+        assert_eq!(
+            cbor_field(&value, "sampling"),
+            &ciborium::Value::Text("independent_samples".into())
+        );
+        assert_eq!(
+            cbor_of(&antecedent_estimate::TrialSampling::NestedCohort),
+            ciborium::Value::Text("nested_cohort".into())
+        );
+
+        let options = cbor_of(&TrialAipwOptions::default());
+        let outcome = cbor_field(&options, "outcome");
+        assert_eq!(cbor_keys(outcome), ["kind", "lambda"]);
+        assert_eq!(cbor_field(outcome, "kind"), &ciborium::Value::Text("ridge".into()));
+        let membership = cbor_field(&options, "membership");
+        assert_eq!(cbor_keys(membership), ["kind", "ridge_lambda"]);
+        assert_eq!(cbor_field(membership, "kind"), &ciborium::Value::Text("logistic".into()));
+        for kind in ["auto", "linear", "elastic_net", "gradient_boosted_trees", "random_forest"] {
+            let spec: antecedent_estimate::LearnerSpec =
+                serde_json::from_str(&format!(r#"{{"kind":"{kind}"}}"#)).unwrap();
+            assert_eq!(
+                cbor_field(&cbor_of(&spec), "kind"),
+                &ciborium::Value::Text(kind.into()),
+                "{kind}"
+            );
+        }
+
+        let fitted: antecedent_estimate::FittedEffect = serde_json::from_str(
+            r#"{"version":1,"features":[0],"intercept":true,"predictor":{"version":1,
+                "columns":2,"provenance":{"spec":"linear","implementation":"faer","version":"1"},
+                "model":{"kind":"linear","coefficients":[0.5,1.0],"logistic":false}}}"#,
+        )
+        .unwrap();
+        let value = cbor_of(&fitted);
+        assert_eq!(cbor_keys(&value), ["version", "features", "intercept", "predictor"]);
+        let predictor = cbor_field(&value, "predictor");
+        assert_eq!(cbor_keys(predictor), ["version", "columns", "provenance", "model"]);
+        assert_eq!(
+            cbor_keys(cbor_field(predictor, "provenance")),
+            ["spec", "implementation", "version"]
+        );
+        assert_eq!(cbor_keys(cbor_field(predictor, "model")), ["kind", "coefficients", "logistic"]);
+
+        let estimate: antecedent_estimate::TrialAipwEstimate = serde_json::from_str(
+            r#"{"estimate":0.1,"interval":null,"uncertainty_reason":null,"replicates":[],
+                "failures":0,"membership":[0.5],"mu0":[0.0],"mu1":[1.0],"provenance":[],
+                "diagnostics":{"membership_logloss":0.7,"outcome_rmse":[0.1,0.2]},
+                "overlap":{"selection":{"probability_min":0.1,"probability_max":0.9,
+                "effective_sample_size":10.0,"extreme_weight_count":0},
+                "treatment":{"probability_min":0.5,"probability_max":0.5,
+                "effective_sample_size":10.0,"extreme_weight_count":0}}}"#,
+        )
+        .unwrap();
+        let value = cbor_of(&estimate);
+        assert_eq!(
+            cbor_keys(&value),
+            [
+                "estimate",
+                "interval",
+                "uncertainty_reason",
+                "replicates",
+                "failures",
+                "membership",
+                "mu0",
+                "mu1",
+                "provenance",
+                "diagnostics",
+                "overlap"
+            ]
+        );
+        assert_eq!(
+            cbor_keys(cbor_field(&value, "diagnostics")),
+            ["membership_logloss", "outcome_rmse"]
+        );
+        let overlap = cbor_field(&value, "overlap");
+        assert_eq!(cbor_keys(overlap), ["selection", "treatment"]);
+        assert_eq!(
+            cbor_keys(cbor_field(overlap, "selection")),
+            ["probability_min", "probability_max", "effective_sample_size", "extreme_weight_count"]
+        );
+    }
 }

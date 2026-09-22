@@ -171,11 +171,12 @@ fn analysis_trace_artifact() -> EncodedArtifact {
 fn posterior_artifact() -> EncodedArtifact {
     let meta = CausalPosteriorWire {
         quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
-        n_draws: 2,
+        n_draws: 3,
         mean: vec![1.0],
         sd: vec![0.1],
-        q025: vec![0.9],
-        q975: vec![1.1],
+        // Type-7 quantiles of the draws (0.9, 1.0, 1.1).
+        q025: vec![0.905],
+        q975: vec![1.095],
         identification: "NonparametricallyIdentified".into(),
         unidentified_mass: 0.0,
         subsampled_out_mass: 0.0,
@@ -185,7 +186,7 @@ fn posterior_artifact() -> EncodedArtifact {
         draws_encoding: "f64_le_colmajor".into(),
         treatment_contrast: None,
     };
-    encode_posterior_artifact(&meta, &[0.9, 1.1], "p12-post", VERSION).unwrap()
+    encode_posterior_artifact(&meta, &[0.9, 1.0, 1.1], "p12-post", VERSION).unwrap()
 }
 
 fn model_bundle_artifact() -> EncodedArtifact {

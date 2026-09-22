@@ -143,8 +143,8 @@ pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,
 };
 pub use migrate::{
-    STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, VALUE_TYPES_DEFAULTED_MARKER, is_supported_source,
-    migrate_artifact, migrate_from_seek, read_and_migrate, schema_value_types_defaulted,
+    STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
+    migrate_from_seek, read_and_migrate,
 };
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,

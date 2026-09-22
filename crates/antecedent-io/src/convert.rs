@@ -74,7 +74,8 @@ pub fn schema_from_wire(wire: &SchemaWire) -> Result<CausalSchema, IoError> {
     b.build().map_err(|e| IoError::Convert(e.to_string()))
 }
 
-/// Migrate format 0.1 skinny schema to full wire with Continuous defaults.
+/// Migrate format 0.1 skinny schema to full wire. Format 0.1 stored names only, so every
+/// variable is [`ValueTypeWire::Unspecified`]: nothing is known about its measurement scale.
 #[must_use]
 pub fn schema_wire_from_v01(v01: &SchemaWireV01) -> SchemaWire {
     SchemaWire {
@@ -85,7 +86,7 @@ pub fn schema_wire_from_v01(v01: &SchemaWireV01) -> SchemaWire {
             .map(|(i, name)| VariableSchemaWire {
                 id: u32::try_from(i).unwrap_or(u32::MAX),
                 name: name.clone(),
-                value_type: ValueTypeWire::Continuous,
+                value_type: ValueTypeWire::Unspecified,
                 role_bits: 0,
                 unit: None,
                 category_domain: None,
@@ -117,6 +118,7 @@ fn value_type_to_wire(v: &ValueType) -> ValueTypeWire {
         ValueType::Binary => ValueTypeWire::Binary,
         ValueType::Categorical => ValueTypeWire::Categorical,
         ValueType::Ordinal => ValueTypeWire::Ordinal,
+        ValueType::Unspecified => ValueTypeWire::Unspecified,
         ValueType::Vector { width, element } => ValueTypeWire::Vector {
             width: width.get(),
             element: match element {
@@ -136,6 +138,7 @@ fn value_type_from_wire(v: &ValueTypeWire) -> Result<ValueType, IoError> {
         ValueTypeWire::Binary => ValueType::Binary,
         ValueTypeWire::Categorical => ValueType::Categorical,
         ValueTypeWire::Ordinal => ValueType::Ordinal,
+        ValueTypeWire::Unspecified => ValueType::Unspecified,
         ValueTypeWire::Vector { width, element } => {
             let width = NonZeroU32::new(*width)
                 .ok_or_else(|| IoError::Convert("vector width must be non-zero".into()))?;

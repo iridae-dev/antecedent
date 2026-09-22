@@ -931,11 +931,11 @@ mod tests {
         let n_q = quantities.len();
         let meta = CausalPosteriorWire {
             quantities,
-            n_draws: 2,
+            n_draws: 3,
             mean: vec![0.0; n_q],
             sd: vec![1.0; n_q],
-            q025: vec![-1.0; n_q],
-            q975: vec![1.0; n_q],
+            q025: vec![-0.95; n_q],
+            q975: vec![0.95; n_q],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,
@@ -945,8 +945,8 @@ mod tests {
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
         };
-        // Two draws at -1 / +1 per quantity: mean 0 and nearest-rank quantiles -1 / 1.
-        let draws = (0..n_q).flat_map(|_| [-1.0f64, 1.0]).collect::<Vec<_>>();
+        // Draws (-1, 0, 1) per quantity: mean 0, sample SD 1, type-7 quantiles -0.95 / 0.95.
+        let draws = (0..n_q).flat_map(|_| [-1.0f64, 0.0, 1.0]).collect::<Vec<_>>();
         encode_posterior_artifact(&meta, &draws, artifact_id, "0.1.0").unwrap()
     }
 
