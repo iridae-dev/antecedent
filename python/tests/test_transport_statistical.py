@@ -64,7 +64,9 @@ def test_statistical_prepare_estimate_and_inspect_license():
     study = prepare(
         data,
         query=transport.StatisticalTransportQuery(
-            identified, catalog, {"x": 1.0}, bootstrap=39, seed=7
+            # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
+            # fewer replicates run cleanly but withhold the interval as unlicensed.
+            identified, catalog, {"x": 1.0}, bootstrap=40, seed=7
         ),
     )
     inspection = study.inspect()
@@ -202,7 +204,9 @@ def test_joint_grid_and_contrasts_preserve_shared_replicates():
         catalog,
         transport.StatisticalTransportData((zero, data.samples[0])),
         at=[{"x": 0.0}, {"x": 1.0}],
-        bootstrap=39,
+        # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
+        # 39 runs cleanly but withholds the interval as unlicensed.
+        bootstrap=40,
         seed=17,
     )
     assert points[0].mean("y") == pytest.approx(0.2)
@@ -210,7 +214,7 @@ def test_joint_grid_and_contrasts_preserve_shared_replicates():
     assert points[0].uncertainty["replicate_ids"] == points[1].uncertainty["replicate_ids"]
     contrast = points[1].contrast(points[0], "y")
     assert contrast["estimate"] == pytest.approx(0.6)
-    assert contrast["replicates_ok"] == 39
+    assert contrast["replicates_ok"] == 40
     assert contrast["interval"][0] < 0.6 < contrast["interval"][1]
     assert points[0].contrast(points[0], "y")["interval"] == (0.0, 0.0)
     assert load(points[1].export()).contrast(load(points[0].export()), "y") == contrast

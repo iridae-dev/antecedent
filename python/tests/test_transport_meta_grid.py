@@ -129,8 +129,10 @@ def test_partial_grid_retains_missing_first_point(statistical):
 
 def test_statistical_grid_paired_contrast_and_catalog_permutation():
     _, identified, catalog, data = fixture(statistical=True)
+    # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
+    # fewer replicates run cleanly but withhold the contrast interval as unlicensed.
     study = transport.prepare_response_grid(
-        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=29, seed=7
+        identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7
     )
     result = study.estimate()
     assert (
@@ -146,7 +148,7 @@ def test_statistical_grid_paired_contrast_and_catalog_permutation():
         bindings=tuple(reversed(catalog.bindings)),
     )
     again = transport.prepare_response_grid(
-        identified, changed, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=29, seed=7
+        identified, changed, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=7
     ).estimate()
     assert again.points == result.points
     assert again.execution_id == result.execution_id
@@ -292,7 +294,9 @@ def test_grid_family_identity_atomic_refresh_and_preview():
         )
 
 
-def calibration_case(seed, parameter=0, bootstrap=19):
+def calibration_case(seed, parameter=0, bootstrap=40):
+    # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
+    # fewer replicates run cleanly but withhold the contrast interval as unlicensed.
     """Reproducible unequal-size Bernoulli arms; exact means follow by total probability."""
     import random
 
@@ -334,7 +338,7 @@ def test_bounded_multisource_calibration_fixture(parameter):
         == result.points[1]["uncertainty"]["replicate_ids"]
     )
     contrast = result.contrast(1, 0, "y")
-    assert contrast["replicates_ok"] == 19
+    assert contrast["replicates_ok"] == 40
     assert contrast["calibration_status"] == "not_bound_to_this_execution"
     assert contrast["interval"][0] <= contrast["interval"][1]
 
