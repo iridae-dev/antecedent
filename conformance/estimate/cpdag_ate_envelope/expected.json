@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "regression_pin", "note": "Bayesian expected_ate 0.4615641945101853 is a seeded (seed 1, 64 draws) output pin of this library, not truth. The frequentist ATE 0.46 and joint-IF SE are checked against the independent numpy reference.py beside it.", "independent_inferences": ["Frequentist"]},
+  "oracle": {"kind": "regression_pin", "note": "Bayesian expected_ate 0.46160512322751795 is a seeded (seed 1, 64 draws) output pin of this library, not truth (re-pinned after 6890a67 shifted the rank-coupled Bayesian mixture's cross-completion correlation input; see crates/antecedent/tests/cpdag_ate_numeric_pins.rs for the derivation). The frequentist ATE 0.46 and joint-IF SE are checked against the independent numpy reference.py beside it.", "independent_inferences": ["Frequentist"]},
   "case": "two_completion_cpdag_mec_envelope",
   "columns": ["t", "y", "z"],
   "query": {
@@ -57,8 +57,8 @@
     "n_draws": 64,
     "prior_scale": 10.0,
     "seed": 1,
-    "expected_ate": 0.4615641945101853,
-    "absolute_tolerance": 1e-10,
+    "expected_ate": 0.46160512322751795,
+    "absolute_tolerance": 1e-9,
     "tolerance_class": "PosteriorDistribution"
   },
   "conditional": {

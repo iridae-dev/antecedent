@@ -177,8 +177,8 @@
     "n_draws": 64,
     "prior_scale": 10.0,
     "seed": 1,
-    "cpdag_ate_contrast": 0.4615641945101853,
-    "contrast_tolerance": 1e-10,
+    "cpdag_ate_contrast": 0.46160512322751795,
+    "contrast_tolerance": 1e-9,
     "diagnostic": "estimate.envelope.response_posterior_not_mixed"
   }
 }
