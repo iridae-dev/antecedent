@@ -415,7 +415,14 @@ _ENVELOPE = {
             _MEAN_CURVE,
             "nonparametrically_identified",
             {"point_identified": _SURFACE},
-            {"pointwise_band": {"level": 0.95, "lower": [0.0, 1.0], "upper": [1.0, 2.0]}},
+            {
+                "pointwise_band": {
+                    "level": 0.95,
+                    "lower": [0.0, 1.0],
+                    "upper": [1.0, 2.0],
+                    "interpretation": "confidence",
+                }
+            },
             1,
             ["a", "y"],
         ),
@@ -429,6 +436,7 @@ _ENVELOPE = {
                     "lower": [0.0, 1.0],
                     "upper": [1.0, 2.0],
                     "replicates": 500,
+                    "interpretation": "confidence",
                 }
             },
             1,
@@ -443,6 +451,7 @@ _ENVELOPE = {
                     "level": 0.95,
                     "lower_outer": [0.0, 1.0],
                     "upper_outer": [1.0, 2.0],
+                    "interpretation": "confidence",
                 }
             },
             1,
@@ -474,6 +483,7 @@ _ENVELOPE = {
                     "level": 0.95,
                     "lower": 0.8,
                     "upper": 1.2,
+                    "interpretation": "confidence",
                 }
             },
             1,
@@ -607,6 +617,7 @@ def test_temporal_response_result_crosses_rust_and_python() -> None:
                 "level": 0.95,
                 "lower": [0.5, 1.0, 1.5, 2.0],
                 "upper": [1.5, 2.0, 2.5, 3.0],
+                "interpretation": "confidence",
             }
         },
         support_dim=2,
