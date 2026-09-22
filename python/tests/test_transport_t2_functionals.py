@@ -15,7 +15,6 @@ def test_direct_formula_exposes_population_and_lowered_expr() -> None:
     query = transport.TransportQuery(
         _mean_curve(),
         transport.SelectionDiagram("trial", "target", []),
-        catalog=transport.EvidenceCatalog.empty(),
     )
     result = transport.identify(graph=graph, query=query)
     assert isinstance(result.formula, transport.RecursiveFactorizationFormula)

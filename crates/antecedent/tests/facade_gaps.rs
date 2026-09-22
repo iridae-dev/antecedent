@@ -327,6 +327,30 @@ fn auto_multi_estimand_requires_unique_match() {
 }
 
 #[test]
+fn auto_lists_the_general_id_functional_and_selection_follows_the_estimator() {
+    // Back-door already identifies the chain; general ID also does, and its functional is
+    // listed beside the criterion estimand rather than dropped, so an estimator that consumes
+    // general-ID functionals selects it and no other estimator's match changes.
+    let (_, g) = chain_table(40);
+    let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let id = identify_static_query(IdentifierId::Auto, &g, &CausalQuery::AverageEffect(q)).unwrap();
+    assert_eq!(id.estimand_claims.len(), id.estimands.len());
+    let general: Vec<usize> = id
+        .estimands
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.method.as_ref() == "general.id")
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(general.len(), 1, "one general.id estimand is listed");
+    assert!(id.estimands.len() > 1, "and it sits beside the criterion estimand");
+    let chosen = select_estimand(&id, EstimatorId::FunctionalEffect).unwrap();
+    assert_eq!(chosen.method.as_ref(), "general.id");
+    assert_eq!(chosen.functional, id.estimands[general[0]].functional);
+    let _ = id.arena.node(chosen.functional);
+}
+
+#[test]
 fn generalized_adjustment_on_dag_errors_clearly() {
     let (_, g) = chain_table(10);
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));

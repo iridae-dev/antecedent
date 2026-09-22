@@ -563,10 +563,18 @@ impl AutoIdentifier {
                         claims.extend((0..res.estimands.len()).map(&claim_of));
                         break;
                     } else if name == "general.id" {
+                        // Criterion estimands already own the arena: the general-ID functional
+                        // is copied into it, so every strategy that identified the query is
+                        // listed (with its own claim), and only the estimators compatible with
+                        // a general.id functional select it.
+                        let mut merged = e.clone();
+                        merged.functional = arena.import(&res.arena, e.functional);
+                        estimands.push(merged);
+                        claims.push(claim_of(index));
                         derivation.push(
                             "auto.method.general_id",
-                            "general.id identified; functionals available via IdIdentifier \
-                             (arena merge deferred when criterion estimands already present)",
+                            "general.id identified; its functional is listed beside the \
+                             criterion estimands",
                         );
                     }
                 }
@@ -950,6 +958,38 @@ mod tests {
 
         // The un-narrowed result lists every alternative, so its set covers all of them.
         assert!(has_exclusion(&res.required_assumptions, 0));
+    }
+
+    #[test]
+    fn auto_lists_the_general_id_functional_beside_the_criterion_estimands() {
+        // Back-door, IV and general ID all identify this DAG. General ID's functional is
+        // copied into the shared arena (not dropped because criterion estimands own it), and
+        // it is the functional general ID derives on its own.
+        let dag = iv_dag();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.estimand_claims.len(), res.estimands.len());
+        let listed: Vec<&IdentifiedEstimand> =
+            res.estimands.iter().filter(|e| e.method.as_ref() == "general.id").collect();
+        assert_eq!(listed.len(), 1);
+        assert!(res.estimands.len() > 1, "criterion estimands are still listed");
+        let alone = auto.general_id.identify(&prep.admg, &q, &mut ws).unwrap();
+        assert_eq!(alone.estimands.len(), 1);
+        assert_eq!(
+            res.arena.pretty(listed[0].functional),
+            alone.arena.pretty(alone.estimands[0].functional)
+        );
+        // Narrowing to it keeps its own claim and a functional that resolves in the result.
+        let index = res.estimands.iter().position(|e| e.method.as_ref() == "general.id").unwrap();
+        let chosen = res.narrowed_to(index).unwrap();
+        assert_eq!(chosen.estimands.len(), 1);
+        assert_eq!(chosen.status, IdentificationStatus::NonparametricallyIdentified);
     }
 
     #[test]

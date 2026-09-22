@@ -1044,12 +1044,17 @@ fn select_estimand_index(
     if matches.len() == 1 {
         return Ok(matches[0]);
     }
+    // Auto lists every strategy that identified the query (criterion estimands and the general
+    // ID functional); name them so a caller sees which methods the estimator matched.
+    let methods: Vec<&str> = estimands.iter().map(|e| e.method.as_ref()).collect();
     Err(CausalError::Compile {
         message: format!(
-            "identifier returned {} estimands; select an explicit identifier or an estimator \
-             that uniquely matches one method (got estimator {:?})",
+            "identifier returned {} estimands ({}); select an explicit identifier or an estimator \
+             that uniquely matches one method (got estimator {:?}, matching {})",
             estimands.len(),
-            estimator.as_str()
+            methods.join(", "),
+            estimator.as_str(),
+            matches.len()
         ),
     })
 }
