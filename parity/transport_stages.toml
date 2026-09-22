@@ -354,8 +354,8 @@ family = "transport_target_only"
 role = "positive"
 evidence_class = "internal_cross_check"
 evidence_test = "python/tests/test_transport_catalog.py"
-evidence_assertion = "test_empty_catalog_target_only_identify_succeeds"
-limits = "Target DAG g-formula without any source regime."
+evidence_assertion = "test_declared_target_regime_binds_target_only_identify"
+limits = "Target DAG g-formula bound to a declared target observational regime, without any source regime; an empty catalog declares no target law and is missing evidence."
 
 [[fixture_evidence]]
 id = "transport_target_only.counterexample"

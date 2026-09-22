@@ -149,10 +149,11 @@ impl TransportIdentifier {
     /// the target observational truncated factorization. A required missing source regime is
     /// [`TransportIdentification::MissingEvidence`], not [`TransportIdentification::NotCertified`].
     ///
-    /// A catalog that declares no regime at all for the target does not withdraw the target
-    /// observational law: the formula is certified with an explicit "target observational law
-    /// assumed available" premise and its target factors stay unbound. The bound-evaluation
-    /// path (`identify_catalog_transport`) requires a declared target regime instead.
+    /// A catalog is an evidence declaration and silence is not evidence: a target factor that
+    /// no declared regime supplies (including every target factor of a catalog that declares no
+    /// target regime) is missing evidence, as it is on the bound-evaluation path
+    /// (`identify_catalog_transport`). A query with no catalog at all asks only for the
+    /// structural formula, whose target factors stay unbound.
     ///
     /// The implementation deliberately returns [`Self::NotCertified`] rather than claiming
     /// non-transportability when general multi-node c-component recursion is required.
@@ -448,10 +449,9 @@ fn bind_catalog(
     let Some(catalog) = &query.catalog else {
         return result;
     };
-    let TransportIdentification::Transportable { formula, certificate } = &mut result else {
+    let TransportIdentification::Transportable { formula, .. } = &mut result else {
         return result;
     };
-    let mut assumed_target_law = false;
     let factors: Vec<&mut PopulationFactor> = match formula {
         TransportFormula::Direct(factor) => vec![factor],
         TransportFormula::Standardize { source_response, target_law, .. } => {
@@ -481,30 +481,14 @@ fn bind_catalog(
                 factor.regime = Some(regime);
                 continue;
             }
-            // A catalog that says nothing about the target does not withdraw its
-            // observational law, but the formula is then unbound: it is certified
-            // on that assumption, recorded below, and an evaluator still needs a
-            // target regime before it can consume the factor.
-            if target
-                && catalog.target_sampling
-                    != Some(antecedent_core::TargetSampling::LicensedWeightedDesign)
-                && factor.interventions.is_empty()
-                && !catalog.regimes.iter().any(|r| r.population == factor.population)
-            {
-                assumed_target_law = true;
-                continue;
-            }
         }
+        // A catalog is an evidence declaration, and silence is not evidence: a target factor no
+        // declared regime supplies is missing, whether or not the catalog lists any regime for
+        // the target. A caller with the target's observational data declares that regime; a
+        // query with no catalog at all asks only for the structural formula.
         missing.extend(needed);
     }
     if missing.is_empty() {
-        if assumed_target_law {
-            let mut premises = certificate.premises.to_vec();
-            premises.push(Arc::from(
-                "target observational law assumed available: the catalog declares no target regime",
-            ));
-            certificate.premises = premises.into();
-        }
         result
     } else {
         TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
@@ -863,13 +847,16 @@ mod tests {
             .unwrap()
     }
 
+    /// The structural formula without any evidence declaration: target-only identification.
     #[test]
-    fn empty_catalog_and_invariant_mechanisms_identify_on_the_target() {
+    fn no_catalog_and_invariant_mechanisms_identify_on_the_target() {
         let graph = Admg::with_variables(3);
         let diagram = SelectionDiagram::try_new(graph, []).unwrap();
-        let result = TransportIdentifier::new().identify(&diagram, &empty_catalog_query()).unwrap();
+        let query =
+            TransportQuery::new(query().response, "trial", "target", Vec::<VariableId>::new());
+        let result = TransportIdentifier::new().identify(&diagram, &query).unwrap();
         let TransportIdentification::Transportable { formula, .. } = &result else {
-            panic!("target-only identify must succeed with an empty source catalog");
+            panic!("target-only structural identification must succeed");
         };
         match formula {
             TransportFormula::RecursiveFactorization { factors, .. } => {
@@ -882,14 +869,58 @@ mod tests {
             other => panic!("expected observational target factorization, got {other:?}"),
         }
         assert_eq!(result.outcome().kind, TransportOutcomeKind::Identified);
-        // The catalog is silent about the target, so its observational law is assumed;
-        // the certificate must say so rather than look like a bound regime.
-        let TransportIdentification::Transportable { certificate, .. } = &result else {
-            unreachable!();
+    }
+
+    /// An explicit catalog that declares no target regime supplies no target law: silence is
+    /// not availability, so the same formula that a structural query gets is missing evidence,
+    /// naming the target coordinates it needs.
+    #[test]
+    fn empty_catalog_declares_no_target_law_so_target_only_identification_is_missing_evidence() {
+        let graph = Admg::with_variables(3);
+        let diagram = SelectionDiagram::try_new(graph, []).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &empty_catalog_query()).unwrap();
+        let TransportIdentification::MissingEvidence(certificate) = &result else {
+            panic!("an empty catalog must not read as available target evidence, got {result:?}");
         };
-        assert!(
-            certificate.premises.iter().any(|p| p.contains("target observational law assumed"))
-        );
+        let missing: Vec<u32> = certificate.missing.iter().map(|v| v.raw()).collect();
+        assert!(!missing.is_empty() && missing.iter().all(|v| *v <= 2), "{missing:?}");
+        assert_eq!(result.outcome().kind, TransportOutcomeKind::MissingEvidence);
+    }
+
+    /// Declaring the target's observational regime is what binds the target-only formula.
+    #[test]
+    fn a_declared_target_observational_regime_binds_target_only_identification() {
+        use antecedent_core::{
+            DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeId,
+            RegimeKind,
+        };
+        let graph = Admg::with_variables(3);
+        let diagram = SelectionDiagram::try_new(graph, []).unwrap();
+        let regime = EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let catalog = EvidenceCatalog::try_new([], [regime], [], None).unwrap();
+        let query =
+            TransportQuery::new(query().response, "trial", "target", Vec::<VariableId>::new())
+                .with_catalog(catalog)
+                .unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query).unwrap();
+        let TransportIdentification::Transportable { formula, certificate } = &result else {
+            panic!("a declared target regime supplies the target law, got {result:?}");
+        };
+        let TransportFormula::RecursiveFactorization { factors, .. } = formula else {
+            panic!("expected observational target factorization");
+        };
+        assert!(factors.iter().all(|f| f.regime == Some(RegimeId::from_raw(1))));
+        assert!(!certificate.premises.iter().any(|p| p.contains("assumed")));
     }
 
     fn query_over(outcome: u32, treatment: u32) -> TransportQuery {

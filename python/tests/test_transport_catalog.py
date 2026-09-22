@@ -83,7 +83,8 @@ def test_same_named_incompatible_variables_are_rejected() -> None:
         )
 
 
-def test_empty_catalog_target_only_identify_succeeds() -> None:
+def test_empty_catalog_declares_no_target_law() -> None:
+    """A catalog is an evidence declaration: silence about the target is not availability."""
     graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
     query = transport.TransportQuery(
         _mean_curve(),
@@ -91,10 +92,27 @@ def test_empty_catalog_target_only_identify_succeeds() -> None:
         catalog=transport.EvidenceCatalog.empty(),
     )
     result = transport.identify(graph=graph, query=query)
+    assert not result.transportable
+    assert result.outcome == "missing_evidence"
+    assert isinstance(result.certificate, transport.MissingEvidenceCertificate)
+    assert result.formula is None
+
+
+def test_declared_target_regime_binds_target_only_identify() -> None:
+    graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
+    query = transport.TransportQuery(
+        _mean_curve(),
+        transport.SelectionDiagram("trial", "target", []),
+        catalog=transport.EvidenceCatalog(
+            regimes=[transport.EvidenceRegime("target_obs", "target", measured=["a", "y"])]
+        ),
+    )
+    result = transport.identify(graph=graph, query=query)
     assert result.transportable
     assert result.outcome == "identified"
     assert isinstance(result.formula, transport.RecursiveFactorizationFormula)
     assert all(f.population == "target" and not f.interventions for f in result.formula.factors)
+    assert all(f.regime == 0 for f in result.formula.factors)
 
 
 def test_missing_experiment_is_not_not_certified() -> None:

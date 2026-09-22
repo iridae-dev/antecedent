@@ -25,7 +25,7 @@ def test_graphical_transport_returns_direct_formula_and_certificate() -> None:
     assert result.certificate.rule == "transport.sid.direct"
 
 
-def test_graphical_transport_empty_catalog_identifies_on_the_target() -> None:
+def test_graphical_transport_without_a_catalog_identifies_on_the_target() -> None:
     graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
     query = transport.TransportQuery(
         antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
