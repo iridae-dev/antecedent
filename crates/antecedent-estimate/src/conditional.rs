@@ -54,6 +54,8 @@ pub struct ConditionalLinearAdjustment {
     pub overlap: OverlapPolicy,
     /// Backend.
     pub backend: FaerBackend,
+    /// Master seed of the cross-fit fold plan used by the binary AIPW arm scores.
+    pub fold_seed: u64,
 }
 
 impl Default for ConditionalLinearAdjustment {
@@ -66,7 +68,14 @@ impl ConditionalLinearAdjustment {
     /// Defaults.
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend }
+        Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend, fold_seed: 0 }
+    }
+
+    /// Seed the cross-fit fold plan of the binary AIPW arm scores (the run's master seed).
+    #[must_use]
+    pub const fn with_fold_seed(mut self, fold_seed: u64) -> Self {
+        self.fold_seed = fold_seed;
+        self
     }
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`].
@@ -159,7 +168,7 @@ impl ConditionalLinearAdjustment {
         }
         if binary_zero_one(&query.inner)? {
             let (scores, overlap, overlap_report) =
-                aipw_conditional_arm_scores(data, estimand, &query.inner)?;
+                aipw_conditional_arm_scores(data, estimand, &query.inner, self.fold_seed)?;
             let n = scores.influence[0].len() as f64;
             let contrast: Vec<f64> =
                 scores.influence[1].iter().zip(&scores.influence[0]).map(|(a, b)| a - b).collect();
@@ -443,6 +452,7 @@ fn aipw_conditional_arm_scores(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
+    fold_seed: u64,
 ) -> Result<
     (ConditionalArmScores, OverlapPolicy, Option<crate::overlap::OverlapReport>),
     EstimationError,
@@ -472,13 +482,14 @@ fn aipw_conditional_arm_scores(
         AverageEffectQuery::with_levels(query.treatment, query.outcome, control, active)
             .with_outcome_functional(query.outcome_functional.clone());
     let overlap = crate::propensity::default_propensity_overlap();
-    let problem = crate::propensity::prepare_propensity_problem_with_registry(
+    let mut problem = crate::propensity::prepare_propensity_problem_with_registry(
         data,
         &aipw_estimand,
         &aipw_query,
         overlap,
         None,
     )?;
+    problem.fold_seed = fold_seed;
     let table = crate::crossfit_aipw::build_binary_scores(
         &problem,
         query.treatment,

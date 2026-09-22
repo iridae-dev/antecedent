@@ -374,6 +374,7 @@ pub(crate) fn maybe_build_functional_scores(
     estimand: &IdentifiedEstimand,
     est: &AipwAte,
     shared: Option<&super::batch::SharedBatchDesign>,
+    fold_seed: u64,
 ) -> Result<Option<ScoreTable>, CausalError> {
     if !matches!(
         query.outcome_functional,
@@ -391,6 +392,8 @@ pub(crate) fn maybe_build_functional_scores(
         return Ok(None);
     }
     let mut problem = est.prepare(data, estimand, query)?;
+    // The recorded master seed governs the fold plan, not only the learners.
+    problem.fold_seed = fold_seed;
     if let Some(shared) = shared {
         shared.apply_to_propensity(&mut problem)?;
     }
@@ -483,6 +486,7 @@ pub(crate) fn attach_average_functional_grid(
     extra_diagnostics: &mut Vec<Diagnostic>,
     estimator_id: crate::strategy_table::EstimatorId,
     study: &super::execute::Study,
+    fold_seed: u64,
 ) -> Result<EffectEstimate, CausalError> {
     if estimator_id != crate::strategy_table::EstimatorId::Aipw
         || !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
@@ -521,6 +525,7 @@ pub(crate) fn attach_average_functional_grid(
         estimand,
         &config,
         study.shared_batch_design.as_deref(),
+        fold_seed,
     )?
     else {
         if !query.outcome_functional.is_mean() {
@@ -905,14 +910,14 @@ pub(crate) fn attach_conditional_functional_grid(
     estimand: &IdentifiedEstimand,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
-    let _ = ctx;
     let Some(thresholds) =
         conditional_thresholds(data, query, estimand.adjustment_set.iter().copied())?
     else {
         return Ok(estimate);
     };
     let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
-    let est = antecedent_estimate::ConditionalLinearAdjustment::new();
+    let est = antecedent_estimate::ConditionalLinearAdjustment::new()
+        .with_fold_seed(ctx.rng.master_seed());
     let mut raw_cdf = Vec::with_capacity(thresholds.len() * 2);
     let mut columns = Vec::with_capacity(thresholds.len() * 2);
     let mut event_n_eff = Vec::with_capacity(thresholds.len() * 2);

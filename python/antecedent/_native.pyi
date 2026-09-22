@@ -1468,6 +1468,8 @@ class MechanismChangeDetection:
     p_value: float
     adjusted_p_value: float | None
     changed: bool
+    n_permutations: int | None
+    p_value_floor: float | None
 
 class FeatureRelevance:
     feature: str

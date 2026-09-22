@@ -181,6 +181,13 @@ pub struct MechanismChangeDetection {
     pub adjusted_p_value: Option<f64>,
     /// Method label (`likelihood_ratio`, `mean_diff`, `classifier_two_sample`, …).
     pub method: Arc<str>,
+    /// Permutations behind [`Self::p_value`] when the test's null is a Monte-Carlo
+    /// permutation distribution, else `None` (asymptotic or closed-form null).
+    pub n_permutations: Option<usize>,
+    /// Smallest attainable raw p-value, `1 / (n_permutations + 1)`, when the null is a
+    /// permutation distribution. A raw p-value at this floor means "no permutation was as
+    /// extreme", and an adjustment across many targets cannot go below it.
+    pub p_value_floor: Option<f64>,
 }
 
 /// Unit-level contribution matrix (units × components).

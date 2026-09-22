@@ -207,6 +207,9 @@ pub struct ScoreTableWire {
     pub adjustment_set: Vec<u32>,
     /// Nuisance provenance.
     pub nuisance_provenance: String,
+    /// Propensity clip the estimator applied (`None`: unclipped or a legacy artifact).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub propensity_clip: Option<f64>,
     /// Treatment raw id.
     pub treatment: u32,
     /// Extra intervened raw ids.
@@ -548,6 +551,7 @@ fn score_table_to_wire(table: &antecedent_estimate::ScoreTable) -> ScoreTableWir
             .collect(),
         adjustment_set: wire.adjustment_set,
         nuisance_provenance: wire.nuisance_provenance,
+        propensity_clip: wire.propensity_clip,
         treatment: wire.treatment,
         intervened: wire.intervened,
     }
@@ -572,6 +576,7 @@ fn score_table_from_wire(
             .collect(),
         adjustment_set: wire.adjustment_set.clone(),
         nuisance_provenance: wire.nuisance_provenance.clone(),
+        propensity_clip: wire.propensity_clip,
         treatment: wire.treatment,
         intervened: wire.intervened.clone(),
     };

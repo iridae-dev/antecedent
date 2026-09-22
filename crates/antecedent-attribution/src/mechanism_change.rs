@@ -12,8 +12,9 @@ use antecedent_model::{
     CompiledCausalModel, MechanismRegistry, ParentBatch, SelectionPolicy, infer_noise_column_rng,
 };
 use antecedent_stats::{
-    FdrAdjustment, adjust_pvalues, change_point_two_sample, classifier_two_sample,
-    kernel_two_sample, mean_diff_two_sample, residual_likelihood_ratio,
+    DEFAULT_MECHANISM_PERMUTATIONS, FdrAdjustment, adjust_pvalues, change_point_two_sample,
+    classifier_two_sample, kernel_two_sample_with_permutations, likelihood_ratio_permutations,
+    mean_diff_two_sample, residual_likelihood_ratio,
 };
 
 use crate::error::AttributionError;
@@ -196,32 +197,37 @@ pub fn detect_mechanism_changes_with_correction(
             &mut baseline_rng,
         )?;
         let rc = residuals(&base_model, &comparison, target, &mut comparison_rng)?;
-        let (stat, p_value, method_name) = match method {
+        let (stat, p_value, method_name, n_permutations) = match method {
             MechanismChangeMethod::LikelihoodRatio => {
                 let (s, p) = residual_likelihood_ratio(&rb, &rc)?;
-                (s, p, "likelihood_ratio")
+                (s, p, "likelihood_ratio", likelihood_ratio_permutations(rb.len(), rc.len()))
             }
             MechanismChangeMethod::MeanDiff => {
                 let (s, p) = mean_diff_two_sample(&rb, &rc)?;
-                (s, p, "mean_diff")
+                (s, p, "mean_diff", None)
             }
             MechanismChangeMethod::ClassifierTwoSample => {
                 let (s, p) = classifier_two_sample(&rb, &rc)?;
-                (s, p, "classifier_two_sample")
+                (s, p, "classifier_two_sample", None)
             }
             MechanismChangeMethod::KernelTwoSample => {
                 let seed = 0x_4E12_A001u64
                     .wrapping_add(target.as_usize() as u64)
                     .wrapping_mul(0x9E37_79B9);
-                let (s, p) = kernel_two_sample(&rb, &rc, seed)?;
-                (s, p, "kernel_two_sample")
+                let r = kernel_two_sample_with_permutations(
+                    &rb,
+                    &rc,
+                    seed,
+                    DEFAULT_MECHANISM_PERMUTATIONS,
+                )?;
+                (r.statistic, r.p_value, "kernel_two_sample", Some(r.n_permutations))
             }
             MechanismChangeMethod::ChangePoint => {
                 let (s, p) = change_point_two_sample(&rb, &rc)?;
-                (s, p, "change_point")
+                (s, p, "change_point", likelihood_ratio_permutations(rb.len(), rc.len()))
             }
         };
-        raw.push((target, stat, p_value, method_name));
+        raw.push((target, stat, p_value, method_name, n_permutations));
     }
 
     // Report the raw p-value and the adjusted one separately rather than overwriting the
@@ -230,12 +236,12 @@ pub fn detect_mechanism_changes_with_correction(
     // silently returning a corrected number under that name is exactly the kind of
     // mislabelled statistic this correction exists to guard against.
     let adjusted: Option<Vec<f64>> = correction.map(|adjustment| {
-        let p_values: Vec<f64> = raw.iter().map(|&(_, _, p, _)| p).collect();
+        let p_values: Vec<f64> = raw.iter().map(|&(_, _, p, _, _)| p).collect();
         adjust_pvalues(&p_values, adjustment.method)
     });
 
     let mut out = Vec::with_capacity(raw.len());
-    for (i, (target, stat, raw_p, method_name)) in raw.into_iter().enumerate() {
+    for (i, (target, stat, raw_p, method_name, n_permutations)) in raw.into_iter().enumerate() {
         let adjusted_p_value = adjusted.as_ref().map(|a| a[i]);
         let decisive = adjusted_p_value.unwrap_or(raw_p);
         out.push(MechanismChangeDetection {
@@ -245,6 +251,8 @@ pub fn detect_mechanism_changes_with_correction(
             p_value: raw_p,
             adjusted_p_value,
             method: Arc::from(method_name),
+            n_permutations,
+            p_value_floor: n_permutations.map(|b| 1.0 / (b as f64 + 1.0)),
         });
     }
     Ok(out)
@@ -521,6 +529,11 @@ mod tests {
         let y = dets.iter().find(|d| d.variable == VariableId::from_raw(1)).unwrap();
         assert!(y.changed, "y should be flagged changed: {y:?}");
         assert_eq!(&*y.method, "kernel_two_sample");
+        // The resolution of a permutation p-value is reported with it: 999 permutations
+        // give a floor of exactly 1/1000, and a raw p-value cannot sit below it.
+        assert_eq!(y.n_permutations, Some(999));
+        assert!((y.p_value_floor.unwrap() - 0.001).abs() < 1e-15);
+        assert!(y.p_value >= 0.001 - 1e-15);
     }
 
     #[test]

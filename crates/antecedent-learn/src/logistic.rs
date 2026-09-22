@@ -94,7 +94,7 @@ fn fit_logistic(
             design_ref,
             &FaerBackend,
             &mut ws,
-            &GlmOptions::default(),
+            &GlmOptions::default().without_separation_ridge(),
         )?,
         Some(lambda) => fit_glm_ridge(
             GlmFamily::BinomialLogit,

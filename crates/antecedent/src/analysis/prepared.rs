@@ -3237,8 +3237,9 @@ impl Study {
     /// Cross-fitted AIPW scores for retarget / exceedance / joint cells.
     pub(crate) fn prepare_score_table(
         &self,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<Option<ScoreTable>, CausalError> {
+        let fold_seed = ctx.rng.master_seed();
         let DataInput::Tabular(data) = &self.data else {
             return Ok(None);
         };
@@ -3299,6 +3300,7 @@ impl Study {
                 }
                 let estimand = cache.estimand.clone();
                 let mut problem = est.prepare(data, &estimand, query)?;
+                problem.fold_seed = fold_seed;
                 if let Some(shared) = self.shared_batch_design.as_ref() {
                     shared.apply_to_propensity(&mut problem)?;
                 }
@@ -3341,7 +3343,7 @@ impl Study {
                 if treatments.len() < 2 {
                     return Ok(None);
                 }
-                let est = CellSaturatedAipw::new();
+                let est = CellSaturatedAipw::new().with_fold_seed(fold_seed);
                 let continuous = self.continuous_cell.as_ref().map(|(variable, grid)| {
                     antecedent_estimate::ContinuousCellSpec { variable: *variable, grid }
                 });

@@ -119,6 +119,16 @@ impl GlmOptions {
             ridge_on_separation: Some(DEFAULT_RIDGE_ON_SEPARATION),
         }
     }
+
+    /// These options with the separation-ridge refit turned off.
+    ///
+    /// Estimation paths refuse every separated fit ([`GlmFit::require_ok`]), so the ridge
+    /// refit [`Self::ridge_on_separation`] triggers would be computed and then discarded.
+    /// Only diagnostic paths, which keep the ridge fit's scores, use the caller's option.
+    #[must_use]
+    pub const fn without_separation_ridge(self) -> Self {
+        Self { ridge_on_separation: None, ..self }
+    }
 }
 
 /// Convergence / iteration diagnostics from a GLM fit.
@@ -1527,6 +1537,43 @@ mod tests {
         assert!(fit.separated, "ridge fallback must not clear separation");
         assert!(fit.require_ok().is_err());
         assert!(fit.coefficients[1] > 0.0);
+    }
+
+    #[test]
+    fn estimation_options_skip_the_discarded_separation_ridge_refit() {
+        // Perfectly separated data: with the caller's ridge option the returned fit is the
+        // ridge refit (`penalized`); without it the unpenalized IRLS iterate comes back.
+        // Both are flagged separated, so `require_ok` refuses either, and the second spares
+        // the refit whose result an estimation path would throw away.
+        let n = 40usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = t;
+        }
+        let with_ridge = GlmOptions::new(100, 1e-6);
+        let without = with_ridge.without_separation_ridge();
+        assert_eq!(without.ridge_on_separation, None);
+        assert_eq!((without.max_iter, without.tol), (with_ridge.max_iter, with_ridge.tol));
+        let mut ws = LeastSquaresWorkspace::default();
+        let mut fit = |opts: &GlmOptions| {
+            fit_glm(
+                GlmFamily::BinomialLogit,
+                GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+                &FaerBackend,
+                &mut ws,
+                opts,
+            )
+            .unwrap()
+        };
+        let ridge_fit = fit(&with_ridge);
+        let plain_fit = fit(&without);
+        assert!(ridge_fit.penalized && !plain_fit.penalized);
+        assert!(ridge_fit.separated && plain_fit.separated);
+        assert!(ridge_fit.require_ok().is_err() && plain_fit.require_ok().is_err());
     }
 
     #[test]

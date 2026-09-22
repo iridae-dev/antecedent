@@ -60,7 +60,8 @@ pub use divergence::{
     DEFAULT_MECHANISM_PERMUTATIONS, PermutationTestResult, change_point_known_split,
     change_point_scan, change_point_scan_with_permutations, change_point_two_sample,
     classifier_two_sample, gaussian_kl, kernel_two_sample, kernel_two_sample_with_permutations,
-    max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7, residual_likelihood_ratio, sample_std,
+    likelihood_ratio_permutations, max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7,
+    residual_likelihood_ratio, sample_std,
 };
 pub use error::StatsError;
 pub use faer_backend::FaerBackend;
@@ -103,8 +104,8 @@ pub use quantile::{
     quantile_sorted,
 };
 pub use regularized::{
-    LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column, fit_ridge, predict_lasso,
-    ridge_gram_inverse,
+    LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column,
+    fit_ridge, predict_lasso, ridge_gram_inverse,
 };
 pub use response::{
     GaussianMixtureDensity, LocalPolynomialBiasCorrected, LocalPolynomialInfluence,

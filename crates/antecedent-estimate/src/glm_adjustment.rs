@@ -365,7 +365,7 @@ impl GlmAdjustmentAte {
             },
             &self.backend,
             &mut workspace.ols,
-            &self.glm_options,
+            &self.glm_options.without_separation_ridge(),
         )
         .map_err(stats_err)?;
         glm_fit.require_ok().map_err(stats_err)?;
@@ -453,7 +453,7 @@ impl GlmAdjustmentAte {
                     GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot },
                     &self.backend,
                     &mut ws.ols,
-                    &self.glm_options,
+                    &self.glm_options.without_separation_ridge(),
                 ) else {
                     return Ok(None);
                 };

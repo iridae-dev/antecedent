@@ -44,6 +44,16 @@ impl PermutationTestResult {
     }
 }
 
+/// Permutations behind the p-value of the two-segment Gaussian likelihood-ratio test
+/// ([`residual_likelihood_ratio`], [`change_point_two_sample`]), or `None` when the
+/// segments are large enough for the `χ²₂` asymptotics (no resampling, no p-value floor).
+///
+/// When `Some(B)`, the smallest attainable p-value is `1 / (B + 1)`.
+#[must_use]
+pub fn likelihood_ratio_permutations(n_left: usize, n_right: usize) -> Option<usize> {
+    (n_left.min(n_right) < LR_ASYMPTOTIC_MIN_SEGMENT).then_some(DEFAULT_MECHANISM_PERMUTATIONS)
+}
+
 /// Gaussian KL divergence `KL(N(μ0,σ0²) ‖ N(μ1,σ1²))`.
 ///
 /// # Errors
@@ -805,6 +815,16 @@ mod tests {
         let b: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.03).collect();
         let (s, p) = residual_likelihood_ratio(&a, &b).unwrap();
         assert!((p - (-0.5 * s).exp()).abs() < 1e-9, "χ²₂ tail is exp(−stat/2): p={p} stat={s}");
+    }
+
+    #[test]
+    fn likelihood_ratio_reports_a_permutation_count_only_for_small_segments() {
+        // Below 30 rows in either segment the p-value is a 999-permutation one (floor
+        // 1/1000); at 30 and above it is the closed-form chi-square tail.
+        assert_eq!(likelihood_ratio_permutations(5, 500), Some(DEFAULT_MECHANISM_PERMUTATIONS));
+        assert_eq!(likelihood_ratio_permutations(500, 29), Some(DEFAULT_MECHANISM_PERMUTATIONS));
+        assert_eq!(likelihood_ratio_permutations(30, 30), None);
+        assert_eq!(likelihood_ratio_permutations(1000, 45), None);
     }
 
     #[test]

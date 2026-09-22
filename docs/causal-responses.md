@@ -257,7 +257,9 @@ uses one construction:
    residual, plus the centered design columns whose sample means the level reads
    (every column but the treatment for a dose; the treatment too for a shift),
    each weighted by its coefficient. A Sequence level, which composes several
-   mechanisms, takes the largest factor over its estimating scores. A fit with no
+   mechanisms, adds the sample means of the exogenous root nodes it reads to its
+   influence (`Σ_r ∂level/∂x̄_r · (x_r − x̄_r)`) and takes the largest factor over
+   its estimating scores. A fit with no
    positive long-run excess keeps the factor at 1; on iid and AR(1) `ρ = 0.5`
    cells it stays within 1% of 1;
 5. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the

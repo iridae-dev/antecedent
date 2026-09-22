@@ -745,6 +745,9 @@ fn cell_index(axes: &[IndexedAxis<'_>], row: usize) -> Result<usize, EstimationE
     Ok(index)
 }
 
+/// One column as `f64` cells (`None` = missing), read through the one discrete reader
+/// (`TabularData::discrete_column`) that the functional-distribution estimator also uses:
+/// invalid cells and rows outside the analysis mask are missing.
 fn discrete_column(
     data: &TabularData,
     id: VariableId,
@@ -754,34 +757,30 @@ fn discrete_column(
     if view.len() != n {
         return Err(EstimationError::data_msg("column length mismatch"));
     }
-    let validity = view.validity();
-    // Rows outside the analysis mask are excluded from the sample exactly like missing
-    // cells, as in the functional-distribution reader.
-    let analyzed = |i: usize| {
-        validity.is_valid(i) && data.storage().analysis_mask().is_none_or(|m| m.is_valid(i))
-    };
-    let mut values = Vec::with_capacity(n);
-    match view {
-        ColumnView::Float64(c) => {
-            for i in 0..n {
-                values.push(analyzed(i).then_some(c.values[i]));
-            }
-        }
-        ColumnView::Int64(c) => {
-            for i in 0..n {
-                if analyzed(i) {
-                    let code = u32::try_from(c.values[i]).map_err(|_| {
-                        EstimationError::data_msg("categorical code is outside the finite domain")
-                    })?;
-                    values.push(Some(f64::from(code)));
-                } else {
-                    values.push(None);
-                }
-            }
-        }
-        _ => return Err(EstimationError::data_msg("empirical tables require numeric columns")),
+    if !matches!(view, ColumnView::Float64(_) | ColumnView::Int64(_)) {
+        return Err(EstimationError::data_msg("empirical tables require numeric columns"));
     }
-    Ok(values)
+    let column = data.discrete_column(id).map_err(EstimationError::from)?;
+    // Integer cells are finite-domain codes: they must be representable as `u32`.
+    let level_values = column
+        .levels
+        .iter()
+        .map(|level| match level {
+            Value::Int64(v) => u32::try_from(*v).map(f64::from).map_err(|_| {
+                EstimationError::data_msg("categorical code is outside the finite domain")
+            }),
+            other => other.as_f64().ok_or_else(|| {
+                EstimationError::data_msg("empirical tables require numeric columns")
+            }),
+        })
+        .collect::<Result<Vec<f64>, _>>()?;
+    Ok(column
+        .codes
+        .iter()
+        .map(|&code| {
+            (code != antecedent_data::DiscreteColumn::MISSING).then(|| level_values[code as usize])
+        })
+        .collect())
 }
 
 fn same_world(left: &[InterventionAssignment], right: &[InterventionAssignment]) -> bool {

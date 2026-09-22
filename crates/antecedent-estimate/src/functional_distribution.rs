@@ -39,7 +39,7 @@ use antecedent_core::{
     SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, Value,
     VariableId,
 };
-use antecedent_data::{ColumnView, TableView, TabularData};
+use antecedent_data::{DataError, DiscreteColumn, TableView, TabularData};
 use antecedent_expr::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, DomainRef,
     EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode, FactorSpec,
@@ -362,7 +362,7 @@ pub struct PreparedFunctionalDistribution {
     /// Free variables of the functional outside the query (see the module docs).
     pub free_variables: Arc<[VariableId]>,
     /// Row-aligned discrete columns for bootstrap CPT refits.
-    bootstrap_columns: HashMap<VariableId, Vec<Option<Value>>>,
+    bootstrap_columns: EncodedColumns,
     /// Factor specs used to rebuild the empirical provider.
     bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
     /// Interventional signatures used to rebuild the empirical provider.
@@ -543,9 +543,9 @@ impl FunctionalDistribution {
             .collect();
         let atom_replicates = Mutex::new(vec![Vec::new(); out.atoms.len()]);
         let n_atoms = out.atoms.len();
-        let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+        let n = prepared.bootstrap_columns.n();
         let boot = bootstrap_se(self.bootstrap_replicates, ctx, 0xF01D_u64, n, |idx| {
-            let columns = gather_columns(&prepared.bootstrap_columns, idx);
+            let columns = prepared.bootstrap_columns.gather(idx);
             let provider = provider_from_columns(
                 &columns,
                 idx.len(),
@@ -769,7 +769,7 @@ impl FunctionalDistribution {
     ) -> Result<(InterventionalDistributionEstimate, crate::CausalPosterior), EstimationError> {
         let mut ws = FunctionalDistributionWorkspace::default();
         let point = self.estimate_point(prepared, conditioning_values, &mut ws)?;
-        let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+        let n = prepared.bootstrap_columns.n();
         if n == 0 {
             return Err(EstimationError::data_msg(
                 "functional Bayesian requires complete discrete rows",
@@ -861,7 +861,7 @@ pub struct PreparedFunctionalEffect {
     pub assumptions: AssumptionSet,
     /// Free variables of the scalar functional (see the module docs).
     pub free_variables: Arc<[VariableId]>,
-    bootstrap_columns: HashMap<VariableId, Vec<Option<Value>>>,
+    bootstrap_columns: EncodedColumns,
     bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
@@ -996,9 +996,9 @@ impl FunctionalEffect {
         let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
-            let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+            let n = prepared.bootstrap_columns.n();
             Some(bootstrap_se(self.bootstrap_replicates, ctx, 0xF02D_u64, n, |idx| {
-                let columns = gather_columns(&prepared.bootstrap_columns, idx);
+                let columns = prepared.bootstrap_columns.gather(idx);
                 let provider = provider_from_columns(
                     &columns,
                     idx.len(),
@@ -1038,7 +1038,7 @@ impl FunctionalEffect {
         identification: antecedent_core::IdentificationStatus,
         ctx: &ExecutionContext,
     ) -> Result<crate::CausalPosterior, EstimationError> {
-        let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+        let n = prepared.bootstrap_columns.n();
         if n == 0 {
             return Err(EstimationError::data_msg(
                 "functional Bayesian requires complete discrete rows",
@@ -1239,28 +1239,18 @@ fn build_empirical_provider(
         Arc<[InterventionAssignment]>,
         DomainRef,
     )],
-) -> Result<(EmpiricalTableProvider, HashMap<VariableId, Vec<Option<Value>>>), EstimationError> {
-    let mut columns: HashMap<VariableId, Vec<Option<Value>>> = HashMap::new();
-    let n = data.row_count();
-
-    for &id in vars_needed {
-        let (col, _domain) = discrete_column(data, id)?;
-        if col.len() != n {
-            return Err(EstimationError::data_msg("column length mismatch"));
-        }
-        columns.insert(id, col);
-    }
+) -> Result<(EmpiricalTableProvider, EncodedColumns), EstimationError> {
+    let columns = EncodedColumns::read(data, vars_needed)?;
 
     // A functional's factors must describe the same complete-case law. Using
     // a different retained sample for each factor can violate the chain rule.
-    let complete: Vec<_> =
-        (0..n).filter(|&row| columns.values().all(|col| col[row].is_some())).collect();
+    let complete = columns.complete_rows();
     if complete.is_empty() {
         return Err(EstimationError::data_msg(
             "no jointly complete rows for functional evaluation",
         ));
     }
-    let columns = gather_columns(&columns, &complete);
+    let columns = columns.gather(&complete);
     let provider = provider_from_columns(&columns, complete.len(), factors, signatures, None)?;
     Ok((provider, columns))
 }
@@ -1320,20 +1310,6 @@ fn binary_mean_interval(
     ))
 }
 
-fn gather_columns(
-    columns: &HashMap<VariableId, Vec<Option<Value>>>,
-    idx: &[usize],
-) -> HashMap<VariableId, Vec<Option<Value>>> {
-    columns
-        .iter()
-        .map(|(&id, col)| {
-            let gathered: Vec<Option<Value>> =
-                idx.iter().map(|&i| col.get(i).cloned().flatten()).collect();
-            (id, gathered)
-        })
-        .collect()
-}
-
 fn unidentified_mass_from_status(status: IdentificationStatus) -> f64 {
     match status {
         IdentificationStatus::NotIdentified => 1.0,
@@ -1390,8 +1366,142 @@ fn functional_posterior_from_draws(
     }
 }
 
+/// Discrete columns pre-encoded to `u32` level codes.
+///
+/// Encoding once (per fit) turns every bootstrap replicate into an index gather and every
+/// CPT count into integer arithmetic: no per-row `Value` clones, hashing or key allocation.
+/// The level table is shared (`Arc`) across replicates; a replicate's own domain is the set
+/// of codes that occur in it, in order of first appearance.
+#[derive(Clone, Debug)]
+struct EncodedColumns {
+    n: usize,
+    columns: HashMap<VariableId, EncodedColumn>,
+}
+
+#[derive(Clone, Debug)]
+struct EncodedColumn {
+    /// Level index per row, or [`DiscreteColumn::MISSING`].
+    codes: Vec<u32>,
+    /// Level value by code.
+    levels: Arc<[Value]>,
+}
+
+impl EncodedColumns {
+    /// Read `ids` through the shared discrete reader (missing = invalid or outside the
+    /// analysis mask), failing closed on empty or oversized domains.
+    fn read(data: &TabularData, ids: &HashSet<VariableId>) -> Result<Self, EstimationError> {
+        let n = data.row_count();
+        let mut columns = HashMap::with_capacity(ids.len());
+        for &id in ids {
+            let col = data.discrete_column(id).map_err(|e| match e {
+                DataError::TypeMismatch { .. } => EstimationError::unsupported(
+                    "functional.distribution supports float64 / int64 / categorical columns only",
+                ),
+                other => EstimationError::from(other),
+            })?;
+            if col.codes.len() != n {
+                return Err(EstimationError::data_msg("column length mismatch"));
+            }
+            if col.levels.is_empty() {
+                return Err(EstimationError::data_msg("empty discrete domain"));
+            }
+            if col.levels.len() > MAX_DISCRETE_LEVELS {
+                return Err(EstimationError::unsupported(
+                    "variable exceeds discrete level cap for functional.distribution",
+                ));
+            }
+            columns.insert(id, EncodedColumn { codes: col.codes, levels: Arc::from(col.levels) });
+        }
+        Ok(Self { n, columns })
+    }
+
+    /// Row count.
+    fn n(&self) -> usize {
+        self.n
+    }
+
+    /// Rows where every column has a level.
+    fn complete_rows(&self) -> Vec<usize> {
+        (0..self.n)
+            .filter(|&row| self.columns.values().all(|c| c.codes[row] != DiscreteColumn::MISSING))
+            .collect()
+    }
+
+    /// The rows `idx` (repeats allowed) as a new sample sharing the level tables.
+    fn gather(&self, idx: &[usize]) -> Self {
+        let columns = self
+            .columns
+            .iter()
+            .map(|(&id, col)| {
+                let codes = idx
+                    .iter()
+                    .map(|&i| col.codes.get(i).copied().unwrap_or(DiscreteColumn::MISSING))
+                    .collect();
+                (id, EncodedColumn { codes, levels: Arc::clone(&col.levels) })
+            })
+            .collect();
+        Self { n: idx.len(), columns }
+    }
+
+    fn column(&self, id: VariableId) -> Result<&EncodedColumn, EstimationError> {
+        self.columns.get(&id).ok_or_else(|| EstimationError::data_msg("missing column"))
+    }
+
+    /// Test constructor from explicit cells (`None` = missing); levels in first-seen order.
+    #[cfg(test)]
+    fn from_values(values: HashMap<VariableId, Vec<Option<Value>>>) -> Self {
+        let n = values.values().next().map_or(0, Vec::len);
+        let columns = values
+            .into_iter()
+            .map(|(id, cells)| {
+                let mut levels: Vec<Value> = Vec::new();
+                let codes = cells
+                    .into_iter()
+                    .map(|cell| match cell {
+                        None => DiscreteColumn::MISSING,
+                        Some(v) => {
+                            let at = levels.iter().position(|l| *l == v).unwrap_or_else(|| {
+                                levels.push(v);
+                                levels.len() - 1
+                            });
+                            at as u32
+                        }
+                    })
+                    .collect();
+                (id, EncodedColumn { codes, levels: Arc::from(levels) })
+            })
+            .collect();
+        Self { n, columns }
+    }
+
+    /// Test view of one column as cells.
+    #[cfg(test)]
+    fn values_of(&self, id: VariableId) -> Vec<Option<Value>> {
+        let col = &self.columns[&id];
+        col.codes
+            .iter()
+            .map(|&c| (c != DiscreteColumn::MISSING).then(|| col.levels[c as usize].clone()))
+            .collect()
+    }
+}
+
+impl EncodedColumn {
+    /// Codes that occur in the sample, in order of first appearance.
+    fn observed_codes(&self) -> Vec<u32> {
+        let mut seen = vec![false; self.levels.len()];
+        let mut order = Vec::new();
+        for &code in &self.codes {
+            if code != DiscreteColumn::MISSING && !std::mem::replace(&mut seen[code as usize], true)
+            {
+                order.push(code);
+            }
+        }
+        order
+    }
+}
+
 fn provider_from_columns(
-    columns: &HashMap<VariableId, Vec<Option<Value>>>,
+    columns: &EncodedColumns,
     n: usize,
     factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
     signatures: &[(
@@ -1402,23 +1512,12 @@ fn provider_from_columns(
     )],
     weights: Option<&[f64]>,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
-    let mut domains: HashMap<VariableId, Vec<Value>> = HashMap::new();
-    for (&id, col) in columns {
-        let mut seen = HashSet::new();
-        let mut domain = Vec::new();
-        for cell in col {
-            if let Some(val) = cell {
-                if seen.insert(val.clone()) {
-                    domain.push(val.clone());
-                }
-            }
-        }
-        domains.insert(id, domain);
-    }
-
     let mut provider = EmpiricalTableProvider::new();
-    for (id, domain) in &domains {
-        provider.set_domain(*id, domain.iter().cloned());
+    for (&id, col) in &columns.columns {
+        provider.set_domain(
+            id,
+            col.observed_codes().into_iter().map(|c| col.levels[c as usize].clone()),
+        );
     }
 
     // Vacuous empty factor used by some ID edge cases.
@@ -1463,7 +1562,7 @@ fn provider_from_columns(
 // interventional aliases are derived from the same row masses, preserving
 // probability identities even when the compiled expression reuses a kernel.
 fn provider_from_bayesian_bootstrap(
-    columns: &HashMap<VariableId, Vec<Option<Value>>>,
+    columns: &EncodedColumns,
     n: usize,
     factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
     signatures: &[(
@@ -1478,114 +1577,146 @@ fn provider_from_bayesian_bootstrap(
     provider_from_columns(columns, n, factors, signatures, Some(&weights))
 }
 
-fn cartesian_domain(
-    domains: &HashMap<VariableId, Vec<Value>>,
-    vars: &[VariableId],
-) -> Result<Vec<Vec<Value>>, EstimationError> {
-    if vars.is_empty() {
-        return Ok(vec![Vec::new()]);
-    }
-    let mut rows: Vec<Vec<Value>> = vec![Vec::new()];
-    for &v in vars {
-        let domain = domains.get(&v).ok_or_else(|| EstimationError::data_msg("missing domain"))?;
+/// Every combination of one code per variable (first variable varies slowest).
+fn cartesian_codes(domains: &[Vec<u32>]) -> Vec<Vec<u32>> {
+    let mut rows: Vec<Vec<u32>> = vec![Vec::new()];
+    for domain in domains {
         let mut next = Vec::with_capacity(rows.len() * domain.len());
         for prefix in &rows {
-            for val in domain {
+            for &code in domain {
                 let mut row = prefix.clone();
-                row.push(val.clone());
+                row.push(code);
                 next.push(row);
             }
         }
         rows = next;
     }
-    Ok(rows)
+    rows
+}
+
+/// Mixed-radix key of one code per column, `None` on `u64` overflow.
+fn pack_codes(radices: &[u64], codes: impl Iterator<Item = u32>) -> Option<u64> {
+    let mut key = 0u64;
+    for (radix, code) in radices.iter().zip(codes) {
+        key = key.checked_mul(*radix)?.checked_add(u64::from(code))?;
+    }
+    Some(key)
+}
+
+/// Observed level codes of each column, numerically ordered (first-seen order breaks ties).
+fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationError> {
+    cols.iter()
+        .map(|c| {
+            let mut domain = c.observed_codes();
+            if domain.is_empty() {
+                return Err(EstimationError::data_msg("empty domain in CPT insert"));
+            }
+            domain.sort_by(|&a, &b| {
+                match (c.levels[a as usize].as_f64(), c.levels[b as usize].as_f64()) {
+                    (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+                    _ => std::cmp::Ordering::Equal,
+                }
+            });
+            Ok(domain)
+        })
+        .collect()
 }
 
 /// Conditional-probability table `P(vars | cond)` as `(assignment, probability)` entries.
 ///
 /// Depends only on the rows and weights, not on the intervention slot or domain a
-/// factor is later registered under, so it is computed once per `(vars, cond)`.
+/// factor is later registered under, so it is computed once per `(vars, cond)`. Counts
+/// are keyed by the mixed-radix integer of the rows' level codes.
 fn cpt_entries(
-    columns: &HashMap<VariableId, Vec<Option<Value>>>,
+    columns: &EncodedColumns,
     n: usize,
     vars: &[VariableId],
     cond: &[VariableId],
     weights: Option<&[f64]>,
 ) -> Result<Vec<(Assignment, f64)>, EstimationError> {
-    let mut entries = Vec::new();
-    // Count (vars, cond) joint and cond marginal among complete cases.
-    let mut joint: HashMap<Vec<Value>, f64> = HashMap::new();
-    let mut marg: HashMap<Vec<Value>, f64> = HashMap::new();
+    let var_cols: Vec<&EncodedColumn> =
+        vars.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
+    let cond_cols: Vec<&EncodedColumn> =
+        cond.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
+    let radices = |cols: &[&EncodedColumn]| -> Vec<u64> {
+        cols.iter().map(|c| c.levels.len() as u64).collect()
+    };
+    let (var_radices, cond_radices) = (radices(&var_cols), radices(&cond_cols));
+    let joint_radices: Vec<u64> = var_radices.iter().chain(cond_radices.iter()).copied().collect();
+    let too_many = || EstimationError::data_msg("too many joint cells to key a CPT");
 
+    // Count (vars, cond) joint and cond marginal among complete cases.
+    let mut joint: HashMap<u64, f64> = HashMap::new();
+    let mut marg: HashMap<u64, f64> = HashMap::new();
+    let mut total = 0.0;
     for row in 0..n {
         let weight = weights.map_or(1.0, |w| w.get(row).copied().unwrap_or(0.0));
         if weight <= 0.0 {
             continue;
         }
-        let mut ok = true;
-        let mut cond_vals = Vec::with_capacity(cond.len());
-        for &v in cond {
-            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) {
-                cond_vals.push(val.clone());
-            } else {
-                ok = false;
-                break;
-            }
-        }
-        if !ok {
+        let code_at = |c: &&EncodedColumn| c.codes.get(row).copied();
+        let cond_codes: Option<Vec<u32>> = cond_cols.iter().map(code_at).collect();
+        let var_codes: Option<Vec<u32>> = var_cols.iter().map(code_at).collect();
+        let (Some(cond_codes), Some(var_codes)) = (cond_codes, var_codes) else {
+            continue;
+        };
+        if cond_codes.iter().chain(&var_codes).any(|&c| c == DiscreteColumn::MISSING) {
             continue;
         }
-        let mut var_vals = Vec::with_capacity(vars.len());
-        for &v in vars {
-            if let Some(val) = columns.get(&v).and_then(|c| c.get(row)).and_then(|o| o.as_ref()) {
-                var_vals.push(val.clone());
-            } else {
-                ok = false;
-                break;
-            }
-        }
-        if !ok {
-            continue;
-        }
-        *marg.entry(cond_vals.clone()).or_insert(0.0) += weight;
-        let mut key = var_vals;
-        key.extend(cond_vals);
-        *joint.entry(key).or_insert(0.0) += weight;
+        let cond_key =
+            pack_codes(&cond_radices, cond_codes.iter().copied()).ok_or_else(too_many)?;
+        let joint_key = pack_codes(&joint_radices, var_codes.iter().chain(&cond_codes).copied())
+            .ok_or_else(too_many)?;
+        *marg.entry(cond_key).or_insert(0.0) += weight;
+        *joint.entry(joint_key).or_insert(0.0) += weight;
+        total += weight;
     }
 
+    let level_of = |cols: &[&EncodedColumn], k: usize, code: u32| -> Value {
+        cols[k].levels[code as usize].clone()
+    };
+
+    let mut entries = Vec::new();
+    let var_rows = cartesian_codes(&ordered_domains(&var_cols)?);
     if cond.is_empty() {
-        let total: f64 = joint.values().sum();
         if total <= 0.0 {
             return Err(EstimationError::data_msg("no complete cases for CPT"));
         }
-        let var_rows = cartesian_domain(&domains_for_insert(columns, vars)?, vars)?;
-        for var_vals in &var_rows {
-            let key = var_vals.clone();
+        for var_codes in &var_rows {
+            let key = pack_codes(&var_radices, var_codes.iter().copied()).ok_or_else(too_many)?;
             let count = joint.get(&key).copied().unwrap_or(0.0);
-            let assign = Assignment::from_pairs(vars.iter().copied().zip(var_vals.iter().cloned()));
+            let assign = Assignment::from_pairs(
+                vars.iter()
+                    .copied()
+                    .zip(var_codes.iter().enumerate().map(|(k, &c)| level_of(&var_cols, k, c))),
+            );
             entries.push((assign, count / total));
         }
     } else {
-        let var_rows = cartesian_domain(&domains_for_insert(columns, vars)?, vars)?;
-        let cond_rows = cartesian_domain(&domains_for_insert(columns, cond)?, cond)?;
-        for cond_vals in &cond_rows {
-            let cond_count = marg.get(cond_vals).copied().unwrap_or(0.0);
+        let cond_rows = cartesian_codes(&ordered_domains(&cond_cols)?);
+        for cond_codes in &cond_rows {
+            let cond_key =
+                pack_codes(&cond_radices, cond_codes.iter().copied()).ok_or_else(too_many)?;
+            let cond_count = marg.get(&cond_key).copied().unwrap_or(0.0);
             // An unobserved conditioning cell is not P=0. Leave it absent so
             // `probability()` returns `MissingTableEntry` — the evaluator's
             // existing "can I evaluate this cell?" contract.
             if cond_count <= 0.0 {
                 continue;
             }
-            for var_vals in &var_rows {
-                let mut key = var_vals.clone();
-                key.extend(cond_vals.iter().cloned());
-                let count = joint.get(&key).copied().unwrap_or(0.0);
+            for var_codes in &var_rows {
+                let joint_key =
+                    pack_codes(&joint_radices, var_codes.iter().chain(cond_codes).copied())
+                        .ok_or_else(too_many)?;
+                let count = joint.get(&joint_key).copied().unwrap_or(0.0);
                 let p = count / cond_count;
                 let assign = Assignment::from_pairs(
                     vars.iter()
                         .copied()
-                        .zip(var_vals.iter().cloned())
-                        .chain(cond.iter().copied().zip(cond_vals.iter().cloned())),
+                        .zip(var_codes.iter().enumerate().map(|(k, &c)| level_of(&var_cols, k, c)))
+                        .chain(cond.iter().copied().zip(
+                            cond_codes.iter().enumerate().map(|(k, &c)| level_of(&cond_cols, k, c)),
+                        )),
                 );
                 entries.push((assign, p));
             }
@@ -1617,114 +1748,6 @@ fn insert_cpt(
     Ok(())
 }
 
-fn domains_for_insert(
-    columns: &HashMap<VariableId, Vec<Option<Value>>>,
-    vars: &[VariableId],
-) -> Result<HashMap<VariableId, Vec<Value>>, EstimationError> {
-    let mut domains = HashMap::new();
-    for &v in vars {
-        let col = columns.get(&v).ok_or_else(|| EstimationError::data_msg("missing column"))?;
-        let mut seen = HashSet::new();
-        let mut domain = Vec::new();
-        for cell in col {
-            if let Some(val) = cell {
-                if seen.insert(val.clone()) {
-                    domain.push(val.clone());
-                }
-            }
-        }
-        if domain.is_empty() {
-            return Err(EstimationError::data_msg("empty domain in CPT insert"));
-        }
-        domain.sort_by(|a, b| match (a.as_f64(), b.as_f64()) {
-            (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
-            _ => std::cmp::Ordering::Equal,
-        });
-        domains.insert(v, domain);
-    }
-    Ok(domains)
-}
-
-fn discrete_column(
-    data: &TabularData,
-    id: VariableId,
-) -> Result<(Vec<Option<Value>>, Vec<Value>), EstimationError> {
-    let view = data.column(id).map_err(EstimationError::from)?;
-    let n = view.len();
-    let validity = view.validity();
-    let mut values = Vec::with_capacity(n);
-    let mut domain_set: HashMap<Value, ()> = HashMap::new();
-    let mut domain = Vec::new();
-
-    match view {
-        ColumnView::Float64(c) => {
-            for i in 0..n {
-                if !validity.is_valid(i)
-                    || data.storage().analysis_mask().is_some_and(|mask| !mask.is_valid(i))
-                {
-                    values.push(None);
-                    continue;
-                }
-                let v = Value::f64(c.values[i]);
-                if domain_set.insert(v.clone(), ()).is_none() {
-                    domain.push(v.clone());
-                }
-                values.push(Some(v));
-            }
-        }
-        ColumnView::Int64(c) => {
-            for i in 0..n {
-                if !validity.is_valid(i)
-                    || data.storage().analysis_mask().is_some_and(|mask| !mask.is_valid(i))
-                {
-                    values.push(None);
-                    continue;
-                }
-                let v = Value::Int64(c.values[i]);
-                if domain_set.insert(v.clone(), ()).is_none() {
-                    domain.push(v.clone());
-                }
-                values.push(Some(v));
-            }
-        }
-        ColumnView::Categorical(c) => {
-            for i in 0..n {
-                if !validity.is_valid(i)
-                    || data.storage().analysis_mask().is_some_and(|mask| !mask.is_valid(i))
-                {
-                    values.push(None);
-                    continue;
-                }
-                let v = Value::Category(c.codes[i].raw());
-                if domain_set.insert(v.clone(), ()).is_none() {
-                    domain.push(v.clone());
-                }
-                values.push(Some(v));
-            }
-        }
-        _ => {
-            return Err(EstimationError::unsupported(
-                "functional.distribution supports float64 / int64 / categorical columns only",
-            ));
-        }
-    }
-
-    if domain.is_empty() {
-        return Err(EstimationError::data_msg("empty discrete domain"));
-    }
-    if domain.len() > MAX_DISCRETE_LEVELS {
-        return Err(EstimationError::unsupported(
-            "variable exceeds discrete level cap for functional.distribution",
-        ));
-    }
-    // Stable order by Display/hash — sort by f64/i64 when possible.
-    domain.sort_by(|a, b| match (a.as_f64(), b.as_f64()) {
-        (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
-        _ => std::cmp::Ordering::Equal,
-    });
-    Ok((values, domain))
-}
-
 fn eval_err(e: EvalError) -> EstimationError {
     EstimationError::data_msg(e.to_string())
 }
@@ -1734,7 +1757,9 @@ mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
     };
-    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+    use antecedent_data::{
+        ColumnView, Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap,
+    };
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_identify::{IdIdentifier, IdentificationStatus, IdentificationWorkspace};
 
@@ -1748,10 +1773,10 @@ mod tests {
     fn interventional_aliases_read_the_same_conditional_table() {
         let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
         let bits = |v: [f64; 6]| v.iter().map(|&b| Some(f(b))).collect::<Vec<_>>();
-        let columns = HashMap::from([
+        let columns = EncodedColumns::from_values(HashMap::from([
             (x, bits([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])),
             (y, bits([0.0, 0.0, 1.0, 1.0, 1.0, 0.0])),
-        ]);
+        ]));
         let vars: Arc<[VariableId]> = Arc::from([y]);
         let cond: Arc<[VariableId]> = Arc::from([x]);
         let interv: Arc<[InterventionAssignment]> =
@@ -2160,10 +2185,10 @@ mod tests {
         use antecedent_expr::DistributionProvider;
         let x = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
-        let columns = HashMap::from([
+        let columns = EncodedColumns::from_values(HashMap::from([
             (x, vec![Some(f(0.0)), Some(f(0.0)), Some(f(1.0)), Some(f(1.0))]),
             (y, vec![Some(f(0.0)), Some(f(0.0)), Some(f(0.0)), Some(f(1.0))]),
-        ]);
+        ]));
         let factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)> = vec![
             (Arc::from([x]), Arc::from([])),
             (Arc::from([y]), Arc::from([x])),
@@ -2257,8 +2282,48 @@ mod tests {
         let factors = vec![(Arc::from([x]), Arc::from([])), (Arc::from([y]), Arc::from([x]))];
         let (_, retained) =
             build_empirical_provider(&data, &HashSet::from([x, y]), &factors, &[]).unwrap();
-        assert_eq!(retained[&x], vec![Some(f(0.0)), Some(f(1.0))]);
-        assert_eq!(retained[&y], vec![Some(f(0.0)), Some(f(1.0))]);
+        assert_eq!(retained.values_of(x), vec![Some(f(0.0)), Some(f(1.0))]);
+        assert_eq!(retained.values_of(y), vec![Some(f(0.0)), Some(f(1.0))]);
+    }
+
+    /// Rows outside the analysis mask are missing for the functional reader exactly as
+    /// for the transport reader (both go through `TabularData::discrete_column`), and the
+    /// level a masked row alone carried is not part of the domain.
+    #[test]
+    fn analysis_masked_rows_are_not_in_the_functional_sample() {
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let data = TabularData::from_f64_columns([
+            ("x", &[0.0, 1.0, 1.0, 2.0][..]),
+            ("y", &[0.0, 1.0, 0.0, 1.0][..]),
+        ])
+        .unwrap();
+        // Row 3 (the only x = 2) is outside the mask.
+        let mask = antecedent_data::ValidityBitmap::from_bytes(vec![0b0111_u8], 4).unwrap();
+        let masked = data.with_analysis_mask(mask).unwrap();
+        let factors = vec![(Arc::from([x]), Arc::from([])), (Arc::from([y]), Arc::from([x]))];
+        let (provider, retained) =
+            build_empirical_provider(&masked, &HashSet::from([x, y]), &factors, &[]).unwrap();
+        assert_eq!(retained.n(), 3);
+        assert_eq!(retained.values_of(x), vec![Some(f(0.0)), Some(f(1.0)), Some(f(1.0))]);
+        // P(x = 2) is not a table entry: the level never occurs among analysed rows.
+        let spec = FactorSpec {
+            variables: &[x],
+            conditioned_on: &[],
+            intervention: &[],
+            domain: DomainRef::Observational,
+            population: "",
+            regime: None,
+        };
+        let p1 = provider
+            .probability(&spec, &Assignment::from_pairs([(x, f(1.0))]), &EvalContext::default())
+            .unwrap();
+        assert!((p1 - 2.0 / 3.0).abs() < 1e-15);
+        assert!(
+            provider
+                .probability(&spec, &Assignment::from_pairs([(x, f(2.0))]), &EvalContext::default())
+                .is_err()
+        );
     }
 
     /// Frozen two-path table (`t, m, y, c`) from
@@ -2366,7 +2431,9 @@ mod tests {
             .unwrap();
 
         let col = |j: u32| -> Vec<f64> {
-            prepared.bootstrap_columns[&VariableId::from_raw(j)]
+            prepared
+                .bootstrap_columns
+                .values_of(VariableId::from_raw(j))
                 .iter()
                 .map(|v| v.as_ref().unwrap().as_f64().unwrap())
                 .collect()

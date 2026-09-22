@@ -149,9 +149,10 @@ pub struct SharedCovariateDesign {
 ///
 /// What is shared
 ///
-/// - **Folds:** one original-row assignment (`row % n_folds`). Every query
-///   restricts this object to its complete-case rows; it does not draw a
-///   private `i % 5` assignment.
+/// - **Folds:** one original-row assignment, a seeded balanced shuffle of the
+///   rows (fold sizes differ by at most one; no periodic file-order structure).
+///   Every query restricts this object to its complete-case rows; it does not
+///   draw a private assignment.
 /// - **Covariates:** when every query's certified adjustment set is the same,
 ///   `[1 | Z…]` is compiled once and gathered into each propensity/cell design.
 ///
@@ -166,6 +167,8 @@ pub struct SharedBatchDesign {
     pub fold_ids: Arc<[u32]>,
     /// Fold count used to build [`Self::fold_ids`].
     pub n_folds: u32,
+    /// Master seed the fold assignment was drawn from.
+    pub fold_seed: u64,
     /// Shared covariate design, when adjustment sets agree.
     pub covariate: Option<SharedCovariateDesign>,
 }
@@ -180,6 +183,7 @@ impl SharedBatchDesign {
         data: &TabularData,
         adjustment_sets: &[Arc<[VariableId]>],
         n_folds: u32,
+        fold_seed: u64,
     ) -> Result<Self, CausalError> {
         if n_folds < 2 {
             return Err(CausalError::Compile {
@@ -188,13 +192,20 @@ impl SharedBatchDesign {
         }
         let n = data.row_count();
         let folds = usize::try_from(n_folds).unwrap_or(usize::MAX);
+        // A seeded balanced shuffle: fold membership does not follow the file order (a
+        // periodic `row % k` assignment aliases with any periodic structure in the data).
+        let mut rng = antecedent_core::CausalRng::from_seed(fold_seed ^ 0xF01D_5EED_BA7C_4001);
         let fold_ids: Arc<[u32]> =
-            (0..n).map(|i| u32::try_from(i % folds).unwrap_or(u32::MAX)).collect::<Vec<_>>().into();
+            antecedent_kernels::shuffled_fold_assignment(&mut rng, n, folds, None)
+                .into_iter()
+                .map(|f| u32::try_from(f).unwrap_or(u32::MAX))
+                .collect::<Vec<_>>()
+                .into();
         let covariate = match common_adjustment(adjustment_sets) {
             Some(set) if !set.is_empty() => Some(compile_shared_covariates(data, set)?),
             Some(_) | None => None,
         };
-        Ok(Self { fold_ids, n_folds, covariate })
+        Ok(Self { fold_ids, n_folds, fold_seed, covariate })
     }
 
     /// Rebuild data-dependent covariates and row folds on a new estimate table.
@@ -204,7 +215,7 @@ impl SharedBatchDesign {
             .as_ref()
             .map(|c| vec![Arc::clone(&c.adjustment_set)])
             .unwrap_or_default();
-        Self::compile(data, &sets, self.n_folds)
+        Self::compile(data, &sets, self.n_folds, self.fold_seed)
     }
 
     /// Restrict [`Self::fold_ids`] to complete-case rows.
@@ -467,7 +478,7 @@ impl BatchStudy {
             });
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries)?;
+        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
         let mut out = Vec::with_capacity(queries.len());
         for chunk in queries.chunks(threads) {
@@ -515,7 +526,7 @@ impl BatchStudy {
             });
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries)?;
+        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
@@ -559,7 +570,7 @@ impl BatchStudy {
             });
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_cells(&data, queries)?;
+        let shared = self.compile_shared_cells(&data, queries, ctx.rng.master_seed())?;
         let mut plans = Vec::with_capacity(queries.len());
         let mut frozen = Vec::with_capacity(queries.len());
         for query in queries {
@@ -603,6 +614,7 @@ impl BatchStudy {
         &self,
         data: &TabularData,
         queries: &[AverageEffectQuery],
+        fold_seed: u64,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
@@ -612,6 +624,7 @@ impl BatchStudy {
             data,
             &sets,
             u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
+            fold_seed,
         )?)))
     }
 
@@ -619,6 +632,7 @@ impl BatchStudy {
         &self,
         data: &TabularData,
         queries: &[ResponseQuery],
+        fold_seed: u64,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
@@ -628,6 +642,7 @@ impl BatchStudy {
             data,
             &sets,
             u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
+            fold_seed,
         )?)))
     }
 
@@ -1628,5 +1643,36 @@ mod selection_review_tests {
             };
             assert!(subset_estimate_rows(&data, Some(&screen)).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_fold_tests {
+    use super::*;
+
+    /// The shared assignment is a balanced shuffle keyed by the master seed: fold sizes
+    /// differ by at most one, the same seed reproduces it, another seed changes it, and
+    /// it is not the periodic `row % k` pattern that aliases with alternating designs.
+    #[test]
+    fn shared_folds_are_a_seeded_balanced_shuffle_not_row_modulo() {
+        let n = 103usize;
+        let values: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let data = TabularData::from_f64_columns([("x", values.as_slice())]).unwrap();
+        let compile = |seed: u64| SharedBatchDesign::compile(&data, &[], 5, seed).unwrap();
+        let a = compile(7);
+        let mut counts = [0usize; 5];
+        for &fold in a.fold_ids.iter() {
+            counts[fold as usize] += 1;
+        }
+        // 103 rows dealt round-robin over 5 folds: sizes 21, 21, 21, 20, 20.
+        counts.sort_unstable();
+        assert_eq!(counts, [20, 20, 21, 21, 21]);
+        assert_eq!(a.fold_ids, compile(7).fold_ids);
+        assert_ne!(a.fold_ids, compile(8).fold_ids);
+        let modulo: Vec<u32> = (0..n).map(|i| (i % 5) as u32).collect();
+        assert_ne!(a.fold_ids.to_vec(), modulo);
+        assert_eq!(a.fold_seed, 7);
+        // Rebinding to a same-size table keeps the seed, hence the assignment.
+        assert_eq!(a.rebind(&data).unwrap().fold_ids, a.fold_ids);
     }
 }
