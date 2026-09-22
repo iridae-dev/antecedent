@@ -100,6 +100,11 @@ applies_to = ["runtime_refusal"]
 meaning = "This route fits under the isotropic prior scale and does not hydrate a transferred prior."
 
 [[code]]
+id = "prior_dimension_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A banked posterior's coefficient count does not match the target design's, so its coefficients cannot be mapped one-to-one onto a prior."
+
+[[code]]
 id = "likelihood_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "The Bayesian route fits a Gaussian identity-link model only, or cannot carry a transferred prior onto a non-Gaussian link; a Bernoulli or Poisson likelihood is refused rather than fitted as Gaussian."

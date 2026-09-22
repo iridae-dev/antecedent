@@ -65,8 +65,13 @@ pub enum EstimationError {
     },
     /// A banked posterior's coefficient count does not match the target design's, so
     /// its coefficients cannot be mapped one-to-one onto a prior. Callers that treat
-    /// "not this mechanism's prior" as a fallback match this variant, never its text.
-    #[error("posterior coefficient dimension {posterior} != expected n_coef {design}")]
+    /// "not this mechanism's prior" as a fallback match this variant, never its text;
+    /// the message still carries the registered `prior_dimension_mismatch` reason so a
+    /// caller with no fallback (the prior transfer is terminal) surfaces a coded refusal.
+    #[error(
+        "{}prior_dimension_mismatch: posterior coefficient dimension {posterior} != expected n_coef {design}",
+        antecedent_core::reason_code::PREFIX
+    )]
     PriorDimensionMismatch {
         /// Coefficients in the banked posterior.
         posterior: usize,
