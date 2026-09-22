@@ -35,7 +35,7 @@ use antecedent_estimate::CircularBlockFamily;
 use antecedent_graph::TemporalDag;
 use common::calibration::{
     BASE_GRID_POINT, CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n,
-    grid_point, n_sim, normal_interval, smoke,
+    grid_point, map_replicates, n_sim, normal_interval, smoke,
 };
 use common::calibration_bind::bind_all;
 use common::driven_dgp::{
@@ -130,25 +130,27 @@ fn effect_coverage(
     let two_step = query.horizon_steps >= 2;
     let mut spread = Spread::default();
     let mut warned = 0;
-    for rep in 0..n_sim() {
-        let (study, result) = run_study(
-            pulse_series(s, rep, two_step),
+    let runs = map_replicates(n_sim(), |rep| {
+        run_study(
+            pulse_series(s, u32::try_from(rep).unwrap(), two_step),
             pulse_dag(two_step),
             CausalQuery::TemporalEffect(query.clone()),
             BOOT,
-            s.seed + u64::from(rep),
-        );
+            s.seed + rep,
+        )
+    });
+    for (study, result) in &runs {
         let est = &result.estimate;
         assert_eq!(result.estimand.adjustment_set.len(), 0, "{what}: unexpected adjustment");
         assert!(est.se_analytic.is_nan(), "{what}: no analytic SE is calibrated");
         let interval = normal_interval(est.ate, est.se_bootstrap, Z90);
         if interval.is_some() {
-            bind_all(&mut [&mut boot, &mut reported], &study, &result);
+            bind_all(&mut [&mut boot, &mut reported], study, result);
         }
         boot.record(interval, truth);
         reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), truth);
         spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
-        warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
+        warned += u32::from(has_diagnostic(result, SHORT_SERIES));
     }
     spread.report(&format!("{what} [{}]", s.label), truth);
     Coverage { tallies: vec![boot], reported: vec![reported], warned }
@@ -234,33 +236,35 @@ fn headline_coverage(
     what: &str,
     label: &str,
     seed: u64,
-    data: impl Fn(u64) -> TimeSeriesData,
-    graph: impl Fn() -> TemporalDag,
+    data: impl Fn(u64) -> TimeSeriesData + Sync,
+    graph: impl Fn() -> TemporalDag + Sync,
     query: &TemporalEffectQuery,
     truth: f64,
 ) -> Coverage {
     let (mut boot, mut reported) = headline_tallies(test, dgp);
     let mut spread = Spread::default();
     let mut warned = 0;
-    for rep in 0..n_sim() {
-        let rep_seed = seed + u64::from(rep);
-        let (study, result) = run_study(
+    let runs = map_replicates(n_sim(), |rep| {
+        let rep_seed = seed + rep;
+        run_study(
             data(rep_seed),
             graph(),
             CausalQuery::TemporalEffect(query.clone()),
             BOOT,
             rep_seed,
-        );
+        )
+    });
+    for (study, result) in &runs {
         let est = &result.estimate;
         assert!(est.se_analytic.is_nan(), "{what}: no analytic SE is calibrated");
         let interval = normal_interval(est.ate, est.se_bootstrap, Z90);
         if interval.is_some() {
-            bind_all(&mut [&mut boot, &mut reported], &study, &result);
+            bind_all(&mut [&mut boot, &mut reported], study, result);
         }
         boot.record(interval, truth);
         reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), truth);
         spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
-        warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
+        warned += u32::from(has_diagnostic(result, SHORT_SERIES));
     }
     spread.report(&format!("{what} [{label}]"), truth);
     Coverage { tallies: vec![boot], reported: vec![reported], warned }
@@ -332,7 +336,7 @@ fn mediation_coverage_on(
     dgp: &'static str,
     label: &str,
     seed: u64,
-    data: impl Fn(u32) -> TimeSeriesData,
+    data: impl Fn(u32) -> TimeSeriesData + Sync,
     graph: fn() -> TemporalDag,
 ) -> Coverage {
     // No record: the Total / Direct slices are not the reported interval of a Mediated query.
@@ -341,14 +345,16 @@ fn mediation_coverage_on(
     let (mut mediated, mut reported) = headline_tallies(test, dgp);
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
     let mut warned = 0;
-    for rep in 0..n_sim() {
-        let (study, result) = run_study(
-            data(rep),
+    let runs = map_replicates(n_sim(), |rep| {
+        run_study(
+            data(u32::try_from(rep).unwrap()),
             graph(),
             mediation_query(MediationContrast::Mediated),
             BOOT,
-            seed + u64::from(rep),
-        );
+            seed + rep,
+        )
+    });
+    for (study, result) in &runs {
         let grid = result.mediation_grid.as_ref().expect("mediation grid");
         let slice = &grid.slices[0];
         // No mediator-outcome confounder and an empty t -> y back-door set.
@@ -360,12 +366,12 @@ fn mediation_coverage_on(
         };
         let points = &slice.estimate;
         assert!(result.estimate.se_analytic.is_nan(), "iid analytic SE must be withheld");
-        warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
+        warned += u32::from(has_diagnostic(result, SHORT_SERIES));
         total.record(normal_interval(points.total.unwrap(), block.total, Z90), C + A * B);
         direct.record(normal_interval(points.direct.unwrap(), block.direct, Z90), C);
         let interval = normal_interval(points.mediated.unwrap(), block.mediated, Z90);
         if interval.is_some() {
-            bind_all(&mut [&mut mediated, &mut reported], &study, &result);
+            bind_all(&mut [&mut mediated, &mut reported], study, result);
         }
         mediated.record(interval, A * B);
         reported.record(normal_interval(points.mediated.unwrap(), block.mediated, Z95), A * B);
@@ -413,15 +419,17 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
         .collect();
     tallies.push(mediated);
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
-    for rep in 0..n_sim() {
-        let seed = SEED + u64::from(rep);
-        let (study, result) = run_study(
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = SEED + rep;
+        run_study(
             fixtures::mediation_series(grid_n(160), fixtures::MED_KAPPA, seed),
             fixtures::mediation_dag(),
             mediation_query(MediationContrast::Mediated),
             BOOT,
             seed,
-        );
+        )
+    });
+    for (study, result) in &runs {
         let slice = &result.mediation_grid.as_ref().expect("mediation grid").slices[0];
         let adjustment: Vec<(u32, i32)> =
             slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
@@ -444,7 +452,7 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
             let interval = normal_interval(point, se, Z90);
             if i == 2 {
                 if interval.is_some() {
-                    bind_all(&mut [&mut tallies[i], &mut reported], &study, &result);
+                    bind_all(&mut [&mut tallies[i], &mut reported], study, result);
                 }
                 reported.record(normal_interval(point, se, Z95), truths[i].1);
             }

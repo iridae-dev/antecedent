@@ -35,8 +35,8 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag, TieredBackground, WithinTier};
 
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
-    quantile_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, map_replicates, n_sim,
+    normal_interval, quantile_interval,
 };
 use common::calibration_bind::bind_all;
 // The six-variable envelope PAG is measured by the Bayesian static suite too;
@@ -182,9 +182,9 @@ fn run_ate_coverage(
     test: &'static str,
     dgp: &'static str,
     graph: &Structure,
-    generate: impl Fn(usize, u64) -> TabularData,
+    generate: impl Fn(usize, u64) -> TabularData + Sync,
     n: usize,
-    inference: impl Fn() -> InferenceMode,
+    inference: impl Fn() -> InferenceMode + Sync,
     bayesian: bool,
     truth: f64,
     seed: u64,
@@ -193,15 +193,18 @@ fn run_ate_coverage(
     let key = scalar_key(test, dgp, bayesian);
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let data = generate(grid_n(n), seed + rep);
-        let Some((study, result)) = run(data, graph, ate_query(), inference(), seed + rep) else {
+        run(data, graph, ate_query(), inference(), seed + rep)
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
             tally.skip();
             reported.skip();
             continue;
         };
-        let (interval, interval_95) = intervals(&result, bayesian);
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        let (interval, interval_95) = intervals(result, bayesian);
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(interval, truth);
         reported.record(interval_95, truth);
     }
@@ -411,7 +414,7 @@ fn run_conditional_coverage(
     test: &'static str,
     dgp: &'static str,
     graph: &Structure,
-    generate: impl Fn(usize, u64) -> TabularData,
+    generate: impl Fn(usize, u64) -> TabularData + Sync,
     modifier: u32,
     n: usize,
     bayesian: bool,
@@ -422,18 +425,19 @@ fn run_conditional_coverage(
     let key = scalar_key(test, dgp, bayesian);
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let data = generate(grid_n(n), seed + rep);
         let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
-        let Some((study, result)) =
-            run(data, graph, conditional_query(modifier), inference, seed + rep)
-        else {
+        run(data, graph, conditional_query(modifier), inference, seed + rep)
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
             tally.skip();
             reported.skip();
             continue;
         };
-        let (interval, interval_95) = intervals(&result, bayesian);
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        let (interval, interval_95) = intervals(result, bayesian);
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(interval, truth);
         reported.record(interval_95, truth);
     }
@@ -603,7 +607,7 @@ fn codetermined_aipw_closure_nominal_90_coverage() {
         scalar_key("codetermined_aipw_closure_nominal_90_coverage", "codetermined_data", false);
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let data = codetermined_data(grid_n(600), 20_200 + rep);
         let schema = data.schema().clone();
         let background = TieredBackground::from_named(
@@ -623,14 +627,18 @@ fn codetermined_aipw_closure_nominal_90_coverage() {
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        match study.run(&ExecutionContext::for_tests(20_200 + rep)) {
-            Ok(result) => {
-                let (interval, interval_95) = intervals(&result, false);
-                bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        let result = study.run(&ExecutionContext::for_tests(20_200 + rep)).ok()?;
+        Some((study, result))
+    });
+    for scored in &runs {
+        match scored {
+            Some((study, result)) => {
+                let (interval, interval_95) = intervals(result, false);
+                bind_all(&mut [&mut tally, &mut reported], study, result);
                 tally.record(interval, 2.0);
                 reported.record(interval_95, 2.0);
             }
-            Err(_) => {
+            None => {
                 tally.skip();
                 reported.skip();
             }
@@ -676,7 +684,7 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
     let mut tally = CoverageTally::new("unknown_two_scenario_joint_band", 0.95);
     let mut width_sum = 0.0;
     let mut widths = 0u32;
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let data = unknown_data(grid_n(400), 20_300 + rep);
         let schema = data.schema().clone();
         let background = TieredBackground::from_named(
@@ -687,7 +695,7 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
         .unwrap();
         let query =
             AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
-        let result = Study::tabular(data)
+        Study::tabular(data)
             .tiered_background(background)
             .unwrap()
             .query(query)
@@ -695,8 +703,11 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
             .bootstrap_replicates(0)
             .build()
             .unwrap()
-            .run(&ExecutionContext::for_tests(20_300 + rep));
-        let Ok(result) = result else {
+            .run(&ExecutionContext::for_tests(20_300 + rep))
+            .ok()
+    });
+    for scored in &runs {
+        let Some(result) = scored else {
             tally.skip();
             continue;
         };

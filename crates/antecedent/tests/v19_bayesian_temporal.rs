@@ -28,7 +28,8 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, ar1_noise, grid_n, n_sim, quantile_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, ar1_noise, grid_n, map_replicates, n_sim,
+    quantile_interval,
 };
 use common::calibration_bind::bind_all;
 
@@ -308,12 +309,14 @@ fn coverage(test: &'static str, cell: Cell, regime: Regime, measured: [Option<f6
     let key = RecordKey { test, dgp: "series_xy", interval: "posterior_quantile" };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let data = series_xy(regime, rep, cell.beta2());
-        let (study, result) = run(data, cell.graph(), cell.query(), None, 7 + rep);
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
-        tally.record(credible_interval(&result), cell.truth());
-        reported.record(credible_interval_at(&result, REPORTED_LEVEL), cell.truth());
+        run(data, cell.graph(), cell.query(), None, 7 + rep)
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally, &mut reported], study, result);
+        tally.record(credible_interval(result), cell.truth());
+        reported.record(credible_interval_at(result, REPORTED_LEVEL), cell.truth());
     }
     tally.assert_boundary_at(measured);
     reported.emit();
@@ -508,17 +511,15 @@ fn mediation_coverage(test: &'static str, regime: Regime, measured: [[Option<f64
         .collect();
     let mut reported =
         CoverageTally::for_record(key, REPORTED_LEVEL).labelled("mediated").unasserted();
-    for rep in 0..u64::from(n_sim()) {
-        let (study, result) = run_mediation_study(
-            series_mediation(regime, rep),
-            MediationContrast::Mediated,
-            13 + rep,
-        );
+    let runs = map_replicates(n_sim(), |rep| {
+        run_mediation_study(series_mediation(regime, rep), MediationContrast::Mediated, 13 + rep)
+    });
+    for (study, result) in &runs {
         let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
         for ((name, column, truth), tally) in targets.iter().zip(&mut tallies) {
             let draws = post.draws.column(*column).expect("decomposition draws");
             if *name == "Mediated" {
-                bind_all(&mut [&mut *tally, &mut reported], &study, &result);
+                bind_all(&mut [&mut *tally, &mut reported], study, result);
                 reported.record(quantile_interval(draws, REPORTED_LEVEL), *truth);
             }
             tally.record(quantile_interval(draws, LEVEL), *truth);
@@ -832,12 +833,13 @@ fn bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for rep in 0..u64::from(n_sim()) {
-        let (study, result) =
-            run(series_tyz(regime, rep), tyz_cpdag(), pulse(), Some(prior.clone()), 11 + rep);
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
-        tally.record(credible_interval(&result), BETA1);
-        reported.record(credible_interval_at(&result, REPORTED_LEVEL), BETA1);
+    let runs = map_replicates(n_sim(), |rep| {
+        run(series_tyz(regime, rep), tyz_cpdag(), pulse(), Some(prior.clone()), 11 + rep)
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally, &mut reported], study, result);
+        tally.record(credible_interval(result), BETA1);
+        reported.record(credible_interval_at(result, REPORTED_LEVEL), BETA1);
     }
     tally.assert();
     reported.emit();

@@ -26,8 +26,8 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use common::calibration::{
-    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point, n_sim,
-    normal_interval, quantile_interval, smoke,
+    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point,
+    map_replicates, n_sim, normal_interval, quantile_interval, smoke,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
@@ -305,21 +305,23 @@ fn chain_pag_tally(
         &format!("frequentist TemporalPag {what} [{}]", design.label),
         chain_mixture_truth(query),
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_study(
-            chain_pag_series(grid_n(design.n), design.rho, seed + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_study(
+            chain_pag_series(grid_n(design.n), design.rho, seed + s),
             chain_pag(),
             query,
             InferenceMode::Frequentist,
             None,
             BOOT,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (study, result) in &runs {
         assert!(
-            has_diagnostic(&result, "estimate.temporal_class.frequentist.shared_block"),
+            has_diagnostic(result, "estimate.temporal_class.frequentist.shared_block"),
             "class envelope must publish the shared-block SE"
         );
-        tally.record(&study, &result);
+        tally.record(study, result);
     }
     tally
 }
@@ -331,17 +333,19 @@ fn frequentist_cpdag_multistep_case(test: &'static str, design: Design, seed: u6
         &format!("frequentist TemporalCpdag multi-step Sustained [{}]", design.label),
         cpdag_mixture_truth(design.rho),
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_study(
-            confounded_series(grid_n(design.n), 0.0, design.rho, seed + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_study(
+            confounded_series(grid_n(design.n), 0.0, design.rho, seed + s),
             confounded_cpdag(),
             &multi_sustained(),
             InferenceMode::Frequentist,
             None,
             BOOT,
-            u64::from(s),
-        );
-        tally.record(&study, &result);
+            s,
+        )
+    });
+    for (study, result) in &runs {
+        tally.record(study, result);
     }
     tally.assert();
 }
@@ -454,17 +458,19 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary() {
         "frequentist TemporalCpdag Pulse [AR(1) rho=0.95 n=160 (boundary)]",
         cpdag_mixture_truth(RHO),
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_study(
-            confounded_series(grid_n(160), 0.0, RHO, 90_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_study(
+            confounded_series(grid_n(160), 0.0, RHO, 90_000 + s),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
             None,
             BOOT,
-            u64::from(s),
-        );
-        tally.record(&study, &result);
+            s,
+        )
+    });
+    for (study, result) in &runs {
+        tally.record(study, result);
     }
     boundary(&tally);
 }
@@ -532,16 +538,18 @@ fn bayesian_circle_pag_class_prior_case(
     };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for s in 0..n_sim() {
-        let (study, result) = run_study(
-            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_study(
+            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + s),
             fixtures::circle_pag(),
             query,
             bayes(),
             Some(prior.clone()),
             0,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (study, result) in &runs {
         let post = result.posterior.as_ref().expect("PAG class-prior posterior");
         assert!(
             (post.unidentified_mass - 0.4).abs() < 1e-12,
@@ -550,7 +558,7 @@ fn bayesian_circle_pag_class_prior_case(
         );
         let interval = posterior_interval(Some(post));
         if interval.is_some() {
-            bind_all(&mut [&mut tally, &mut reported], &study, &result);
+            bind_all(&mut [&mut tally, &mut reported], study, result);
         }
         tally.record(interval, B1);
         reported.record(posterior_interval_at(Some(post), REPORTED_LEVEL), B1);
@@ -610,17 +618,19 @@ fn frequentist_circle_pag_case(
         &format!("frequentist TemporalPag one-completion {what} [{}]", design.label),
         B1,
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_study(
-            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_study(
+            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + s),
             fixtures::circle_pag(),
             query,
             InferenceMode::Frequentist,
             None,
             BOOT,
-            u64::from(s),
-        );
-        tally.record(&study, &result);
+            s,
+        )
+    });
+    for (study, result) in &runs {
+        tally.record(study, result);
     }
     tally.assert();
 }
@@ -754,19 +764,14 @@ impl SetTally {
     }
 }
 
-fn identified_set_case<F>(
-    key: RecordKey,
-    name: &str,
-    truth: f64,
-    other: Option<f64>,
-    mut run_for: F,
-) where
-    F: FnMut(u32) -> (Study, StudyResult),
+fn identified_set_case<F>(key: RecordKey, name: &str, truth: f64, other: Option<f64>, run_for: F)
+where
+    F: Fn(u32) -> (Study, StudyResult) + Sync,
 {
     let mut tally = SetTally::new(name, Some(key), truth, other);
-    for s in 0..n_sim() {
-        let (study, result) = run_for(s);
-        tally.record(Some(&study), &result);
+    let runs = map_replicates(n_sim(), |s| run_for(u32::try_from(s).unwrap()));
+    for (study, result) in &runs {
+        tally.record(Some(study), result);
     }
     tally.assert();
 }
@@ -979,15 +984,16 @@ fn heterogeneous_se_unadjusted_plim() -> f64 {
 /// one and, at a width this close to the noise, is conservative (0.95 in the
 /// same simulation; 0.955 / 0.950 Frequentist / Bayesian here at 400
 /// replicates), so the assertion is the lower edge of the `level ± 3·MCSE` band.
-fn heterogeneous_se_case<F>(name: &str, mut result_for: F)
+fn heterogeneous_se_case<F>(name: &str, result_for: F)
 where
-    F: FnMut(u32) -> StudyResult,
+    F: Fn(u32) -> StudyResult + Sync,
 {
     // No record: this cell is gated one-sided (at least the band's lower edge), which
     // the record harness has no role for; the construction is conservative here by design.
     let mut tally = SetTally::new(name, None, B1, Some(heterogeneous_se_unadjusted_plim()));
-    for s in 0..n_sim() {
-        tally.record(None, &result_for(s));
+    let runs = map_replicates(n_sim(), |s| result_for(u32::try_from(s).unwrap()));
+    for result in &runs {
+        tally.record(None, result);
     }
     tally.report();
     let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
