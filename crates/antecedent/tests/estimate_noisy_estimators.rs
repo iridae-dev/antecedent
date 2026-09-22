@@ -157,14 +157,20 @@ fn run_method(
         result.estimate.ate
     );
 
-    let se = result.estimate.se_analytic;
-    assert!(se.is_finite() && se >= 0.0, "{method_id}: bad se_analytic={se}");
-    if !assert_true {
-        if let Some(ref_se) = expected["methods"][method_id]["se"].as_f64() {
-            assert!(
-                close(se, ref_se, atol_se, rtol_se),
-                "{method_id}: se={se} vs ref_se={ref_se} (atol={atol_se} rtol={rtol_se})"
-            );
+    // `iv.2sls` withholds both se_analytic and se_bootstrap and publishes a
+    // homoskedastic Anderson-Rubin set instead (`fix(estimate): publish
+    // Anderson-Rubin intervals for IV`); there is no SE fixture entry for it
+    // and none to check here.
+    if method_id != "iv_2sls" {
+        let se = result.estimate.se_analytic;
+        assert!(se.is_finite() && se >= 0.0, "{method_id}: bad se_analytic={se}");
+        if !assert_true {
+            if let Some(ref_se) = expected["methods"][method_id]["se"].as_f64() {
+                assert!(
+                    close(se, ref_se, atol_se, rtol_se),
+                    "{method_id}: se={se} vs ref_se={ref_se} (atol={atol_se} rtol={rtol_se})"
+                );
+            }
         }
     }
 }
