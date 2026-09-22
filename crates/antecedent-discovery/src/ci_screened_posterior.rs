@@ -513,8 +513,12 @@ mod tests {
     #[test]
     fn caller_required_link_is_not_discarded_by_screening_constraints() {
         let (data, vars) = chain_data(180);
+        // The caller's required link widens the screened candidate set from 2 pairs to 3
+        // (unlike the other tests in this module), so the old 2 chains / 300 draws no longer
+        // cleared the per-edge MCSE gate reliably. More chains and draws converges that larger
+        // space properly instead of loosening the gate.
         let eng = CiScreenedPosterior::new()
-            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+            .with_mcmc(StructureMcmc::new().with_schedule(4, 400, 1200, 1));
         let ctx = ExecutionContext::for_tests(5);
         let mut ws = DiscoveryWorkspace::default();
         let mut prior = GraphPrior::uniform();
