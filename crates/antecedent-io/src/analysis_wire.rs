@@ -1576,12 +1576,23 @@ mod tests {
         );
         let mut path = empty_id_result(IdentificationStatus::NonparametricallyIdentified);
         path.query = path_q;
+        // The estimand's functional must resolve inside the result's own expression arena
+        // (identification_from_wire now rejects a dangling functional); give it one node.
+        let mut arena = CausalExprArena::new();
+        let root = arena.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            &[],
+            antecedent_core::Value::Bool(true),
+            antecedent_core::Value::Bool(false),
+        );
+        path.arena = arena;
         path.estimands.push(IdentifiedEstimand::new(
             Arc::from("path_specific.natural"),
             Arc::from([]),
             Arc::from([]),
             Arc::from([]),
-            ExprId::from_raw(0),
+            root,
             None,
         ));
         let wire = identification_to_wire(&path).unwrap();
