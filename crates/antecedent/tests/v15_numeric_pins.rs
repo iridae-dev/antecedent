@@ -74,6 +74,28 @@ fn ate_study(
 
 const PIN_ABS: f64 = 1e-12;
 
+/// A batch member's cross-fit folds are a `SharedBatchDesign`-wide seeded balanced shuffle
+/// (`shuffled_fold_assignment`, batch.rs); a standalone `Study` draws its own folds from
+/// `crossfit_fold_plan` (learn_nuisance.rs). Both are seeded from the same run master seed
+/// (99edfd41 made every facade path seed its fold plan from it), but the two are different
+/// algorithms, so a batch member and a solo re-run of the same query are not bit-identical
+/// once the estimator actually cross-fits on a non-empty design (a pure-intercept design has
+/// no fold-dependent free parameters and does match exactly). The two remain consistent
+/// estimators of the same estimand on the same rows, so their gap is bounded by a small
+/// fraction of one analytic standard error rather than by float noise.
+fn fold_split_tol(batch: &antecedent::StudyResult, solo: &antecedent::StudyResult) -> f64 {
+    let se = batch.estimate.se_analytic.max(solo.estimate.se_analytic);
+    if se.is_finite() && se > 0.0 {
+        (0.25 * se).max(PIN_ABS)
+    } else {
+        // A grid/CDF row's scalar `ate` is NaN by contract (it has no single level), so
+        // `se_analytic` carries no scalar-SE signal either. Exceedance CDF coordinates are
+        // themselves probabilities in [0, 1]; two percentage points is generous slack for a
+        // fold-split gap while still catching a materially wrong per-threshold estimate.
+        0.03_f64.max(PIN_ABS)
+    }
+}
+
 fn assert_estimates_pin_eq(
     batch: &antecedent::StudyResult,
     solo: &antecedent::StudyResult,
@@ -82,10 +104,11 @@ fn assert_estimates_pin_eq(
     let batch_nan = batch.estimate.ate.is_nan();
     let solo_nan = solo.estimate.ate.is_nan();
     assert_eq!(batch_nan, solo_nan, "{what}: ate NaN mismatch");
+    let tol = fold_split_tol(batch, solo);
     if !batch_nan {
         assert!(
-            (batch.estimate.ate - solo.estimate.ate).abs() < PIN_ABS,
-            "{what}: ate {} vs {}",
+            (batch.estimate.ate - solo.estimate.ate).abs() < tol,
+            "{what}: ate {} vs {} (tol {tol})",
             batch.estimate.ate,
             solo.estimate.ate
         );
@@ -95,7 +118,7 @@ fn assert_estimates_pin_eq(
         (Some(a), Some(b)) => {
             assert_eq!(a.len(), b.len(), "{what}: cdf length");
             for (i, (ai, bi)) in a.iter().zip(b.iter()).enumerate() {
-                assert!((ai - bi).abs() < PIN_ABS, "{what}: cdf[{i}] {ai} vs {bi}");
+                assert!((ai - bi).abs() < tol, "{what}: cdf[{i}] {ai} vs {bi} (tol {tol})");
             }
         }
         _ => panic!("{what}: exceedance_cdf presence mismatch"),
@@ -1488,7 +1511,11 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    // `prepare_cells` draws its folds from the batch-shared seeded shuffle
+    // (`SharedBatchDesign`), not the solo `crossfit_fold_plan`; see `fold_split_tol`.
+    assert!(
+        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+    );
     for result in &results {
         assert_level_would_look_significant(result);
         assert_family_p_non_significant(result);
@@ -2872,6 +2899,7 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     assert!(ix.value.is_finite() && ix.se.is_finite(), "interaction={} se={}", ix.value, ix.se);
 
     let direct = antecedent_estimate::CellSaturatedAipw::new()
+        .with_fold_seed(ctx.rng.master_seed())
         .fit_scores(
             &data,
             &[t1_id, t2_id],
@@ -2956,7 +2984,11 @@ fn codetermined_prepare_cells_pair_family_shares_joint_if() {
     ));
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 2);
-    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    // `prepare_cells` draws its folds from the batch-shared seeded shuffle
+    // (`SharedBatchDesign`), not the solo `crossfit_fold_plan`; see `fold_split_tol`.
+    assert!(
+        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+    );
     assert!(
         results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 2)),
         "CoDetermined pair family must publish family joint IF, not isolated per-pair plans"
@@ -3054,7 +3086,11 @@ fn codetermined_distinct_pairs_share_folds_not_covariates() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    // `prepare_cells` draws its folds from the batch-shared seeded shuffle
+    // (`SharedBatchDesign`), not the solo `crossfit_fold_plan`; see `fold_split_tol`.
+    assert!(
+        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+    );
     for result in &results {
         assert_level_would_look_significant(result);
         assert_family_p_non_significant(result);
@@ -3143,7 +3179,13 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
             if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
     )));
 
-    let n = 280usize;
+    // 46 covariates (z + 45 cofacets) need real residual degrees of freedom in every
+    // 2x2-arm cross-fit training cell. Batch/solo folds are a seeded balanced shuffle
+    // (99edfd41), not a fixed `row % k` pattern, so the arm/fold split is no longer
+    // deterministic with respect to file order; 280 rows left some (arm, fold) training
+    // cells at or below the 47-column design, tripping the sparse-cell refusal. 560 keeps
+    // every arm's training cell comfortably over that floor under any balanced fold draw.
+    let n = 560usize;
     let mut rng = ExecutionContext::for_tests(20).rng.stream_for(StreamDomain::Test, 0x14);
     let mut names = vec!["z".to_string(), "t1".to_string(), "t2".to_string()];
     names.extend(facets.iter().cloned());
