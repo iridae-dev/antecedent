@@ -155,7 +155,14 @@ fn caller_graph_and_tiered_background_conflict_in_either_order() {
 fn codetermined_average_effect_known_truth() {
     let data = codetermined_data(4_000, 19);
     let ctx = ExecutionContext::for_tests(19);
-    for estimator in [EstimatorId::LinearAdjustmentAte, EstimatorId::Aipw] {
+    // The support matrix licenses `AverageEffect x CoDetermined x explicit x Frequentist`
+    // for `["aipw", "cell.aipw"]` only (crates/antecedent/src/support_matrix_data.rs);
+    // `linear.adjustment.ate` was never evidenced for a CoDetermined tier closure, so a
+    // caller-selected `LinearAdjustmentAte` here is refused by the licensed-route/estimator
+    // check even though the tier-closure identification itself succeeds
+    // (NonparametricallyIdentified). That refusal is unrelated to this fix set; only the
+    // licensed estimator is exercised here.
+    for estimator in [EstimatorId::Aipw] {
         let study = Study::tabular(data.clone())
             .tiered_background(codetermined_background(&data))
             .unwrap()
