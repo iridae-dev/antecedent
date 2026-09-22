@@ -137,6 +137,14 @@ impl Ges {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        if self.screen_pc {
+            crate::ci::ensure_ci_decisions_meaningful(
+                &*self.ci,
+                self.constraints.significance,
+                self.constraints.alpha,
+                self.fdr.is_some(),
+            )?;
+        }
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "GES requires at least one variable",

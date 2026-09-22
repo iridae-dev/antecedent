@@ -184,6 +184,10 @@ impl WeightedPartialCorrelation {
 }
 
 impl ConditionalIndependenceTest for WeightedPartialCorrelation {
+    fn series_aligned_weights_len(&self) -> Option<usize> {
+        self.align_to_series_end.then_some(self.weights.len())
+    }
+
     fn test_batch(
         &self,
         prepared: &PreparedCiTest,

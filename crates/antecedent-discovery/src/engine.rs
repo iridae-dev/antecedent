@@ -494,6 +494,7 @@ impl PcmciEngine {
             self.constraints.alpha,
             false,
         )?;
+        crate::ci::ensure_ci_fits_frame(&*ci, &frame)?;
         let engine = PcmciEngine { constraints: self.constraints.clone(), ci, column_blocks };
 
         let threads = ctx.parallelism.max_threads.get().max(1);

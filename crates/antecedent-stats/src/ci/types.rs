@@ -366,6 +366,17 @@ pub trait ConditionalIndependenceTest {
         0.0
     }
 
+    /// Length of the whole series this test's per-row weights were supplied for, when they are
+    /// aligned to the *end* of a series (lagged frames drop leading rows). `None` for tests
+    /// without series-aligned side data.
+    ///
+    /// A caller that builds the frames must check that its frame is exactly the series minus
+    /// the leading lag rows, with no rows removed elsewhere, before running the test: a wrong
+    /// length or a frame with interior gaps would pair weights with the wrong observations.
+    fn series_aligned_weights_len(&self) -> Option<usize> {
+        None
+    }
+
     /// Whether [`CiResult::p_value`] is a frequentist p-value (super-uniform under the null).
     ///
     /// `false` for the Bayesian tests, whose `p_value` is a posterior probability of

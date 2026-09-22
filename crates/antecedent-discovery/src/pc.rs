@@ -136,6 +136,12 @@ impl Pc {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.ci,
+            self.constraints.significance,
+            self.constraints.alpha,
+            self.fdr.is_some(),
+        )?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "PC requires at least one variable",
@@ -381,6 +387,23 @@ mod tests {
         assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
         assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn pc_refuses_posterior_probability_tests_under_fdr() {
+        let data = tabular_n(3, 40);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = DiscoveryWorkspace::default();
+        for ci in [
+            Arc::new(antecedent_stats::BayesFactorCi::new())
+                as Arc<dyn ConditionalIndependence + Send + Sync>,
+            Arc::new(antecedent_stats::PosteriorDependenceCi::new()),
+        ] {
+            let refused = Pc::new().with_fdr(true).with_ci(ci);
+            let error = refused.run(&data, &vars, &mut ws, &ctx).unwrap_err().to_string();
+            assert!(error.contains("FDR adjustment requires frequentist p-values"), "{error}");
+        }
     }
 
     #[test]

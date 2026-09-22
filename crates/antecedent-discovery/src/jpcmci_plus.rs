@@ -211,6 +211,13 @@ impl JpcmciPlus {
                 (Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))), blocks)
             };
 
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*ci,
+            constraints.significance,
+            constraints.alpha,
+            self.fdr.is_some(),
+        )?;
+        crate::ci::ensure_ci_fits_frame(&*ci, frame)?;
         let threads = ctx.parallelism.max_threads.get().max(1);
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
