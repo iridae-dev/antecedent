@@ -735,6 +735,12 @@ impl SetTally {
 
     fn assert(&self) {
         self.report();
+        // Never gated, but still recorded every replicate: persist its state so a
+        // recheck extension of this test (see CoverageTally::persist) has a prior
+        // tally to seed from, exactly as the gated truth tally gets from assert.
+        if let Some((tally, _)) = &self.other {
+            tally.persist();
+        }
         self.truth.0.assert();
     }
 

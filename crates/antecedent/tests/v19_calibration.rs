@@ -343,6 +343,10 @@ impl BmaTally {
             weighted_mean(&self.weights, &self.truths),
             self.mean.rate()
         );
+        // Never gated, but still recorded every replicate: persist its state so a
+        // recheck extension of this test (see CoverageTally::persist) has a prior
+        // tally to seed from, exactly as the gated tallies below get from assert/emit.
+        self.mean.persist();
         self.structural.assert();
         self.structural_reported.emit();
     }
