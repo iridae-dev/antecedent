@@ -66,6 +66,13 @@
 //! study. Same seed, same interval. The old 1.6 h / overnight figures were
 //! one-core loops.
 //!
+//! `ANTECEDENT_CALIBRATION_THREADS=<n>` ([`THREADS_ENV`]) caps the worker
+//! count of [`map_replicates`] (default `available_parallelism`, clamped to
+//! `[1, replicates]`). `scripts/calibration_groups.py` sets it to
+//! `ceil(cores / jobs)` so concurrent gate jobs share the machine instead of
+//! each taking all of it. Results are folded in replicate order whatever the
+//! worker count, so the cap changes no printed line.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code)]
@@ -248,7 +255,33 @@ pub fn n_sim() -> u32 {
         .unwrap_or(DEFAULT_N_SIM)
 }
 
-/// Evaluate `f(0), …, f(n-1)` on `available_parallelism` workers.
+/// Environment variable capping the worker threads of [`map_replicates`]
+/// (unset: `available_parallelism`). Clamped to `[1, replicates]`.
+pub const THREADS_ENV: &str = "ANTECEDENT_CALIBRATION_THREADS";
+
+/// Worker threads for `n` replicates: [`THREADS_ENV`] when set, else
+/// `available_parallelism`, clamped to `[1, n]`.
+///
+/// # Panics
+///
+/// When the variable is set to anything but a positive integer.
+#[must_use]
+pub fn worker_threads(n: usize) -> usize {
+    let threads = match std::env::var(THREADS_ENV) {
+        Err(_) => {
+            std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1)
+        }
+        Ok(raw) => raw
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .filter(|&t| t > 0)
+            .unwrap_or_else(|| panic!("{THREADS_ENV}={raw}: want a positive integer")),
+    };
+    threads.clamp(1, n.max(1))
+}
+
+/// Evaluate `f(0), …, f(n-1)` on [`worker_threads`] workers.
 ///
 /// Results come back in seed order so `bind` / `record` stay deterministic.
 /// Each call is an independent dataset; `f` must be deterministic in `rep`.
@@ -260,10 +293,7 @@ pub fn map_replicates<T: Send>(n: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
     if n_us == 0 {
         return Vec::new();
     }
-    let threads = std::thread::available_parallelism()
-        .map(std::num::NonZeroUsize::get)
-        .unwrap_or(1)
-        .clamp(1, n_us);
+    let threads = worker_threads(n_us);
     if threads == 1 {
         return (0..n).map(|rep| f(u64::from(rep))).collect();
     }
