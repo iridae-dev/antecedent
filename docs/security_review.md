@@ -1,8 +1,25 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-09-22
+Scope: workspace crates + `python` extension (package version **2.0.0**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+2.0.0 is a correctness and identification-machinery pass on the 1.11.0
+reviewed tree: dense-variable-lookup unification across temporal and static
+identification, Kennedy-theorem covariate marginalization, HMC step-size
+jittering, general-ID estimand tiebreaking, Bayesian temporal mediation
+shared-design tracking, and a batch/solo cross-fit fold-plan unification,
+plus supporting Python-boundary and registry fixes. The diff against the
+1.11.0 tree adds no new crate dependency (`Cargo.lock`'s package set is
+unchanged) and no new `unsafe` block; reviewed `unsafe` remains concentrated
+in `antecedent-kernels` (SIMD), the `antecedent-data` buffer/Arrow FFI
+adapters, and IO mmap, as in 1.11.0. A `cargo deny check` against a freshly
+fetched advisory database on 2026-09-22 passed advisories, bans, licenses,
+and sources; `RUSTSEC-2024-0436` (`paste`) remains ignored in `deny.toml` as
+a faer/gemm build-time macro. Artifact format remains 0.5.
+
 Date: 2026-09-19
 Scope: workspace crates + `python` extension (package version **1.11.0**)
-ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 1.11.0 is the 1.x close-out on the 1.10.0 reviewed tree. This stamp covers the
 version and notes cut. Re-review the source diff before the cut is tagged

@@ -1,7 +1,8 @@
 # Antecedent
 
-> **Release preparation:** these are the active 2.0 docs. The published package
-> remains 1.11.0 until the release metadata and tag advance.
+> **Release preparation:** these are the active 2.0 docs. The workspace and
+> Python package are stamped 2.0.0; the tag and publish steps are still
+> pending.
 
 Antecedent is a causal inference system for turning causal questions and
 evidence into checked, executable scientific claims. It preserves what an

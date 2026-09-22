@@ -1,8 +1,10 @@
 # Antecedent 2.0
 
-> **Release preparation.** The published package remains 1.11.0 while
-> Antecedent 2.0 is prepared. This branch documents the 2.0 product and does
-> not claim that its deferred calibration program has completed.
+> **Release preparation.** The workspace and Python package are stamped
+> 2.0.0, but this tree has not been tagged or published, and its calibration
+> measurement has not yet been re-run for this commit. This branch documents
+> the 2.0 product and does not claim that its calibration program has
+> completed.
 
 Antecedent is designed for causal inference as a composable systems primitive,
 built to preserve the epistemic correctness of causal analysis. It unifies

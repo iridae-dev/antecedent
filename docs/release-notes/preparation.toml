@@ -1,3 +1,0 @@
-# Documentation-only release target. Remove this file when Cargo.toml is
-# bumped to 2.0.0; the workspace version then again drives release-note output.
-target_version = "2.0.0"
