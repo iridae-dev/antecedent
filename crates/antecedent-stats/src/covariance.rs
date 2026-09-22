@@ -2,11 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::needless_range_loop,
-    clippy::unreadable_literal,
-    clippy::cast_possible_truncation,
-    clippy::unnecessary_wraps
+#![allow(clippy::needless_range_loop, clippy::unreadable_literal, clippy::unnecessary_wraps)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use crate::cluster::{
@@ -273,16 +275,13 @@ fn hc_meat(
             // makes the residual exactly 0 and the `e²/(1−h)` adjustment 0/0: the estimator
             // is undefined there. Clamping `h` would inflate rounding-noise residuals by
             // `1/(1−h)²`, so refuse instead and name the rows.
-            let saturated: Vec<usize> =
-                (0..nrows)
-                    // An unordered (NaN) leverage is as undefined as a saturated one.
-                    .filter(|&i| {
-                        !matches!(
-                            hat[i].partial_cmp(&(1.0 - LEVERAGE_SATURATION)),
-                            Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
-                        )
-                    })
-                    .collect();
+            let saturated: Vec<usize> = (0..nrows)
+                .filter(|&i| {
+                    hat[i]
+                        .partial_cmp(&(1.0 - LEVERAGE_SATURATION))
+                        .is_none_or(std::cmp::Ordering::is_gt)
+                })
+                .collect();
             if !saturated.is_empty() {
                 let shown: Vec<String> =
                     saturated.iter().take(5).map(ToString::to_string).collect();

@@ -569,7 +569,10 @@ pub(crate) fn propensity_fit_defect(glm: &antecedent_stats::GlmFit) -> Option<&'
 /// Classification uses the same complete-case mask as estimation (treatment,
 /// outcome, adjustment, modifiers). An empty remainder is not binary: `all()`
 /// on no rows would otherwise vacuously accept the logistic path.
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "a binary treatment is coded exactly 0.0 or 1.0; values merely near 0 or 1 are not binary"
+)]
 pub(crate) fn binary_treatment(problem: &RefutationProblem<'_>) -> Result<bool, ValidationError> {
     let mut ids = vec![problem.treatment(), problem.outcome()];
     ids.extend_from_slice(&problem.estimand.adjustment_set);
@@ -937,11 +940,21 @@ pub(crate) fn with_contiguous_row_window(
             message: "contiguous row window requires at least 2 rows",
         });
     }
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the floored product is at most the row count and `as` saturates negatives and NaN to 0; the result is clamped to 1..=n-1"
+    )]
     let window_len = (((n as f64) * keep_fraction).floor() as usize).clamp(1, n - 1);
     let span = n - window_len;
     let mut rng = ctx.rng.stream(stream_id);
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "next_f64 is in [0, 1), so the floored product is in [0, span]; it is non-negative and below the row count, then min-bounded to span"
+    )]
     let start = (rng.next_f64() * (span as f64 + 1.0)).floor() as usize;
     let start = start.min(span);
 
@@ -1117,6 +1130,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a zero-spread replicate set yields exactly p = 1 or p = 0 by construction, so exact equality is intended"
+    )]
     fn replicate_p_value_zero_sd_matches_hypothesis_is_one() {
         // All replicates identical (SD = 0) and equal to the hypothesized value.
         let p = replicate_p_value(&[1.5, 1.5, 1.5, 1.5], 1.5).unwrap();
@@ -1124,6 +1141,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a zero-spread replicate set yields exactly p = 1 or p = 0 by construction, so exact equality is intended"
+    )]
     fn replicate_p_value_zero_sd_away_from_hypothesis_is_zero() {
         let p = replicate_p_value(&[1.5, 1.5, 1.5, 1.5], 0.0).unwrap();
         assert_eq!(p, 0.0);

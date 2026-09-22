@@ -1,8 +1,7 @@
+#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::similar_names)]
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 //! Staged `MediationEffect` and `Counterfactual` on a confounded linear SCM.
 //!

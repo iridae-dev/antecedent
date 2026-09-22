@@ -5,7 +5,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -446,6 +452,10 @@ fn node_to_prepared(node: NodeRef, role: u8) -> Result<PreparedColumn, DataError
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn compile_inner(
     data: &impl TableView,
     lag_map: Option<Arc<LagMap>>,

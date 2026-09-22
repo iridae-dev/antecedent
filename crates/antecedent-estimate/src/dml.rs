@@ -203,7 +203,7 @@ impl DmlAte {
         )?;
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
-        effect.learner_provenance = treat.model_provenance.clone();
+        effect.learner_provenance.clone_from(&treat.model_provenance);
         Ok(effect)
     }
 
@@ -521,6 +521,10 @@ mod tests {
         assert!((effect.ate - 2.0).abs() < 0.35, "ate={}", effect.ate);
     }
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the value is (i / 2) % 5, at most 4; fold ids are at most 4"
+    )]
     fn cached_oof_reuses_predictions_and_invalidates_changed_input() {
         let (t, y, z) = confounded_columns(120, 12);
         let (data, estimand) = build_dataset(t, y, z);

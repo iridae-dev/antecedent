@@ -2,7 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::cast_possible_truncation, clippy::unnecessary_wraps)]
+#![allow(clippy::unnecessary_wraps)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::float_cmp,
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::CausalRng;
 
@@ -179,6 +187,10 @@ pub fn mean_diff_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsErr
 /// # Errors
 ///
 /// Empty samples.
+#[allow(
+    clippy::float_cmp,
+    reason = "tie groups are runs of exactly equal observed values, so bitwise equality is the definition of a tie"
+)]
 pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsError> {
     if a.is_empty() || b.is_empty() {
         return Err(StatsError::Shape {
@@ -475,6 +487,12 @@ const MEDIAN_HEURISTIC_SAMPLE_SIZE: usize = 2_000;
 /// `(i, j)` pair enumeration can alias with periodicity in structured / time-ordered
 /// input — exactly what `kernel_two_sample` is documented to be used on — and bias the
 /// estimated median away from the true one.
+/// Uniform-enough index in `0..n` from one 64-bit draw (modulo reduction, as before).
+fn draw_index(rng: &mut CausalRng, n: usize) -> usize {
+    let n64 = u64::try_from(n).unwrap_or(u64::MAX);
+    usize::try_from(rng.next_u64() % n64).unwrap_or(usize::MAX)
+}
+
 fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> f64 {
     let mut pooled = Vec::with_capacity(a.len() + b.len());
     pooled.extend_from_slice(a);
@@ -493,10 +511,10 @@ fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> 
         }
     } else {
         for _ in 0..MEDIAN_HEURISTIC_SAMPLE_SIZE {
-            let i = (rng.next_u64() as usize) % n;
-            let mut j = (rng.next_u64() as usize) % n;
+            let i = draw_index(rng, n);
+            let mut j = draw_index(rng, n);
             while j == i {
-                j = (rng.next_u64() as usize) % n;
+                j = draw_index(rng, n);
             }
             diffs.push((pooled[i] - pooled[j]).abs());
         }
@@ -581,6 +599,10 @@ fn fisher_yates_shuffle_index(xs: &mut [usize], rng: &mut CausalRng) {
 /// sample variance to `0.0`: summing then dividing by `n` rounds when `n` does not divide
 /// evenly, so even genuinely constant input (e.g. three copies of the same value) can
 /// come back with a variance that is a tiny nonzero number instead of exact zero.
+#[allow(
+    clippy::float_cmp,
+    reason = "constancy means every value is exactly equal to the first; comparing a computed variance would round"
+)]
 fn is_constant(xs: &[f64]) -> bool {
     match xs.split_first() {
         Some((first, rest)) => rest.iter().all(|v| v == first),

@@ -9,7 +9,10 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
 - **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
-  crates.io publish dry-run when manifests change).
+  crates.io publish dry-run when manifests change). Three lints that can hide a
+  real defect (`cast_possible_truncation`, `cast_sign_loss`, `float_cmp`) are
+  never allowed file-wide in library code: an allow sits on the smallest item or
+  statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
 - **`features`** — compiles the feature combinations crates.io users get (default
   features, each optional feature alone, `--no-default-features`), which the
   workspace-wide jobs never build because the `python` member enables `ml-full`.
@@ -533,9 +536,11 @@ bash scripts/publish_crates.sh
 bash scripts/publish_crates.sh --execute
 ```
 
-Tag workflow [`.github/workflows/publish-crates.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-crates.yml)
-runs on `v*` tags (and `workflow_dispatch`) separately from the Python
-`publish-release.yml` wheel pipeline. Set repository secret `CRATES_IO_TOKEN`.
+The `crates-dry-run` and `publish-crates` jobs of
+[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
+publish the crates as part of the same tagged release as the wheels: every crate is
+dry-run before PyPI is touched, and the upload runs after PyPI succeeded, in the
+`release` environment. Set repository secret `CRATES_IO_TOKEN`.
 
 Checklist before the first public crate release:
 

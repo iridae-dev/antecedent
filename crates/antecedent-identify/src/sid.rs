@@ -1739,6 +1739,69 @@ pub enum CatalogTransportResult {
     },
 }
 
+/// Search stages of catalog-aware transport identification, in the order they are tried.
+const SEARCH_STAGES: [&str; 3] =
+    ["target_first_sid", "pretreatment_standardization", "catalog_available_source_first_sid"];
+
+/// The first `count` search stages, as recorded on a result.
+fn searched_stages(count: usize) -> Arc<[Arc<str>]> {
+    SEARCH_STAGES.iter().take(count).map(|&stage| Arc::from(stage)).collect()
+}
+
+/// Pretreatment candidates: non-descendants of the treatments among the remaining nodes.
+fn pretreatment_candidates(
+    diagram: &SelectionDiagram,
+    state: &State,
+    x_nodes: &[DenseNodeId],
+) -> Vec<DenseNodeId> {
+    let mut reach = GraphWorkspace::default();
+    difference(&difference(&state.v, &state.x), &state.y)
+        .to_dense_ids()
+        .into_iter()
+        .filter(|z| {
+            !x_nodes.iter().any(|x| diagram.causal_graph().reaches_with(*x, *z, &mut reach))
+        })
+        .collect()
+}
+
+/// The obligation recorded when the pretreatment-standardization search finds no derivation.
+fn pretreatment_obligation(end: SubsetSearchEnd, steps: usize, n_candidates: usize) -> String {
+    if end == SubsetSearchEnd::Capped {
+        format!(
+            "pretreatment standardization search stopped after {steps} candidate subsets of {n_candidates} pretreatment covariates; inconclusive"
+        )
+    } else {
+        "searched pretreatment standardizations: required supplied source conditional or target marginal is missing".to_owned()
+    }
+}
+
+/// One-step derivation that standardizes over `over`, or transports directly when it is empty.
+fn standardization_derivation(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    arena: CausalExprArena,
+    state: &State,
+    output: ExprId,
+    over: Vec<VariableId>,
+) -> ClassicalTransportDerivation {
+    ClassicalTransportDerivation {
+        query: query.clone(),
+        graph_signature: graph_signature(diagram),
+        selection_targets: diagram.selection_targets().into(),
+        arena,
+        root: output,
+        root_step: 0,
+        sources: Vec::new(),
+        proof: vec![ProofStep {
+            state: state.clone(),
+            rule: if over.is_empty() { Rule::DirectTransport } else { Rule::Standardize },
+            children: Vec::new(),
+            output,
+            parameters: over,
+        }],
+    }
+}
+
 /// Try target-first sID, then catalog-aware source/target recursive choices.
 /// This bounded two-strategy search does not inherit classical completeness.
 ///
@@ -1777,15 +1840,7 @@ pub fn identify_catalog_transport(
             verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
             match derivation.bind_catalog(catalog) {
                 Ok(mut bound) => {
-                    bound.searched = if strategy == 0 {
-                        Arc::from([Arc::from("target_first_sid")])
-                    } else {
-                        Arc::from([
-                            Arc::from("target_first_sid"),
-                            Arc::from("pretreatment_standardization"),
-                            Arc::from("catalog_available_source_first_sid"),
-                        ])
-                    };
+                    bound.searched = searched_stages(if strategy == 0 { 1 } else { 3 });
                     return Ok(CatalogTransportResult::Identified(Box::new(bound)));
                 }
                 Err(error) => obligations.push(Arc::from(error.to_string())),
@@ -1800,18 +1855,8 @@ pub fn identify_catalog_transport(
             // subsets are tried smallest first under the search's own budget, so
             // its exhaustion is an obligation, never a failure of the whole call
             // and never a reason to skip the cheaper source-first strategy.
-            let mut reach = GraphWorkspace::default();
             let x_nodes = state.x.to_dense_ids();
-            let candidates: Vec<DenseNodeId> =
-                difference(&difference(&state.v, &state.x), &state.y)
-                    .to_dense_ids()
-                    .into_iter()
-                    .filter(|z| {
-                        !x_nodes
-                            .iter()
-                            .any(|x| diagram.causal_graph().reaches_with(*x, *z, &mut reach))
-                    })
-                    .collect();
+            let candidates = pretreatment_candidates(diagram, &state, &x_nodes);
             let targets = engine.dense_all(diagram.selection_targets())?;
             let selection =
                 MutilatedSelection::build(diagram.causal_graph(), &state.v, &state.x, &targets)?;
@@ -1838,34 +1883,19 @@ pub fn identify_catalog_transport(
                         return Ok(false);
                     };
                     had_derivation = true;
-                    let derivation = ClassicalTransportDerivation {
-                        query: query.clone(),
-                        graph_signature: graph_signature(diagram),
-                        selection_targets: diagram.selection_targets().into(),
-                        arena: engine.arena.clone(),
-                        root: output,
-                        root_step: 0,
-                        sources: Vec::new(),
-                        proof: vec![ProofStep {
-                            state: state.clone(),
-                            rule: if over.is_empty() {
-                                Rule::DirectTransport
-                            } else {
-                                Rule::Standardize
-                            },
-                            children: Vec::new(),
-                            output,
-                            parameters: over,
-                        }],
-                    };
+                    let derivation = standardization_derivation(
+                        diagram,
+                        query,
+                        engine.arena.clone(),
+                        &state,
+                        output,
+                        over,
+                    );
                     let Ok(mut bound) = derivation.bind_catalog(catalog) else {
                         return Ok(false);
                     };
                     verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
-                    bound.searched = Arc::from([
-                        Arc::from("target_first_sid"),
-                        Arc::from("pretreatment_standardization"),
-                    ]);
+                    bound.searched = searched_stages(2);
                     found = Some(bound);
                     Ok(true)
                 },
@@ -1873,15 +1903,11 @@ pub fn identify_catalog_transport(
             if let Some(bound) = found {
                 return Ok(CatalogTransportResult::Identified(Box::new(bound)));
             }
-            obligations.push(Arc::from(if end == SubsetSearchEnd::Capped {
-                format!(
-                    "pretreatment standardization search stopped after {} candidate subsets of {} pretreatment covariates; inconclusive",
-                    limits.steps,
-                    candidates.len()
-                )
-            } else {
-                "searched pretreatment standardizations: required supplied source conditional or target marginal is missing".to_owned()
-            }));
+            obligations.push(Arc::from(pretreatment_obligation(
+                end,
+                limits.steps,
+                candidates.len(),
+            )));
             // This cache is scoped to immutable evidence and strategy. Changing
             // the evidence-selection policy invalidates it, not just its root.
             engine.memo.clear();
@@ -1889,11 +1915,7 @@ pub fn identify_catalog_transport(
             result = engine.solve(state.clone(), true, 0)?;
         }
     }
-    let searched = Arc::from([
-        Arc::from("target_first_sid"),
-        Arc::from("pretreatment_standardization"),
-        Arc::from("catalog_available_source_first_sid"),
-    ]);
+    let searched = searched_stages(3);
     let obligations = obligations.into();
     Ok(if had_derivation {
         CatalogTransportResult::MissingEvidence { searched, obligations }

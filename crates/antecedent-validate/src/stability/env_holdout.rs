@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -197,6 +203,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the agreement of tiny fixed sets is exactly 0 or 1/2, so exact equality is intended"
+    )]
     fn nothing_discovered_is_undefined_agreement_not_perfect_agreement() {
         let link = |source, target| LaggedLink {
             source: VariableId::from_raw(source),

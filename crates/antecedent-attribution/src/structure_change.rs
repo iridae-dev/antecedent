@@ -115,6 +115,7 @@ pub fn structure_change(
         .iter()
         .map(|c| {
             let idx = variables.iter().position(|v| *v == c.variable()).expect("player in layout");
+            #[allow(clippy::cast_possible_truncation, reason = "idx is a position within the model output layout, whose node ids are u32 by construction")]
             DenseNodeId::from_raw(idx as u32)
         })
         .collect();
@@ -243,6 +244,10 @@ fn structure_players(
     let mut players = Vec::new();
     let mut unidentified = Vec::new();
     for i in 0..n {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the graphs' node count is bounded by DenseNodeId, which is u32 by construction"
+        )]
         let node = DenseNodeId::from_raw(i as u32);
         if !parent_sets_differ(&baseline.graph, &comparison.graph, node) {
             continue;
@@ -287,6 +292,10 @@ pub(crate) fn hybrid_structure_dag(
         player_of_node[p.as_usize()] = Some(pi);
     }
     for i in 0..n {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "n was checked to fit u32 above (n_u32)"
+        )]
         let child = DenseNodeId::from_raw(i as u32);
         let use_comparison = player_of_node[i].is_some_and(|pi| mask & (1u64 << pi) != 0);
         let parents =
@@ -453,11 +462,12 @@ impl StructureSwapPayoff<'_> {
     }
 
     fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        if !self.hybrid_cache.contains_key(&mask) {
-            let model = self.build_hybrid(mask)?;
-            self.hybrid_cache.insert(mask, model);
-        }
-        let model = &self.hybrid_cache[&mask];
+        let model = if let Some(cached) = self.hybrid_cache.get(&mask) {
+            cached
+        } else {
+            let built = self.build_hybrid(mask)?;
+            self.hybrid_cache.entry(mask).or_insert(built)
+        };
         sample_outcome_law(
             model,
             self.outcome,

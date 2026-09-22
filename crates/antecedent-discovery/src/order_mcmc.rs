@@ -9,7 +9,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
@@ -264,19 +271,19 @@ fn propose_order(
     let rejected = 0u64;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
-        let k = (rng.next_u64() as usize) % (n - 1);
+        let k = crate::indexing::bounded_index(rng.next_u64(), n - 1);
         new_order.swap(k, k + 1);
         new_mask = reorient_skeleton(mask, &new_order, n);
     } else if u < 0.55 && n >= 3 {
-        let a = (rng.next_u64() as usize) % n;
-        let b = (rng.next_u64() as usize) % n;
+        let a = crate::indexing::bounded_index(rng.next_u64(), n);
+        let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
             new_order.swap(a, b);
             new_mask = reorient_skeleton(mask, &new_order, n);
         }
     } else {
-        let a = (rng.next_u64() as usize) % n;
-        let b = (rng.next_u64() as usize) % n;
+        let a = crate::indexing::bounded_index(rng.next_u64(), n);
+        let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
             let pos = position_map(&new_order);
             let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };

@@ -57,7 +57,11 @@ impl LearnedTrialResult {
     }
 }
 fn trial_reasoning(unavailable: Option<&str>) -> antecedent_core::ReasoningView {
-    use antecedent_core::{AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot, IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView, SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot, UncertaintySource};
+    use antecedent_core::{
+        AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
+        IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
+        SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot, UncertaintySource,
+    };
     ReasoningView::new(
         SlotAvailability::Available(IdentificationSlot::identified_singleton(
             IdentificationStatus::NonparametricallyIdentified,
@@ -284,7 +288,9 @@ mod tests {
             sampling: antecedent_estimate::TrialSampling::IndependentSamples,
         };
         let options = TrialAipwOptions {
-            outcome: antecedent_estimate::LearnerSpec::Linear(Default::default()),
+            outcome: antecedent_estimate::LearnerSpec::Linear(
+                antecedent_estimate::LinearSpec::default(),
+            ),
             folds: 3,
             bootstrap: 5,
             ..Default::default()

@@ -30,11 +30,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::manual_memcpy,
-    clippy::needless_range_loop
+#![allow(clippy::manual_memcpy, clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -299,6 +302,10 @@ impl WaldIv {
     /// # Errors
     ///
     /// More than one instrument, a non-binary instrument, or a degenerate (zero) first stage.
+    #[allow(
+        clippy::float_cmp,
+        reason = "a binary instrument is coded exactly 0.0 or 1.0, so exact comparison is the intended test"
+    )]
     pub fn fit(
         &self,
         problem: &PreparedIvProblem,
@@ -330,13 +337,15 @@ impl WaldIv {
         attach_anderson_rubin(
             &mut first_stage_diagnostics,
             self.se_kind,
-            &problem.outcome,
-            &problem.treatment,
-            &z,
-            1,
-            &problem.exogenous_matrix,
-            problem.x_ncols,
-            problem.treatment_delta,
+            &ArData {
+                y: &problem.outcome,
+                t: &problem.treatment,
+                instruments_colmajor: &z,
+                z_ncols: 1,
+                exogenous_colmajor: &problem.exogenous_matrix,
+                x_ncols: problem.x_ncols,
+                treatment_delta: problem.treatment_delta,
+            },
         )?;
         // Licensed IV uncertainty is the Anderson–Rubin set on first-stage
         // diagnostics — never a Wald SE (pretest or otherwise) or bootstrap SE.
@@ -393,6 +402,18 @@ fn wald_ratio(z: &[f64], t: &[f64], y: &[f64]) -> Result<WaldResult, EstimationE
 /// Wald interval level previously claimed by `se_analytic`).
 const AR_LEVEL: f64 = 0.95;
 
+/// Column-major inputs of the Anderson–Rubin set: outcome, treatment, the excluded
+/// instruments, the exogenous controls, and the treatment contrast that scales the set.
+struct ArData<'a> {
+    y: &'a [f64],
+    t: &'a [f64],
+    instruments_colmajor: &'a [f64],
+    z_ncols: usize,
+    exogenous_colmajor: &'a [f64],
+    x_ncols: usize,
+    treatment_delta: f64,
+}
+
 /// Attach a homoskedastic Anderson–Rubin set for the ATE-scale structural effect.
 ///
 /// Non-homoskedastic `se_kind` values withhold AR with an explicit reason: a robust
@@ -400,14 +421,17 @@ const AR_LEVEL: f64 = 0.95;
 fn attach_anderson_rubin(
     diagnostics: &mut Option<FirstStageDiagnostics>,
     se_kind: AnalyticSeKind,
-    y: &[f64],
-    t: &[f64],
-    instruments_colmajor: &[f64],
-    z_ncols: usize,
-    exogenous_colmajor: &[f64],
-    x_ncols: usize,
-    treatment_delta: f64,
+    data: &ArData<'_>,
 ) -> Result<(), EstimationError> {
+    let ArData {
+        y,
+        t,
+        instruments_colmajor,
+        z_ncols,
+        exogenous_colmajor,
+        x_ncols,
+        treatment_delta,
+    } = *data;
     let Some(diag) = diagnostics.as_mut() else {
         return Ok(());
     };
@@ -664,13 +688,15 @@ impl TwoStageLeastSquares {
         attach_anderson_rubin(
             &mut diagnostics,
             self.se_kind,
-            &problem.outcome,
-            &problem.treatment,
-            &problem.instruments_matrix[problem.nrows..],
-            problem.z_ncols - 1,
-            &problem.exogenous_matrix,
-            problem.x_ncols,
-            problem.treatment_delta,
+            &ArData {
+                y: &problem.outcome,
+                t: &problem.treatment,
+                instruments_colmajor: &problem.instruments_matrix[problem.nrows..],
+                z_ncols: problem.z_ncols - 1,
+                exogenous_colmajor: &problem.exogenous_matrix,
+                x_ncols: problem.x_ncols,
+                treatment_delta: problem.treatment_delta,
+            },
         )?;
         let se_analytic = f64::NAN;
 
@@ -682,7 +708,11 @@ impl TwoStageLeastSquares {
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use antecedent_core::StreamDomain;
 

@@ -12,11 +12,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::float_cmp,
-    clippy::manual_map,
-    clippy::too_many_arguments
+#![allow(clippy::manual_map, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -205,6 +208,10 @@ impl GlmAdjustmentAte {
     ///
     /// Overlap policy is not `ExplicitOverride`, incompatible estimand, unsupported query, or
     /// missing/invalid data columns.
+    #[allow(
+        clippy::float_cmp,
+        reason = "the two arms are user-supplied intervention levels, and identical levels are the degenerate contrast this exact-equality check rejects; the binomial outcome is coded exactly 0.0 or 1.0, so exact comparison is the intended test"
+    )]
     pub fn prepare(
         &self,
         data: &TabularData,
@@ -931,7 +938,11 @@ fn gcomp_gradient(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use antecedent_core::StreamDomain;
 

@@ -190,7 +190,8 @@ pub fn norm_pdf(x: f64) -> f64 {
     clippy::excessive_precision,
     clippy::float_cmp,
     clippy::items_after_statements,
-    clippy::manual_range_contains
+    clippy::manual_range_contains,
+    reason = "the exact comparisons test the endpoints p == 0.0 and p == 1.0, which are special-cased"
 )]
 pub fn norm_inv(p: f64) -> f64 {
     if !(0.0..=1.0).contains(&p) {

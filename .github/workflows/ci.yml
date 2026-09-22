@@ -66,6 +66,9 @@ jobs:
       - name: Format
         run: bash scripts/gate_rustfmt.sh
 
+      - name: Lint allows carry reasons
+        run: bash scripts/gate_lint_allows.sh
+
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 

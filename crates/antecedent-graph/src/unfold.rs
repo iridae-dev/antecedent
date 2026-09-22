@@ -5,7 +5,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+#![allow(clippy::cast_possible_wrap)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -161,7 +168,8 @@ fn insert_replicated_edges(
     let min_off = -(indexer.history() as i32);
     let max_off = (indexer.horizon() as i32) - 1;
     for delta in stationary_shifts(indexer, i64::from(from_key.offset), i64::from(to_key.offset)) {
-        let delta = delta as i32;
+        // A shift outside i32 would place both endpoints outside the i32 window.
+        let Ok(delta) = i32::try_from(delta) else { continue };
         let a = TemporalNodeKey {
             variable: from_key.variable,
             offset: from_key.offset.saturating_add(delta),

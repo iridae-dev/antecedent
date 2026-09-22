@@ -8,7 +8,7 @@ use antecedent::prelude::*;
 use antecedent_core::{Intervention, StreamDomain, Value};
 
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss)]
 pub fn run() -> Result<(), CausalError> {
     let n = 120usize;
     let z: Vec<f64> = (0..n).map(|i| (i as f64) * 0.01).collect();

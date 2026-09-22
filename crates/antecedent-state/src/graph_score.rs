@@ -191,6 +191,10 @@ impl LocalScoreCache {
     /// Score computation failures.
     pub fn score_graph(&mut self, data: &GraphScoreData) -> Result<f64, StateError> {
         let mut total = 0.0;
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "n_vars counts graph nodes, which are addressed by u32 node ids"
+        )]
         for node in 0..data.n_vars as u32 {
             total += self.local_score(data, node, &self.parents_of(node))?;
         }
@@ -326,6 +330,10 @@ pub fn full_graph_score(
     parents: &HashMap<u32, Arc<[u32]>>,
 ) -> Result<f64, StateError> {
     let mut total = 0.0;
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "n_vars counts graph nodes, which are addressed by u32 node ids"
+    )]
     for node in 0..data.n_vars as u32 {
         let pa = parents.get(&node).cloned().unwrap_or_else(|| Arc::from([]));
         total += match family {
@@ -368,6 +376,10 @@ mod tests {
     /// new data after `clear()`.
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a cache hit must return the stored score bit for bit, and a recompute on other data must differ exactly"
+    )]
     fn cache_refuses_different_data() {
         let a = chain_data();
         let mut cache = fresh_cache(&a);

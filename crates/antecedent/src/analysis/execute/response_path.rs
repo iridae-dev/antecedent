@@ -2186,6 +2186,10 @@ mod influence_review_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the scalar standard error is copied from the same joint-covariance entry, so it must match bit for bit"
+    )]
     fn scalar_response_influence_still_attaches_its_standard_error() {
         let scores = influence(vec![vec![1.0, -1.0, 2.0, -2.0]]);
         let mut scalar = EffectEstimate::new(

@@ -584,6 +584,10 @@ pub fn parse_validators(
 }
 
 /// Overlay Python mechanism wrappers onto a fitted GCM store.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+)]
 pub fn apply_mechanism_wrappers(
     model: &CompiledCausalModel,
     names: &[String],

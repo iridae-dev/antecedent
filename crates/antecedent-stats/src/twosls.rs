@@ -456,8 +456,8 @@ enum QuadraticAcceptance {
     },
 }
 
-/// Confidence band `(estimate, lower, upper)` and, when none exists, the reason code.
-type AndersonRubinBand = (Option<(f64, f64, f64)>, Option<&'static str>);
+/// Confidence-set triple, if one exists, plus the reason code when it does not.
+type ArConfidenceSet = (Option<(f64, f64, f64)>, Option<&'static str>);
 
 /// Invert the homoskedastic Anderson–Rubin test at `level` by solving the exact
 /// quadratic inequality in β after residualizing on the exogenous block (including
@@ -482,7 +482,7 @@ pub fn anderson_rubin_confidence_set(
     level: f64,
     backend: &impl DenseLinearAlgebra,
     workspace: &mut LeastSquaresWorkspace,
-) -> Result<AndersonRubinBand, StatsError> {
+) -> Result<ArConfidenceSet, StatsError> {
     if z_ncols == 0 {
         return Ok((None, Some("anderson_rubin_requires_excluded_instruments")));
     }
@@ -726,6 +726,7 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(clippy::float_cmp, reason = "the level is returned as passed, not computed")]
     fn anderson_rubin_confidence_set_covers_true_beta_on_strong_fixture() {
         let n = 200usize;
         let mut z = vec![0.0; n];
@@ -752,6 +753,7 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(clippy::float_cmp, reason = "the level is returned as passed, not computed")]
     fn anderson_rubin_quadratic_recovers_narrow_interval_off_mesh() {
         // True β = 2.05 with a strong first stage and tiny residual noise so the 95%
         // AR set is narrower than the old 0.1 probe mesh and contains no mesh point.

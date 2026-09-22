@@ -12,12 +12,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::needless_range_loop,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::unused_self
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -480,7 +486,7 @@ fn build_lagged_score_data(
 fn lag_bit(p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> u32 {
     debug_assert!(lag >= 1 && lag <= max_lag);
     let block = (lag as usize - 1) * p * p;
-    (block + from * p + to) as u32
+    crate::indexing::dense_u32(block + from * p + to)
 }
 
 fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> bool {
@@ -756,7 +762,7 @@ fn score_dbn_template(
                 }
                 if present {
                     // Column index for (i, lag) in lagged design.
-                    pa.push((lag as usize * p + i) as u32);
+                    pa.push(crate::indexing::dense_u32(lag as usize * p + i));
                 }
             }
         }
@@ -765,7 +771,7 @@ fn score_dbn_template(
         }
         pa.sort_unstable();
         pa.dedup();
-        let s = cache.local_score(data, j as u32, &Arc::from(pa)).ok()?;
+        let s = cache.local_score(data, crate::indexing::dense_u32(j), &Arc::from(pa)).ok()?;
         if !s.is_finite() {
             return None;
         }
@@ -811,8 +817,8 @@ fn propose_dbn(
     let mut rejected = 0u64;
     if rng.next_f64() < 0.5 {
         // Flip a contemporaneous directed edge.
-        let i = (rng.next_u64() as usize) % p;
-        let j = (rng.next_u64() as usize) % p;
+        let i = crate::indexing::bounded_index(rng.next_u64(), p);
+        let j = crate::indexing::bounded_index(rng.next_u64(), p);
         if i == j {
             return (cmask, lmask, 0);
         }
@@ -827,7 +833,7 @@ fn propose_dbn(
     } else {
         // Flip a lag edge.
         let n_lag_bits = (max_lag as usize) * p * p;
-        let b = (rng.next_u64() as usize) % n_lag_bits.max(1);
+        let b = crate::indexing::bounded_index(rng.next_u64(), n_lag_bits.max(1));
         let prop = lmask ^ (1u64 << b);
         (cmask, prop, 0)
     }
@@ -1157,6 +1163,10 @@ mod tests {
     /// error of an indicator that never varies is exactly zero.
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an indicator that never varies has an MCSE of exactly zero by construction"
+    )]
     fn dbn_mcmc_starts_inside_required_edge_support() {
         let (data, vars) = multi_parent_lag_series(260);
         let eng = DbnPosterior::new(1).with_force_mcmc(true).with_mcmc_schedule(2, 300, 4000);

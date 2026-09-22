@@ -55,7 +55,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -526,7 +532,11 @@ fn analytic_se_treatment(x_colmajor: &[f64], nrows: usize, sigma2: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use antecedent_core::StreamDomain;
 

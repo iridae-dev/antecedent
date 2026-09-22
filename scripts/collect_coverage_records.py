@@ -89,7 +89,10 @@ HEADER = """# Coverage records bound onto executions at claim time.
 # and collected by `scripts/collect_coverage_records.py`, which stamps the SHA
 # of the commit the logs were measured at. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row. The pass/fail
-# groups that emit no record are attested in parity/calibration_gates.toml.
+# groups that emit no record are attested in parity/calibration_gates.toml. Each
+# row's `surface_list_blob` is the git blob of scripts/calibration_surface.list at
+# `calibration_sha`, so the surface a record was attested against is stored, not
+# only re-derived from history.
 """
 
 FIELDS = (
@@ -122,6 +125,7 @@ FIELDS = (
     "test",
     "facets",
     "calibration_sha",
+    "surface_list_blob",
 )
 
 # Estimator rows of parity/estimate.toml and the resolved plan estimators whose
@@ -174,7 +178,9 @@ GRID_ENTRY_FIELDS = (
 )
 
 
-def record_lines(logs: list[Path], smoke: bool = False) -> dict[str, dict[int, dict]]:
+def record_lines(
+    logs: list[Path], smoke: bool = False, sha: str | None = None
+) -> dict[str, dict[int, dict]]:
     """`calibration-record` payloads by record id and grid point.
 
     A point's recheck log (`<group>.p<k>.recheck.log`) replaces that point's
@@ -203,6 +209,13 @@ def record_lines(logs: list[Path], smoke: bool = False) -> dict[str, dict[int, d
                     if not smoke
                     else f"{log.name}: record {rid} is not a smoke line; --smoke collects only a "
                     "smoke run's logs"
+                )
+            measured_at = payload.pop("measured_at", "")
+            if sha is not None and not smoke and measured_at != sha:
+                raise SystemExit(
+                    f"{log.name}: record {rid} says it was measured at {measured_at or '<nothing>'}, "
+                    f"not at {sha}; each record carries the commit its harness measured, so a line "
+                    "from another run or commit cannot be collected under this one"
                 )
             if "grid_point" not in payload:
                 raise SystemExit(
@@ -298,9 +311,13 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
     return record
 
 
-def merged_records(logs: list[Path], smoke: bool = False) -> dict[str, dict]:
+def merged_records(
+    logs: list[Path], smoke: bool = False, sha: str | None = None
+) -> dict[str, dict]:
     """Every record the logs measured, merged over its grid points."""
-    return {rid: merge_grid(rid, points) for rid, points in record_lines(logs, smoke).items()}
+    return {
+        rid: merge_grid(rid, points) for rid, points in record_lines(logs, smoke, sha).items()
+    }
 
 
 CARGO_RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
@@ -390,14 +407,30 @@ def load_records(
     logs = sorted(log_dir.glob("*.log"))
     if verify_logs and not smoke:
         check_logs(logs, sha)
-    records = merged_records(logs, smoke)
+    records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
     if not records:
         raise SystemExit(
             f"no calibration-record lines in {log_dir}: nothing measured, so nothing to commit"
         )
     for record in records.values():
         record["calibration_sha"] = sha
+        record["surface_list_blob"] = surface_list_blob(sha)
     return records
+
+
+def surface_list_blob(sha: str) -> str:
+    """The git blob of the surface list at `sha`: what the record's facets were derived from."""
+    done = subprocess.run(
+        ["git", "rev-parse", f"{sha}:scripts/calibration_surface.list"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if done.returncode != 0:
+        raise SystemExit(
+            f"cannot read scripts/calibration_surface.list at {sha}: {done.stderr.strip()}"
+        )
+    return done.stdout.strip()
 
 
 def toml_value(key: str, value) -> str:
@@ -447,6 +480,7 @@ def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
     lines = [HEADER]
     for rid in sorted(records):
         rec = records[rid]
+        rec.setdefault("surface_list_blob", surface_list_blob(rec["calibration_sha"]))
         lines.append("[[record]]")
         for key in FIELDS:
             if key not in rec:

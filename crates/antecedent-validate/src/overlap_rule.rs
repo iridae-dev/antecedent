@@ -75,10 +75,12 @@ impl OverlapRuleRefuter {
             report.refuter = Arc::from("overlap.continuous_rule");
             return Ok(report);
         }
-        let report = if let Some(r) = &problem.original.overlap_report { r.clone() } else {
+        let report = if let Some(r) = &problem.original.overlap_report {
+            r.clone()
+        } else {
             let fit = self.diagnostic_report(problem, eps, propensity)?;
             if let Some(defect) = fit.defect {
-                return Ok(self.separated_report(problem, defect));
+                return Ok(Self::separated_report(problem, defect));
             }
             fit.report
         };
@@ -95,7 +97,7 @@ impl OverlapRuleRefuter {
         } else {
             let fit = self.diagnostic_report(problem, eps, propensity)?;
             if let Some(defect) = fit.defect {
-                return Ok(self.separated_report(problem, defect));
+                return Ok(Self::separated_report(problem, defect));
             }
             fit.report.target_population_support
         };
@@ -120,7 +122,7 @@ impl OverlapRuleRefuter {
     }
 
     /// The rule failure a separated / non-converged diagnostic propensity fit stands for.
-    fn separated_report(&self, problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
+    fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
         RefutationReport {
             refuter: Arc::from("overlap.rule"),
             original_ate: problem.original.ate,

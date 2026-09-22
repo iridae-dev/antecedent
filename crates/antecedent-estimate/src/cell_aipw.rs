@@ -7,7 +7,14 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::needless_range_loop)]
-#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::cast_possible_truncation)]
+#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -375,7 +382,7 @@ fn crossfit_cell_scores(
         // The clip is the only floor. With none, a cell propensity of exactly 0 (infinite
         // weight) is refused rather than silently floored at a hidden constant.
         let floor = clip.unwrap_or(0.0);
-        if clip.is_none() && e_valid.iter().any(|&e| !(e > 0.0)) {
+        if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
             return Err(EstimationError::Overlap {
                 message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
             });

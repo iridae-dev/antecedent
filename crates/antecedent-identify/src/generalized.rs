@@ -31,7 +31,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_arguments)]
+#![allow(clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -320,6 +327,15 @@ impl GeneralizedAdjustmentIdentifier {
     }
 }
 
+/// Converts a node position to the `u32` payload of a dense id.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "positions index u32-addressed dense node ids, so they are below u32::MAX"
+)]
+fn dense_u32(index: usize) -> u32 {
+    index as u32
+}
+
 fn cpdag_undirected_features(cpdag: &Cpdag) -> Vec<GraphFeature> {
     let n = cpdag.undirected_edge_count();
     if n == 0 {
@@ -361,7 +377,7 @@ pub(crate) fn validate_dag_conditional_adjustment(
     if query.effect_modifiers.is_empty() {
         return Ok(());
     }
-    let mut admg = Admg::with_variables(dag.node_count() as u32);
+    let mut admg = Admg::with_variables(dense_u32(dag.node_count()));
     for edge in dag.edges() {
         if let Some((from, to)) = edge.parent_child() {
             admg.insert_directed(from, to)?;
@@ -374,7 +390,7 @@ pub(crate) fn validate_dag_conditional_adjustment(
         .ok_or(IdentificationError::UnknownVariable { id: query.treatment })?;
     validate_conditional_adjustment(
         &admg,
-        &mutilate_outgoing(&admg, DenseNodeId::from_raw(t as u32)),
+        &mutilate_outgoing(&admg, DenseNodeId::from_raw(dense_u32(t))),
         dag.nodes(),
         query,
         result,
@@ -650,7 +666,7 @@ fn gac_conditional_candidates(
             let antecedent_graph::NodeRef::Static(variable) = node else {
                 return None;
             };
-            let id = DenseNodeId::from_raw(i as u32);
+            let id = DenseNodeId::from_raw(dense_u32(i));
             let outside_history = config.max_history_lag.is_some_and(|cap| {
                 config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
             });
@@ -696,9 +712,9 @@ fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg
     if causal_children.iter().any(|&v| !crate::joint_response::visible(mag, t, v)) {
         return None;
     }
-    let mut cut = Admg::with_variables(graph.node_count() as u32);
+    let mut cut = Admg::with_variables(dense_u32(graph.node_count()));
     for i in 0..graph.node_count() {
-        let a = DenseNodeId::from_raw(i as u32);
+        let a = DenseNodeId::from_raw(dense_u32(i));
         for &b in graph.children(a) {
             if a != t || !causal_children.contains(&b) {
                 cut.insert_directed(a, b).ok()?;
@@ -942,7 +958,7 @@ fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<Den
     let an_y = directed_closure(admg, &[y], true);
     let mut cn = Vec::new();
     for i in 0..admg.node_count() {
-        let id = DenseNodeId::from_raw(i as u32);
+        let id = DenseNodeId::from_raw(dense_u32(i));
         if id != t && de_t.contains(id) && an_y.contains(id) {
             cn.push(id);
         }
@@ -950,7 +966,7 @@ fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<Den
     let forb = directed_closure(admg, &cn, false);
     let mut out = Vec::new();
     for i in 0..admg.node_count() {
-        let id = DenseNodeId::from_raw(i as u32);
+        let id = DenseNodeId::from_raw(dense_u32(i));
         if id == t || id == y || forb.contains(id) {
             continue;
         }
@@ -1019,10 +1035,10 @@ pub(crate) fn capped_completion_result(
 }
 
 pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
-    let n = mag.node_count() as u32;
+    let n = dense_u32(mag.node_count());
     let mut admg = Admg::with_variables(n);
     for i in 0..mag.node_count() {
-        let a = DenseNodeId::from_raw(i as u32);
+        let a = DenseNodeId::from_raw(dense_u32(i));
         for (b, at_a, at_b) in mag.neighbors(a) {
             if b.raw() < a.raw() {
                 continue;
@@ -1055,7 +1071,7 @@ pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
 pub(crate) fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNodeId)> {
     let mut out = Vec::new();
     for i in 0..mag.node_count() {
-        let a = DenseNodeId::from_raw(i as u32);
+        let a = DenseNodeId::from_raw(dense_u32(i));
         for (b, at_a, at_b) in mag.neighbors(a) {
             if at_a == Endpoint::Tail
                 && at_b == Endpoint::Arrow
@@ -1090,10 +1106,10 @@ pub(crate) fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
 }
 
 fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
-    let n = admg.node_count() as u32;
+    let n = dense_u32(admg.node_count());
     let mut out = Admg::with_variables(n);
     for i in 0..admg.node_count() {
-        let u = DenseNodeId::from_raw(i as u32);
+        let u = DenseNodeId::from_raw(dense_u32(i));
         for &v in admg.children(u) {
             if u == t {
                 continue;
@@ -1112,7 +1128,13 @@ fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
 #[cfg(test)]
 mod tests {
     // Completion weights here are exact counts of unit-weight cases.
-    #![allow(clippy::float_cmp)]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            reason = "test fixtures compare exact constants and index with small literals"
+        )
+    )]
     use super::*;
     use crate::result::IdentificationStatus;
     use antecedent_graph::Pag;

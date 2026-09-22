@@ -7,7 +7,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop, clippy::too_many_lines)]
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -24,8 +31,8 @@ use crate::error::DiscoveryError;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{AlgorithmRecord, CpdagDiscoveryResult, DiscoveryDiagnostic};
 
-/// A retained lagged parent: `(variable index, lag)`.
-type LaggedParent = (usize, usize);
+/// Retained `(source variable, lag)` parents, indexed by target variable.
+type LaggedParents = Vec<Vec<(usize, usize)>>;
 
 /// Columnar regime label per time index.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -520,9 +527,9 @@ fn reassign_by_lagged_residual(
     }
 
     // Retained lagged parents per regime and target variable.
-    let mut regime_parents: Vec<(RegimeId, Vec<Vec<LaggedParent>>)> = Vec::new();
+    let mut regime_parents: Vec<(RegimeId, LaggedParents)> = Vec::new();
     for (regime, g) in graphs.graphs.iter() {
-        let mut by_target: Vec<Vec<LaggedParent>> = vec![Vec::new(); variables.len()];
+        let mut by_target: LaggedParents = vec![Vec::new(); variables.len()];
         for (i, node) in g.nodes().iter().enumerate() {
             let antecedent_graph::NodeRef::Lagged { variable: tgt, lag: tlag } = node else {
                 continue;
@@ -533,7 +540,7 @@ fn reassign_by_lagged_residual(
             let Some(ti) = variables.iter().position(|v| v == tgt) else {
                 continue;
             };
-            let from = antecedent_graph::DenseNodeId::from_raw(i as u32);
+            let from = antecedent_graph::DenseNodeId::from_raw(crate::indexing::dense_u32(i));
             for p in g.parents(from) {
                 if let Some(antecedent_graph::NodeRef::Lagged { variable: src, lag: slag }) =
                     g.nodes().get(p.as_usize())
@@ -947,7 +954,9 @@ mod tests {
         let n = 240usize;
         let mut state = 12345u64;
         let mut unif = move || {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
         };
         // Uniform(-0.5, 0.5) has variance 1/12: scale to unit variance.

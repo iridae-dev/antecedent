@@ -3498,9 +3498,12 @@ fn overlay_prepared_score_functional(
     Ok(())
 }
 
+/// Identification schedule of a sequence plan: `(variable, lag, optional level)` per step.
+type IdentificationSchedule = Vec<(antecedent_core::VariableId, i32, Option<f64>)>;
+
 fn sequence_identification_schedule(
     query: &antecedent_core::ResponseQuery,
-) -> Result<Option<Vec<(antecedent_core::VariableId, i32, Option<f64>)>>, CausalError> {
+) -> Result<Option<IdentificationSchedule>, CausalError> {
     match antecedent_estimate::plan_from_response_query(query) {
         Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
             let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {

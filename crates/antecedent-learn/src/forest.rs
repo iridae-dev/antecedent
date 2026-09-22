@@ -156,14 +156,6 @@ impl FittedPredictor for FittedForestPredictor {
 
     fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
         use crate::{PortablePredictor, PredictionMap, PredictionNode};
-        // Read the pinned provider's serde output only during export. Portable readers
-        // never deserialize a foreign model or execute its unchecked tree traversal.
-        let json = match &self.model {
-            FittedForest::Rf(model) => serde_json::to_value(model),
-            FittedForest::Extra(model) => serde_json::to_value(model),
-        }
-        .map_err(|e| LearnError::Backend(e.to_string()))?;
-        #[allow(clippy::items_after_statements)] // the decoding shapes are local to this one parse
         #[derive(serde::Deserialize)]
         struct Forest {
             trees: Vec<Tree>,
@@ -180,6 +172,13 @@ impl FittedPredictor for FittedForestPredictor {
             true_child: Option<usize>,
             false_child: Option<usize>,
         }
+        // Read the pinned provider's serde output only during export. Portable readers
+        // never deserialize a foreign model or execute its unchecked tree traversal.
+        let json = match &self.model {
+            FittedForest::Rf(model) => serde_json::to_value(model),
+            FittedForest::Extra(model) => serde_json::to_value(model),
+        }
+        .map_err(|e| LearnError::Backend(e.to_string()))?;
         let forest: Forest = serde_json::from_value(json["forest_regressor"].clone())
             .map_err(|e| LearnError::Backend(e.to_string()))?;
         let trees = forest

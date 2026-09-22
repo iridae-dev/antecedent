@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -88,6 +94,9 @@ pub(crate) fn merge_chunk_outputs(
     (traces, sample_masks, rejected)
 }
 
+/// Merged chain output: flat traces, per-chain sampled masks and the rejected-proposal count.
+type MaskChainMerge = (Vec<f64>, Vec<Vec<u64>>, u64);
+
 /// Run chunked parallel chain workers and merge their outputs.
 pub(crate) fn run_parallel_mask_chains<F>(
     n_chains: usize,
@@ -95,7 +104,7 @@ pub(crate) fn run_parallel_mask_chains<F>(
     n_params: usize,
     max_threads: usize,
     worker: F,
-) -> Result<MergedChains, DiscoveryError>
+) -> Result<MaskChainMerge, DiscoveryError>
 where
     F: Fn(usize, usize) -> ChainOutput + Send + Sync,
 {

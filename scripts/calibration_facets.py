@@ -68,6 +68,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LIST = ROOT / "scripts" / "calibration_surface.list"
 RECORDS = ROOT / "parity" / "coverage_records.toml"
+GATES = ROOT / "parity" / "calibration_gates.toml"
+# Ids of the pseudo-records the record-less group ledger contributes: a group that
+# passed at a commit is attested exactly like a record measured there, but never by
+# a replay waiver (a replay reproduces stored records; a ledger row stores none).
+GATE_PREFIX = "gate."
 
 CORE = "core"
 FACET_NAME = re.compile(r"[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)?")
@@ -541,6 +546,25 @@ def load_records(path: Path = RECORDS) -> list[dict]:
     if not path.is_file():
         return []
     return tomllib.loads(path.read_text()).get("record", [])
+
+
+def load_gate_rows(path: Path = GATES) -> list[dict]:
+    """The record-less calibration groups (CI Type I, uniformity, SBC, ...) as pseudo-records.
+
+    Their logs leave no coverage record, so without this a change to the core facet could
+    never make one of them owe a re-run. Each depends on `core` only: the ledger does not
+    name the suite behind a group, and over-attesting nothing is the safe direction."""
+    if not path.is_file():
+        return []
+    return [
+        {
+            "id": f"{GATE_PREFIX}{row['group']}",
+            "test": "",
+            "dgp": "",
+            "calibration_sha": row["calibration_sha"],
+        }
+        for row in tomllib.loads(path.read_text()).get("gate", [])
+    ]
 
 
 def record_facets(rec: dict, surface: Surface, refs: References | None = None) -> list[str]:
@@ -1172,7 +1196,7 @@ def assess(
                 rid = str(rec.get("id"))
                 if not facets[rid] & drifted.keys():
                     continue
-                for waiver in checked.valid:
+                for waiver in () if rid.startswith(GATE_PREFIX) else checked.valid:
                     if waiver_applies(waiver, resolved, facets[rid], paths, surface, repo):
                         waived[rid] = waiver.id
                         break
@@ -2282,7 +2306,7 @@ def main() -> int:
         for problem in surface.errors:
             print(f"FAIL: {problem}")
         return 1
-    records = load_records()
+    records = load_records() + load_gate_rows()
     if args.command == "counts":
         refs = references(surface)
         derived = [set(record_facets(rec, surface, refs)) for rec in records]
@@ -2292,7 +2316,18 @@ def main() -> int:
         return 0
     assessments = assess(surface, records)
     if args.command == "stale-tests":
-        print("\n".join(sorted({str(rec["test"]) for a in assessments for rec in a.stale})))
+        print(
+            "\n".join(
+                sorted(
+                    {
+                        str(rec["test"])
+                        for a in assessments
+                        for rec in a.stale
+                        if not str(rec.get("id", "")).startswith(GATE_PREFIX)
+                    }
+                )
+            )
+        )
         return 0
     if args.require:
         return attest(assessments, surface, bool(records))

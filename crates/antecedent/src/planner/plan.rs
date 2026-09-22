@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::large_enum_variant)]
+#![allow(clippy::large_enum_variant)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -182,7 +189,7 @@ impl LogicalAnalysisPlan {
                 BufferMaterialization::CopiedContiguous,
             )]),
             kernels: Arc::from([(Arc::from(kernel_label), KernelSelection::DenseBackend)]),
-            batch_size: Some(n_rows as usize),
+            batch_size: Some(usize::try_from(n_rows).unwrap_or(usize::MAX)),
             workspace_bytes: Some(workspace),
             estimated_peak_memory_bytes: Some(peak),
             estimated_copy_bytes: Some(copy_bytes),

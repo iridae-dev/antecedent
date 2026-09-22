@@ -2,7 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::needless_pass_by_value)]
+#![allow(clippy::needless_pass_by_value)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;

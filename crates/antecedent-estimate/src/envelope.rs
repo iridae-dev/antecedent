@@ -14,13 +14,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::needless_range_loop,
-    clippy::float_cmp,
     clippy::doc_markdown,
     clippy::too_many_lines
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -66,6 +72,14 @@ pub struct GraphEffectDraws {
 /// Moments are exact for the supplied empirical component posteriors (up to
 /// floating-point error). Quantiles use reproducible finite Monte Carlo draws;
 /// they are not exact quantiles of the weighted empirical mixture.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the product is a uniform draw in [0, 1) times the draw count, so it is below n_draws; the index is additionally clamped to n_draws - 1"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the product is a non-negative uniform draw in [0, 1) scaled by the draw count"
+)]
 pub fn aggregate_effect_envelope(
     graphs: &WeightedGraphSamples,
     per_graph: &[GraphEffectDraws],

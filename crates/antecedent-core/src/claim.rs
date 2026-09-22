@@ -1219,16 +1219,13 @@ fn identification_strengthened(
     {
         return Some("identification_masses_invalid");
     }
-    if parent_slots
-        .iter()
-        .any(|slot| {
-            // Unordered (NaN) counts as strengthening, like an excess.
-            !matches!(
-                derived_slot.identified_mass.partial_cmp(&(slot.identified_mass + 1e-12)),
-                Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
-            )
-        })
-    {
+    if parent_slots.iter().any(|slot| {
+        // A non-comparable (NaN) mass is a violation, like a larger one.
+        derived_slot
+            .identified_mass
+            .partial_cmp(&(slot.identified_mass + 1e-12))
+            .is_none_or(std::cmp::Ordering::is_gt)
+    }) {
         return Some("parents_not_retroactively_strengthened");
     }
     let weakest = parent_slots.iter().map(|slot| slot.status.strength_rank()).min();

@@ -36,6 +36,7 @@ pub mod ges;
 pub mod graph_mcmc;
 pub mod graph_posterior;
 pub mod graph_score;
+mod indexing;
 pub mod jpcmci_plus;
 pub mod lingam;
 pub mod lpcmci;

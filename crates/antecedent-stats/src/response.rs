@@ -135,6 +135,10 @@ impl GaussianMixtureDensity {
     ///
     /// Empty or non-finite means, a non-positive or non-finite `standard_deviation`,
     /// weights of the wrong length, or weights that are negative, non-finite, or sum to zero.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the bin index only identifies which sorted-mean bin a value falls in; a quotient beyond i64 saturates into the outermost bin"
+    )]
     pub fn new(
         means: &[f64],
         weights: Option<&[f64]>,

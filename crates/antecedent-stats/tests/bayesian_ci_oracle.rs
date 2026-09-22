@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::fs;
 use std::path::PathBuf;
@@ -65,11 +68,11 @@ fn partial_correlation(columns: &[Vec<f64>], z: &[usize]) -> f64 {
     let design = |r: usize, j: usize| if j == 0 { 1.0 } else { columns[z[j - 1]][r] };
     let residuals = |target: &[f64]| -> Vec<f64> {
         let mut a = vec![vec![0.0; q + 1]; q];
-        for i in 0..q {
-            for j in 0..q {
-                a[i][j] = (0..n).map(|r| design(r, i) * design(r, j)).sum();
+        for (i, row) in a.iter_mut().enumerate() {
+            for (j, cell) in row.iter_mut().enumerate().take(q) {
+                *cell = (0..n).map(|r| design(r, i) * design(r, j)).sum();
             }
-            a[i][q] = (0..n).map(|r| design(r, i) * target[r]).sum();
+            row[q] = (0..n).map(|r| design(r, i) * target[r]).sum();
         }
         for c in 0..q {
             let piv = (c..q).max_by(|&p, &s| a[p][c].abs().total_cmp(&a[s][c].abs())).unwrap();

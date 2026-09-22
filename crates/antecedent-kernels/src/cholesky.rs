@@ -89,6 +89,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "small-integer Cholesky factors of an integer matrix are exact in f64"
+    )]
     fn factors_hand_matrix() {
         // [[4, 2], [2, 5]] = L L' with L = [[2, 0], [1, 2]].
         let mut l = [9.0; 4];
@@ -137,6 +141,7 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(clippy::float_cmp, reason = "the hand-computed bound (4/1)^2 = 16 is exact in f64")]
     fn condition_bound_matches_hand_and_rejects_nan() {
         // Diagonals 4 and 1 -> (4/1)² = 16.
         assert_eq!(cholesky_condition_lower_bound(&[4.0, 0.0, 3.0, 1.0], 2), 16.0);

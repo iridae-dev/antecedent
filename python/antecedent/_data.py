@@ -213,9 +213,7 @@ def _check_column_lengths(names: list[str], cols: list[NDArray[np.float64]]) -> 
     if all(n == n0 for n in lengths):
         return
     detail = ", ".join(f"{name}={n}" for name, n in zip(names, lengths, strict=True))
-    raise ValueError(
-        f"column length mismatch ({detail}); align rows or subset to a common index"
-    )
+    raise ValueError(f"column length mismatch ({detail}); align rows or subset to a common index")
 
 
 def _materialize_f64(column: Any) -> NDArray[np.float64]:

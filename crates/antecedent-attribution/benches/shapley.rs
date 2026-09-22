@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_lossless)]
+#![allow(missing_docs, clippy::cast_lossless)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::time::{Duration, Instant};
 

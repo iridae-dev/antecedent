@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_possible_truncation)]
+#![allow(missing_docs)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, Pag};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};

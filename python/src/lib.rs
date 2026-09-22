@@ -10,8 +10,14 @@
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    clippy::fn_params_excessive_bools,
-    clippy::cast_possible_truncation
+    clippy::fn_params_excessive_bools
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 mod artifact_api;

@@ -15,7 +15,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -84,6 +91,10 @@ impl RieszSensitivity {
     /// # Errors
     ///
     /// Empty grid, data/GLM failures, or non-binary treatment.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a delta grid is far below 2^32 points"
+    )]
     pub fn refute_with_propensity(
         &self,
         problem: &RefutationProblem<'_>,
@@ -184,6 +195,10 @@ impl RieszSensitivity {
         let defect = cols.defect;
         let y = cols.outcome.expect("outcome requested");
         let nrows = cols.treatment.len();
+        #[allow(
+            clippy::float_cmp,
+            reason = "binary treatment is coded exactly 0/1, so exact equality is the membership test"
+        )]
         for &ti in &cols.treatment {
             if !(ti == 0.0 || ti == 1.0) {
                 return Err(ValidationError::NotApplicable {

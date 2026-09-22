@@ -1,5 +1,9 @@
 //! Independent finite SCM enumeration for classical meta-transportability.
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_possible_wrap)] // Exhaustive three-bit coordinates.
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)] // Exhaustive three-bit coordinates.
 use antecedent_core::{
     DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
     ExecutionContext, RegimeId, RegimeKind, Value, VariableCoordinate, VariableDomain, VariableId,

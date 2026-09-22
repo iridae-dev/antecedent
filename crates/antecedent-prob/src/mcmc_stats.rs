@@ -4,11 +4,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_kernels::{norm_inv, quantile_type7_sorted};
@@ -148,7 +151,13 @@ pub fn all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_para
         let mut moved = false;
         for p in 0..n_params {
             let first = sample_at(samples, c, 0, n_draws, n_params, p);
-            if (1..n_draws).any(|d| sample_at(samples, c, d, n_draws, n_params, p) != first) {
+            #[allow(
+                clippy::float_cmp,
+                reason = "a chain has moved iff any draw differs bitwise-in-value from its first draw"
+            )]
+            let differs =
+                (1..n_draws).any(|d| sample_at(samples, c, d, n_draws, n_params, p) != first);
+            if differs {
                 moved = true;
                 break;
             }
@@ -277,7 +286,12 @@ fn rank_normalize(x: &[f64]) -> Vec<f64> {
     let mut i = 0;
     while i < s {
         let mut j = i + 1;
-        while j < s && x[idx[j]] == x[idx[i]] {
+        #[allow(
+            clippy::float_cmp,
+            reason = "ties are groups of exactly equal draws, which share an average rank"
+        )]
+        let tied = |j: usize| x[idx[j]] == x[idx[i]];
+        while j < s && tied(j) {
             j += 1;
         }
         // Ranks are 1-based; average for ties.

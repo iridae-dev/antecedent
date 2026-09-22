@@ -1,5 +1,9 @@
 //! Numerical oracle independent of symbolic ID: enumerate latent binary SCMs.
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_possible_wrap)] // All casts are binary levels or three-node coordinates.
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)] // All casts are binary levels or three-node coordinates.
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
     RegimeId, RegimeKind, Value, VariableId,
@@ -905,6 +909,10 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
 
 #[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one sweep over every graph and parameterization, each compared against the enumerated truth in sequence"
+)]
 fn four_node_graph_parameter_sweep_matches_target_interventions() {
     // Domain: X→M→Y, Z→Y, X↔Y; Z→M on/off; selection {Y} vs empty; three
     // latent-SCM parameterizations. Truth is P(Y=1 | do(X=x)) from independent

@@ -316,7 +316,10 @@ pub fn evaluate_decision<A, O>(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use super::*;
 

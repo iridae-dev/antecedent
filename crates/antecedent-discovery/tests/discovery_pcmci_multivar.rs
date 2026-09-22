@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -95,6 +98,10 @@ fn name_idx(names: &[String], name: &str) -> usize {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one reference-parity scenario: fit, then compare edges, p-values and matrices against the stored reference in sequence"
+)]
 fn discovery_pcmci_multivar_edges_and_matrices() {
     let expected = load_expected();
     let tig = &expected["reference"];

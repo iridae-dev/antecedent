@@ -344,7 +344,10 @@ mod tests {
 
     // An envelope with no capped case truncates exactly zero weight, not
     // approximately zero: the sum runs over an empty set.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the empty-truncation weight is exactly 0.0 by construction, so exact equality is intended"
+    )]
     #[test]
     fn truncated_weight_separates_capped_search_from_proved_non_identification() {
         let mut capped = dummy_result(IdentificationStatus::NotIdentified);

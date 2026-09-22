@@ -6,7 +6,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 /// Consistency constant turning a median absolute deviation into a Gaussian σ.
 pub const MAD_TO_SIGMA: f64 = 1.4826;
@@ -31,6 +39,11 @@ pub enum QuantileRule {
 /// `p`-quantile of an ascending-sorted sample under `rule`; `NaN` for an empty sample.
 /// `p` is clamped to `[0, 1]`.
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "zero_based is clamped to [0, d - 1] (or 0 after the clamp), so floor and ceil are non-negative and fit usize"
+)]
 pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     let d = sorted.len();
     if d == 0 {
@@ -89,6 +102,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "endpoints and integer order-statistic positions return the stored sample unchanged"
+    )]
     fn type7_matches_the_textbook_interpolation() {
         let s = [1.0, 2.0, 4.0, 8.0, 16.0];
         assert_eq!(quantile_sorted(&s, 0.0, QuantileRule::Interpolated), 1.0);
@@ -101,6 +118,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the clamped rank lands on an order statistic, returned unchanged"
+    )]
     fn type6_sits_at_rank_p_times_d_plus_one() {
         // D = 9 draws 1..=9: p = 0.2 → one-based rank 2, p = 0.25 → rank 2.5.
         let s: Vec<f64> = (1..=9).map(f64::from).collect();

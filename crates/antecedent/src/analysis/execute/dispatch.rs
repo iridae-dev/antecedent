@@ -987,8 +987,10 @@ fn gaussian_likelihood_disclosure(
 }
 
 /// `binary` / `count` when the outcome is declared or observed as such.
-// Exact comparison is the point: a coded 0/1 outcome, not values near 0 or 1.
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact comparison is the point: a coded 0/1 outcome, not values near 0 or 1"
+)]
 fn discrete_outcome_kind<'a>(
     tables: impl IntoIterator<Item = &'a dyn TableView>,
     outcome: VariableId,

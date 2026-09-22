@@ -415,8 +415,10 @@ fn soft_threshold(z: f64, gamma: f64) -> f64 {
 /// decides whether to strip an intercept column must agree on it bit for bit.
 #[must_use]
 pub fn first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool {
-    // Exact bit pattern required so all-twos (etc.) are never treated as intercept.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the intercept column is exactly 1.0 by construction; all-twos or near-one columns must never be treated as intercept"
+    )]
     {
         nrows > 0 && x_colmajor.len() >= nrows && x_colmajor[..nrows].iter().all(|&v| v == 1.0)
     }
@@ -897,6 +899,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the lasso soft-threshold sets an inactive coefficient to exactly 0"
+    )]
     fn lasso_fits_a_column_measured_in_small_units() {
         // sd(x) ~ 1e-8 makes the centered sum of squares ~1e-14, under the old absolute
         // 1e-12 cut, so the column was treated as constant and its coefficient pinned at 0.

@@ -85,7 +85,7 @@ impl PreparedLearnedTrial {
         Ok(PyBytes::new(py, &bytes).unbind())
     }
     fn inspection_json(&self) -> String {
-        let uncertainty = self.last.as_ref().map(|r| r.estimate());
+        let uncertainty = self.last.as_ref().map(antecedent::LearnedTrialResult::estimate);
         let reasoning = self.reasoning();
         let identification_available =
             reasoning.as_ref().is_some_and(|r| r.identification.is_available());
@@ -98,7 +98,7 @@ impl PreparedLearnedTrial {
             "support":{"available":self.last.is_some(),"summary":"trial_and_target_overlap_required", "payload": {"overlap":uncertainty.map(|r| r.overlap)}},
             "uncertainty":{"available":uncertainty.is_some_and(|r| r.interval.is_some()),"summary":"joint_outer_bootstrap_uncalibrated","reason":uncertainty.and_then(|r| r.uncertainty_reason.as_deref()),"payload":{"calibration_status":"not_bound_to_this_execution"}},
             "assumptions":{"available":true,"summary":"declared_randomization_sampling_and_nuisance_models"},
-            "execution_id":self.last.as_ref().map(|r|r.identity())
+            "execution_id":self.last.as_ref().map(antecedent::LearnedTrialResult::identity)
         }).to_string()
     }
     fn last_result(&self) -> PyResult<String> {
@@ -122,6 +122,10 @@ impl PreparedLearnedTrial {
         .into_iter()
         .collect())
     }
+    #[allow(
+        clippy::unused_self,
+        reason = "exposed as an instance method of the Python class, so it must take self even though the summary is constant"
+    )]
     fn plan_summary(&self) -> std::collections::HashMap<String, String> {
         std::collections::HashMap::from([("structure_source".into(), "explicit".into())])
     }
@@ -144,6 +148,10 @@ impl PreparedLearnedTrial {
 }
 #[pyfunction]
 #[pyo3(signature=(graph, selections, source, target, treatment, outcome, data, options, *, seed=1, memory_bytes=None, cancel=None))]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+)]
 fn prepare_learned_trial(
     graph: &crate::graphs::Admg,
     selections: Vec<String>,

@@ -2,11 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_lossless,
-    clippy::trivially_copy_pass_by_ref,
-    clippy::unused_self
+#![allow(clippy::cast_lossless, clippy::trivially_copy_pass_by_ref, clippy::unused_self)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
@@ -333,6 +335,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an analytic p-value floor of exactly zero is the documented return"
+    )]
     fn min_attainable_p_reports_permutation_resolution() {
         let pc = PartialCorrelation::new();
         assert_eq!(pc.min_attainable_p(SignificanceMethod::Analytic), 0.0);

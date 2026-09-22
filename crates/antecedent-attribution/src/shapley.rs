@@ -247,6 +247,10 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                 // cache policy: with the cache off (or saturated) the lazy walk below
                 // re-evaluates each `v(S ∪ {i})` and costs up to `2^k (1 + k/2)` payoff calls,
                 // which `check_coalition_sample_budget` (2^k) does not account for.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                )]
                 let mut table = Vec::with_capacity(n_coalitions as usize);
                 for mask in 0..n_coalitions {
                     if ctx.cancellation.is_cancelled() {
@@ -259,6 +263,10 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     table.push(eval(mask, payoff, &mut cache, &mut budget)?);
                 }
                 for mask in 0..n_coalitions {
+                    #[allow(
+                        clippy::cast_possible_truncation,
+                        reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                    )]
                     let v_s = table[mask as usize];
                     let s = (mask.count_ones()) as usize;
                     for i in 0..n {
@@ -266,7 +274,12 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                         if mask & bit != 0 {
                             continue;
                         }
-                        phi[i] += fact[s] * (table[(mask | bit) as usize] - v_s);
+                        #[allow(
+                            clippy::cast_possible_truncation,
+                            reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                        )]
+                        let v_with_i = table[(mask | bit) as usize];
+                        phi[i] += fact[s] * (v_with_i - v_s);
                     }
                 }
             } else {

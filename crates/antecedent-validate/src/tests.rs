@@ -346,6 +346,10 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
 /// values that evidence the violation, so every propensity-based validator reports the
 /// positivity failure itself instead of judging the shrunken scores.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the asserted values are exact by construction of the fixture (a clamped or passed-through constant), so exact equality is intended"
+)]
 fn separated_propensity_fit_is_reported_as_a_positivity_failure() {
     let (data, estimand, _) = toy_confounded();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
@@ -771,6 +775,10 @@ fn evalue_uses_the_residual_sd_of_the_outcome_regression() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the asserted values are exact by construction of the fixture (a clamped or passed-through constant), so exact equality is intended"
+)]
 fn evalue_gates_on_the_confidence_limit_not_only_the_point_estimate() {
     let (data, estimand) = evalue_continuous_data();
     let query = crate::test_support::ate_query();
@@ -1846,6 +1854,10 @@ fn a_non_finite_refit_effect_is_an_error_in_every_replicate_refuter() {
 /// make a stability check fail: here the published number is deliberately 0.3 away from the exact
 /// least-squares effect 2, while every perturbed refit reproduces 2.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the asserted values are exact by construction of the fixture (a clamped or passed-through constant), so exact equality is intended"
+)]
 fn perturbation_refuters_centre_on_the_full_sample_refit_not_the_published_estimate() {
     let (data, estimand, _) = toy_confounded();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));

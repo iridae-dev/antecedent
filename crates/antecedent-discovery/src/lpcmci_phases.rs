@@ -2,12 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::type_complexity
+#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::type_complexity)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet};
@@ -252,9 +254,11 @@ fn homologous_pairs(
             continue;
         }
         let _ = lag_diff;
-        if let (Some(&a), Some(&b)) =
-            (idx.get(&(x.raw(), xl as u32)), idx.get(&(y.raw(), yl as u32)))
-        {
+        // Both lags were just checked to lie in `0..=max_lag`.
+        let (Ok(xl), Ok(yl)) = (u32::try_from(xl), u32::try_from(yl)) else {
+            continue;
+        };
+        if let (Some(&a), Some(&b)) = (idx.get(&(x.raw(), xl)), idx.get(&(y.raw(), yl))) {
             out.push((a, b));
         }
     }
@@ -327,7 +331,7 @@ fn restore_contemporaneous_marks(
 fn force_ambiguous_middles_to_both(pag: &mut TemporalPag) {
     let n = pag.node_count();
     for a_raw in 0..n {
-        let a = DenseNodeId::from_raw(a_raw as u32);
+        let a = DenseNodeId::from_raw(crate::indexing::dense_u32(a_raw));
         let nbrs: Vec<_> = pag.neighbors(a).map(|(x, _, _)| x).collect();
         for b in nbrs {
             if a.raw() > b.raw() {

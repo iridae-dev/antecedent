@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop, clippy::too_many_lines)]
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -765,6 +772,10 @@ impl PosteriorPredictiveCheck {
     /// # Errors
     ///
     /// Missing coefficients / empty draws.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the draw count is the number of posterior draws simulated, far below 2^32"
+    )]
     pub fn check(
         &self,
         problem: &PreparedBayesianProblem,
@@ -2479,6 +2490,10 @@ mod tests {
         }
 
         #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
         fn prior_predictive_check_has_no_residual_axes() {
             let mut rng = CausalRng::from_seed(23);
             let (t, x) = covariates(60, &mut rng);
@@ -2507,6 +2522,10 @@ mod tests {
         }
 
         #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
         fn mixture_averages_residual_tails_and_omnibus_p_over_atoms() {
             let axis = |tails: [f64; 2]| ResidualDiscrepancy {
                 statistic: ResidualStatistic::Skewness,
@@ -2580,6 +2599,10 @@ mod tests {
         }
 
         #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
         fn sbc_generating_parameters_follow_the_fitted_prior() {
             // beta_c | sigma^2 ~ N(mu_c, sigma^2 V0_c): known sigma^2 = 4, V0 = (0.25, 4), so
             // beta_0 ~ N(2, 1) and beta_1 ~ N(-1, 16).
@@ -2633,6 +2656,10 @@ mod tests {
         }
 
         #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
         fn quantile_interpolates_linearly_between_order_statistics() {
             let odd = [0.0, 1.0, 2.0, 3.0, 4.0];
             assert_eq!(quantile_type7_sorted(&odd, 0.5), 2.0);

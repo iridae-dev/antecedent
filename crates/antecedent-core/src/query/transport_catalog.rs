@@ -10,6 +10,9 @@ use crate::value::Value;
 
 use super::error::QueryError;
 
+/// Per variable, the merged domain and unit its environments declare it with.
+type DeclaredDomains<'a> = BTreeMap<u32, (&'a VariableDomain, Option<&'a Arc<str>>)>;
+
 /// Shared variable coordinate used by source and target environments.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VariableCoordinate {
@@ -552,9 +555,6 @@ pub struct EvidenceCatalog {
     pub target_sampling: Option<TargetSampling>,
 }
 
-/// Domain and unit declared for each variable id across a catalog's environments.
-type VariableDomains<'a> = BTreeMap<u32, (&'a VariableDomain, Option<&'a Arc<str>>)>;
-
 impl EvidenceCatalog {
     /// Canonical ordering for new semantic identities. Numeric regime identities
     /// and physical schema column order are preserved. Historical artifact readers
@@ -627,7 +627,7 @@ impl EvidenceCatalog {
     ///
     /// [`QueryError::InvalidTransport`].
     pub fn validate(&self) -> Result<(), QueryError> {
-        let (identities, domains) = self.validate_environments()?;
+        let (identities, domains) = self.declared_environments()?;
         let mut regime_ids = BTreeSet::new();
         let mut labels = BTreeSet::new();
         let declared_variables: BTreeSet<u32> = domains.keys().copied().collect();
@@ -693,10 +693,11 @@ impl EvidenceCatalog {
         self.validate_bindings()
     }
 
-    /// Environment identities and the merged domain and unit of each declared variable.
-    fn validate_environments(&self) -> Result<(BTreeSet<&str>, VariableDomains<'_>), QueryError> {
+    /// Distinct environment identities and the merged domain and unit each variable is
+    /// declared with across environments.
+    fn declared_environments(&self) -> Result<(BTreeSet<&str>, DeclaredDomains<'_>), QueryError> {
         let mut identities = BTreeSet::new();
-        let mut domains: VariableDomains<'_> = BTreeMap::new();
+        let mut domains = DeclaredDomains::new();
         for environment in self.environments.iter() {
             Environment::try_new(
                 Arc::clone(&environment.identity),

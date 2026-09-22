@@ -1,6 +1,10 @@
 //! Bayesian remainder: functional, mediation, CF, derivatives, CATE mixtures.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -189,7 +193,11 @@ fn functional_bayesian_path_distribution_and_admg() {
 /// Dirichlet posterior mean must sit within 0.02 of it, and the 90% credible
 /// interval must contain it.
 #[test]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the rounded quantile position (len-1)*q with q in [0, 1] is a non-negative index below len"
+)]
 fn admg_frontdoor_bayesian_all_structures_and_validation() {
     let admg_pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_functional/expected.json"

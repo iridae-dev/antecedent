@@ -2,11 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::too_many_lines
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -731,6 +735,11 @@ impl EntropyChannel {
         let y = if rng.next_f64() < reliability {
             true_cat
         } else {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the floored value lies in [0, k - 1) because next_f64 is in [0, 1)"
+            )]
             let mut u = (rng.next_f64() * (k - 1) as f64).floor() as usize;
             if u >= true_cat {
                 u += 1;
@@ -1055,6 +1064,10 @@ fn model_distinguish_score(
     if n_models < 2 || ll.n_draws == 0 {
         return 0.0;
     }
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the draw is reduced modulo `n_draws`, a usize, so the result is a valid index; only uniform high bits are dropped on 32-bit targets"
+    )]
     let draw = (rng.next_u64() as usize) % ll.n_draws;
     let strength = evidence_strength(candidate);
     // Expected absolute log-score gap over the requested model pairs, scaled by evidence strength.

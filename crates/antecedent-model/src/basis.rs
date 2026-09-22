@@ -28,7 +28,13 @@
 
 // Parent indices are dense graph ids (`u32` by construction) and a term index is
 // bounded by rows / `BASIS_MIN_ROWS_PER_COLUMN`, so `usize → u32` cannot truncate.
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -297,6 +303,10 @@ impl ParentBasis {
     /// # Errors
     ///
     /// Invariant failures from [`Self::new`].
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "basis term indices are u32 in the wire format, and the parent count is far below 2^32"
+    )]
     pub fn interactions(
         n_parents: usize,
         centers: Arc<[f64]>,
@@ -340,6 +350,10 @@ impl ParentBasis {
     /// # Errors
     ///
     /// Invariant failures from [`Self::new`].
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "basis term, parent and knot indices are u32 in the wire format, and their counts are far below 2^32"
+    )]
     pub fn spline_interactions(
         n_parents: usize,
         centers: Arc<[f64]>,
@@ -436,7 +450,12 @@ pub fn spline_knots(
         let mut knots: Vec<f64> = SPLINE_KNOT_QUANTILES
             .iter()
             .map(|&q| {
-                #[allow(clippy::cast_precision_loss, clippy::cast_sign_loss)]
+                #[allow(
+                    clippy::cast_precision_loss,
+                    clippy::cast_sign_loss,
+                    clippy::cast_possible_truncation,
+                    reason = "q is a quantile in [0, 1], so the rounded position is non-negative and at most values.len() - 1"
+                )]
                 let idx = ((values.len() - 1) as f64 * q).round() as usize;
                 values[idx]
             })

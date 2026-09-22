@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use crate::error::DataError;
 
@@ -129,6 +135,34 @@ mod tests {
         equal_width_bin(&col, 2, &mut out).unwrap();
         assert!((out[0] - 0.0).abs() < f64::EPSILON);
         assert!((out[3] - 1.0).abs() < f64::EPSILON);
+    }
+
+    /// Hand-derived truth for all three transforms: equal-width bin codes, Bandt-Pompe
+    /// Lehmer codes for a monotone rise (0) and fall (m! - 1 = 5), and an odd-window
+    /// moving average with shrinking edge windows.
+    #[allow(
+        clippy::float_cmp,
+        reason = "bin codes, Lehmer codes and moving averages of small exact fixtures are computed without rounding"
+    )]
+    #[test]
+    fn transforms_match_hand_derived_values() {
+        let col = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let mut binned = [0.0; 6];
+        equal_width_bin(&col, 3, &mut binned).unwrap();
+        assert_eq!(binned, [0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
+
+        let mut rising = [0.0; 2];
+        assert_eq!(ordinal_patterns(&[0.0, 1.0, 2.0, 3.0], 3, 1, &mut rising).unwrap(), 2);
+        assert_eq!(rising, [0.0, 0.0]);
+        let mut falling = [0.0; 2];
+        assert_eq!(ordinal_patterns(&[3.0, 2.0, 1.0, 0.0], 3, 1, &mut falling).unwrap(), 2);
+        assert_eq!(falling, [5.0, 5.0]);
+
+        let mut smooth = [0.0; 3];
+        moving_average(&[0.0, 3.0, 6.0], 3, &mut smooth).unwrap();
+        assert!((smooth[0] - 1.5).abs() < 1e-12);
+        assert!((smooth[1] - 3.0).abs() < 1e-12);
+        assert!((smooth[2] - 4.5).abs() < 1e-12);
     }
 
     #[test]

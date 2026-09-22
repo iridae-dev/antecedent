@@ -3,13 +3,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::cast_lossless,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::doc_markdown,
     clippy::trivially_copy_pass_by_ref
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{BTreeMap, HashMap};
@@ -491,6 +497,10 @@ impl ConditionalIndependenceTest for MixedKnnDependence {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "rounding to i64 only feeds a distinct-level count for a discreteness heuristic; astronomically large values saturate and merely merge"
+)]
 fn looks_discrete(col: &[f64]) -> bool {
     if col.is_empty() {
         return false;
@@ -515,6 +525,10 @@ impl SymbolicCmi {
 }
 
 impl ConditionalIndependenceTest for SymbolicCmi {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "y_perm is a permuted copy of a column that encode_categories already range-checked into i32"
+    )]
     fn test_batch(
         &self,
         prepared: &PreparedCiTest,

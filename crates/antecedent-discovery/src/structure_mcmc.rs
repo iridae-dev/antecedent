@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -278,7 +285,7 @@ fn propose_structure(
     if pairs.is_empty() {
         return (mask, 1.0, 0);
     }
-    let idx = (rng.next_u64() as usize) % pairs.len();
+    let idx = crate::indexing::bounded_index(rng.next_u64(), pairs.len());
     let (i, j) = pairs[idx];
     let forward = has_edge(mask, n, i, j);
     let backward = has_edge(mask, n, j, i);

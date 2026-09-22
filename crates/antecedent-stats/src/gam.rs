@@ -7,12 +7,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -240,7 +242,7 @@ pub fn compile_additive_design(
             matrix[dst..dst + nrows].copy_from_slice(&basis[src..src + nrows]);
             let role = match spec.variable {
                 Some(id) => DesignColumnRole::Covariate(id),
-                None => DesignColumnRole::Covariate(VariableId::from_raw(spec.raw_col as u32)),
+                None => DesignColumnRole::Covariate(column_variable_id(spec.raw_col)),
             };
             columns.push(DesignColumn {
                 role,
@@ -250,7 +252,7 @@ pub fn compile_additive_design(
             });
         }
         smooths.push(RecordedSmooth {
-            variable: spec.variable.or(Some(VariableId::from_raw(spec.raw_col as u32))),
+            variable: spec.variable.or(Some(column_variable_id(spec.raw_col))),
             basis: BasisKind::CubicBSpline,
             knots,
             lambda: spec.lambda,
@@ -357,7 +359,7 @@ pub fn fit_gam_weighted(
         let end = col_cursor + spec.n_basis;
         chosen_lambda.push(spec.lambda);
         smooth_meta.push(RecordedSmooth {
-            variable: spec.variable.or(Some(VariableId::from_raw(spec.raw_col as u32))),
+            variable: spec.variable.or(Some(column_variable_id(spec.raw_col))),
             basis: BasisKind::CubicBSpline,
             knots,
             lambda: spec.lambda,
@@ -730,6 +732,15 @@ fn validate_raw_layout(
     Ok(())
 }
 
+/// Dataset column index as a [`VariableId`].
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "VariableId raw indices are u32 by construction, so a dataset column index always fits"
+)]
+fn column_variable_id(raw_col: usize) -> VariableId {
+    VariableId::from_raw(raw_col as u32)
+}
+
 fn raw_column(x_colmajor: &[f64], nrows: usize, col: usize) -> &[f64] {
     &x_colmajor[col * nrows..(col + 1) * nrows]
 }
@@ -770,8 +781,12 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
         for i in 1..=n_interior {
             let q = i as f64 / (n_interior + 1) as f64;
             let pos = q * (n - 1) as f64;
-            let lo = pos.floor() as usize;
-            let hi = pos.ceil() as usize;
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "pos = q * (n - 1) with q in (0, 1) lies in [0, n - 1], so floor and ceil are non-negative indices"
+            )]
+            let (lo, hi) = (pos.floor() as usize, pos.ceil() as usize);
             let t = pos - lo as f64;
             let v = sorted[lo] * (1.0 - t) + sorted[hi.min(n - 1)] * t;
             knots.push(v);
@@ -1108,7 +1123,10 @@ fn roughness_edf(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "tests assert exactly representable basis values and copied inputs"
+)]
 mod tests {
     #[test]
     fn review_custom_unclamped_knots_preserve_boundary_basis() {

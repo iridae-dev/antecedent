@@ -11,11 +11,14 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -554,6 +557,10 @@ struct SequentialSetup {
 }
 
 impl SequentialSetup {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
     fn build(
         data: &TimeSeriesData,
         graph: &TemporalDag,
@@ -924,6 +931,10 @@ impl SequentialSetup {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 fn estimate_sequential(
     data: &TimeSeriesData,
     graph: &TemporalDag,

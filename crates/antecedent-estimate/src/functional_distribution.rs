@@ -21,13 +21,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::manual_flatten,
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
     clippy::type_complexity,
     clippy::zero_sized_map_values
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet};
@@ -388,6 +394,40 @@ impl Default for FunctionalDistribution {
     }
 }
 
+/// Conditioning bindings to evaluate: the empty binding for an unconditional query, the
+/// caller's exact binding when given, otherwise every support point of the conditioning set.
+fn conditioning_points(
+    prepared: &PreparedFunctionalDistribution,
+    provider: &EmpiricalTableProvider,
+    conditioning_values: &[(VariableId, Value)],
+) -> Result<Vec<Vec<(VariableId, Value)>>, EstimationError> {
+    let needed_z: Vec<VariableId> = prepared.conditioning.iter().map(|a| a.variable).collect();
+    let points: Vec<Vec<(VariableId, Value)>> = if needed_z.is_empty() {
+        if !conditioning_values.is_empty() {
+            return Err(EstimationError::unsupported(
+                "conditioning_values supplied for an unconditional distribution query",
+            ));
+        }
+        vec![Vec::new()]
+    } else if conditioning_values.is_empty() {
+        let support = provider.support(&needed_z, &EvalContext::default()).map_err(eval_err)?;
+        support
+            .iter()
+            .map(|row| needed_z.iter().copied().zip(row.iter().cloned()).collect::<Vec<_>>())
+            .collect()
+    } else {
+        let provided: HashSet<VariableId> = conditioning_values.iter().map(|(v, _)| *v).collect();
+        let needed: HashSet<VariableId> = needed_z.iter().copied().collect();
+        if provided != needed {
+            return Err(EstimationError::unsupported(
+                "conditioning_values must bind exactly the query conditioning set",
+            ));
+        }
+        vec![conditioning_values.to_vec()]
+    };
+    Ok(points)
+}
+
 impl FunctionalDistribution {
     /// Create with default overlap override (CPT positivity is data-driven).
     #[must_use]
@@ -637,31 +677,7 @@ impl FunctionalDistribution {
     ) -> Result<InterventionalDistributionEstimate, EstimationError> {
         workspace.clear();
 
-        let needed_z: Vec<VariableId> = prepared.conditioning.iter().map(|a| a.variable).collect();
-        let z_points: Vec<Vec<(VariableId, Value)>> = if needed_z.is_empty() {
-            if !conditioning_values.is_empty() {
-                return Err(EstimationError::unsupported(
-                    "conditioning_values supplied for an unconditional distribution query",
-                ));
-            }
-            vec![Vec::new()]
-        } else if conditioning_values.is_empty() {
-            let support = provider.support(&needed_z, &EvalContext::default()).map_err(eval_err)?;
-            support
-                .iter()
-                .map(|row| needed_z.iter().copied().zip(row.iter().cloned()).collect::<Vec<_>>())
-                .collect()
-        } else {
-            let provided: HashSet<VariableId> =
-                conditioning_values.iter().map(|(v, _)| *v).collect();
-            let needed: HashSet<VariableId> = needed_z.iter().copied().collect();
-            if provided != needed {
-                return Err(EstimationError::unsupported(
-                    "conditioning_values must bind exactly the query conditioning set",
-                ));
-            }
-            vec![conditioning_values.to_vec()]
-        };
+        let z_points = conditioning_points(prepared, provider, conditioning_values)?;
 
         let y_support = provider
             .support(prepared.outcomes.as_ref(), &EvalContext::default())

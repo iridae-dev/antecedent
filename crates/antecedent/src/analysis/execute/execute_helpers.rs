@@ -1754,7 +1754,10 @@ pub(super) fn class_structural_mixture<G>(
     // Exact comparisons on purpose: "every completion is identified" and "they
     // all agree" are exact facts about the mass that was summed and the values
     // that were compared, not measurements with a tolerance.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "\"every completion is identified\" and \"they all agree\" are exact facts about summed masses and compared values, not measurements with a tolerance"
+    )]
     let facts = ClassMixtureFacts {
         total_weight: total,
         point_identified: identified_mass == 1.0

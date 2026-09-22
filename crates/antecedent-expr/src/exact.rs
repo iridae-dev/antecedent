@@ -1001,6 +1001,6 @@ mod tests {
             }
         }
         // One axis pinned to two different levels is the empty event.
-        assert_eq!(table.mass(&[(0, 0), (0, 1)]), 0.0);
+        assert!(table.mass(&[(0, 0), (0, 1)]).abs() == 0.0);
     }
 }

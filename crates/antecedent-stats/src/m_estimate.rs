@@ -221,6 +221,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exactly fitted data has an exactly zero residual scale by construction"
+    )]
     fn exactly_fitted_data_reports_zero_scale_without_fallback() {
         let n = 20usize;
         let mut x = vec![1.0; n * 2];

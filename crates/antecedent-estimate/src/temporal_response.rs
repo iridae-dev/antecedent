@@ -5,7 +5,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::too_many_arguments)]
+#![allow(clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -349,6 +357,11 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
 /// length on a persistent influence is carried by the per-cell factor of
 /// [`crate::temporal_response_dispersion::kernel_bias_factor`].
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "ceil(sqrt(n)) of a length is far below usize::MAX"
+)]
+#[allow(clippy::cast_sign_loss, reason = "the square root of a length is non-negative")]
 pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
     let root = (n as f64).sqrt().ceil() as usize;
     structural_span.max(root).min(n).max(1)
@@ -3908,8 +3921,8 @@ mod tests {
         for (j, series) in scores.iter().take(3).enumerate() {
             let total: f64 = series.iter().sum();
             assert!(total.abs() < 1e-8, "normal equation {j}: sum {total}");
-            for t in 0..n {
-                assert!((series[t] - cols[j][t] * fitted.residuals[t]).abs() < 1e-12);
+            for (t, &value) in series.iter().enumerate().take(n) {
+                assert!((value - cols[j][t] * fitted.residuals[t]).abs() < 1e-12);
             }
         }
     }

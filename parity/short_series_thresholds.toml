@@ -1,0 +1,38 @@
+# Latest short-series threshold measurement, per family.
+#
+# `sweep` and `replication` are the smallest multiples of 5 the rule in
+# scripts/short_series_thresholds.py yields on the measurement sweep and on its
+# independent-seed replication (ANTECEDENT_SHORT_SERIES_SEED_OFFSET=5000, 1000
+# replicates); `threshold` is the larger, or a stated pin above it. Rows are written
+# by `python3 scripts/short_series_thresholds.py write`; the docs tables are
+# generated from them and gate_docs_support_matrix.sh ties `threshold` to
+# min_effective_rows in crates/antecedent-estimate/src/temporal_block.rs.
+
+[[family]]
+name = "single-window adjustment"
+se_path = "TemporalDag Pulse / single-step Sustained"
+sweep = 45
+replication = 40
+threshold = 45
+
+[[family]]
+name = "temporal mediation"
+se_path = "Total, Direct, Mediated (shared replicate)"
+sweep = 35
+replication = 40
+threshold = 40
+
+[[family]]
+name = "multi-step sequential"
+se_path = "TemporalDag multi-step Sustained"
+sweep = 25
+replication = 30
+threshold = 40
+pinned_reason = "kept at the 40 an earlier measurement of the same sweep set gave, before the SE construction changes; it warns on more replicates, not fewer"
+
+[[family]]
+name = "multi-atom mixture"
+se_path = "TemporalCpdag / TemporalPag envelopes, DBN posteriors"
+sweep = 155
+replication = 90
+threshold = 155

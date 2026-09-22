@@ -556,6 +556,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the test asserts that the clamp returns its input bit-for-bit and that the logistic saturates to exactly 1.0 in f64"
+    )]
     fn logit_from_the_linear_predictor_stays_finite_where_the_score_rounds_to_one() {
         // At η = 40 the fitted probability is exactly 1.0 in f64, so ln(e/(1−e)) is +∞.
         let e = 1.0 / (1.0 + (-40.0_f64).exp());

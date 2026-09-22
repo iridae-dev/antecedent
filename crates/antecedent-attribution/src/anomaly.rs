@@ -709,6 +709,10 @@ mod tests {
     }
 
     /// A non-finite target value is an error, not an "ordinary" score of 0.
+    #[allow(
+        clippy::float_cmp,
+        reason = "a finite value at the centre has z exactly 0, and the tail score of z = 0 is exactly 0"
+    )]
     #[test]
     fn score_refuses_non_finite_values() {
         let tail = OutlierTail { center: 0.0, scale: 1.0 };

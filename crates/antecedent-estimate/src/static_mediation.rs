@@ -1,12 +1,18 @@
 //! Static additive-linear natural mediation on an identified DAG.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
-    clippy::cast_sign_loss,
-    clippy::cast_possible_truncation,
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::type_complexity
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 use crate::{
     EffectEstimate, EstimationError, HydrateMapping, OverlapPolicy, TemporalMediationEstimate,
@@ -39,6 +45,10 @@ use std::sync::Arc;
 /// # Errors
 /// Invalid query/data, unsupported population, singular regression, cancellation.
 #[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 pub fn estimate_static_mediation(
     data: &TabularData,
     graph: &Dag,
@@ -199,6 +209,10 @@ pub struct MediationPriorBridge<'a> {
 ///
 /// Same as [`estimate_static_mediation`], HMC composition, a shared prior, a
 /// mapping that binds no mechanism, or a non-finite posterior.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 pub fn estimate_static_mediation_bayesian(
     data: &TabularData,
     graph: &Dag,
@@ -582,6 +596,10 @@ struct MediationRows {
 }
 
 impl MediationRows {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
     fn new(
         data: &TabularData,
         graph: &Dag,
@@ -622,6 +640,10 @@ impl MediationRows {
 /// direct-path effect is blocked at zero). `betas(i)` returns node `i`'s parent
 /// coefficients, in parent order, for a node with parents. Frequentist and Bayesian
 /// mediation share this recursion so both describe the same estimand.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 fn propagate(
     graph: &Dag,
     query: &MediationQuery,

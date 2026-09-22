@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::neg_cmp_op_on_partial_ord)]
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -183,6 +190,10 @@ struct ClusterIndex {
 impl ClusterIndex {
     fn build(cluster_ids: &[u32]) -> Self {
         let n = cluster_ids.len();
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+        )]
         let mut members: Vec<u32> = (0..n as u32).collect();
         members.sort_by_key(|&i| cluster_ids[i as usize]);
         let mut offsets = vec![0usize];
@@ -204,6 +215,10 @@ impl ClusterIndex {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn fill_indexes_prepared(
     plan: ResamplingPlan,
     n: usize,
@@ -314,6 +329,10 @@ fn fill_block_slice<T: Copy>(
     Ok(())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn fill_stationary(
     n: usize,
     expected_length: f64,
@@ -366,6 +385,10 @@ fn fill_cluster_bootstrap(
     Ok(())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn fill_within_cluster_permutation(
     n: usize,
     clusters: &ClusterIndex,
@@ -1011,6 +1034,35 @@ mod tests {
         .unwrap();
         assert_eq!(out.row_count(), 100);
         assert_eq!(idx.len(), 100);
+    }
+
+    /// A moving-block bootstrap of 100 rows in blocks of 10 must be ten runs of ten
+    /// consecutive source rows (serial dependence kept inside each block), and the
+    /// same seed must replay the same indexes.
+    #[test]
+    fn moving_block_indexes_are_consecutive_runs_and_replay() {
+        let data = float_series(100, 1);
+        let draw = |seed: u64| {
+            let mut rng = CausalRng::from_seed(seed);
+            let mut idx = Vec::new();
+            resample_timeseries(
+                &data,
+                ResamplingPlan::MovingBlock { length: 10 },
+                &mut rng,
+                &mut idx,
+            )
+            .unwrap();
+            idx
+        };
+        let idx = draw(5);
+        assert_eq!(idx.len(), 100);
+        assert!(idx.iter().all(|&i| i < 100));
+        for block in idx.chunks(10) {
+            for w in block.windows(2) {
+                assert_eq!(w[1], w[0] + 1, "block is not a consecutive run: {block:?}");
+            }
+        }
+        assert_eq!(idx, draw(5));
     }
 
     #[test]

@@ -177,8 +177,7 @@ pub(crate) fn independently_separated(
     let live = |i: usize| v.contains(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
     let mut parents = vec![Vec::new(); total];
     let mut siblings = vec![Vec::new(); total];
-    #[allow(clippy::needless_range_loop)] // `from` is a node id used to index several tables
-    for from in 0..n {
+    for (from, from_siblings) in siblings.iter_mut().enumerate().take(n) {
         if !live(from) {
             continue;
         }
@@ -192,7 +191,7 @@ pub(crate) fn independently_separated(
         for sibling in original.bidirected_neighbors(id) {
             let to = sibling.as_usize();
             if live(to) && !x.contains(id) && !x.contains(*sibling) {
-                siblings[from].push(to);
+                from_siblings.push(to);
             }
         }
     }

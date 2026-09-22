@@ -73,7 +73,9 @@ impl OverlapRefuter {
         if let Some(report) = self.continuous_report(problem)? {
             return Ok(report);
         }
-        let (report, replicates) = if let Some(r) = &problem.original.overlap_report { (r.clone(), 0) } else {
+        let (report, replicates) = if let Some(r) = &problem.original.overlap_report {
+            (r.clone(), 0)
+        } else {
             let fit = crate::common::diagnostic_overlap_report_with(
                 problem,
                 &self.glm_options,
@@ -81,7 +83,7 @@ impl OverlapRefuter {
                 propensity,
             )?;
             if let Some(defect) = fit.defect {
-                return Ok(self.separated_report(problem, defect));
+                return Ok(Self::separated_report(problem, defect));
             }
             (fit.report, 1)
         };
@@ -89,7 +91,7 @@ impl OverlapRefuter {
     }
 
     /// The overlap failure a separated / non-converged diagnostic propensity fit stands for.
-    fn separated_report(&self, problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
+    fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
         RefutationReport {
             refuter: Arc::from("overlap.assessment"),
             original_ate: problem.original.ate,

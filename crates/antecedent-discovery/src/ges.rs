@@ -6,7 +6,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_arguments, clippy::too_many_lines)]
+#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -261,7 +268,7 @@ impl Ges {
         let total_score = {
             // Sync cache parents from a consistent DAG extension for reporting.
             let dag = pdag_to_dag(&cpdag)?;
-            for node in 0..n_vars as u32 {
+            for node in 0..crate::indexing::dense_u32(n_vars) {
                 let d = DenseNodeId::from_raw(node);
                 let parents: Vec<u32> = dag.parents(d).iter().map(|p| p.raw()).collect();
                 let _ = cache.local_score(&score_data, node, &Arc::from(parents))?;
@@ -367,8 +374,11 @@ fn seed_required_edges(
     constraints: &DiscoveryConstraints,
 ) -> Result<(), DiscoveryError> {
     let var_set: HashSet<VariableId> = variables.iter().copied().collect();
-    let index: HashMap<VariableId, DenseNodeId> =
-        variables.iter().enumerate().map(|(i, v)| (*v, DenseNodeId::from_raw(i as u32))).collect();
+    let index: HashMap<VariableId, DenseNodeId> = variables
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (*v, DenseNodeId::from_raw(crate::indexing::dense_u32(i))))
+        .collect();
     for r in constraints.required.iter() {
         if r.source_lag != Lag::CONTEMPORANEOUS || r.target_lag != Lag::CONTEMPORANEOUS {
             continue;
@@ -687,12 +697,12 @@ fn best_insert(
     let n = cpdag.node_count();
     let mut best: Option<OpCand> = None;
     for xi in 0..n {
-        let x = DenseNodeId::from_raw(xi as u32);
+        let x = DenseNodeId::from_raw(crate::indexing::dense_u32(xi));
         for yi in 0..n {
             if xi == yi {
                 continue;
             }
-            let y = DenseNodeId::from_raw(yi as u32);
+            let y = DenseNodeId::from_raw(crate::indexing::dense_u32(yi));
             if cpdag.has_edge(x, y) {
                 continue;
             }
@@ -912,7 +922,8 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
         }
     }
 
-    let mut remaining: HashSet<DenseNodeId> = (0..n as u32).map(DenseNodeId::from_raw).collect();
+    let mut remaining: HashSet<DenseNodeId> =
+        (0..crate::indexing::dense_u32(n)).map(DenseNodeId::from_raw).collect();
     while !remaining.is_empty() {
         // Select x ∈ remaining: no directed edge out of x to remaining, and the
         // adjacent set (remaining parents ∪ remaining undirected neighbors) is a clique.
@@ -982,7 +993,7 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
     // Orient unshielded colliders present in the DAG.
     let n = dag.node_count();
     for zi in 0..n {
-        let z = DenseNodeId::from_raw(zi as u32);
+        let z = DenseNodeId::from_raw(crate::indexing::dense_u32(zi));
         let parents = dag.parents(z);
         for i in 0..parents.len() {
             for j in i + 1..parents.len() {

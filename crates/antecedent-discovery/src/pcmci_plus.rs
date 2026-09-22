@@ -8,11 +8,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::match_same_arms,
-    clippy::too_many_lines,
-    clippy::type_complexity
+#![allow(clippy::match_same_arms, clippy::too_many_lines, clippy::type_complexity)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
@@ -534,7 +536,7 @@ pub(crate) fn orient_majority_colliders(
 
     let mut contemp_nodes = Vec::new();
     for i in 0..n {
-        let id = DenseNodeId::from_raw(i as u32);
+        let id = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
         if is_contemp_node(graph, id) {
             contemp_nodes.push(id);
         }

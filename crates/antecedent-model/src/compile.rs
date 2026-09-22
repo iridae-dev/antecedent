@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -504,6 +510,10 @@ impl CompiledCausalModel {
     /// # Errors
     ///
     /// Cyclic graph or non-static nodes.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "node ids are u32 by construction (DenseNodeId), so every node position fits u32"
+    )]
     pub fn compile(graph: Dag) -> Result<Self, ModelError> {
         let order = graph.topological_order().ok_or_else(|| ModelError::NotDag {
             message: "graph has no topological order".into(),

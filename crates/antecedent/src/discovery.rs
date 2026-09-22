@@ -5,7 +5,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -581,6 +587,10 @@ pub fn discover_dbn_posterior_panel(
 pub fn pag_definite_directed_edge_count(pag: &TemporalPag) -> u64 {
     let mut directed = 0u64;
     for i in 0..pag.node_count() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+        )]
         let a = DenseNodeId::from_raw(i as u32);
         for (b, at_a, at_b) in pag.neighbors(a) {
             if b.raw() < a.raw() {

@@ -300,6 +300,7 @@ mod tests {
         assert_ne!(unit_seed(1, 0), unit_seed(2, 0));
     }
 
+    #[allow(clippy::float_cmp, reason = "a player with zero unit variance pools to exactly 0")]
     #[test]
     fn pooled_stderr_is_per_player_root_sum_of_squares_over_n() {
         // Player 0: unit se 3 and 4 over 2 units → √(9 + 16)/2 = 2.5; player 1: 0.

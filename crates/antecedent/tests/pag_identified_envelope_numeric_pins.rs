@@ -11,7 +11,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -527,9 +531,9 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
                         "{label}: completion {case} contrast {contrast} vs reference {truth}"
                     );
                 }
-                for case in 0..cases.len() {
+                for (case, atom) in hi_atoms.iter().enumerate() {
                     assert_eq!(
-                        hi_atoms[case].is_some(),
+                        atom.is_some(),
                         adjusted.contains(&case),
                         "{label}: completion {case} publishes a level iff adjustment identifies it"
                     );

@@ -2933,7 +2933,9 @@ class PreparedAnalysis(Generic[ResultT]):
             prepare_statistical,
         )
 
-        refuse_transport_only_kwargs(query, provider=provider, inference=inference, controls=controls)
+        refuse_transport_only_kwargs(
+            query, provider=provider, inference=inference, controls=controls
+        )
         if isinstance(query, Transport):
             if not isinstance(graph, Admg):
                 raise CausalTypeError("transport.Transport requires graph=Admg(...)")
@@ -3656,9 +3658,7 @@ class PreparedAnalysis(Generic[ResultT]):
             from .transport._day1 import catalog_from_evidence
 
             stage = getattr(self, "_transport_stage", None) or {}
-            _catalog, bound = catalog_from_evidence(
-                self._query, data, graph=stage.get("graph")
-            )
+            _catalog, bound = catalog_from_evidence(self._query, data, graph=stage.get("graph"))
             if bound is not None:
                 data = bound
             if self._transport is not None and getattr(self, "_native", None) is not None:

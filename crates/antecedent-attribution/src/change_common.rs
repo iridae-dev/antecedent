@@ -56,7 +56,7 @@ pub(crate) const UNIT_STREAM: u64 = 0x0117;
 
 /// Stream tag for `(domain, seed)`.
 ///
-/// A SplitMix64 finalizer over the seed shifted by the domain, so streams of different
+/// A `SplitMix64` finalizer over the seed shifted by the domain, so streams of different
 /// domains cannot alias through overlapping `domain ^ seed` / `domain + seed` ranges (a
 /// bare XOR maps `(DC, s ^ k)` onto `(SC, s)` for the constant `k = DC ^ SC`). For a fixed
 /// domain the map is a bijection of the seed, so distinct seeds keep distinct streams.

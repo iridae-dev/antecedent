@@ -310,6 +310,7 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(clippy::float_cmp, reason = "the masked sum of small integers is exact in f64")]
     fn full_length_mask_selects_exactly_its_bits() {
         let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
         let bytes = [0b0000_0101u8, 0b0000_0010];

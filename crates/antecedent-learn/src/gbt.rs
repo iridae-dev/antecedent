@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::needless_pass_by_value)]
+#![allow(clippy::needless_pass_by_value)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
@@ -74,6 +81,10 @@ impl LearnerFactory for GbtLearner {
             PredictionTask::Regression => ObjectiveType::SquaredLoss,
             PredictionTask::BinaryProbability => ObjectiveType::LogLoss,
         };
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the booster backend takes its learning rate as f32, and a rate in (0, 1] loses only sub-ulp precision"
+        )]
         let mut model = GradientBooster::default()
             .set_objective_type(objective)
             .set_iterations(self.spec.trees as usize)

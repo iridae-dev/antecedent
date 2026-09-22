@@ -9,7 +9,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag};
 
@@ -308,7 +314,7 @@ fn apply_r3<G: PagOps>(
                 }
                 // Find θ = d with circles at θ on θ—a and θ—c, and circle at b on θ—b.
                 for j in 0..n {
-                    let d = DenseNodeId::from_raw(j as u32);
+                    let d = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
                     if d == a || d == b || d == c {
                         continue;
                     }

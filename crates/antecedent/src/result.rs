@@ -524,7 +524,11 @@ fn draws_u32(n: usize) -> Option<u32> {
     u32::try_from(n).ok()
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the guard admits only finite values in [0, u32::MAX], so the cast neither wraps nor loses sign (fractions truncate by design)"
+)]
 fn count_u32(value: f64) -> Option<u32> {
     (value.is_finite() && value >= 0.0 && value <= f64::from(u32::MAX)).then_some(value as u32)
 }

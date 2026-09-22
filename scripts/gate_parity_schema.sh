@@ -53,6 +53,12 @@ EVIDENCE_KINDS = {
     "behavioral_parity",
     # theorem-level / method-contract argument
     "contract_equivalence",
+    # frozen output of this library itself: a change detector, never truth (no
+    # known_truth_fixture; limitations name what is pinned)
+    "regression_pin",
+    # a release-process property enforced by a named gate or workflow, with no
+    # test that could execute it (release.toml only; see the done-row rule below)
+    "process_attested",
 }
 # An implementation_exists row that produces one of these is a statistical procedure
 # a reader would take as validated; it must say that no numerical truth backs it.
@@ -177,6 +183,14 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 "an implied one is not)"
             )
 
+        if kind == "regression_pin":
+            if row.get("known_truth_fixture") is not None:
+                problems.append(
+                    f"{rel}: {label} is a regression_pin but names known_truth_fixture; a "
+                    "frozen output of this library is not truth"
+                )
+            if not str(row.get("limitations", "")).strip():
+                problems.append(f"{rel}: {label} is a regression_pin without limitations")
         if kind == "internal_cross_check":
             limitations = row.get("limitations")
             if not isinstance(limitations, str) or not limitations.strip():
@@ -287,6 +301,27 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
 
         test_rel = row.get("evidence_test")
         assertion = row.get("evidence_assertion")
+        # Every done row names the executing test that evidences it. The one exemption
+        # is a release-process fact no test can execute: it says so (`process_attested`)
+        # and names the gate or workflow that enforces it.
+        if kind == "process_attested":
+            if requires_evidence:
+                problems.append(
+                    f"{rel}: {label} process_attested is only for release-process rows "
+                    "(parity/release.toml); a capability names an executing test"
+                )
+            elif not isinstance(row.get("notes"), str) or not re.search(
+                r"(scripts/[\w./-]+|\.github/workflows/[\w./-]+)", row["notes"]
+            ):
+                problems.append(
+                    f"{rel}: {label} is process_attested but its notes name no "
+                    "scripts/... gate or .github/workflows/... file that enforces it"
+                )
+        elif status == "done" and (test_rel is None or assertion is None):
+            problems.append(
+                f"{rel}: {label} is done without evidence_test/evidence_assertion: name "
+                "the executing test that evidences it"
+            )
         if (test_rel is None) != (assertion is None):
             problems.append(
                 f"{rel}: {label} must set evidence_test and evidence_assertion together"
@@ -537,7 +572,14 @@ if cr.is_file():
         record_ids.add(rid)
         label = f"coverage_records.toml {rid}"
         test = str(rec.get("test", ""))
-        missing = [key for key in collector.FIELDS if key not in rec]
+        # `surface_list_blob` arrives with the next collection: a registry written by a
+        # collector that stores it names it in its header, and only then is it required.
+        stores_blob = "surface_list_blob" in cr.read_text().split("[[record]]", 1)[0]
+        missing = [
+            key
+            for key in collector.FIELDS
+            if key not in rec and (key != "surface_list_blob" or stores_blob)
+        ]
         if missing:
             problems.append(f"{label}: missing {', '.join(missing)}")
             continue
@@ -569,6 +611,18 @@ if cr.is_file():
             problems.append(f"{label}: calibration_sha must be 40 lowercase hex")
         elif set(sha) == {"0"}:
             problems.append(f"{label}: calibration_sha is the zero SHA; nothing was measured")
+        elif "surface_list_blob" in rec:
+            listed = subprocess.run(
+                ["git", "rev-parse", f"{sha}:scripts/calibration_surface.list"],
+                capture_output=True,
+                text=True,
+            )
+            # A commit missing from a clone is the attestation gate's finding, not this one's.
+            if listed.returncode == 0 and listed.stdout.strip() != rec["surface_list_blob"]:
+                problems.append(
+                    f"{label}: surface_list_blob {rec['surface_list_blob']} is not the surface "
+                    f"list at calibration_sha ({listed.stdout.strip()})"
+                )
         for field in ("observed", "mcse", "nominal", "unidentified_mass_max"):
             val = rec[field]
             if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
@@ -905,12 +959,11 @@ problems.extend(f"external evidence: {p}" for p in external_evidence.check())
 
 # ---- [gates] publishing requires calibration attestation ----
 # A tag must not ship calibration labels from a registry that no longer
-# matches the code: both publish workflows attest before any build or upload.
+# matches the code: the publish workflow attests before any build or upload.
 gating = subprocess.run(
     ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
      str((root / "scripts/ci_workflow.py").resolve()), "publish-gating",
-     str((root / ".github/workflows/publish-release.yml").resolve()),
-     str((root / ".github/workflows/publish-crates.yml").resolve())],
+     str((root / ".github/workflows/publish-release.yml").resolve())],
     cwd=root / "python", capture_output=True, text=True,
 )
 if gating.returncode != 0:
