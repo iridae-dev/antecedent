@@ -41,7 +41,15 @@ def test_evalue_is_a_typed_field_not_a_report_string():
     report = next(r for r in result.validation.reports if r.refuter == EVALUE)
 
     assert result.estimate.evalue == report.comparison
-    assert result.estimate.evalue == pytest.approx(3.134, abs=5e-4)
+    # a8dc482c rewrote sensitivity.evalue's continuous-outcome conversion: it now
+    # standardizes by the *residual* SD of the outcome regressed on treatment and the
+    # adjustment set (the within-group SD the VanderWeele/Ding conversion is defined for)
+    # instead of the marginal SD(Y), and reports the smaller of the point and 95%
+    # confidence-limit E-values instead of the point E-value alone. For this fixture the
+    # excluded interaction covariate `b` leaves residual variation that is smaller than
+    # Y's marginal SD, so the standardized difference (and the reported E-value) is larger
+    # under the corrected formula.
+    assert result.estimate.evalue == pytest.approx(4.2475105663300035, abs=5e-4)
     threshold = result.estimate.evalue_threshold
     assert threshold == 2.0
     # The verdict is now reproducible from the typed pair alone.
