@@ -1,5 +1,9 @@
 # Shapley attribution baselines
 
+Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 9a26b51a (the commit that added this file; the measured commit was not written down)
+
 Criterion bench `antecedent-attribution` / `shapley` (gated with `--test`):
 
 - `shapley_mc_8p_200_cached`

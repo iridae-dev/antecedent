@@ -1,5 +1,7 @@
 # Adjustment search benchmark baseline
 
+Commit: e4dfb921 (the commit that added this file; the measured commit was not written down)
+
 Workload: `backdoor_minimal_n8_cov` — T→Y with 8 common causes; enumerate
 minimal backdoor sets.
 

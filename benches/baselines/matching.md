@@ -1,5 +1,9 @@
 # Matching index baselines
 
+Established: 2026-07-13 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: d798e2f1 (the commit that added this file; the measured commit was not written down)
+
 Owner: `antecedent-stats` / `MatchingIndex::exact` and
 `antecedent-estimate` / `PropensityEstimationWorkspace`
 

@@ -1,5 +1,9 @@
 # User-path jobs (1.11 P1)
 
+Established: 2026-09-19 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 6a1a2463 (the commit that added this file; the measured commit was not written down)
+
 Not a `hot_paths.md` merge blocker. Not in `scripts/gate_release.sh` Criterion smoke.
 
 Harness: `crates/antecedent/benches/user_path.rs`.

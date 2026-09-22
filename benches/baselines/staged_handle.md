@@ -1,5 +1,9 @@
 # Prepared handle — 1.3.0
 
+Established: 2026-09-08 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: 6e60c419 (the commit that added this file; the measured commit was not written down)
+
 Measured 2026-09-08 on this macOS arm64 development host with the release
 profile, Criterion 10 samples, one-second warmup and measurement. Preparation
 is outside the timed loop; each iteration estimates against supplied data.
