@@ -1087,7 +1087,7 @@ fn chain_pag_fixture_identifies_six_completions_at_two_effects() {
 #[test]
 fn chain_pag_identified_set_interval_is_flagged_truncated() {
     const TRUNCATED: &str = "estimate.temporal_class.identified_set_interval_truncated";
-    for (inference, boot) in [(InferenceMode::Frequentist, 32), (bayes(), 0)] {
+    for (inference, boot) in [(InferenceMode::Frequentist, 40), (bayes(), 0)] {
         let result = run(
             chain_pag_series(grid_n(N), 0.0, 11),
             chain_pag(),
