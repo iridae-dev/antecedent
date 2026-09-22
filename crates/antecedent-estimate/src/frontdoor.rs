@@ -1091,7 +1091,14 @@ pub(crate) mod tests {
         for i in 0..n {
             let ti = standard_normal(&mut rng);
             let e1 = standard_normal(&mut rng);
-            let e2 = 0.85 * e1 + 0.15 * standard_normal(&mut rng);
+            // Stage-2 noise scale grows with |t|: this heteroskedasticity is what gives the
+            // HC0 sandwich meat a genuine cross-stage term. With homoskedastic Gaussian noise
+            // the stage-1 residual r1 = M - a - bT is, by the stage-1 normal equations, an
+            // exact linear combination of stage-2's own design columns (1, T, M); every joint
+            // moment the cross-stage meat entry needs then factors through third/fourth
+            // Gaussian cross-moments that cancel for jointly Gaussian, homoskedastic noise, so
+            // Cov(a, b) reads exactly (not approximately) zero regardless of Corr(e1, e2).
+            let e2 = (0.85 * e1 + 0.15 * standard_normal(&mut rng)) * (1.0 + 0.6 * ti.abs());
             let mi = 1.5 * ti + e1;
             let yi = 2.0 * mi + e2;
             t[i] = ti;

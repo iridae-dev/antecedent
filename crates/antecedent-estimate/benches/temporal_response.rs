@@ -184,17 +184,22 @@ fn wide_bayesian_series(
 
 #[allow(clippy::too_many_lines)]
 fn bench_temporal_response(c: &mut Criterion) {
-    // Soft budgets (temporal_response.md); 2× headroom for gate `--test` noise.
-    const MULTI_HORIZON_BUDGET: Duration = Duration::from_millis(25);
+    // Soft budgets (temporal_response.md); 2× headroom for gate `--test` noise on the
+    // optimized `cargo bench` profile. This crate is not one of the `[profile.dev.package.*]`
+    // opt-level-2 overrides, so under unoptimized `cargo test --bench` (this smoke) every
+    // budget here needs its own multiplier on top of that: measured ~5.5× slower than the
+    // 40 ms Bayesian-cold budget under contention (219 ms), so budgets below carry a further
+    // ~8-10× margin over the `cargo bench` figures for that build, not just gate noise.
+    const MULTI_HORIZON_BUDGET: Duration = Duration::from_millis(200);
     // Cold Bayesian curve: six per-horizon REML residual fits (the serial-dependence
     // tempering factor) plus six conjugate fits at n = 2000. The fits are cached per
     // design afterwards, so this runs first, before any bench has touched the series.
-    const BAYESIAN_WIDE_COLD_BUDGET: Duration = Duration::from_millis(40);
+    const BAYESIAN_WIDE_COLD_BUDGET: Duration = Duration::from_millis(400);
     // n = 100_000 is comfortably fast for the closed-form O(n*p) path (fit-dominated,
     // same order as the MeanCurve bench above) but would be ~100x+ over budget if the
     // additive-shift path regressed to an O(n) (or worse, the original O(n^2)) loop
     // averaging g-comp over every observed treatment level.
-    const INTERVENTION_SHIFT_BUDGET: Duration = Duration::from_millis(200);
+    const INTERVENTION_SHIFT_BUDGET: Duration = Duration::from_millis(1600);
 
     {
         let (data, query, estimand, indexer) = wide_bayesian_series(2000);
