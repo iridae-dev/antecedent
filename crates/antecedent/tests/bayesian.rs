@@ -898,6 +898,14 @@ fn temporal_sustained_accepted_full_completes_with_data_subset_refuter() {
 /// fixed-b-scaled HAC ratio with the AR(1)-residual ratio moved it another ~2.1e-6 and the p-value by ~5.1e-4;
 /// the REML autoregressive factor with its residual-scale term (κ̂ = n/(n − p) on iid
 /// residuals) moved it a further ~3.4e-6 and the p-value by ~8.2e-4.
+///
+/// `36a14c46` ("convert absolute prior SD² to conjugate V0 scale") changed how every
+/// conjugate-Gaussian coefficient prior — including the default weakly-informative
+/// baseline this fixture builds, not only an explicitly hydrated one — is stored and
+/// combined with the likelihood (`crates/antecedent-prob/src/conjugate.rs`,
+/// `prior.rs`), moving `original_ate` a further ~1.31e-4 and `comparison` from
+/// ~0.850 to ~0.628. Both stay far from `alpha` (0.05) with `passed` still `true`, so
+/// the refuter's verdict on this fixture (documented above) is unchanged by the fix.
 fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
     let subset = result
         .refutations
@@ -905,22 +913,22 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
         .find(|r| r.refuter.as_ref() == "data.subset")
         .expect("data.subset refuter must have run under RefuteSuite::Full");
     assert!(
-        (subset.original_ate - 0.703_919_477_006_649_8).abs() < 1e-9,
+        (subset.original_ate - 0.703_788_026_715_305_8).abs() < 1e-9,
         "unexpected original_ate: {}",
         subset.original_ate
     );
     assert!(
-        (subset.refuted_ate - 0.704_541_213_927_508_7).abs() < 1e-6,
+        (subset.refuted_ate - 0.702_501_070_382_850_9).abs() < 1e-6,
         "contiguous-window subset ATE should stay close to the original (lag semantics \
          preserved, no gross corruption; the two differ only by ordinary sampling \
-         variation from the additive noise, ~6.2e-4 here); got {}",
+         variation from the additive noise); got {}",
         subset.refuted_ate
     );
     assert!(
-        (subset.comparison - 0.850_044_046_957_791).abs() < 1e-6,
+        (subset.comparison - 0.627_739_960_950_259_2).abs() < 1e-6,
         "expected a large p-value: with real additive noise the replicate spread across \
          contiguous windows is on the order of the estimator's own standard error, so the \
-         ~6.2e-4 shift between original and subset ATE is unremarkable; got {}",
+         shift between original and subset ATE is unremarkable; got {}",
         subset.comparison
     );
     assert!(
