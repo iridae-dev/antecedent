@@ -39,7 +39,14 @@ def test_example_asserts_its_own_result(path):
 
 
 @pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: p.name)
-def test_example_runs(path):
+def test_example_runs(path, monkeypatch):
+    # `runpy.run_path` does not touch `sys.argv`: an example whose `__main__` block
+    # reads it (`bench_python_overhead.py`'s `argparse.ArgumentParser`) would
+    # otherwise inherit pytest's own argv (`-q`, the node id, `--tb=...`, ...) and
+    # fail with "unrecognized arguments" under any normal pytest invocation. Each
+    # example must run the way a reader invoking it directly would: with no
+    # arguments beyond its own name.
+    monkeypatch.setattr("sys.argv", [str(path)])
     runpy.run_path(str(path), run_name="__main__")
 
 
