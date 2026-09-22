@@ -26,7 +26,7 @@ pub enum CholeskyError {
 /// into `l` (upper triangle zeroed).
 ///
 /// A pivot `s = aᵢᵢ − Σₖ lᵢₖ²` is accepted only when it is finite and exceeds
-/// `n·ε·aᵢᵢ`: below that the subtraction has cancelled to rounding noise, the
+/// `64·ε·aᵢᵢ`: below that the subtraction has cancelled to rounding noise, the
 /// matrix is singular to working precision, and any inverse or solve from it is
 /// noise. A NaN entry reaches some pivot and is refused there.
 ///
@@ -39,7 +39,7 @@ pub fn cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> Result<(), Chole
         return Err(CholeskyError::BufferTooShort);
     }
     l[..nn].fill(0.0);
-    let rel_tol = (n.max(1) as f64) * f64::EPSILON;
+    let rel_tol = 64.0 * f64::EPSILON;
     for i in 0..n {
         for j in 0..=i {
             let mut sum = a[i * n + j];
