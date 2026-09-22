@@ -188,7 +188,7 @@ key mechanism estimator gcm.*
 # ChangeAttribution, MechanismChange, UnitChange}: exactly the `key` queries.
 allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution execute_anomaly execute_change_attribution execute_counterfactual execute_mechanism_change execute_unit_change
 # Sibling re-exports of the gcm entry points; every caller is checked by name.
-allow mechanism crates/antecedent/src/analysis/execute/mod.rs anomaly_attribution attribute_distribution_change attribute_unit_change attribution_path counterfactual_ite fit_gcm fit_gcm_counterfactual gcm map_mechanism_fit mechanism_change_detection
+allow mechanism crates/antecedent/src/analysis/execute/mod.rs anomaly_attribution_with attribute_distribution_change attribute_unit_change attribution_path counterfactual_ite fit_gcm fit_gcm_counterfactual gcm map_mechanism_fit mechanism_change_detection
 # Result slots and payload enum variants holding the facet's outputs (types only).
 allow mechanism crates/antecedent/src/analysis/execute/execute_helpers.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
 allow mechanism crates/antecedent/src/analysis/helpers.rs AnomalyScores ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
