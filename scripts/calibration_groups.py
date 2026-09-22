@@ -22,6 +22,10 @@ pair is its own parallel job, selected in the gate with
 `ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`, so the three points of a long group
 run side by side instead of one after another.
 
+Each job's `map_replicates` gets `ceil(cores / jobs)` worker threads
+(`ANTECEDENT_CALIBRATION_THREADS`), so `--jobs` jobs share the machine instead
+of each taking all of it; the default is one job per core, one thread each.
+
 `scripts/measure_calibration.sh` is the one command a developer runs: it
 refuses a dirty tree, runs `run`, collects the records and re-runs the
 attestation gate.
@@ -42,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import math
 import os
 import re
 import shutil
@@ -58,8 +63,11 @@ GATE = ROOT / "scripts" / "gate_calibration.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 PREVIOUS_LOG_DIR = ROOT / "target" / "calibration-records.previous"
 CONSOLE_DIR = ROOT / "target" / "calibration-console"
-# Wall-clock seconds of each group from earlier local runs (label, seconds, exit, sha).
+# Wall-clock seconds of each (group, grid point) task from earlier local runs:
+# label, seconds, exit, sha, worker threads the task ran with. Older rows have
+# no threads column and are read as whole-machine runs.
 TIMINGS = ROOT / "target" / "calibration-timings.tsv"
+CORES = os.cpu_count() or 1
 
 # Groups whose 2000-replicate recheck, when it fires, has run for hours on its
 # own on an M-series laptop: the recheck of
@@ -114,9 +122,12 @@ GRID_POINTS = (0, 1, 2)
 # (n/2, n, 3n/2) costs 3.0 and the short-series grid (3n/4, n, 2n) 3.75; this
 # is the estimate for all three, since the plan cannot see a design's grid.
 GRID_COST = 3.5
-# Default parallel jobs: the coverage tests are CPU-bound and each already uses
-# every core.
-MAX_DEFAULT_JOBS = 3
+
+
+def threads_per_job(jobs: int) -> int:
+    """Worker threads each job's `map_replicates` gets (ANTECEDENT_CALIBRATION_THREADS),
+    so `jobs` concurrent jobs share the cores instead of each taking all of them."""
+    return max(1, math.ceil(CORES / jobs))
 
 
 def is_grid(label: str) -> bool:
@@ -238,16 +249,21 @@ def select(groups: list[Group], everything: bool) -> Selection:
 
 
 def local_timings() -> dict[str, float]:
-    """The most recent passing wall time of each group from earlier local runs."""
+    """The most recent passing time of each (group, grid point) task from earlier
+    local runs, in machine-seconds: a task timed with `t` worker threads on
+    `CORES` cores is scaled by `t / CORES`, so a whole-machine run and a
+    one-thread run of the same task estimate the same work."""
     out: dict[str, float] = {}
     if TIMINGS.is_file():
         for line in TIMINGS.read_text().splitlines():
             parts = line.split("\t")
-            if len(parts) == 4 and parts[2] == "0":
+            if len(parts) in (4, 5) and parts[2] == "0":
                 try:
-                    out[parts[0]] = float(parts[1])
+                    seconds = float(parts[1])
+                    threads = int(parts[4]) if len(parts) == 5 else CORES
                 except ValueError:
                     continue
+                out[parts[0]] = seconds * min(threads, CORES) / CORES
     return out
 
 
@@ -289,7 +305,11 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
     unknown = 0
     if selection.owed_records:
         print(f"records owing a re-measurement: {selection.owed_records}")
-    print(f"groups to run: {len(selection.groups)} of {total} (parallel jobs: {jobs})")
+    threads = threads_per_job(jobs)
+    print(
+        f"groups to run: {len(selection.groups)} of {total} "
+        f"(parallel jobs: {jobs}, worker threads per job: {threads}, cores: {CORES})"
+    )
     for g in selection.groups:
         seconds, source = estimate(g, timings)
         if seconds is None:
@@ -302,17 +322,18 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
         print(f"  group {g.index}: {g.label}  [{selection.reasons[g.index]}; {shown}{long_note}]")
     if not selection.groups:
         return
-    # The work is CPU-bound and already parallel: every coverage test spreads its
-    # replicates over `available_parallelism` threads (`map_replicates`), so the
-    # machine is saturated by one job and `--jobs N` interleaves N such jobs
-    # instead of dividing the time by N. Wall-clock is the total work; extra jobs
-    # only keep the machine busy through the serial phases of each test.
+    # Estimates are machine-seconds (the whole machine on one task). Each job
+    # gets `threads` of the CORES cores (ANTECEDENT_CALIBRATION_THREADS), so
+    # the parallel phase takes about the total work, and no schedule beats the
+    # longest single task at its thread budget: wall ~ max(total, longest).
     # Rechecks are not included.
-    wall = sum(known)
+    work = sum(known)
+    longest_wall = max(known, default=0.0) * CORES / threads
     print(
-        f"rough estimate: about {_clock(wall)} wall-clock for the {len(known)} group(s) with "
-        f"timing data (CPU-bound: each test already uses every core, so {jobs} concurrent "
-        "job(s) share the machine and do not divide this)"
+        f"rough estimate: about {_clock(max(work, longest_wall))} wall-clock for the "
+        f"{len(known)} group(s) with timing data: {_clock(work)} of work spread over {CORES} "
+        f"cores by {jobs} job(s) of {threads} thread(s), bounded below by the longest group "
+        f"at {threads} thread(s) (~{_clock(longest_wall)})"
         + (f"; {unknown} group(s) have none" if unknown else "")
         + ". 2000-replicate rechecks come on top."
     )
@@ -366,6 +387,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
         print("FAIL: the calibration tests do not build")
         return 1
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    threads = threads_per_job(jobs)
     env = {
         k: v
         for k, v in os.environ.items()
@@ -376,8 +398,13 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_DRY_RUN",
             "ANTECEDENT_CALIBRATION_GRID_POINT",
             "ANTECEDENT_CALIBRATION_GRID_POINTS",
+            "ANTECEDENT_CALIBRATION_THREADS",
         )
     }
+    # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs
+    # fill the machine without oversubscribing it. RUST_TEST_THREADS is left
+    # alone: every gate invocation runs one exact test.
+    env["ANTECEDENT_CALIBRATION_THREADS"] = str(threads)
     started = time.monotonic()
     lock = threading.Lock()
     done: list[int] = []
@@ -411,7 +438,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             if status != 0:
                 failed.append(label)
             with TIMINGS.open("a") as timings:
-                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\n")
+                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{threads}\n")
             verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
             print(
                 f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
@@ -423,6 +450,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
 
     # Long groups first, so the ones that set the wall clock start at once.
     ordered = sorted(tasks, key=lambda t: (not t[0].long, t[0].index, t[1] or 0))
+    print(f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each")
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, ordered))
     print(
@@ -445,9 +473,11 @@ def main() -> int:
     for name, text in (("plan", "list the groups that would run"), ("run", "run them")):
         p = sub.add_parser(name, help=text)
         p.add_argument("--all", action="store_true", help="every group, not only the owed ones")
-        # Each job already runs its replicates on every core, so a few concurrent
-        # jobs keep the machine busy; more only oversubscribe it.
-        p.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, MAX_DEFAULT_JOBS))
+        # One job per core, each on one worker thread: list-scheduling the
+        # many heterogeneous tasks packs the machine better than nesting each
+        # task's own parallelism. `--jobs N` gives each job ceil(cores / N)
+        # threads (threads_per_job).
+        p.add_argument("--jobs", type=int, default=CORES)
     args = parser.parse_args()
     if args.jobs < 1:
         raise SystemExit("--jobs must be at least 1")

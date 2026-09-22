@@ -23,7 +23,7 @@
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
 #   bash scripts/measure_calibration.sh --all          # every group
-#   bash scripts/measure_calibration.sh --jobs 6       # default: min(cores, 3); the work is CPU-bound
+#   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
 #   bash scripts/measure_calibration.sh --dry-run      # list the groups, rough duration
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -52,12 +52,11 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 if [[ -z "$JOBS" ]]; then
-  # Each coverage test already spreads its replicates over every core; a few
-  # concurrent jobs keep the machine busy, more only oversubscribe it.
+  # One job per core: scripts/calibration_groups.py gives each job
+  # ceil(cores / jobs) worker threads (ANTECEDENT_CALIBRATION_THREADS), so the
+  # jobs share the machine instead of each taking all of it, and scheduling
+  # the many heterogeneous groups one per core packs it best.
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
-  if [[ "$JOBS" -gt 3 ]]; then
-    JOBS=3
-  fi
 fi
 case "$JOBS" in ''|*[!0-9]*|0) echo "--jobs must be a positive integer, got '$JOBS'" >&2; exit 2 ;; esac
 
