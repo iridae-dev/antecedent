@@ -190,24 +190,29 @@ def test_analyze_discovery_pc_refuses_unorientable_triangle():
     # z, t, y form a fully connected triangle (z->t, z->y, t->y): every pair stays
     # dependent under every conditioning set available here, so PC's skeleton phase
     # can remove no edge, and with no unshielded triple to seed a v-structure it can
-    # orient none of the three either. The CPDAG-shaped review
-    # (`accept_cpdag_review` in `python/src/lib.rs`) only auto-accepts already
-    # directed pending edges, so a fully undirected triangle blocks with
-    # ReviewRequired even at accept_discovered=True (the default): it must refuse,
-    # never return a number.
-    with pytest.raises(antecedent.errors.CausalReviewError) as excinfo:
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
-    exc = excinfo.value
-    assert exc.kind
-    assert exc.hint
-    assert exc.pending_edge_count > 0
+    # orient none of the three either. `accept_cpdag_review` (`python/src/lib.rs`)
+    # only ever gates on *directed* pending edges — there are none here — so
+    # `CpdagReview::into_accepted` (`crates/antecedent/src/accepted.rs`) accepts the
+    # fully undirected CPDAG outright at accept_discovered=True (the default):
+    # undirected marks are the MEC, not incompleteness, and generalized adjustment
+    # (`identify.cpdag.envelope`) is exactly the machinery built to consume them.
+    # So this must not refuse: it must return a graph-dependent envelope that
+    # mixes the identified and unidentified completions of the triangle's MEC,
+    # never a single confident number.
+    result = antecedent.analyze(
+        {"t": t, "y": y, "z": z},
+        discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.answer.kind == "bounds"
+    assert result.answer.value is None
+    assert result.answer.bounds is not None
+    assert result.structural_identified_mass == pytest.approx(0.5)
+    assert result.structural_unidentified_mass == pytest.approx(0.5)
+    assert result.identification.status == "GraphDependent"
 
 
 def test_analyze_ate_enriched_fields():
