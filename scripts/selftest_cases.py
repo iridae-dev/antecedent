@@ -385,8 +385,10 @@ def schema_cases() -> list[bool]:
             "required_job_not_a_job",
             {
                 "parity/release.toml": replace(
-                    'required_jobs = ["rust", "gates", "python-lint", "python-wheels"]',
-                    'required_jobs = ["rust", "gates", "python-lint", "python-wheels", "pull_request"]',
+                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
+                    '"python-wheels"]',
+                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
+                    '"python-wheels", "pull_request"]',
                 )
             },
             ["required job 'pull_request' missing from ci.yml"],
@@ -615,7 +617,8 @@ def citation_cases() -> list[bool]:
                     COND_DAG_BAYES,
                     COND_DAG_BAYES
                     + "; P(Y=1|do(T=1)) = 0.625, mean SE 0.0416 vs Monte Carlo SD 0.0410, "
-                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value)",
+                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value "
+                    "(probe latency_tiers::interactive_vs_standard_records_mode_and_effort))",
                 )
             },
             [],
