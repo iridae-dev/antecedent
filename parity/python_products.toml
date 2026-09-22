@@ -1097,3 +1097,43 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_on_stage_reaches_plan"
 
+[[parameter]]
+name = "provider"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = """
+Applies only to transport.Transport queries (refused on every other query by
+refuse_transport_only_kwargs in python/antecedent/transport/_day1.py). Selects the
+evidence estimator (EmpiricalTable / LearnedCategorical / TrialAipw) that
+prepare_transport passes as estimator= into the native
+prepare_statistical_transport / prepare_exact_transport / prepare_trial call
+(python/antecedent/transport/_impl.py); it changes which estimator actually runs, not
+a value inside the portable AnalysisResult contract read by ant.load(...).artifact —
+a Transport query's export() decodes back through decode_transport_view
+(python/antecedent/transport/_wrap.py) into a plain AnalysisResult with no
+.acceptance/.artifact, so _bound()'s contract-decode path does not apply here. The
+choice is directly observable instead on the executed result's own
+transport.provider and estimate.estimator_id fields, the same way the other
+execution_control rows observe their control directly (callbacks called,
+cancellation honoured) rather than through the contract.
+"""
+test = "python/tests/test_parameter_bindings.py::test_provider_reaches_plan"
+
+[[parameter]]
+name = "controls"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = """
+Applies only to transport.Transport queries (refused on every other query by
+refuse_transport_only_kwargs). transport.TransportControls bundles the execution
+limits and cancellation token of a transport study (max_operations, max_depth,
+max_support_rows, memory_bytes, cancel) the same way the top-level cancel=
+parameter does for an ordinary analyze — prepare_transport
+(python/antecedent/transport/_day1.py) reads controls.cancel and merges a bare
+cancel= into it, and passes every field straight into the native
+prepare_statistical_transport / prepare_exact_transport call as execution budgets,
+never into the portable contract. Observed the same way cancel= is: a pre-cancelled
+token inside controls= must actually stop the transport execution.
+"""
+test = "python/tests/test_parameter_bindings.py::test_controls_reaches_plan"
+
