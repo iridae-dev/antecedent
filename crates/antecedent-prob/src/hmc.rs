@@ -1008,8 +1008,11 @@ mod tests {
     use crate::prior::{InvGammaPrior, PriorSpec};
     use antecedent_core::{RngFactory, StreamDomain};
 
-    /// Exact known-σ² Gaussian posterior `N(m, C)` with prior `N(0, v0·I)`:
-    /// `C = (X'X/σ² + I/v0)⁻¹`, `m = C X'y/σ²` (column-major `x`, `p` columns).
+    /// Exact known-σ² Gaussian posterior `N(m, C)` under the conjugate prior
+    /// `β | σ² ~ N(0, σ²·v0·I)` (`v0` is the [`GaussianCoefficientPrior`] scale, whose
+    /// *absolute* variance at known σ² is `σ²·v0`, per its doc and [`crate::conjugate`]'s
+    /// `posterior_known_sigma2`): `C = (X'X/σ² + I/(v0·σ²))⁻¹`, `m = C X'y/σ²`
+    /// (column-major `x`, `p` columns).
     fn exact_known_sigma2_posterior(
         x: &[f64],
         y: &[f64],
@@ -1026,7 +1029,7 @@ mod tests {
                 for r in 0..n {
                     acc += x[i * n + r] * x[j * n + r];
                 }
-                a[i * p + j] = acc / sigma2 + if i == j { 1.0 / v0 } else { 0.0 };
+                a[i * p + j] = acc / sigma2 + if i == j { 1.0 / (v0 * sigma2) } else { 0.0 };
             }
             b[i] = (0..n).map(|r| x[i * n + r] * y[r]).sum::<f64>() / sigma2;
         }
