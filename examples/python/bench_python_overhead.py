@@ -75,7 +75,7 @@ def _formats(base: Mapping[str, np.ndarray]) -> list[tuple[str, Any]]:
 
         out.append(("pandas", pd.DataFrame(base)))
     except ImportError:
-        pass
+        pass  # pandas is an optional format for this benchmark; skip it if absent
     try:
         import pyarrow as pa
 
@@ -86,7 +86,7 @@ def _formats(base: Mapping[str, np.ndarray]) -> list[tuple[str, Any]]:
             )
         )
     except ImportError:
-        pass
+        pass  # pyarrow is an optional format for this benchmark; skip it if absent
     return out
 
 

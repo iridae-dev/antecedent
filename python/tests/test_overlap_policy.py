@@ -102,4 +102,5 @@ def test_default_overlap_is_the_native_default_policy():
     from antecedent._defaults import OMITTED
 
     assert Overlap().clip == OMITTED["overlap_clip"] == 0.01
-    assert Overlap().trim == OMITTED["overlap_trim"] is None
+    assert OMITTED["overlap_trim"] is None
+    assert Overlap().trim is None
