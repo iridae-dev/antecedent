@@ -181,6 +181,26 @@ fn finalize_energy(delta_h: f64) -> (bool, f64) {
 const MIN_STEP: f64 = 1e-6;
 const MAX_STEP: f64 = 0.5;
 
+/// Width of the multiplicative step-size jitter applied to every leapfrog trajectory (Neal
+/// 2011, sec. 4.2): a fixed leapfrog step count makes the trajectory length exactly
+/// `L * step_size`, and any near-Gaussian mode whose oscillation period is close to that
+/// length returns close to its own starting point, so the chain barely moves even though the
+/// step is accepted almost every time (high mean acceptance, terrible ESS/R-hat). Each
+/// transition instead runs at `step_size * U(1 - JITTER, 1)`, decorrelating the realized
+/// trajectory length from any one mode's period without touching the dual-averaged
+/// `step_size` that adaptation and the [`MIN_STEP`]/[`MAX_STEP`] bounds track. The jitter only
+/// shrinks, never grows, the executed step: dual averaging already tunes `step_size` to the
+/// requested acceptance rate, so scaling *up* would raise the divergence rate it targeted
+/// against; scaling down still detunes the trajectory length from a resonant period.
+const STEP_JITTER: f64 = 0.2;
+
+/// Multiplicative jitter factor in `[1 - STEP_JITTER, 1]`, clamped into the step bounds after
+/// scaling.
+fn jittered_step(step_size: f64, rng: &mut CausalRng) -> f64 {
+    let factor = 1.0 - STEP_JITTER * rng.next_f64();
+    (step_size * factor).clamp(MIN_STEP, MAX_STEP)
+}
+
 /// Shortest warmup that still leaves a usable slow window for metric adaptation.
 pub const MIN_METRIC_WARMUP: usize = 100;
 
@@ -459,6 +479,7 @@ fn run_glm_chain(
             // uses the averaged step, not the last exploratory one.
             step_size = dual_average_finalize(log_eps_bar);
         }
+        let exec_step = jittered_step(step_size, &mut rng);
         let step = hmc_step_glm(
             likelihood,
             design,
@@ -466,7 +487,7 @@ fn run_glm_chain(
             prec,
             &beta,
             &gradu_curr,
-            step_size,
+            exec_step,
             hmc.leapfrog_steps,
             &metric.inv_mass,
             lp_curr,
@@ -548,12 +569,13 @@ fn run_gaussian_chain(
         if t == hmc.n_warmup {
             step_size = dual_average_finalize(log_eps_bar);
         }
+        let exec_step = jittered_step(step_size, &mut rng);
         let step = hmc_step_target(
             &mut target,
             &q,
             lp_curr,
             &grad_curr,
-            step_size,
+            exec_step,
             hmc.leapfrog_steps,
             &metric.inv_mass,
             ws,
