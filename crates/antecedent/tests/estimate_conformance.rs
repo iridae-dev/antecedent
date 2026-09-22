@@ -82,55 +82,12 @@ fn assert_recovers(result: &antecedent::StudyResult, expected: &JsonValue) {
     assert_eq!(result.logical_plan.estimator.as_deref(), expected["estimator"].as_str());
 }
 
-/// Largest accepted `|ln(SE_rust·√n_rust / SE_ref·√n_ref)|`: `ln 1.5`.
-///
-/// The recorded reference SE (`reference.outputs.se`) comes from the reference's own
-/// `n = 800` draw of the same SCM, so the two SEs are compared after `√n`
-/// rescaling, never as raw numbers. `ln 1.5` absorbs the sampling noise of
-/// two SE estimates from different draws (the reference side is a bootstrap SE)
-/// while still failing every constant-factor bug of 2 or more — variance
-/// reported as SD, a dropped `√2`, a missing `n/(n−1)` squared, or an SE
-/// computed on the wrong row count.
-const SE_LOG_RATIO_TOLERANCE: f64 = 0.405_465_108_108_164_4;
-
-/// Fixtures whose recorded reference SE is not a reference for the Rust estimator.
-///
-/// `aipw`'s reference block ran `backdoor.propensity_score_weighting`, a different
-/// estimator (its point estimate is byte-identical to `propensity_ipw`'s).
-/// `propensity_ipw`'s reference SE (0.273 at n = 800) is about five times the
-/// Monte Carlo sampling SD of any IPW estimator on the SCM this test draws
-/// from (≈0.054 Hajek with a fitted logistic propensity, ≈0.11 Horvitz–Thompson
-/// with the true one), so it cannot calibrate this SCM. Comparing either
-/// would test the reference's recording, not this crate; the Rust SEs for these two
-/// estimators are covered by the `antecedent-estimate` coverage gates instead.
-const SE_NOT_COMPARABLE: [&str; 2] = ["propensity_ipw", "aipw"];
-
-/// Compare the reported SE against the fixture's recorded reference SE.
-fn assert_reference_se(result: &antecedent::StudyResult, name: &str, n: usize) {
-    assert!(!SE_NOT_COMPARABLE.contains(&name), "{name} has no comparable reference SE");
-    let expected = load_expected(name);
-    let outputs = &expected["reference"]["outputs"];
-    let reference_se = outputs["se"].as_f64().expect("reference.outputs.se");
-    let reference_n = outputs["n"].as_f64().expect("reference.outputs.n");
-    let se = if result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0 {
-        result.estimate.se_analytic
-    } else {
-        result.estimate.se_bootstrap.expect("an analytic or bootstrap SE")
-    };
-    let log_ratio = (se * (n as f64).sqrt() / (reference_se * reference_n.sqrt())).ln();
-    eprintln!(
-        "se check {}: se={se} n={n} reference_se={reference_se} reference_n={reference_n} \
-         log_ratio={log_ratio:.4}",
-        expected["estimator"]
-    );
-    assert!(
-        log_ratio.abs() <= SE_LOG_RATIO_TOLERANCE,
-        "{}: SE {se} (n={n}) vs recorded reference {reference_se} (n={reference_n}): \
-         |ln ratio| = {:.3} > ln 1.5 after sqrt(n) rescaling",
-        expected["estimator"],
-        log_ratio.abs()
-    );
-}
+// `iv_wald` and `iv_2sls` are the only estimators here whose SE was ever compared
+// against a fixture reference, and they no longer publish one: since `fix(estimate):
+// publish Anderson-Rubin intervals for IV`, both withhold `se_analytic` and
+// `se_bootstrap` in favor of a homoskedastic Anderson-Rubin set
+// (`first_stage_diagnostics.anderson_rubin`), so there is no SE left to compare and
+// the `assert_reference_se` helper this file used to carry for them is gone.
 
 /// `Z ~ N(0,1)` confounder; `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`; `Y = 2T + Z + noise`.
 /// True ATE = 2; a naive unadjusted contrast is biased by `Z`, exercising IPW.
@@ -225,7 +182,8 @@ fn estimate_iv_2sls_recovers_structural_effect() {
     let ctx = ExecutionContext::for_tests(21);
     let result = analysis.run(&ctx).unwrap();
     assert_recovers(&result, &expected);
-    assert_reference_se(&result, "iv_2sls", 4000);
+    // No SE to compare: IV publishes an Anderson-Rubin set instead (see
+    // SE_NOT_COMPARABLE).
 }
 
 /// `U -> T -> M -> Y` with `U -> Y` (no direct `T -> Y` edge; `U` unmeasured, absent from the
@@ -684,8 +642,9 @@ fn estimate_efficient_backdoor_ipw_recovers_ate() {
 #[test]
 fn estimate_iv_wald_recovers_structural_effect() {
     let (data, graph, query) = iv_2sls_scm(4000, 21);
-    let result = run_static("iv_wald", data, graph, query, 22);
-    assert_reference_se(&result, "iv_wald", 4000);
+    let _result = run_static("iv_wald", data, graph, query, 22);
+    // No SE to compare: IV publishes an Anderson-Rubin set instead (see
+    // SE_NOT_COMPARABLE).
 }
 
 /// On `z -> t -> y` the auto identifier lists back-door, IV, and general-ID estimands.
