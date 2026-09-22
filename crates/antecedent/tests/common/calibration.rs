@@ -892,6 +892,19 @@ impl CoverageTally {
     /// still passes); a rate more than [`RECHECK_SHORTFALL`] from the level
     /// below [`PRECISION_N_SIM`] prints `calibration-recheck` so the gate
     /// remeasures.
+    /// Persist this tally's raw state for extension without gating or printing
+    /// a `calibration` line: for a tally that is only ever [`Self::record`]ed
+    /// (an info-only accumulator never [`Self::assert`]ed or [`Self::emit`]ted,
+    /// e.g. a class-prior's weighted-mean or a class-set's other-endpoint
+    /// tally). Without this, [`Self::seed`] still fires on such a tally's first
+    /// `record` call on an extending thread (it does not know the tally is
+    /// info-only), and panics for want of prior state that a normal `assert`/
+    /// `emit` would have written on the first run. Call once after every
+    /// replicate has been recorded, alongside the info-only tally's own report.
+    pub fn persist(&self) {
+        self.finish();
+    }
+
     ///
     /// # Panics
     ///
