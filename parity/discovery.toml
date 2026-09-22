@@ -152,7 +152,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/discovery/advanced_ci"
 limitations = "Evidence is four reject/accept decisions at alpha 0.05 (conditional and unconditional nonlinear dependence, conditional null, two-conditioner dependence) plus statistic ordering. The fixture records Tigramite 5.2.1.30 reference statistics, but the statistic band (atol 0.35 + rtol 1.0) covers the whole distance-correlation range for every dependent case, so the reference values do not constrain the statistic; this row is not external-oracle parity."
 owner = "ci"
-notes = "Native RBF-GP + distance correlation (product contract; not torch-backed). Seeded permutation null on residual dcorr, keyed by the query. Refuses more than 4000 rows."
+notes = "Native RBF-GP + distance correlation (product contract; not torch-backed). Seeded permutation null on residual dcorr, keyed by the query. Distance correlation is O(n log n); refuses more than 4000 rows only when a conditioning set needs the dense kernel factorization."
 
 [[capabilities]]
 id = "discovery.ci.gsquared"
