@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -24,7 +28,27 @@ const N: usize = 241;
 const A: f64 = 0.8;
 const B: f64 = 0.55;
 const C_PRIME: f64 = 0.25;
-const STRUCTURAL_MEDIATED: f64 = A * B;
+
+/// The structural horizon-1 mediation truth of the law above
+/// (`conformance/estimate/temporal_class_mediation_truth`): the natural indirect effect is
+/// the path product `a * b`, derived from the structural equations rather than estimated.
+/// The fixture's stated coefficients must be this file's data-generating ones.
+fn mediation_truth() -> serde_json::Value {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_mediation_truth/expected.json"
+    ))
+    .unwrap();
+    assert!((truth["structural"]["a"].as_f64().unwrap() - A).abs() < 1e-12);
+    assert!((truth["structural"]["b"].as_f64().unwrap() - B).abs() < 1e-12);
+    assert!((truth["structural"]["direct_c"].as_f64().unwrap() - C_PRIME).abs() < 1e-12);
+    truth
+}
+
+fn structural_mediated() -> f64 {
+    let mediated = mediation_truth()["horizon_1"]["mediated"].as_f64().unwrap();
+    assert!((mediated - A * B).abs() < 1e-12, "fixture mediated effect must be a * b");
+    mediated
+}
 
 fn confounded_mediation_series() -> (TimeSeriesData, TemporalDag) {
     let mut builder = CausalSchemaBuilder::new();
@@ -234,9 +258,9 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
     let z1_cols = [LaggedColumn { variable: VariableId::from_raw(3), lag: Lag::from_raw(1) }];
     let under_i1 = estimate_h1(&data, &z1_cols);
     let under_i2 = estimate_h1(&data, &[]);
-    assert!((under_i1 - STRUCTURAL_MEDIATED).abs() < 1e-6);
+    assert!((under_i1 - structural_mediated()).abs() < 1e-6);
     assert!(
-        (under_i2 - STRUCTURAL_MEDIATED).abs() > 0.2,
+        (under_i2 - structural_mediated()).abs() > 0.2,
         "reusing I(2)={{}} at h=1 must recover the confounded association, got {under_i2}"
     );
 
@@ -255,13 +279,14 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         assert!(has_cached(&click), "prepared click must reuse exec.identify.cached");
         match inference {
             InferenceMode::Frequentist => {
-                assert!((click.estimate.ate - STRUCTURAL_MEDIATED).abs() < 1e-6);
+                assert!((click.estimate.ate - structural_mediated()).abs() < 1e-6);
             }
             InferenceMode::Bayesian(_) => {
                 assert!(
-                    (click.estimate.ate - STRUCTURAL_MEDIATED).abs() < 0.08,
-                    "Bayesian I(1) ate {} vs structural {STRUCTURAL_MEDIATED}",
-                    click.estimate.ate
+                    (click.estimate.ate - structural_mediated()).abs() < 0.08,
+                    "Bayesian I(1) ate {} vs structural {}",
+                    click.estimate.ate,
+                    structural_mediated()
                 );
             }
         }
@@ -352,11 +377,12 @@ fn assert_horizon_one_mediated(result: &antecedent::StudyResult, tol: f64, case:
     let slice = grid.slices.iter().find(|slice| slice.horizon == 1).expect("horizon-1 slice");
     let set = slice.identified_set.expect("horizon-1 identified set");
     assert!(
-        (set.lower - STRUCTURAL_MEDIATED).abs() < tol
-            && (set.upper - STRUCTURAL_MEDIATED).abs() < tol,
-        "{case}: horizon-1 identified set [{}, {}] vs structural a·b = {STRUCTURAL_MEDIATED}",
+        (set.lower - structural_mediated()).abs() < tol
+            && (set.upper - structural_mediated()).abs() < tol,
+        "{case}: horizon-1 identified set [{}, {}] vs structural a·b = {}",
         set.lower,
-        set.upper
+        set.upper,
+        structural_mediated()
     );
 }
 
@@ -415,9 +441,10 @@ fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
             // scalar estimate beside the set.
             assert_horizon_one_mediated(&result, 1e-6, &case);
             assert!(
-                (result.estimate.ate - STRUCTURAL_MEDIATED).abs() < 1e-6,
-                "{case}: estimate {} vs structural {STRUCTURAL_MEDIATED}",
-                result.estimate.ate
+                (result.estimate.ate - structural_mediated()).abs() < 1e-6,
+                "{case}: estimate {} vs structural {}",
+                result.estimate.ate,
+                structural_mediated()
             );
             assert!(result.mediation.is_some(), "{case}");
             assert!(result.mediation_grid.as_ref().is_some_and(|grid| {

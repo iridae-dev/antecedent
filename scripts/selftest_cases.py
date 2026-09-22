@@ -453,12 +453,12 @@ def schema_cases() -> list[bool]:
             g,
             "publish_without_attestation",
             {
-                ".github/workflows/publish-crates.yml": replace(
+                ".github/workflows/publish-release.yml": replace(
                     "        run: bash scripts/gate_calibration_attestation.sh\n",
                     "        run: echo skipped\n",
                 )
             },
-            ["publish-crates.yml: no step runs gate_calibration_attestation.sh"],
+            ["publish-release.yml: no step runs gate_calibration_attestation.sh"],
         ),
         case(
             g,
@@ -683,6 +683,17 @@ def reachability_cases() -> list[bool]:
                 )
             },
             ["`orphan_cell_nominal_90_coverage` claims to run via scripts/gate_calibration.sh"],
+        ),
+        # An oracle block whose kind is outside the closed vocabulary.
+        case(
+            g,
+            "oracle_kind_outside_vocabulary",
+            {
+                "conformance/estimate/cpdag_ate_envelope/expected.json": replace(
+                    '"kind": "regression_pin"', '"kind": "trust_me"'
+                )
+            },
+            ["`oracle` must be an object with `kind` in"],
         ),
     ]
 

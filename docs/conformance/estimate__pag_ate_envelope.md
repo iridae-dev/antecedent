@@ -22,4 +22,4 @@ estimate and same-schema refresh reuse, and in
 
 ## Expected summary
 
-Top-level keys: `case, columns, contingency_table, graph, identification, query, schema_version, validity, withdrawn_numeric_outputs` (9 fields).
+Top-level keys: `case, columns, contingency_table, graph, identification, oracle, query, schema_version, validity, withdrawn_numeric_outputs` (10 fields).

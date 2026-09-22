@@ -1,6 +1,7 @@
 {
   "schema_version": 2,
   "oracle": {
+    "kind": "enumeration",
     "project": "clean-room brute-force expected-utility enumeration",
     "algorithm": "enumerate action/outcome utility and constraint matrices in exact rational arithmetic; choose the Bayes action over admissible actions only; regret is the expected opportunity loss of the Bayes action against perfect information over admissible actions (EVPI)",
     "pin": "fixture-algorithm-v2",

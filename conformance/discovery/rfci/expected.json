@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "enumeration",
     "project": "Colombo-Maathuis RFCI semantics plus independent oracle-CI motif enumeration",
     "version": "fixture-algorithm-v1",
     "generator": "temporary clean-room motif enumerator (deleted after artifact import)",

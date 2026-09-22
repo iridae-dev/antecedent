@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "SciPy exact Gaussian-process log marginal likelihood",
     "versions": {"python": "3.11.5", "numpy": "2.4.6", "scipy": "1.17.0"},
     "installed_metadata_sha256": {"numpy": "b082c52ccbe3b880bae177c35171b52ed6c947f3ad71e3762f2723f60a411de0", "scipy": "61d2715100413b0959352e1c638ebc3e54d96dd6ae0858026cf5f5e5dc8eb41e"},

@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "oracle": {"kind": "regression_pin", "note": "Bayesian expected_ate 0.4615641945101853 is a seeded (seed 1, 64 draws) output pin of this library, not truth. The frequentist ATE 0.46 and joint-IF SE are checked against the independent numpy reference.py beside it.", "independent_inferences": ["Frequentist"]},
   "case": "two_completion_cpdag_mec_envelope",
   "columns": ["t", "y", "z"],
   "query": {

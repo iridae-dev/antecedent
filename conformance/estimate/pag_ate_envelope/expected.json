@@ -1,5 +1,12 @@
 {
   "schema_version": 1,
+  "oracle": {
+    "kind": "regression_pin",
+    "note": "Bayesian envelope value is a seeded (seed 1, 64 draws) output pin of this library, not truth. The frequentist value follows from the hand-derived completion effects in the README.",
+    "independent_inferences": [
+      "Frequentist"
+    ]
+  },
   "case": "three_completion_generalized_adjustment_envelope",
   "columns": [
     "t",

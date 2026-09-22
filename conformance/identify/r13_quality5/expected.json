@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "closed_form",
     "project": "R13 tests-quality-5: numeric identification cases missing from the transport sweeps and mag_visibility_id status pins",
     "generator": "hand-derived binary SCMs; interventional means are truncated-factorization truths on the named graphs, not package dumps"
   },

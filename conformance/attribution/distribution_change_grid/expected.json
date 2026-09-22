@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "closed_form_linear_scm",
+    "kind": "closed_form",
+    "method": "closed_form_linear_scm",
     "generator": "temporary clean-room harness (deleted after artifact import)",
     "formula": "For identical X distributions and Y=a+bX, changing only a by delta changes E[Y] by delta and assigns the exact mechanism Shapley contribution to Y."
   },

@@ -276,9 +276,7 @@ def test_pag_review_refuses_both_directions_of_one_edge():
 
 def test_cpdag_cycle_error_names_the_callers_orientation():
     # a->b and b->c are fixed; the caller orienting c->a closes the cycle.
-    cpdag = Cpdag.from_directed_undirected(
-        ["a", "b", "c"], [("a", "b"), ("b", "c")], [("a", "c")]
-    )
+    cpdag = Cpdag.from_directed_undirected(["a", "b", "c"], [("a", "b"), ("b", "c")], [("a", "c")])
     handle = AcceptedGraph.from_graph(cpdag)
     with pytest.raises(CausalValueError, match=r"orienting 'c'->'a' would create"):
         handle.review({("a", "c"): ("arrow", "tail")})

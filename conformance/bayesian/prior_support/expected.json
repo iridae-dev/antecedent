@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "SciPy distribution support and normalization oracle",
     "api": "scipy.stats.norm, scipy.stats.invgamma, scipy.integrate.quad",
     "packages": {

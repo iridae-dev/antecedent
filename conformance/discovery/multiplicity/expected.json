@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "statsmodels",
     "api": "statsmodels.stats.multitest.multipletests",
     "packages": {

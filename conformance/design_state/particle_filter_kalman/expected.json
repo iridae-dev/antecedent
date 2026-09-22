@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "NumPy clean-room scalar Kalman filter",
     "api": "closed-form predict/update recursions",
     "packages": {

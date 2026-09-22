@@ -10,6 +10,7 @@ import pytest
 
 from _refusal import assert_registered_refusal
 
+
 def _confounded(n: int = 120, seed: int = 7):
     rng = np.random.default_rng(seed)
     z = rng.normal(size=n)

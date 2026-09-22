@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "closed_form",
     "project": "Shpitser-Pearl ID (2006) worked examples and hedge definition; numeric truth is enumerated from latent binary SCMs by the consuming test, not stored here",
     "generator": "hand-derived from the cited paper's algorithm and Definition 6 (hedge)"
   },

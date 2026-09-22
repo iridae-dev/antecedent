@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import antecedent
 import pytest
-from _refusal import assert_registered_refusal
 from antecedent.errors import CausalError
+
+from _refusal import assert_registered_refusal
 
 QUERY = antecedent.AverageEffect(treatment="T", outcome="Y")
 

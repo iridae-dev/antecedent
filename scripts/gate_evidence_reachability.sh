@@ -215,6 +215,13 @@ def command_blocks(obj):
             yield from command_blocks(value)
 
 
+ORACLE_KINDS = {
+    "external_package",  # a frozen run of a pinned upstream package or tool
+    "closed_form",  # analytic / hand-derived truth
+    "enumeration",  # exhaustive or exact enumeration
+    "independent_reimplementation",  # a clean-room reimplementation of the method
+    "regression_pin",  # frozen output of this library: a change detector, not truth
+}
 for expected in sorted((root / "conformance").glob("**/expected.json")):
     try:
         document = json.loads(expected.read_text())
@@ -235,6 +242,21 @@ for expected in sorted((root / "conformance").glob("**/expected.json")):
     if isinstance(document, dict) and isinstance(document.get("oracle"), str):
         if "command" not in document and "reference" not in document:
             fail.append(f"{expected}: names an external oracle but records no command")
+    # Every `oracle` block says what kind of truth it is, from one closed vocabulary; a
+    # frozen output of this library is a regression_pin, never truth.
+    if isinstance(document, dict) and "oracle" in document:
+        oracle = document["oracle"]
+        if not isinstance(oracle, dict) or oracle.get("kind") not in ORACLE_KINDS:
+            fail.append(
+                f"{expected}: `oracle` must be an object with `kind` in {sorted(ORACLE_KINDS)}"
+            )
+        elif oracle["kind"] == "regression_pin":
+            if not str(oracle.get("note", "")).strip():
+                fail.append(f"{expected}: a regression_pin oracle must say what is pinned (`note`)")
+        elif "independent_inferences" in oracle:
+            fail.append(
+                f"{expected}: independent_inferences belongs on a regression_pin oracle only"
+            )
 
 # ------------------------------------ 6. calibration tests are run by the gate
 # A test whose `#[ignore]` reason says it runs via scripts/gate_calibration.sh must

@@ -1,5 +1,12 @@
 {
   "schema_version": 1,
+  "oracle": {
+    "kind": "regression_pin",
+    "note": "Bayesian mean/sd values are seeded output pins of this library, not truth. The frequentist envelope and the contingency table are checked against the independent numpy reference.py beside it.",
+    "independent_inferences": [
+      "Frequentist"
+    ]
+  },
   "case": "identified_multi_completion_pag_envelope",
   "columns": [
     "t",

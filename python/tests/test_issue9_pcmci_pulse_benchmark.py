@@ -18,10 +18,7 @@ def test_issue9_pcmci_pulse_benchmark_example() -> None:
 
     runpy.run_path(
         str(
-            Path(__file__).resolve().parents[2]
-            / "examples"
-            / "python"
-            / "pcmci_pulse_benchmark.py"
+            Path(__file__).resolve().parents[2] / "examples" / "python" / "pcmci_pulse_benchmark.py"
         ),
         run_name="__main__",
     )

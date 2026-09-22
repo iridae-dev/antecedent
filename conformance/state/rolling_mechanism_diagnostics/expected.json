@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "clean-room closed-form two-predictor batch OLS",
     "algorithm": "rebuild each trailing window; solve the 2x2 normal equations analytically; recompute residual summaries directly",
     "pin": "fixture-algorithm-v1",

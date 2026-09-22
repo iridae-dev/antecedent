@@ -233,7 +233,7 @@ def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     unsupported = transport.ExactTransportData(
         (replace(data.laws[0], probabilities=(0.8, 0.2, 0.0, 0.0)),)
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="zero denominator"):
         prepared.refresh(unsupported)
     assert prepared.inspect().execution_id == before.execution_id
     updated = transport.ExactTransportData(

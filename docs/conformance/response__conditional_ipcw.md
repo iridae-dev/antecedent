@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `atol, coefficients, data, fixture_id, oracle` (5 fields).
+Top-level keys: `atol, coefficients, command, data, fixture_id, oracle` (6 fields).

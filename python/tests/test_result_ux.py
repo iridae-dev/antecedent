@@ -7,7 +7,6 @@ from pathlib import Path
 import antecedent
 import numpy as np
 import pytest
-from _repo_text import REPO_ROOT, load_json
 from antecedent.errors import (
     EffectNotIdentified,
     PendingEdge,
@@ -16,6 +15,8 @@ from antecedent.errors import (
     resolve_display_name,
 )
 from antecedent.results import IdentificationView, ResponseView
+
+from _repo_text import REPO_ROOT, load_json
 
 
 def _ate_result():

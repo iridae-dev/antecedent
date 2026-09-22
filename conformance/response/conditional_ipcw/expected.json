@@ -1,6 +1,9 @@
 {
   "fixture_id": "response.conditional_ipcw",
-  "oracle": "R survival 3.8.6 coxph Breslow and basehaz left limits",
+  "oracle": {
+    "kind": "external_package",
+    "method": "R survival 3.8.6 coxph Breslow and basehaz left limits"
+  },
   "command": "Rscript conformance/response/conditional_ipcw/generate.R && python3 conformance/response/conditional_ipcw/freeze.py",
   "coefficients": [
     -0.324730515030848,

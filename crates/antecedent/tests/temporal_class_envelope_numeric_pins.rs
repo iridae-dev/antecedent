@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 mod common;
 
@@ -365,11 +369,39 @@ fn class_response_queries() -> Vec<(&'static str, CausalQuery, Vec<Eval>)> {
     ]
 }
 
+/// The closed-form structural truth of this law's horizon-1 response
+/// (`conformance/estimate/temporal_class_response_truth`): `(value per cell,
+/// tolerance)` for the completion with the given adjustment set. The z-adjusting
+/// completion identifies the interventional level `1 + 2 x + 0.6 mean(z) + mean(w)`; the
+/// completion without `z` identifies the association, whose closed form is the
+/// omitted-variable-bias line through the sample means.
+fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64) {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_response_truth/expected.json"
+    ))
+    .unwrap();
+    let key = match adjustment {
+        [] => "z_as_mediator",
+        [(2, -1)] => "adjusting_z",
+        other => panic!("no closed-form truth for adjustment set {other:?}"),
+    };
+    let values = truth["horizon_1"][key][kind]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    (values, truth["tolerance"][key].as_f64().unwrap())
+}
+
 /// `ResponseCurve` / `InterventionResponse` × `TemporalCpdag` / `TemporalPag` (Frequentist):
 /// every identified completion atom equals an independent lag-aligned OLS
 /// g-computation under that atom's adjustment set, the adjustment sets are the
 /// graph-theoretic ones, and the published identified set is exactly the pointwise
-/// min/max of those per-completion surfaces.
+/// min/max of those per-completion surfaces. At horizon 1 each atom also equals the
+/// closed-form structural value of its completion (the interventional level for the
+/// z-adjusting completion, the omitted-variable-bias association for the other), which
+/// does not share the estimator's lag convention.
 #[test]
 fn temporal_class_response_returns_completion_identified_set() {
     let columns = class_response_columns(300);
@@ -440,6 +472,17 @@ fn temporal_class_response_returns_completion_identified_set() {
                                 (got - want).abs() < 1e-8,
                                 "{label} h={horizon} adj={adjustment:?}: atom {got} vs OLS {want}"
                             );
+                        }
+                        if horizon == 1 {
+                            let (structural_values, tolerance) =
+                                horizon_one_truth(kind, &adjustment);
+                            assert_eq!(mean.len(), structural_values.len(), "{label}");
+                            for (got, truth) in mean.iter().zip(&structural_values) {
+                                assert!(
+                                    (got - truth).abs() < tolerance,
+                                    "{label} adj={adjustment:?}: atom {got} vs closed-form {truth} (tolerance {tolerance})"
+                                );
+                            }
                         }
                         seen.insert(adjustment);
                         surfaces.push(expected);

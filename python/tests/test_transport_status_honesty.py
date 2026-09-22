@@ -304,7 +304,7 @@ def test_transport_export_is_verified_natively_not_a_bare_json_blob():
     # identification status -- it must fail rather than pass through.
     corrupt = dict(payload)
     corrupt["identification_artifact"] = base64.b64encode(b"not a real certificate").decode("ascii")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid certificate framing"):
         load(prefix + json.dumps(corrupt).encode())
 
     # Dropping the certificate entirely must fail closed (unidentified),

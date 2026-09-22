@@ -9,9 +9,7 @@ import pytest
 
 pytest.importorskip("antecedent")
 
-_EXAMPLE = (
-    Path(__file__).resolve().parents[2] / "examples" / "python" / "dowhy_handoff.py"
-)
+_EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "python" / "dowhy_handoff.py"
 
 
 def _load_example():

@@ -35,10 +35,38 @@ EVIDENCE_KINDS = {
     "implementation_exists",
     "internal_known_truth",
     "internal_cross_check",
+    # frozen output of this library itself (a seeded run or a copied value): a change
+    # detector, never truth. Names its test, never a known_truth_fixture.
+    "regression_pin",
     "frozen_external_oracle",
     "behavioral_parity",
     "contract_equivalence",
 }
+
+def regression_pin_problem(fixture: str, inference: str) -> str | None:
+    """Why `fixture` cannot back known truth for a cell of this inference mode.
+
+    A fixture whose `oracle.kind` is `regression_pin` holds frozen output of this library. Only
+    the inference modes its oracle lists in `independent_inferences` (a part checked against an
+    independent reference beside the pin) may cite it as truth."""
+    import json
+
+    path = root / fixture / "expected.json"
+    if not path.is_file():
+        return None
+    try:
+        oracle = json.loads(path.read_text()).get("oracle")
+    except (OSError, ValueError):
+        return None
+    if isinstance(oracle, dict) and oracle.get("kind") == "regression_pin":
+        if inference not in (oracle.get("independent_inferences") or []):
+            return (
+                f"known_truth_fixture {fixture} is a regression_pin fixture (frozen output of "
+                f"this library) and lists no independent {inference} reference; the cell is "
+                "evidence_kind = regression_pin, not known truth"
+            )
+    return None
+
 
 def load(rel: str) -> dict:
     path = root / rel
@@ -404,11 +432,23 @@ for i, row in enumerate(cells, 1):
             fail.append(f"{label}: {kind} requires known_truth_fixture")
         elif not (root / fixture).exists():
             fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
+        elif (why := regression_pin_problem(fixture, inf)) is not None:
+            fail.append(f"{label}: {why}")
         elif not (row.get("evidence_test") and row.get("evidence_assertion")):
             fail.append(
                 f"{label}: {kind} requires evidence_test/evidence_assertion whose own "
                 "function consumes the fixture"
             )
+    elif kind == "regression_pin":
+        if fixture is not None:
+            fail.append(
+                f"{label}: regression_pin must not name known_truth_fixture; a frozen "
+                "output of this library is not truth (name the pin fixture in limitations)"
+            )
+        if not str(row.get("limitations", "")).strip():
+            fail.append(f"{label}: regression_pin requires limitations saying what is pinned")
+        if not (row.get("evidence_test") and row.get("evidence_assertion")):
+            fail.append(f"{label}: regression_pin requires evidence_test/evidence_assertion")
     elif kind == "internal_cross_check":
         if fixture is not None:
             fail.append(
@@ -465,11 +505,13 @@ _truthful = {
     if c.get("evidence_kind") in _truth_kinds
 }
 for row in cells:
-    if row.get("evidence_kind") == "internal_cross_check" and not row.get("calibration"):
+    if row.get("evidence_kind") in {"internal_cross_check", "regression_pin"} and not row.get(
+        "calibration"
+    ):
         if (row.get("query"), row.get("inference")) not in _truthful:
             fail.append(
                 f"{row.get('query')}/{row.get('graph_class')}/{row.get('structure')}/"
-                f"{row.get('inference')}/{row.get('validation')}: internal_cross_check with no "
+                f"{row.get('inference')}/{row.get('validation')}: {row.get('evidence_kind')} with no "
                 "calibration and no known-truth sibling cell of the same query and inference "
                 "mode; add known-truth evidence or a measured calibration"
             )
