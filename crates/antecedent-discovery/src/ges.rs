@@ -935,23 +935,30 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             if out_to_remaining {
                 continue;
             }
+            let remaining_undirected: Vec<DenseNodeId> = work
+                .undirected_neighbors(x)
+                .into_iter()
+                .filter(|n| remaining.contains(n))
+                .collect();
             let mut adjacent: Vec<DenseNodeId> =
                 work.parents(x).into_iter().filter(|p| remaining.contains(p)).collect();
-            adjacent
-                .extend(work.undirected_neighbors(x).into_iter().filter(|n| remaining.contains(n)));
+            adjacent.extend(remaining_undirected.iter().copied());
             adjacent.sort_unstable_by_key(|node| node.raw());
             adjacent.dedup();
-            // Clique among adjacent remaining vertices (Dor–Tarsi 1992).
+            // Dor–Tarsi (1992): every undirected neighbor of `x` must be adjacent to every
+            // *other* vertex adjacent to `x` (parent or undirected neighbor alike). A pair of
+            // `x`'s parents that are not adjacent to each other is not itself disqualifying —
+            // those edges are already fixed, so nothing new is being oriented between them;
+            // requiring it here would reject every plain collider `a → x ← b` (a, b
+            // non-adjacent) as having "no consistent extension", when the collider already
+            // *is* its own extension.
             let mut ok = true;
-            for i in 0..adjacent.len() {
-                for j in i + 1..adjacent.len() {
-                    if !work.has_edge(adjacent[i], adjacent[j]) {
+            'outer: for &u in &remaining_undirected {
+                for &z in &adjacent {
+                    if z != u && !work.has_edge(u, z) {
                         ok = false;
-                        break;
+                        break 'outer;
                     }
-                }
-                if !ok {
-                    break;
                 }
             }
             if ok {
