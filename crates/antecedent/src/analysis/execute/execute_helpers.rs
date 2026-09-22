@@ -1823,12 +1823,29 @@ pub(super) fn envelope_to_identification_result_for<G>(
     envelope: &IdentificationEnvelope<G>,
     query: CausalQuery,
 ) -> IdentificationResult {
+    // Every case's estimands carry a `functional: ExprId` into *that case's own*
+    // `case.result.arena`, not a shared one. Each estimand copied into the combined
+    // result must have its functional re-homed into the combined `arena` via
+    // `CausalExprArena::import` (which re-interns the referenced subtree and returns
+    // its id here) — otherwise the copied `ExprId` indexes nothing in the empty arena
+    // this used to hand back, and every consumer that renders, evaluates, or encodes
+    // the functional (including the wire encoder's arena-bounds check) sees a
+    // dangling id.
+    let mut arena = CausalExprArena::new();
     let mut estimands = Vec::new();
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut diagnostics = Vec::new();
+    let mut first_identified_case_arena = None;
     for case in &envelope.cases {
         if identification_status_ok_for_case(case.result.status) {
-            estimands.extend(case.result.estimands.iter().cloned());
+            if first_identified_case_arena.is_none() {
+                first_identified_case_arena = Some(&case.result.arena);
+            }
+            for est in &case.result.estimands {
+                let mut est = est.clone();
+                est.functional = arena.import(&case.result.arena, est.functional);
+                estimands.push(est);
+            }
         }
         // Every case the envelope counts as identified mass carries its
         // assumptions, including one identified only under prior restrictions:
@@ -1849,14 +1866,21 @@ pub(super) fn envelope_to_identification_result_for<G>(
     }
     if let Some(inv) = &envelope.invariant {
         if estimands.is_empty() {
-            estimands.push(inv.clone());
+            // `IdentificationEnvelope::from_cases` sets `invariant` to a clone of
+            // the first identified case's first estimand, so its functional
+            // belongs to that same case's arena.
+            let mut inv = inv.clone();
+            if let Some(source_arena) = first_identified_case_arena {
+                inv.functional = arena.import(source_arena, inv.functional);
+            }
+            estimands.push(inv);
         }
     }
     IdentificationResult::from_parts(
         envelope.status,
         query,
         estimands,
-        CausalExprArena::new(),
+        arena,
         DerivationTrace::default(),
         assumptions,
         diagnostics,
