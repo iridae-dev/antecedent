@@ -269,8 +269,11 @@ class ResponseUncertainty(ResultModel):
     replicates: int | None = None
     artifact_id: str | None = None
     #: ``"confidence"`` or ``"credible"`` for an interval-bearing kind; ``None`` for
-    #: ``none`` and ``posterior``.
-    interpretation: IntervalInterpretation | None = None
+    #: ``none`` and ``posterior``. Left untyped as ``IntervalInterpretation`` (a strict
+    #: pydantic ``Literal``) so an unknown value reaches ``_validate`` below and raises
+    #: ``CausalValueError`` with a specific message, instead of a generic pydantic
+    #: ``ValidationError`` short-circuiting field assembly first.
+    interpretation: str | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
