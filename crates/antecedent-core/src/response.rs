@@ -156,6 +156,31 @@ pub enum ResponseValue {
     Envelope(ResponseEnvelope),
 }
 
+/// What an interval's level means: repeated-sampling coverage or posterior probability.
+///
+/// A `Credible` interval holds `level` of the posterior mass given the model and prior;
+/// it makes no frequentist coverage claim, and its "standard error" is a posterior
+/// standard deviation. The two are never interchangeable, so every interval-bearing
+/// [`ResponseUncertainty`] variant carries the tag rather than leaving it to free text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum IntervalInterpretation {
+    /// Frequentist confidence interval (sampling coverage).
+    Confidence,
+    /// Bayesian credible interval (posterior probability).
+    Credible,
+}
+
+impl IntervalInterpretation {
+    /// Stable lowercase name used on the wire and in the Python API.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Confidence => "confidence",
+            Self::Credible => "credible",
+        }
+    }
+}
+
 /// Statistical uncertainty kind. Pointwise and simultaneous bands are never aliases.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ResponseUncertainty {
@@ -163,7 +188,8 @@ pub enum ResponseUncertainty {
     None,
     /// Scalar standard error and interval.
     Scalar {
-        /// Standard error.
+        /// Standard error; the posterior standard deviation when `interpretation` is
+        /// [`IntervalInterpretation::Credible`].
         standard_error: f64,
         /// Confidence/credible level.
         level: f64,
@@ -171,35 +197,43 @@ pub enum ResponseUncertainty {
         lower: f64,
         /// Upper endpoint.
         upper: f64,
+        /// Whether the interval is a confidence or a credible interval.
+        interpretation: IntervalInterpretation,
     },
     /// Per-coordinate intervals without simultaneous coverage semantics.
     PointwiseBand {
-        /// Confidence level for each coordinate.
+        /// Confidence/credible level for each coordinate.
         level: f64,
         /// Lower values.
         lower: Arc<[f64]>,
         /// Upper values.
         upper: Arc<[f64]>,
+        /// Whether the band is confidence or credible.
+        interpretation: IntervalInterpretation,
     },
     /// One band calibrated for simultaneous coverage over the requested grid.
     SimultaneousBand {
-        /// Simultaneous confidence level.
+        /// Simultaneous confidence/credible level.
         level: f64,
         /// Lower values.
         lower: Arc<[f64]>,
         /// Upper values.
         upper: Arc<[f64]>,
-        /// Resampling replicates used.
+        /// Resampling replicates (or posterior draws) used.
         replicates: u32,
+        /// Whether the band is confidence or credible.
+        interpretation: IntervalInterpretation,
     },
     /// Confidence band around an identified envelope (not the envelope itself).
     IdentifiedEnvelopeBand {
-        /// Confidence level.
+        /// Confidence/credible level.
         level: f64,
-        /// Lower confidence limit for the identified lower envelope.
+        /// Lower limit for the identified lower envelope.
         lower_outer: Arc<[f64]>,
-        /// Upper confidence limit for the identified upper envelope.
+        /// Upper limit for the identified upper envelope.
         upper_outer: Arc<[f64]>,
+        /// Whether the limits are confidence or credible.
+        interpretation: IntervalInterpretation,
     },
     /// Posterior draws or summaries live in a referenced posterior artifact.
     Posterior {

@@ -217,7 +217,7 @@ fn diagnostic<'a>(response: &'a antecedent_core::CausalResponse, id: &str) -> Op
 
 fn pointwise(response: &antecedent_core::CausalResponse) -> Option<(Vec<f64>, Vec<f64>)> {
     match &response.uncertainty {
-        ResponseUncertainty::PointwiseBand { lower, upper, level } if *level == LEVEL => {
+        ResponseUncertainty::PointwiseBand { lower, upper, level, .. } if *level == LEVEL => {
             Some((lower.to_vec(), upper.to_vec()))
         }
         _ => None,

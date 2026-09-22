@@ -525,12 +525,14 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: lower[0],
                 upper: upper[0],
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
             }
         } else {
             ResponseUncertainty::PointwiseBand {
                 level: self.options.confidence_level,
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
             }
         };
         Ok(CausalResponse {
@@ -605,7 +607,7 @@ impl ContinuousResponseEstimator {
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 (
                     ResponseValue::Scalar(mean),
-                    scalar_uncertainty(sd, level, lo, hi),
+                    credible_scalar_uncertainty(sd, level, lo, hi),
                     support,
                     "bayesian.derivative.riesz_weighted_cross_fit",
                     "Each Rubin Bayesian-bootstrap draw cross-fits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights: every fold refits both nuisances on its weighted training rows and scores its held-out rows with the Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w), and the draw is the weighted mean of the held-out scores. This is not a frozen-score reweight of the first-fit φ_i. Held fixed: fold assignment, spline knots, and penalty. Estimator identity stays response.riesz_ade",
@@ -794,7 +796,7 @@ impl ContinuousResponseEstimator {
                     let (corrected_mean, lo, hi, sd) =
                         summarize_scalar_draws(&corrected_scalars, level)?;
                     support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
-                    (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
+                    (ResponseValue::Scalar(mean), credible_scalar_uncertainty(sd, level, lo, hi))
                 } else {
                     let dim = vectors.first().map_or(0, Vec::len);
                     let mut means = vec![0.0; dim];
@@ -827,6 +829,7 @@ impl ContinuousResponseEstimator {
                             level,
                             lower: Arc::from(lower),
                             upper: Arc::from(upper),
+                            interpretation: antecedent_core::IntervalInterpretation::Credible,
                         },
                     )
                 };
@@ -1125,6 +1128,7 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             }
         };
         let row_index: Arc<[u32]> =
@@ -1214,6 +1218,7 @@ impl ContinuousResponseEstimator {
                 level,
                 lower: estimate - z * se,
                 upper: estimate + z * se,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             },
             SupportReport {
                 status: SupportStatus::Extrapolative,
@@ -1333,6 +1338,7 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: corrected_estimate - z * standard_error,
                 upper: corrected_estimate + z * standard_error,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             }
         } else {
             ResponseUncertainty::None
@@ -1402,6 +1408,7 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: estimate - z * se,
                 upper: estimate + z * se,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             },
             support,
         ))
@@ -2064,8 +2071,17 @@ fn inflate_draws_by_edf(draws: &mut [f64], n: usize, edf: f64) {
     }
 }
 
-fn scalar_uncertainty(sd: f64, level: f64, lo: f64, hi: f64) -> ResponseUncertainty {
-    ResponseUncertainty::Scalar { standard_error: sd, level, lower: lo, upper: hi }
+/// A posterior summary published as scalar uncertainty: `sd` is the posterior standard
+/// deviation and `[lo, hi]` the `level` credible interval, tagged so a consumer cannot
+/// read either as a frequentist standard error or confidence interval.
+fn credible_scalar_uncertainty(sd: f64, level: f64, lo: f64, hi: f64) -> ResponseUncertainty {
+    ResponseUncertainty::Scalar {
+        standard_error: sd,
+        level,
+        lower: lo,
+        upper: hi,
+        interpretation: antecedent_core::IntervalInterpretation::Credible,
+    }
 }
 
 struct CompleteSample {
@@ -3221,7 +3237,15 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.point_derivative");
-            assert!(matches!(response.uncertainty, ResponseUncertainty::Scalar { .. }));
+            // Posterior draws: the "standard error" is a posterior SD and the interval is
+            // credible, and the tag says so.
+            assert!(matches!(
+                response.uncertainty,
+                ResponseUncertainty::Scalar {
+                    interpretation: antecedent_core::IntervalInterpretation::Credible,
+                    ..
+                }
+            ));
             assert!(response.assumptions.entries.iter().any(|record| match &record.assumption {
                 Assumption::ParametricRestriction(restriction) =>
                     restriction.description.contains("Not a frozen-pseudo-outcome reweight"),
@@ -4209,11 +4233,12 @@ mod tests {
         assert!((value - local.point.first_derivative).abs() < 1e-12);
         // The interval is the RBC interval: the bias-corrected coordinate ± z·its
         // own robust SE, not the conventional local-quadratic interval.
-        let ResponseUncertainty::Scalar { standard_error, lower, upper, level } =
+        let ResponseUncertainty::Scalar { standard_error, lower, upper, level, interpretation } =
             response.uncertainty
         else {
             panic!("expected scalar uncertainty");
         };
+        assert_eq!(interpretation, antecedent_core::IntervalInterpretation::Confidence);
         let z = normal_ppf(0.5 + level / 2.0);
         assert!((standard_error - corrected.robust_first_derivative_standard_error).abs() < 1e-12);
         assert!((0.5 * (lower + upper) - corrected.first_derivative).abs() < 1e-10);

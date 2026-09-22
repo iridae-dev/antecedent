@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
-    HorizonIdentification, IdentificationStatus, ObservationAssumption, ObservationSpec,
-    ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    HorizonIdentification, IdentificationStatus, IntervalInterpretation, ObservationAssumption,
+    ObservationSpec, ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
     SupportStatus, TemporalNodeKey, VariableId,
 };
@@ -589,16 +589,51 @@ pub enum ResponseValueWire {
     Envelope(ResponseEnvelopeWire),
 }
 
+/// Whether an interval is a frequentist confidence interval or a Bayesian credible one.
+///
+/// Required on every interval-bearing [`ResponseUncertaintyWire`] variant: an untagged
+/// payload is refused rather than read as one or the other.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum IntervalInterpretationWire {
+    Confidence,
+    Credible,
+}
+
 /// Statistical response uncertainty on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseUncertaintyWire {
     None,
-    Scalar { standard_error: f64, level: f64, lower: f64, upper: f64 },
-    PointwiseBand { level: f64, lower: Vec<f64>, upper: Vec<f64> },
-    SimultaneousBand { level: f64, lower: Vec<f64>, upper: Vec<f64>, replicates: u32 },
-    IdentifiedEnvelopeBand { level: f64, lower_outer: Vec<f64>, upper_outer: Vec<f64> },
-    Posterior { artifact_id: String },
+    Scalar {
+        standard_error: f64,
+        level: f64,
+        lower: f64,
+        upper: f64,
+        interpretation: IntervalInterpretationWire,
+    },
+    PointwiseBand {
+        level: f64,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        interpretation: IntervalInterpretationWire,
+    },
+    SimultaneousBand {
+        level: f64,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        replicates: u32,
+        interpretation: IntervalInterpretationWire,
+    },
+    IdentifiedEnvelopeBand {
+        level: f64,
+        lower_outer: Vec<f64>,
+        upper_outer: Vec<f64>,
+        interpretation: IntervalInterpretationWire,
+    },
+    Posterior {
+        artifact_id: String,
+    },
 }
 
 /// Structural identification payload on the wire.
@@ -855,39 +890,64 @@ fn identification_from_wire(
     })
 }
 
+fn interpretation_to_wire(i: IntervalInterpretation) -> IntervalInterpretationWire {
+    match i {
+        IntervalInterpretation::Confidence => IntervalInterpretationWire::Confidence,
+        IntervalInterpretation::Credible => IntervalInterpretationWire::Credible,
+    }
+}
+
+fn interpretation_from_wire(i: IntervalInterpretationWire) -> IntervalInterpretation {
+    match i {
+        IntervalInterpretationWire::Confidence => IntervalInterpretation::Confidence,
+        IntervalInterpretationWire::Credible => IntervalInterpretation::Credible,
+    }
+}
+
 fn uncertainty_to_wire(u: &ResponseUncertainty) -> ResponseUncertaintyWire {
     match u {
         ResponseUncertainty::None => ResponseUncertaintyWire::None,
-        ResponseUncertainty::Scalar { standard_error, level, lower, upper } => {
+        ResponseUncertainty::Scalar { standard_error, level, lower, upper, interpretation } => {
             ResponseUncertaintyWire::Scalar {
                 standard_error: *standard_error,
                 level: *level,
                 lower: *lower,
                 upper: *upper,
+                interpretation: interpretation_to_wire(*interpretation),
             }
         }
-        ResponseUncertainty::PointwiseBand { level, lower, upper } => {
+        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation } => {
             ResponseUncertaintyWire::PointwiseBand {
                 level: *level,
                 lower: lower.to_vec(),
                 upper: upper.to_vec(),
+                interpretation: interpretation_to_wire(*interpretation),
             }
         }
-        ResponseUncertainty::SimultaneousBand { level, lower, upper, replicates } => {
-            ResponseUncertaintyWire::SimultaneousBand {
-                level: *level,
-                lower: lower.to_vec(),
-                upper: upper.to_vec(),
-                replicates: *replicates,
-            }
-        }
-        ResponseUncertainty::IdentifiedEnvelopeBand { level, lower_outer, upper_outer } => {
-            ResponseUncertaintyWire::IdentifiedEnvelopeBand {
-                level: *level,
-                lower_outer: lower_outer.to_vec(),
-                upper_outer: upper_outer.to_vec(),
-            }
-        }
+        ResponseUncertainty::SimultaneousBand {
+            level,
+            lower,
+            upper,
+            replicates,
+            interpretation,
+        } => ResponseUncertaintyWire::SimultaneousBand {
+            level: *level,
+            lower: lower.to_vec(),
+            upper: upper.to_vec(),
+            replicates: *replicates,
+            interpretation: interpretation_to_wire(*interpretation),
+        },
+        ResponseUncertainty::IdentifiedEnvelopeBand {
+            level,
+            lower_outer,
+            upper_outer,
+            interpretation,
+        } => ResponseUncertaintyWire::IdentifiedEnvelopeBand {
+            level: *level,
+            lower_outer: lower_outer.to_vec(),
+            upper_outer: upper_outer.to_vec(),
+            interpretation: interpretation_to_wire(*interpretation),
+        },
         ResponseUncertainty::Posterior { artifact_id } => {
             ResponseUncertaintyWire::Posterior { artifact_id: artifact_id.to_string() }
         }
@@ -896,36 +956,47 @@ fn uncertainty_to_wire(u: &ResponseUncertainty) -> ResponseUncertaintyWire {
 fn uncertainty_from_wire(u: &ResponseUncertaintyWire) -> ResponseUncertainty {
     match u {
         ResponseUncertaintyWire::None => ResponseUncertainty::None,
-        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper } => {
+        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper, interpretation } => {
             ResponseUncertainty::Scalar {
                 standard_error: *standard_error,
                 level: *level,
                 lower: *lower,
                 upper: *upper,
+                interpretation: interpretation_from_wire(*interpretation),
             }
         }
-        ResponseUncertaintyWire::PointwiseBand { level, lower, upper } => {
+        ResponseUncertaintyWire::PointwiseBand { level, lower, upper, interpretation } => {
             ResponseUncertainty::PointwiseBand {
                 level: *level,
                 lower: lower.clone().into(),
                 upper: upper.clone().into(),
+                interpretation: interpretation_from_wire(*interpretation),
             }
         }
-        ResponseUncertaintyWire::SimultaneousBand { level, lower, upper, replicates } => {
-            ResponseUncertainty::SimultaneousBand {
-                level: *level,
-                lower: lower.clone().into(),
-                upper: upper.clone().into(),
-                replicates: *replicates,
-            }
-        }
-        ResponseUncertaintyWire::IdentifiedEnvelopeBand { level, lower_outer, upper_outer } => {
-            ResponseUncertainty::IdentifiedEnvelopeBand {
-                level: *level,
-                lower_outer: lower_outer.clone().into(),
-                upper_outer: upper_outer.clone().into(),
-            }
-        }
+        ResponseUncertaintyWire::SimultaneousBand {
+            level,
+            lower,
+            upper,
+            replicates,
+            interpretation,
+        } => ResponseUncertainty::SimultaneousBand {
+            level: *level,
+            lower: lower.clone().into(),
+            upper: upper.clone().into(),
+            replicates: *replicates,
+            interpretation: interpretation_from_wire(*interpretation),
+        },
+        ResponseUncertaintyWire::IdentifiedEnvelopeBand {
+            level,
+            lower_outer,
+            upper_outer,
+            interpretation,
+        } => ResponseUncertainty::IdentifiedEnvelopeBand {
+            level: *level,
+            lower_outer: lower_outer.clone().into(),
+            upper_outer: upper_outer.clone().into(),
+            interpretation: interpretation_from_wire(*interpretation),
+        },
         ResponseUncertaintyWire::Posterior { artifact_id } => {
             ResponseUncertainty::Posterior { artifact_id: Arc::from(artifact_id.as_str()) }
         }
@@ -1121,6 +1192,7 @@ mod tests {
                 lower: Arc::from([1.8, 2.2, 2.8]),
                 upper: Arc::from([2.2, 2.8, 3.6]),
                 replicates: 500,
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
             },
             support: SupportReport {
                 status: SupportStatus::WeakOverlap,
@@ -1151,5 +1223,45 @@ mod tests {
         let bytes = to_cbor(&wire).unwrap();
         let decoded: CausalResponseWire = from_cbor(&bytes).unwrap();
         assert_eq!(causal_response_from_wire(&decoded).unwrap(), response);
+    }
+    #[test]
+    fn credible_and_confidence_intervals_stay_distinct_on_the_wire() {
+        for interpretation in [IntervalInterpretation::Confidence, IntervalInterpretation::Credible]
+        {
+            for uncertainty in [
+                ResponseUncertainty::Scalar {
+                    standard_error: 0.25,
+                    level: 0.9,
+                    lower: -0.4,
+                    upper: 0.6,
+                    interpretation,
+                },
+                ResponseUncertainty::PointwiseBand {
+                    level: 0.95,
+                    lower: Arc::from([0.0, 1.0]),
+                    upper: Arc::from([1.0, 2.0]),
+                    interpretation,
+                },
+            ] {
+                let wire = uncertainty_to_wire(&uncertainty);
+                let bytes = serde_json::to_vec(&wire).unwrap();
+                let decoded: ResponseUncertaintyWire = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(uncertainty_from_wire(&decoded), uncertainty);
+            }
+        }
+        // The tag is required: a payload without it is refused, not read as either kind.
+        let untagged = r#"{"scalar":{"standard_error":0.25,"level":0.9,"lower":-0.4,"upper":0.6}}"#;
+        assert!(serde_json::from_str::<ResponseUncertaintyWire>(untagged).is_err());
+        let credible = r#"{"scalar":{"standard_error":0.25,"level":0.9,"lower":-0.4,"upper":0.6,"interpretation":"credible"}}"#;
+        assert_eq!(
+            uncertainty_from_wire(&serde_json::from_str(credible).unwrap()),
+            ResponseUncertainty::Scalar {
+                standard_error: 0.25,
+                level: 0.9,
+                lower: -0.4,
+                upper: 0.6,
+                interpretation: IntervalInterpretation::Credible,
+            }
+        );
     }
 }

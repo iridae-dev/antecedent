@@ -190,12 +190,13 @@ pub use reader::{
 };
 pub use response_wire::{
     CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
-    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, ObservationAssumptionWire,
-    ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire,
-    ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire,
-    SupportRegionWire, SupportReportWire, SupportStatusWire, TemporalResponseSpecWire,
-    causal_response_from_wire, causal_response_to_wire, response_query_from_wire,
-    response_query_to_wire, response_value_from_wire, response_value_to_wire,
+    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, IntervalInterpretationWire,
+    ObservationAssumptionWire, ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire,
+    ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
+    SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportStatusWire,
+    TemporalResponseSpecWire, causal_response_from_wire, causal_response_to_wire,
+    response_query_from_wire, response_query_to_wire, response_value_from_wire,
+    response_value_to_wire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,

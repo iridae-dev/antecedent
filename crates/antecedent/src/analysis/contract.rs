@@ -13,11 +13,11 @@ use antecedent_core::{
     Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus,
     AttestedEvidence, CalibrationView, CausalQuery, CausalSchema, ClaimDomains, ClaimEnvelope,
     ClaimKind, ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT,
-    IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalMethod, NextAction,
-    ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness,
-    OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability, SemanticLayer,
-    SlotAvailability, SupportSlot, TargetPopulation, TransformIntent, TransformationReport,
-    UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
+    IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalInterpretation,
+    IntervalMethod, NextAction, ObligationKind, ObligationRecord, ObligationScope, OperationKind,
+    OperationReadiness, OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability,
+    SemanticLayer, SlotAvailability, SupportSlot, TargetPopulation, TransformIntent,
+    TransformationReport, UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{
@@ -1021,6 +1021,20 @@ impl StudyResult {
         temporal: Option<&CachedTemporalIdentification>,
     ) -> Result<AnalysisResultWire, CausalError> {
         body_for(&body_frame(query, temporal, None, registry)?, self)
+    }
+}
+
+/// Uncertainty component of a response interval by what its level means: a credible
+/// interval is posterior parameter uncertainty, a confidence interval is sampling
+/// uncertainty.
+fn response_interval_component(
+    interpretation: IntervalInterpretation,
+    credible: &'static str,
+    confidence: &'static str,
+) -> (UncertaintySource, &'static str) {
+    match interpretation {
+        IntervalInterpretation::Credible => (UncertaintySource::Parameter, credible),
+        IntervalInterpretation::Confidence => (UncertaintySource::Sampling, confidence),
     }
 }
 
@@ -2409,22 +2423,45 @@ fn result_reasoning(
     // must not call that published parameter uncertainty "omitted".
     if inference == "bayesian" {
         if let Some(response) = &result.response {
+            // The interval's own tag decides the source: a credible interval is posterior
+            // parameter uncertainty; a confidence interval (a Wald interval on influence
+            // scores, say) is sampling uncertainty even when the fit was Bayesian.
             let target = match &response.uncertainty {
                 ResponseUncertainty::None => None,
-                ResponseUncertainty::Scalar { .. } => Some("posterior_interval"),
-                ResponseUncertainty::PointwiseBand { .. } => Some("posterior_pointwise_band"),
-                ResponseUncertainty::SimultaneousBand { .. } => Some("posterior_simultaneous_band"),
-                ResponseUncertainty::IdentifiedEnvelopeBand { .. } => {
-                    Some("posterior_envelope_band")
+                ResponseUncertainty::Scalar { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_interval",
+                        "response_confidence_interval",
+                    ))
                 }
-                ResponseUncertainty::Posterior { .. } => Some("posterior_artifact"),
+                ResponseUncertainty::PointwiseBand { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_pointwise_band",
+                        "response_pointwise_confidence_band",
+                    ))
+                }
+                ResponseUncertainty::SimultaneousBand { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_simultaneous_band",
+                        "response_simultaneous_confidence_band",
+                    ))
+                }
+                ResponseUncertainty::IdentifiedEnvelopeBand { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_envelope_band",
+                        "response_envelope_confidence_band",
+                    ))
+                }
+                ResponseUncertainty::Posterior { .. } => {
+                    Some((UncertaintySource::Parameter, "posterior_artifact"))
+                }
             };
-            if let Some(target) = target {
-                components.push(UncertaintyComponent::new(
-                    UncertaintySource::Parameter,
-                    target,
-                    false,
-                ));
+            if let Some((source, target)) = target {
+                components.push(UncertaintyComponent::new(source, target, false));
             }
         }
     }
@@ -3064,6 +3101,22 @@ fn structural_response_wire(
 mod tests {
     use super::*;
     use antecedent_core::{AverageEffectQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity};
+
+    #[test]
+    fn response_interval_component_follows_the_interval_tag_not_the_inference_mode() {
+        assert_eq!(
+            response_interval_component(IntervalInterpretation::Credible, "posterior", "sampling"),
+            (UncertaintySource::Parameter, "posterior")
+        );
+        assert_eq!(
+            response_interval_component(
+                IntervalInterpretation::Confidence,
+                "posterior",
+                "sampling"
+            ),
+            (UncertaintySource::Sampling, "sampling")
+        );
+    }
     use antecedent_identify::{
         CAPPED_COMPLETION_DIAGNOSTIC_CODE, DerivationTrace, GraphIdentificationCase,
         IdentificationPerformanceRecord, ProbabilityMass,

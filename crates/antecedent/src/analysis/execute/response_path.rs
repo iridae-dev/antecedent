@@ -179,6 +179,7 @@ impl super::Study {
                 level,
                 lower: value - z * se,
                 upper: value + z * se,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             }
         } else {
             ResponseUncertainty::None
@@ -860,6 +861,7 @@ impl super::Study {
                 lower: scalar - crate::result::reported_se_interval_z() * se,
                 upper: scalar + crate::result::reported_se_interval_z() * se,
                 level: 0.95,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             },
             support: antecedent_core::SupportReport {
                 status: antecedent_core::SupportStatus::Supported,
@@ -1399,6 +1401,7 @@ impl super::Study {
                             level,
                             lower: v - z * se,
                             upper: v + z * se,
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
                         };
                     }
                     Some(ResponseValue::Surface { mean, .. }) if mean.len() == cov.dim => {
@@ -1427,8 +1430,14 @@ impl super::Study {
                                 lower,
                                 upper,
                                 replicates,
+                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
                             },
-                            None => ResponseUncertainty::PointwiseBand { level, lower, upper },
+                            None => ResponseUncertainty::PointwiseBand {
+                                level,
+                                lower,
+                                upper,
+                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            },
                         };
                     }
                     _ => {}
@@ -2042,12 +2051,14 @@ mod uncertainty_tests {
             lower: -0.2,
             upper: 0.2,
             level: 0.95,
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
         };
         let b = ResponseUncertainty::Scalar {
             standard_error: 0.1,
             lower: 9.8,
             upper: 10.2,
             level: 0.95,
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
         };
         assert!(matches!(
             mix_response_uncertainty(&[(0.5, &a), (0.5, &b)]),

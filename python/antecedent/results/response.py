@@ -23,6 +23,10 @@ from ._views import IdentificationView
 
 SupportStatus = Literal["supported", "weak_overlap", "extrapolative", "outside_empirical_support"]
 UncertaintyKind = Literal["none", "pointwise", "simultaneous", "identified_set", "posterior"]
+#: What an interval's level means: repeated-sampling ``"confidence"`` or posterior
+#: ``"credible"``. A credible interval's ``standard_error`` is a posterior standard
+#: deviation, and neither reading transfers to the other.
+IntervalInterpretation = Literal["confidence", "credible"]
 
 
 class ResponseView(ResultModel):
@@ -264,12 +268,20 @@ class ResponseUncertainty(ResultModel):
     standard_error: float | None = None
     replicates: int | None = None
     artifact_id: str | None = None
+    #: ``"confidence"`` or ``"credible"`` for an interval-bearing kind; ``None`` for
+    #: ``none`` and ``posterior``.
+    interpretation: IntervalInterpretation | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
         allowed = {"none", "pointwise", "simultaneous", "identified_set", "posterior"}
         if self.kind not in allowed:
             raise CausalValueError(f"unknown uncertainty kind {self.kind!r}")
+        if self.interpretation is not None:
+            if self.interpretation not in ("confidence", "credible"):
+                raise CausalValueError(f"unknown interval interpretation {self.interpretation!r}")
+            if self.kind in ("none", "posterior"):
+                raise CausalValueError(f"kind={self.kind!r} carries no interval to interpret")
         if (self.lower is None) != (self.upper is None):
             raise CausalValueError("lower and upper must either both be provided or both be None")
         if self.lower is not None and len(self.lower) != len(self.upper or ()):
@@ -475,6 +487,7 @@ class CausalResponseView(ResultModel, ResultAPI):
 
 __all__ = [
     "CausalResponseView",
+    "IntervalInterpretation",
     "ResponseEnvelopeView",
     "ResponseUncertainty",
     "ResponseView",

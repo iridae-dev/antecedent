@@ -859,6 +859,7 @@ pub fn estimate_observed_temporal_response(
             level: 0.95,
             lower: lower.into(),
             upper: upper.into(),
+            interpretation: antecedent_core::IntervalInterpretation::Credible,
         },
         support: SupportReport {
             status: SupportStatus::Extrapolative,

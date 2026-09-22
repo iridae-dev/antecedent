@@ -131,6 +131,16 @@ def test_envelope_and_support_and_uncertainty_guards():
         ResponseEnvelopeView(["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 1.0, 0.0, 1, 2)
     band = ResponseUncertainty("pointwise", lower=[[0.0]], upper=[[1.0]], level=0.9)
     assert "level=90.0%" in repr(band)
+    assert band.interpretation is None
+    for interpretation in ("confidence", "credible"):
+        tagged = ResponseUncertainty(
+            "pointwise", lower=[[0.0]], upper=[[1.0]], interpretation=interpretation
+        )
+        assert tagged.interpretation == interpretation
+    with pytest.raises(CausalValueError, match="unknown interval interpretation"):
+        ResponseUncertainty("pointwise", lower=[[0.0]], upper=[[1.0]], interpretation="bootstrap")
+    with pytest.raises(CausalValueError, match="carries no interval"):
+        ResponseUncertainty("none", interpretation="credible")
 
 
 def test_validation_and_causal_response_repr_branches():

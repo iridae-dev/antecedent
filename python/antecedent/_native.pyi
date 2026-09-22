@@ -219,6 +219,7 @@ class ResponseAnalysisResult:
     scalar: float | None
     matrix: list[list[float]] | None
     uncertainty_kind: str
+    interval_interpretation: str | None
     lower: list[list[float]] | None
     upper: list[list[float]] | None
     level: float | None

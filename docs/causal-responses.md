@@ -66,6 +66,15 @@ A response result deliberately keeps four judgments separate:
    interval. Temporal dose × horizon surfaces keep the pointwise band in
    `uncertainty` and publish a simultaneous band next to it (see
    [Temporal simultaneous bands](#temporal-simultaneous-bands)).
+   `uncertainty.interpretation` says what the level means: `"confidence"` is
+   repeated-sampling coverage, `"credible"` is posterior probability under the
+   model and prior (a credible interval's `standard_error` is a posterior
+   standard deviation, and it makes no frequentist coverage claim). Bayesian
+   inference publishes credible intervals; an interval built from influence
+   scores or a bootstrap is a confidence interval even inside a Bayesian
+   study. Coverage records in `parity/coverage_records.toml` key on
+   `inference`, so a `Bayesian` record measures a credible interval's
+   frequentist coverage and a `Frequentist` record a confidence interval's.
 4. `assumptions` and `provenance` record the claims and algorithm used. Do not
    infer an observation assumption merely from an observation-mechanism column.
 

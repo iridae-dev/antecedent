@@ -1009,7 +1009,7 @@ fn validate_uncertainty(
     };
     match uncertainty {
         ResponseUncertaintyWire::None => Ok(()),
-        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper } => {
+        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper, .. } => {
             if value_len != 1 || !standard_error.is_finite() || *standard_error < 0.0 {
                 return Err(IoError::Convert(
                     "scalar uncertainty requires a scalar response and non-negative finite standard error"
@@ -1018,13 +1018,14 @@ fn validate_uncertainty(
             }
             validate_band(*level, &[*lower], &[*upper])
         }
-        ResponseUncertaintyWire::PointwiseBand { level, lower, upper }
+        ResponseUncertaintyWire::PointwiseBand { level, lower, upper, .. }
         | ResponseUncertaintyWire::IdentifiedEnvelopeBand {
             level,
             lower_outer: lower,
             upper_outer: upper,
+            ..
         } => validate_band(*level, lower, upper),
-        ResponseUncertaintyWire::SimultaneousBand { level, lower, upper, replicates } => {
+        ResponseUncertaintyWire::SimultaneousBand { level, lower, upper, replicates, .. } => {
             if *replicates == 0 {
                 return Err(IoError::Convert(
                     "simultaneous response band requires positive replicates".into(),
@@ -1475,6 +1476,7 @@ mod tests {
                 level: 0.95,
                 lower: vec![0.5, 1.0, 1.5, 2.0],
                 upper: vec![1.5, 2.0, 2.5, 3.0],
+                interpretation: crate::IntervalInterpretationWire::Confidence,
             },
             support: SupportReportWire {
                 status: SupportStatusWire::Supported,
@@ -1543,6 +1545,7 @@ mod tests {
             level: 0.95,
             lower: vec![1.0, 2.0],
             upper: vec![2.0, 3.0],
+            interpretation: crate::IntervalInterpretationWire::Confidence,
         };
         response.support.point_status = Some(vec![SupportStatusWire::Supported; 2]);
         response.provenance_id = "estimate.temporal_response.intervention_gcomp".into();
@@ -1770,17 +1773,20 @@ mod tests {
                 level: 0.95,
                 lower: vec![0.1],
                 upper: vec![0.4],
+                interpretation: crate::IntervalInterpretationWire::Confidence,
             },
             ResponseUncertaintyWire::SimultaneousBand {
                 level: 0.95,
                 lower: vec![0.1],
                 upper: vec![0.4],
                 replicates: 10,
+                interpretation: crate::IntervalInterpretationWire::Confidence,
             },
             ResponseUncertaintyWire::IdentifiedEnvelopeBand {
                 level: 0.95,
                 lower_outer: vec![0.1],
                 upper_outer: vec![0.4],
+                interpretation: crate::IntervalInterpretationWire::Confidence,
             },
         ] {
             wire.uncertainty = uncertainty;
