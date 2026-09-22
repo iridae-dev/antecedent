@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "oracle": {"project": "clean-room exhaustive enumeration of valid back-door sets selecting the O-set of Henckel, Perkovic and Maathuis (2022); DAGitty was not run", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {"kind": "enumeration", "project": "clean-room exhaustive enumeration of valid back-door sets selecting the O-set of Henckel, Perkovic and Maathuis (2022); DAGitty was not run", "generator": "temporary clean-room harness (deleted after artifact import)"},
   "cases": [
     {"id": "single_confounder", "edges": ["Z->T", "Z->Y", "T->Y"], "treatment": "T", "outcome": "Y", "optimal_set": ["Z"]},
     {"id": "outcome_parent_preferred", "edges": ["W->T", "T->Y", "Q->Y"], "optimal_set": ["Q"]},

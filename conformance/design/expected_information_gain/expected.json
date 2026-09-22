@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "enumeration",
     "project": "clean-room exact discrete-channel enumeration",
     "algorithm": "sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)]",
     "pin": "fixture-algorithm-v1",

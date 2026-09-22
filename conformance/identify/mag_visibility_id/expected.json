@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "closed_form",
     "project": "Zhang (2008), Causal reasoning with ancestral graphs, Definition 8 (visibility) and Lemmas 9-10; Shpitser & Pearl (2006) ID on the confounded ADMG",
     "generator": "hand-derived from the generating DAGs named in each case; the numeric truth of every identified case, and the soundness of the reduction over all small DAGs, is checked by exact SCM enumeration in crates/antecedent-identify/src/mag_id_bruteforce.rs",
     "scope": "single-treatment E[Y | do(T)] on a directed/bidirected MAG or the MAG completions of a PAG. Sound, not complete: 'refused' is not a proof of non-identifiability. The complete PAG algorithm (IDP; Jaber, Zhang & Bareinboim 2019) is not implemented."

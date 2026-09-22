@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 mod common;
 
@@ -309,6 +313,31 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
     }
 }
 
+/// The closed-form structural truth of the horizon-1 response for the deterministic class
+/// law of the test below (`conformance/estimate/temporal_class_response_truth`): `(value per
+/// cell, tolerance)` for the completion with the given adjustment set. The z-adjusting
+/// completion identifies the interventional level `1 + 2 x + 0.6 mean(z) + mean(w)`; the
+/// completion without `z` identifies the association, whose closed form is the
+/// omitted-variable-bias line through the sample means.
+fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64) {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_response_truth/expected.json"
+    ))
+    .unwrap();
+    let key = match adjustment {
+        [] => "z_as_mediator",
+        [(2, -1)] => "adjusting_z",
+        other => panic!("no closed-form truth for adjustment set {other:?}"),
+    };
+    let values = truth["horizon_1"][key][kind]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    (values, truth["tolerance"][key].as_f64().unwrap())
+}
+
 #[test]
 fn temporal_class_bayesian_response_is_identified_set() {
     // Deterministic law with aperiodic wiggles: r → {z, t}, z → t, {t, z}@-1 → y.
@@ -441,6 +470,19 @@ fn temporal_class_bayesian_response_is_identified_set() {
                             (got - want).abs() < tolerance,
                             "{label} h={horizon} adj={adjustment:?}: posterior mean {got} vs OLS {want} (tolerance {tolerance})"
                         );
+                        if horizon == 1 {
+                            // Closed-form structural value of this completion; the
+                            // posterior mean may sit its Monte Carlo tolerance from the
+                            // fitted OLS, which itself sits within the truth tolerance.
+                            let (structural_values, truth_tolerance) =
+                                horizon_one_truth(kind, &adjustment);
+                            assert!(
+                                (got - structural_values[cell]).abs() < tolerance + truth_tolerance,
+                                "{label} adj={adjustment:?}: posterior mean {got} vs closed-form {} (tolerance {})",
+                                structural_values[cell],
+                                tolerance + truth_tolerance
+                            );
+                        }
                     }
                     if h_index == 0 {
                         distinct_h1.insert(adjustment);

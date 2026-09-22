@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "enumeration",
     "project": "exact target plus fixed-budget Monte Carlo calibration",
     "pin": "fixture-algorithm-v1",
     "source": "../expected_information_gain/expected.json",

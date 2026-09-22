@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "case": "temporal_class_mediation_truth",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Path-product rule of the linear temporal structural equation model m_i = a t_{i-1} + 0.6 z_{i-1} + 0.15 e_i, y_i = 1 + c t_{i-1} + b m_i + 5 z_{i-1} with a = 0.8, b = 0.55, c = 0.25 (t_i = z_i + a period-4 +-1 pattern, z_i a period-4 +-1 confounder, e_i = (i mod 5) - 2). At horizon 1 (treatment at origin -1, outcome at 0) the natural indirect effect through the mediator is a*b, the natural direct effect is c, and the total effect is c + a*b: intervening on t@-1 changes m@0 by a per unit and y@0 by c directly plus b per unit of m@0. The confounder z@-1 and the mediator noise shift levels only, never these contrasts, so the values are exact structural quantities of the equations, independent of any estimator."
+  },
+  "structural": {
+    "a": 0.8,
+    "b": 0.55,
+    "direct_c": 0.25
+  },
+  "horizon_1": {
+    "mediated": 0.44,
+    "direct": 0.25,
+    "total": 0.69
+  },
+  "tolerance": {
+    "frequentist": 1e-6,
+    "bayesian": 0.08
+  }
+}

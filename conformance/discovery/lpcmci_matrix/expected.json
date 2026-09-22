@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "Tigramite",
     "api": "tigramite.lpcmci.LPCMCI.run_lpcmci",
     "packages": {

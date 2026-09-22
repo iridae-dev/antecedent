@@ -1,5 +1,10 @@
 {
   "schema_version": 1,
+  "oracle": {
+    "kind": "regression_pin",
+    "note": "Recorded do(0)/do(1) and response-curve means are output pins of this library's estimators (README: 'output pins'), not truth; only the ATE contrasts derived from the hand-derived law are independently checked.",
+    "independent_inferences": []
+  },
   "case": "class_aware_response_envelope",
   "columns": [
     "t",

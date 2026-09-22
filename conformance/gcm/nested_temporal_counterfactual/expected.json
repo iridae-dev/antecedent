@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "closed_form",
     "project": "clean-room structural-equation substitution",
     "pin": "fixture-algorithm-v1",
     "generation_location": "analytical artifact; no generator retained"

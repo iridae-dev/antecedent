@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "closed_form",
     "project": "Perkovic et al. (2018), Definitions 4 and 6, Theorem 7",
     "source": "https://www.jmlr.org/papers/volume18/16-319/16-319.pdf",
     "generator": "hand-derived visibility and proper-backdoor cases; not an external executable oracle"

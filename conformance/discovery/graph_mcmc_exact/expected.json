@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "enumeration",
     "project": "NumPy clean-room exhaustive DAG posterior",
     "api": "enumerate all 64 directed masks, reject cycles, closed-form Gaussian BIC",
     "packages": {

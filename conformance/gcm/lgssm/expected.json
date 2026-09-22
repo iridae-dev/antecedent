@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "clean-room scalar Kalman and Rauch-Tung-Striebel recursion",
     "pin": "fixture-algorithm-v1",
     "generation_location": "temporary standard-library harness; deleted after artifact import"

@@ -1,7 +1,8 @@
 {
   "schema_version": 2,
   "oracle": {
-    "kind": "m-separation in every MAG of the class, by hand enumeration of the member MAGs",
+    "kind": "enumeration",
+    "method": "m-separation in every MAG of the class, by hand enumeration of the member MAGs",
     "generator": "hand-derived; statuses are statements about every member (separated / connected) or undetermined. An edge is '<a><left mark>-<right mark><b>' with marks '<' / '>' arrowhead, 'o' circle, 'x' conflict, none for a tail: '0->1', '0<->1', '0o-o1', '0o->1', '0-o1', '0x-x1'.",
     "reference": "Zhang (2008), On the completeness of orientation rules for causal discovery, definite-status paths"
   },

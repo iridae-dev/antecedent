@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "enumeration",
     "project": "clean-room discrete g-formula enumeration",
     "pin": "fixture-algorithm-v1",
     "generation_location": "analytical artifact; no generator retained"

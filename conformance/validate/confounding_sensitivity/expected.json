@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "sensemakr/DoWhy semantics plus closed-form partial-R2 loading",
     "version": "sensemakr 0.1.4; DoWhy 0.14",
     "generator": "temporary pinned environment and clean-room formula harness (deleted after artifact import)",

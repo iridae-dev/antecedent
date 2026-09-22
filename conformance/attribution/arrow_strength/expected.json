@@ -1,7 +1,8 @@
 {
   "schema_version": 2,
   "oracle": {
-    "kind": "closed_form_linear_sem",
+    "kind": "closed_form",
+    "method": "closed_form_linear_sem",
     "generator": "closed form, computed by hand from the pinned parameters below",
     "formula": "Arrow strength is the variance the edge contributes: strength = beta^2 * Var(parent) (Janzing et al. 2013). Var of a linear-Gaussian root with no parents is sigma^2. A do contrast of width delta is the signed beta*delta.",
     "note": "schema_version 1 pinned strength = abs(beta), which is not a measure of influence because it ignores how much the parent varies. The two edges below are chosen so the two definitions rank them in opposite orders: parent 0 has the smaller coefficient but much the larger variance, and genuinely dominates the child."

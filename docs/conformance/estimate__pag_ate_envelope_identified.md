@@ -68,4 +68,4 @@ completions and adjustment sets match `identified_completions`).
 
 ## Expected summary
 
-Top-level keys: `bayesian, case, columns, conditional, contingency_table, frequentist, graph, identification, identified_completions, law, query, schema_version` (12 fields).
+Top-level keys: `bayesian, case, columns, conditional, contingency_table, frequentist, graph, identification, identified_completions, law, oracle, query, schema_version` (13 fields).

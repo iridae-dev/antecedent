@@ -8,4 +8,4 @@ Noisy SCMs with pinned baseline (or clean-room AIPW) `val`/`se` pins.
 
 ## Expected summary
 
-Top-level keys: `atol_se, atol_val, clip, estimator_map, generation, methods, n, reference, rtol_se, rtol_val, scenarios, seed, tolerance_class, true_ate` (14 fields).
+Top-level keys: `atol_se, atol_val, clip, estimator_map, generation, methods, n, reference, rtol_se, rtol_val, scenarios, se_tolerance_note, seed, tolerance_class, true_ate` (15 fields).

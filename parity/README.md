@@ -68,6 +68,7 @@ row except in `release.toml` (infrastructure rows; evidence map lives in
 | `implementation_exists` | Code + ordinary unit tests; no numerical truth |
 | `internal_known_truth` | Matches a closed-form / analytic / clean-room fixture |
 | `internal_cross_check` | Agrees with another Antecedent estimator only |
+| `regression_pin` | Equals a frozen output of this library (a seeded run or a copied value): a change detector, not truth. Names its test, never a `known_truth_fixture` |
 | `frozen_external_oracle` | Matches a frozen, pinned upstream-package run |
 | `behavioral_parity` | Agrees with an upstream package across a range of inputs |
 | `contract_equivalence` | Theorem-level / method-contract argument |
@@ -87,7 +88,15 @@ executing test function that carries its evidence, and that function itself
 external-oracle rows must also name a fixture that same function parses and
 asserts on. An `internal_cross_check` row must not name a
 `known_truth_fixture`: agreement between two Antecedent paths is consistency
-evidence, not independent truth evidence.
+evidence, not independent truth evidence. The same holds for a `regression_pin`
+row, and a fixture whose `oracle.kind` is `regression_pin` (frozen output of this
+library) may back known truth only for the inference modes its oracle lists in
+`independent_inferences`. Every conformance `oracle` block carries a `kind` from
+one closed vocabulary (`external_package`, `closed_form`, `enumeration`,
+`independent_reimplementation`, `regression_pin`), enforced by
+`gate_evidence_reachability.sh`. A `process_attested` row exists only in
+`release.toml`, for a release-process fact no test can execute; its notes name the
+gate or workflow that enforces it.
 
 A licensed row labelled `frozen_external_oracle` compares **the cell's own
 output** with a pinned upstream run. Most licensed routes instead rest on

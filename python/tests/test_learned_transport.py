@@ -54,19 +54,19 @@ def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
     assert loaded.estimate == result.estimate
     assert loaded.replicates == result.replicates
     assert not loaded.inspect().uncertainty.payload.get("calibration_binding")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="known randomization probabilities are invalid"):
         study.refresh(dataclasses.replace(data, randomization=[0.0] * 200))
     assert study.estimate().estimate == result.estimate
     assert study.plan.structure_source if hasattr(study.plan, "structure_source") else True
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Transport retains inference settings"):
         study.estimate(seed=9)
 
 
 def test_trial_rejects_unsupported_sampling_and_uncertified_covariates():
     query, data = trial_fixture()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="unknown variant `clustered`"):
         advanced.prepare(query, dataclasses.replace(data, sampling="clustered"))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid certified trial AIPW input or options"):
         advanced.prepare(query, dataclasses.replace(data, covariates={"a": [0.0] * 200}))
 
 

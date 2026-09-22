@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "SciPy/NumPy clean-room conjugate NIG oracle",
     "api": "closed-form Normal-Inverse-Gamma marginal likelihood plus scipy.stats.invgamma posterior predictive simulation",
     "packages": {

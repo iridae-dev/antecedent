@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "case": "temporal_class_response_truth",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed form of the structural equations, evaluated by plain arithmetic over the sample rows, not by the estimator's design or lag alignment. Law (n = 300, i = 0..n-1): r_i = sin(0.29 i); z_i = 0.4 r_i + cos(0.13 i) + 0.3 sin(1.7 i); t_i = 0.3 + 0.5 r_i + 0.2 z_i + 0.4 cos(2.3 i); y_i = 1 + 2 t_{i-1} + 0.6 z_{i-1} + w_i with w_i = 0.1 sin(0.77 i). Horizon 1, pulse at origin -1: outcome rows s = 1..n-1 with treatment t_{s-1}. Averages over those rows: mean_t, mean_z, mean_w. The z-adjusting completion identifies E[y | do(t@-1 = x)] = 1 + 2 x + 0.6 mean_z + mean_w (a shift by d evaluates x = mean_t + d). The completion that does not adjust for z (z treated as a mediator) identifies the association E[y | t@-1 = x] = mean_y + slope (x - mean_t) with mean_y = 1 + 2 mean_t + 0.6 mean_z + mean_w and slope = 2 + (0.6 cov_tz + cov_tw) / var_t, the omitted-variable-bias formula from the same equations (covariances over the same rows).",
+    "generator": "hand-derived formulas evaluated with python math (no numpy solver) and cross-checked against a numpy least-squares fit: the z-as-mediator values agree to 1e-15, the z-adjusting completion's fit differs from its structural value by at most 1.1e-3 because the deterministic wiggle w is only asymptotically orthogonal to (t, z)"
+  },
+  "n": 300,
+  "horizon": 1,
+  "moments": {
+    "mean_t": 0.3119095958794717,
+    "mean_z": 0.02886216931458934,
+    "mean_w": 0.0005408765101981031,
+    "var_t": 0.273765873678918,
+    "cov_tz": 0.23842205538190755,
+    "cov_tw": -0.00012447009097510582,
+    "slope_z_as_mediator": 2.5220839296639332,
+    "mean_y": 1.6416773698578953
+  },
+  "horizon_1": {
+    "cells": {
+      "curve": "doses 0 and 1",
+      "set": "dose 1",
+      "shift": "additive shift 0.5 of the lag-aligned treatment mean"
+    },
+    "adjusting_z": {
+      "curve": [1.0178581780989517, 3.017858178098952],
+      "set": [3.017858178098952],
+      "shift": [2.6416773698578955]
+    },
+    "z_as_mediator": {
+      "curve": [0.8550151905823079, 3.377099120246241],
+      "set": [3.377099120246241],
+      "shift": [2.902719334689862]
+    }
+  },
+  "tolerance": {
+    "adjusting_z": 0.005,
+    "z_as_mediator": 1e-6
+  }
+}

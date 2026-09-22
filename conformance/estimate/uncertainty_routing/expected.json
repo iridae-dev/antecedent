@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "statsmodels covariance fixtures plus routing identity checks",
     "pin": "statsmodels==0.14.4 and fixture-algorithm-v1",
     "numeric_source": "../../stats/sandwich_covariance/expected.json",

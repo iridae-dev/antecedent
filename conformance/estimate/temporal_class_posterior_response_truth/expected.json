@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "case": "temporal_class_posterior_response_truth",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Closed form of the structural equation, by plain arithmetic over the sample rows. Law (n = 48, phase_i = 0.37 i): z_i = sin(phase_i); t_i = 1 if cos(phase_i) > 0 else 0; y_i = 1.4 t_{i-1} + 0.6 z_{i-1} + w_i with w_i = 0.1 sin(1.7 phase_i) for i >= 1. Horizon 1, pulse at origin -1, outcome rows s = 1..47 with treatment t_{s-1}: E[y | do(t@-1 = x)] = 1.4 x + 0.6 mean_z + mean_w with mean_z the mean of z_{s-1} and mean_w the mean of w_s over those rows. The mixture truth is the posterior-weight-weighted mixture of the per-atom truths; every atom of the fixture's graph posterior is a class of completions that all identify this same interventional level, so the weighted mixture equals it for any weights summing to 1 (the test uses a single atom of weight 1).",
+    "generator": "hand-derived formula evaluated with python math over the same rows; cross-checked against fits: the empty-adjustment identification formula (group means of y over t_{s-1} = 0 / 1: -0.00676, 1.48844) and the z@-1-adjusted least-squares g-computation (0.03377, 1.44615) both lie within 0.05 of this truth, which sets the tolerance"
+  },
+  "n": 48,
+  "horizon": 1,
+  "posterior_weights": [1.0],
+  "moments": {
+    "mean_z": 0.06110870174571612,
+    "mean_w": 0.0031590385244408847
+  },
+  "horizon_1": {
+    "cells": {
+      "curve": "doses 0 and 1",
+      "set": "dose 1"
+    },
+    "level": {
+      "curve": [0.03982425957187055, 1.4398242595718704],
+      "set": [1.4398242595718704]
+    }
+  },
+  "tolerance": {
+    "frequentist": 0.1,
+    "bayesian_floor": 0.1
+  }
+}

@@ -58,14 +58,9 @@ def test_vignette_unidentified_mass_matches_live_analyze():
     n = 400
     rng = np.random.default_rng(seed)
     market_demand_index = rng.normal(size=n)
-    paid_search_spend_kgbp = (
-        20.0 + 4.0 * market_demand_index + 5.0 * rng.normal(size=n)
-    )
+    paid_search_spend_kgbp = 20.0 + 4.0 * market_demand_index + 5.0 * rng.normal(size=n)
     qualified_pipeline_kgbp = (
-        80.0
-        + 1.5 * paid_search_spend_kgbp
-        + 12.0 * market_demand_index
-        + 8.0 * rng.normal(size=n)
+        80.0 + 1.5 * paid_search_spend_kgbp + 12.0 * market_demand_index + 8.0 * rng.normal(size=n)
     )
     data = {
         "market_demand_index": market_demand_index,

@@ -279,7 +279,7 @@ def test_grid_family_identity_atomic_refresh_and_preview():
     malformed = replace(
         data, laws=(replace(data.laws[0], probabilities=(0.2, 0.2)), *data.laws[1:])
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="unnormalized_law"):
         study.refresh(malformed)
     assert study.estimate().execution_id == result.execution_id
     preview = study.preview_transform("compatible_data_replace")
@@ -430,7 +430,7 @@ def test_irrelevant_source_deterministic_alternative_and_wrong_selection():
             *catalog.environments[1:],
         ),
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="catalog mechanism selections disagree"):
         transport.prepare_response_grid(identified, conflicting, data, at=[{"x": 1.0}])
 
 

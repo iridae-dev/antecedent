@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "NumPy clean-room augmented ridge solve",
     "versions": {"python": "3.11.5", "numpy": "2.4.6"},
     "installed_metadata_sha256": {"numpy": "b082c52ccbe3b880bae177c35171b52ed6c947f3ad71e3762f2723f60a411de0"},

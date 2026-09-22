@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "Tigramite",
     "api": "tigramite.pcmci.PCMCI.run_pcmciplus independently per fixed regime",
     "scope": "caller-supplied contiguous regime labels; no regime inference",
