@@ -76,7 +76,7 @@ const PIN_ABS: f64 = 1e-12;
 
 /// A batch member's cross-fit folds are a `SharedBatchDesign`-wide seeded balanced shuffle
 /// (`shuffled_fold_assignment`, batch.rs); a standalone `Study` draws its own folds from
-/// `crossfit_fold_plan` (learn_nuisance.rs). Both are seeded from the same run master seed
+/// `crossfit_fold_plan` (`learn_nuisance.rs`). Both are seeded from the same run master seed
 /// (99edfd41 made every facade path seed its fold plan from it), but the two are different
 /// algorithms, so a batch member and a solo re-run of the same query are not bit-identical
 /// once the estimator actually cross-fits on a non-empty design (a pure-intercept design has
