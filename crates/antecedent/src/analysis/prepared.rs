@@ -1632,9 +1632,17 @@ impl PreparedStudy {
     }
 
     /// Frozen horizon-specific identification and its exact unfolded variable namespace.
+    ///
+    /// A `TemporalDag` prepare caches this directly. A DBN posterior or a TemporalCpdag/Pag
+    /// envelope caches a per-atom or per-completion result instead; this projects either
+    /// onto the same shape (see [`super::contract::full_temporal_identification`]), so an
+    /// exported `analysis_result` artifact validates its identification against the same
+    /// namespace the compiled contract already uses.
     #[must_use]
-    pub fn temporal_identification(&self) -> Option<&CachedTemporalIdentification> {
-        self.analysis.temporal_identification_cache.as_deref()
+    pub fn temporal_identification(
+        &self,
+    ) -> Option<std::borrow::Cow<'_, CachedTemporalIdentification>> {
+        super::contract::full_temporal_identification(&self.analysis)
     }
 
     /// Borrow the frozen schema fingerprint.

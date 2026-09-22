@@ -1272,14 +1272,9 @@ fn compile_with_payloads(
         payloads.identities.program = None;
     }
     let reasoning = reasoning_view(study, prepared, cached, search_capped);
-    let lagged = study
-        .temporal_identification_cache
-        .as_deref()
-        .cloned()
-        .or_else(|| dbn_projected_temporal_identification(study))
-        .or_else(|| class_projected_temporal_identification(study));
+    let lagged = full_temporal_identification(study);
     let body =
-        body_frame(&study.query, lagged.as_ref(), cached, study.population_registry.as_ref())?;
+        body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
     let functional = match overlap_label(study, resolved_estimator.as_deref()) {
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
         None => functional_label(&study.query),
@@ -1564,6 +1559,26 @@ fn cached_identification(study: &Study) -> Option<&IdentificationResult> {
         return cache.atoms.first().map(|atom| &atom.identification);
     }
     None
+}
+
+/// The study's temporal identification product and its exact unfolded variable namespace,
+/// however it was produced.
+///
+/// A `TemporalDag` prepare caches this directly. A DBN posterior or a TemporalCpdag/Pag
+/// envelope instead cache a per-atom or per-completion result with its own unfold indexer;
+/// [`dbn_projected_temporal_identification`] and [`class_projected_temporal_identification`]
+/// project those onto the same [`CachedTemporalIdentification`] shape so every consumer —
+/// the compiled contract and an exported `analysis_result` artifact alike — validates and
+/// reports the same namespace for the same study.
+pub(crate) fn full_temporal_identification(
+    study: &Study,
+) -> Option<Cow<'_, CachedTemporalIdentification>> {
+    if let Some(cache) = study.temporal_identification_cache.as_deref() {
+        return Some(Cow::Borrowed(cache));
+    }
+    dbn_projected_temporal_identification(study)
+        .or_else(|| class_projected_temporal_identification(study))
+        .map(Cow::Owned)
 }
 
 /// Project a DBN posterior atom onto the existing temporal-namespace owner.

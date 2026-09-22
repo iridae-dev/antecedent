@@ -3466,7 +3466,7 @@ impl PyPreparedAnalysis {
                 .analysis_result_wire_with_context(
                     self.inner.query(),
                     self.inner.population_registry(),
-                    self.inner.temporal_identification(),
+                    self.inner.temporal_identification().as_deref(),
                 )
                 .map_err(py_err)?;
             let artifact = antecedent_io::encode_analysis_result_artifact(
