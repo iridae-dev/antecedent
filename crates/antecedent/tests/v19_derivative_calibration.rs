@@ -55,7 +55,8 @@ use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, GRID_POINTS, RecordKey, SampleGrid, coverage_band, gaussian, n_sim,
+    CoverageTally, GRID_POINTS, RecordKey, SampleGrid, coverage_band, gaussian, map_replicates,
+    n_sim,
 };
 use common::calibration_bind::{bind, bind_all};
 
@@ -327,15 +328,19 @@ fn scalar_coverage(
     let mut centres = Vec::new();
     let mut half_widths = Vec::new();
     let mut zs = Vec::new();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = replicate_seed(0x0D0E, rep);
         let data = data_fn(SampleGrid::HEAVY.n(N_POINT), seed);
-        match run_study(&data, &graph, functional.clone(), bandwidth, bayesian.then(bayes), seed) {
+        run_study(&data, &graph, functional.clone(), bandwidth, bayesian.then(bayes), seed)
+            .map_err(|error| error.to_string())
+    });
+    for (rep, scored) in runs.iter().enumerate() {
+        match scored {
             Ok((study, result)) => {
                 let response = result.response.as_ref().expect("response");
                 let interval = scalar_interval(response);
                 if record.is_some() {
-                    bind(&mut tally, &study, &result);
+                    bind(&mut tally, study, result);
                 }
                 tally.record(interval, truth);
                 if let Some((lo, hi)) = interval {
@@ -621,12 +626,16 @@ fn gam_coverage(
     let mut points: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     let mut half_widths: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     let mut zs: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = replicate_seed(0x0D0F, rep);
         let data = gam_data(SampleGrid::HEAVY.n(N_GAM), seed);
-        match run_study(&data, &graph, functional.clone(), None, Some(bayes()), seed) {
+        run_study(&data, &graph, functional.clone(), None, Some(bayes()), seed)
+            .map_err(|error| error.to_string())
+    });
+    for (rep, scored) in runs.iter().enumerate() {
+        match scored {
             Ok((study, result)) => {
-                bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), &study, &result);
+                bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
                 let response = result.response.as_ref().expect("response");
                 let values: Vec<f64> = match &response.estimate {
                     ResponseIdentification::PointIdentified(
