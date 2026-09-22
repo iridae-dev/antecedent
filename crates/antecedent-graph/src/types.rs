@@ -260,6 +260,9 @@ pub(crate) fn without_pending<T: Copy + PartialEq>(pending: &[T], item: T) -> st
     pending.iter().copied().filter(|e| *e != item).collect()
 }
 
+/// A shared, immutable list of pending edges.
+pub(crate) type PendingEdges<T> = std::sync::Arc<[(T, T)]>;
+
 /// Pending lists after orienting the undirected edge `{from, to}` as `from -> to`: it leaves the
 /// undirected list (in either spelling) and, unless already there, joins the directed list, where
 /// it still needs acceptance.
@@ -268,7 +271,7 @@ pub(crate) fn orient_pending<T: Copy + PartialEq>(
     undirected: &[(T, T)],
     from: T,
     to: T,
-) -> (std::sync::Arc<[(T, T)]>, std::sync::Arc<[(T, T)]>) {
+) -> (PendingEdges<T>, PendingEdges<T>) {
     let undirected = undirected.iter().copied().filter(|&e| e != (from, to) && e != (to, from));
     let mut edges = edges.to_vec();
     if !edges.contains(&(from, to)) {

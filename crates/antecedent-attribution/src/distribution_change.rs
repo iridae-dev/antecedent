@@ -138,6 +138,8 @@ pub fn distribution_change_with_fit_uncertainty(
 
     let resample = |source: &TabularData, rng: &mut antecedent_core::CausalRng| {
         let n = source.row_count();
+        // `next_f64() ∈ [0, 1)`, so the scaled draw is a non-negative index below `n`.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let rows: Vec<usize> =
             (0..n).map(|_| ((rng.next_f64() * n as f64) as usize).min(n - 1)).collect();
         subset_table(source, &rows)
@@ -549,6 +551,7 @@ mod tests {
     /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
     /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
     /// resampled 40-row populations moves the contributions.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution() {
         let (model, data) = two_period_chain();

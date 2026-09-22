@@ -418,15 +418,12 @@ where
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
     detach_catch(py, move || {
-        let (units, variables, panel) = match unit_lengths {
-            Some(lengths) => {
-                let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
-                (units, variables, true)
-            }
-            None => {
-                let (series, variables) = series_from_batch(&batch)?;
-                (vec![series], variables, false)
-            }
+        let (units, variables, panel) = if let Some(lengths) = unit_lengths {
+            let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
+            (units, variables, true)
+        } else {
+            let (series, variables) = series_from_batch(&batch)?;
+            (vec![series], variables, false)
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);

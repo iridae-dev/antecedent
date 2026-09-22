@@ -1364,9 +1364,10 @@ fn score_learner_replicate(
                 unidentified_mass: 0.0,
             },
         );
-        let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some(
-            (effect.ate - Z95 * effect.se_analytic, effect.ate + Z95 * effect.se_analytic),
-        );
+        let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some((
+            effect.ate - Z95 * effect.se_analytic,
+            effect.ate + Z95 * effect.se_analytic,
+        ));
         tally.record(interval, TRUE_ATE);
     } else {
         *skipped += 1;

@@ -687,7 +687,7 @@ mod tests {
         // Ten rows, one certain: 10% of the weight.
         let mut etas = vec![0.0; 10];
         etas[0] = 30.0;
-        assert!(flag(&etas, &vec![1.0; 10]));
+        assert!(flag(&etas, &[1.0; 10]));
         // The same extreme predictor on the wrong side (y = 0 at eta = +30) is a misfit.
         let mut y = vec![1.0; 10];
         y[0] = 0.0;

@@ -491,7 +491,7 @@ impl AipwAte {
         weights: Option<&[f64]>,
         refuse_overlap: bool,
     ) -> Result<EffectEstimate, EstimationError> {
-        let seeded = self.crossfit_problem(problem, ctx);
+        let seeded = Self::crossfit_problem(problem, ctx);
         let problem = &seeded;
         let table = self.crossfit_table(problem)?;
         let summary = table.summarize(weights)?;
@@ -543,7 +543,6 @@ impl AipwAte {
 
     /// The recorded cross-fit seed must govern the fold plan, not only the learners.
     fn crossfit_problem(
-        &self,
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
     ) -> PreparedPropensityProblem {
@@ -574,7 +573,7 @@ impl AipwAte {
         ctx: &ExecutionContext,
         weights: Option<&[f64]>,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let seeded = self.crossfit_problem(problem, ctx);
+        let seeded = Self::crossfit_problem(problem, ctx);
         let problem = &seeded;
         bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
             let mut p = problem.clone();

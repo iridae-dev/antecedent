@@ -538,6 +538,7 @@ mod tests {
     use crate::sample_policy::{MaskPolicy, MissingPolicy};
     use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
 
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn panel_frame_builds_every_lag_window_inside_its_unit() {
         // v0 = t within a unit, so a row's contemporaneous value exceeds its lag-1 value by
