@@ -373,7 +373,10 @@ mod tests {
     #[test]
     fn structure_mcmc_fork_edges() {
         let (data, vars) = fork_data(250);
-        let eng = StructureMcmc::new().with_schedule(2, 200, 400, 1);
+        // 2 chains / 400 draws (old) left the per-edge MCSE above the publication gate's bar
+        // often enough to flake; 4 chains / 1200 draws converges comfortably without masking a
+        // real defect (the fork itself is trivially easy to recover).
+        let eng = StructureMcmc::new().with_schedule(4, 400, 1200, 1);
         let ctx = ExecutionContext::for_tests(42);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
