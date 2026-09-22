@@ -206,6 +206,29 @@ pub fn ln_gamma(z: f64) -> f64 {
     (2.0 * std::f64::consts::PI).sqrt().ln() + (z + 0.5) * t.ln() - t + x.ln()
 }
 
+/// `ln B(a, b) = ln Γ(a) + ln Γ(b) − ln Γ(a + b)`.
+///
+/// Below the threshold this is the direct sum; above it, `ln Γ(a)` and `ln Γ(a+b)` are each
+/// `O(a ln a)` while their difference is `O(ln a)`, so subtracting them directly cancels to
+/// rounding noise (at `a = 5·10⁶` that noise is `~10⁻⁸`, moving `ln B` — and anything computed
+/// from it, such as the Student-t quantile at large df — by more than double precision should
+/// allow). Above the threshold, expand `ln Γ(big + small) − ln Γ(big)` with Stirling's series,
+/// combining the leading `(z − ½) ln z − z` terms algebraically (via `ln1p(small / big)`)
+/// instead of forming their numerically cancelling difference; the next Stirling correction
+/// (`1/(12z)`) is included in the same cancellation-free form, and the one after that
+/// (`O(1/z³)`) is below `1e-12` at the threshold and omitted.
+fn ln_beta(a: f64, b: f64) -> f64 {
+    let (big, small) = if a >= b { (a, b) } else { (b, a) };
+    if big >= 1.0e3 {
+        let sum = big + small;
+        let diff =
+            (big - 0.5) * (small / big).ln_1p() + small * sum.ln() - small - small / (12.0 * big * sum);
+        ln_gamma(small) - diff
+    } else {
+        ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b)
+    }
+}
+
 /// Regularized incomplete beta `I_x(a, b)`.
 #[must_use]
 pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
@@ -229,8 +252,15 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
     if x > (a + 1.0) / (a + b + 2.0) {
         return 1.0 - regularized_incomplete_beta_with_complement(y, x, b, a);
     }
-    let ln_beta = ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b);
-    let front = (x.ln() * a + y.ln() * b - ln_beta).exp() / a;
+    let lnb = ln_beta(a, b);
+    // ln(x): when x is within a few ulp of 1 (y small), x's own rounding has already discarded
+    // y's leading digits, and a*ln(x) amplifies that lost precision by a — enough to move the
+    // Student-t quantile by ~1e-9 at df ~ 1e7. ln1p(-y) keeps the precision of the accurately
+    // computed small y instead. When y is not small (x itself is the accurately-resolved small
+    // operand, as after the symmetry swap above), ln1p(-y) would instead force the cancellation
+    // 1 - y and must be avoided; x.ln() is exact there.
+    let lnx = if y < 0.5 { (-y).ln_1p() } else { x.ln() };
+    let front = (lnx * a + y.ln() * b - lnb).exp() / a;
     let mut c = 1.0;
     let mut d = 1.0 - (a + b) * x / (a + 1.0);
     if d.abs() < 1e-30 {
