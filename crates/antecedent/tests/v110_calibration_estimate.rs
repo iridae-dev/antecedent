@@ -40,7 +40,7 @@ use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
+    CoverageTally, RecordKey, gaussian, grid_n, map_replicates, n_sim, stream_seed, unit_uniform,
 };
 use common::calibration_bind::bind_all;
 use common::reported::{
@@ -131,33 +131,34 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
         keyed(TEST, "glm_data", "analytic_se", REPORTED_LEVEL),
         keyed(TEST, "glm_data", "analytic_se", GATE_LEVEL),
     ];
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0301, rep);
         let data = glm_data(grid_n(N), seed);
-        let Some((study, result)) = run(data.clone(), None, seed) else {
-            skip_pair(&mut bootstrap);
-            skip_pair(&mut analytic);
-            continue;
-        };
+        let (study, result) = run(data.clone(), None, seed)?;
         // The analytic interval is the one a bootstrap-free run reports, so it
         // is scored on that execution and keyed by it.
-        let Some((bare_study, bare)) = run(data, Some(0), seed) else {
-            skip_pair(&mut bootstrap);
-            skip_pair(&mut analytic);
-            continue;
-        };
-        let est = &result.estimate;
+        let (bare_study, bare) = run(data, Some(0), seed)?;
         if rep == 0 {
+            let est = &result.estimate;
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("glm.adjustment"));
             assert_eq!(est.bootstrap_replicates_ok, Some(199), "the Study default bootstrap");
             assert_eq!(bare.estimate.ate, est.ate, "same point without bootstrap");
             assert_eq!(bare.estimate.se_analytic, est.se_analytic, "same analytic SE");
         }
+        Some(((study, result), (bare_study, bare)))
+    });
+    for scored in &runs {
+        let Some(((study, result), (bare_study, bare))) = scored else {
+            skip_pair(&mut bootstrap);
+            skip_pair(&mut analytic);
+            continue;
+        };
+        let est = &result.estimate;
         {
             let [reported, gated] = &mut bootstrap;
-            bind_all(&mut [reported, gated], &study, &result);
+            bind_all(&mut [reported, gated], study, result);
             let [reported, gated] = &mut analytic;
-            bind_all(&mut [reported, gated], &bare_study, &bare);
+            bind_all(&mut [reported, gated], bare_study, bare);
         }
         let se_boot = est.se_bootstrap.unwrap_or(f64::NAN);
         record_pair(
@@ -202,7 +203,7 @@ fn average_effect_dag_frequentist_default_nominal_coverage() {
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0310, rep);
         let study = Study::tabular(linear_ate_data(grid_n(N_DEFAULT_ATE), seed))
             .graph(dag.clone())
@@ -210,10 +211,7 @@ fn average_effect_dag_frequentist_default_nominal_coverage() {
             .refute(RefuteSuite::None)
             .build()
             .expect("the default study builds");
-        let Ok(result) = study.run(&ExecutionContext::for_tests(seed)) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
             assert_eq!(
@@ -222,9 +220,16 @@ fn average_effect_dag_frequentist_default_nominal_coverage() {
                 "the Study default bootstrap"
             );
         }
+        Some((study, result))
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
         let [reported, gated] = &mut tallies;
-        bind_all(&mut [reported, gated], &study, &result);
-        record_pair(&mut tallies, scalar_normal_pair(&result), 2.0);
+        bind_all(&mut [reported, gated], study, result);
+        record_pair(&mut tallies, scalar_normal_pair(result), 2.0);
     }
     gate_at(&tallies, &[[Some(0.938), None, None], [Some(0.880), None, None]]);
 }

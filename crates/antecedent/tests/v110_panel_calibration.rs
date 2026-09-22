@@ -21,7 +21,8 @@ mod common;
 use antecedent::{RefuteSuite, Study, StudyResult};
 use antecedent_core::{CausalQuery, ExecutionContext, ResponseUncertainty};
 use common::calibration::{
-    CoverageTally, RecordKey, Z95, gaussian, grid_n, n_sim, normal_interval, stream_seed,
+    CoverageTally, RecordKey, Z95, gaussian, grid_n, map_replicates, n_sim, normal_interval,
+    stream_seed,
 };
 use common::calibration_bind::bind;
 use common::panel_dgp::{UnitSpec, curve_query, lagged_ty_dag, panel, pulse_query, unit_series};
@@ -66,10 +67,12 @@ fn panel_pulse_cluster_se_ar09_nominal_95_coverage() {
         },
         0.95,
     );
-    for rep in 0..n_sim() {
-        let (study, result) = panel_pulse_study(PERSISTENT, UNITS, rep, 0, 610_000);
+    let runs = map_replicates(n_sim(), |rep| {
+        panel_pulse_study(PERSISTENT, UNITS, u32::try_from(rep).unwrap(), 0, 610_000)
+    });
+    for (study, result) in &runs {
         let est = &result.estimate;
-        bind(&mut analytic, &study, &result);
+        bind(&mut analytic, study, result);
         analytic.record(normal_interval(est.ate, Some(est.se_analytic), Z95), PERSISTENT.beta);
     }
     analytic.assert();
@@ -86,11 +89,13 @@ fn panel_pulse_unit_bootstrap_ar09_nominal_95_coverage() {
         },
         0.95,
     );
-    for rep in 0..n_sim() {
-        let (study, result) = panel_pulse_study(PERSISTENT, UNITS, rep, 99, 620_000);
+    let runs = map_replicates(n_sim(), |rep| {
+        panel_pulse_study(PERSISTENT, UNITS, u32::try_from(rep).unwrap(), 99, 620_000)
+    });
+    for (study, result) in &runs {
         let est = &result.estimate;
         assert_eq!(est.bootstrap_replicates_failed, Some(0));
-        bind(&mut boot, &study, &result);
+        bind(&mut boot, study, result);
         boot.record(normal_interval(est.ate, est.se_bootstrap, Z95), PERSISTENT.beta);
     }
     boot.assert_boundary_at([Some(0.902), None, None]);
@@ -108,12 +113,12 @@ fn between_unit_band_coverage(test: &'static str, units: usize, seed: u64) {
         CoverageTally::for_record(key, 0.95).labelled(format!("N={units} dose 0")),
         CoverageTally::for_record(key, 0.95).labelled(format!("N={units} dose 1")),
     ];
-    for rep in 0..n_sim() {
-        let mut slope = gaussian(stream_seed(seed + u64::from(rep), 1_000));
+    let runs = map_replicates(n_sim(), |rep| {
+        let mut slope = gaussian(stream_seed(seed + rep, 1_000));
         let series = (0..units)
             .map(|unit| {
                 let spec = UnitSpec::iid(grid_n(80), 0.8 + 0.4 * slope());
-                unit_series(spec, stream_seed(seed + u64::from(rep), unit as u64))
+                unit_series(spec, stream_seed(seed + rep, unit as u64))
             })
             .collect();
         let study = Study::panel(panel(series))
@@ -123,13 +128,16 @@ fn between_unit_band_coverage(test: &'static str, units: usize, seed: u64) {
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        let result = study.run(&ExecutionContext::for_tests(u64::from(rep) + 1)).unwrap();
+        let result = study.run(&ExecutionContext::for_tests(rep + 1)).unwrap();
+        (study, result)
+    });
+    for (study, result) in &runs {
         let response = result.response.as_ref().unwrap();
         let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
             panic!("panel response must publish a between-unit band");
         };
         for (cell, tally) in cells.iter_mut().enumerate() {
-            bind(tally, &study, &result);
+            bind(tally, study, result);
             tally.record(Some((lower[cell], upper[cell])), 1.0 + 0.8 * cell as f64);
         }
     }

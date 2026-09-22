@@ -35,7 +35,8 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, GRID_POINTS, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
+    CoverageTally, GRID_POINTS, RecordKey, gaussian, grid_n, map_replicates, n_sim, stream_seed,
+    unit_uniform,
 };
 use common::calibration_bind::bind_all;
 use common::reported::{
@@ -170,17 +171,21 @@ fn transport_admg_trial_ipw_frequentist_nominal_coverage() {
     let truth = transport_truth();
     let mut tallies =
         keyed_pair("transport_admg_trial_ipw_frequentist_nominal_coverage", TRANSPORT_CELL);
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0201, rep);
-        let Some((study, result)) = run_transport(transport_data(grid_n(1000), seed), seed) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_transport(transport_data(grid_n(1000), seed), seed)?;
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(TRANSPORT_CELL.estimator));
         }
-        bind_pair(&mut tallies, &study, &result);
-        record_pair(&mut tallies, scalar_normal_pair(&result), truth);
+        Some((study, result))
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, scalar_normal_pair(result), truth);
     }
     eprintln!("info transport: target ATE truth {truth:.6}");
     gate(&tallies, &[None, None]);
@@ -281,17 +286,21 @@ fn interference_dag_bernoulli_neighbor_count_conservative_bound_boundary() {
         "interference_dag_bernoulli_neighbor_count_conservative_bound_boundary",
         INTERFERENCE_CELL,
     );
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0202, rep);
-        let Some((study, result)) = run_interference(&alpha, seed) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_interference(&alpha, seed)?;
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(INTERFERENCE_CELL.estimator));
         }
-        bind_pair(&mut tallies, &study, &result);
-        record_pair(&mut tallies, scalar_normal_pair(&result), DIRECT_EFFECT);
+        Some((study, result))
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, scalar_normal_pair(result), DIRECT_EFFECT);
     }
     gate(&tallies, &[Some(INTERFERENCE_MEASURED), Some(INTERFERENCE_MEASURED)]);
 }
