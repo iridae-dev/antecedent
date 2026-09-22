@@ -170,9 +170,17 @@ pub struct EffectEstimate {
     /// Per-row CATE standard errors, when a licensed pointwise formula produced them.
     ///
     /// Linear DR-Learner finals use the HC0 sandwich of the orthogonal scores.
-    /// Honest forests use the mean of two-sample leaf variances. Nonlinear or
-    /// penalized CATE regressions withhold this field rather than inventing an SE.
+    /// Nonlinear or penalized CATE regressions, and forests (see
+    /// [`Self::cate_leaf_dispersion`]), withhold this field rather than inventing an SE.
     pub cate_se: Option<Arc<[f64]>>,
+    /// Per-row leaf-dispersion diagnostic of an honest forest: the square root of the
+    /// mean over trees of the two-sample leaf variance of the row's leaf.
+    ///
+    /// This is NOT a standard error. Trees are half-samples of the same rows, so they
+    /// are strongly positively correlated and the tree-averaged CATE does not have this
+    /// variance; `cate ± 1.96·cate_leaf_dispersion` is not a confidence interval.
+    /// Read it as "how noisy the typical honest leaf around this row is".
+    pub cate_leaf_dispersion: Option<Arc<[f64]>>,
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
@@ -258,6 +266,7 @@ impl EffectEstimate {
             cate: None,
             fitted_effect: None,
             cate_se: None,
+            cate_leaf_dispersion: None,
         }
     }
 
@@ -326,6 +335,7 @@ impl EffectEstimate {
             cate: None,
             fitted_effect: None,
             cate_se: None,
+            cate_leaf_dispersion: None,
         }
     }
 
@@ -420,6 +430,13 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_cate_se(mut self, cate_se: Option<Arc<[f64]>>) -> Self {
         self.cate_se = cate_se;
+        self
+    }
+
+    /// Attach the forest leaf-dispersion diagnostic (not a standard error).
+    #[must_use]
+    pub fn with_cate_leaf_dispersion(mut self, dispersion: Option<Arc<[f64]>>) -> Self {
+        self.cate_leaf_dispersion = dispersion;
         self
     }
 

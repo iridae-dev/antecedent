@@ -109,11 +109,12 @@ CATE path (`estimators.DRLearner`) and a native honest causal forest
 (`estimators.CausalForest`). DR-Learner reports the marginal ATE and its IID
 interval from cross-fitted AIPW scores. A linear final stage also reports HC0
 pointwise CATE standard errors of those orthogonal scores; penalized or
-nonlinear finals withhold CATE intervals. The honest forest's per-row `cate_se` is a
-leaf-dispersion diagnostic (the mean of two-sample leaf variances across
-trees). It omits between-tree and adaptive-neighbourhood variability, so it is
-not a pointwise standard error and `cate ± 1.96·cate_se` is not a confidence
-band; forest CATE predictions carry no pointwise intervals. Robinson PLR
+nonlinear finals withhold CATE intervals. The honest forest publishes no
+`cate_se`; its per-row `cate_leaf_dispersion` is a diagnostic (the root mean of
+two-sample leaf variances across trees). It omits between-tree and
+adaptive-neighbourhood variability, so it is not a pointwise standard error and
+`cate ± 1.96·cate_leaf_dispersion` is not a confidence band; forest CATE
+predictions carry no pointwise intervals. Robinson PLR
 requires a constant conditional effect to interpret its slope as the ATE.
 The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
 covers a binary-treatment linear SCM at one sample size; it does not license

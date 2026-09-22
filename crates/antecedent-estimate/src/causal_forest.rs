@@ -7,12 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss,
-    clippy::too_many_arguments
-)]
+#![allow(clippy::too_many_arguments)]
 
 use std::sync::Arc;
 
@@ -181,7 +176,7 @@ impl CausalForest {
                 }
             }
         }
-        let mut cate_se = vec![0.0; n];
+        let mut leaf_dispersion = vec![0.0; n];
         let mut se_complete = true;
         for i in 0..n {
             if hits[i] > 0.0 {
@@ -189,9 +184,10 @@ impl CausalForest {
             }
             // Sqrt of the mean of honest two-sample leaf variances over trees
             // that had both arms with n≥2. Trees that only return a point
-            // (single-observation arm) contribute to the CATE, not the SE.
+            // (single-observation arm) contribute to the CATE, not the dispersion.
+            // This is a diagnostic, not a standard error of the averaged CATE.
             if se_hits[i] > 0.0 {
-                cate_se[i] = cate_se_from_leaf_ses(se_ss[i], se_hits[i]);
+                leaf_dispersion[i] = leaf_dispersion_from_leaf_ses(se_ss[i], se_hits[i]);
             } else {
                 se_complete = false;
             }
@@ -199,35 +195,7 @@ impl CausalForest {
         // Variation across fitted CATEs is heterogeneity, not sampling
         // uncertainty in the ATE. Use the orthogonal marginal score instead.
         let mut effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
-        let portable_trees = trees
-            .iter()
-            .map(|tree| {
-                let mut nodes = Vec::new();
-                tree.portable_nodes(&mut nodes);
-                nodes
-            })
-            .collect();
-        let model = crate::FittedEffect {
-            version: 1,
-            features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
-            intercept: false,
-            predictor: antecedent_learn::PortablePredictor {
-                version: 1,
-                columns: p,
-                provenance: antecedent_learn::LearnerProvenance {
-                    spec: "causal_forest".into(),
-                    implementation: "antecedent".into(),
-                    version: env!("CARGO_PKG_VERSION").into(),
-                },
-                model: antecedent_learn::PredictionMap::Trees {
-                    trees: portable_trees,
-                    base: 0.0,
-                    average: true,
-                    logistic: false,
-                    probability: false,
-                },
-            },
-        };
+        let model = portable_forest(&trees, problem, p);
         model.validate()?;
         effect.fitted_effect = Some(Arc::new(model));
         if hits.iter().any(|&count| count == 0.0) {
@@ -237,7 +205,44 @@ impl CausalForest {
         }
         Ok(effect
             .with_cate(Some(Arc::from(cate)))
-            .with_cate_se(se_complete.then_some(Arc::from(cate_se))))
+            .with_cate_leaf_dispersion(se_complete.then_some(Arc::from(leaf_dispersion))))
+    }
+}
+
+/// Portable form of the grown forest: every tree's nodes, averaged at prediction.
+fn portable_forest(
+    trees: &[Node],
+    problem: &PreparedPropensityProblem,
+    columns: usize,
+) -> crate::FittedEffect {
+    let portable_trees = trees
+        .iter()
+        .map(|tree| {
+            let mut nodes = Vec::new();
+            tree.portable_nodes(&mut nodes);
+            nodes
+        })
+        .collect();
+    crate::FittedEffect {
+        version: 1,
+        features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+        intercept: false,
+        predictor: antecedent_learn::PortablePredictor {
+            version: 1,
+            columns,
+            provenance: antecedent_learn::LearnerProvenance {
+                spec: "causal_forest".into(),
+                implementation: "antecedent".into(),
+                version: env!("CARGO_PKG_VERSION").into(),
+            },
+            model: antecedent_learn::PredictionMap::Trees {
+                trees: portable_trees,
+                base: 0.0,
+                average: true,
+                logistic: false,
+                probability: false,
+            },
+        },
     }
 }
 
@@ -320,6 +325,10 @@ fn grow_tree(
     root
 }
 
+// `fit` refuses n > u32::MAX, so the u32 row ids are exact; `frac` is in (0, 1], so the
+// rounded count is a non-negative integer no larger than n; a u64 draw reduced modulo
+// `rest` is below `rest`.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn subsample(n: usize, frac: f64, min_leaf: usize, rng: &mut CausalRng) -> Vec<u32> {
     let mut idx: Vec<u32> = (0..n as u32).collect();
     let want = ((n as f64) * frac).round() as usize;
@@ -410,6 +419,8 @@ fn best_split(
     Some((feat, thr, left, right))
 }
 
+// `ceil(sqrt(p))` is a small non-negative integer; the modular draw is below `p - i`.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn choose_features(p: usize, rng: &mut CausalRng) -> Vec<usize> {
     if p == 0 {
         return Vec::new();
@@ -533,10 +544,10 @@ fn leaf_stat(y: &[f64], t: &[f64], rows: &[u32]) -> Option<(f64, Option<f64>)> {
     Some((tau, var.is_finite().then_some(var.sqrt())))
 }
 
-/// Pointwise CATE SE from summed leaf SEs: `sqrt(mean of leaf variances)`.
+/// Leaf-dispersion diagnostic from summed leaf SEs: `sqrt(mean of leaf variances)`.
 ///
 /// `se_ss` accumulates `leaf_se²` and `se_hits` counts trees that supplied an SE.
-fn cate_se_from_leaf_ses(se_ss: f64, se_hits: f64) -> f64 {
+fn leaf_dispersion_from_leaf_ses(se_ss: f64, se_hits: f64) -> f64 {
     (se_ss / se_hits).max(0.0).sqrt()
 }
 
@@ -566,8 +577,8 @@ mod tests {
     }
 
     #[test]
-    fn cate_se_equals_leaf_se_when_all_trees_agree() {
-        // B identical leaf SEs of s → cate_se = s, not s/√B.
+    fn leaf_dispersion_equals_leaf_se_when_all_trees_agree() {
+        // B identical leaf SEs of s → dispersion = s, not s/√B.
         let b = 25usize;
         let s = 0.4;
         let mut se_ss = 0.0;
@@ -576,7 +587,7 @@ mod tests {
             se_ss += s * s;
             se_hits += 1.0;
         }
-        let got = cate_se_from_leaf_ses(se_ss, se_hits);
+        let got = leaf_dispersion_from_leaf_ses(se_ss, se_hits);
         assert!((got - s).abs() < 1e-12, "expected {s}, got {got}");
         let divided_by_sqrt_b = se_ss.sqrt() / se_hits;
         assert!(
@@ -691,7 +702,8 @@ mod tests {
         let lo = pairs[..q].iter().map(|p| p.1).sum::<f64>() / q as f64;
         let hi = pairs[3 * q..].iter().map(|p| p.1).sum::<f64>() / (pairs.len() - 3 * q) as f64;
         assert!(hi > lo + 0.15, "cate should rise with z: lo={lo} hi={hi}");
-        let se = effect.cate_se.as_ref().expect("honest leaf SEs");
+        assert!(effect.cate_se.is_none(), "a forest publishes no pointwise SE");
+        let se = effect.cate_leaf_dispersion.as_ref().expect("honest leaf dispersion");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s >= 0.0));
         assert!(se.iter().any(|&s| s > 0.0));

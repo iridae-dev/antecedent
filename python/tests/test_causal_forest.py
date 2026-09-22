@@ -27,6 +27,9 @@ def test_causal_forest_returns_cate():
     assert result.estimate.estimator_id == "causal.forest"
     assert result.estimate.cate is not None
     assert len(result.estimate.cate) == n
-    assert result.estimate.cate_se is not None
-    assert len(result.estimate.cate_se) == n
+    # A forest publishes a leaf-dispersion diagnostic, never a pointwise SE.
+    assert result.estimate.cate_se is None
+    assert result.estimate.cate_leaf_dispersion is not None
+    assert len(result.estimate.cate_leaf_dispersion) == n
+    assert all(d >= 0.0 for d in result.estimate.cate_leaf_dispersion)
     assert abs(result.ate - 1.0) < 0.4

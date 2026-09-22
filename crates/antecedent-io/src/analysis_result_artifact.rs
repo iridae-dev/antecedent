@@ -392,6 +392,9 @@ pub struct AnalysisResultWire {
     /// Licensed pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
+    /// Forest leaf-dispersion diagnostic per row. Not a standard error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_leaf_dispersion: Option<Vec<f64>>,
     /// Held-out outcome R².
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_oof_r2: Option<f64>,
@@ -797,13 +800,21 @@ fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> 
 }
 
 fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), IoError> {
-    match (&result.cate, &result.cate_se) {
-        (None, None) => {}
-        (None, Some(_)) => {
+    if result.cate.is_none() && (result.cate_se.is_some() || result.cate_leaf_dispersion.is_some())
+    {
+        return Err(IoError::Convert(
+            "cate standard errors and leaf dispersion require cate point predictions".into(),
+        ));
+    }
+    if let (Some(cate), Some(dispersion)) = (&result.cate, &result.cate_leaf_dispersion) {
+        if dispersion.len() != cate.len() || dispersion.iter().any(|v| !v.is_finite() || *v < 0.0) {
             return Err(IoError::Convert(
-                "cate standard errors require cate point predictions".into(),
+                "cate leaf dispersion must match cate length and be finite nonnegative".into(),
             ));
         }
+    }
+    match (&result.cate, &result.cate_se) {
+        (None, _) => {}
         (Some(cate), cate_se) => {
             if cate.is_empty() || cate.iter().any(|v| !v.is_finite()) {
                 return Err(IoError::Convert(
@@ -1276,6 +1287,12 @@ mod tests {
         bad_len.cate_se = Some(vec![0.05]);
         let err = encode_analysis_result_artifact(&bad_len, names.clone(), "cate-len").unwrap_err();
         assert!(err.to_string().contains("cate"), "{err}");
+
+        let mut bad_dispersion = ok.clone();
+        bad_dispersion.cate_leaf_dispersion = Some(vec![0.05, -1.0]);
+        let err = encode_analysis_result_artifact(&bad_dispersion, names.clone(), "cate-disp")
+            .unwrap_err();
+        assert!(err.to_string().contains("leaf dispersion"), "{err}");
 
         let mut bad_nan = ok;
         bad_nan.cate = Some(vec![0.1, f64::NAN]);

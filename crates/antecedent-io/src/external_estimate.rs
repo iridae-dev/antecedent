@@ -210,6 +210,7 @@ fn receipt_body(
         cate: None,
         fitted_effect: None,
         cate_se: None,
+        cate_leaf_dispersion: None,
         outcome_oof_r2: None,
         treatment_oof_logloss: None,
         crossfit_folds: None,

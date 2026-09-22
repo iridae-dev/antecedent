@@ -85,4 +85,8 @@ def test_staged_learner_artifact_roundtrip(estimator):
     assert (tuple(cate) if cate is not None else None) == result.estimate.cate
     cate_se = payload.get("cate_se")
     assert (tuple(cate_se) if cate_se is not None else None) == result.estimate.cate_se
+    dispersion = payload.get("cate_leaf_dispersion")
+    assert (
+        tuple(dispersion) if dispersion is not None else None
+    ) == result.estimate.cate_leaf_dispersion
     assert restored.as_point() == result.as_point()

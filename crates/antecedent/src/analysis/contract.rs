@@ -2531,6 +2531,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
         fitted_effect: result.estimate.fitted_effect.as_deref().cloned(),
         cate_se: result.estimate.cate_se.as_ref().map(|v| v.to_vec()),
+        cate_leaf_dispersion: result.estimate.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
         outcome_oof_r2: result.estimate.outcome_oof_r2,
         treatment_oof_logloss: result.estimate.treatment_oof_logloss,
         crossfit_folds: result.estimate.crossfit_folds,
