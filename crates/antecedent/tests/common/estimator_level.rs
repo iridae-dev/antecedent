@@ -70,7 +70,7 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "",
         "all_observed.mean",
     ),
-    case("aipw_analytic_ci_coverage", "aipw", "analytic_se", "", "all_observed.mean"),
+    case("aipw_analytic_ci_coverage", "aipw", "analytic_se", "homoskedastic", "all_observed.mean"),
     case("aipw_att_hc1_ci_coverage", "aipw", "analytic_se", "hc1", "treated.mean"),
     case("aipw_atc_hc1_boundary_within_band", "aipw", "analytic_se", "hc1", "untreated.mean"),
     case("aipw_ate_hc1_ci_coverage", "aipw", "analytic_se", "hc1", "all_observed.mean"),
