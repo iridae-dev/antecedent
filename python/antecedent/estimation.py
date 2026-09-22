@@ -123,6 +123,7 @@ from .transport._impl import (
     StatisticalTransportDistribution,
     TransportOverlapReport,
     TransportResponseGrid,
+    TransportStage,
 )
 from .transport.advanced import (
     ExactTransportQuery,
@@ -2796,6 +2797,11 @@ class PreparedAnalysis(Generic[ResultT]):
         self._threads = threads
         self._controls = controls or _Controls()
         self._cancelled = False
+        # Set by transport/_day1.py::prepare_transport when identification is
+        # deferred (no native execution yet): the frozen inputs needed to
+        # re-derive identification (inspect()) or re-bind data (refresh())
+        # without one. Absent for every non-transport study.
+        self._transport_stage: TransportStage | None = None
 
     def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
         """A handle over one retained execution with this study's seed and controls."""
@@ -3155,7 +3161,7 @@ class PreparedAnalysis(Generic[ResultT]):
         inference = inference or Frequentist()
         if not isinstance(inference, (Frequentist, Bayesian)):
             raise CausalTypeError("inference must be Frequentist or Bayesian")
-        controls = _Controls(cancel=cancel, on_progress=on_progress, on_stage=on_stage)
+        execution_controls = _Controls(cancel=cancel, on_progress=on_progress, on_stage=on_stage)
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             _check_response_observation(query, inference)
 
@@ -3191,7 +3197,7 @@ class PreparedAnalysis(Generic[ResultT]):
                 regimes=regimes,
                 seed=seed,
                 threads=threads,
-                controls=controls,
+                controls=execution_controls,
             )
             discovery = None
         structure_accepted = isinstance(graph, AcceptedGraph)
@@ -3255,7 +3261,7 @@ class PreparedAnalysis(Generic[ResultT]):
             query=query,
             seed=seed,
             threads=threads,
-            controls=controls,
+            controls=execution_controls,
             deferred_suite=route.deferred_suite,
             snapshot_data=data if route.deferred_suite else None,
         )
@@ -3339,6 +3345,8 @@ class PreparedAnalysis(Generic[ResultT]):
                 from .transport._day1 import identification_from_transport
 
                 query = self._query
+                if not isinstance(query, Transport):
+                    raise CausalValueError("transport inspect requires a Transport query")
                 stage = getattr(self, "_transport_stage", None) or {}
                 graph = stage.get("graph")
                 if graph is None:

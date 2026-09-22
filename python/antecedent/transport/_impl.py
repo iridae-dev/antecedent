@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, get_args, overload
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args, overload
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
@@ -38,6 +38,24 @@ from ..query import (
     ResponseJacobian,
     SemiElasticity,
 )
+
+
+class TransportStage(TypedDict):
+    """Snapshot of a not-yet-identified (or otherwise deferred) transport prepare.
+
+    Frozen onto ``PreparedAnalysis._transport_stage`` by
+    :func:`antecedent.transport._day1.prepare_transport` so a later
+    ``inspect()`` / ``refresh()`` / result-wrap can re-derive identification
+    and re-bind data without holding a native execution.
+    """
+
+    identified: ClassicalTransportIdentification
+    catalog: EvidenceCatalog
+    bound: ExactTransportData | StatisticalTransportData | TrialAipwData | None
+    shape: str
+    worlds: list[dict[str, float]]
+    provider: EmpiricalTable | LearnedCategorical | TrialAipw | str | None
+    graph: Admg | None
 
 
 @dataclass(frozen=True, slots=True)
