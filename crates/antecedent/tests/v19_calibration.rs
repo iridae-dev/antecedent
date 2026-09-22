@@ -1091,6 +1091,7 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         .map(|(i, t)| CoverageTally::new(format!("{name} completion {i} (θ={t:.3})"), LEVEL))
         .collect();
     let mut mean = [0.0; 2];
+    let mut mean_ate = 0.0;
     let runs = map_replicates(n_sim(), |s| {
         run_bayes(
             mediation_series(grid_n(N), kappa, seed + s),
@@ -1102,7 +1103,17 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         )
     });
     for result in &runs {
-        assert!(result.estimate.ate.is_nan(), "class mediation must not publish a blended effect");
+        // The two completions share the same mediation design here (both against the
+        // same truth above), so the class collapses to one canonical shared-design
+        // contrast instead of the cross-design NaN sentinel (see 9d45ee10's fix of
+        // the sibling fixture sanity test), a real per-replicate estimate rather than
+        // NaN; its replicate-mean is checked against the analytic truth below, the
+        // same bias check `mean` already runs per completion.
+        assert!(
+            result.estimate.ate.is_finite(),
+            "class mediation with agreeing completions must publish a shared-design effect"
+        );
+        mean_ate += result.estimate.ate / f64::from(n_sim());
         let atoms = &result.structural_response.as_ref().expect("atoms").atoms;
         assert_eq!(atoms.len(), truths.len());
         for (i, ((atom, truth), tally)) in atoms.iter().zip(&truths).zip(&mut tallies).enumerate() {
@@ -1118,6 +1129,7 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         fixtures::mediation_truth(),
         fixtures::mediation_backdoor_only_plim(kappa)
     );
+    close(&format!("{name} shared-design ate"), mean_ate, fixtures::mediation_truth(), 0.02);
     for tally in &tallies {
         tally.assert();
     }
