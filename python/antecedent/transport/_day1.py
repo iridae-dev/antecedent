@@ -273,7 +273,7 @@ def _split_worlds(
     interventions: Sequence[str],
 ) -> list[tuple[tuple[tuple[str, float], ...], dict[str, tuple[float | None, ...]]]]:
     if not interventions or any(name not in columns for name in interventions):
-        return [((), dict(columns))]
+        return [((), {name: tuple(values) for name, values in columns.items()})]
     n = len(next(iter(columns.values())))
     groups: dict[tuple[tuple[str, float], ...], list[int]] = {}
     for index in range(n):
@@ -778,7 +778,7 @@ def prepare_transport(
             cancel=cancel,
         )
     if identified.outcome != "identified":
-        study = PreparedAnalysis(None, kind="statistical_transport")
+        study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="statistical_transport")
         study._query = query
         study._transport_stage = {
             "identified": identified,
@@ -838,11 +838,19 @@ def prepare_transport(
         raise CausalValueError("Exact laws do not accept learner or sampling inference settings")
     inference_knobs = settings or TransportInference()
     if shape == "scalar":
-        request: Any
+        # Distinct from `request` above (the TrialAipwQuery branch, which
+        # always returns before this point): this local is legitimately
+        # polymorphic across the exact/statistical split below, and
+        # `prepare_stage` (the overloaded `prepare`) is called uniformly with
+        # `provider`/`inference` regardless of which one it holds — the exact
+        # branch relies on that call's own "exact laws do not accept learner
+        # or sampling inference settings" check when `resolved`/`settings`
+        # are not None.
+        scalar_request: Any
         if isinstance(payload, ExactTransportData):
             from ._impl import ExactTransportQuery
 
-            request = ExactTransportQuery(identified, catalog, worlds[0])
+            scalar_request = ExactTransportQuery(identified, catalog, worlds[0])
         else:
             from ._impl import StatisticalTransportQuery
 
@@ -851,7 +859,7 @@ def prepare_transport(
                     "Statistical transport needs a bound snapshot; pass a table or "
                     "StatisticalTransportData"
                 )
-            request = StatisticalTransportQuery(
+            scalar_request = StatisticalTransportQuery(
                 identified,
                 catalog,
                 worlds[0],
@@ -861,14 +869,14 @@ def prepare_transport(
                 seed=inference_knobs.seed,
             )
         study = prepare_stage(
-            request, payload, provider=resolved, inference=settings, controls=limits
+            scalar_request, payload, provider=resolved, inference=settings, controls=limits
         )
     else:
         from ._impl import TransportResponseGridQuery
 
         if payload is None:
             raise CausalValueError("grid transport needs a bound snapshot")
-        request = TransportResponseGridQuery(
+        grid_request = TransportResponseGridQuery(
             identified,
             catalog,
             worlds,
@@ -878,7 +886,7 @@ def prepare_transport(
             estimator=resolved or "plugin",
         )
         study = prepare_stage(
-            request, payload, provider=resolved, inference=settings, controls=limits
+            grid_request, payload, provider=resolved, inference=settings, controls=limits
         )
     study._query = query
     study._transport_stage = {
@@ -971,7 +979,7 @@ def identification_from_transport(
             missing_evidence_detail(identified, catalog, search=search, query=query)
             if note == "missing_evidence"
             else _catalog_search_incomplete_detail(query, search_incomplete_reason)
-            if note == "catalog_search_incomplete"
+            if note == "catalog_search_incomplete" and search_incomplete_reason is not None
             else None
         ),
         "not_certified_detail": None
