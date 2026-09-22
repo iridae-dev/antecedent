@@ -75,6 +75,37 @@ def test_callback_exception_is_chained_not_stringified():
     assert cause.__traceback__ is not None
 
 
+def test_concurrent_runs_with_identical_callback_failures_keep_their_own_exception():
+    """Two runs whose callbacks fail with byte-identical text each get their own cause."""
+    names, columns = _static()
+    barrier = threading.Barrier(2)
+    causes: dict[int, BaseException | None] = {}
+
+    def run(owner: int) -> None:
+        def boom(_columns, _queries):
+            error = ValueError("ci exploded")
+            error.owner = owner  # type: ignore[attr-defined]
+            raise error
+
+        barrier.wait()
+        try:
+            _native.discover_pc(names, columns, ci=boom, fdr=False, seed=1)
+        except _native.CausalError as raised:
+            causes[owner] = raised.__cause__
+
+    for _ in range(5):
+        causes.clear()
+        threads = [threading.Thread(target=run, args=(owner,)) for owner in (1, 2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert set(causes) == {1, 2}
+        for owner, cause in causes.items():
+            assert isinstance(cause, ValueError)
+            assert cause.owner == owner  # type: ignore[attr-defined]
+
+
 def test_keyboard_interrupt_in_a_callback_is_not_swallowed_by_except_causalerror():
     names, columns = _static()
 

@@ -325,9 +325,49 @@ pub(crate) fn series_from_batch(
     Ok((series, variables))
 }
 
+/// The per-unit series of a panel passed as row-concatenated columns plus each unit's length.
+///
+/// Every unit becomes its own series, so lagged discovery builds each unit's lag windows inside
+/// that unit and never takes a lagged parent across a unit boundary.
+///
+/// # Errors
+///
+/// `unit_lengths` that are empty, contain a zero, or do not add up to the column length.
+pub(crate) fn panel_units_from_batch(
+    batch: &RecordBatch,
+    unit_lengths: &[usize],
+) -> PyResult<(Vec<TimeSeriesData>, Vec<VariableId>)> {
+    let rows = batch.num_rows();
+    if unit_lengths.is_empty()
+        || unit_lengths.contains(&0)
+        || unit_lengths.iter().sum::<usize>() != rows
+    {
+        return Err(crate::refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!(
+                "unit_lengths must be positive and add up to the {rows} rows of the pooled \
+                 columns; got {unit_lengths:?}"
+            ),
+        ));
+    }
+    let mut units = Vec::with_capacity(unit_lengths.len());
+    let mut variables = Vec::new();
+    let mut offset = 0;
+    for &len in unit_lengths {
+        let (series, ids) = series_from_batch(&batch.slice(offset, len))?;
+        offset += len;
+        variables = ids;
+        units.push(series);
+    }
+    Ok((units, variables))
+}
+
 type SharedCi = std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>;
 
 /// Shared NumPy→series discovery preamble (CI resolve + GIL release).
+///
+/// `unit_lengths` marks the columns as the row-concatenated units of a panel; `f` then gets one
+/// series per unit and `panel = true`, otherwise exactly one series and `panel = false`.
 fn run_series_discovery<F>(
     py: Python<'_>,
     names: Vec<String>,
@@ -335,13 +375,15 @@ fn run_series_discovery<F>(
     seed: u64,
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
+    unit_lengths: Option<Vec<usize>>,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
     f: F,
 ) -> PyResult<PcmciDiscoveryResult>
 where
     F: FnOnce(
-            &TimeSeriesData,
+            &[TimeSeriesData],
+            bool,
             &[VariableId],
             SharedCi,
             String,
@@ -350,15 +392,33 @@ where
         ) -> PyResult<PcmciDiscoveryResult>
         + Send,
 {
+    if unit_lengths.is_some() && weights.is_some() {
+        // Observation weights are aligned to the end of one series; pooled units have no such
+        // alignment, so a weighted test over a panel would weight the wrong rows.
+        return Err(crate::refusal(
+            antecedent_core::reason_code!("option_not_applicable"),
+            "observation weights are defined per row of one series and cannot be combined with a \
+             panel (unit_lengths)",
+        ));
+    }
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
     detach_catch(py, move || {
-        let (series, variables) = series_from_batch(&batch)?;
+        let (units, variables, panel) = match unit_lengths {
+            Some(lengths) => {
+                let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
+                (units, variables, true)
+            }
+            None => {
+                let (series, variables) = series_from_batch(&batch)?;
+                (vec![series], variables, false)
+            }
+        };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        f(&series, &variables, ci_impl, ci_name, &ctx, &names)
+        f(&units, panel, &variables, ci_impl, ci_name, &ctx, &names)
     })
 }
 
@@ -487,7 +547,7 @@ fn pcmci_result_from_static_cpdag(
 /// unless `ci` is an explicit slow-path callable — ).
 /// `ci` selects a named test (default `parcorr`) or a Python batch callable.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -501,6 +561,7 @@ fn discover_pcmci(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -509,9 +570,10 @@ fn discover_pcmci(
         seed,
         ci,
         weights,
+        unit_lengths,
         threads,
         cancel,
-        |series, variables, ci_impl, ci_name, ctx, names| {
+        |units, panel, variables, ci_impl, ci_name, ctx, names| {
             let params = DiscoverParams {
                 max_lag,
                 alpha,
@@ -520,7 +582,12 @@ fn discover_pcmci(
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
             };
-            let result = facade_discover_pcmci(series, variables, &params, ctx).map_err(py_err)?;
+            let result = if panel {
+                facade_discover_pcmci_panel(units, variables, &params, ctx)
+            } else {
+                facade_discover_pcmci(&units[0], variables, &params, ctx)
+            }
+            .map_err(py_err)?;
             let slot = ReviewSlot::TemporalGraph(result.review.clone());
             Ok(discovery_result_fields(
                 names,
@@ -873,7 +940,7 @@ fn discover_rfci(
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -887,6 +954,7 @@ fn discover_pcmci_plus(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -895,9 +963,10 @@ fn discover_pcmci_plus(
         seed,
         ci,
         weights,
+        unit_lengths,
         threads,
         cancel,
-        |series, variables, ci_impl, ci_name, ctx, names| {
+        |units, panel, variables, ci_impl, ci_name, ctx, names| {
             let params = DiscoverParams {
                 max_lag,
                 alpha,
@@ -906,8 +975,12 @@ fn discover_pcmci_plus(
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
             };
-            let result =
-                facade_discover_pcmci_plus(series, variables, &params, ctx).map_err(py_err)?;
+            let result = if panel {
+                facade_discover_pcmci_plus_panel(units, variables, &params, ctx)
+            } else {
+                facade_discover_pcmci_plus(&units[0], variables, &params, ctx)
+            }
+            .map_err(py_err)?;
             let cpdag = &result.evidence.graph;
             let directed = cpdag.directed_edge_count() as u64;
             let undirected = cpdag.undirected_edge_count() as u64;
@@ -935,7 +1008,7 @@ fn discover_pcmci_plus(
 
 /// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
 fn discover_lpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -949,6 +1022,7 @@ fn discover_lpcmci(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -957,9 +1031,10 @@ fn discover_lpcmci(
         seed,
         ci,
         weights,
+        unit_lengths,
         threads,
         cancel,
-        |series, variables, ci_impl, ci_name, ctx, names| {
+        |units, panel, variables, ci_impl, ci_name, ctx, names| {
             let params = DiscoverParams {
                 max_lag,
                 alpha,
@@ -968,7 +1043,12 @@ fn discover_lpcmci(
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
             };
-            let result = facade_discover_lpcmci(series, variables, &params, ctx).map_err(py_err)?;
+            let result = if panel {
+                facade_discover_lpcmci_panel(units, variables, &params, ctx)
+            } else {
+                facade_discover_lpcmci(&units[0], variables, &params, ctx)
+            }
+            .map_err(py_err)?;
             let pag = &result.evidence.graph;
             let pending = result.review.pending_circles.len() as u64;
             let directed = pag_definite_directed_edge_count(pag);

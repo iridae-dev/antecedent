@@ -139,12 +139,34 @@ pub fn discover_pcmci(
     params: &DiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<DagDiscoveryResult, CausalError> {
-    let pcmci = Pcmci::new()
+    let mut ws = DiscoveryWorkspace::default();
+    pcmci_for(params).run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+}
+
+fn pcmci_for(params: &DiscoverParams) -> Pcmci {
+    Pcmci::new()
         .with_fdr_adjustment(params.fdr)
         .with_constraints(pcmci_constraints(params.max_lag, params.alpha, params.max_cond_size))
-        .with_ci(Arc::clone(&params.ci));
+        .with_ci(Arc::clone(&params.ci))
+}
+
+/// Run PCMCI over the units of a panel.
+///
+/// Every unit's lag windows are built inside that unit and the rows are pooled, so no lagged
+/// parent crosses a unit boundary. The pooled design is that of one structural model shared by
+/// exchangeable units; a shift in level or scale between units is not modelled.
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_pcmci_panel(
+    units: &[TimeSeriesData],
+    variables: &[VariableId],
+    params: &DiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<DagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    pcmci.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    pcmci_for(params).run_panel(units, variables, &mut ws, ctx).map_err(CausalError::from)
 }
 
 /// Run PCMCI+.
@@ -158,16 +180,34 @@ pub fn discover_pcmci_plus(
     params: &DiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, CausalError> {
-    let plus = PcmciPlus::new()
+    let mut ws = DiscoveryWorkspace::default();
+    pcmci_plus_for(params).run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+}
+
+fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
+    PcmciPlus::new()
         .with_fdr_adjustment(params.fdr)
         .with_constraints(contemporaneous_constraints(
             params.max_lag,
             params.alpha,
             params.max_cond_size,
         ))
-        .with_ci(Arc::clone(&params.ci));
+        .with_ci(Arc::clone(&params.ci))
+}
+
+/// Run PCMCI+ over the units of a panel (see [`discover_pcmci_panel`]).
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_pcmci_plus_panel(
+    units: &[TimeSeriesData],
+    variables: &[VariableId],
+    params: &DiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<CpdagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    plus.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    pcmci_plus_for(params).run_panel(units, variables, &mut ws, ctx).map_err(CausalError::from)
 }
 
 /// Run LPCMCI.
@@ -181,16 +221,34 @@ pub fn discover_lpcmci(
     params: &DiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<PagDiscoveryResult, CausalError> {
-    let alg = Lpcmci::new()
+    let mut ws = DiscoveryWorkspace::default();
+    lpcmci_for(params).run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+}
+
+fn lpcmci_for(params: &DiscoverParams) -> Lpcmci {
+    Lpcmci::new()
         .with_fdr_adjustment(params.fdr)
         .with_constraints(contemporaneous_constraints(
             params.max_lag,
             params.alpha,
             params.max_cond_size,
         ))
-        .with_ci(Arc::clone(&params.ci));
+        .with_ci(Arc::clone(&params.ci))
+}
+
+/// Run LPCMCI over the units of a panel (see [`discover_pcmci_panel`]).
+///
+/// # Errors
+///
+/// Discovery failures.
+pub fn discover_lpcmci_panel(
+    units: &[TimeSeriesData],
+    variables: &[VariableId],
+    params: &DiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<PagDiscoveryResult, CausalError> {
     let mut ws = DiscoveryWorkspace::default();
-    alg.run(data, variables, &mut ws, ctx).map_err(CausalError::from)
+    lpcmci_for(params).run_panel(units, variables, &mut ws, ctx).map_err(CausalError::from)
 }
 
 /// Run J-PCMCI+ over multi-environment series.
@@ -484,12 +542,36 @@ pub fn discover_dbn_posterior(
     schedule: &GraphMcmcSchedule,
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, CausalError> {
-    let eng = DbnPosterior::new(max_lag).with_force_mcmc(force_mcmc).with_mcmc_schedule(
+    dbn_posterior_for(max_lag, force_mcmc, schedule)
+        .run(data, variables, &params.prior, params.score_family, ctx)
+        .map(|gp| gp.with_algorithm("dbn_posterior"))
+        .map_err(CausalError::from)
+}
+
+fn dbn_posterior_for(max_lag: u32, force_mcmc: bool, schedule: &GraphMcmcSchedule) -> DbnPosterior {
+    DbnPosterior::new(max_lag).with_force_mcmc(force_mcmc).with_mcmc_schedule(
         schedule.n_chains,
         schedule.n_warmup,
         schedule.n_draws,
-    );
-    eng.run(data, variables, &params.prior, params.score_family, ctx)
+    )
+}
+
+/// Infer the DBN template posterior over the units of a panel (see [`discover_pcmci_panel`]).
+///
+/// # Errors
+///
+/// No usable rows, unsupported size, score, or empty support.
+pub fn discover_dbn_posterior_panel(
+    units: &[TimeSeriesData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    max_lag: u32,
+    force_mcmc: bool,
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    dbn_posterior_for(max_lag, force_mcmc, schedule)
+        .run_panel(units, variables, &params.prior, params.score_family, ctx)
         .map(|gp| gp.with_algorithm("dbn_posterior"))
         .map_err(CausalError::from)
 }

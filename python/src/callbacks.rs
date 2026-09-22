@@ -494,21 +494,33 @@ pub fn resolve_ci_arg(
     weights: Option<Vec<f64>>,
 ) -> PyResult<(Arc<dyn ConditionalIndependence + Send + Sync>, String, bool)> {
     let Some(ci) = ci else {
-        let impl_ = antecedent::discovery_defaults::resolve_ci("parcorr", weights)
-            .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
+        let impl_ =
+            antecedent::discovery_defaults::resolve_ci("parcorr", weights).map_err(|e| {
+                crate::with_reason_code(
+                    crate::CausalCompileError::new_err(e.to_string()),
+                    antecedent_core::reason_code!("invalid_argument"),
+                )
+            })?;
         return Ok((impl_, "parcorr".into(), false));
     };
     if let Ok(name) = ci.extract::<&str>() {
-        let impl_ = antecedent::discovery_defaults::resolve_ci(name, weights)
-            .map_err(|e| crate::CausalCompileError::new_err(e.to_string()))?;
+        let impl_ = antecedent::discovery_defaults::resolve_ci(name, weights).map_err(|e| {
+            crate::with_reason_code(
+                crate::CausalCompileError::new_err(e.to_string()),
+                antecedent_core::reason_code!("invalid_argument"),
+            )
+        })?;
         return Ok((impl_, name.to_string(), false));
     }
     if ci.is_callable() {
         let cb = PyConditionalIndependence::new(ci.clone().unbind());
         return Ok((Arc::new(cb), "python.callback".into(), true));
     }
-    Err(crate::CausalCompileError::new_err(
-        "ci must be a str CI name (e.g. 'parcorr') or a callable batch test",
+    Err(crate::with_reason_code(
+        crate::CausalCompileError::new_err(
+            "ci must be a str CI name (e.g. 'parcorr') or a callable batch test",
+        ),
+        antecedent_core::reason_code!("invalid_argument"),
     ))
 }
 
