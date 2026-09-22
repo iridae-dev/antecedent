@@ -35,8 +35,26 @@ pub fn run() -> Result<(), CausalError> {
     let n = 400usize;
     let mut pressure = vec![0.0; n];
     let mut defect = vec![0.0; n];
+    // A slowly varying `sin(0.04t)` makes pressure[t-1] and pressure[t-2]
+    // almost identical (their sample correlation is ~0.999, since a phase
+    // shift of 0.04 rad barely moves the sine). The lag-1 and lag-2
+    // response cells below each regress `defect` on *only* its own lag,
+    // with no adjustment for the other lag (there is no edge between them,
+    // so none is owed graphically) — but under near-collinearity that
+    // single-lag regression absorbs the other lag's coefficient too via
+    // classic omitted-variable bias: beta ≈ 0.9 + 0.1 * corr(p1, p2) ≈ 1.0
+    // for lag 1, and symmetrically ≈ 1.0 for lag 2, which is exactly the
+    // wrong, dose-independent-of-horizon surface a stale fixture produced
+    // here. Using `sin((pi/2) t)` instead makes pressure[t-1] and
+    // pressure[t-2] exactly phase-quadrature (their sample correlation is
+    // ~1e-5, effectively zero — the pi/2 phase shift makes them a sine and
+    // a cosine of the same argument), and moreover pressure[t] is exactly 0
+    // on every other step, so in every row exactly one of the two lags is
+    // nonzero: the single-lag regressions cleanly recover 0.9 and 0.1
+    // without picking up the other lag's coefficient.
+    let omega = std::f64::consts::FRAC_PI_2;
     for t in 0..n {
-        pressure[t] = ((t as f64) * 0.04).sin();
+        pressure[t] = ((t as f64) * omega).sin();
         if t > 0 {
             defect[t] = 0.9 * pressure[t - 1];
         }
