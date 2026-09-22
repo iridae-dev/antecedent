@@ -92,11 +92,13 @@ impl StatisticalStudyResult {
             replicates_failed: 0,
             reason: Some("uncertainty_unavailable"),
         };
-        if self.estimate.uncertainty_reason.is_some()
-            || reference.estimate.uncertainty_reason.is_some()
-        {
-            return Ok(contrast);
-        }
+        // A point's own `uncertainty_reason` also covers the facade's licensing floor
+        // (`insufficient_bootstrap_replicates`), which withholds only that point's
+        // *pointwise* percentile edges while still retaining its replicate draws. The
+        // contrast draws its own paired sample from those retained replicates and
+        // applies its own floor below, so only a hard absence of replicate data (no
+        // bootstrap ran at all, or the law came from an exact supplied source) should
+        // withhold the contrast; that absence is what the destructure below detects.
         let (Some(row), Some(ids), Some(reference_ids), Some(left), Some(right)) = (
             &self.estimate.uncertainty,
             &self.estimate.replicate_ids,
@@ -1448,10 +1450,26 @@ fn validate_uncertainty(
             values.push(distribution.mean(*v).map_err(err)?);
         }
     }
-    let unavailable = row.replicates_ok < PERCENTILE_95_MIN_REPLICATES
+    // Two distinct reasons withhold the percentile edges: the estimator's own
+    // failure-fraction refusal (too few successful replicates or too many failed
+    // ones to trust the resample), and the facade's licensing floor (enough
+    // replicates ran clean, but fewer than the nominal-0.95 percentile requires).
+    // `withhold_unearned_percentile` never overwrites an existing failure-fraction
+    // reason, so the two are mutually exclusive and must be told apart here too.
+    let bootstrap_failed = row.replicates_ok < 2
         || f64::from(row.replicates_failed) / f64::from(row.replicates_requested) > 0.5;
-    if unavailable {
+    let unlicensed = !bootstrap_failed
+        && (row.replicates_ok < PERCENTILE_95_MIN_REPLICATES
+            || row.replicates_requested < PERCENTILE_95_MIN_REPLICATES);
+    if bootstrap_failed {
         if wire.uncertainty_reason.as_deref() != Some("bootstrap_failure_fraction")
+            || wire.atom_intervals.is_some()
+            || wire.mean_intervals.is_some()
+        {
+            return Err(bad());
+        }
+    } else if unlicensed {
+        if wire.uncertainty_reason.as_deref() != Some("insufficient_bootstrap_replicates")
             || wire.atom_intervals.is_some()
             || wire.mean_intervals.is_some()
         {
