@@ -1,5 +1,9 @@
 # Temporal Pulse / Sustained without replicates — 1.9.0
 
+Established: 2026-09-14 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: cb15e6c1 (the commit that added this file; the measured commit was not written down)
+
 Measured 2026-09-14 on this macOS arm64 development host with the release
 profile, min of 5 runs, three interleaved rounds against the pre-fix build
 (other workloads were running; the interleaving keeps the ratios honest, the

@@ -1,5 +1,7 @@
 # Transport identification, catalog, evaluation, and bootstrap
 
+Commit: f5660026 (the commit that added this file; the measured commit was not written down)
+
 Workloads in `crates/antecedent/benches/transport.rs`:
 
 - `identify_classical_3node` — X→M→Y with X↔Y, selection on Y

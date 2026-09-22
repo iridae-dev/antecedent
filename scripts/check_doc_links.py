@@ -10,8 +10,8 @@ Two kinds of link are checked in the user-facing Markdown:
   workspace version) or `main`. Links pinned to any other ref are a frozen
   reference to a shipped snapshot and are not checked.
 
-Audit ledgers, release-note history and the roadmap are not scanned: they
-cite historical paths on purpose.
+Audit ledgers and release-note history are not scanned: they cite historical
+paths on purpose. The roadmap is scanned like any user-facing page.
 
 Run directly, or via scripts/gate_release.sh.
 """
@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 PAGES = (
-    ["README.md", "CONTRIBUTING.md", "SECURITY.md", "examples/README.md"]
+    ["README.md", "CONTRIBUTING.md", "SECURITY.md", "ROADMAP.md", "examples/README.md"]
     + sorted(str(p.relative_to(ROOT)) for p in (ROOT / "docs").rglob("*.md"))
     + sorted(str(p.relative_to(ROOT)) for p in (ROOT / "adr").glob("*.md"))
 )

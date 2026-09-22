@@ -1,5 +1,7 @@
 # PCMCI benchmark baseline
 
+Commit: 683b42a6 (the commit that added this file; the measured commit was not written down)
+
 Workload: `pcmci_n500_p4_lag2` — lagged PCMCI (PC parents + MCI, FDR off,
 `max_cond_size=1`, `max_lag=2`) on a synthetic 4-variable series of length 500.
 

@@ -1,5 +1,7 @@
 # Kernel reductions benchmark baseline
 
+Commit: 9deef739 (the commit that added this file; the measured commit was not written down)
+
 Workloads (public dispatch, default `KernelPolicy` / portable-optimized):
 
 | Workload | Description |

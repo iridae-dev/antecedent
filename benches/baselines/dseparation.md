@@ -1,5 +1,7 @@
 # d-separation benchmark baseline
 
+Commit: 6b309cd2 (the commit that added this file; the measured commit was not written down)
+
 Workloads:
 
 - `dsep_sparse_chain_200` — chain of 200 nodes, condition on middle

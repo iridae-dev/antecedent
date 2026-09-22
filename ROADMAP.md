@@ -740,7 +740,7 @@ identification work is reused; stale or substituted certificates are rejected.
 
 ## T6 — Statistical execution and uncertainty
 
-Review, corrections, and calibration scope: [T6 audit](docs/audits/transport-t6-review.md).
+Calibration scope: the transport-statistical records in [`parity/coverage_records.toml`](parity/coverage_records.toml) and the licensed cells in [the support matrix](docs/support-matrix.md); the T6 review write-up that once sat beside them was removed in the 2.0 preparation.
 
 **Owner:** estimate transport, existing inference/calibration/provider machinery.
 **Depends on:** T4–T5. License each estimator separately.

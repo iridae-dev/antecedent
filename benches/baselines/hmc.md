@@ -1,5 +1,9 @@
 # HMC GLM baselines
 
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 59295cec (the commit that added this file; the measured commit was not written down)
+
 Owner: `antecedent-prob` / `fit_hmc_glm`
 
 ## Criteria

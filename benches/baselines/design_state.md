@@ -1,5 +1,9 @@
 # design / state baselines
 
+Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 2ef9a173 (the commit that added this file; the measured commit was not written down)
+
 Criterion smokes (gated with `--test`):
 
 - `antecedent-design` / `design_rank` — `design_rank_eig_8_candidates`

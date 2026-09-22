@@ -80,8 +80,11 @@ Criterion means with the documented budgets is a manual step on the reference
 machine (`GATE_CRITERION_MEANS=1`), and a regression beyond a budget is
 reviewed by hand, not blocked automatically. Only rows marked "asserted in
 bench" carry an allocation assertion; other rows record a baseline without
-one, and not every baseline file records the date, machine, or commit it was
-measured at.
+one. Every baseline file carries an `Established`, `Machine class` and `Commit`
+line (`scripts/gate_hot_path_baselines.sh` requires them); where the original
+measurement did not record one, the line says so and gives what version-control
+history supports: the commit that added the file and its date, never a guessed
+machine or measured commit.
 
 ## Python↔Rust ingest overhead
 

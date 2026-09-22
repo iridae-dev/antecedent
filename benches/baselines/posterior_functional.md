@@ -1,5 +1,9 @@
 # Posterior functional evaluation baselines
 
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 42eb1293 (the commit that added this file; the measured commit was not written down)
+
 Owner: `antecedent-estimate` / `GCompAteEvaluator::evaluate_batch`
 
 ## Criteria
