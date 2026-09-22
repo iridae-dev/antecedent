@@ -348,10 +348,11 @@ fn grow_tree(
     root
 }
 
-// `fit` refuses n > u32::MAX, so the u32 row ids are exact; `frac` is in (0, 1], so the
-// rounded count is a non-negative integer no larger than n; a u64 draw reduced modulo
-// `rest` is below `rest`.
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "fit refuses n > u32::MAX, so the u32 row ids are exact; frac is in (0, 1], so the               rounded count is a non-negative integer no larger than n; a u64 draw reduced               modulo rest is below rest"
+)]
 fn subsample(n: usize, frac: f64, min_leaf: usize, rng: &mut CausalRng) -> Vec<u32> {
     let mut idx: Vec<u32> = (0..n as u32).collect();
     let want = ((n as f64) * frac).round() as usize;

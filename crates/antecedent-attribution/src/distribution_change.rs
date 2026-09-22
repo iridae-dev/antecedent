@@ -138,8 +138,11 @@ pub fn distribution_change_with_fit_uncertainty(
 
     let resample = |source: &TabularData, rng: &mut antecedent_core::CausalRng| {
         let n = source.row_count();
-        // `next_f64() ∈ [0, 1)`, so the scaled draw is a non-negative index below `n`.
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "next_f64() is in [0, 1), so the scaled draw is a non-negative index below n"
+        )]
         let rows: Vec<usize> =
             (0..n).map(|_| ((rng.next_f64() * n as f64) as usize).min(n - 1)).collect();
         subset_table(source, &rows)
