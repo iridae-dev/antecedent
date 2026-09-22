@@ -174,8 +174,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Execution claim identity | `StudyResult::claim` digest over the contract seal (identities, four slots, audit fields), the claim fields, and the executed result body | `result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]` |
 | Score reuse identity | score-reuse digest | `inspect().score_reuse_id` |
 | Target-weight identity | target-weights digest | `inspect().target_weights_id` |
-| Learned-trial artifact identity | `manifest.artifact_id` on `LearnedTrialWire` | n/a (`artifact_id` in the learned-trial artifact manifest) |
-| Transport-certificate artifact identity | `manifest.artifact_id` on `TransportCertificateWire` | n/a (`artifact_id` in the transport-certificate artifact manifest) |
+| Learned-trial artifact identity | `manifest.artifact_id` on `LearnedTrialWire` | n/a (artifact_id in the learned-trial artifact manifest) |
+| Transport-certificate artifact identity | `manifest.artifact_id` on `TransportCertificateWire` | n/a (artifact_id in the transport-certificate artifact manifest) |
 | Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
 | Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); HTML also on `Identification`, graphs, `CausalResponseView`, `ReviewRequired`; `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_columns()`; `PosteriorView` supports `__array__` / `.interval()` |
