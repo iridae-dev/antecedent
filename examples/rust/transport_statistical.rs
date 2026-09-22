@@ -122,7 +122,11 @@ fn prepare(
         },
         Assignment::from_pairs([(v(0), Value::Int64(x))]),
         ExactEvaluationLimits::default(),
-        EmpiricalTableOptions { bootstrap_replicates: 39, ..EmpiricalTableOptions::default() },
+        // `PERCENTILE_95_MIN_REPLICATES` is 40: the estimator's earned-percentile
+        // license gate is `bootstrap_replicates >= 40`, so 39 (one below it) would
+        // withhold the uncertainty slot both at inspect time and after estimation,
+        // contradicting `slots(..., true)` below.
+        EmpiricalTableOptions { bootstrap_replicates: 40, ..EmpiricalTableOptions::default() },
         &ctx,
     )?)
 }
