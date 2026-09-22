@@ -9,9 +9,9 @@ structural transport.
 
 ```toml
 [dependencies]
-antecedent = "1.11"
+antecedent = "2.0"
 ```
 
-The package version remains 1.11.0 during 2.0 release preparation. See the
-[workspace documentation](../../docs/index.md) for the active 2.0 contract and
-its calibration limits.
+The package version is stamped 2.0.0; the tag and publish steps are still
+pending. See the [workspace documentation](../../docs/index.md) for the
+active 2.0 contract and its calibration limits.
