@@ -1669,7 +1669,7 @@ mod shared_fold_tests {
         assert_eq!(counts, [20, 20, 21, 21, 21]);
         assert_eq!(a.fold_ids, compile(7).fold_ids);
         assert_ne!(a.fold_ids, compile(8).fold_ids);
-        let modulo: Vec<u32> = (0..n).map(|i| (i % 5) as u32).collect();
+        let modulo: Vec<u32> = (0..n).map(|i| u32::try_from(i % 5).unwrap()).collect();
         assert_ne!(a.fold_ids.to_vec(), modulo);
         assert_eq!(a.fold_seed, 7);
         // Rebinding to a same-size table keeps the seed, hence the assignment.

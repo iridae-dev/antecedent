@@ -463,7 +463,7 @@ impl PcmciEngine {
     /// Depth of the lagged frame PC and MCI both run on.
     ///
     /// Aligned with the pinned baseline's default `cut_off='2xtau_max'`: both use a frame
-    /// materializing lags up to 2·max_lag (same effective sample count).
+    /// materializing lags up to `2·max_lag` (same effective sample count).
     pub(crate) fn frame_depth(&self) -> u32 {
         2 * self.constraints.temporal.max_lag.raw()
     }
@@ -501,7 +501,7 @@ impl PcmciEngine {
             self.constraints.alpha,
             false,
         )?;
-        crate::ci::ensure_ci_fits_frame(&*ci, &frame)?;
+        crate::ci::ensure_ci_fits_frame(&*ci, frame)?;
         let engine = PcmciEngine { constraints: self.constraints.clone(), ci, column_blocks };
 
         let threads = ctx.parallelism.max_threads.get().max(1);

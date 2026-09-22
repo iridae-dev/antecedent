@@ -229,7 +229,7 @@ pub fn aggregate_effect_envelope(
     // The published draws carry the exact mixture moments themselves (a one-step affine
     // correction of the Monte Carlo sample), so the summaries are the draws' own summaries and
     // a reader recomputing them from the draws gets the same numbers.
-    let (draws, summaries) = moment_matched(draws, exact_mean, Some(exact_sd))?;
+    let (draws, summaries) = moment_matched(&draws, exact_mean, Some(exact_sd))?;
 
     let identification = if identified_mass > 0.0 && retained_unidentified > 0.0 {
         IdentificationStatus::GraphDependent
@@ -276,7 +276,7 @@ pub fn aggregate_effect_envelope(
 /// given, `sd` (to rounding), and return those summaries. A draw set whose sample spread is zero
 /// or undefined cannot be rescaled and keeps its own summaries apart from the location.
 fn moment_matched(
-    draws: PosteriorDraws,
+    draws: &PosteriorDraws,
     mean: f64,
     sd: Option<f64>,
 ) -> Result<(PosteriorDraws, antecedent_prob::PosteriorSummary), EstimationError> {
@@ -365,7 +365,7 @@ pub fn aggregate_mixture_functional_envelope(
     let coupled = PosteriorDraws::from_column_major(schema, mixture.len(), mixture)
         .map_err(EstimationError::from)?;
     // Centre the coupled draws on the frozen-weight mean; the spread stays the draws' own.
-    let (draws, summaries) = moment_matched(coupled, mean, None)?;
+    let (draws, summaries) = moment_matched(&coupled, mean, None)?;
     posterior.draws = draws;
     posterior.summaries = summaries;
     let mut assumptions = AssumptionSet::new();
