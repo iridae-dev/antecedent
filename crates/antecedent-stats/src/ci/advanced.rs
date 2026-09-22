@@ -15,7 +15,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
+use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::{shuffle, unbiased_index};
 
 use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
@@ -28,6 +28,7 @@ use super::types::{
     KnnDependenceWorkspace, PreparedCiTest, SignificanceMethod, nonparametric_permutation_count,
     permutation_min_p, reject_unsupported_block_size, requested_block_size,
 };
+use crate::dcor::distance_correlation;
 use crate::error::StatsError;
 use crate::matching::{MatchingDistance, MatchingIndex};
 
@@ -627,8 +628,9 @@ fn symbolic_mi_on_rows(xi: &[i32], yi: &[i32], rows: &[usize]) -> f64 {
     mi
 }
 
-/// Rows above which GPDC refuses: it builds dense `n × n` kernel-factor and distance matrices
-/// (memory `O(n²)`, Cholesky `O(n³)`), so a few thousand rows already take hundreds of MB.
+/// Rows above which GPDC refuses a *conditional* test: it factorizes a dense `n × n` kernel
+/// (memory `O(n²)`, Cholesky `O(n³)`), so a few thousand rows already take hundreds of MB. The
+/// distance correlation itself is `O(n log n)` and never limits the unconditional test.
 pub const GPDC_ROW_LIMIT: usize = 4_000;
 
 /// Conditioning sets whose kernel factorization one batch keeps for reuse.
@@ -641,7 +643,7 @@ const GPDC_FACTOR_CACHE: usize = 2;
 /// batch sharing a Z set reuse it). The GP mean prediction is `Kα` with `(K+λI)α = y_c`, so the
 /// residual is exactly `y_c − Kα = λα` (MM-008). The earlier Jacobi-on-raw-`y` path rejected
 /// conditional nulls and missed two-conditioner alternatives against the pinned advanced-CI
-/// oracle. Inputs above [`GPDC_ROW_LIMIT`] rows are refused.
+/// oracle. Conditional inputs above [`GPDC_ROW_LIMIT`] rows are refused.
 #[derive(Clone, Debug)]
 pub struct Gpdc {
     /// RBF length scale.
@@ -686,13 +688,6 @@ impl ConditionalIndependenceTest for Gpdc {
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
-        if n > GPDC_ROW_LIMIT {
-            return Err(StatsError::Unsupported {
-                message: "GPDC builds dense n x n kernel and distance matrices (O(n^2) memory, \
-                          O(n^3) factorization) and refuses more than 4000 rows; subsample or \
-                          use another CI test",
-            });
-        }
         // Unlike KnnDependence / SymbolicCmi, GPDC residualizes X and Y on Z through the GP
         // regression *before* permuting (see `gp_residual`), so by the time the null is built
         // there is nothing left to stratify — Z's influence is already removed from both
@@ -701,14 +696,6 @@ impl ConditionalIndependenceTest for Gpdc {
         // architecture the ParCorr family uses. So `block_size` is honoured, not rejected.
         let block_size = requested_block_size(request.significance);
         let n_perm = nonparametric_permutation_count(request.significance);
-        let policy = &ctx.kernel_policy;
-        // The X-side centered distance matrix is invariant under Y permutations;
-        // prepare each side once per query and recompute only the Y side per
-        // replicate, into buffers reused across queries and replicates.
-        let mut x_side = CenteredDistances::default();
-        let mut y_side = CenteredDistances::default();
-        let mut center_row = Vec::new();
-        let mut center_col = Vec::new();
         let mut factors: Vec<(Vec<usize>, Vec<f64>)> = Vec::new();
         let mut results = Vec::with_capacity(request.queries.len());
         for q in request.queries {
@@ -716,6 +703,13 @@ impl ConditionalIndependenceTest for Gpdc {
             let factor: Option<&[f64]> = if z.is_empty() {
                 None
             } else {
+                if n > GPDC_ROW_LIMIT {
+                    return Err(StatsError::Unsupported {
+                        message: "GPDC conditions through a dense n x n kernel (O(n^2) memory, \
+                                  O(n^3) factorization) and refuses more than 4000 rows with a \
+                                  non-empty conditioning set; subsample or use another CI test",
+                    });
+                }
                 let at = if let Some(at) = factors.iter().position(|(key, _)| key.as_slice() == z) {
                     at
                 } else {
@@ -735,9 +729,10 @@ impl ConditionalIndependenceTest for Gpdc {
             // independence verdict manufactured by the absence of information.
             ensure_residual_information(request.columns[q.x], &rx)?;
             ensure_residual_information(request.columns[q.y], &ry)?;
-            x_side.prepare(policy, &rx, &mut center_row, &mut center_col);
-            y_side.prepare(policy, &ry, &mut center_row, &mut center_col);
-            let dcor = dcor_from_sides(&x_side, &y_side);
+            // Distance correlation in O(n log n) time and O(n) memory (sorting / Fenwick
+            // identities): neither the statistic nor any permutation replicate builds an
+            // n x n distance matrix.
+            let dcor = distance_correlation(&rx, &ry);
             // Permutation null: permute the Y residuals (Z influence already removed) and
             // recompute dCor; add-one p-value keeps it in (0, 1]. `block_size > 1` permutes
             // contiguous blocks so the residual's serial dependence survives into the null;
@@ -754,8 +749,7 @@ impl ConditionalIndependenceTest for Gpdc {
                 } else {
                     shuffle(&mut rng, &mut ry_perm);
                 }
-                y_side.prepare(policy, &ry_perm, &mut center_row, &mut center_col);
-                if dcor_from_sides(&x_side, &y_side) >= dcor {
+                if distance_correlation(&rx, &ry_perm) >= dcor {
                     null_ge = null_ge.saturating_add(1);
                 }
             }
@@ -779,61 +773,6 @@ fn ensure_residual_information(raw: &[f64], resid: &[f64]) -> Result<(), StatsEr
         });
     }
     Ok(())
-}
-
-/// One series' double-centered pairwise-distance matrix and its distance variance.
-///
-/// [`dcor_from_sides`] over two prepared sides matches [`distance_correlation`]
-/// bit for bit: each accumulator runs over the same indices in the same order,
-/// only split across calls.
-#[derive(Default)]
-struct CenteredDistances {
-    a: Vec<f64>,
-    n: usize,
-    dvar: f64,
-}
-
-impl CenteredDistances {
-    fn prepare(
-        &mut self,
-        policy: &KernelPolicy,
-        series: &[f64],
-        row: &mut Vec<f64>,
-        col: &mut Vec<f64>,
-    ) {
-        let n = series.len();
-        self.n = n;
-        if n < 2 {
-            self.a.clear();
-            self.dvar = 0.0;
-            return;
-        }
-        self.a.resize(n * n, 0.0);
-        antecedent_kernels::pairwise_l1_fill(policy, series, &mut self.a);
-        double_center_inplace_with(&mut self.a, n, row, col);
-        let mut dvar = 0.0;
-        for &v in &self.a {
-            dvar += v * v;
-        }
-        self.dvar = dvar / (n * n) as f64;
-    }
-}
-
-fn dcor_from_sides(x: &CenteredDistances, y: &CenteredDistances) -> f64 {
-    let n = x.n;
-    if n < 2 || y.n != n {
-        return 0.0;
-    }
-    let mut dcov2 = 0.0;
-    for (&ax, &ay) in x.a.iter().zip(&y.a) {
-        dcov2 += ax * ay;
-    }
-    dcov2 /= (n * n) as f64;
-    if x.dvar <= 0.0 || y.dvar <= 0.0 {
-        return 0.0;
-    }
-    // Székely et al. (2007) dCor: sqrt(dCov² / sqrt(dVarX · dVarY)).
-    (dcov2.max(0.0) / (x.dvar * y.dvar).sqrt()).sqrt()
 }
 
 /// Cholesky factor of `K + λI` on the standardised Z columns (row-major `n × n`).
@@ -905,95 +844,12 @@ fn gp_residual(y: &[f64], factor: Option<&[f64]>, ridge: f64) -> Result<Vec<f64>
     Ok(alpha.into_iter().map(|a| ridge * a).collect())
 }
 
-/// Reference implementation retained for the differential test of
-/// [`dcor_from_sides`]; production paths use the side-cached form.
-#[cfg(test)]
-fn distance_correlation(policy: &KernelPolicy, x: &[f64], y: &[f64]) -> f64 {
-    let n = x.len();
-    if n < 2 {
-        return 0.0;
-    }
-    let mut ax = vec![0.0; n * n];
-    let mut ay = vec![0.0; n * n];
-    antecedent_kernels::pairwise_l1_fill(policy, x, &mut ax);
-    antecedent_kernels::pairwise_l1_fill(policy, y, &mut ay);
-    double_center_inplace(&mut ax, n);
-    double_center_inplace(&mut ay, n);
-    let mut dcov2 = 0.0;
-    let mut dvarx = 0.0;
-    let mut dvary = 0.0;
-    for i in 0..n * n {
-        dcov2 += ax[i] * ay[i];
-        dvarx += ax[i] * ax[i];
-        dvary += ay[i] * ay[i];
-    }
-    dcov2 /= (n * n) as f64;
-    dvarx /= (n * n) as f64;
-    dvary /= (n * n) as f64;
-    if dvarx <= 0.0 || dvary <= 0.0 {
-        return 0.0;
-    }
-    // Székely et al. (2007) dCor: sqrt(dCov² / sqrt(dVarX · dVarY)).
-    (dcov2.max(0.0) / (dvarx * dvary).sqrt()).sqrt()
-}
-
-#[cfg(test)]
-fn double_center_inplace(a: &mut [f64], n: usize) {
-    let mut row = Vec::new();
-    let mut col = Vec::new();
-    double_center_inplace_with(a, n, &mut row, &mut col);
-}
-
-/// [`double_center_inplace`] with caller-owned row/column scratch for replicate loops.
-fn double_center_inplace_with(a: &mut [f64], n: usize, row: &mut Vec<f64>, col: &mut Vec<f64>) {
-    row.clear();
-    row.resize(n, 0.0);
-    col.clear();
-    col.resize(n, 0.0);
-    let mut mean = 0.0;
-    for i in 0..n {
-        for j in 0..n {
-            row[i] += a[i * n + j];
-            col[j] += a[i * n + j];
-            mean += a[i * n + j];
-        }
-    }
-    for i in 0..n {
-        row[i] /= n as f64;
-        col[i] /= n as f64;
-    }
-    mean /= (n * n) as f64;
-    for i in 0..n {
-        for j in 0..n {
-            a[i * n + j] = a[i * n + j] - row[i] - col[j] + mean;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ci::types::{
         CiBatchRequest, CiQuery, CiWorkspace, ConfidenceMethod, SignificanceMethod,
     };
-
-    /// The GPDC null recomputes only the Y-side centered distance matrix per
-    /// replicate; the split accumulation must match the monolithic
-    /// `distance_correlation` bit for bit.
-    #[test]
-    fn dcor_from_sides_matches_monolithic_distance_correlation() {
-        let policy = KernelPolicy::default_policy();
-        let x: Vec<f64> = (0..64).map(|i| ((i * 13 + 5) % 31) as f64 * 0.17 - 2.0).collect();
-        let y: Vec<f64> = (0..64).map(|i| ((i * 7 + 11) % 23) as f64 * 0.31 - 3.0).collect();
-        let mut xs = CenteredDistances::default();
-        let mut ys = CenteredDistances::default();
-        let (mut row, mut col) = (Vec::new(), Vec::new());
-        xs.prepare(&policy, &x, &mut row, &mut col);
-        ys.prepare(&policy, &y, &mut row, &mut col);
-        let split = dcor_from_sides(&xs, &ys);
-        let mono = distance_correlation(&policy, &x, &y);
-        assert!(split.to_bits() == mono.to_bits(), "split={split:?} mono={mono:?}");
-    }
 
     /// A test that cannot honour `block_size` must refuse it rather than discard it — but these
     /// three draw that line in different places, and this pins all three.
@@ -1154,29 +1010,6 @@ mod tests {
                 ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
             })
             .collect()
-    }
-
-    #[test]
-    fn dcor_self_is_one_and_scale_invariant() {
-        let policy = KernelPolicy::default_policy();
-        let x: Vec<f64> = (0..50).map(|i| (i as f64 * 0.7).sin() + 0.1 * i as f64).collect();
-        let d = distance_correlation(&policy, &x, &x);
-        assert!((d - 1.0).abs() < 1e-9, "dcor(x,x)={d}");
-        let y: Vec<f64> = (0..50).map(|i| f64::from(((i * 13 + 5) % 17) as u32)).collect();
-        let d1 = distance_correlation(&policy, &x, &y);
-        let xs: Vec<f64> = x.iter().map(|v| 3.5 * v).collect();
-        let ys: Vec<f64> = y.iter().map(|v| 3.5 * v).collect();
-        let d2 = distance_correlation(&policy, &xs, &ys);
-        assert!((d1 - d2).abs() < 1e-9, "scale dependence: {d1} vs {d2}");
-    }
-
-    #[test]
-    fn dcor_independent_small() {
-        let policy = KernelPolicy::default_policy();
-        let x = lcg_noise(200, 1);
-        let y = lcg_noise(200, 2);
-        let d = distance_correlation(&policy, &x, &y);
-        assert!(d < 0.3, "dcor of independent noise = {d}");
     }
 
     #[test]
@@ -1600,11 +1433,36 @@ mod tests {
         let err = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
         assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
 
+        // An unconditional test never builds an n x n matrix (distance correlation is
+        // O(n log n) in time and O(n) in memory), so it runs above the limit; a conditional
+        // one factorizes a dense kernel and is refused.
         let big = GPDC_ROW_LIMIT + 1;
-        let bx = vec![0.0; big];
-        let by = vec![1.0; big];
-        let big_cols: [&[f64]; 2] = [&bx, &by];
-        let big_req = CiBatchRequest { columns: &big_cols, ..req };
+        let bx = lcg_noise(big, 5);
+        let by = lcg_noise(big, 6);
+        let bz = lcg_noise(big, 7);
+        let big_cols: [&[f64]; 3] = [&bx, &by, &bz];
+        let unconditional = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let big_req = CiBatchRequest {
+            columns: &big_cols,
+            queries: &unconditional,
+            z_flat: &[],
+            significance: SignificanceMethod::BlockShuffle { replicates: 9, block_size: 1 },
+            confidence: ConfidenceMethod::default(),
+        };
+        let done = Gpdc::new().test_batch_adhoc(&big_req, &mut ws, &ctx).unwrap();
+        let dcor = crate::dcor::distance_correlation(
+            &big_cols[0]
+                .iter()
+                .map(|v| v - bx.iter().sum::<f64>() / big as f64)
+                .collect::<Vec<_>>(),
+            &big_cols[1]
+                .iter()
+                .map(|v| v - by.iter().sum::<f64>() / big as f64)
+                .collect::<Vec<_>>(),
+        );
+        assert!((done.results[0].statistic - dcor).abs() < 1e-12);
+        let conditional = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let big_req = CiBatchRequest { queries: &conditional, z_flat: &[2], ..big_req };
         let err = Gpdc::new().test_batch_adhoc(&big_req, &mut ws, &ctx).unwrap_err();
         assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
     }

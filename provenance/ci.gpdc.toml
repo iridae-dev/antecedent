@@ -10,7 +10,7 @@ papers = [
 ]
 
 implementation_deviations = [
- "Applies fixed-hyperparameter RBF kernel-ridge residualization (each Z column standardised first) before the cited biased sample distance correlation; the cited distance-correlation paper does not specify this GPDC construction. Inputs above 4000 rows are refused, and a constant or fully Z-explained series is refused rather than reported as p = 1.",
+ "Applies fixed-hyperparameter RBF kernel-ridge residualization (each Z column standardised first) before the cited biased sample distance correlation; the cited distance-correlation paper does not specify this GPDC construction. The distance correlation is evaluated in O(n log n) time and O(n) memory (sorting / Fenwick identities), including every permutation replicate; conditional inputs above 4000 rows are refused because the dense kernel factorization is O(n^2) memory, and a constant or fully Z-explained series is refused rather than reported as p = 1.",
 ]
 
 upstream_implementations_observed = [
