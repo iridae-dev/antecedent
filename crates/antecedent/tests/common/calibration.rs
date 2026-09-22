@@ -73,6 +73,43 @@
 //! each taking all of it. Results are folded in replicate order whatever the
 //! worker count, so the cap changes no printed line.
 //!
+//! **Recheck by extension.** Replicate `k`'s outcome is a deterministic
+//! function of `k`, so a recheck at [`RECHECK_N_SIM`] need not recompute the
+//! first run's replicates. Three variables make the gate's recheck extend the
+//! first run instead of restarting it:
+//!
+//! * [`TALLY_OUT_ENV`] (`ANTECEDENT_CALIBRATION_TALLY_OUT=<path>`): every
+//!   emitting tally appends its raw state (counts, length sum, bound scope,
+//!   construction) as one JSON line when it is asserted or emitted. The gate
+//!   sets it on every run.
+//! * [`REPLICATE_START_ENV`] (`ANTECEDENT_CALIBRATION_REPLICATE_START=<k>`):
+//!   [`map_replicates`] evaluates replicates `k..n` instead of `0..n`, and
+//!   marks the test thread as extending.
+//! * [`PRIOR_TALLIES_ENV`] (`ANTECEDENT_CALIBRATION_PRIOR_TALLIES=<path>`):
+//!   the first run's tally file. On an extending thread, each tally seeds
+//!   itself from its prior state at its first `record` / `skip` / `bind`
+//!   (before the extension's replicates are folded in, so the length sum is
+//!   added in the same order as a fresh run's), and the band, recheck rule and
+//!   precision floor are evaluated on the merged counts. The printed
+//!   `calibration` and `calibration-record` lines equal a fresh run's at `n`.
+//!
+//! Only a test that draws its replicates through [`map_replicates`] (or a
+//! helper built on it) extends; a serial `for rep in 0..n_sim()` loop never
+//! sees the start and recomputes every replicate, and its tallies never seed,
+//! so a whole-file group mixing both kinds stays correct. The seed refuses a
+//! prior whose first run did not compute exactly `k` replicates through
+//! `map_replicates`, so a test whose count is not `n_sim()` cannot double
+//! count. A test that mixes an extended `map_replicates` with a serial
+//! replicate loop feeding another tally is not supported (that tally would
+//! seed too); keep every replicate of an extending test behind
+//! `map_replicates`. Smoke runs ([`SMOKE_ENV`]) extend like measured runs:
+//! the extension is wiring, which is what a smoke run proves.
+//!
+//! Every `calibration-recheck` line is followed by a
+//! `calibration-recheck-test <test>` line naming the libtest thread (the test
+//! function), so `scripts/gate_calibration.sh` can recheck only that test of a
+//! whole-file group.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code)]
@@ -259,6 +296,19 @@ pub fn n_sim() -> u32 {
 /// (unset: `available_parallelism`). Clamped to `[1, replicates]`.
 pub const THREADS_ENV: &str = "ANTECEDENT_CALIBRATION_THREADS";
 
+/// Environment variable of a recheck by extension: the first replicate index
+/// [`map_replicates`] evaluates (the first run's replicate count). Unset or
+/// `0` runs every replicate.
+pub const REPLICATE_START_ENV: &str = "ANTECEDENT_CALIBRATION_REPLICATE_START";
+
+/// Environment variable naming the first run's tally file an extending run
+/// seeds its tallies from (written by that run under [`TALLY_OUT_ENV`]).
+pub const PRIOR_TALLIES_ENV: &str = "ANTECEDENT_CALIBRATION_PRIOR_TALLIES";
+
+/// Environment variable naming the file every emitting tally appends its raw
+/// state to, one JSON line per tally, so a later run can extend this one.
+pub const TALLY_OUT_ENV: &str = "ANTECEDENT_CALIBRATION_TALLY_OUT";
+
 /// Worker threads for `n` replicates: [`THREADS_ENV`] when set, else
 /// `available_parallelism`, clamped to `[1, n]`.
 ///
@@ -281,38 +331,93 @@ pub fn worker_threads(n: usize) -> usize {
     threads.clamp(1, n.max(1))
 }
 
-/// Evaluate `f(0), …, f(n-1)` on [`worker_threads`] workers.
+/// First replicate index of this run ([`REPLICATE_START_ENV`]; `0` when unset).
+///
+/// # Panics
+///
+/// When the variable is set to anything but a non-negative integer.
+#[must_use]
+pub fn replicate_start() -> u32 {
+    static START: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *START.get_or_init(|| match std::env::var(REPLICATE_START_ENV) {
+        Err(_) => 0,
+        Ok(raw) => raw
+            .trim()
+            .parse::<u32>()
+            .unwrap_or_else(|_| panic!("{REPLICATE_START_ENV}={raw}: want a replicate index")),
+    })
+}
+
+thread_local! {
+    /// Per test thread: the replicate count of the last [`map_replicates`]
+    /// call, and whether that call extended a first run (`replicate_start() > 0`).
+    /// libtest runs each test on its own named thread, so a whole-file group
+    /// keeps one state per test.
+    static MAP_STATE: std::cell::Cell<(Option<u32>, bool)> = const { std::cell::Cell::new((None, false)) };
+}
+
+/// Whether the current test thread's last [`map_replicates`] call extended a
+/// first run, so its tallies seed from [`PRIOR_TALLIES_ENV`].
+fn extending() -> bool {
+    MAP_STATE.with(|state| state.get().1)
+}
+
+/// Replicate count of the current test thread's last [`map_replicates`] call.
+fn last_map_end() -> Option<u32> {
+    MAP_STATE.with(|state| state.get().0)
+}
+
+/// Evaluate `f(0), …, f(n-1)` on [`worker_threads`] workers, or, when
+/// [`REPLICATE_START_ENV`] is `k > 0`, `f(k), …, f(n-1)` (a recheck by
+/// extension; the tallies fed afterwards seed from the first run's state).
 ///
 /// Results come back in seed order so `bind` / `record` stay deterministic.
 /// Each call is an independent dataset; `f` must be deterministic in `rep`.
 /// Workers are `std::thread::scope` threads — not `rayon`, and not product
 /// [`antecedent_core::ExecutionContext`] parallelism. A single replicate
 /// still builds its own serial test context.
+///
+/// # Panics
+///
+/// When [`REPLICATE_START_ENV`] is at least `n`: there is nothing to extend.
 pub fn map_replicates<T: Send>(n: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
-    let n_us = usize::try_from(n).expect("replicate count fits usize");
+    let start = replicate_start();
+    assert!(
+        start == 0 || start < n,
+        "{REPLICATE_START_ENV}={start} is not below the replicate count {n}: nothing to extend"
+    );
+    MAP_STATE.with(|state| state.set((Some(n), start > 0)));
+    map_replicates_from(start, n, f)
+}
+
+/// Evaluate `f(start), …, f(end-1)` on [`worker_threads`] workers, results in
+/// replicate order. The building block of [`map_replicates`]; it neither reads
+/// [`REPLICATE_START_ENV`] nor marks the thread as extending.
+pub fn map_replicates_from<T: Send>(start: u32, end: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
+    let n_us = usize::try_from(end.saturating_sub(start)).expect("replicate count fits usize");
     if n_us == 0 {
         return Vec::new();
     }
     let threads = worker_threads(n_us);
     if threads == 1 {
-        return (0..n).map(|rep| f(u64::from(rep))).collect();
+        return (start..end).map(|rep| f(u64::from(rep))).collect();
     }
     let mut out: Vec<Option<T>> = (0..n_us).map(|_| None).collect();
     std::thread::scope(|scope| {
         let f = &f;
         let mut rest = out.as_mut_slice();
-        let mut start = 0usize;
+        let mut first = usize::try_from(start).expect("replicate index fits usize");
         for t in 0..threads {
             let take = rest.len().div_ceil(threads - t);
             let (mine, next) = rest.split_at_mut(take);
-            let begin = start;
+            let begin = first;
             scope.spawn(move || {
                 for (k, slot) in mine.iter_mut().enumerate() {
                     *slot = Some(f((begin + k) as u64));
                 }
             });
             rest = next;
-            start += take;
+            first += take;
             if rest.is_empty() {
                 break;
             }
@@ -397,7 +502,7 @@ pub struct RecordKey {
 /// Construction of one reported interval, as the runtime keys it
 /// (`antecedent_io::calibration::CalibrationKeyWire` without the level: the
 /// record's level is the tally's).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Construction {
     pub query: String,
     pub graph_class: String,
@@ -455,6 +560,65 @@ pub struct CoverageTally {
     with_interval: u32,
     length_sum: f64,
     record: Option<BoundRecord>,
+    /// Whether the first `record` / `skip` / `bind` has run (and, on an
+    /// extending thread, seeded the tally from its prior state).
+    seeded: bool,
+}
+
+/// The raw state one tally writes to [`TALLY_OUT_ENV`] and an extending run
+/// seeds from: everything [`CoverageTally::emit_record`] and the printed
+/// line need, keyed by test thread, tally name and level.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TallyState {
+    key: String,
+    level: f64,
+    covered: u32,
+    scored: u32,
+    skipped: u32,
+    with_interval: u32,
+    length_sum: f64,
+    /// Replicate count of the test thread's last [`map_replicates`] call when
+    /// the tally was emitted; an extension must start exactly there.
+    map_end: Option<u32>,
+    record: Option<RecordState>,
+}
+
+/// The measured part of a [`BoundRecord`] (its key, file and label are the
+/// code's own and are not stored).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RecordState {
+    construction: Option<Construction>,
+    n_min: u64,
+    n_max: u64,
+    replicates_min: Option<u32>,
+    posterior_draws_min: Option<u32>,
+    unidentified_mass_max: f64,
+    bound: u32,
+}
+
+/// The first run's tally states ([`PRIOR_TALLIES_ENV`]), by key.
+fn prior_tallies() -> &'static std::collections::HashMap<String, TallyState> {
+    static PRIOR: std::sync::OnceLock<std::collections::HashMap<String, TallyState>> =
+        std::sync::OnceLock::new();
+    PRIOR.get_or_init(|| {
+        let path = std::env::var(PRIOR_TALLIES_ENV).unwrap_or_else(|_| {
+            panic!("{REPLICATE_START_ENV} is set but {PRIOR_TALLIES_ENV} is not")
+        });
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("{PRIOR_TALLIES_ENV}={path}: {err}"));
+        let mut out = std::collections::HashMap::new();
+        for line in text.lines().filter(|line| !line.trim().is_empty()) {
+            let state: TallyState = serde_json::from_str(line)
+                .unwrap_or_else(|err| panic!("{PRIOR_TALLIES_ENV}={path}: bad line: {err}"));
+            assert!(
+                !out.contains_key(&state.key),
+                "{PRIOR_TALLIES_ENV}={path}: two tallies wrote the key {}",
+                state.key
+            );
+            out.insert(state.key.clone(), state);
+        }
+        out
+    })
 }
 
 impl CoverageTally {
@@ -470,6 +634,145 @@ impl CoverageTally {
             with_interval: 0,
             length_sum: 0.0,
             record: None,
+            seeded: false,
+        }
+    }
+
+    /// The key this tally's state is stored under: the libtest thread (the
+    /// test function), the tally name and the level. A whole-file group runs
+    /// several tests in one process, and one test scores the same name at two
+    /// levels.
+    fn state_key(&self) -> String {
+        let thread = std::thread::current();
+        format!("{}::{}@{:.6}", thread.name().unwrap_or(""), self.name, self.level)
+    }
+
+    /// Before the first mutation: on an extending thread, take over the first
+    /// run's state so the extension's replicates are folded on top of it in
+    /// replicate order, exactly as a fresh run would have folded them.
+    ///
+    /// # Panics
+    ///
+    /// When the prior file lacks this tally, scored another level, or its
+    /// first run did not compute exactly [`replicate_start`] replicates
+    /// through [`map_replicates`] (an extension would then double count or
+    /// skip replicates).
+    fn seed(&mut self) {
+        if self.seeded {
+            return;
+        }
+        self.seeded = true;
+        if !extending() {
+            return;
+        }
+        let key = self.state_key();
+        let start = replicate_start();
+        let prior = prior_tallies().get(&key).unwrap_or_else(|| {
+            panic!("{}: no prior tally state under the key {key} to extend from", self.name)
+        });
+        assert!(
+            (prior.level - self.level).abs() < 1e-9,
+            "{}: the prior tally scored level {}, not {}",
+            self.name,
+            prior.level,
+            self.level
+        );
+        assert!(
+            prior.map_end == Some(start),
+            "{}: the first run computed {:?} replicates through map_replicates, so an \
+             extension cannot start at {REPLICATE_START_ENV}={start}",
+            self.name,
+            prior.map_end
+        );
+        self.covered = prior.covered;
+        self.scored = prior.scored;
+        self.skipped = prior.skipped;
+        self.with_interval = prior.with_interval;
+        self.length_sum = prior.length_sum;
+        match (self.record.as_mut(), prior.record.as_ref()) {
+            (Some(record), Some(prior)) => {
+                record.construction.clone_from(&prior.construction);
+                record.n_min = prior.n_min;
+                record.n_max = prior.n_max;
+                record.replicates_min = prior.replicates_min;
+                record.posterior_draws_min = prior.posterior_draws_min;
+                record.unidentified_mass_max = prior.unidentified_mass_max;
+                record.bound = prior.bound;
+            }
+            (None, None) => {}
+            (mine, prior) => panic!(
+                "{}: this tally {} a record but its prior state {}",
+                self.name,
+                if mine.is_some() { "backs" } else { "backs no" },
+                if prior.is_some() { "does" } else { "does not" }
+            ),
+        }
+    }
+
+    /// This tally's raw state, for [`TALLY_OUT_ENV`].
+    fn state(&self) -> TallyState {
+        TallyState {
+            key: self.state_key(),
+            level: self.level,
+            covered: self.covered,
+            scored: self.scored,
+            skipped: self.skipped,
+            with_interval: self.with_interval,
+            length_sum: self.length_sum,
+            map_end: last_map_end(),
+            record: self.record.as_ref().map(|record| RecordState {
+                construction: record.construction.clone(),
+                n_min: record.n_min,
+                n_max: record.n_max,
+                replicates_min: record.replicates_min,
+                posterior_draws_min: record.posterior_draws_min,
+                unidentified_mass_max: record.unidentified_mass_max,
+                bound: record.bound,
+            }),
+        }
+    }
+
+    /// The first step of every emission: append this tally's state to
+    /// [`TALLY_OUT_ENV`] when it is set, and refuse to emit a tally on an
+    /// extending thread that was never seeded (fed before `map_replicates`
+    /// ran, so its counts would cover the extension alone).
+    ///
+    /// # Panics
+    ///
+    /// As described, or when the state file cannot be written.
+    fn finish(&self) {
+        assert!(
+            self.seeded || !extending(),
+            "{}: emitted on an extending thread without seeding from the first run; feed \
+             every replicate of an extending test through map_replicates",
+            self.name
+        );
+        let Ok(path) = std::env::var(TALLY_OUT_ENV) else {
+            return;
+        };
+        let line = serde_json::to_string(&self.state()).expect("tally state serializes");
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .unwrap_or_else(|err| panic!("{TALLY_OUT_ENV}={path}: {err}"));
+        // One write per line: a whole-file group's tests append concurrently.
+        std::io::Write::write_all(&mut file, format!("{line}\n").as_bytes())
+            .unwrap_or_else(|err| panic!("{TALLY_OUT_ENV}={path}: {err}"));
+    }
+
+    /// The `calibration-recheck` line and the `calibration-recheck-test`
+    /// line that names this test for a per-test recheck.
+    fn print_recheck(&self, attempts: u32, rate: f64) {
+        let side = if rate < self.level { "below" } else { "above" };
+        eprintln!(
+            "calibration-recheck {}: coverage={rate:.3} is more than {RECHECK_SHORTFALL:.2} \
+             {side} {:.2} at {attempts} replicates; re-run at \
+             ANTECEDENT_CALIBRATION_NSIM={RECHECK_N_SIM}",
+            self.name, self.level
+        );
+        if let Some(test) = std::thread::current().name() {
+            eprintln!("calibration-recheck-test {test}");
         }
     }
 
@@ -542,6 +845,7 @@ impl CoverageTally {
     /// When the construction differs between replicates, when it is not the
     /// interval method the record declared, or on a tally without a record.
     pub fn bind(&mut self, construction: &Construction, scope: ScopeFacts) {
+        self.seed();
         let name = self.name.clone();
         let record = self
             .record
@@ -598,6 +902,7 @@ impl CoverageTally {
             "{}: emit is for unasserted record tallies",
             self.name
         );
+        self.finish();
         let attempts = self.attempts();
         let rate = self.rate();
         let (lo, hi) = coverage_band(attempts, self.level);
@@ -618,13 +923,7 @@ impl CoverageTally {
             self.skipped
         );
         if needs_recheck(attempts, self.level, rate) {
-            let side = if rate < self.level { "below" } else { "above" };
-            eprintln!(
-                "calibration-recheck {}: coverage={rate:.3} is more than {RECHECK_SHORTFALL:.2} \
-                 {side} {:.2} at {attempts} replicates; re-run at \
-                 ANTECEDENT_CALIBRATION_NSIM={RECHECK_N_SIM}",
-                self.name, self.level
-            );
+            self.print_recheck(attempts, rate);
         }
         // A short run more than RECHECK_SHORTFALL under the level is unresolved until
         // the recheck at RECHECK_N_SIM supersedes it; until then it is a boundary,
@@ -643,6 +942,7 @@ impl CoverageTally {
     /// On a tally without a record, or one that bound no execution.
     pub fn emit_named_boundary(&self) {
         assert!(self.record.is_some(), "{}: emit_named_boundary needs a record tally", self.name);
+        self.finish();
         let attempts = self.attempts();
         eprintln!(
             "calibration-boundary {} (recorded, not gated): nominal={:.2} coverage={:.3} \
@@ -740,6 +1040,7 @@ impl CoverageTally {
     /// A non-finite or inverted interval counts as a miss, never as a skip, so
     /// an estimator cannot improve its coverage by failing to report.
     pub fn record(&mut self, interval: Option<(f64, f64)>, truth: f64) {
+        self.seed();
         self.scored += 1;
         let Some((lo, hi)) =
             interval.filter(|(lo, hi)| lo.is_finite() && hi.is_finite() && lo <= hi)
@@ -758,6 +1059,7 @@ impl CoverageTally {
     /// [`Self::rate`] and is capped at [`SKIP_CAP_NUM`]/[`SKIP_CAP_DEN`] in
     /// [`Self::assert`].
     pub fn skip(&mut self) {
+        self.seed();
         self.skipped += 1;
     }
 
@@ -803,6 +1105,7 @@ impl CoverageTally {
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
+        self.finish();
         if smoke() {
             self.emit_smoke(!self.passes_nominal(), "gated");
             return;
@@ -857,13 +1160,7 @@ impl CoverageTally {
             );
         }
         if floor.is_none() && needs_recheck(attempts, self.level, rate) {
-            let side = if rate < self.level { "below" } else { "above" };
-            eprintln!(
-                "calibration-recheck {}: coverage={rate:.3} is more than {RECHECK_SHORTFALL:.2} \
-                 {side} {:.2} at {attempts} replicates; re-run at \
-                 ANTECEDENT_CALIBRATION_NSIM={RECHECK_N_SIM}",
-                self.name, self.level
-            );
+            self.print_recheck(attempts, rate);
         }
         self.emit_record(false, "gated");
     }
@@ -969,6 +1266,7 @@ impl CoverageTally {
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
+        self.finish();
         if smoke() {
             self.emit_smoke(true, "named_boundary");
             return;

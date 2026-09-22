@@ -25,7 +25,9 @@ the grid cannot claim a range.
 
 A grid point that was rechecked at more replicates writes
 `<group>.p<k>.recheck.log`; its lines replace that point's first run, because
-the recheck's verdict is the one the gate takes.
+the recheck's verdict is the one the gate takes. When the gate re-ran only some
+of a group's tests (a whole-file group; the log names them in
+`calibration-rechecked-test` lines), only those tests' records are replaced.
 
 Every record is written with `facets`: the parts of the statistical surface it
 depends on, derived by `scripts/calibration_facets.py` from the record itself.
@@ -178,6 +180,17 @@ GRID_ENTRY_FIELDS = (
 )
 
 
+RECHECKED_TEST = re.compile(r"^calibration-rechecked-test (\S+)$", re.M)
+
+
+def rechecked_tests(recheck_log: Path) -> set[str] | None:
+    """The test functions a recheck log re-ran, when the gate re-ran only some
+    of a group's tests (`calibration-rechecked-test` lines, written by
+    scripts/gate_calibration.sh); `None` when it re-ran the whole group."""
+    found = RECHECKED_TEST.findall(recheck_log.read_text(errors="ignore"))
+    return {name.rpartition("::")[2] for name in found} or None
+
+
 def record_lines(
     logs: list[Path], smoke: bool = False, sha: str | None = None
 ) -> dict[str, dict[int, dict]]:
@@ -186,22 +199,27 @@ def record_lines(
     A point's recheck log (`<group>.p<k>.recheck.log`) replaces that point's
     first run (`<group>.p<k>.log`): the recheck's verdict is the one the gate
     takes, and a point that failed it emitted no line at all, so the first
-    run's line must not survive."""
-    names = {log.name for log in logs}
-    chosen = [
-        log
-        for log in sorted(logs)
-        if log.name.endswith(".recheck.log")
-        or log.name.removesuffix(".log") + ".recheck.log" not in names
-    ]
+    run's line must not survive. A recheck that re-ran only some of a group's
+    tests names them (`rechecked_tests`), and replaces only their records; the
+    first run's lines of every other test stand."""
+    by_name = {log.name: log for log in logs}
     out: dict[str, dict[int, dict]] = {}
-    for log in chosen:
+    for log in sorted(logs):
         recheck = log.name.endswith(".recheck.log")
+        superseded: set[str] | None = None
+        if not recheck:
+            partner = by_name.get(log.name.removesuffix(".log") + ".recheck.log")
+            if partner is not None:
+                superseded = rechecked_tests(partner)
+                if superseded is None:
+                    continue  # the whole group was re-run
         for line in log.read_text(errors="ignore").splitlines():
             if not line.startswith("calibration-record "):
                 continue
             payload = json.loads(line.split(" ", 1)[1])
             rid = str(payload["id"])
+            if superseded and str(payload["test"]).rpartition("::")[2] in superseded:
+                continue
             if bool(payload.pop("smoke", False)) != smoke:
                 raise SystemExit(
                     f"{log.name}: record {rid} is a wiring smoke line; it measured nothing and "

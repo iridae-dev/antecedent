@@ -30,6 +30,12 @@ fi
 
 # Replicate count of the precision recheck (crates/antecedent/tests/common/calibration.rs).
 RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
+# Replicate count of a first run: the harness default (DEFAULT_N_SIM) unless
+# overridden. The recheck extends the first run from this index.
+FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
+if [ "$RECHECK_NSIM" -le "$FIRST_NSIM" ]; then
+  echo "ANTECEDENT_CALIBRATION_RECHECK_NSIM=$RECHECK_NSIM must exceed the first run's $FIRST_NSIM replicates" >&2; exit 2
+fi
 
 # Sample-size grid. Every coverage group that emits records (the
 # antecedent-estimate SE suite and the v19_* / v110_* suites) is measured once
@@ -85,13 +91,80 @@ require_ran() {
   return "$status"
 }
 
+# Whether a group command can recheck one test at a time: a `cargo test`
+# invocation that does not already name one exact test. Everything after its
+# `--` goes to libtest, so `--exact <test>...` appended at the end selects
+# exactly the tests that asked for the recheck. A whole-script group (the
+# response gate) or an already exact group is re-run as a whole.
+per_test_recheck() {
+  case " $* " in
+    *" --exact "*) return 1 ;;
+    *" cargo test "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Run one first pass and, when it asks for one, its recheck. Arguments: the log
+# stem (`<dir>/<group>[.p<k>]`), the label to show, then the command. Leaves
+# the verdict in RUN_STATUS.
+#
+# The first pass writes every tally's raw state to `<stem>.tallies.jsonl`
+# (ANTECEDENT_CALIBRATION_TALLY_OUT). The recheck extends it: with
+# ANTECEDENT_CALIBRATION_REPLICATE_START=<first-run count> and
+# ANTECEDENT_CALIBRATION_PRIOR_TALLIES=<that file>, the harness computes only
+# the replicates the first pass did not and folds them onto the first pass's
+# counts, so its lines equal a fresh RECHECK_NSIM run's (a test that does not
+# draw its replicates through `map_replicates` recomputes them all instead;
+# see crates/antecedent/tests/common/calibration.rs). In a group that runs
+# several tests, only the tests named by `calibration-recheck-test` lines are
+# re-run, and the recheck log records them as `calibration-rechecked-test`
+# lines so scripts/collect_coverage_records.py replaces exactly their records.
+run_point() {
+  local stem="$1" shown="$2"
+  shift 2
+  local log="${stem}.log" tallies="${stem}.tallies.jsonl" status tests test
+  rm -f "$tallies" "${stem}.recheck.tallies.jsonl"
+  ANTECEDENT_CALIBRATION_TALLY_OUT="$tallies" "$@" 2>&1 | tee "$log"
+  status="${PIPESTATUS[0]}"
+  require_ran "$status" "$log" || status=1
+  stamp_log "$log"
+  if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
+    tests=""
+    if per_test_recheck "$@"; then
+      tests="$(grep '^calibration-recheck-test ' "$log" | awk '{ print $2 }' | sort -u | tr '\n' ' ')"
+    fi
+    if [ -n "$tests" ]; then
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown}: ${tests}=="
+    else
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown} =="
+    fi
+    RECHECKED="${RECHECKED}  ${shown}"$'\n'
+    # The recheck's verdict stands, so its `calibration-record` lines are the
+    # ones scripts/collect_coverage_records.py keeps for the rechecked tests.
+    # shellcheck disable=SC2086 # $tests is a space-separated list of test names.
+    ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
+      ANTECEDENT_CALIBRATION_REPLICATE_START="$FIRST_NSIM" \
+      ANTECEDENT_CALIBRATION_PRIOR_TALLIES="$tallies" \
+      ANTECEDENT_CALIBRATION_TALLY_OUT="${stem}.recheck.tallies.jsonl" \
+      "$@" ${tests:+--exact $tests} 2>&1 | tee "${stem}.recheck.log"
+    status="${PIPESTATUS[0]}"
+    require_ran "$status" "${stem}.recheck.log" || status=1
+    for test in $tests; do
+      printf 'calibration-rechecked-test %s\n' "$test" >>"${stem}.recheck.log"
+    done
+    stamp_log "${stem}.recheck.log"
+  fi
+  RUN_STATUS="$status"
+}
+
 # Run one gate group; record it as failed instead of aborting the gate.
 #
 # A coverage cell that passes its 400-replicate band but lands more than 2
 # points away from its level (either side) prints a `calibration-recheck`
 # line — including `reported_level` (0.95) emits. The group is then re-run at
-# RECHECK_NSIM replicates, where the harness also enforces the precision floor
-# and ceiling (level ± 2·MCSE), and that run's verdict stands.
+# RECHECK_NSIM replicates (extending the first run, see run_point), where the
+# harness also enforces the precision floor and ceiling (level ± 2·MCSE), and
+# that run's verdict stands.
 # A grid group runs, logs and rechecks each grid point on its own
 # (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands off is
 # rechecked at that point, and its verdict never borrows another point's.
@@ -106,52 +179,25 @@ check() {
     echo "group ${GROUP_INDEX}: ${label}"
     return 0
   fi
-  local log status safe point stem shown
+  local safe point shown
   mkdir -p "$ROOT/target/calibration-records"
   safe="$(echo "${label}" | tr ' /:' '___')"
   if grid_group "$label"; then
     for point in $GRID_POINTS; do
-      stem="$ROOT/target/calibration-records/${safe}.p${point}"
       shown="${label} [grid point ${point}]"
       echo "== grid point ${point}: ${label} =="
-      log="${stem}.log"
-      ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@" 2>&1 | tee "$log"
-      status="${PIPESTATUS[0]}"
-      require_ran "$status" "$log" || status=1
-      stamp_log "$log"
-      if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
-        echo "== recheck at ${RECHECK_NSIM} replicates: ${shown} =="
-        RECHECKED="${RECHECKED}  ${shown}"$'\n'
-        # The recheck's verdict stands, so its `calibration-record` lines are the
-        # ones scripts/collect_coverage_records.py keeps for this grid point.
-        ANTECEDENT_CALIBRATION_GRID_POINT="$point" ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
-          "$@" 2>&1 | tee "${stem}.recheck.log"
-        status="${PIPESTATUS[0]}"
-        require_ran "$status" "${stem}.recheck.log" || status=1
-        stamp_log "${stem}.recheck.log"
-      fi
-      if [ "$status" -ne 0 ]; then
+      run_point "$ROOT/target/calibration-records/${safe}.p${point}" "$shown" \
+        env ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@"
+      if [ "$RUN_STATUS" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
         FAILED_COUNT=$((FAILED_COUNT + 1))
       fi
     done
     return 0
   fi
-  log="$ROOT/target/calibration-records/${safe}.log"
-  env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@" 2>&1 | tee "$log"
-  status="${PIPESTATUS[0]}"
-  require_ran "$status" "$log" || status=1
-  stamp_log "$log"
-  if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
-    echo "== recheck at ${RECHECK_NSIM} replicates: ${label} =="
-    RECHECKED="${RECHECKED}  ${label}"$'\n'
-    env -u ANTECEDENT_CALIBRATION_GRID_POINT ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
-      "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
-    status="${PIPESTATUS[0]}"
-    require_ran "$status" "$ROOT/target/calibration-records/${safe}.recheck.log" || status=1
-    stamp_log "$ROOT/target/calibration-records/${safe}.recheck.log"
-  fi
-  if [ "$status" -ne 0 ]; then
+  run_point "$ROOT/target/calibration-records/${safe}" "$label" \
+    env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@"
+  if [ "$RUN_STATUS" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
     FAILED_COUNT=$((FAILED_COUNT + 1))
   fi
