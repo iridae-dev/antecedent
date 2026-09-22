@@ -1343,9 +1343,25 @@ impl super::Study {
         };
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        // The observed-data Bayesian estimator reads only each horizon's identification
+        // status and adjustment set (identifiability is level-free); it never reads the
+        // schedule contrast's active level, since it simulates the query's own per-step
+        // intervention values directly off the unfolded SEM. A per-node varying-dose
+        // schedule that the frequentist single-literal contrast cannot express (see
+        // `resolve_schedule_active_level`) is therefore still identifiable here: strip
+        // the levels before certifying so a genuine per-node dose schedule is not refused
+        // for a contrast this path never consumes.
+        let observed_bayes = matches!(self.inference, InferenceMode::Bayesian(_))
+            && query.observation != ObservationSpec::Complete;
         let schedule = match antecedent_estimate::plan_from_response_query(query) {
             Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
-                Some(plan.identification_schedule(temporal))
+                let mut nodes = plan.identification_schedule(temporal);
+                if observed_bayes {
+                    for node in &mut nodes {
+                        node.2 = None;
+                    }
+                }
+                Some(nodes)
             }
             Ok(_) => None,
             Err(error) => return Err(CausalError::from(error)),
@@ -1395,8 +1411,6 @@ impl super::Study {
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut working_query = query.clone();
         let mut observation_adjusted = None;
-        let observed_bayes = matches!(self.inference, InferenceMode::Bayesian(_))
-            && query.observation != ObservationSpec::Complete;
         let series_owned = if query.observation == ObservationSpec::Complete {
             None
         } else if observed_bayes {
@@ -4626,10 +4640,13 @@ const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation o
 
 /// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
 ///
-/// Matches the facade bootstrap licence: fewer than
-/// [`super::PERCENTILE_95_BAND_MIN_SUCCESSES`] successes, more than half failed
-/// attempts, or a cancelled run (even at the success floor) cannot justify a
-/// reported nominal 0.95 interval. Cancellation is not adaptive early-stop.
+/// Same success floor as the inner estimator's own joint bootstrap
+/// (`temporal_response::bootstrap_surface`): at least two surviving replicates and at
+/// most half of the attempted ones failed, or a cancelled run (even at the success
+/// floor) cannot justify a reported band. Cancellation is not adaptive early-stop. This
+/// is deliberately looser than [`super::PERCENTILE_95_BAND_MIN_SUCCESSES`], which gates
+/// only the *simultaneous* band (see [`antecedent_estimate::TEMPORAL_RESPONSE_FEW_REPLICATES`]):
+/// a pointwise band below that floor still publishes, flagged as resting on a noisy SD.
 fn summarize_observation_bootstrap(
     draws: &[Vec<f64>],
     center: &[f64],
@@ -4646,8 +4663,9 @@ fn summarize_observation_bootstrap(
         cancelled,
         block: None,
     };
+    let enough_successes = completed >= 2 && completed >= attempted.saturating_sub(completed);
     if cancelled
-        || !bootstrap_has_enough_successes(completed as usize, attempted as usize)
+        || !enough_successes
         || draws.iter().any(|draw| draw.len() != center.len())
         || center.iter().any(|value| !value.is_finite())
     {
