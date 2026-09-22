@@ -1824,6 +1824,12 @@ impl super::Study {
                     level: 0.95,
                     lower: Arc::from(lower),
                     upper: Arc::from(upper),
+                    // Posterior quantiles when a Bayesian fit ran, else Wald bounds.
+                    interpretation: if bayes.is_some() {
+                        antecedent_core::IntervalInterpretation::Credible
+                    } else {
+                        antecedent_core::IntervalInterpretation::Confidence
+                    },
                 }
             } else {
                 ResponseUncertainty::None
@@ -5027,6 +5033,7 @@ fn apply_tuple_bootstrap_band(
             level: 0.95,
             lower: Arc::from(bootstrap.lower.clone()),
             upper: Arc::from(bootstrap.upper.clone()),
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
         };
         response.support.warnings.retain(|warning| {
             !matches!(

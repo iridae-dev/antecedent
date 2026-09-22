@@ -1144,7 +1144,7 @@ fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
             .unwrap()
             .se(0);
     assert!((se - positional_se).abs() > 1e-3 * se, "fixture must separate the two mixings");
-    let ResponseUncertainty::Scalar { standard_error, level, lower, upper } =
+    let ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } =
         result.response.as_ref().unwrap().uncertainty
     else {
         panic!("scalar joint-IF aggregate interval expected");

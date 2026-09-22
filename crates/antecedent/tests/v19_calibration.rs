@@ -903,7 +903,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
             u64::from(s),
         );
         let response = result.response.as_ref().expect("curve");
-        let ResponseUncertainty::PointwiseBand { level, lower, upper } = &response.uncertainty
+        let ResponseUncertainty::PointwiseBand { level, lower, upper, .. } = &response.uncertainty
         else {
             panic!("temporal MeanCurve must publish a pointwise band");
         };

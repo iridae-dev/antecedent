@@ -438,6 +438,7 @@ def test_response_simultaneous_band_is_public_and_requires_explicit_bandwidth():
         },
     )
     assert result.uncertainty.kind == "simultaneous"
+    assert result.uncertainty.interpretation == "confidence"
     assert result.uncertainty.replicates == 100
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr_simultaneous"
 
@@ -583,3 +584,6 @@ def test_response_refuses_discovery_and_runs_bayesian():
         inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
     )
     assert np.asarray(result.response.values).flatten() == pytest.approx([1, 2], abs=0.1)
+    # Posterior draws publish credible bands, and the response says so.
+    assert result.uncertainty.kind == "pointwise"
+    assert result.uncertainty.interpretation == "credible"

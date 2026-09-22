@@ -75,5 +75,6 @@ pub(super) fn simultaneous_multiplier_band(
         lower: Arc::from(lower),
         upper: Arc::from(upper),
         replicates,
+        interpretation: antecedent_core::IntervalInterpretation::Confidence,
     })
 }

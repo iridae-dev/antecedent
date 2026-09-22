@@ -279,7 +279,7 @@ fn scalar_interval(response: &CausalResponse) -> Option<(f64, f64)> {
 
 fn band_interval(response: &CausalResponse, j: usize) -> Option<(f64, f64)> {
     match &response.uncertainty {
-        ResponseUncertainty::PointwiseBand { lower, upper, level } => {
+        ResponseUncertainty::PointwiseBand { lower, upper, level, .. } => {
             assert!((level - LEVEL).abs() < 1e-12, "band level {level} != {LEVEL}");
             Some((lower[j], upper[j]))
         }

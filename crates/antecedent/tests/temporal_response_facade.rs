@@ -1197,7 +1197,8 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
         atol,
         "estimate.temporal_response.gcomp",
     );
-    let ResponseUncertainty::PointwiseBand { level, lower, upper } = &response.uncertainty else {
+    let ResponseUncertainty::PointwiseBand { level, lower, upper, .. } = &response.uncertainty
+    else {
         panic!("expected the circular-block pointwise band");
     };
     assert!((level - pin["level"].as_f64().unwrap()).abs() <= rtol);

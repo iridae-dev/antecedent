@@ -717,6 +717,7 @@ impl SurfaceCells {
                 level: 0.95,
                 lower: Arc::from(band.lower.as_slice()),
                 upper: Arc::from(band.upper.as_slice()),
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             }
         })
     }
@@ -1311,6 +1312,7 @@ impl TemporalResponseEstimator {
                 level: 0.95,
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
             },
             support,
             assumptions,

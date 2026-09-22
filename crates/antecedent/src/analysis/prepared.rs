@@ -1921,6 +1921,7 @@ impl PreparedStudy {
                     upper: result.estimate.ate
                         + crate::result::reported_se_interval_z() * result.estimate.se_analytic,
                     level: 0.95,
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
                 },
                 support: antecedent_core::SupportReport {
                     status: antecedent_core::SupportStatus::Supported,
@@ -3487,6 +3488,7 @@ fn overlay_prepared_score_functional(
                 upper: estimate.ate
                     + crate::result::reported_se_interval_z() * estimate.se_analytic,
                 level: 0.95,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
             };
         }
     }

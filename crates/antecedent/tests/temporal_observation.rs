@@ -461,7 +461,8 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
         .run(&ctx)
         .unwrap();
     let response = result.response.as_ref().unwrap();
-    let ResponseUncertainty::PointwiseBand { lower, upper, level } = &response.uncertainty else {
+    let ResponseUncertainty::PointwiseBand { lower, upper, level, .. } = &response.uncertainty
+    else {
         panic!("observation-adjusted Sequence must publish a pointwise band");
     };
     let mean = surface_of(&result);

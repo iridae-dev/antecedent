@@ -128,9 +128,9 @@ pub use reasoning::{
     UncertaintyComponent, UncertaintySlot, UncertaintySource,
 };
 pub use response::{
-    CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus,
+    CausalResponse, HorizonIdentification, IdentifiedSet, IntervalInterpretation, ResponseEnvelope,
+    ResponseIdentification, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

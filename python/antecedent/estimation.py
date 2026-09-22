@@ -111,7 +111,7 @@ from .results import (
     TemporalMediationSliceView,
     ValidationView,
 )
-from .results.response import SupportStatus, UncertaintyKind
+from .results.response import IntervalInterpretation, SupportStatus, UncertaintyKind
 from .transport import (
     Transport,
     TransportControls,
@@ -1298,6 +1298,9 @@ def _wrap_prepared_response(
             standard_error=raw.standard_error,
             replicates=raw.replicates,
             artifact_id=raw.artifact_id,
+            interpretation=cast(
+                IntervalInterpretation | None, getattr(raw, "interval_interpretation", None)
+            ),
         ),
         support=SupportReport(
             status=cast(SupportStatus, raw.support_status),

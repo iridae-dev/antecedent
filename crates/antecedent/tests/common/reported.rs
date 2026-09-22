@@ -130,7 +130,7 @@ pub fn posterior_pair(result: &StudyResult, col: usize) -> [Option<(f64, f64)>; 
 #[must_use]
 pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
     match result.response.as_ref()?.uncertainty {
-        ResponseUncertainty::Scalar { standard_error, level, lower, upper } => {
+        ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } => {
             Some((lower, upper, level, standard_error))
         }
         _ => None,
@@ -141,7 +141,7 @@ pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
 #[must_use]
 pub fn response_band(result: &StudyResult) -> Option<(Vec<f64>, Vec<f64>, f64)> {
     match &result.response.as_ref()?.uncertainty {
-        ResponseUncertainty::PointwiseBand { level, lower, upper } => {
+        ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
             Some((lower.to_vec(), upper.to_vec(), *level))
         }
         _ => None,
