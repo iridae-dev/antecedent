@@ -280,14 +280,16 @@ def _consume_specialist_artifact(encoded: bytes) -> Any:
         native = _native.consume_learned_trial(encoded)
         return _learned_trial(native, native.last_result())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        prepared = consume_exact(encoded)
-        return _exact_distribution(prepared._native, prepared._native.last_result())
+        exact_prepared = consume_exact(encoded)
+        return _exact_distribution(exact_prepared._native, exact_prepared._native.last_result())
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        prepared = consume_statistical(encoded)
-        return _statistical_distribution(prepared._native, prepared._native.last_result())
+        statistical_prepared = consume_statistical(encoded)
+        return _statistical_distribution(
+            statistical_prepared._native, statistical_prepared._native.last_result()
+        )
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        prepared = consume_response_grid(encoded)
-        return _response_grid(prepared._native, prepared._native.last_result())
+        grid_prepared = consume_response_grid(encoded)
+        return _response_grid(grid_prepared._native, grid_prepared._native.last_result())
     raise CausalSerializationError("unrecognized transport specialist artifact")
 
 
@@ -351,6 +353,10 @@ def decode_transport_view(encoded: bytes) -> AnalysisResult | CausalResponseView
         specialist = _consume_specialist_artifact(base64.b64decode(specialist_artifact))
         result = wrap_transport_result(study, specialist)
     else:
+        if not isinstance(query, Transport):
+            raise CausalSerializationError(
+                "transported view artifact is missing its Transport query"
+            )
         detail = payload.get("unavailable") or (
             "no evidence travelled with this artifact; identification status alone is verified"
         )
@@ -378,7 +384,7 @@ def _unavailable_result(
     )
     view = _identification_view(stage, query)
     if shape == "grid":
-        result = CausalResponseView(
+        grid_result = CausalResponseView(
             estimand=query.question,
             response=None,
             estimate=None,
@@ -388,7 +394,7 @@ def _unavailable_result(
             diagnostics=(detail,),
             transport=section,
         )
-        return _attach(result, study, None, section)
+        return _attach(grid_result, study, None, section)
     result = AnalysisResult(
         identification=view,
         estimate=EstimateView(
@@ -583,7 +589,7 @@ def _wrap_grid(
             )
         contrast = grid.contrast(1, 0, outcome)
         section = replace(section, interval=contrast.interval, uncertainty_reason=contrast.reason)
-        result = AnalysisResult(
+        contrast_result = AnalysisResult(
             identification=view,
             estimate=EstimateView(
                 ate=float(contrast.estimate),
@@ -599,7 +605,7 @@ def _wrap_grid(
             provenance={"operation_ids": ["estimate.transport"]},
             transport=section,
         )
-        return _attach(result, study, grid, section)
+        return _attach(contrast_result, study, grid, section)
     if not points:
         return _unavailable_result(
             study,
@@ -646,6 +652,8 @@ def unavailable_from_stage(study: Any) -> AnalysisResult | CausalResponseView:
     if identified is None:
         raise CausalUnsupportedError("transport study has no identification stage")
     if identified.outcome in {"identified", "missing_evidence"}:
+        if catalog is None:
+            raise CausalUnsupportedError("transport study has no bound evidence catalog")
         detail = missing_evidence_detail(identified, catalog, query=query)
     else:
         from ._day1 import not_certified_detail
