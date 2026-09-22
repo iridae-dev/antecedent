@@ -800,10 +800,8 @@ pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, Ide
 }
 
 pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, IdentificationError> {
-    match dag.nodes().get(id.as_usize()) {
-        Some(antecedent_graph::NodeRef::Static(v)) => Ok(*v),
-        _ => Err(IdentificationError::msg("expected static node")),
-    }
+    crate::prepared::node_variable_id(dag.nodes(), id.as_usize())
+        .ok_or_else(|| IdentificationError::msg("expected static node"))
 }
 
 #[cfg(test)]

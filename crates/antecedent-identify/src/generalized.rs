@@ -941,10 +941,8 @@ pub(crate) fn mag_dense_to_var(
     mag: &Pag,
     id: DenseNodeId,
 ) -> Result<VariableId, IdentificationError> {
-    match mag.nodes().get(id.as_usize()) {
-        Some(antecedent_graph::NodeRef::Static(v)) => Ok(*v),
-        _ => Err(IdentificationError::UnknownVariable { id: VariableId::from_raw(id.raw()) }),
-    }
+    crate::prepared::node_variable_id(mag.nodes(), id.as_usize())
+        .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(id.raw()) })
 }
 
 /// Candidates = `(An({T,Y}) ∪ De(T)) \ (Forb(T,Y) ∪ {T,Y})`.

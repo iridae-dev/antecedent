@@ -50,10 +50,10 @@ impl PreparedAdmg {
             IdentificationError::msg("ADMG topological order incomplete (cycle?)")
         })?);
         let mut var_index = HashMap::with_capacity(admg.node_count());
-        for (i, node) in admg.nodes().iter().enumerate() {
-            if let NodeRef::Static(v) = node {
+        for i in 0..admg.node_count() {
+            if let Some(v) = node_variable_id(admg.nodes(), i) {
                 var_index
-                    .entry(*v)
+                    .entry(v)
                     .or_insert_with(|| DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
             }
         }
@@ -120,10 +120,8 @@ impl PreparedAdmg {
     ///
     /// Non-static or unknown node.
     pub fn dense_to_var(&self, id: DenseNodeId) -> Result<VariableId, IdentificationError> {
-        match self.admg.nodes().get(id.as_usize()) {
-            Some(NodeRef::Static(v)) => Ok(*v),
-            _ => Err(IdentificationError::msg(format!("unknown dense node {}", id.raw()))),
-        }
+        node_variable_id(self.admg.nodes(), id.as_usize())
+            .ok_or_else(|| IdentificationError::msg(format!("unknown dense node {}", id.raw())))
     }
 
     /// Ancestral closure of `seeds` within `active` (including seeds), with memoization.
@@ -176,21 +174,39 @@ impl PreparedAdmg {
     }
 }
 
-/// Dense index of the static node labelled `id` in `nodes`.
+/// The identification-facing variable id carried by node `dense` in `nodes`, if any.
+///
+/// `Static(v)` carries `v`. An `Unfolded` node (a finite-window slot) has no variable
+/// label of its own — the same template variable repeats across every slot it occupies —
+/// so identification code addresses it by its own dense position instead, treating each
+/// slot as a distinct synthetic variable `VariableId::from_raw(dense)`. This matches how
+/// unfolded temporal DAGs are identified: `temporal_backdoor::identify_temporal` retargets
+/// treatment/outcome onto `VariableId::from_raw(dense)` before calling into this crate's
+/// static identifiers. Any other node kind (`Lagged`, `Context`) carries no identification
+/// variable and returns `None`.
+pub(crate) fn node_variable_id(nodes: &[NodeRef], dense: usize) -> Option<VariableId> {
+    match nodes.get(dense)? {
+        NodeRef::Static(v) => Some(*v),
+        NodeRef::Unfolded { .. } => Some(VariableId::from_raw(u32::try_from(dense).ok()?)),
+        NodeRef::Lagged { .. } | NodeRef::Context { .. } => None,
+    }
+}
+
+/// Dense index of the static or unfolded node addressed by `id` in `nodes`.
 ///
 /// The one place that maps a variable to its position in a graph's node list; node order
-/// is a property of the graph, never assumed to equal the variable's raw id.
+/// is a property of the graph, never assumed to equal the variable's raw id (except for
+/// `Unfolded` nodes, which are addressed by dense position; see [`node_variable_id`]).
 ///
 /// # Errors
 ///
-/// No static node carries `id`.
+/// No node carries `id`.
 pub(crate) fn dense_of_static(
     nodes: &[NodeRef],
     id: VariableId,
 ) -> Result<DenseNodeId, IdentificationError> {
-    nodes
-        .iter()
-        .position(|node| *node == NodeRef::Static(id))
+    (0..nodes.len())
+        .find(|&i| node_variable_id(nodes, i) == Some(id))
         .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
         .ok_or(IdentificationError::UnknownVariable { id })
 }
