@@ -456,10 +456,10 @@ def _wrap_ate(
             overlap_propensity_min=sec_estimate.overlap_propensity_min,
             mediation=mediation,
             functional_means=tuple(functional_means)
-            if (functional_means := sec_estimate.functional_means) is not None
+            if (functional_means := getattr(sec_estimate, "functional_means", None)) is not None
             else None,
             exceedance_cdf=tuple(exceedance_cdf)
-            if (exceedance_cdf := sec_estimate.exceedance_cdf) is not None
+            if (exceedance_cdf := getattr(sec_estimate, "exceedance_cdf", None)) is not None
             else None,
             monotone_rearranged=bool(getattr(sec_estimate, "monotone_rearranged", False)),
             interaction_structurally_zero=getattr(
@@ -487,10 +487,13 @@ def _wrap_ate(
             crossfit_folds=getattr(sec_estimate, "crossfit_folds", None),
             crossfit_seed=getattr(sec_estimate, "crossfit_seed", None),
             learner_provenance=tuple(getattr(sec_estimate, "learner_provenance", ())),
-            cate=tuple(cate) if (cate := sec_estimate.cate) is not None else None,
-            cate_se=tuple(cate_se) if (cate_se := sec_estimate.cate_se) is not None else None,
+            cate=tuple(cate) if (cate := getattr(sec_estimate, "cate", None)) is not None else None,
+            cate_se=tuple(cate_se)
+            if (cate_se := getattr(sec_estimate, "cate_se", None)) is not None
+            else None,
             cate_leaf_dispersion=tuple(cate_leaf_dispersion)
-            if (cate_leaf_dispersion := sec_estimate.cate_leaf_dispersion) is not None
+            if (cate_leaf_dispersion := getattr(sec_estimate, "cate_leaf_dispersion", None))
+            is not None
             else None,
         ),
         posterior=posterior,
