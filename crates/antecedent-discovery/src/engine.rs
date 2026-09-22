@@ -80,8 +80,13 @@ pub struct DiscoveryWorkspace {
     pub compact_values: Vec<f64>,
     /// Involved-column scratch for keep-mask construction.
     pub involved_cols: Vec<usize>,
-    /// Cache: sorted involved column indexes → keep mask.
-    pub keep_cache: HashMap<Vec<usize>, Arc<[bool]>>,
+    /// Cache: (frame row count, sorted involved column indexes) → keep mask.
+    ///
+    /// The row count is part of the key, not just the columns: this workspace is reused across
+    /// calls whose lagged frames can differ in row count (e.g. one bootstrap replicate's frame
+    /// against the next in [`crate::rpcmci::Rpcmci::run`]), and a mask cached for a larger frame
+    /// would otherwise be replayed against a smaller one and read past its rows.
+    pub keep_cache: HashMap<(usize, Vec<usize>), Arc<[bool]>>,
 }
 
 /// Shared PCMCI engine core.
@@ -986,11 +991,11 @@ impl PcmciEngine {
         workspace.involved_cols.sort_unstable();
         workspace.involved_cols.dedup();
 
+        let frame_n = if frame.ncols() == 0 { 0 } else { frame.column(0).len() };
         let keep = if workspace.involved_cols.is_empty() {
-            let n = if frame.ncols() == 0 { 0 } else { frame.column(0).len() };
-            Arc::from(vec![true; n])
+            Arc::from(vec![true; frame_n])
         } else {
-            let key = workspace.involved_cols.clone();
+            let key = (frame_n, workspace.involved_cols.clone());
             if let Some(cached) = workspace.keep_cache.get(&key) {
                 Arc::clone(cached)
             } else {
