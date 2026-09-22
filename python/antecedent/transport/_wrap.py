@@ -451,7 +451,9 @@ def _reasoning_from_specialist(specialist: Any) -> ReasoningSlots | None:
         execution_id=getattr(report, "execution_id", None),
         score_reuse_id=getattr(report, "score_reuse_id", None),
         target_weights_id=getattr(report, "target_weights_id", None),
-        contract=dict(report.contract) if isinstance(getattr(report, "contract", None), Mapping) else None,
+        contract=dict(report.contract)
+        if isinstance(getattr(report, "contract", None), Mapping)
+        else None,
     )
 
 

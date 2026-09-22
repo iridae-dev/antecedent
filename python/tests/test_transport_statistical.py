@@ -66,7 +66,11 @@ def test_statistical_prepare_estimate_and_inspect_license():
         query=transport.StatisticalTransportQuery(
             # A nominal 0.95 percentile interval needs B >= 40 (PERCENTILE_95_MIN_REPLICATES);
             # fewer replicates run cleanly but withhold the interval as unlicensed.
-            identified, catalog, {"x": 1.0}, bootstrap=40, seed=7
+            identified,
+            catalog,
+            {"x": 1.0},
+            bootstrap=40,
+            seed=7,
         ),
     )
     inspection = study.inspect()
