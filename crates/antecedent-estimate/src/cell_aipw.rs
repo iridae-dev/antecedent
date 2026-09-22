@@ -458,6 +458,7 @@ fn crossfit_cell_scores(
                 "cell.aipw.crossfit.multinomial_logit.ols.v1"
             },
         ),
+        propensity_clip: clip,
         treatment: prepared.treatments[0],
         intervened: Arc::clone(&prepared.treatments),
     })

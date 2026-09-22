@@ -48,6 +48,12 @@ pub struct ScoreTable {
     pub adjustment_set: Arc<[VariableId]>,
     /// Nuisance provenance tag (cross-fit rule + model family).
     pub nuisance_provenance: Arc<str>,
+    /// Propensity clip the estimator applied to the held-out propensities before forming
+    /// inverse-probability weights (`None`: unclipped). The scores already embody it, and
+    /// the raw [`Self::propensities`] are what a retarget's overlap gate reads, so the gate
+    /// measures the extreme-propensity share against this applied band rather than a
+    /// library default the fit never used.
+    pub propensity_clip: Option<f64>,
     /// Treatment variable.
     pub treatment: VariableId,
     /// Additional intervened coordinates (joint cells). Empty for binary ATE.
@@ -444,6 +450,8 @@ pub struct ScoreTableWire {
     pub adjustment_set: Vec<u32>,
     /// Nuisance provenance.
     pub nuisance_provenance: String,
+    /// Applied propensity clip (`None`: unclipped).
+    pub propensity_clip: Option<f64>,
     /// Treatment raw id.
     pub treatment: u32,
     /// Extra intervened raw ids.
@@ -466,6 +474,7 @@ impl ScoreTable {
             columns: self.columns.to_vec(),
             adjustment_set: self.adjustment_set.iter().map(|v| v.raw()).collect(),
             nuisance_provenance: self.nuisance_provenance.to_string(),
+            propensity_clip: self.propensity_clip,
             treatment: self.treatment.raw(),
             intervened: self.intervened.iter().map(|v| v.raw()).collect(),
         }
@@ -493,6 +502,7 @@ impl ScoreTable {
             || wire.n_folds < 2
             || wire.fold_ids.iter().any(|&f| f >= wire.n_folds)
             || wire.columns.iter().any(|c| c.threshold.is_some_and(|v| !v.is_finite()))
+            || wire.propensity_clip.is_some_and(|c| !(c > 0.0 && c < 0.5))
         {
             return Err(EstimationError::data_msg("invalid score table values or support shape"));
         }
@@ -513,6 +523,7 @@ impl ScoreTable {
                 .collect::<Vec<_>>()
                 .into(),
             nuisance_provenance: Arc::from(wire.nuisance_provenance),
+            propensity_clip: wire.propensity_clip,
             treatment: VariableId::from_raw(wire.treatment),
             intervened: wire
                 .intervened
@@ -548,6 +559,7 @@ mod tests {
             ]),
             adjustment_set: Arc::from([]),
             nuisance_provenance: Arc::from("test"),
+            propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         }
@@ -613,6 +625,7 @@ mod tests {
             columns: Arc::from([ScoreColumn { arm: 0, threshold: None }]),
             adjustment_set: Arc::from([]),
             nuisance_provenance: Arc::from("test"),
+            propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         };
@@ -659,6 +672,7 @@ mod tests {
                 .collect(),
             adjustment_set: Arc::from([]),
             nuisance_provenance: Arc::from("test"),
+            propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         };
@@ -689,11 +703,16 @@ mod tests {
             ]),
             adjustment_set: Arc::from([VariableId::from_raw(2)]),
             nuisance_provenance: Arc::from("aipw.crossfit.v1"),
+            propensity_clip: Some(0.02),
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         };
         let restored = ScoreTable::from_wire(table.to_wire()).unwrap();
         assert_eq!(restored.scores.as_ref(), table.scores.as_ref());
         assert_eq!(restored.adjustment_set.as_ref(), table.adjustment_set.as_ref());
+        assert_eq!(restored.propensity_clip, Some(0.02));
+        let mut wire = table.to_wire();
+        wire.propensity_clip = Some(0.7);
+        assert!(ScoreTable::from_wire(wire).is_err(), "a clip outside (0, 0.5) is not a clip");
     }
 }

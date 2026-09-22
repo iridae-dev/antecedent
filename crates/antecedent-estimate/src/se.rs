@@ -10,9 +10,10 @@
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, bartlett_weight, coefficient_covariance,
-    combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples, multiway_subset_masks,
-    panel_hac_meat_scalar, score_coefficient_covariance,
+    MAX_CLUSTER_DIMENSIONS, SandwichKind, bartlett_weight, cluster_meat_scalar,
+    coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
+    multiway_subset_masks, newey_west_meat_scalar, panel_hac_meat_scalar,
+    score_coefficient_covariance,
 };
 
 use crate::error::EstimationError;
@@ -388,41 +389,15 @@ pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> Result<f64, E
         ));
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
-    match cluster_meat_scalar(psi, groups, mean) {
-        Some((sum_s2, g_count)) if g_count > 1 => {
-            let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
-            Ok((scale * sum_s2).max(0.0).sqrt())
-        }
-        Some((_, g_count)) if g_count < 2 => {
-            Err(EstimationError::stats_msg("cluster-robust variance requires at least 2 clusters"))
-        }
-        _ => Err(EstimationError::data_msg("cluster influence SE failed to form meat")),
+    let (sum_s2, g_count) = cluster_meat_scalar(psi, groups, mean)
+        .map_err(|_| EstimationError::data_msg("cluster influence SE failed to form meat"))?;
+    if g_count < 2 {
+        return Err(EstimationError::stats_msg(
+            "cluster-robust variance requires at least 2 clusters",
+        ));
     }
-}
-
-/// One-way cluster meat `M = Σ_g s_g²` and `G`, with demeaning at `mean`.
-fn cluster_meat_scalar(psi: &[f64], groups: &[u32], mean: f64) -> Option<(f64, usize)> {
-    let n = psi.len();
-    if groups.len() != n {
-        return None;
-    }
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&i| groups[i]);
-    let mut sum_s2 = 0.0;
-    let mut g_count = 0usize;
-    let mut idx = 0usize;
-    while idx < n {
-        let g = groups[order[idx]];
-        let mut s = 0.0;
-        while idx < n && groups[order[idx]] == g {
-            let i = order[idx];
-            s += psi[i] - mean;
-            idx += 1;
-        }
-        sum_s2 += s * s;
-        g_count += 1;
-    }
-    Some((sum_s2, g_count))
+    let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
+    Ok((scale * sum_s2).max(0.0).sqrt())
 }
 
 /// Heteroskedastic (HC1-style) SE for a scalar influence sequence:
@@ -487,9 +462,8 @@ pub(crate) fn multiway_influence_se(
     for (mask, sign) in multiway_subset_masks(d) {
         let _g = intern_cluster_tuples(&refs, mask, &mut combined)
             .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
-        let Some((m_s, g_s)) = cluster_meat_scalar(psi, &combined, mean) else {
-            return Err(EstimationError::data_msg("multiway influence SE failed to form meat"));
-        };
+        let (m_s, g_s) = cluster_meat_scalar(psi, &combined, mean)
+            .map_err(|_| EstimationError::data_msg("multiway influence SE failed to form meat"))?;
         if g_s < 2 {
             return Err(EstimationError::stats_msg(
                 "cluster-robust variance requires at least 2 clusters",
@@ -515,21 +489,7 @@ pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     let d: Vec<f64> = psi.iter().map(|v| v - mean).collect();
-    let mut gamma0 = 0.0;
-    for &x in &d {
-        gamma0 += x * x;
-    }
-    gamma0 /= n as f64;
-    let mut hac = gamma0;
-    let l_eff = effective_nw_lag(lag, n.saturating_sub(1));
-    for k in 1..=l_eff {
-        let mut g = 0.0;
-        for i in k..n {
-            g += d[i] * d[i - k];
-        }
-        g /= n as f64;
-        hac += 2.0 * bartlett_weight(k, l_eff) * g;
-    }
+    let hac = newey_west_meat_scalar(&d, lag) / n as f64;
     (hac.max(0.0) / n as f64).sqrt()
 }
 

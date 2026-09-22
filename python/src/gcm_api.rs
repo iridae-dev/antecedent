@@ -261,6 +261,13 @@ pub struct MechanismChangeDetection {
     pub adjusted_p_value: Option<f64>,
     #[pyo3(get)]
     pub changed: bool,
+    /// Permutations behind `p_value` when the null is a permutation distribution
+    /// (kernel two-sample; small-segment likelihood ratio), else `None`.
+    #[pyo3(get)]
+    pub n_permutations: Option<usize>,
+    /// Smallest attainable raw p-value `1 / (n_permutations + 1)`, or `None`.
+    #[pyo3(get)]
+    pub p_value_floor: Option<f64>,
 }
 
 #[pymethods]
@@ -268,8 +275,14 @@ impl MechanismChangeDetection {
     fn __repr__(&self) -> String {
         format!(
             "MechanismChangeDetection(node={:?}, statistic={}, p_value={}, \
-             adjusted_p_value={:?}, changed={})",
-            self.node, self.statistic, self.p_value, self.adjusted_p_value, self.changed
+             adjusted_p_value={:?}, changed={}, n_permutations={:?}, p_value_floor={:?})",
+            self.node,
+            self.statistic,
+            self.p_value,
+            self.adjusted_p_value,
+            self.changed,
+            self.n_permutations,
+            self.p_value_floor
         )
     }
 }
@@ -879,6 +892,8 @@ impl PyFittedGcm {
                     p_value: d.p_value,
                     adjusted_p_value: d.adjusted_p_value,
                     changed: d.changed,
+                    n_permutations: d.n_permutations,
+                    p_value_floor: d.p_value_floor,
                 })
                 .collect())
         })

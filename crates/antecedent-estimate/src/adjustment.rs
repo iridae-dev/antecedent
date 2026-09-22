@@ -517,7 +517,11 @@ pub enum LinearFitKind {
     /// Huber M-estimation with tuning constant `c`.
     ///
     /// Analytic SE is the M-estimator's sandwich (Huber 1981), not the OLS formula on Huber
-    /// residuals. The MAD scale is treated as known.
+    /// residuals. The residual scale is `1.4826·MAD`, or `√(π/2)·` the mean absolute
+    /// deviation about the median when the MAD is exactly zero (a discrete or
+    /// zero-inflated outcome, where a zero scale would down-weight every non-majority
+    /// row); either way it is treated as known, and an exact fit has scale zero with unit
+    /// weights. The estimand is the Huber M-functional at that scale, not the mean.
     Huber {
         /// Huber tuning constant (default 1.345).
         c: f64,

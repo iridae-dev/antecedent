@@ -759,7 +759,8 @@ impl super::Study {
                 message: "cell.aipw requires at least two binary Set interventions",
             });
         }
-        let est = antecedent_estimate::CellSaturatedAipw::new();
+        let est =
+            antecedent_estimate::CellSaturatedAipw::new().with_fold_seed(ctx.rng.master_seed());
         let continuous = None;
         let (fold_ids, design) = match self.shared_batch_design.as_ref() {
             Some(shared) => {

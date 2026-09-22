@@ -263,6 +263,7 @@ impl super::Study {
             &mut extra_diagnostics,
             estimator_id,
             self,
+            ctx.rng.master_seed(),
         )?;
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
@@ -1279,6 +1280,7 @@ impl super::Study {
             &mut extra_diagnostics,
             estimator_id,
             self,
+            ctx.rng.master_seed(),
         )?;
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_refuters(

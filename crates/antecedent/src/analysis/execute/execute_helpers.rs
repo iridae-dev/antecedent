@@ -676,7 +676,6 @@ pub(super) fn attach_class_conditional_functional_grid(
     atoms: &[(f64, IdentifiedEstimand)],
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
-    let _ = ctx;
     let Some(thresholds) = super::helpers::conditional_thresholds(
         data,
         query,
@@ -688,7 +687,7 @@ pub(super) fn attach_class_conditional_functional_grid(
     if atoms.is_empty() {
         return Ok(estimate);
     }
-    let est = ConditionalLinearAdjustment::new();
+    let est = ConditionalLinearAdjustment::new().with_fold_seed(ctx.rng.master_seed());
     let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
     let mut mixed_cdf = Vec::with_capacity(thresholds.len() * 2);
     let mut mixed_columns = Vec::with_capacity(thresholds.len() * 2);

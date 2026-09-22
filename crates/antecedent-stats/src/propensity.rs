@@ -62,17 +62,10 @@ pub fn fit_propensity(
         treatment,
         backend,
         workspace,
-        &without_separation_ridge(options),
+        &options.without_separation_ridge(),
     )?;
     fit.glm.require_ok()?;
     Ok(fit)
-}
-
-/// Estimation paths refuse every separated fit ([`GlmFit::require_ok`]), so the ridge refit
-/// that [`GlmOptions::ridge_on_separation`] triggers would be computed and then discarded.
-/// Only the diagnostic path, which keeps the ridge fit's scores, uses the caller's option.
-fn without_separation_ridge(options: &GlmOptions) -> GlmOptions {
-    GlmOptions { ridge_on_separation: None, ..*options }
 }
 
 /// Fit propensity scores into `workspace.scores` without allocating a per-fit vector.
@@ -101,7 +94,7 @@ pub fn fit_propensity_in_place(
         treatment,
         backend,
         workspace,
-        &without_separation_ridge(options),
+        &options.without_separation_ridge(),
     )?;
     glm.require_ok()?;
     predict_propensity(x_colmajor, nrows, ncols, &glm.coefficients, &mut workspace.scores)?;

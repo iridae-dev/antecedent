@@ -373,6 +373,7 @@ mod review_tests {
             ]),
             adjustment_set: Arc::from([]),
             nuisance_provenance: Arc::from("test"),
+            propensity_clip: None,
             treatment: antecedent_core::VariableId::from_raw(0),
             intervened: Arc::from([]),
         };
@@ -426,6 +427,7 @@ mod review_tests {
             columns: columns.into(),
             adjustment_set: [].into(),
             nuisance_provenance: "test".into(),
+            propensity_clip: None,
             treatment: antecedent_core::VariableId::from_raw(0),
             intervened: [].into(),
         };

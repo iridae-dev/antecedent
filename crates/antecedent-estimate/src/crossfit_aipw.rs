@@ -213,6 +213,7 @@ pub fn build_binary_scores(
         } else {
             AIPW_CROSSFIT_PROVENANCE
         }),
+        propensity_clip: clip,
         treatment,
         intervened: Arc::from([]),
     })
@@ -282,8 +283,13 @@ pub fn weighted_support(
     let range = if p_min.is_finite() { Some((p_min, p_max)) } else { None };
     // Same gate as the score-table support (retarget), including the propensity range and the
     // extreme-propensity share, whenever propensities are supplied.
-    let extreme_share = propensity
-        .map_or(0.0, |p| crate::retarget::extreme_propensity_share(std::iter::once(p), weights));
+    let extreme_share = propensity.map_or(0.0, |p| {
+        crate::retarget::extreme_propensity_share(
+            std::iter::once(p),
+            weights,
+            crate::overlap::DEFAULT_PROPENSITY_CLIP,
+        )
+    });
     let overlap_ok = crate::retarget::overlap_gate(
         &[n0, n1],
         min_n_eff_arm,

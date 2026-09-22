@@ -39,7 +39,7 @@ use crate::temporal_block::{
 };
 use crate::temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
-use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std, solve_spd};
+use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std};
 
 /// Licensed temporal `InterventionResponse` overlay.
 #[derive(Clone, Debug, PartialEq)]
@@ -1930,9 +1930,10 @@ struct FittedHorizon {
     column_means: Vec<f64>,
     /// Full-sample OLS residuals (length n).
     residuals: Vec<f64>,
-    /// Gram matrix `X'X` (`p × p`, row-major): it depends on the horizon's design only,
-    /// so every cell of the grid reads this one copy.
-    gram: Vec<f64>,
+    /// Lower Cholesky factor of the Gram matrix `X'X` (`p × p`, row-major; `None` when it
+    /// is not positive definite). The Gram depends on the horizon's design only, so it is
+    /// factored once here and every cell's influence series solves against this copy.
+    gram_chol: Option<Vec<f64>>,
 }
 
 impl FittedHorizon {
@@ -1947,7 +1948,14 @@ impl FittedHorizon {
             .map_err(EstimationError::from)?;
         let column_means = design_column_means(&prepared.design);
         let gram = crate::util::gram(&prepared.design.matrix[..n * p], n, p);
-        Ok(Self { prepared, coefs: fit.coefficients, column_means, residuals: fit.residuals, gram })
+        let gram_chol = antecedent_stats::cholesky_spd(&gram, p);
+        Ok(Self {
+            prepared,
+            coefs: fit.coefficients,
+            column_means,
+            residuals: fit.residuals,
+            gram_chol,
+        })
     }
 
     fn treatment_mean(&self) -> f64 {
@@ -1971,7 +1979,7 @@ impl FittedHorizon {
             CellEval::Dose(dose) => dose,
             CellEval::Shift(shift) => self.column_means[TREATMENT_COL] + shift,
         };
-        let v = solve_spd(&self.gram, &direction, p)?;
+        let v = antecedent_stats::chol_solve(self.gram_chol.as_deref()?, p, &direction)?;
         let reads_treatment_mean = matches!(eval, CellEval::Shift(_));
         let n_f = n as f64;
         Some(
@@ -3874,11 +3882,23 @@ mod tests {
             .collect();
         let fitted = fitted_horizon(&a, &[(z_id, z.as_slice())], &y);
         let cols: [Vec<f64>; 3] = [vec![1.0; n], a.clone(), z.clone()];
+        // The cached factor reproduces the Gram matrix by definition (L times L-transpose
+        // equals x_a'x_b) and solves against it as a per-call factorization would.
+        let chol = fitted.gram_chol.as_ref().expect("the design is full rank");
+        let mut gram = [0.0; 9];
         for r in 0..3 {
             for c in 0..3 {
                 let dot: f64 = (0..n).map(|t| cols[r][t] * cols[c][t]).sum();
-                assert!((fitted.gram[r * 3 + c] - dot).abs() < 1e-9, "gram[{r}][{c}]");
+                gram[r * 3 + c] = dot;
+                let llt: f64 = (0..3).map(|k| chol[r * 3 + k] * chol[c * 3 + k]).sum();
+                assert!((llt - dot).abs() < 1e-8 * (1.0 + dot.abs()), "gram[{r}][{c}]");
             }
+        }
+        let rhs = [1.0, -2.0, 0.5];
+        let cached = antecedent_stats::chol_solve(chol, 3, &rhs).unwrap();
+        let direct = crate::util::solve_spd(&gram, &rhs, 3).unwrap();
+        for k in 0..3 {
+            assert!((cached[k] - direct[k]).abs() < 1e-10, "solve component {k}");
         }
         let scores = horizon_scores(std::slice::from_ref(&fitted));
         // 3 normal-equation series, then the 2 centered non-intercept columns.
