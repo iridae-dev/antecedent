@@ -426,12 +426,53 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
-        let max_lag = self.constraints.temporal.max_lag.raw();
-        // Align with pinned baseline's default `cut_off='2xtau_max'`: both PC and MCI use a
-        // frame materializing lags up to 2·max_lag (same effective sample count).
-        let frame_depth = 2 * max_lag;
-        let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-            .map_err(DiscoveryError::from)?;
+        let frame =
+            LaggedFrame::from_series(data, variables, self.frame_depth(), &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
+        self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// [`Self::run_pc_mci`] over the units of a panel: each unit's lag windows are built inside
+    /// that unit ([`LaggedFrame::from_panel`]) and the rows are pooled, so a unit boundary never
+    /// supplies a lagged parent. The pooled design is the lagged design of one structural model
+    /// shared by exchangeable units.
+    ///
+    /// # Errors
+    ///
+    /// Data / CI / graph construction / memory-budget failures.
+    pub fn run_pc_mci_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        let frame =
+            LaggedFrame::from_panel(units, variables, self.frame_depth(), &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
+        self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// Depth of the lagged frame PC and MCI both run on.
+    ///
+    /// Aligned with the pinned baseline's default `cut_off='2xtau_max'`: both use a frame
+    /// materializing lags up to 2·max_lag (same effective sample count).
+    pub(crate) fn frame_depth(&self) -> u32 {
+        2 * self.constraints.temporal.max_lag.raw()
+    }
+
+    /// [`Self::run_pc_mci`] on a pre-built lagged frame of depth [`Self::frame_depth`].
+    ///
+    /// # Errors
+    ///
+    /// Data / CI / graph construction / memory-budget failures.
+    pub fn run_pc_mci_on_frame(
+        &self,
+        frame: &LaggedFrame,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
@@ -444,7 +485,7 @@ impl PcmciEngine {
             &self.ci,
             &self.column_blocks,
             &self.constraints.vector_groups,
-            &frame,
+            frame,
             variables,
         )?;
         crate::ci::ensure_ci_decisions_meaningful(
@@ -473,13 +514,13 @@ impl PcmciEngine {
         }
 
         let (all_parents, iterations, mut ci_tests) =
-            engine.select_parents_all(&frame, &search_vars, &compiled, workspace, ctx, threads)?;
+            engine.select_parents_all(frame, &search_vars, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
         // MCI conditioning that overflows the column cap is refused (`refuse_truncated_mci`),
         // so a successful run never carries a truncated test.
         let (mci_tests, _) = engine.mci_all(
-            &frame,
+            frame,
             &search_vars,
             &compiled,
             &all_parents,

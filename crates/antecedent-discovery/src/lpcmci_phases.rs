@@ -881,12 +881,39 @@ pub fn run_lpcmci_algorithm(
     fdr: Option<FdrAdjustment>,
     n_preliminary: u32,
 ) -> Result<PagDiscoveryResult, DiscoveryError> {
+    let frame = LaggedFrame::from_series(data, variables, engine.frame_depth(), &ctx.kernel_policy)
+        .map_err(DiscoveryError::from)?;
+    run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
+}
+
+/// [`run_lpcmci_algorithm`] over the units of a panel: each unit's lag windows are built inside
+/// that unit and the rows are pooled ([`LaggedFrame::from_panel`]).
+pub fn run_lpcmci_panel(
+    engine: &PcmciEngine,
+    units: &[TimeSeriesData],
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    fdr: Option<FdrAdjustment>,
+    n_preliminary: u32,
+) -> Result<PagDiscoveryResult, DiscoveryError> {
+    let frame = LaggedFrame::from_panel(units, variables, engine.frame_depth(), &ctx.kernel_policy)
+        .map_err(DiscoveryError::from)?;
+    run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
+}
+
+fn run_lpcmci_on_frame(
+    engine: &PcmciEngine,
+    frame: &LaggedFrame,
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    fdr: Option<FdrAdjustment>,
+    n_preliminary: u32,
+) -> Result<PagDiscoveryResult, DiscoveryError> {
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
-    let frame_depth = 2 * max_lag;
-    let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-        .map_err(DiscoveryError::from)?;
     workspace.prepared_ci = None;
 
     let mut sepsets = PcSepsets::default();
@@ -902,7 +929,7 @@ pub fn run_lpcmci_algorithm(
         apply_remembered_parents(&mut pag, &idx, &parents_mem);
         let t = ancestral_removal_phase(
             engine,
-            &frame,
+            frame,
             &mut pag,
             &idx,
             variables,
@@ -927,7 +954,7 @@ pub fn run_lpcmci_algorithm(
     apply_remembered_parents(&mut pag, &idx, &parents_mem);
     let t = ancestral_removal_phase(
         engine,
-        &frame,
+        frame,
         &mut pag,
         &idx,
         variables,
@@ -943,7 +970,7 @@ pub fn run_lpcmci_algorithm(
 
     let t = non_ancestral_removal_phase(
         engine,
-        &frame,
+        frame,
         &mut pag,
         &idx,
         variables,

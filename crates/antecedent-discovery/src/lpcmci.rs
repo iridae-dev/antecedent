@@ -14,7 +14,7 @@ use antecedent_stats::FdrAdjustment;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::lpcmci_phases::run_lpcmci_algorithm;
+use crate::lpcmci_phases::{run_lpcmci_algorithm, run_lpcmci_panel};
 use crate::pcmci_family::pcmci_family_builders;
 use crate::result::PagDiscoveryResult;
 
@@ -73,6 +73,30 @@ impl Lpcmci {
         run_lpcmci_algorithm(
             &self.engine,
             data,
+            variables,
+            workspace,
+            ctx,
+            self.fdr,
+            self.n_preliminary_iterations,
+        )
+    }
+
+    /// Run LPCMCI over the units of a panel: every unit's lag windows are built inside that
+    /// unit and the rows are pooled.
+    ///
+    /// # Errors
+    ///
+    /// Engine / orientation failures.
+    pub fn run_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<PagDiscoveryResult, DiscoveryError> {
+        run_lpcmci_panel(
+            &self.engine,
+            units,
             variables,
             workspace,
             ctx,

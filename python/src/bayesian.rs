@@ -6,6 +6,7 @@ use antecedent::discovery::{
     BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule, GraphPosterior as RustGraphPosterior,
     StaticDiscoverParams, discover_ci_screened_posterior as facade_discover_ci_screened,
     discover_dbn_posterior as facade_discover_dbn,
+    discover_dbn_posterior_panel as facade_discover_dbn_panel,
     discover_exact_dag_posterior as facade_discover_exact,
     discover_order_mcmc as facade_discover_order_mcmc,
     discover_structure_mcmc as facade_discover_structure_mcmc,
@@ -622,7 +623,8 @@ fn discover_ci_screened_posterior(
     n_draws=400,
     thin=1,
     seed=1,
-    threads=None
+    threads=None,
+    unit_lengths=None
 ))]
 fn discover_dbn_posterior(
     py: Python<'_>,
@@ -636,23 +638,40 @@ fn discover_dbn_posterior(
     thin: u32,
     seed: u64,
     threads: Option<u32>,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PyGraphPosterior> {
     let _ = thin; // DBN engine schedule has no thin; kept for API symmetry.
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
-        let (series, variables) = series_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, 1);
-        let post = facade_discover_dbn(
-            &series,
-            &variables,
-            &bayesian_params(),
-            max_lag,
-            force_mcmc,
-            &schedule,
-            &ctx,
-        )
+        let post = if let Some(lengths) = unit_lengths {
+            // `unit_lengths` marks the columns as a panel's row-concatenated units: each unit's
+            // lag windows are built inside that unit.
+            let (units, variables) =
+                crate::discovery_api::panel_units_from_batch(&batch, &lengths)?;
+            facade_discover_dbn_panel(
+                &units,
+                &variables,
+                &bayesian_params(),
+                max_lag,
+                force_mcmc,
+                &schedule,
+                &ctx,
+            )
+        } else {
+            let (series, variables) = series_from_batch(&batch)?;
+            facade_discover_dbn(
+                &series,
+                &variables,
+                &bayesian_params(),
+                max_lag,
+                force_mcmc,
+                &schedule,
+                &ctx,
+            )
+        }
         .map_err(py_err)?;
         Ok(PyGraphPosterior::from_rust(names, post))
     })

@@ -121,7 +121,8 @@ pub struct CalibrationKeyWire {
     pub interval_method: String,
     /// Analytic SE kind recorded by the estimator; empty when not analytic.
     pub se_kind: String,
-    /// `iid`, `panel_cluster`, or `circular_block:<family>`.
+    /// `iid`, `panel_cluster`, `circular_block:<family>`, or, for a frequentist standard error on
+    /// time-ordered rows that names no block family, `serial_unmodelled` / `serial_hac`.
     pub dependence: String,
     /// Posterior construction (`<backend>.<likelihood>.<prior>`); empty for
     /// Frequentist executions.

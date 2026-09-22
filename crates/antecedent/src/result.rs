@@ -573,6 +573,28 @@ impl StudyResult {
         }
     }
 
+    /// Dependence of a frequentist standard-error interval that names no circular-block
+    /// family.
+    ///
+    /// On time-ordered rows (a series or an event log) an SE that models no serial
+    /// correlation is not the `iid` construction of exchangeable rows: its variance ignores
+    /// the dependence the data have, and a calibration measured for `iid` rows says nothing
+    /// about it. It is labelled `serial_unmodelled`; a Newey-West kernel SE models the serial
+    /// correlation and is labelled `serial_hac`. Every other modality keeps
+    /// [`Self::base_dependence`]. The posterior bindings keep the base label too: a temporal
+    /// posterior's serial-dependence handling (long-run tempering) is part of its construction
+    /// and named by its posterior key, not by this dimension.
+    fn se_dependence(&self, se_kind: Option<antecedent_estimate::AnalyticSeKind>) -> &'static str {
+        use antecedent_core::DataClassification as C;
+        match self.logical_plan.data_classification {
+            C::Temporal | C::Event => match se_kind {
+                Some(antecedent_estimate::AnalyticSeKind::NeweyWest { .. }) => "serial_hac",
+                _ => "serial_unmodelled",
+            },
+            _ => self.base_dependence(),
+        }
+    }
+
     fn posterior_draw_count(&self) -> Option<u32> {
         self.posterior.as_ref().and_then(|posterior| draws_u32(posterior.draws.n_draws))
     }
@@ -620,8 +642,9 @@ impl StudyResult {
                     IntervalBinding::new(M::PosteriorQuantile, *level, base)
                 }
                 U::Scalar { level, .. } | U::PointwiseBand { level, .. } => {
-                    temporal_response_band(response, *level)
-                        .unwrap_or_else(|| IntervalBinding::new(M::AnalyticSe, *level, base))
+                    temporal_response_band(response, *level).unwrap_or_else(|| {
+                        IntervalBinding::new(M::AnalyticSe, *level, self.se_dependence(None))
+                    })
                 }
                 U::SimultaneousBand { level, replicates, .. } => {
                     let mut binding = IntervalBinding::new(M::SimultaneousBand, *level, base);
@@ -666,7 +689,7 @@ impl StudyResult {
                 M::BootstrapSe => {
                     let (method, dependence) = match estimate.block_family {
                         Some(family) => (M::CircularBlockSe, circular_block_dependence(family)),
-                        None => (M::BootstrapSe, base),
+                        None => (M::BootstrapSe, self.se_dependence(None)),
                     };
                     let mut binding = IntervalBinding::new(method, published.level, dependence);
                     binding.replicates_ok = estimate.bootstrap_replicates_ok;
@@ -674,7 +697,11 @@ impl StudyResult {
                     return binding;
                 }
                 M::AnalyticSe => {
-                    let mut binding = IntervalBinding::new(M::AnalyticSe, published.level, base);
+                    let mut binding = IntervalBinding::new(
+                        M::AnalyticSe,
+                        published.level,
+                        self.se_dependence(estimate.se_kind),
+                    );
                     binding.se_kind = estimate.se_kind;
                     return binding;
                 }

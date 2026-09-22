@@ -2473,6 +2473,7 @@ def discover_pcmci(
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
+    unit_lengths: list[int] | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
     names: list[str],
@@ -2487,6 +2488,7 @@ def discover_pcmci_plus(
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
+    unit_lengths: list[int] | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
     names: list[str],
@@ -2573,6 +2575,7 @@ def discover_lpcmci(
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
+    unit_lengths: list[int] | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_jpcmci_plus(
     names: list[str],
@@ -2668,6 +2671,7 @@ def discover_dbn_posterior(
     thin: int = 1,
     seed: int = 1,
     threads: int | None = None,
+    unit_lengths: list[int] | None = None,
 ) -> GraphPosterior: ...
 def mediation_effects_summary(
     names: list[str],

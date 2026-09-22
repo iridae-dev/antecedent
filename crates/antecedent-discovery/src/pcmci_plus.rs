@@ -98,10 +98,36 @@ impl PcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
-        let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        let frame_depth = 2 * max_lag;
-        let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-            .map_err(DiscoveryError::from)?;
+        let frame = LaggedFrame::from_series(
+            data,
+            variables,
+            self.engine.frame_depth(),
+            &ctx.kernel_policy,
+        )
+        .map_err(DiscoveryError::from)?;
+        self.run_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// Run PCMCI+ over the units of a panel: every unit's lag windows are built inside that
+    /// unit and the rows are pooled ([`LaggedFrame::from_panel`]).
+    ///
+    /// # Errors
+    ///
+    /// Engine / orientation failures.
+    pub fn run_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
+        let frame = LaggedFrame::from_panel(
+            units,
+            variables,
+            self.engine.frame_depth(),
+            &ctx.kernel_policy,
+        )
+        .map_err(DiscoveryError::from)?;
         self.run_on_frame(&frame, variables, workspace, ctx)
     }
 

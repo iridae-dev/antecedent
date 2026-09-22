@@ -49,11 +49,12 @@ def _refuse_environment_pooling() -> None:
 
 def _refuse_lagged_pooling() -> None:
     raise CausalUnsupportedError(
-        "row-pooling units into one series is refused for lagged discovery: each unit "
+        "row-pooling units into one series is refused for this lagged algorithm: each unit "
         "boundary would give its first max_lag rows the previous unit's last observations "
-        "as their lagged parents, biasing partial correlations. Discover across units with "
-        "JPCMCIPlus (each unit's lagged windows are built independently), or pass one "
-        "unit's series",
+        "as their lagged parents, biasing partial correlations, and it has no per-unit "
+        "lagged design of its own (its regime labels run over one series' observations). "
+        "PCMCI, PCMCIPlus, LPCMCI and DbnPosterior build every unit's lagged windows inside "
+        "that unit; JPCMCIPlus does too, across environments. Or pass one unit's series",
         reason_code="data_modality_not_licensed",
     )
 
@@ -75,7 +76,8 @@ def coerce_data(
       frame-like object exposing ``columns`` + ``to_numpy``.
 
     A ``PanelFrame`` is stacked into one table of exchangeable unit rows for a
-    static algorithm. ``temporal=True`` (a lagged algorithm) refuses it, and a
+    static algorithm. ``temporal=True`` refuses it (an algorithm without a per-unit
+    lagged design: :func:`coerce_temporal_data` serves the ones with it), and a
     ``MultiEnvFrame`` is refused either way: a pooled series would build lagged
     parents across unit boundaries, and pooled environments induce mixture
     dependence. :class:`PreparedAnalysis` dispatches those frames to
@@ -100,10 +102,33 @@ def coerce_data(
     return as_columns(value)
 
 
+def coerce_temporal_data(
+    value: Any,
+) -> tuple[list[str], list[NDArray[np.float64]], list[int] | None]:
+    """Normalize input for a lagged algorithm that builds a per-unit design.
+
+    Returns ``(names, columns, unit_lengths)``. A :class:`antecedent.data.PanelFrame`
+    yields its units' rows concatenated plus each unit's length, so the native
+    algorithm builds every unit's lag windows inside that unit and pools the rows; any
+    other input is one series (``unit_lengths is None``) under :func:`coerce_data`'s
+    policy.
+    """
+    from ._data import to_f64
+
+    if isinstance(value, PanelFrame):
+        names = list(value.names)
+        pooled = _pool_partitions(names, value.unit_columns)
+        lengths = [len(unit[0]) for unit in value.unit_columns]
+        return names, [to_f64(pooled[n]) for n in names], lengths
+    names, columns = coerce_data(value, temporal=True)
+    return names, columns, None
+
+
 def discovery_table(value: Any, *, temporal: bool = False) -> Any:
     """One table for a single-table discovery config, under :func:`coerce_data`'s policy.
 
-    A panel is stacked for a static algorithm and refused for a lagged one; a
+    A panel is stacked for a static algorithm; for a lagged one it stays a panel
+    (:func:`coerce_temporal_data` builds the per-unit design from it). A
     multi-environment frame, or a bare sequence of per-environment tables, is
     refused. An event frame discovers on its recorded columns. Used ahead of
     :func:`accepted_graph.accept_discovery`'s single-table configs so that path
@@ -112,7 +137,9 @@ def discovery_table(value: Any, *, temporal: bool = False) -> Any:
     if isinstance(value, EventFrame):
         return dict(zip(value.names, value.columns, strict=True))
     if isinstance(value, PanelFrame):
-        names, columns = coerce_data(value, temporal=temporal)
+        if temporal:
+            return value
+        names, columns = coerce_data(value)
         return dict(zip(names, columns, strict=True))
     if isinstance(value, MultiEnvFrame) or (
         isinstance(value, Sequence)

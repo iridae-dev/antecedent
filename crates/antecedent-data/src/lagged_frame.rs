@@ -102,6 +102,30 @@ impl LaggedFrame {
         )
     }
 
+    /// Materialize the lagged frame of every unit of a panel and stack them.
+    ///
+    /// Each unit's lag windows are built inside that unit, so no row takes a lagged parent
+    /// from the previous unit's tail: the pooled design is the per-unit lagged design of
+    /// one common structural model, not one long series with seams. Units shorter than
+    /// `max_lag + 1` contribute no rows.
+    ///
+    /// # Errors
+    ///
+    /// No units, the errors of [`Self::from_series`] for any unit, or mismatched variables
+    /// across units.
+    pub fn from_panel(
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        max_lag: u32,
+        policy: &KernelPolicy,
+    ) -> Result<Self, DataError> {
+        let frames = units
+            .iter()
+            .map(|unit| Self::from_series(unit, variables, max_lag, policy))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::stack(&frames)
+    }
+
     /// Materialize lagged columns under an explicit reference-point policy.
     ///
     /// # Errors
@@ -507,6 +531,29 @@ mod tests {
     use super::*;
     use crate::sample_policy::{MaskPolicy, MissingPolicy};
     use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
+
+    #[test]
+    fn panel_frame_builds_every_lag_window_inside_its_unit() {
+        // v0 = t within a unit, so a row's contemporaneous value exceeds its lag-1 value by
+        // exactly 1 unless the window reaches across a unit boundary.
+        let units = [float_series(6, 2), float_series(4, 2)];
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let policy = antecedent_core::KernelPolicy::default_policy();
+        let panel = LaggedFrame::from_panel(&units, &vars, 1, &policy).unwrap();
+        assert_eq!(panel.n_effective(), 5 + 3);
+        let now = panel.column_index(vars[0], Lag::CONTEMPORANEOUS).unwrap();
+        let before = panel.column_index(vars[0], Lag::from_raw(1)).unwrap();
+        for (a, b) in panel.column(now).iter().zip(panel.column(before)) {
+            assert_eq!(a - b, 1.0);
+        }
+        // The seam a single concatenated series would have (unit 1's last row followed by unit
+        // 2's first) is absent: the rows are exactly the two per-unit frames, in order.
+        let first = LaggedFrame::from_series(&units[0], &vars, 1, &policy).unwrap();
+        let second = LaggedFrame::from_series(&units[1], &vars, 1, &policy).unwrap();
+        let mut expected = first.column(now).to_vec();
+        expected.extend_from_slice(second.column(now));
+        assert_eq!(panel.column(now), expected.as_slice());
+    }
 
     #[test]
     fn builds_with_missing_values_marking_invalid() {

@@ -15,7 +15,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from ._coerce import coerce_data
+from ._coerce import coerce_data, coerce_temporal_data
 from ._native import (
     DiscoveredLink,
     GraphEdge,
@@ -179,10 +179,11 @@ class PCMCI:
         threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
-        names, cols = coerce_data(data, temporal=True)
+        names, cols, unit_lengths = coerce_temporal_data(data)
         return _discover_pcmci(
             names,
             cols,
+            unit_lengths=unit_lengths,
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
@@ -246,10 +247,11 @@ class PCMCIPlus:
         threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
-        names, cols = coerce_data(data, temporal=True)
+        names, cols, unit_lengths = coerce_temporal_data(data)
         return _discover_pcmci_plus(
             names,
             cols,
+            unit_lengths=unit_lengths,
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
@@ -309,10 +311,11 @@ class LPCMCI:
         threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
-        names, cols = coerce_data(data, temporal=True)
+        names, cols, unit_lengths = coerce_temporal_data(data)
         return _discover_lpcmci(
             names,
             cols,
+            unit_lengths=unit_lengths,
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
@@ -971,10 +974,11 @@ class DbnPosterior:
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
-        names, cols = coerce_data(data, temporal=True)
+        names, cols, unit_lengths = coerce_temporal_data(data)
         return _discover_dbn_posterior(
             names,
             cols,
+            unit_lengths=unit_lengths,
             max_lag=self.max_lag,
             force_mcmc=self.force_mcmc,
             n_chains=self.n_chains,

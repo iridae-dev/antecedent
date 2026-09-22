@@ -1043,6 +1043,11 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     let binding = result.primary_interval_binding(false);
     assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
     assert_eq!(binding.dependence, "circular_block:mixture");
+    // The same replicate SD with no block family recorded models no serial correlation on a
+    // series; it is not the `iid` construction a calibration of exchangeable rows describes.
+    let mut unblocked = result.clone();
+    unblocked.estimate.block_family = None;
+    assert_eq!(unblocked.primary_interval_binding(false).dependence, "serial_unmodelled");
     match &result.mediation_grid.as_ref().unwrap().slices[0].uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
             requested,

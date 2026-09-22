@@ -108,6 +108,36 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        self.run_units(std::slice::from_ref(data), variables, prior, score_family, ctx)
+    }
+
+    /// Infer the DBN template posterior from the units of a panel: every unit's lag windows are
+    /// built inside that unit and the rows are pooled into one score data set, so the template is
+    /// the one structure the exchangeable units share and no unit boundary supplies a lagged
+    /// parent.
+    ///
+    /// # Errors
+    ///
+    /// No usable rows, unsupported size, score, or empty support.
+    pub fn run_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        prior: &GraphPrior,
+        score_family: GraphScoreFamily,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphPosterior, DiscoveryError> {
+        self.run_units(units, variables, prior, score_family, ctx)
+    }
+
+    fn run_units(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        prior: &GraphPrior,
+        score_family: GraphScoreFamily,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphPosterior, DiscoveryError> {
         let _ = ctx;
         prior.constraints.validate()?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
@@ -134,7 +164,7 @@ impl DbnPosterior {
             ));
         }
 
-        let (score_data, _) = build_lagged_score_data(data, variables, max_lag)?;
+        let (score_data, _) = build_lagged_score_data(units, variables, max_lag)?;
         let use_exact = !self.force_mcmc
             && p <= DBN_EXACT_MAX_VARS
             && max_lag <= DBN_EXACT_MAX_LAG
@@ -410,32 +440,39 @@ fn initial_dbn_state(
     Ok((cmask, lmask, score))
 }
 
+/// Lagged score rows of every unit, stacked: each unit's `(x_t, x_{t-1}, ..., x_{t-L})` rows are
+/// built inside that unit, so a row never takes a lagged value from another unit.
 fn build_lagged_score_data(
-    data: &TimeSeriesData,
+    units: &[TimeSeriesData],
     variables: &[VariableId],
     max_lag: u32,
 ) -> Result<(GraphScoreData, usize), DiscoveryError> {
     let p = variables.len();
-    let t_len = data.row_count();
     let l = max_lag as usize;
-    if t_len <= l + 1 {
+    let n_cols = p * (l + 1);
+    let n_rows: usize = units.iter().map(|unit| unit.row_count().saturating_sub(l)).sum();
+    if n_rows < 2 {
         return Err(DiscoveryError::stats_msg("insufficient time points for DBN lag window"));
     }
-    let n_rows = t_len - l;
-    let n_cols = p * (l + 1);
     let mut flat = vec![0.0; n_cols * n_rows];
-    for (vi, &vid) in variables.iter().enumerate() {
-        let series = data.float64_values(vid).map_err(DiscoveryError::from)?;
-        if series.len() != t_len {
-            return Err(DiscoveryError::data_msg("series length mismatch"));
-        }
-        for lag in 0..=l {
-            let col = lag * p + vi;
-            for r in 0..n_rows {
-                let t = r + l;
-                flat[col * n_rows + r] = series[t - lag];
+    let mut offset = 0;
+    for data in units {
+        let t_len = data.row_count();
+        let unit_rows = t_len.saturating_sub(l);
+        for (vi, &vid) in variables.iter().enumerate() {
+            let series = data.float64_values(vid).map_err(DiscoveryError::from)?;
+            if series.len() != t_len {
+                return Err(DiscoveryError::data_msg("series length mismatch"));
+            }
+            for lag in 0..=l {
+                let col = lag * p + vi;
+                for r in 0..unit_rows {
+                    let t = r + l;
+                    flat[col * n_rows + offset + r] = series[t - lag];
+                }
             }
         }
+        offset += unit_rows;
     }
     Ok((GraphScoreData::new(n_rows, n_cols, Arc::from(flat))?, n_rows))
 }

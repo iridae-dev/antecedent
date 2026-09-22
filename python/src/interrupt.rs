@@ -8,7 +8,8 @@
 //! engines already poll cooperatively) and the `KeyboardInterrupt` is what the caller gets back.
 //!
 //! Python callables invoked from native code fail with a `PyErr` that would otherwise be reduced
-//! to a message. [`callback_failure`] keeps the original exception; [`attribute`] re-raises it
+//! to a message. [`callback_failure`] keeps the original exception under an id its message
+//! carries; [`attribute`] looks it up by that id and re-raises it
 //! (`KeyboardInterrupt`, `SystemExit`, ... unchanged) or chains it as `__cause__` of the domain
 //! error, so tracebacks into user code survive and `except CausalError` cannot swallow an
 //! interrupt.
@@ -16,6 +17,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -33,7 +36,7 @@ const POLL: Duration = Duration::from_millis(50);
 const WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
 
 /// Retained callback failures; older entries are stale (their run already returned).
-const MAX_STASHED: usize = 16;
+const MAX_STASHED: usize = 256;
 
 /// Tokens the interrupt loop cancels for one run.
 #[derive(Default)]
@@ -87,18 +90,34 @@ pub(crate) fn link(token: &CancellationToken) {
     }
 }
 
-static STASH: Mutex<Vec<(String, PyErr)>> = Mutex::new(Vec::new());
+/// Callback failures awaiting attribution, by the id their message carries.
+static STASH: Mutex<BTreeMap<u64, PyErr>> = Mutex::new(BTreeMap::new());
+
+/// Source of callback-failure ids; one id per recorded failure, never reused.
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+const TAG_OPEN: &str = "[callback failure #";
 
 /// Record the Python exception behind a callback failure and return the message the domain error
-/// should carry. The message doubles as the key [`attribute`] matches on.
+/// should carry. The message ends in an id tag that [`attribute`] looks the exception up by, so
+/// two runs whose callbacks fail with byte-identical text can never be attributed to each other.
 pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
-    let message = format!("{what}: {err}");
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    let message = format!("{what}: {err} {TAG_OPEN}{id}]");
     let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-    if stash.len() >= MAX_STASHED {
-        stash.remove(0);
+    while stash.len() >= MAX_STASHED {
+        stash.pop_first();
     }
-    stash.push((message.clone(), err));
+    stash.insert(id, err);
     message
+}
+
+/// The callback-failure ids a domain error message carries, in order of appearance.
+fn tagged_ids(text: &str) -> impl Iterator<Item = u64> + '_ {
+    text.match_indices(TAG_OPEN).filter_map(|(at, _)| {
+        let rest = &text[at + TAG_OPEN.len()..];
+        rest.split_once(']')?.0.parse().ok()
+    })
 }
 
 /// Replace a domain error that wraps a callback failure with the Python exception behind it.
@@ -108,10 +127,9 @@ pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
 pub(crate) fn attribute(py: Python<'_>, err: PyErr) -> PyErr {
     let text = err.value(py).to_string();
     let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-    let Some(at) = stash.iter().position(|(message, _)| text.contains(message.as_str())) else {
+    let Some(original) = tagged_ids(&text).find_map(|id| stash.remove(&id)) else {
         return err;
     };
-    let (_, original) = stash.remove(at);
     drop(stash);
     if original.is_instance_of::<PyException>(py) {
         err.set_cause(py, Some(original));
@@ -176,4 +194,24 @@ where
         }
     });
     outcome.map_err(|e| attribute(py, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TAG_OPEN, tagged_ids};
+
+    #[test]
+    fn a_domain_error_names_its_callback_failures_by_id_not_by_text() {
+        // Two runs whose callbacks fail with byte-identical text carry different ids, so
+        // attribution keyed on the id cannot hand one run the other's exception.
+        let first = format!("Python CI callback failed: ValueError: boom {TAG_OPEN}7]");
+        let second = format!("Python CI callback failed: ValueError: boom {TAG_OPEN}8]");
+        assert_ne!(first, second);
+        assert_eq!(tagged_ids(&first).collect::<Vec<_>>(), vec![7]);
+        assert_eq!(tagged_ids(&second).collect::<Vec<_>>(), vec![8]);
+        let wrapped = format!("discovery failed: backend: {second}");
+        assert_eq!(tagged_ids(&wrapped).collect::<Vec<_>>(), vec![8]);
+        assert_eq!(tagged_ids("no tag here").count(), 0);
+        assert_eq!(tagged_ids(&format!("{TAG_OPEN}not a number]")).count(), 0);
+    }
 }

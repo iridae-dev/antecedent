@@ -97,11 +97,14 @@ use antecedent::discovery::{
     RegimeAssignment, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
     discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
     discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
-    discover_lpcmci as facade_discover_lpcmci, discover_notears as facade_discover_notears,
-    discover_pc as facade_discover_pc, discover_pcmci as facade_discover_pcmci,
-    discover_pcmci_plus as facade_discover_pcmci_plus, discover_rfci as facade_discover_rfci,
-    discover_rpcmci as facade_discover_rpcmci, pag_definite_directed_edge_count,
-    two_regime_half_split,
+    discover_lpcmci as facade_discover_lpcmci,
+    discover_lpcmci_panel as facade_discover_lpcmci_panel,
+    discover_notears as facade_discover_notears, discover_pc as facade_discover_pc,
+    discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
+    discover_pcmci_plus as facade_discover_pcmci_plus,
+    discover_pcmci_plus_panel as facade_discover_pcmci_plus_panel,
+    discover_rfci as facade_discover_rfci, discover_rpcmci as facade_discover_rpcmci,
+    pag_definite_directed_edge_count, two_regime_half_split,
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
 use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
@@ -295,13 +298,7 @@ pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
 /// Build the Python exception for a refusal, carrying its `reason=<code>:` prefix.
 fn unsupported_py_err(message: String) -> PyErr {
     // A support-matrix refusal renders its verdict first: `refused: reason=<code>: …`.
-    let reason = antecedent_core::reason_code::split_prefix(&message)
-        .or_else(|| {
-            message
-                .split_once(": ")
-                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
-        })
-        .map(|(code, _)| code.to_string());
+    let reason = reason_code_in_message(&message).map(str::to_string);
     Python::attach(|py| {
         let err: PyErr = UNSUPPORTED_ERROR_CLASS
             .get(py)
@@ -547,122 +544,132 @@ where
     interrupt::run(py, f)
 }
 
+/// The registered reason code a converted [`RustCausalError`] carries, if it has one.
+///
+/// The one owner of which native refusal raises which code: [`IntoCausalPyErr`] attaches
+/// exactly this, so a caller reads `reason_code` off the exception and never parses the
+/// message. A code the error names in its own `reason=<code>:` message wins over the
+/// variant's default; an unregistered code is never attached.
+fn reason_code_of(error: &RustCausalError) -> Option<String> {
+    use antecedent_core::reason_code;
+    let message = error.to_string();
+    let named = reason_code_in_message(&message)
+        .filter(|code| reason_code::is_registered(code))
+        .map(str::to_string);
+    let default = match error {
+        RustCausalError::Graph(e) => Some(if matches!(e, GraphError::UnknownVariableName { .. }) {
+            reason_code!("unknown_variable")
+        } else {
+            reason_code!("graph_invalid")
+        }),
+        RustCausalError::Schema(
+            SchemaError::UnknownVariableName { .. } | SchemaError::UnknownVariableId { .. },
+        ) => Some(reason_code!("unknown_variable")),
+        RustCausalError::SchemaMismatch { .. } => Some(reason_code!("schema_mismatch")),
+        RustCausalError::NotIdentified { .. } => Some(reason_code!("effect_not_identified")),
+        RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
+        // A matrix refusal without a finer registered code carries the code of its cell verdict.
+        RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
+            reason_code!("cell_not_applicable")
+        } else {
+            reason_code!("cell_not_licensed")
+        }),
+        RustCausalError::Missing { .. } => Some(reason_code!("required_option_missing")),
+        RustCausalError::Conflict { .. } => Some(reason_code!("invalid_argument")),
+        _ => None,
+    };
+    named.or_else(|| default.map(str::to_string))
+}
+
+/// The registered-shape `reason=<code>:` a message opens with, directly or after one
+/// `<label>: ` (a matrix refusal renders its verdict first: `refused: reason=<code>: ...`).
+fn reason_code_in_message(message: &str) -> Option<&str> {
+    antecedent_core::reason_code::split_prefix(message)
+        .or_else(|| {
+            message
+                .split_once(": ")
+                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
+        })
+        .map(|(code, _)| code)
+}
+
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
-        match self {
-            Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
-            // A reason-coded estimator refusal is the one refusal class, as a Rust
-            // `Unsupported` refusal is.
-            Self::Estimate(
-                e @ (antecedent_estimate::EstimationError::Refused { .. }
-                | antecedent_estimate::EstimationError::TargetPopulation),
-            ) => unsupported_py_err(e.to_string()),
-            Self::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
-            Self::Validate(e) => CausalValidateError::new_err(e.to_string()),
-            Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
-            Self::Model(e) => CausalModelError::new_err(e.to_string()),
-            Self::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
-            Self::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
-            Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
-            Self::Data(e) => CausalDataError::new_err(e.to_string()),
-            Self::Graph(e) => {
-                let code = if matches!(e, GraphError::UnknownVariableName { .. }) {
-                    antecedent_core::reason_code!("unknown_variable")
-                } else {
-                    antecedent_core::reason_code!("graph_invalid")
-                };
-                with_reason_code(CausalGraphError::new_err(e.to_string()), code)
-            }
-            Self::Design(e) => CausalDesignError::new_err(e.to_string()),
-            Self::Callback { name, message } => {
-                CausalDesignError::new_err(format!("callback {name}: {message}"))
-            }
-            Self::State(e) => match &e {
-                antecedent::state::StateError::CacheBudget { .. } => {
-                    CausalResourceError::new_err(e.to_string())
-                }
-                _ => CausalStateError::new_err(e.to_string()),
-            },
-            Self::Schema(e) => {
-                let err = CausalDataError::new_err(e.to_string());
-                match e {
-                    SchemaError::UnknownVariableName { .. }
-                    | SchemaError::UnknownVariableId { .. } => {
-                        with_reason_code(err, antecedent_core::reason_code!("unknown_variable"))
-                    }
-                    _ => err,
-                }
-            }
-            // A structure that does not describe the table is a data problem, and
-            // callers should be able to catch it as one rather than the root class.
-            Self::SchemaMismatch { detail } => with_reason_code(
-                CausalDataError::new_err(detail),
-                antecedent_core::reason_code!("schema_mismatch"),
-            ),
-            Self::Compile { message } => {
-                let code = antecedent_core::reason_code::split_prefix(&message)
-                    .map(|(code, _)| code.to_string());
-                let err = CausalCompileError::new_err(message);
-                match code {
-                    Some(code) => with_reason_code(err, &code),
-                    None => err,
-                }
-            }
-            Self::NotIdentified { status, search_capped, message } => {
-                not_identified_py_err(status.as_str(), search_capped, message)
-            }
-            Self::Resource { message } => CausalResourceError::new_err(message),
-            Self::ReviewRequired {
-                kind,
-                algorithm,
-                pending_edge_count,
-                pending_edges,
-                message,
-                hint,
-            } => review_required_py_err(
-                kind,
-                algorithm,
-                pending_edge_count,
-                pending_edges,
-                message,
-                hint,
-            ),
-            Self::Unsupported { message } => with_default_reason_code(
-                unsupported_py_err(message.to_string()),
-                antecedent_core::reason_code!("route_not_supported"),
-            ),
-            Self::Support { id, message } => {
-                // A matrix refusal without a finer registered code carries the
-                // code of its cell verdict.
-                let code = match antecedent_core::reason_code::split_prefix(message) {
-                    Some((code, _)) => code,
-                    None if id.as_str() == "not_applicable" => {
-                        antecedent_core::reason_code!("cell_not_applicable")
-                    }
-                    None => antecedent_core::reason_code!("cell_not_licensed"),
-                };
-                with_default_reason_code(unsupported_py_err(format!("{id}: {message}")), code)
-            }
-            Self::Missing { field } => {
-                CausalCompileError::new_err(format!("missing required field: {field}"))
-            }
-            Self::Cancelled { stage } => {
-                CausalCancelledError::new_err(format!("cancelled during {stage}"))
-            }
-            // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
-            // hierarchy root rather than failing the build. Give new variants an explicit
-            // arm above when their Python-facing category is decided.
-            ref other => {
-                let message = other.to_string();
-                let code = antecedent_core::reason_code::split_prefix(&message)
-                    .map(|(code, _)| code.to_string());
-                let err = CausalError::new_err(message);
-                match code {
-                    Some(code) => with_reason_code(err, &code),
-                    None => err,
-                }
-            }
+        let code = reason_code_of(&self);
+        let err = uncoded_py_err(self);
+        match code {
+            Some(code) => with_default_reason_code(err, &code),
+            None => err,
         }
+    }
+}
+
+/// The Python exception of an error's class, before its reason code is attached (see
+/// [`reason_code_of`]).
+fn uncoded_py_err(error: RustCausalError) -> PyErr {
+    match error {
+        RustCausalError::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
+        // A reason-coded estimator refusal is the one refusal class, as a Rust
+        // `Unsupported` refusal is.
+        RustCausalError::Estimate(
+            e @ (antecedent_estimate::EstimationError::Refused { .. }
+            | antecedent_estimate::EstimationError::TargetPopulation),
+        ) => unsupported_py_err(e.to_string()),
+        RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
+        RustCausalError::Validate(e) => CausalValidateError::new_err(e.to_string()),
+        RustCausalError::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
+        RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
+        RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
+        RustCausalError::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
+        RustCausalError::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
+        RustCausalError::Data(e) => CausalDataError::new_err(e.to_string()),
+        RustCausalError::Graph(e) => CausalGraphError::new_err(e.to_string()),
+        RustCausalError::Design(e) => CausalDesignError::new_err(e.to_string()),
+        RustCausalError::Callback { name, message } => {
+            CausalDesignError::new_err(format!("callback {name}: {message}"))
+        }
+        RustCausalError::State(e) => match &e {
+            antecedent::state::StateError::CacheBudget { .. } => {
+                CausalResourceError::new_err(e.to_string())
+            }
+            _ => CausalStateError::new_err(e.to_string()),
+        },
+        // A structure that does not describe the table is a data problem, and
+        // callers should be able to catch it as one rather than the root class.
+        RustCausalError::Schema(e) => CausalDataError::new_err(e.to_string()),
+        RustCausalError::SchemaMismatch { detail } => CausalDataError::new_err(detail),
+        RustCausalError::Compile { message } => CausalCompileError::new_err(message),
+        RustCausalError::NotIdentified { status, search_capped, message } => {
+            not_identified_py_err(status.as_str(), search_capped, message)
+        }
+        RustCausalError::Resource { message } => CausalResourceError::new_err(message),
+        RustCausalError::ReviewRequired {
+            kind,
+            algorithm,
+            pending_edge_count,
+            pending_edges,
+            message,
+            hint,
+        } => review_required_py_err(
+            kind,
+            algorithm,
+            pending_edge_count,
+            pending_edges,
+            message,
+            hint,
+        ),
+        RustCausalError::Unsupported { message } => unsupported_py_err(message.to_string()),
+        RustCausalError::Support { id, message } => unsupported_py_err(format!("{id}: {message}")),
+        RustCausalError::Missing { field } => {
+            CausalCompileError::new_err(format!("missing required field: {field}"))
+        }
+        RustCausalError::Cancelled { stage } => {
+            CausalCancelledError::new_err(format!("cancelled during {stage}"))
+        }
+        // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
+        // hierarchy root rather than failing the build. Give new variants an explicit
+        // arm above when their Python-facing category is decided.
+        ref other => CausalError::new_err(other.to_string()),
     }
 }
 
@@ -2714,6 +2721,70 @@ mod tests {
         assert!(result.reports.is_empty());
         assert_eq!(result.computation_failures[0].validator, "overlap");
         assert_eq!(result.computation_failures[0].reason, "singular fit");
+    }
+
+    /// Every refusal-shaped `CausalError` variant raises one registered reason code, taken
+    /// from its own `reason=<code>:` message when it names one and from its variant
+    /// otherwise; a code the vocabulary does not list is never attached.
+    #[test]
+    fn every_native_refusal_variant_names_its_registered_reason_code() {
+        use super::{RustCausalError as E, reason_code_of};
+        use antecedent::support::SupportRefusal;
+        use antecedent_core::{IdentificationStatus, SchemaError};
+        use antecedent_graph::GraphError;
+
+        let named =
+            format!("{}data_modality_not_licensed: panel", antecedent_core::reason_code::PREFIX);
+        let unregistered =
+            format!("{}not_a_registered_code: x", antecedent_core::reason_code::PREFIX);
+        let cases: Vec<(E, Option<&str>)> = vec![
+            (
+                E::Graph(GraphError::UnknownVariableName { name: "a".into() }),
+                Some("unknown_variable"),
+            ),
+            (E::Graph(GraphError::Cycle { from: 0, to: 1 }), Some("graph_invalid")),
+            (
+                E::Schema(SchemaError::UnknownVariableName { name: "a".into() }),
+                Some("unknown_variable"),
+            ),
+            (E::Schema(SchemaError::UnknownVariableId { id: 3 }), Some("unknown_variable")),
+            (E::Schema(SchemaError::TooManyVariables), None),
+            (E::SchemaMismatch { detail: "x".into() }, Some("schema_mismatch")),
+            (
+                E::NotIdentified {
+                    status: IdentificationStatus::NotIdentified,
+                    search_capped: false,
+                    message: "no estimand".into(),
+                },
+                Some("effect_not_identified"),
+            ),
+            (E::Unsupported { message: "no such route" }, Some("route_not_supported")),
+            (
+                E::Support { id: SupportRefusal::NotApplicable, message: "typed-impossible" },
+                Some("cell_not_applicable"),
+            ),
+            (
+                E::Support { id: SupportRefusal::Refused, message: "not licensed" },
+                Some("cell_not_licensed"),
+            ),
+            (E::Missing { field: "outcome" }, Some("required_option_missing")),
+            (E::Conflict { what: "seed", detail: "set once" }, Some("invalid_argument")),
+            // A message that names its own registered code wins over the variant default.
+            (E::Compile { message: named.clone() }, Some("data_modality_not_licensed")),
+            (
+                E::Unsupported { message: "refused: reason=cell_not_licensed: x" },
+                Some("cell_not_licensed"),
+            ),
+            // An unregistered code is not attached; the variant default stands.
+            (E::Compile { message: unregistered }, None),
+            (E::Compile { message: "plain compile failure".into() }, None),
+            (E::Resource { message: "memory".into() }, None),
+            (E::Cancelled { stage: "estimate" }, None),
+        ];
+        for (error, expected) in cases {
+            let label = error.to_string();
+            assert_eq!(reason_code_of(&error).as_deref(), expected, "{label}");
+        }
     }
 
     #[test]

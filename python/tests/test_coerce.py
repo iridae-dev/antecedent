@@ -134,6 +134,7 @@ def test_coerce_data_refuses_environment_pooling():
 
 
 def test_coerce_data_refuses_lagged_panel_pooling():
+    """Row-pooling units into one series is refused; the per-unit design is not."""
     panel = antecedent.data.panel(
         [
             {"x": [0.0, 1.0, 2.0, 3.0]},
@@ -143,11 +144,27 @@ def test_coerce_data_refuses_lagged_panel_pooling():
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="unit boundary") as info:
         _coerce.coerce_data(panel, temporal=True)
     assert info.value.reason_code == "data_modality_not_licensed"
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="unit boundary"):
-        _coerce.discovery_table(panel, temporal=True)
+    # A lagged algorithm with a per-unit design keeps the panel as a panel.
+    assert _coerce.discovery_table(panel, temporal=True) is panel
     static = _coerce.discovery_table(panel)
     assert list(static) == ["x"]
     assert len(static["x"]) == 8
+
+
+def test_coerce_temporal_data_passes_unit_lengths_for_a_panel():
+    panel = antecedent.data.panel(
+        [
+            {"x": [0.0, 1.0, 2.0, 3.0]},
+            {"x": [100.0, 101.0, 102.0]},
+        ]
+    )
+    names, cols, unit_lengths = _coerce.coerce_temporal_data(panel)
+    assert names == ["x"]
+    assert unit_lengths == [4, 3]
+    np.testing.assert_array_equal(cols[0], [0.0, 1.0, 2.0, 3.0, 100.0, 101.0, 102.0])
+    names, cols, unit_lengths = _coerce.coerce_temporal_data({"x": [0.0, 1.0, 2.0]})
+    assert unit_lengths is None
+    assert len(cols[0]) == 3
 
 
 # --------------------------------------------------------------------------
