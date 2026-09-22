@@ -77,8 +77,8 @@ mod static_dgp;
 
 use calibration::{
     Construction, CoverageTally, RECHECK_N_SIM, REPORTED_LEVEL, RecordKey, SKIP_CAP_DEN,
-    SKIP_CAP_NUM, ScopeFacts, Z95, coverage_band, coverage_mcse, grid_n, grid_seed, n_sim,
-    needs_recheck, passes_precision, precision_ceiling, precision_floor,
+    SKIP_CAP_NUM, ScopeFacts, Z95, coverage_band, coverage_mcse, grid_n, grid_seed, map_replicates,
+    n_sim, needs_recheck, passes_precision, precision_ceiling, precision_floor,
 };
 
 const TRUE_ATE: f64 = 2.0;
@@ -412,11 +412,13 @@ fn linear_adjustment_analytic_ci_coverage() {
     let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
     let ctx = ExecutionContext::for_tests(1);
     let mut tally = Tally::for_record("linear_adjustment_analytic_ci_coverage", "confounded_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = confounded_scm(n_obs(), 1000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = confounded_scm(n_obs(), 1000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::adjustment::EstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -434,11 +436,13 @@ fn linear_adjustment_hc1_ci_coverage() {
     };
     let ctx = ExecutionContext::for_tests(11);
     let mut tally = Tally::for_record("linear_adjustment_hc1_ci_coverage", "confounded_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = confounded_scm(n_obs(), 1100 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = confounded_scm(n_obs(), 1100 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::adjustment::EstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -452,14 +456,16 @@ fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
     let mut tally = Tally::for_record("ipw_hajek_bootstrap_ci_coverage", "confounded_scm");
-    for s in 0..n_sim() {
+    let effects = map_replicates(n_sim(), |s| {
         // One context per simulation: a shared context would hand every
         // simulation the same bootstrap resample indices.
-        let ctx = ExecutionContext::for_tests(2000 + u64::from(s));
-        let (data, estimand) = confounded_scm(grid_n(500), 2000 + u64::from(s));
+        let ctx = ExecutionContext::for_tests(2000 + s);
+        let (data, estimand) = confounded_scm(grid_n(500), 2000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         let Some(se_b) = effect.se_bootstrap else {
             // Missing SE is a miss in the coverage rate, not a dropped replicate.
             if let Some((record, _)) = tally.record.as_mut() {
@@ -481,11 +487,13 @@ fn ipw_hajek_analytic_ci_coverage() {
     let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
     let ctx = ExecutionContext::for_tests(2);
     let mut tally = Tally::for_record("ipw_hajek_analytic_ci_coverage", "confounded_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = confounded_scm(grid_n(500), 2100 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = confounded_scm(grid_n(500), 2100 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(grid_n(500), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -527,15 +535,17 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
         "ipw_hajek_analytic_conformance_scm_ci_coverage",
         "propensity_ipw_conformance_scm",
     );
-    for s in 0..n_sim() {
-        let mut rng = ExecutionContext::for_tests(grid_seed(3 + 1000 * u64::from(s)))
+    let n = grid_n(1200);
+    let effects = map_replicates(n_sim(), |s| {
+        let mut rng = ExecutionContext::for_tests(grid_seed(3 + 1000 * s))
             .rng
             .stream_for(StreamDomain::Estimate, 0x5051_u64);
-        let n = grid_n(1200);
         let data = propensity_ipw_conformance_scm(n, &mut rng);
         let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n, None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -549,11 +559,13 @@ fn aipw_analytic_ci_coverage() {
     let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
     let ctx = ExecutionContext::for_tests(3);
     let mut tally = Tally::for_record("aipw_analytic_ci_coverage", "confounded_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = confounded_scm(n_obs(), 3000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = confounded_scm(n_obs(), 3000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::aipw::AipwWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -628,16 +640,17 @@ fn aipw_residualized_tally(
         .with_target_population(population);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "heterogeneous_binary_scm");
-    for s in 0..n_sim() {
-        let (data, clusters) =
-            heterogeneous_binary_scm(grid_n(600), seed + u64::from(s), cluster_sd);
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, clusters) = heterogeneous_binary_scm(grid_n(600), seed + s, cluster_sd);
         let mut est = AipwAte { bootstrap_replicates: 0, se_kind, ..AipwAte::new() };
         if matches!(se_kind, AnalyticSeKind::Cluster) {
             est = est.with_cluster_ids(clusters);
         }
         let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
         let mut ws = crate::aipw::AipwWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(grid_n(600), None);
         tally.record(effect.ate, effect.se_analytic, truth);
     }
@@ -727,11 +740,13 @@ fn matching_homoskedastic_ci_coverage() {
     };
     let ctx = ExecutionContext::for_tests(4);
     let mut tally = Tally::for_record("matching_homoskedastic_ci_coverage", "confounded_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = confounded_scm(n_obs(), 4000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = confounded_scm(n_obs(), 4000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -786,8 +801,10 @@ fn wald_coverage_on(
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, dgp);
     let mut weak_f = 0u32;
-    for s in 0..n_sim() {
-        let (data, estimand) = make(n_obs(), seed * 1000 + u64::from(s));
+    // Per replicate: the point, whether the first stage read weak, and the
+    // Anderson–Rubin set the tally scores (`None` is a miss).
+    let scored = map_replicates(n_sim(), |s| {
+        let (data, estimand) = make(n_obs(), seed * 1000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
         assert!(
@@ -796,11 +813,8 @@ fn wald_coverage_on(
         );
         assert!(effect.se_bootstrap.is_none(), "{label}: bootstrap SE must not be published");
         let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
-        if diag.f_statistic.is_finite() && diag.f_statistic < 10.0 {
-            weak_f += 1;
-        }
-        tally.bind(n_obs(), None);
-        if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+        let weak = diag.f_statistic.is_finite() && diag.f_statistic < 10.0;
+        let set = if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
             let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
             if interval.is_none()
                 && diag.uncertainty_withheld == Some("anderson_rubin_set_is_union")
@@ -830,13 +844,10 @@ fn wald_coverage_on(
                     1,
                     prep.nrows.saturating_sub(1 + prep.x_ncols),
                 );
-                if ar_true.is_finite() && ar_true <= crit {
-                    tally.record_ar(effect.ate, Some((f64::NEG_INFINITY, f64::INFINITY)), TRUE_ATE);
-                } else {
-                    tally.record_ar(effect.ate, None, TRUE_ATE);
-                }
+                (ar_true.is_finite() && ar_true <= crit)
+                    .then_some((f64::NEG_INFINITY, f64::INFINITY))
             } else {
-                tally.record_ar(effect.ate, interval, TRUE_ATE);
+                interval
             }
         } else {
             assert!(
@@ -845,8 +856,14 @@ fn wald_coverage_on(
             );
             assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
             // No licensed interval product — score as a miss, not a Wald SE.
-            tally.record_ar(effect.ate, None, TRUE_ATE);
-        }
+            None
+        };
+        (effect.ate, weak, set)
+    });
+    for &(ate, weak, set) in &scored {
+        weak_f += u32::from(weak);
+        tally.bind(n_obs(), None);
+        tally.record_ar(ate, set, TRUE_ATE);
     }
     if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
         let weak_share = f64::from(weak_f) / f64::from(n_sim().max(1));
@@ -921,16 +938,17 @@ fn two_sls_coverage(
         TwoStageLeastSquares { bootstrap_replicates: 0, se_kind, ..TwoStageLeastSquares::new() };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "two_sls_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = two_sls_scm(grid_n(500), seed + u64::from(s), heteroskedastic);
+    // Per replicate: the point and the Anderson–Rubin set the tally scores
+    // (`None` is a miss).
+    let scored = map_replicates(n_sim(), |s| {
+        let (data, estimand) = two_sls_scm(grid_n(500), seed + s, heteroskedastic);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         assert!(!effect.se_analytic.is_finite(), "{label}: Wald SE must not be published");
         assert!(effect.se_bootstrap.is_none());
         let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
-        tally.bind(grid_n(500), None);
-        if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
+        let set = if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
             let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
             if interval.is_none()
                 && diag.uncertainty_withheld == Some("anderson_rubin_set_is_union")
@@ -955,19 +973,21 @@ fn two_sls_coverage(
                     z_ncols,
                     prep.nrows.saturating_sub(z_ncols + prep.x_ncols),
                 );
-                if ar_true.is_finite() && ar_true <= crit {
-                    tally.record_ar(effect.ate, Some((f64::NEG_INFINITY, f64::INFINITY)), TRUE_ATE);
-                } else {
-                    tally.record_ar(effect.ate, None, TRUE_ATE);
-                }
+                (ar_true.is_finite() && ar_true <= crit)
+                    .then_some((f64::NEG_INFINITY, f64::INFINITY))
             } else {
-                tally.record_ar(effect.ate, interval, TRUE_ATE);
+                interval
             }
         } else {
             assert!(diag.anderson_rubin.is_none());
             assert_eq!(diag.uncertainty_withheld, Some("anderson_rubin_requires_homoskedastic"));
-            tally.record_ar(effect.ate, None, TRUE_ATE);
-        }
+            None
+        };
+        (effect.ate, set)
+    });
+    for &(ate, set) in &scored {
+        tally.bind(grid_n(500), None);
+        tally.record_ar(ate, set, TRUE_ATE);
     }
     if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
         tally.assert(label);
@@ -1030,11 +1050,13 @@ fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, 
     let est = FrontDoorTwoStage { bootstrap_replicates: 0, se_kind, ..FrontDoorTwoStage::new() };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, "frontdoor_scm");
-    for s in 0..n_sim() {
-        let data = frontdoor_scm(grid_n(400), seed + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let data = frontdoor_scm(grid_n(400), seed + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = FrontDoorWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(grid_n(400), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -1121,8 +1143,8 @@ fn frontdoor_functional_coverage(test: &'static str, label: &str, discrete: bool
     };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, dgp);
-    for s in 0..n_sim() {
-        let data = frontdoor_functional_scm(grid_n(400), seed + u64::from(s), discrete);
+    let effects = map_replicates(n_sim(), |s| {
+        let data = frontdoor_functional_scm(grid_n(400), seed + s, discrete);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
         let recorded = effect.assumptions.entries.iter().any(|r| match &r.assumption {
@@ -1131,6 +1153,9 @@ fn frontdoor_functional_coverage(test: &'static str, label: &str, discrete: bool
             _ => false,
         });
         assert!(recorded, "{test}: the design must exercise {model}");
+        effect
+    });
+    for effect in &effects {
         tally.bind(grid_n(400), None);
         tally.record(effect.ate, effect.se_analytic, truth);
     }
@@ -1214,11 +1239,13 @@ fn rd_sharp_analytic_ci_coverage() {
     };
     let ctx = ExecutionContext::for_tests(6);
     let mut tally = Tally::for_record("rd_sharp_analytic_ci_coverage", "rd_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = rd_scm(n_obs(), 6000 + u64::from(s), 0.0, 1.0, false);
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = rd_scm(n_obs(), 6000 + s, 0.0, 1.0, false);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -1271,12 +1298,14 @@ fn rd_sharp_hc1_curved_heterogeneous_probe() {
             ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
         };
         let mut probe = Tally::default();
-        for s in 0..n_sim() {
+        let effects = map_replicates(n_sim(), |s| {
             // Only about `4h/9` of rows fall in the window, so draw ten times `n_obs`.
-            let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 6200 + u64::from(s));
+            let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 6200 + s);
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let mut ws = RdWorkspace::default();
-            let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+            est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+        });
+        for effect in &effects {
             probe.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
         }
         probe.report(&format!("rd_sharp_hc1_curved_heterogeneous_probe_h{bandwidth}"));
@@ -1300,14 +1329,17 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     let mut tally = Tally::for_record("rd_sharp_hc1_heteroskedastic_ci_coverage", "rd_scm");
     // Out-of-assumption probe (homoskedastic SE on a heteroskedastic law): no record.
     let mut probe = Tally::default();
-    for s in 0..n_sim() {
-        let (data, estimand) = rd_scm(n_obs(), 6100 + u64::from(s), 0.0, 1.0, true);
+    let fits = map_replicates(n_sim(), |s| {
+        let (data, estimand) = rd_scm(n_obs(), 6100 + s, 0.0, 1.0, true);
         let prep = hc1.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = hc1.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let naive = classical.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        (effect, naive)
+    });
+    for (effect, naive) in &fits {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
-        let naive = classical.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
         probe.record(naive.ate, naive.se_analytic, TRUE_ATE);
     }
     probe.report("rd_sharp_homoskedastic_se_heteroskedastic_probe");
@@ -1390,12 +1422,13 @@ fn dml_analytic_ci_coverage() {
     let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut skipped = 0u32;
     let rows = n_obs();
-    for s in 0..n_sim() {
-        let ctx = ExecutionContext::for_tests(80_000 + u64::from(s));
-        let (data, estimand) = confounded_scm(rows, 80_000 + u64::from(s));
-        let result = est
-            .prepare(&data, &estimand, &query)
-            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()));
+    let results = map_replicates(n_sim(), |s| {
+        let ctx = ExecutionContext::for_tests(80_000 + s);
+        let (data, estimand) = confounded_scm(rows, 80_000 + s);
+        est.prepare(&data, &estimand, &query)
+            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()))
+    });
+    for result in results {
         score_learner_replicate(&mut tally, &construction, rows, result, &mut skipped);
     }
     assert_learner_skip_cap("dml_analytic_ci_coverage", skipped, tally.attempts());
@@ -1417,12 +1450,13 @@ fn dr_learner_analytic_ci_coverage() {
     let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut skipped = 0u32;
     let rows = n_obs();
-    for s in 0..n_sim() {
-        let ctx = ExecutionContext::for_tests(81_000 + u64::from(s));
-        let (data, estimand) = confounded_scm(rows, 81_000 + u64::from(s));
-        let result = est
-            .prepare(&data, &estimand, &query)
-            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()));
+    let results = map_replicates(n_sim(), |s| {
+        let ctx = ExecutionContext::for_tests(81_000 + s);
+        let (data, estimand) = confounded_scm(rows, 81_000 + s);
+        est.prepare(&data, &estimand, &query)
+            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()))
+    });
+    for result in results {
         score_learner_replicate(&mut tally, &construction, rows, result, &mut skipped);
     }
     assert_learner_skip_cap("dr_learner_analytic_ci_coverage", skipped, tally.attempts());
@@ -1447,12 +1481,13 @@ fn causal_forest_analytic_ci_coverage() {
     let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut skipped = 0u32;
     let rows = n_obs();
-    for s in 0..n_sim() {
-        let ctx = ExecutionContext::for_tests(82_000 + u64::from(s));
-        let (data, estimand) = confounded_scm(rows, 82_000 + u64::from(s));
-        let result = est
-            .prepare(&data, &estimand, &query)
-            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()));
+    let results = map_replicates(n_sim(), |s| {
+        let ctx = ExecutionContext::for_tests(82_000 + s);
+        let (data, estimand) = confounded_scm(rows, 82_000 + s);
+        est.prepare(&data, &estimand, &query)
+            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()))
+    });
+    for result in results {
         score_learner_replicate(&mut tally, &construction, rows, result, &mut skipped);
     }
     assert_learner_skip_cap("causal_forest_analytic_ci_coverage", skipped, tally.attempts());
@@ -1531,11 +1566,13 @@ fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
     let ctx = ExecutionContext::for_tests(72);
     let mut tally =
         Tally::for_record("ipw_hajek_weak_overlap_adversarial_ci_coverage", "weak_overlap_scm");
-    for s in 0..n_sim() {
-        let (data, estimand) = weak_overlap_scm(grid_n(500), 72_000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = weak_overlap_scm(grid_n(500), 72_000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(grid_n(500), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
@@ -1559,11 +1596,13 @@ fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
         "rd_sharp_hc1_curved_adversarial_ci_coverage",
         "rd_curved_heterogeneous_scm",
     );
-    for s in 0..n_sim() {
-        let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 73_000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 73_000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(10 * n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
     }
@@ -1591,11 +1630,13 @@ fn matching_coverage_on(
     };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::for_record(test, dgp);
-    for s in 0..n_sim() {
-        let (data, estimand) = make(n_obs(), seed * 1000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let (data, estimand) = make(n_obs(), seed * 1000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(n_obs(), None);
         tally.record(effect.ate, effect.se_analytic, truth);
     }
@@ -1705,11 +1746,13 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
         "frontdoor_stacked_hc1_curved_mediator_ci_coverage",
         "frontdoor_curved_mediator_scm",
     );
-    for s in 0..n_sim() {
-        let data = frontdoor_curved_mediator_scm(grid_n(400), 40_000 + u64::from(s));
+    let effects = map_replicates(n_sim(), |s| {
+        let data = frontdoor_curved_mediator_scm(grid_n(400), 40_000 + s);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = FrontDoorWorkspace::default();
-        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
         tally.bind(grid_n(400), None);
         tally.record(effect.ate, effect.se_analytic, CURVED_TRUTH);
     }
