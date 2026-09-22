@@ -25,12 +25,12 @@ use std::sync::Arc;
 
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, CausalRng, DerivativeScale, DerivativeWeighting, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, IdentificationStatus, Intervention,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
-    VariableId,
+    AssumptionStatus, CausalResponse, CausalRng, CredibleDraws, DerivativeScale,
+    DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticSeverity, IdentificationStatus,
+    Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    StochasticPolicy, StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
+    TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -458,18 +458,23 @@ impl ContinuousResponseEstimator {
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let mut ess = Vec::new();
         let mut density = Vec::new();
+        // The draw vector each grid point's interval is the quantiles of is
+        // retained on the published uncertainty (`CredibleDraws`).
+        let mut retained: Vec<Vec<f64>> = Vec::with_capacity(grid.len());
         for &dose in &grid {
             weights[1] = dose;
-            let (mean, lo, hi, sd) = crate::bayesian::linear_response_summary(
-                &posterior,
-                &weights,
+            let values = crate::bayesian::linear_response_draws(&posterior, &weights)?;
+            let (mean, lo, hi, sd) = crate::bayesian::summarize_linear_response_draws(
+                values.clone(),
                 self.options.confidence_level,
             )?;
+            retained.push(values);
             means.push(mean);
             lower.push(lo);
             upper.push(hi);
             sds.push(sd);
         }
+        let draws = Some(CredibleDraws::columns(posterior.draws.n_draws, &retained));
         let support_points = support_grid.as_deref().unwrap_or(&grid);
         for &dose in support_points {
             let kernels: Vec<_> = sample
@@ -529,6 +534,7 @@ impl ContinuousResponseEstimator {
                 lower: lower[0],
                 upper: upper[0],
                 interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws,
             }
         } else {
             ResponseUncertainty::PointwiseBand {
@@ -536,6 +542,7 @@ impl ContinuousResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
                 interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws,
             }
         };
         Ok(CausalResponse {
@@ -610,7 +617,7 @@ impl ContinuousResponseEstimator {
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 (
                     ResponseValue::Scalar(mean),
-                    credible_scalar_uncertainty(sd, level, lo, hi),
+                    credible_scalar_uncertainty(sd, level, lo, hi, values),
                     support,
                     "bayesian.derivative.riesz_weighted_cross_fit",
                     "Each Rubin Bayesian-bootstrap draw cross-fits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights: every fold refits both nuisances on its weighted training rows and scores its held-out rows with the Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w), and the draw is the weighted mean of the held-out scores. This is not a frozen-score reweight of the first-fit φ_i. Held fixed: fold assignment, spline knots, and penalty. Estimator identity stays response.riesz_ade",
@@ -799,12 +806,19 @@ impl ContinuousResponseEstimator {
                     let (corrected_mean, lo, hi, sd) =
                         summarize_scalar_draws(&corrected_scalars, level)?;
                     support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
-                    (ResponseValue::Scalar(mean), credible_scalar_uncertainty(sd, level, lo, hi))
+                    // The retained draws are the bias-corrected ones: the interval's.
+                    (
+                        ResponseValue::Scalar(mean),
+                        credible_scalar_uncertainty(sd, level, lo, hi, corrected_scalars),
+                    )
                 } else {
                     let dim = vectors.first().map_or(0, Vec::len);
                     let mut means = vec![0.0; dim];
                     let mut lower = vec![0.0; dim];
                     let mut upper = vec![0.0; dim];
+                    // Retained per coordinate *after* the edf inflation: the
+                    // vector the band's quantiles were taken from.
+                    let mut columns: Vec<Vec<f64>> = Vec::with_capacity(dim);
                     for j in 0..dim {
                         let mut col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
                         // Columns are outcome-major (Jacobian) or one per outcome
@@ -815,7 +829,9 @@ impl ContinuousResponseEstimator {
                         means[j] = mean;
                         lower[j] = lo;
                         upper[j] = hi;
+                        columns.push(col);
                     }
+                    let draws = Some(CredibleDraws::columns(draws_n, &columns));
                     let value = match &point {
                         ResponseValue::Jacobian { outcomes, treatments, .. } => {
                             ResponseValue::Jacobian {
@@ -833,6 +849,7 @@ impl ContinuousResponseEstimator {
                             lower: Arc::from(lower),
                             upper: Arc::from(upper),
                             interpretation: antecedent_core::IntervalInterpretation::Credible,
+                            draws,
                         },
                     )
                 };
@@ -1132,6 +1149,7 @@ impl ContinuousResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         };
         let row_index: Arc<[u32]> =
@@ -1222,6 +1240,7 @@ impl ContinuousResponseEstimator {
                 lower: estimate - z * se,
                 upper: estimate + z * se,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             },
             SupportReport {
                 status: SupportStatus::Extrapolative,
@@ -1342,6 +1361,7 @@ impl ContinuousResponseEstimator {
                 lower: corrected_estimate - z * standard_error,
                 upper: corrected_estimate + z * standard_error,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         } else {
             ResponseUncertainty::None
@@ -1412,6 +1432,7 @@ impl ContinuousResponseEstimator {
                 lower: estimate - z * se,
                 upper: estimate + z * se,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             },
             support,
         ))
@@ -2101,14 +2122,22 @@ fn inflate_draws_by_edf(draws: &mut [f64], n: usize, edf: f64) {
 
 /// A posterior summary published as scalar uncertainty: `sd` is the posterior standard
 /// deviation and `[lo, hi]` the `level` credible interval, tagged so a consumer cannot
-/// read either as a frequentist standard error or confidence interval.
-fn credible_scalar_uncertainty(sd: f64, level: f64, lo: f64, hi: f64) -> ResponseUncertainty {
+/// read either as a frequentist standard error or confidence interval. `draws` is the
+/// vector `[lo, hi]` are the quantiles of, retained for re-summarization.
+fn credible_scalar_uncertainty(
+    sd: f64,
+    level: f64,
+    lo: f64,
+    hi: f64,
+    draws: Vec<f64>,
+) -> ResponseUncertainty {
     ResponseUncertainty::Scalar {
         standard_error: sd,
         level,
         lower: lo,
         upper: hi,
         interpretation: antecedent_core::IntervalInterpretation::Credible,
+        draws: Some(CredibleDraws::scalar(draws)),
     }
 }
 
@@ -3163,6 +3192,74 @@ mod tests {
 
     use super::*;
 
+    /// The draws a Bayesian response retains on its credible uncertainty are
+    /// exactly the vector its endpoints are the quantiles of: re-summarizing
+    /// every coordinate at the published level under the estimator's own rule
+    /// reproduces `[lower, upper]` bit for bit.
+    fn assert_retained_draws_publish(uncertainty: &ResponseUncertainty, n_draws: usize) {
+        let (level, published): (f64, Vec<(f64, f64)>) = match uncertainty {
+            ResponseUncertainty::Scalar { level, lower, upper, .. } => {
+                (*level, vec![(*lower, *upper)])
+            }
+            ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
+                (*level, lower.iter().copied().zip(upper.iter().copied()).collect())
+            }
+            other => panic!("expected a credible interval or band, got {other:?}"),
+        };
+        let draws = uncertainty.credible_draws().expect("credible uncertainty retains its draws");
+        assert_eq!(draws.n_draws, n_draws);
+        assert_eq!(draws.n_coordinates(), published.len());
+        for (j, (lo, hi)) in published.into_iter().enumerate() {
+            let (_, rebuilt_lo, rebuilt_hi, _) =
+                summarize_scalar_draws(draws.column(j).unwrap(), level).unwrap();
+            assert!(
+                rebuilt_lo.to_bits() == lo.to_bits() && rebuilt_hi.to_bits() == hi.to_bits(),
+                "coordinate {j}: [{lo}, {hi}] != retained-draw quantiles [{rebuilt_lo}, {rebuilt_hi}]"
+            );
+        }
+    }
+
+    #[test]
+    fn bayesian_responses_retain_the_draws_their_bands_summarize() {
+        let (data, a, y, x) = confounded_curve(240);
+        let estimator = ContinuousResponseEstimator::new([x]);
+        let bayes = crate::BayesianGComputationAte::new().with_n_draws(8);
+        let ctx = antecedent_core::ExecutionContext::for_tests(18);
+        let run = |functional| {
+            estimator
+                .estimate_bayesian(
+                    &data,
+                    &ResponseQuery::new(functional),
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &bayes,
+                    &ctx,
+                )
+                .unwrap()
+        };
+        // Linear route: one column per grid point of the curve.
+        let curve = run(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.5, 0.0, 0.5]))),
+        });
+        assert_retained_draws_publish(&curve.uncertainty, bayes.n_draws);
+        assert_eq!(curve.uncertainty.credible_draws().unwrap().n_coordinates(), 3);
+        // Linear route, scalar.
+        let level = run(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(a, Value::f64(0.25))]),
+        });
+        assert_retained_draws_publish(&level.uncertainty, bayes.n_draws);
+        // Additive-GAM plug-in band: retained *after* the edf spread inflation.
+        let jacobian = run(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([y]),
+            treatments: Arc::from([a]),
+            at: Arc::from([0.2]),
+            scale: DerivativeScale::Identity,
+        });
+        assert_retained_draws_publish(&jacobian.uncertainty, bayes.n_draws);
+    }
+
     /// Minimal deterministic uniform stream (`SplitMix64`) for exchangeability checks.
     fn uniform_stream(mut state: u64) -> impl FnMut() -> f64 {
         move || {
@@ -3274,6 +3371,8 @@ mod tests {
                     ..
                 }
             ));
+            // The retained draws are the bias-corrected ones the interval is read from.
+            assert_retained_draws_publish(&response.uncertainty, 8);
             assert!(response.assumptions.entries.iter().any(|record| match &record.assumption {
                 Assumption::ParametricRestriction(restriction) =>
                     restriction.description.contains("Not a frozen-pseudo-outcome reweight"),
@@ -4083,6 +4182,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
+        assert_retained_draws_publish(&response.uncertainty, 8);
         assert!(
             response.assumptions.entries.iter().any(|record| match &record.assumption {
                 Assumption::ParametricRestriction(restriction) =>
@@ -4281,8 +4381,9 @@ mod tests {
         assert!((value - local.point.first_derivative).abs() < 1e-12);
         // The interval is the RBC interval: the bias-corrected coordinate ± z·its
         // own robust SE, not the conventional local-quadratic interval.
-        let ResponseUncertainty::Scalar { standard_error, lower, upper, level, interpretation } =
-            response.uncertainty
+        let ResponseUncertainty::Scalar {
+            standard_error, lower, upper, level, interpretation, ..
+        } = response.uncertainty
         else {
             panic!("expected scalar uncertainty");
         };

@@ -1746,6 +1746,7 @@ fn panel_between_unit_band(mean: &[f64], unit_means: &[Arc<[f64]>]) -> ResponseU
         lower: lower.into(),
         upper: upper.into(),
         interpretation: antecedent_core::IntervalInterpretation::Confidence,
+        draws: None,
     }
 }
 

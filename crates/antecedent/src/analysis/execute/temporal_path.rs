@@ -1937,6 +1937,7 @@ impl super::Study {
                     } else {
                         antecedent_core::IntervalInterpretation::Confidence
                     },
+                    draws: None,
                 }
             } else {
                 ResponseUncertainty::None
@@ -5145,6 +5146,7 @@ fn apply_tuple_bootstrap_band(
             lower: Arc::from(bootstrap.lower.clone()),
             upper: Arc::from(bootstrap.upper.clone()),
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         };
         response.support.warnings.retain(|warning| {
             !matches!(

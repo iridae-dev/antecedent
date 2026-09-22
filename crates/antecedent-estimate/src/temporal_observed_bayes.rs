@@ -882,6 +882,7 @@ pub fn estimate_observed_temporal_response(
             lower: lower.into(),
             upper: upper.into(),
             interpretation: antecedent_core::IntervalInterpretation::Credible,
+            draws: None,
         },
         support: SupportReport {
             status: SupportStatus::Extrapolative,
