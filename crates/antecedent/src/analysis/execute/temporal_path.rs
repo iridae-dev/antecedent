@@ -52,13 +52,14 @@ impl super::Study {
             let completion_count = envelope.cases.len();
             let mut effects = Vec::new();
             let mut local_diagnostics = Vec::new();
-            // Frequentist completions that all fit the same mediation design
-            // (same estimand, same S(h)) estimate one contrast; that design is
+            // Completions (frequentist or Bayesian) that all fit the same mediation
+            // design (same estimand, same S(h)) estimate one contrast; that design is
             // kept for the class interval below.
             let mut shared_design: Option<(
                 IdentifiedEstimand,
                 Arc<[antecedent_data::LaggedColumn]>,
             )> = None;
+            let mut shared_status: Option<IdentificationStatus> = None;
             let mut designs_agree = true;
             for (completion_idx, (case, indexer)) in
                 envelope.cases.iter().zip(&bundle.envelope.indexers).enumerate()
@@ -89,6 +90,21 @@ impl super::Study {
                     })
                     .collect::<Vec<_>>()
                     .into();
+                // Tracked for both inference modes: whether every completion at this
+                // horizon fits the same mediation design (same estimand, same S(h)).
+                // When it does, the class's identified set collapses to one contrast,
+                // which the post-loop branch below recomputes canonically instead of
+                // reusing whichever completion happened to run last.
+                match shared_design.as_ref() {
+                    None => {
+                        shared_design = Some((estimand.clone(), adjustment.clone()));
+                        shared_status = Some(identification.status);
+                    }
+                    Some((first, first_adjustment)) => {
+                        designs_agree &= first.adjustment_set == estimand.adjustment_set
+                            && first_adjustment.as_ref() == adjustment.as_ref();
+                    }
+                }
                 let frequentist_estimate = match &self.inference {
                     InferenceMode::Bayesian(cfg) => {
                         let bayes = bayesian_gcomp(cfg, ctx);
@@ -158,13 +174,6 @@ impl super::Study {
                             )
                             .map_err(CausalError::from)?;
                         effects.push(estimate.effect.ate);
-                        match shared_design.as_ref() {
-                            None => shared_design = Some((estimand.clone(), adjustment.clone())),
-                            Some((first, first_adjustment)) => {
-                                designs_agree &= first.adjustment_set == estimand.adjustment_set
-                                    && first_adjustment.as_ref() == adjustment.as_ref();
-                            }
-                        }
                         Some(estimate)
                     }
                 };
@@ -232,52 +241,136 @@ impl super::Study {
                 {
                     let mut qh = query.clone();
                     qh.horizons = Arc::from([horizon]);
-                    let (mediation, block) = estimator
-                        .estimate_with_block_bootstrap(
-                            data,
-                            shared_estimand,
-                            &qh,
-                            shared_adjustment,
-                            self.bootstrap_replicates,
-                            MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
-                            ctx,
-                        )
-                        .map_err(CausalError::from)?;
-                    class_block_replicates_ok = Some(
-                        class_block_replicates_ok
-                            .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
-                    );
-                    class_block_cancelled |= mediation.effect.bootstrap_cancelled;
-                    class_shared_horizons += 1;
-                    if single_horizon {
-                        class_shared_contrast = Some(mediation.clone());
+                    match &self.inference {
+                        InferenceMode::Frequentist => {
+                            let (mediation, block) = estimator
+                                .estimate_with_block_bootstrap(
+                                    data,
+                                    shared_estimand,
+                                    &qh,
+                                    shared_adjustment,
+                                    self.bootstrap_replicates,
+                                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
+                                    ctx,
+                                )
+                                .map_err(CausalError::from)?;
+                            class_block_replicates_ok = Some(
+                                class_block_replicates_ok.map_or(block.replicates_ok, |ok: u32| {
+                                    ok.min(block.replicates_ok)
+                                }),
+                            );
+                            class_block_cancelled |= mediation.effect.bootstrap_cancelled;
+                            class_shared_horizons += 1;
+                            if single_horizon {
+                                class_shared_contrast = Some(mediation.clone());
+                            }
+                            local_diagnostics.extend(temporal_dependence_se_diagnostics(
+                                antecedent_estimate::CircularBlockFamily::Mediation,
+                                block.block_length,
+                                block.rows,
+                                block.kernel_bias,
+                                block.effective_rows,
+                                block.replicates_attempted > 0,
+                                &format!(
+                                    "horizon {horizon}: every completion fits the same mediation \
+                                     design, so the completion identified set is one contrast; \
+                                     one shared circular-block replicate of consecutive \
+                                     lag-aligned rows refits all three mechanism regressions, \
+                                     {}/{} replicates",
+                                    block.replicates_ok, block.replicates_attempted,
+                                ),
+                            ));
+                            let uncertainty = if block.replicates_attempted > 0 {
+                                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                                    requested: mediation.effect.se_bootstrap,
+                                    block,
+                                }
+                            } else {
+                                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                                    standard_error: None,
+                                }
+                            };
+                            (mediation, uncertainty)
+                        }
+                        InferenceMode::Bayesian(cfg) => {
+                            // Every completion fits the same design, so the class's
+                            // identified set is one contrast: recompute it canonically
+                            // from the shared design (mirrors the Frequentist branch
+                            // above) rather than reusing whichever completion's
+                            // composed posterior happened to run last.
+                            let bayes = bayesian_gcomp(cfg, ctx);
+                            let status = shared_status
+                                .unwrap_or(IdentificationStatus::NonparametricallyIdentified);
+                            let preparations = antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
+                                data,
+                                shared_estimand,
+                                &qh,
+                                shared_adjustment,
+                                ctx,
+                            )
+                            .map_err(CausalError::from)?;
+                            let mechanisms =
+                                preparations
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(index, prep)| {
+                                        let mut mechanism = bayes.clone();
+                                        mechanism.seed = mechanism
+                                            .seed
+                                            .wrapping_add(if index == 0 { 0 } else { 0xBA71 });
+                                        let (prior, conflict) =
+                                            resolve_envelope_prior_anchor(cfg, prep, ctx)?;
+                                        if let Some(summary) = conflict.as_ref() {
+                                            push_conflict_diagnostics(&mut diagnostics, summary);
+                                        }
+                                        mechanism.prior = prior;
+                                        mechanism
+                                            .fit(
+                                                prep,
+                                                status,
+                                                &mut BayesianGCompWorkspace::default(),
+                                                ctx,
+                                            )
+                                            .map_err(CausalError::from)
+                                    })
+                                    .collect::<Result<Vec<_>, _>>()?;
+                            let composed =
+                                antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
+                                    &mechanisms[0],
+                                    &mechanisms[1],
+                                    &qh,
+                                    status,
+                                )
+                                .map_err(CausalError::from)?;
+                            let mediation = TemporalMediationEstimate {
+                                effect: effect_from_posterior(&composed)?,
+                                total: None,
+                                direct: None,
+                                mediated: None,
+                            };
+                            class_shared_horizons += 1;
+                            if single_horizon {
+                                class_shared_contrast = Some(mediation.clone());
+                            }
+                            let summary =
+                                |index: usize| antecedent_estimate::MediationPosteriorSummary {
+                                    mean: composed.summaries.mean[index],
+                                    standard_deviation: composed.summaries.sd[index],
+                                    q025: composed.summaries.q025[index],
+                                    q975: composed.summaries.q975[index],
+                                };
+                            let uncertainty =
+                                antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+                                    requested: summary(0),
+                                    total: summary(1),
+                                    direct: summary(2),
+                                    mediated: summary(3),
+                                    n_draws: composed.draws.n_draws,
+                                    backend: Arc::clone(&composed.diagnostics.backend_id),
+                                };
+                            (mediation, uncertainty)
+                        }
                     }
-                    local_diagnostics.extend(temporal_dependence_se_diagnostics(
-                        antecedent_estimate::CircularBlockFamily::Mediation,
-                        block.block_length,
-                        block.rows,
-                        block.kernel_bias,
-                        block.effective_rows,
-                        block.replicates_attempted > 0,
-                        &format!(
-                            "horizon {horizon}: every completion fits the same mediation design, \
-                             so the completion identified set is one contrast; one shared \
-                             circular-block replicate of consecutive lag-aligned rows refits \
-                             all three mechanism regressions, {}/{} replicates",
-                            block.replicates_ok, block.replicates_attempted,
-                        ),
-                    ));
-                    let uncertainty = if block.replicates_attempted > 0 {
-                        antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                            requested: mediation.effect.se_bootstrap,
-                            block,
-                        }
-                    } else {
-                        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                            standard_error: None,
-                        }
-                    };
-                    (mediation, uncertainty)
                 }
                 _ => (
                     TemporalMediationEstimate {
