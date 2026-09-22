@@ -754,7 +754,7 @@ def render_allowed_rules(rules: list[dict]) -> str:
 # name one closed-set estimator; do not invent from limitations prose.
 CALIBRATION_ESTIMATOR_TOKENS: list[tuple[str, str]] = [
     ("matching_homoskedastic", "propensity.matching"),
-    ("frontdoor_stacked", "frontdoor.two_stage"),
+    ("frontdoor_stacked", "frontdoor.linear_two_stage"),
     ("codetermined_aipw", "cell.aipw"),
     ("cell_aipw", "cell.aipw"),
     ("ipw_hajek", "propensity.weighting"),
