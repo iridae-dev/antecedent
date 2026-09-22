@@ -1276,6 +1276,9 @@ pub(crate) struct EstimateSection {
     /// Licensed pointwise CATE standard errors, when computed.
     #[pyo3(get)]
     cate_se: Option<Vec<f64>>,
+    /// Forest leaf-dispersion diagnostic per row. Not a standard error.
+    #[pyo3(get)]
+    cate_leaf_dispersion: Option<Vec<f64>>,
     /// Actual fitted learner spec, implementation and version, in fit order.
     #[pyo3(get)]
     outcome_oof_r2: Option<f64>,
@@ -1583,6 +1586,7 @@ pub(crate) fn shared_study_sections(
         mean_interval,
         cate: result.estimate.cate.as_ref().map(|c| c.to_vec()),
         cate_se: result.estimate.cate_se.as_ref().map(|c| c.to_vec()),
+        cate_leaf_dispersion: result.estimate.cate_leaf_dispersion.as_ref().map(|c| c.to_vec()),
         outcome_oof_r2: result.estimate.outcome_oof_r2,
         treatment_oof_logloss: result.estimate.treatment_oof_logloss,
         crossfit_folds: result.estimate.crossfit_folds,

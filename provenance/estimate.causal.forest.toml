@@ -11,6 +11,7 @@ papers = [
 
 implementation_deviations = [
  "restrained honest forest: squared CATE-gap splits, subsample honesty, marginal ATE and IID SE from cross-fitted ridge/logistic AIPW; not generalized random forests / full GRF inference",
+ "the forest publishes no pointwise CATE standard error: `cate_leaf_dispersion` is the root mean of the honest leaf variances over trees, a diagnostic that omits between-tree covariance and adaptive-neighbourhood variability (no infinitesimal-jackknife or little-bags construction), and `cate_se` stays empty",
  "learners never choose the adjustment set; identification stays upstream",
  "not a SmartCore random-forest stand-in and not an EconML CausalForestDML wrapper",
 ]

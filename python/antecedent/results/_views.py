@@ -224,6 +224,11 @@ class EstimateView(ResultModel):
     cate: tuple[float, ...] | None = None
     #: Pointwise CATE standard errors when a licensed formula produced them.
     cate_se: tuple[float, ...] | None = None
+    #: Causal-forest leaf-dispersion diagnostic per row: the root mean honest
+    #: leaf variance. It is NOT a standard error (trees share half-samples, so
+    #: the forest average is not this noisy); ``cate ± 1.96·cate_leaf_dispersion``
+    #: is not a confidence interval.
+    cate_leaf_dispersion: tuple[float, ...] | None = None
     outcome_oof_r2: float | None = None
     treatment_oof_logloss: float | None = None
     crossfit_folds: int | None = None

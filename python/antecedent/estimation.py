@@ -492,6 +492,9 @@ def _wrap_ate(
             cate_se=tuple(sec_estimate.cate_se)
             if getattr(sec_estimate, "cate_se", None) is not None
             else None,
+            cate_leaf_dispersion=tuple(sec_estimate.cate_leaf_dispersion)
+            if getattr(sec_estimate, "cate_leaf_dispersion", None) is not None
+            else None,
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),

@@ -432,6 +432,7 @@ class EstimateSection:
 
     cate: list[float] | None
     cate_se: list[float] | None
+    cate_leaf_dispersion: list[float] | None
     learner_provenance: list[tuple[str, str, str]]
     outcome_oof_r2: float | None
     treatment_oof_logloss: float | None

@@ -108,6 +108,9 @@ pub struct EffectEstimateWire {
     /// Licensed pointwise CATE standard errors, when computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate_se: Option<Vec<f64>>,
+    /// Forest leaf-dispersion diagnostic per row. Not a standard error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_leaf_dispersion: Option<Vec<f64>>,
     /// Held-out outcome R².
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_oof_r2: Option<f64>,
@@ -487,6 +490,7 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         cate: e.cate.as_ref().map(|v| v.to_vec()),
         fitted_effect: e.fitted_effect.as_deref().cloned(),
         cate_se: e.cate_se.as_ref().map(|v| v.to_vec()),
+        cate_leaf_dispersion: e.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
         outcome_oof_r2: e.outcome_oof_r2,
         treatment_oof_logloss: e.treatment_oof_logloss,
         crossfit_folds: e.crossfit_folds,
@@ -714,6 +718,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     }
     estimate.cate = w.cate.clone().map(Into::into);
     estimate.cate_se = w.cate_se.clone().map(Into::into);
+    estimate.cate_leaf_dispersion = w.cate_leaf_dispersion.clone().map(Into::into);
     estimate.outcome_oof_r2 = w.outcome_oof_r2;
     estimate.treatment_oof_logloss = w.treatment_oof_logloss;
     estimate.crossfit_folds = w.crossfit_folds;
@@ -1204,7 +1209,8 @@ mod tests {
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
         )
         .with_cate(Some(vec![1.0, 3.0].into()))
-        .with_cate_se(Some(vec![0.2, 0.4].into()));
+        .with_cate_se(Some(vec![0.2, 0.4].into()))
+        .with_cate_leaf_dispersion(Some(vec![0.3, 0.5].into()));
         effect.learner_provenance.push(antecedent_estimate::LearnerProvenance {
             spec: "ridge".into(),
             implementation: "faer".into(),
@@ -1224,6 +1230,7 @@ mod tests {
         assert_eq!(restored.crossfit_seed, effect.crossfit_seed);
         assert_eq!(restored.cate, effect.cate);
         assert_eq!(restored.cate_se, effect.cate_se);
+        assert_eq!(restored.cate_leaf_dispersion, effect.cate_leaf_dispersion);
         assert_eq!(restored.learner_provenance, effect.learner_provenance);
     }
 
@@ -1483,6 +1490,7 @@ mod tests {
             cate: None,
             fitted_effect: None,
             cate_se: None,
+            cate_leaf_dispersion: None,
             outcome_oof_r2: None,
             treatment_oof_logloss: None,
             crossfit_folds: None,
