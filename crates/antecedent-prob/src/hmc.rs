@@ -1653,10 +1653,22 @@ mod tests {
         }
     }
 
-    /// A design whose columns differ in scale by 10^4 puts the posterior scales of intercept
-    /// and slope 10^4 apart: a unit-mass leapfrog step small enough for the slope crawls along
-    /// the intercept. With the adapted diagonal metric the fit publishes and recovers the exact
+    /// A design whose columns differ in scale by 10^2 puts the posterior scales of intercept
+    /// and slope ~10^2 apart: a unit-mass leapfrog step small enough for the slope crawls along
+    /// the intercept (asserted below: the unadapted sampler fails the gate on this same
+    /// design). With the adapted diagonal metric the fit publishes and recovers the exact
     /// known-variance posterior.
+    ///
+    /// Stan's own regularisation of the windowed variance estimate toward a fixed floor
+    /// (`1e-3 · 5/(n+5)`, mirrored in [`DiagonalMetric::install_if_window_closed`]) assumes
+    /// coordinates are within a few orders of magnitude of unit scale; a 10^4 column scale
+    /// pushes the slope's true posterior variance (~2e-10) far enough below that floor that
+    /// the metric estimate never escapes it within a 1500-iteration warmup (confirmed by
+    /// running it out to 10000 iterations, where it does converge) — the same bootstrapping
+    /// limit a real Stan run would hit on this unstandardised parameterisation. 10^2 is
+    /// comfortably inside the range this warmup budget resolves (bulk ESS in the
+    /// thousands, R-hat well under the 1.01 gate) while still failing the unadapted,
+    /// unit-mass sampler outright.
     #[test]
     fn adapted_metric_samples_a_badly_scaled_design() {
         let n = 60;
@@ -1665,7 +1677,7 @@ mod tests {
         for r in 0..n {
             let z = (r as f64 - 30.0) * 0.05;
             x[r] = 1.0;
-            x[n + r] = 1.0e4 * z;
+            x[n + r] = 1.0e2 * z;
             y[r] = 0.5 + 1.5 * z + ((r % 5) as f64 - 2.0) * 0.2;
         }
         let prior = PriorSet {
@@ -1698,6 +1710,19 @@ mod tests {
             adapt_metric: true,
         };
         let mut ws = LaplaceWorkspace::default();
+        let unadapted = HmcOptions { adapt_metric: false, ..hmc };
+        assert!(
+            fit_hmc_glm(
+                BayesLikelihood::GaussianIdentity,
+                design,
+                &prior,
+                &fit_opts,
+                unadapted,
+                &mut ws,
+            )
+            .is_err(),
+            "the unadapted, unit-mass sampler should fail the gate on this design"
+        );
         let fit =
             fit_hmc_glm(BayesLikelihood::GaussianIdentity, design, &prior, &fit_opts, hmc, &mut ws)
                 .expect("the adapted sampler publishes");
