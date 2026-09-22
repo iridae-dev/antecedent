@@ -453,14 +453,21 @@ mod tests {
             big.insert_directed(DenseNodeId::from_raw(299), DenseNodeId::from_raw(0)),
             Err(GraphError::Cycle { .. })
         ));
-        // Small graph afterwards: stale visited bits from the big graph must not leak.
-        let mut small = Pag::with_variables(3);
-        let (a, b, c) =
-            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        // Small graph afterwards: stale visited bits from the big graph must not leak. A path
+        // (not a triangle) so the cycle-closing edge below is between a node pair that has no
+        // edge yet — the duplicate-edge check that runs before the cycle check would otherwise
+        // preempt it, since every pair among 3 fully-connected nodes already has an edge.
+        let mut small = Pag::with_variables(4);
+        let (a, b, c, d) = (
+            DenseNodeId::from_raw(0),
+            DenseNodeId::from_raw(1),
+            DenseNodeId::from_raw(2),
+            DenseNodeId::from_raw(3),
+        );
         small.insert_directed(a, b).unwrap();
-        small.insert_directed(a, c).unwrap();
-        small.insert_directed(c, b).unwrap();
-        assert!(matches!(small.insert_directed(b, a), Err(GraphError::Cycle { .. })));
-        assert!(matches!(small.insert_directed(b, c), Err(GraphError::DuplicateEdge { .. })));
+        small.insert_directed(b, c).unwrap();
+        small.insert_directed(c, d).unwrap();
+        assert!(matches!(small.insert_directed(d, a), Err(GraphError::Cycle { .. })));
+        assert!(matches!(small.insert_directed(a, b), Err(GraphError::DuplicateEdge { .. })));
     }
 }
