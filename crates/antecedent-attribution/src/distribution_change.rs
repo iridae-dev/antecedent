@@ -548,13 +548,75 @@ mod tests {
         (model, data)
     }
 
+    /// [`two_period_chain`] with Y perturbed by a small deterministic per-row residual.
+    ///
+    /// `two_period_chain`'s `Y = a + 2X` is exactly noiseless, so every row bootstrap of it
+    /// refits the identical OLS line regardless of which rows are repeated: a fit-uncertainty
+    /// interval over such resamples is a point, not because refitting doesn't work, but because
+    /// there is no sampling variation in a deterministic fixture to reveal. Adding a residual
+    /// gives different bootstrap draws different multisets of residuals and hence different
+    /// fitted intercepts.
+    fn two_period_chain_with_noise() -> (CompiledCausalModel, TabularData) {
+        let n = 80usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut xv = Vec::with_capacity(n);
+        let mut yv = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = (i % 40) as f64 * 0.1;
+            xv.push(x);
+            let base = if i < 40 { 1.0 + 2.0 * x } else { 6.0 + 2.0 * x };
+            // Deterministic pseudo-noise (no RNG dependency): a few incommensurate frequencies
+            // summed so no small subset of rows shares a residual. Real enough that a row
+            // bootstrap's different multiset of residuals refits a genuinely different line.
+            let t = i as f64;
+            let noise =
+                0.15 * (t * 0.913_1).sin() + 0.1 * (t * 2.071_3).sin() + 0.05 * (t * 5.311_7).sin();
+            yv.push(base + noise);
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let model = CompiledCausalModel::compile(g).unwrap();
+        (model, data)
+    }
+
     /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
     /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
     /// resampled 40-row populations moves the contributions.
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution() {
-        let (model, data) = two_period_chain();
+        let (model, data) = two_period_chain_with_noise();
         let query = ChangeAttributionQuery::new(
             VariableId::from_raw(1),
             PopulationSelector::TimeRange { start: 0, end: 40 },
