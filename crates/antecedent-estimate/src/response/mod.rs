@@ -1557,24 +1557,49 @@ impl ContinuousResponseEstimator {
             };
             // The outcome nuisance is additive, so a counterfactual prediction
             // decomposes exactly: μ̂(a, X_j) = μ̂(A_j, X_j) − f_T(A_j) + f_T(a),
-            // where f_T is the centered treatment smooth. Averaging over the
-            // training rows therefore needs one covariate offset per fold plus a
-            // single smooth evaluation per validation row — O(n) per fold instead
-            // of the |valid|×|train| full-prediction double loop.
+            // where f_T is the centered treatment smooth, giving one smooth
+            // evaluation per row instead of a |valid|×|train| full-prediction
+            // double loop.
             let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
                 EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
             })?;
-            // Unit weights multiply exactly, so the unweighted path is unchanged.
-            let train_weight =
-                |position: usize| train_weights.as_ref().map_or(1.0, |w| w[position]);
+            // Kennedy et al. (2017, Thm. 3): the marginalization `∫μ̂(a, x) dP_n(x)`
+            // is the empirical mean over the *full* sample `P_n`, not the training
+            // fold alone — μ̂ is trained out-of-fold, but every row's covariates
+            // still contribute to the average that estimates the population
+            // marginal (see the identical claim in `mean_curve`'s covariate-term
+            // comment). Averaging only the training rows makes the offset the
+            // training fold's own covariate mean rather than the population's:
+            // unbiased when the held-out rows are an unbiased subsample of every
+            // raw column's marginal, which a representative hold-out normally is,
+            // but is not guaranteed in general — a fold that happens to omit a
+            // covariate's extreme rows shifts its empirical mean away from the
+            // population's, biasing every pseudo-outcome the fold produces, and
+            // cross-fitting `μ̂` out-of-fold does not fix that shift because the
+            // shift is in which rows are averaged, not in which rows trained the
+            // model.
             let mut covariate_offset = 0.0;
+            let mut covariate_weight_sum = 0.0;
             for (position, &j) in train.iter().enumerate() {
                 let treat_partial =
                     outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
-                covariate_offset +=
-                    train_weight(position) * (outcome_fit.fitted[position] - treat_partial);
+                let w = train_weights.as_ref().map_or(1.0, |tw| tw[position]);
+                covariate_offset += w * (outcome_fit.fitted[position] - treat_partial);
+                covariate_weight_sum += w;
             }
-            covariate_offset /= train_weight_sum;
+            for &j in &valid {
+                sample.write_raw_row(j, &mut raw_row);
+                let mu_j = predict_one(&outcome_fit, &raw_row)?;
+                let treat_partial =
+                    outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
+                let w = row_weight(j);
+                covariate_offset += w * (mu_j - treat_partial);
+                covariate_weight_sum += w;
+            }
+            if !covariate_weight_sum.is_finite() || covariate_weight_sum <= 0.0 {
+                return Err(EstimationError::stats_msg("row weights are degenerate"));
+            }
+            covariate_offset /= covariate_weight_sum;
             // The marginal treatment density is the (weighted) Gaussian mixture of the
             // training-row means at bandwidth σ; without a treatment model every
             // mean is the same constant and the mixture is one Gaussian.
@@ -3504,10 +3529,18 @@ mod tests {
     #[test]
     fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
         // The O(n) covariate-offset form must agree with the definitional
-        // |valid|×|train| double loop (full counterfactual prediction per pair)
+        // |valid|×n double loop (full counterfactual prediction per pair)
         // up to floating-point re-association. 160 rows sums the marginal density
         // term by term; 900 rows (720 training rows per fold) takes the binned
         // Gauss-transform path, which must agree with the same definitional sum.
+        //
+        // The covariate marginalization `∫μ̂(a, x) dP_n(x)` (Kennedy et al. 2017,
+        // Thm. 3) is the empirical mean over the *full* sample, so `marginal_mu`
+        // below averages the counterfactual prediction over every row `j` in
+        // `0..n`, not only the fold's training rows — matching
+        // `cross_fitted_pseudo_outcome_weighted`'s `covariate_offset`. The
+        // marginal *density* mixture stays a training-row-only estimate, matching
+        // the production `marginal_mixture`, which this test does not change.
         for rows in [160, 900] {
             let (data, a, y, x) = confounded_curve(rows);
             let estimator = ContinuousResponseEstimator::new([x]);
@@ -3535,7 +3568,6 @@ mod tests {
                         gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
                     let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
                     let mut marginal_density = 0.0;
-                    let mut marginal_mu = 0.0;
                     for &j in &train {
                         let mean_j = match treatment_fit.as_ref() {
                             Some(fit) => predict_one(fit, &sample.adjustment_row(j)).unwrap(),
@@ -3543,12 +3575,15 @@ mod tests {
                         };
                         marginal_density +=
                             gaussian_density(sample.treatment_matrix[i], mean_j, sigma);
+                    }
+                    marginal_density /= train.len() as f64;
+                    let mut marginal_mu = 0.0;
+                    for j in 0..n {
                         let mut row = sample.raw_row(j);
                         row[0] = sample.treatment_matrix[i];
                         marginal_mu += predict_one(&outcome_fit, &row).unwrap();
                     }
-                    marginal_density /= train.len() as f64;
-                    marginal_mu /= train.len() as f64;
+                    marginal_mu /= n as f64;
                     brute[i] = marginal_mu
                         + (sample.outcome[i] - mu_observed) * marginal_density
                             / conditional_density;
