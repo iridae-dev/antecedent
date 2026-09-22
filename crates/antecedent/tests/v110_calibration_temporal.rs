@@ -41,7 +41,7 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_estimate::{CircularBlockFamily, TemporalMediationUncertainty};
-use common::calibration::{CoverageTally, RecordKey, grid_n, n_sim};
+use common::calibration::{CoverageTally, RecordKey, grid_n, map_replicates, n_sim};
 use common::calibration_bind::{bind_all, constructions};
 use common::driven_dgp::{BETA, Scenario, pulse, pulse_dag, pulse_series};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
@@ -117,13 +117,10 @@ fn pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
 fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u64) {
     let truth = fixtures::mediation_truth();
     let mut tallies = [keyed(test, label, REPORTED_LEVEL), keyed(test, label, GATE_LEVEL)];
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = seed_base + rep;
         let data = mediation_series(grid_n(N), kappa, seed);
-        let Some((study, result)) = run(data.clone(), false, RefuteSuite::None, rep) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run(data.clone(), false, RefuteSuite::None, rep)?;
         let intervals = pair(&result);
         if rep == 0 {
             assert!(intervals[0].is_some(), "agreeing completions must publish the block interval");
@@ -135,9 +132,16 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
                 assert_eq!(pair(&other), intervals, "accepted={accepted} {suite:?}");
             }
         }
+        Some((study, result, intervals))
+    });
+    for scored in &runs {
+        let Some((study, result, intervals)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
         let [first, second] = &mut tallies;
-        bind_all(&mut [first, second], &study, &result);
-        record_pair(&mut tallies, intervals, truth);
+        bind_all(&mut [first, second], study, result);
+        record_pair(&mut tallies, *intervals, truth);
     }
     gate(&tallies, &[None, None]);
 }
@@ -181,29 +185,29 @@ fn pulse_effect_temporal_dag_bayesian_default_nominal_coverage() {
     };
     let mut tallies = [keyed_record(key, REPORTED_LEVEL), keyed_record(key, GATE_LEVEL)];
     let scenario = Scenario { n: grid_n(DEFAULT_PULSE.n), ..DEFAULT_PULSE };
-    for rep in 0..n_sim() {
-        let seed = scenario.seed + u64::from(rep);
-        let study = Study::series(pulse_series(scenario, rep, false))
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = scenario.seed + rep;
+        let study = Study::series(pulse_series(scenario, u32::try_from(rep).unwrap(), false))
             .graph(pulse_dag(false))
             .query(pulse(1))
             .inference(InferenceMode::Bayesian(BayesianConfig::laplace()))
             .refute(RefuteSuite::None)
             .build()
             .expect("the default Bayesian study builds");
-        let Ok(result) = study.run(&ExecutionContext::for_tests(seed)) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
-        let Some(column) =
-            result.posterior.as_ref().and_then(antecedent::CausalPosterior::effect_column)
-        else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+        let column =
+            result.posterior.as_ref().and_then(antecedent::CausalPosterior::effect_column)?;
         let intervals = posterior_pair(&result, column);
+        Some((study, result, intervals))
+    });
+    for scored in &runs {
+        let Some((study, result, intervals)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
         let [first, second] = &mut tallies;
-        bind_all(&mut [first, second], &study, &result);
-        record_pair(&mut tallies, intervals, BETA);
+        bind_all(&mut [first, second], study, result);
+        record_pair(&mut tallies, *intervals, BETA);
     }
     gate(&tallies, &[None, None]);
 }
@@ -253,17 +257,14 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
             ]
         })
     };
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let data = persistent_dgp::autoregressive_pulse_series(
             n,
             persistent_dgp::AR_PHI,
             false,
             0x110_0501 + rep,
         );
-        let Some((study, result)) = run_pulse(data.clone(), false, rep) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_pulse(data.clone(), false, rep)?;
         let intervals = interval_pair(&result);
         if rep == 0 {
             assert!(
@@ -279,9 +280,16 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
             let (_, accepted) = run_pulse(data, true, rep).expect("licensed coordinate");
             assert_eq!(interval_pair(&accepted), intervals, "accepted structure");
         }
+        Some((study, result, intervals))
+    });
+    for scored in &runs {
+        let Some((study, result, intervals)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
         let [first, second] = &mut tallies;
-        bind_all(&mut [first, second], &study, &result);
-        record_pair(&mut tallies, intervals, persistent_dgp::AR_BETA);
+        bind_all(&mut [first, second], study, result);
+        record_pair(&mut tallies, *intervals, persistent_dgp::AR_BETA);
     }
     gate_at(&tallies, &[[None, Some(0.935), None], [None, None, None]]);
 }

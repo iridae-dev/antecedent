@@ -27,7 +27,8 @@ use antecedent_discovery::{GraphPosteriorAtomKind, adjacency_mask_from_cpdag};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, n_sim, normal_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, map_replicates, n_sim,
+    normal_interval,
 };
 use common::calibration_bind::bind_all;
 
@@ -131,13 +132,16 @@ fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
     let key = RecordKey { test, dgp: "draw_data", interval: "analytic_se" };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for r in 0..n_sim() {
-        let seed = SEED_BASE + u64::from(r) * SEED_STRIDE;
+    let runs = map_replicates(n_sim(), |r| {
+        let seed = SEED_BASE + r * SEED_STRIDE;
         let (study, result) = run(seed);
         if r == 0 {
             assert_shape(&result);
         }
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        (study, result)
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90),
             TRUTH,
