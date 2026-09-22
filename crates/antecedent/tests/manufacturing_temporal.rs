@@ -1977,7 +1977,19 @@ fn assert_cheap_temporal_refuters(result: &antecedent::result::StudyResult) {
          NotApplicable for temporal unfolded designs, but that skip is now a diagnostic, \
          not a silent drop)"
     );
-    assert!(result.refutations[0].informative, "e-value must be informative here");
+    // `TemporalLinearAdjustment::fit_dependence_honest` (crates/antecedent-estimate/src/
+    // temporal_adjustment.rs) always sets `se_analytic = NaN` for a temporal estimate ("No
+    // analytic SE is calibrated here: the iid OLS SE ignores the dependence, and a Newey–West
+    // HAC SE ... under-covered in calibration") and only fills `se_bootstrap` when
+    // `bootstrap_replicates > 0`. This helper's callers build with `bootstrap_replicates(0)`,
+    // so the E-value's `usable_se` (crates/antecedent-validate/src/evalue.rs) has no SE to
+    // read and the confidence-limit E-value — hence `informative` — is always `false` here;
+    // it does not report a pass/fail either way, just the point E-value on `comparison`.
+    assert!(
+        !result.refutations[0].informative,
+        "no analytic SE exists for a temporal estimate and this suite runs no bootstrap \
+         replicates, so the E-value cannot be informative"
+    );
 }
 
 /// The `OverlapRefuter` skip `assert_cheap_temporal_refuters` documents must be visible
@@ -2037,17 +2049,23 @@ fn assert_cheap_temporal_overlap_skip_diagnostic(result: &antecedent::result::St
 /// instead of reusing the original.
 fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyResult) {
     let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    // `full_effect()` (crates/antecedent-validate/src/suite.rs) runs `falsification_effect()`
+    // then `stability_effect()`; unobserved.common_cause and the sensitivity family are
+    // falsification checks, so they run before the stability group (placebo, random-common-
+    // cause, dummy-outcome, bootstrap, data-subset). Previously pinned with placebo/random-
+    // common-cause/unobserved-common-cause/dummy-outcome first, an order `full_effect()` has
+    // not produced since the falsification/stability split.
     assert_eq!(
         names,
         vec![
-            "placebo.treatment",
-            "random.common_cause",
             "unobserved.common_cause",
-            "dummy.outcome",
             "sensitivity.evalue",
             "sensitivity.linear",
             "sensitivity.partial_linear",
             "sensitivity.nonparametric",
+            "placebo.treatment",
+            "random.common_cause",
+            "dummy.outcome",
             "bootstrap.ci_coverage",
             "data.subset",
         ],
