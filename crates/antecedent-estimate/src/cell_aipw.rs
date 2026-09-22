@@ -836,6 +836,14 @@ mod tests {
 
     #[test]
     fn missing_training_cell_refuses_instead_of_fabricating_scores() {
+        // Cell 1 has only rows 0 and 5. The seeded stratified fold plan
+        // (`crossfit_fold_plan`) spreads a cell's rows across folds where it can,
+        // so leaving `fold_assignment` unset would (now) hold out at most one of
+        // the two rows per fold and hit the *sparse*-cell refusal instead (covered
+        // separately by `sparse_training_cell_refuses_instead_of_swapping_in_a_cell_mean`).
+        // An explicit assignment that puts both cell-1 rows in fold 0's validation
+        // set forces the fold to train with cell 1 entirely absent, which is what
+        // this test means to exercise.
         let prepared = PreparedCells {
             n: 10,
             ncols: 1,
@@ -846,7 +854,7 @@ mod tests {
             row_index: (0..10).collect(),
             adjustment_set: Arc::from([]),
             treatments: Arc::from([VariableId::from_raw(0)]),
-            fold_assignment: None,
+            fold_assignment: Some(vec![0, 1, 1, 1, 1, 0, 1, 1, 1, 1]),
             shared_design: false,
         };
         let err = crossfit_cell_scores(&prepared, &[None], &CellSaturatedAipw::new()).unwrap_err();
