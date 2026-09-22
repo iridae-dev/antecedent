@@ -85,23 +85,31 @@ pub const CASES: &[EstimatorLevelCase] = &[
     case(
         "wald_iv_analytic_ci_coverage",
         "iv.wald",
-        "analytic_se",
-        "homoskedastic",
+        "anderson_rubin",
+        "",
         "all_observed.mean",
     ),
-    case("wald_iv_hc1_ci_coverage", "iv.wald", "analytic_se", "hc1", "all_observed.mean"),
+    // A non-homoskedastic Wald SE is never licensed (Anderson-Rubin requires the
+    // homoskedastic assumption, and the estimator never publishes a finite
+    // `se_analytic`), so the facade withholds the interval entirely: no product,
+    // `calibration_coverage.rs::wald_coverage_on` only `report()`s this cell,
+    // never `assert()`s or `emit()`s a coverage record for it.
+    case("wald_iv_hc1_ci_coverage", "iv.wald", "none", "", "all_observed.mean"),
     case(
         "iv_2sls_analytic_ci_coverage",
         "iv.2sls",
-        "analytic_se",
-        "homoskedastic",
+        "anderson_rubin",
+        "",
         "all_observed.mean",
     ),
+    // Non-homoskedastic (HC1): Anderson-Rubin requires the homoskedastic
+    // assumption and 2SLS never publishes a finite `se_analytic`, so the
+    // facade withholds the interval entirely, same as the Wald IV HC1 case.
     case(
         "iv_2sls_hc1_heteroskedastic_ci_coverage",
         "iv.2sls",
-        "analytic_se",
-        "hc1",
+        "none",
+        "",
         "all_observed.mean",
     ),
     case(
@@ -149,8 +157,8 @@ pub const CASES: &[EstimatorLevelCase] = &[
     case(
         "wald_iv_weak_first_stage_adversarial_ci_coverage",
         "iv.wald",
-        "analytic_se",
-        "homoskedastic",
+        "anderson_rubin",
+        "",
         "all_observed.mean",
     ),
     case(
@@ -229,7 +237,9 @@ pub fn case_for(test: &str) -> EstimatorLevelCase {
 
 impl EstimatorLevelCase {
     /// The facade construction: a Frequentist `AverageEffect` on an explicit
-    /// `Dag`, point identified, iid rows, reported at 0.95.
+    /// `Dag`, point identified, iid rows, reported at 0.95 — or at 0.0 when no
+    /// interval product is licensed (`interval == "none"`), matching
+    /// `IntervalBinding::none`.
     #[must_use]
     pub fn construction(&self) -> Construction {
         Construction {
@@ -245,7 +255,7 @@ impl EstimatorLevelCase {
             posterior: String::new(),
             functional: self.functional.into(),
             identification: "point".into(),
-            reported_level: 0.95,
+            reported_level: if self.interval == "none" { 0.0 } else { 0.95 },
         }
     }
 }
