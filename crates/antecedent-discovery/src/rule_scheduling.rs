@@ -347,9 +347,33 @@ fn apply_r3<G: PagOps>(
     Ok(delta)
 }
 
+/// Force an arrowhead at `into` for the R4 discriminating-path collider certificate.
+///
+/// Unlike [`orient_collider_leg`] (used by the plain sepset-based collider rule, where a
+/// pre-existing tail genuinely contradicts the premise and must be pinned as a conflict), a
+/// discriminating path is Zhang's stronger, self-contained certificate: once the path is
+/// found and `c` is not in `Sep(a,b)`, both `d_k *→ c` and `c ←* b` hold regardless of
+/// whatever mark previously sat at `c`. So a tail here is overwritten outright, not flagged.
+/// A pinned `Conflict` endpoint is still left alone, and a resulting cycle is still recorded
+/// as a conflict rather than applied.
+fn force_collider_arrow<G: PagOps>(
+    graph: &mut G,
+    state: &mut OrientationState,
+    delta: &mut RuleDelta,
+    from: DenseNodeId,
+    into: DenseNodeId,
+) -> Result<bool, OrientationError> {
+    let Some((at_from, at_into)) = marks_between(graph, from, into) else {
+        return Ok(false);
+    };
+    if matches!(at_into, Endpoint::Arrow | Endpoint::Conflict) {
+        return Ok(false);
+    }
+    set_marks_oriented(graph, state, delta, from, into, at_from, Endpoint::Arrow)
+}
+
 /// Zhang R4, collider branch: orient the triple `d_k ↔ c ↔ b` (arrowheads at both ends of
-/// both edges; a contradicting tail is a conflict, not overwritten). Returns whether the graph
-/// changed.
+/// both edges). Returns whether the graph changed.
 pub(crate) fn orient_discriminated_collider<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
@@ -360,7 +384,7 @@ pub(crate) fn orient_discriminated_collider<G: PagOps>(
 ) -> Result<bool, OrientationError> {
     let mut changed = false;
     for (from, into) in [(d_k, c), (b, c), (c, d_k), (c, b)] {
-        changed |= orient_collider_leg(graph, state, delta, from, into)?;
+        changed |= force_collider_arrow(graph, state, delta, from, into)?;
     }
     Ok(changed)
 }
