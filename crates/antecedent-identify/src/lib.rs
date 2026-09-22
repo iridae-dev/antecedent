@@ -87,7 +87,7 @@ pub use generalized::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
     MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
-pub use hedge::HedgeCertificate;
+pub use hedge::{HedgeCertificate, HedgeProblem};
 pub use id::IdIdentifier;
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};

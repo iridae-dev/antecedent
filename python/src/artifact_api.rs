@@ -210,7 +210,7 @@ fn accept_analysis_result_contract(
 }
 
 #[pyfunction(name = "encode_external_estimate_claim")]
-#[pyo3(signature = (*, learner, config, payload, names, treatment, outcome, identifier, status, confounders, identification=None, data_snapshot=None, snapshot_payload=None, scalar_value=None))]
+#[pyo3(signature = (*, learner, config, payload, names, treatment, outcome, identifier, status, confounders, identification=None, data_snapshot=None, snapshot_payload=None, scalar_value=None, value_types=None, contrast=None, modifiers=None))]
 #[allow(clippy::too_many_arguments)]
 fn encode_external_estimate_claim_py<'py>(
     py: Python<'py>,
@@ -227,7 +227,22 @@ fn encode_external_estimate_claim_py<'py>(
     data_snapshot: Option<&str>,
     snapshot_payload: Option<&[u8]>,
     scalar_value: Option<f64>,
+    value_types: Option<Vec<String>>,
+    contrast: Option<(f64, f64)>,
+    modifiers: Option<Vec<String>>,
 ) -> PyResult<Bound<'py, PyBytes>> {
+    let value_types = value_types
+        .unwrap_or_default()
+        .iter()
+        .map(|name| match name.as_str() {
+            "continuous" => Ok(antecedent_core::ValueType::Continuous),
+            "binary" => Ok(antecedent_core::ValueType::Binary),
+            "count" => Ok(antecedent_core::ValueType::Count),
+            other => Err(serialization_error(format!(
+                "unsupported value type `{other}` (use continuous, binary or count)"
+            ))),
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     let identification =
         identification.map(parse_digest_hex).transpose().map_err(serialization_error)?;
     let data_snapshot = match data_snapshot {
@@ -247,6 +262,9 @@ fn encode_external_estimate_claim_py<'py>(
         identification,
         data_snapshot,
         scalar_value,
+        value_types,
+        contrast,
+        modifiers: modifiers.unwrap_or_default(),
     })
     .map_err(serialization_error)?;
     Ok(PyBytes::new(py, &bytes))

@@ -212,9 +212,10 @@ pub fn aggregate_effect_envelope(
     };
     let draws = PosteriorDraws::from_column_major(schema, n_draws, mixture)
         .map_err(EstimationError::from)?;
-    let mut summaries = draws.summarize();
-    summaries.mean = Arc::from([exact_mean]);
-    summaries.sd = Arc::from([exact_sd]);
+    // The published draws carry the exact mixture moments themselves (a one-step affine
+    // correction of the Monte Carlo sample), so the summaries are the draws' own summaries and
+    // a reader recomputing them from the draws gets the same numbers.
+    let (draws, summaries) = moment_matched(draws, exact_mean, Some(exact_sd))?;
 
     let identification = if identified_mass > 0.0 && retained_unidentified > 0.0 {
         IdentificationStatus::GraphDependent
@@ -255,6 +256,30 @@ pub fn aggregate_effect_envelope(
         early_stopped: false,
         treatment_contrast: None,
     })
+}
+
+/// Affinely correct a single-quantity draw set so that its own summaries carry `mean` and, when
+/// given, `sd` (to rounding), and return those summaries. A draw set whose sample spread is zero
+/// or undefined cannot be rescaled and keeps its own summaries apart from the location.
+fn moment_matched(
+    draws: PosteriorDraws,
+    mean: f64,
+    sd: Option<f64>,
+) -> Result<(PosteriorDraws, antecedent_prob::PosteriorSummary), EstimationError> {
+    let own = draws.summarize();
+    let (own_mean, own_sd) = (own.mean[0], own.sd[0]);
+    let scale = match sd {
+        Some(target) if own_sd.is_finite() && own_sd > 0.0 => target / own_sd,
+        _ => 1.0,
+    };
+    if !own_mean.is_finite() || !scale.is_finite() {
+        return Err(EstimationError::stats_msg("effect mixture moments overflow"));
+    }
+    let values: Vec<f64> = draws.values.iter().map(|x| mean + (x - own_mean) * scale).collect();
+    let corrected = PosteriorDraws::from_column_major(draws.schema.clone(), draws.n_draws, values)
+        .map_err(EstimationError::from)?;
+    let summaries = corrected.summarize();
+    Ok((corrected, summaries))
 }
 
 /// Posterior of the frozen-weight mixture functional `Σ_g w̄_g τ_g` over
@@ -321,15 +346,13 @@ pub fn aggregate_mixture_functional_envelope(
     let sub: Vec<f64> =
         kept.iter().flat_map(|&a| kept.iter().map(move |&b| correlation[a * k + b])).collect();
     let mixture = couple_mixture_functional_draws(&atoms, &sub, 0x4D49_5846_554E_4354)?;
-    let n = mixture.len() as f64;
     let mean = posterior.summaries.mean[0];
-    let sd = (mixture.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0).max(1.0)).sqrt();
     let schema = posterior.draws.schema.clone();
-    posterior.draws = PosteriorDraws::from_column_major(schema, mixture.len(), mixture)
+    let coupled = PosteriorDraws::from_column_major(schema, mixture.len(), mixture)
         .map_err(EstimationError::from)?;
-    let mut summaries = posterior.draws.summarize();
-    summaries.mean = Arc::from([mean]);
-    summaries.sd = Arc::from([sd]);
+    // Centre the coupled draws on the frozen-weight mean; the spread stays the draws' own.
+    let (draws, summaries) = moment_matched(coupled, mean, None)?;
+    posterior.draws = draws;
     posterior.summaries = summaries;
     let mut assumptions = AssumptionSet::new();
     assumptions.push(AssumptionRecord {
@@ -531,8 +554,11 @@ mod tests {
     fn large_location_does_not_erase_small_mixture_variance() {
         let posterior =
             aggregate(vec![0.5, 0.5], vec![vec![1e12 - 1.0; 128], vec![1e12 + 1.0; 128]]).unwrap();
-        assert_eq!(posterior.summaries.mean[0], 1e12);
-        assert_eq!(posterior.summaries.sd[0], 1.0);
+        // Exact mixture moments (mean 1e12, SD 1), carried by the published draws to within the
+        // 1.2e-4 spacing of doubles at 1e12; the naive E[X^2] - E[X]^2 form loses all of it.
+        assert!((posterior.summaries.mean[0] - 1e12).abs() < 1e-3);
+        assert!((posterior.summaries.sd[0] - 1.0).abs() < 1e-3);
+        assert_eq!(posterior.summaries, posterior.draws.summarize());
     }
 
     #[test]
@@ -574,7 +600,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(posterior.unidentified_mass, 0.5);
-        assert_eq!(posterior.summaries.mean[0], 3.0);
+        assert!((posterior.summaries.mean[0] - 3.0).abs() < 1e-12);
         let imbalanced = WeightedGraphSamples::new(
             vec![1e-30, 1.0],
             vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],

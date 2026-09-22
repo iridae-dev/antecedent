@@ -19,9 +19,9 @@ def _artifact_with_draws() -> PosteriorArtifact:
     return PosteriorArtifact(
         n_draws=4,
         mean=[2.5],
-        sd=[1.0],
-        q025=[1.0],
-        q975=[4.0],
+        sd=[1.2909944487358056],
+        q025=[1.075],
+        q975=[3.925],
         draws=draws,
         backend_id="conjugate",
         identification="NonparametricallyIdentified",

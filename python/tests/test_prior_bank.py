@@ -40,13 +40,14 @@ def _meta(
 
 def _unnamed_artifact_bytes() -> bytes:
     art = antecedent.inference.PosteriorArtifact(
-        n_draws=2,
+        n_draws=3,
         mean=[0.0, 1.0, 2.0],
         sd=[1.0, 1.0, 0.1],
-        q025=[-1.0, 0.0, 1.8],
-        q975=[1.0, 2.0, 2.2],
-        # Two draws per quantity at (q025, q975): mean and quantiles match the summaries.
-        draws=[-1.0, 1.0, 0.0, 2.0, 1.8, 2.2],
+        # Three draws per quantity at (mean - sd, mean, mean + sd): the sample mean and SD are
+        # the summaries and the type-7 quantiles are mean -/+ 0.95 sd.
+        q025=[-0.95, 0.05, 1.905],
+        q975=[0.95, 1.95, 2.095],
+        draws=[-1.0, 0.0, 1.0, 0.0, 1.0, 2.0, 1.9, 2.0, 2.1],
         backend_id="laplace",
         identification="NonparametricallyIdentified",
         quantity_names=["coef_0", "coef_1", "ate"],

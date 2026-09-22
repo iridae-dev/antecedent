@@ -143,12 +143,19 @@ class EconMLSpec:
         interval: Any | None = None,
         data: Mapping[str, Any] | None = None,
         label: Literal["ate"] | None = None,
+        value_types: Mapping[str, Literal["continuous", "binary", "count"]] | None = None,
+        contrast: tuple[float, float] | None = None,
     ) -> ExternalEstimate:
         """Attach a caller-fitted external estimate as attested, not re-verifiable, evidence.
 
         Antecedent does not import or wrap the learner. The label, config, and
         payload are hashed onto ``claim.attested``; calibration stays
         ``unavailable`` / ``attested_not_reverifiable``.
+
+        ``value_types`` (name -> ``continuous`` / ``binary`` / ``count``) and ``contrast``
+        (``(control, active)`` treatment levels) are recorded in the receipt's target as
+        declared; anything not declared is recorded as unspecified / a named 0 -> 1
+        placeholder, never silently assumed.
         """
         _require_attachable(self)
         parent = self._parent
@@ -162,6 +169,16 @@ class EconMLSpec:
                 raise CausalValueError("label='ate' requires a scalar effect")
             scalar = float(np.reshape(effect_arr, ()))
         names = _receipt_names(self)
+        declared_types = None
+        if value_types is not None:
+            unknown = sorted(set(value_types) - set(names))
+            missing = [name for name in names if name not in value_types]
+            if unknown or missing:
+                raise CausalValueError(
+                    "value_types must name exactly the receipt variables "
+                    f"(unknown: {unknown}, missing: {missing})"
+                )
+            declared_types = [str(value_types[name]) for name in names]
         from . import artifacts
         from ._native import encode_external_estimate_claim
 
@@ -179,6 +196,9 @@ class EconMLSpec:
             data_snapshot=snapshot,
             snapshot_payload=snapshot_payload,
             scalar_value=scalar,
+            value_types=declared_types,
+            contrast=None if contrast is None else (float(contrast[0]), float(contrast[1])),
+            modifiers=list(self.modifiers),
         )
         decoded = artifacts.loads(encoded)
         if not isinstance(decoded.contract, Mapping):

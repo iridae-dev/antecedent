@@ -609,13 +609,17 @@ impl IdIdentifier {
                     perf,
                 ))
             }
-            IdOutcome::Fail(hedge) => Ok(not_identified_with_hedge(
-                query,
-                derivation,
-                prepared.declared_assumptions().clone(),
-                perf,
-                hedge,
-            )),
+            IdOutcome::Fail(hedge) => {
+                let hedge =
+                    hedge.with_problem(crate::hedge::HedgeProblem::capture(&prepared, x, y)?);
+                Ok(not_identified_with_hedge(
+                    query,
+                    derivation,
+                    prepared.declared_assumptions().clone(),
+                    perf,
+                    hedge,
+                ))
+            }
         }
     }
 }

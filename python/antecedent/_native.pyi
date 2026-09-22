@@ -3481,6 +3481,9 @@ def encode_external_estimate_claim(
     data_snapshot: str | None = None,
     snapshot_payload: bytes | None = None,
     scalar_value: float | None = None,
+    value_types: list[str] | None = None,
+    contrast: tuple[float, float] | None = None,
+    modifiers: list[str] | None = None,
 ) -> bytes: ...
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
