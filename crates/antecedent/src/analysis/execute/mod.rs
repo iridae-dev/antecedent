@@ -512,7 +512,19 @@ mod envelope_refuter_target_tests {
             .collect()
     }
 
-    fn data_subset(
+    /// `bootstrap.ci_coverage`'s report for `atoms` against `data`.
+    ///
+    /// Picked (over `data.subset`) because it is the one refuter in the mixed
+    /// suite whose verdict directly compares the *passed-in* `original.ate`
+    /// against a CI the refuter builds independently from the atom's own
+    /// `estimand`+data (`problem.original.ate >= lo && <= hi` in
+    /// `bootstrap_refute::coverage_report`). `data.subset` (and RCC) instead
+    /// centre on their own full-sample refit of that same `estimand`
+    /// (`fix: make validate refuters, sensitivity and stability checks say
+    /// only what they test`), so tampering with `original.ate` alone can no
+    /// longer move their verdict — they would pass here regardless of which
+    /// target the envelope wiring routed.
+    fn bootstrap_report(
         data: &TabularData,
         atoms: &[EnvelopeRefuteAtom],
         ctx: &ExecutionContext,
@@ -533,7 +545,10 @@ mod envelope_refuter_target_tests {
             None,
         )
         .unwrap();
-        reports.into_iter().find(|r| r.refuter.as_ref() == "data.subset").expect("data.subset")
+        reports
+            .into_iter()
+            .find(|r| r.refuter.as_ref() == "bootstrap.ci_coverage")
+            .expect("bootstrap.ci_coverage")
     }
 
     #[test]
@@ -550,7 +565,7 @@ mod envelope_refuter_target_tests {
 
         // Stable atoms with different effects pass against their own estimates;
         // the mixed original_ate is the mass-weighted mean of what was compared.
-        let stable = data_subset(&data, &atoms, &ctx);
+        let stable = bootstrap_report(&data, &atoms, &ctx);
         assert!(stable.passed, "stable heterogeneous atoms must pass: {stable:?}");
         assert!((stable.original_ate - pooled).abs() < 1e-8);
 
@@ -560,17 +575,17 @@ mod envelope_refuter_target_tests {
         for atom in &mut pooled_target {
             atom.original.ate = pooled;
         }
-        assert!(!data_subset(&data, &pooled_target, &ctx).passed);
+        assert!(!bootstrap_report(&data, &pooled_target, &ctx).passed);
 
         // An atom whose own refits do not reproduce its reported estimate is
         // still refuted, and unanimity fails the mixture even though the other
         // atom passes.
         let mut unstable = fitted_atoms(&data, &ctx);
         unstable[1].original.ate += 0.5;
-        let report = data_subset(&data, &unstable, &ctx);
+        let report = bootstrap_report(&data, &unstable, &ctx);
         assert!(!report.passed, "a refuted atom must fail the mixture: {report:?}");
         assert!(report.failure_condition.is_some());
-        let alone = data_subset(&data, &unstable[..1], &ctx);
+        let alone = bootstrap_report(&data, &unstable[..1], &ctx);
         assert!(alone.passed, "the other atom passes on its own: {alone:?}");
     }
 
