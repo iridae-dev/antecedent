@@ -25,8 +25,10 @@
 //!
 //! Budhathoki et al. (2022) average out-of-coalition players over the noise distribution.
 //! This implementation uses the cheaper **point-mass reference**: a player outside the
-//! coalition has its noise term set to `0`, its median for centred additive noise. Shapley
-//! efficiency then gives `Σφ = score(y) − v(∅)`, where `v(∅)` is the score of the target
+//! coalition has its noise term set to its mechanism's own median
+//! ([`antecedent_model::reference_noise`]) — `0` for centred additive noise, `0.5` for a
+//! categorical node's `U(0,1)` CDF-bin draw. Shapley efficiency then gives
+//! `Σφ = score(y) − v(∅)`, where `v(∅)` is the score of the target
 //! reconstructed with *every* noise term at the reference; it is published per row as
 //! [`AnomalyScores::baseline_scores`] so the contributions visibly account for the score.
 //! A non-finite target or reconstructed coalition value is an error, never a score of `0`
@@ -44,6 +46,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, MechanismWorkspace, NoiseBatchMut, ValueBatchMut, evaluate_batch_topo,
+    reference_noise,
 };
 
 use crate::error::AttributionError;
@@ -333,10 +336,19 @@ struct NoiseShapleyPayoff<'a> {
 impl CoalitionPayoff for NoiseShapleyPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n_nodes = self.model.n_nodes();
-        self.noise_buf.fill(0.0);
+        // Point-mass reference per node: `0` is the median only for the additive-noise
+        // families; a categorical (`Discrete` / `DiscreteBasis`) mechanism's noise is a
+        // `U(0,1)` CDF-bin draw whose median is `0.5` — feeding it `0` is not a valid
+        // draw at all (`antecedent_model::mechanism::categorical_noise` refuses it).
+        for node in 0..n_nodes {
+            let id = DenseNodeId::from_raw(u32::try_from(node).unwrap_or(u32::MAX));
+            self.noise_buf[node] = reference_noise(self.model.mechanisms.get(id));
+        }
         for (i, &node) in self.players.iter().enumerate() {
             let factual = self.exo_noise[node.as_usize() * self.n_units + self.row];
-            self.noise_buf[node.as_usize()] = if mask & (1u64 << i) != 0 { factual } else { 0.0 };
+            if mask & (1u64 << i) != 0 {
+                self.noise_buf[node.as_usize()] = factual;
+            }
         }
         for node in 0..n_nodes {
             if !self.is_player[node] {

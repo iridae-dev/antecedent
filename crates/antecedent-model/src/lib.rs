@@ -38,7 +38,7 @@ pub use evaluate::{MechanismPredictiveCheck, ModelEvaluationReport, ModelEvaluat
 pub use lgssm::{kalman_filter, rts_smooth, sample_lgssm_noise};
 pub use mechanism::{
     NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,
-    infer_noise_column_rng, log_prob_column, sample_column, sample_noise_batch,
+    infer_noise_column_rng, log_prob_column, reference_noise, sample_column, sample_noise_batch,
     sample_noise_column,
 };
 pub use model_collection::ModelCollection;

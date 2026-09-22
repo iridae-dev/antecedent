@@ -35,6 +35,25 @@ pub enum NoiseInferenceMode {
     Posterior,
 }
 
+/// The reference ("out-of-coalition") noise value that reconstructs a node at its
+/// typical / median output, for point-mass Shapley references
+/// (e.g. [`antecedent_attribution`](../antecedent_attribution/index.html)'s
+/// ancestor-noise anomaly attribution).
+///
+/// `0` is the median for every additive-noise family here (`y = f(pa) + ε` with a
+/// symmetric, zero-centred `ε`), which is why callers have historically hard-coded
+/// `0`. [`MechanismSlot::Discrete`] and [`MechanismSlot::DiscreteBasis`] are the
+/// exception: their noise is `u ~ U(0,1)` read through a CDF bin lookup, not an
+/// additive residual, so their median is `0.5`, not `0`; feeding them the additive
+/// families' `0` reference is an invalid draw ([`categorical_noise`] refuses it).
+#[must_use]
+pub const fn reference_noise(slot: &MechanismSlot) -> f64 {
+    match slot {
+        MechanismSlot::Discrete { .. } | MechanismSlot::DiscreteBasis { .. } => 0.5,
+        _ => 0.0,
+    }
+}
+
 /// Validate the uniform noise driving a categorical draw.
 ///
 /// The noise of a categorical mechanism is a `U(0,1)` draw; `NaN`, `0`, `1` or a
