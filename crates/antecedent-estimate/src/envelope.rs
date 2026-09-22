@@ -577,12 +577,21 @@ mod tests {
 
     #[test]
     fn categorical_draws_do_not_alias_ordered_component_samples() {
+        // A second, all-zero component is a point mass: `moment_matched`'s affine correction
+        // (mean + (x - own_mean) * scale) shifts a point mass in its *entirety* to one side of
+        // zero, in whichever direction cancels the raw Monte Carlo sample's finite-draw mean
+        // bias — a property of the moment-matching step, not of the resampling this test means
+        // to exercise. Use an anti-phase alternating component instead (still exact mean 0,
+        // still exercises the same index-selection path into an ordered array), so every
+        // component contributes both signs and the moment-matching shift cannot swing the
+        // whole mixture to one side.
         let alternating = (0..4096).map(|i| if i % 2 == 0 { -1.0 } else { 1.0 }).collect();
-        let posterior = aggregate(vec![0.5, 0.5], vec![alternating, vec![0.0; 4096]]).unwrap();
+        let anti_phase = (0..4096).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let posterior = aggregate(vec![0.5, 0.5], vec![alternating, anti_phase]).unwrap();
         let negatives = posterior.draws.values.iter().filter(|&&x| x < 0.0).count();
         let positives = posterior.draws.values.iter().filter(|&&x| x > 0.0).count();
-        assert!((900..1150).contains(&negatives), "negative mass: {negatives}");
-        assert!((900..1150).contains(&positives), "positive mass: {positives}");
+        assert!((1900..2200).contains(&negatives), "negative mass: {negatives}");
+        assert!((1900..2200).contains(&positives), "positive mass: {positives}");
     }
 
     #[test]
