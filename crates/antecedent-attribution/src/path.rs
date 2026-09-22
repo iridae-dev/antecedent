@@ -122,6 +122,7 @@ pub fn path_decompose(
         monte_carlo_stderr: None,
         component_mc_stderr: None,
         cache_stats: CacheStats::default(),
+        fit_uncertainty: None,
     })
 }
 

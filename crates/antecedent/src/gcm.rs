@@ -35,7 +35,8 @@ pub use antecedent_attribution::{
     MechanismChangeMethod, PopulationDoContrast, RobustChangeOptions, RootCauseRank,
     StructureChangeOptions, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
     distribution_change, distribution_change_robust, feature_relevance, path_decompose,
-    population_do_contrast, root_cause_rank, score_anomalies, structure_change, unit_change,
+    population_do_contrast, root_cause_rank, score_anomalies, score_anomalies_with,
+    structure_change, unit_change,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
@@ -216,6 +217,24 @@ pub fn anomaly_attribution(
     let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
     let q = AnomalyAttributionQuery::new(targets, max_units);
     score_anomalies(model, data, &q).map_err(map_attr)
+}
+
+/// [`anomaly_attribution`] under an execution context: rows are scored in parallel up to its
+/// thread budget and a cancelled context stops the run.
+///
+/// # Errors
+///
+/// Attribution failures.
+pub fn anomaly_attribution_with(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    outcomes: impl IntoIterator<Item = VariableId>,
+    max_units: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<AnomalyScores>, CausalError> {
+    let targets: Arc<[VariableId]> = outcomes.into_iter().collect::<Vec<_>>().into();
+    let q = AnomalyAttributionQuery::new(targets, max_units);
+    score_anomalies_with(model, data, &q, ctx).map_err(map_attr)
 }
 
 /// Distribution-change attribution (pinned baseline-GCM parity).

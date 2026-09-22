@@ -65,6 +65,21 @@ pub fn distribution_change(
     options: &DistributionChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    validate_distribution_change_query(query)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    distribution_change_on_populations(
+        graph_model,
+        &baseline_data,
+        &comparison_data,
+        query,
+        options,
+        ctx,
+    )
+}
+
+fn validate_distribution_change_query(
+    query: &ChangeAttributionQuery,
+) -> Result<(), AttributionError> {
     query.validate()?;
     require_mechanism_or_joint(query.components)?;
     if matches!(query.components, AttributionComponents::All) {
@@ -73,17 +88,126 @@ pub fn distribution_change(
              for Structure, or InputsAndMechanisms for joint input+mechanism change",
         ));
     }
+    Ok(())
+}
 
+/// [`distribution_change`] plus the uncertainty from fitting the mechanisms on finite
+/// populations: `replicates` row bootstraps of the two populations (each refits every mechanism
+/// and recomputes the attribution with the same Shapley sampling seed), summarised as
+/// percentile intervals at `level` in [`ChangeAttributionResult::fit_uncertainty`].
+///
+/// The point attribution is the ordinary one on the original populations. Replicates whose
+/// refit fails are counted; when any fails the intervals are withheld rather than computed
+/// from the survivors.
+///
+/// # Errors
+///
+/// As [`distribution_change`]; fewer than 2 replicates or a level outside `(0, 1)`;
+/// [`AttributionError::Cancelled`] when the context is cancelled.
+pub fn distribution_change_with_fit_uncertainty(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    replicates: u32,
+    level: f64,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    use antecedent_core::StreamDomain;
+    use antecedent_data::TableView;
+
+    use crate::population::subset_table;
+    use crate::result::FitUncertainty;
+
+    if replicates < 2 || !(level > 0.0 && level < 1.0) {
+        return Err(AttributionError::invalid_input(
+            "fit-uncertainty bootstrap needs >= 2 replicates and a level in (0, 1)",
+        ));
+    }
+    validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
-
-    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+    let mut point = distribution_change_on_populations(
         graph_model,
         &baseline_data,
+        &comparison_data,
+        query,
+        options,
+        ctx,
+    )?;
+    let n_components = point.contributions.len();
+
+    let resample = |source: &TabularData, rng: &mut antecedent_core::CausalRng| {
+        let n = source.row_count();
+        let rows: Vec<usize> =
+            (0..n).map(|_| ((rng.next_f64() * n as f64) as usize).min(n - 1)).collect();
+        subset_table(source, &rows)
+    };
+    let outcomes = ctx.map_indexed(replicates as usize, |b, worker| {
+        if worker.cancellation.is_cancelled() {
+            return Err(AttributionError::Cancelled);
+        }
+        let mut rng = worker.rng.stream_for(StreamDomain::Attribution, 0xB007_5712 ^ b as u64);
+        let refit = resample(&baseline_data, &mut rng).and_then(|base| {
+            let cmp = resample(&comparison_data, &mut rng)?;
+            distribution_change_on_populations(graph_model, &base, &cmp, query, options, worker)
+        });
+        match refit {
+            Ok(result) if result.contributions.len() == n_components => Ok(Some((
+                result.total_change,
+                result.contributions.iter().map(|c| c.contribution).collect::<Vec<_>>(),
+            ))),
+            Err(AttributionError::Cancelled) => Err(AttributionError::Cancelled),
+            _ => Ok(None),
+        }
+    })?;
+    let failures = outcomes.iter().filter(|o| o.is_none()).count();
+    let (lower, upper, total_interval) = if failures == 0 {
+        let tail = 0.5 * (1.0 - level);
+        let interval = |mut values: Vec<f64>| {
+            values.sort_by(f64::total_cmp);
+            (
+                antecedent_kernels::quantile_type7_sorted(&values, tail),
+                antecedent_kernels::quantile_type7_sorted(&values, 1.0 - tail),
+            )
+        };
+        let draws: Vec<&(f64, Vec<f64>)> = outcomes.iter().flatten().collect();
+        let per_component: Vec<(f64, f64)> =
+            (0..n_components).map(|j| interval(draws.iter().map(|d| d.1[j]).collect())).collect();
+        (
+            Some(per_component.iter().map(|p| p.0).collect::<Arc<[f64]>>()),
+            Some(per_component.iter().map(|p| p.1).collect::<Arc<[f64]>>()),
+            Some(interval(draws.iter().map(|d| d.0).collect())),
+        )
+    } else {
+        (None, None, None)
+    };
+    point.fit_uncertainty = Some(FitUncertainty {
+        replicates,
+        failures: u32::try_from(failures).unwrap_or(u32::MAX),
+        level,
+        lower,
+        upper,
+        total_interval,
+    });
+    Ok(point)
+}
+
+fn distribution_change_on_populations(
+    graph_model: &CompiledCausalModel,
+    baseline_data: &TabularData,
+    comparison_data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+        graph_model,
+        baseline_data,
         SelectionPolicy::BestScore,
     )?;
     let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
         graph_model,
-        &comparison_data,
+        comparison_data,
         SelectionPolicy::BestScore,
     )?;
 
@@ -420,6 +544,71 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let model = CompiledCausalModel::compile(g).unwrap();
         (model, data)
+    }
+
+    /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
+    /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
+    /// resampled 40-row populations moves the contributions.
+    #[test]
+    fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution() {
+        let (model, data) = two_period_chain();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 400,
+            seed: 3,
+        };
+        let serial = ExecutionContext::for_tests(1);
+        let plain = distribution_change(&model, &data, &query, &opts, &serial).unwrap();
+        assert!(plain.fit_uncertainty.is_none());
+        assert!(plain.contributions.iter().all(|c| c.stderr.is_none()));
+
+        let with_fit = distribution_change_with_fit_uncertainty(
+            &model, &data, &query, &opts, 40, 0.9, &serial,
+        )
+        .unwrap();
+        // The point attribution is the ordinary one.
+        assert_eq!(with_fit.total_change, plain.total_change);
+        assert_eq!(with_fit.contributions.len(), plain.contributions.len());
+        let fit = with_fit.fit_uncertainty.as_ref().unwrap();
+        assert_eq!((fit.replicates, fit.failures), (40, 0));
+        assert!((fit.level - 0.9).abs() < 1e-15);
+        let (lower, upper) = (fit.lower.as_ref().unwrap(), fit.upper.as_ref().unwrap());
+        assert_eq!((lower.len(), upper.len()), (with_fit.contributions.len(), lower.len()));
+        for j in 0..lower.len() {
+            assert!(lower[j] <= upper[j]);
+        }
+        // Refitting on resamples moves the y contribution: a genuine interval, not a point.
+        let y_idx = with_fit
+            .contributions
+            .iter()
+            .position(|c| c.component.variable() == VariableId::from_raw(1))
+            .unwrap();
+        assert!(upper[y_idx] - lower[y_idx] > 1e-6);
+        let (t_lo, t_hi) = fit.total_interval.unwrap();
+        assert!(t_lo <= with_fit.total_change && with_fit.total_change <= t_hi);
+
+        // Independent of the thread budget.
+        let threaded = ExecutionContext::production(1, 4);
+        let again = distribution_change_with_fit_uncertainty(
+            &model, &data, &query, &opts, 40, 0.9, &threaded,
+        )
+        .unwrap();
+        assert_eq!(again.fit_uncertainty, with_fit.fit_uncertainty);
+
+        for (replicates, level) in [(1, 0.9), (10, 0.0), (10, 1.0)] {
+            assert!(
+                distribution_change_with_fit_uncertainty(
+                    &model, &data, &query, &opts, replicates, level, &serial
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
