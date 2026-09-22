@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_core::ExecutionContext;
 use antecedent_kernels::standard_normal;
 pub use antecedent_kernels::{sample_gamma, sample_inv_gamma};
 
@@ -334,7 +334,7 @@ fn draw_mvn_known_sigma(
 ) -> Result<Arc<[f64]>, ProbError> {
     let ncols = mean.len();
     let chol = cholesky_spd(cov, ncols)?;
-    let mut rng = CausalRng::from_seed(seed);
+    let mut rng = crate::streams::direct_draw_rng(seed);
     let mut values = vec![0.0; n_draws * ncols];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
@@ -364,7 +364,7 @@ fn draw_nig(
     workspace: &mut LaplaceWorkspace,
 ) -> Result<Arc<[f64]>, ProbError> {
     let ncols = mean.len();
-    let mut rng = CausalRng::from_seed(seed);
+    let mut rng = crate::streams::direct_draw_rng(seed);
     let mut values = vec![0.0; n_draws * (ncols + 1)];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
@@ -389,7 +389,7 @@ fn draw_nig(
 mod tests {
     use super::*;
     use crate::prior::PriorSpec;
-    use antecedent_core::ExecutionContext;
+    use antecedent_core::{CausalRng, ExecutionContext};
 
     fn simple_design() -> (Vec<f64>, Vec<f64>) {
         // y = 1 + 2x + noise; x = 0..9
