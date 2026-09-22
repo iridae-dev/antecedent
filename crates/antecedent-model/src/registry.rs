@@ -5,13 +5,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::field_reassign_with_default,
-    clippy::float_cmp,
     clippy::manual_let_else,
     clippy::needless_range_loop,
     clippy::too_many_lines
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::borrow::Cow;
@@ -488,6 +494,10 @@ impl SelectionPolicy {
 fn distinct_level_count(y: &[f64], max_levels: usize) -> Option<usize> {
     let mut seen: Vec<i64> = Vec::with_capacity(max_levels.min(64));
     for v in y.iter().filter(|v| v.is_finite()) {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the key quantises a rounded finite outcome to 1e-6, and the saturating cast only merges outcomes beyond 9e12 in magnitude"
+        )]
         let key = (v * 1e6).round() as i64;
         if !seen.contains(&key) {
             if seen.len() == max_levels {
@@ -618,6 +628,10 @@ fn family_is_categorical(family: MechanismFamily) -> bool {
 }
 
 /// Dense stratum id per row for a categorical outcome (quantized value order).
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "keys quantise outcomes to 1e-6 with a saturating cast that only merges values beyond 9e12 in magnitude, and a stratum id is a position among at most y.len() distinct keys, which fits u32"
+)]
 fn category_strata(y: &[f64]) -> Vec<u32> {
     let key = |v: f64| (v * 1e6).round() as i64;
     let mut keys: Vec<i64> = y.iter().map(|&v| key(v)).collect();
@@ -1130,6 +1144,10 @@ fn fit_hierarchical_glm(
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
+    #[allow(
+        clippy::float_cmp,
+        reason = "a binary outcome is coded exactly 0/1, so exact equality is the membership test"
+    )]
     let binary = y.iter().all(|&yi| yi == 0.0 || yi == 1.0);
     if !binary {
         return Err(ModelError::Unsupported {
@@ -1175,6 +1193,10 @@ fn fit_hierarchical_glm(
     // Encode as 2-category Discrete with baseline-category logits (cat0 = 0, cat1 = β).
     let mut logit_coeffs = vec![0.0; 2 * ncols];
     logit_coeffs[ncols..].copy_from_slice(&fit.coefficients[..ncols]);
+    #[allow(
+        clippy::float_cmp,
+        reason = "a binary outcome is coded exactly 0/1, so exact equality is the membership test"
+    )]
     let n1 = y.iter().filter(|&&yi| yi == 1.0).count() as f64;
     let p1 = n1 / n.max(1) as f64;
     Ok(MechanismSlot::Discrete {
@@ -1332,11 +1354,17 @@ fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
         let mut groups = Vec::with_capacity(n);
         let mut ok = true;
         for &v in col.iter() {
-            if !v.is_finite() {
+            let id = v.round();
+            if !v.is_finite() || id < 0.0 || id > f64::from(u32::MAX) {
                 ok = false;
                 break;
             }
-            groups.push(v.round() as u32);
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "id was just checked to lie in [0, u32::MAX] and is already rounded to an integer"
+            )]
+            groups.push(id as u32);
         }
         if ok {
             return Some(groups);
@@ -1709,6 +1737,10 @@ fn discrete_support(
         if !yi.is_finite() {
             continue;
         }
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the key quantises a rounded finite outcome to 1e-6, and the saturating cast only merges outcomes beyond 9e12 in magnitude"
+        )]
         let key = (yi * 1e6).round() as i64;
         if let Some(e) = pairs.iter_mut().find(|(k, _, _)| *k == key) {
             e.2 += weights.map_or(1.0, |w| w[r]);
@@ -2328,7 +2360,7 @@ mod tests {
     }
 
     /// The GP hyperparameters are the exact-Cholesky NLML argmin over the data-scaled
-    /// grid, checked against a frozen SciPy oracle (`conformance/gcm/gaussian_process`).
+    /// grid, checked against a frozen `SciPy` oracle (`conformance/gcm/gaussian_process`).
     /// The diagonal-proxy determinant the old code used (MM-015) picks a different cell.
     #[cfg(feature = "gaussian-process")]
     #[test]

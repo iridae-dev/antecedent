@@ -66,6 +66,9 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 
+echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
+bash scripts/gate_lint_allows.sh
+
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 

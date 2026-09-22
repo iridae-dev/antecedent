@@ -6,7 +6,11 @@
 //! Run: `cargo run -p antecedent --example class_preserving_cpdag`
 //! Source: `examples/rust/class_preserving_cpdag.rs`
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent::graph::Cpdag;
 use antecedent::prelude::*;

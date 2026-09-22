@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::{Arc, Mutex};
 
@@ -340,9 +343,17 @@ fn effect_quantile_width_95(post: &antecedent_estimate::CausalPosterior) -> f64 
     let mut vals = vals_src.to_vec();
     let n = vals.len();
     vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0.025 * n is non-negative and below n, so the truncated index fits usize"
+    )]
     let lo_idx = ((n as f64) * 0.025) as usize;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0.975 * n is non-negative and below n, so the truncated index fits usize"
+    )]
     let hi_idx = (((n as f64) * 0.975) as usize).min(n.saturating_sub(1));
     let lo = vals[lo_idx];
     let hi = vals[hi_idx];

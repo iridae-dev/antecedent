@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -192,6 +199,11 @@ impl DiscoveryEstimationSplit {
             });
         }
         let usable = series_len - gap;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the product is floored/rounded from a fraction in (0, 1) of a length, so it is non-negative and at most that length"
+        )]
         let mut discovery_len = ((usable as f64) * discovery_frac).floor() as usize;
         if discovery_len == 0 {
             discovery_len = 1;
@@ -315,6 +327,11 @@ impl RandomIidSplit {
                 message: "test_frac must be in (0, 1)".into(),
             });
         }
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the product is floored/rounded from a fraction in (0, 1) of a length, so it is non-negative and at most that length"
+        )]
         let mut test_len = ((n as f64) * test_frac).round() as usize;
         if test_len == 0 {
             test_len = 1;
@@ -322,6 +339,10 @@ impl RandomIidSplit {
         if test_len >= n {
             test_len = n - 1;
         }
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+        )]
         let mut idx: Vec<u32> = (0..n as u32).collect();
         fisher_yates(&mut idx, seed);
         let train = Arc::from(idx[..n - test_len].to_vec());
@@ -444,6 +465,11 @@ impl BlockedTemporalSplit {
                 message: "blocked temporal split needs ≥2 blocks".into(),
             });
         }
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the product is floored/rounded from a fraction in (0, 1) of a length, so it is non-negative and at most that length"
+        )]
         let mut test_blocks_n = ((n_blocks as f64) * test_frac).round() as usize;
         if test_blocks_n == 0 {
             test_blocks_n = 1;
@@ -459,6 +485,10 @@ impl BlockedTemporalSplit {
         let mut test_rows = Vec::new();
         for (rank, &bi) in order.iter().enumerate() {
             let block = blocks[bi];
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+            )]
             let rows = (block.start as u32)..(block.end as u32);
             if rank < n_blocks - test_blocks_n {
                 train_blocks.push(block);
@@ -580,6 +610,10 @@ fn split_by_labels(
     }
     let mut members: BTreeMap<i64, Vec<u32>> = BTreeMap::new();
     for (i, &g) in labels.iter().enumerate() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+        )]
         members.entry(g).or_default().push(i as u32);
     }
     if members.len() < 2 {
@@ -590,6 +624,11 @@ fn split_by_labels(
     let mut unique: Vec<i64> = members.keys().copied().collect();
     fisher_yates_i64(&mut unique, seed);
     let n_g = unique.len();
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the product is floored/rounded from a fraction in (0, 1) of a length, so it is non-negative and at most that length"
+    )]
     let mut test_n = ((n_g as f64) * test_frac).round() as usize;
     if test_n == 0 {
         test_n = 1;
@@ -617,6 +656,10 @@ fn split_by_labels(
 fn fisher_yates_i64(idx: &mut [i64], seed: u64) {
     let mut rng = CausalRng::from_seed(seed);
     for i in (1..idx.len()).rev() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the value only seeds a modulo index, so wrapping on a 32-bit target is harmless and the result is reduced below i + 1"
+        )]
         let j = (rng.next_u64() as usize) % (i + 1);
         idx.swap(i, j);
     }

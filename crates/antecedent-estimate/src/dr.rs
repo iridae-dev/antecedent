@@ -209,7 +209,7 @@ impl DrLearner {
         ));
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
-        effect.learner_provenance = treat.model_provenance.clone();
+        effect.learner_provenance.clone_from(&treat.model_provenance);
         effect.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
             Ok(predictor) => {
@@ -258,7 +258,9 @@ fn linear_cate_pointwise_se(
         }
     }
     let all_rows: Vec<usize>;
-    let used: &[usize] = if let Some(rows) = rows { rows } else {
+    let used: &[usize] = if let Some(rows) = rows {
+        rows
+    } else {
         all_rows = (0..n).collect();
         &all_rows
     };

@@ -583,6 +583,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the critical value is copied, not recomputed, from the supported-only run, so it must be bit-identical"
+    )]
     fn max_t_family_is_the_supported_columns_only() {
         let table = thin_tail_table();
         let inference = table.inference(None).unwrap();
@@ -655,6 +659,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_possible_truncation, reason = "i % 2 is 0 or 1")]
     fn distinct_thresholds_are_bitwise_not_absolute_tolerance() {
         let table_with = |thresholds: &[Option<f64>]| ScoreTable {
             observed_arm: Arc::from([]),

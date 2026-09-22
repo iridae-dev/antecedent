@@ -2,12 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::needless_range_loop,
-    clippy::float_cmp,
-    clippy::too_many_lines,
-    clippy::cast_sign_loss
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_kernels::{norm_cdf, norm_pdf};
@@ -132,6 +135,10 @@ impl GlmOptions {
 }
 
 /// Convergence / iteration diagnostics from a GLM fit.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent, separately documented fit verdict, part of the public result shape"
+)]
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)] // independent diagnostic flags, each a distinct verdict
 pub struct GlmFit {
@@ -429,6 +436,7 @@ fn irls_fit(
     Ok((beta, iterations, converged))
 }
 
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
 fn fit_logistic(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -507,6 +515,7 @@ fn finish_binomial(
     })
 }
 
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
 fn fit_probit(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -806,6 +815,7 @@ fn fit_binomial_ridge(
 /// # Errors
 ///
 /// Invalid shapes, outcomes, family, penalty, or a numerical solver failure.
+#[allow(clippy::float_cmp, reason = "binomial outcomes must be exactly the coded values 0 or 1")]
 pub fn fit_glm_ridge(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -1203,7 +1213,10 @@ fn multinomial_diagnostics_at(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "tests assert exactly representable values and copied inputs, not measurements"
+)]
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;

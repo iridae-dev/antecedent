@@ -32,7 +32,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 /// RNG stream base for the aligned-row block replicates.
 const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
@@ -401,7 +408,17 @@ fn coverage_report(
     let m = ates.len();
     let lo_frac = (1.0 - ci_level) / 2.0;
     let hi_frac = 1.0 - lo_frac;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the rounded position is scaled from a fraction in [0, 1] (a confidence level in (0, 1)) by m - 1, so it is non-negative and at most m - 1"
+    )]
     let lo_idx = ((lo_frac * (m - 1) as f64).round() as usize).min(m - 1);
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the rounded position is scaled from a fraction in [0, 1] (a confidence level in (0, 1)) by m - 1, so it is non-negative and at most m - 1"
+    )]
     let hi_idx = ((hi_frac * (m - 1) as f64).round() as usize).min(m - 1);
     let mean_ate = ates.iter().sum::<f64>() / m as f64;
     let lo = mean_ate - scale * (mean_ate - ates[lo_idx]);

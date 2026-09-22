@@ -3,13 +3,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::cast_lossless,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::doc_markdown,
     clippy::trivially_copy_pass_by_ref
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
@@ -159,7 +165,17 @@ pub(super) fn category_code(v: f64) -> Result<i32, StatsError> {
             message: "G² category columns must be finite; non-finite values cannot be integer-coded",
         });
     }
-    Ok(v.round() as i32)
+    let r = v.round();
+    if !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&r) {
+        return Err(StatsError::Shape {
+            message: "G² category columns must fit in a 32-bit integer code",
+        });
+    }
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "r is finite, integral and range-checked into i32 just above"
+    )]
+    Ok(r as i32)
 }
 
 pub(super) fn encode_categories(col: &[f64]) -> Result<Vec<i32>, StatsError> {
@@ -195,7 +211,7 @@ pub(super) fn discrete_strata(
             let mut h = 0xcbf2_9ce4_8422_2325_u64;
             for &zc in z {
                 let v = category_code(columns[zc][r])?;
-                h ^= u64::from(v as u32);
+                h ^= u64::from(u32::from_ne_bytes(v.to_ne_bytes()));
                 h = h.wrapping_mul(0x0100_0000_01b3);
             }
             h
@@ -293,8 +309,10 @@ fn g_squared_on_rows(
         workspace.contingency_y_codes.resize(n_rows, 0);
     }
     for (i, &r) in rows.iter().enumerate() {
-        workspace.contingency_x_codes[i] = levels_x.binary_search(&xi[r]).unwrap_or(0) as u32;
-        workspace.contingency_y_codes[i] = levels_y.binary_search(&yi[r]).unwrap_or(0) as u32;
+        workspace.contingency_x_codes[i] =
+            u32::try_from(levels_x.binary_search(&xi[r]).unwrap_or(0)).unwrap_or(u32::MAX);
+        workspace.contingency_y_codes[i] =
+            u32::try_from(levels_y.binary_search(&yi[r]).unwrap_or(0)).unwrap_or(u32::MAX);
     }
     antecedent_kernels::accumulate_contingency(
         policy,

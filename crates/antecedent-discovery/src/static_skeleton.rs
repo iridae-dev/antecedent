@@ -114,6 +114,44 @@ pub(crate) fn record_sepset(
     sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
 }
 
+/// Sorted, deduplicated size-`depth` conditioning candidates for `x ⊥ y`, drawn from the
+/// neighbours of `x` and of `y` (each excluding the other endpoint).
+fn candidate_sets(
+    x: VariableId,
+    y: VariableId,
+    adj: &HashMap<(u32, u32), ()>,
+    variables: &[VariableId],
+    depth: usize,
+    combo_scratch: &mut Vec<VariableId>,
+) -> Vec<Vec<VariableId>> {
+    let nx: Vec<VariableId> =
+        adjacent_vars(x, adj, variables).into_iter().filter(|&v| v != y).collect();
+    let ny: Vec<VariableId> =
+        adjacent_vars(y, adj, variables).into_iter().filter(|&v| v != x).collect();
+    let mut cand_sets: Vec<Vec<VariableId>> = Vec::new();
+    for neighbours in [&nx, &ny] {
+        if neighbours.len() >= depth {
+            for_each_combination_vars(neighbours, depth, combo_scratch, |c| {
+                cand_sets.push(c.to_vec());
+                true
+            });
+        }
+    }
+    cand_sets.sort_unstable();
+    cand_sets.dedup();
+    cand_sets
+}
+
+/// Largest number of neighbours an endpoint of a remaining edge has besides the other endpoint.
+fn max_excess_degree(adj: &HashMap<(u32, u32), ()>) -> usize {
+    let mut degree: HashMap<u32, usize> = HashMap::new();
+    for &(lo, hi) in adj.keys() {
+        *degree.entry(lo).or_default() += 1;
+        *degree.entry(hi).or_default() += 1;
+    }
+    adj.keys().map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1)).max().unwrap_or(0)
+}
+
 /// PC adjacency search (order-dependent, deterministic traversal — see
 /// [`sorted_edge_pairs`]).
 ///
@@ -174,25 +212,7 @@ pub(crate) fn run_static_skeleton(
             if constraints.static_required(x, y) {
                 continue;
             }
-            let nx: Vec<VariableId> =
-                adjacent_vars(x, &skel.adj, variables).into_iter().filter(|&v| v != y).collect();
-            let ny: Vec<VariableId> =
-                adjacent_vars(y, &skel.adj, variables).into_iter().filter(|&v| v != x).collect();
-            let mut cand_sets: Vec<Vec<VariableId>> = Vec::new();
-            if nx.len() >= depth {
-                for_each_combination_vars(&nx, depth, &mut combo_scratch, |c| {
-                    cand_sets.push(c.to_vec());
-                    true
-                });
-            }
-            if ny.len() >= depth {
-                for_each_combination_vars(&ny, depth, &mut combo_scratch, |c| {
-                    cand_sets.push(c.to_vec());
-                    true
-                });
-            }
-            cand_sets.sort_unstable();
-            cand_sets.dedup();
+            let cand_sets = candidate_sets(x, y, &skel.adj, variables, depth, &mut combo_scratch);
 
             let mut separating: Option<&Vec<VariableId>> = None;
             // Statistic / p-value of the least significant test this edge faced at this
@@ -251,17 +271,7 @@ pub(crate) fn run_static_skeleton(
             break;
         }
         // Stop when no remaining edge has enough neighbours for larger conditioning sets.
-        let mut degree: HashMap<u32, usize> = HashMap::new();
-        for &(lo, hi) in skel.adj.keys() {
-            *degree.entry(lo).or_default() += 1;
-            *degree.entry(hi).or_default() += 1;
-        }
-        let max_deg = skel
-            .adj
-            .keys()
-            .map(|&(lo, hi)| degree[&lo].max(degree[&hi]).saturating_sub(1))
-            .max()
-            .unwrap_or(0);
+        let max_deg = max_excess_degree(&skel.adj);
         if max_deg < depth {
             break;
         }

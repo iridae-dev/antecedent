@@ -17,7 +17,6 @@ import numpy as np
 from antecedent import AverageEffect, Dag, analyze, identify
 from antecedent.handoff import econml
 
-
 TRUE_ATE = 2.0
 
 # Populated by ``main`` for earning tests that run this file via runpy.

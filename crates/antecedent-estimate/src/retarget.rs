@@ -7,7 +7,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -49,7 +55,7 @@ pub(crate) fn overlap_gate(
 /// Target-weighted share of rows (over `w > 0`) with any listed propensity outside the
 /// `[clip, 1 − clip]` band. `columns` yields one propensity slice per score column.
 pub(crate) fn extreme_propensity_share<'a>(
-    columns: impl Iterator<Item = &'a [f64]> + Clone,
+    columns: impl Iterator<Item = &'a [f64]>,
     weights: &[f64],
     clip: f64,
 ) -> f64 {
@@ -58,11 +64,12 @@ pub(crate) fn extreme_propensity_share<'a>(
         return 0.0;
     }
     let (lo, hi) = (clip, 1.0 - clip);
+    let columns: Vec<&[f64]> = columns.collect();
     let extreme: f64 = weights
         .iter()
         .enumerate()
         .filter(|(_, w)| **w > 0.0)
-        .filter(|(i, _)| columns.clone().any(|c| c.get(*i).is_some_and(|&p| p < lo || p > hi)))
+        .filter(|(i, _)| columns.iter().any(|c| c.get(*i).is_some_and(|&p| p < lo || p > hi)))
         .map(|(_, w)| *w)
         .sum();
     extreme / mass
@@ -193,6 +200,10 @@ pub fn check_depends_on(
     Ok(())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "pos indexes the graph's node list, and dense node ids are u32 by construction"
+)]
 fn descendant_of_intervened(
     depends_on: &[VariableId],
     table: &ScoreTable,

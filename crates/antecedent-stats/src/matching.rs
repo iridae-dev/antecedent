@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use crate::error::StatsError;
 
@@ -447,6 +453,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the expected values are small integers or dyadic fractions reproduced exactly in f64"
+    )]
     fn external_query_equal_to_a_donor_matches_it_at_distance_zero() {
         // Queries that are not the donor set must not have "their" zero-distance donor
         // skipped: the 1st neighbour of a query sitting on donor value 1.0 is at 0, not 1.
@@ -471,6 +481,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the expected values are small integers or dyadic fractions reproduced exactly in f64"
+    )]
     fn self_distances_exclude_by_index_and_count_duplicates() {
         // Donors 0, 1, 1, 3. For donor 1 (index 1): others are 0, 1, 3 at distances 1, 0, 2,
         // so its 1st nearest other is the duplicate at 0 and its 2nd is at 1.

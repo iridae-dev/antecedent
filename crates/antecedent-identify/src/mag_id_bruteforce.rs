@@ -17,7 +17,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::precedence)]
+#![allow(clippy::precedence)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::HashMap;
 use std::sync::Arc;

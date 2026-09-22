@@ -42,7 +42,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -320,6 +326,10 @@ struct Contrast {
 }
 
 /// Code a column by its sorted distinct values. `None` when a value is not finite.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the code is a position in the sorted distinct levels of one column, and column length is bounded by the u32 row index"
+)]
 fn level_codes(values: &[f64]) -> Option<(Vec<u32>, Vec<f64>)> {
     if values.iter().any(|v| !v.is_finite()) {
         return None;
@@ -618,7 +628,8 @@ impl OutcomeFit {
     clippy::many_single_char_names,
     clippy::float_cmp,
     clippy::cast_sign_loss,
-    clippy::needless_range_loop
+    clippy::needless_range_loop,
+    reason = "the tests compare floats copied without rounding and cast small non-negative indices"
 )]
 mod tests {
     use antecedent_core::StreamDomain;

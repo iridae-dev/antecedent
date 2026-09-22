@@ -3257,6 +3257,10 @@ impl PyPreparedAnalysis {
 
     /// Weighted-mean retarget from the frozen score table. Does not refit.
     #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None))]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+    )]
     fn retarget(
         &mut self,
         py: Python<'_>,

@@ -18,7 +18,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 mod acyclicity;
 mod solver;
@@ -271,8 +279,8 @@ impl Notears {
         }
         let mut kept: Vec<(usize, usize, f64)> = Vec::new();
         for &(par, child, w) in &edge_coefs {
-            let from = DenseNodeId::from_raw(par as u32);
-            let to = DenseNodeId::from_raw(child as u32);
+            let from = DenseNodeId::from_raw(crate::indexing::dense_u32(par));
+            let to = DenseNodeId::from_raw(crate::indexing::dense_u32(child));
             if dag.children(from).contains(&to) {
                 continue;
             }

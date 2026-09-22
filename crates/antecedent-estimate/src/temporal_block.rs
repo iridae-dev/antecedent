@@ -27,7 +27,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
@@ -265,6 +272,14 @@ const SCORE_VARIANCE_FLOOR: f64 = 1e-20;
 /// insignificant autocorrelations. Capped at `min(3√n, n/3)`; `None` for fewer
 /// than 8 scores or a degenerate series.
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "ceil(sqrt(n)) and ceil(sqrt(log10 n)) of a series length are far below usize::MAX; the block length is clamped to [1, cap] with cap at most n"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "both values are ceilings of square roots of positive reals, hence non-negative; the block length is clamped to at least 1 before the cast"
+)]
 pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     let n = scores.len();
     if n < 8 || scores.iter().any(|s| !s.is_finite()) {
@@ -358,6 +373,11 @@ pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[
 /// [`politis_white_block_length`] over `scores`; `0` when no series yields one.
 /// Callers cap it at `rows / 3` and never go below their own rule.
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the product ceil(pw * rows^(1/6)) is far below usize::MAX for in-memory series"
+)]
+#[allow(clippy::cast_sign_loss, reason = "both factors are non-negative")]
 pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
     let pw = scores.iter().filter_map(|s| politis_white_block_length(s)).max().unwrap_or(0);
     (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize
@@ -952,7 +972,10 @@ mod tests {
     /// The per-family thresholds on one fixed series whose statistic sits
     /// between them: the families disagree exactly as their thresholds say.
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the thresholds are exact constants returned unchanged, so exact equality is intended"
+    )]
     fn circular_block_family_thresholds_on_a_fixed_series() {
         use CircularBlockFamily::{Mediation, Mixture, Sequential, SingleWindow};
         assert_eq!(SingleWindow.min_effective_rows(), 45.0);
@@ -974,6 +997,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the kernel bias factor is a deterministic function of the same score and lag, so the test asserts bit-identical values"
+    )]
     fn kernel_bias_scale_grows_with_score_memory_and_shrinks_with_block_length() {
         // A short-memory (alternating, negative r1) score keeps the factor at 1.
         let alternating: Vec<f64> = (0..200).map(|t| if t % 2 == 0 { 1.0 } else { -1.0 }).collect();

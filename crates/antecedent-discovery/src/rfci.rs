@@ -7,11 +7,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::zero_sized_map_values
+#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::zero_sized_map_values)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -506,7 +508,7 @@ impl Rfci {
         let budget = state.discriminating_budget;
         let mut paths = Vec::new();
         for i in 0..pag.node_count() {
-            let b = DenseNodeId::from_raw(i as u32);
+            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
             for (c, _at_b, at_c) in pag.neighbors(b) {
                 if !matches!(at_c, Endpoint::Circle) {
                     continue;

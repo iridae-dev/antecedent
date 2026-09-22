@@ -244,6 +244,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the expected values are small integers or dyadic fractions reproduced exactly in f64"
+    )]
     fn form_xty_matches_hand_dot_products_and_the_row_accumulator() {
         // Columns c0 = [1, 1, 1], c1 = [2, 0, 1]; y = [1, 2, 3]: c0·y = 6, c1·y = 2 + 0 + 3 = 5.
         let x = [1.0, 1.0, 1.0, 2.0, 0.0, 1.0];

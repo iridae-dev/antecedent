@@ -61,7 +61,8 @@ pub use transform::{FittedTransformer, Identity, Log1p, TransformerFactory};
     clippy::cast_precision_loss,
     clippy::float_cmp,
     clippy::many_single_char_names,
-    clippy::needless_range_loop
+    clippy::needless_range_loop,
+    reason = "the tests build small synthetic designs, casting small indices and comparing floats copied without rounding"
 )]
 mod tests {
     use super::*;

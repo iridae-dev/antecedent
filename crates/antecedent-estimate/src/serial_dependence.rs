@@ -95,7 +95,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -1463,6 +1470,11 @@ pub(crate) fn mean_standard_error(series: &[f64]) -> f64 {
 }
 
 /// Newey–West rule-of-thumb bandwidth `⌊4 (n/100)^{2/9}⌋`.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the bandwidth 4 (n/100)^(2/9) is far below usize::MAX for any in-memory series"
+)]
+#[allow(clippy::cast_sign_loss, reason = "the value is clamped to be non-negative before the cast")]
 fn newey_west_bandwidth(n: usize) -> usize {
     (4.0 * (n as f64 / 100.0).powf(2.0 / 9.0)).floor().max(0.0) as usize
 }
@@ -1538,6 +1550,10 @@ mod tests {
     /// The standard error of a mean is `√(γ₀ (1 + ρ)/(1 − ρ) / n)` for an AR(1); the
     /// iid reading is a floor, so a white series reads `√(γ₀/n)` up to the estimated ratio.
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a constant or two-point series has an exactly zero standard error by construction"
+    )]
     fn mean_standard_error_reads_the_long_run_variance_of_the_mean() {
         let (n, rho) = (6000usize, 0.8_f64);
         let mut rng = CausalRng::from_seed(101);

@@ -1,5 +1,4 @@
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::too_many_lines,
@@ -7,6 +6,10 @@
     clippy::match_wildcard_for_single_variants,
     clippy::doc_markdown,
     clippy::map_unwrap_or
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 //! Sequential Bayes: batch A posterior → batch B prior.
 //!

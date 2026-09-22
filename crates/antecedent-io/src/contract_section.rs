@@ -981,13 +981,12 @@ pub fn claim_kind_name(
         return "point";
     };
     match slot.status.as_str() {
-        "not_identified" => return "incomplete",
         "partially_identified" => return "bounds",
         "nonparametrically_identified"
         | "identified_under_parametric_restrictions"
         | "identified_under_prior_restrictions"
         | "graph_dependent" => {}
-        // `not_certified`, `proven_non_transportable`, or any spelling this reader
+        // `not_identified`, `not_certified`, `proven_non_transportable`, or any spelling this reader
         // does not know: never a point.
         _ => return "incomplete",
     }

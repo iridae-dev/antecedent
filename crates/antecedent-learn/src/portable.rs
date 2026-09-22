@@ -162,7 +162,7 @@ impl FittedPredictor for PortablePredictor {
                         loop {
                             let Some(node) = tree.get(index) else {
                                 return Err(LearnError::Shape {
-                                    message: "prediction tree node index out of range",
+                                    message: "prediction tree child index out of range",
                                 });
                             };
                             match *node {
@@ -182,9 +182,15 @@ impl FittedPredictor for PortablePredictor {
                                     missing,
                                 } => {
                                     let v = x.get(row, feature)?;
+                                    #[allow(
+                                        clippy::float_cmp,
+                                        reason = "an inclusive split sends a value equal to the stored threshold left, so exact equality is the contract"
+                                    )]
+                                    let goes_left = !v.is_nan()
+                                        && (v < threshold || (inclusive && v == threshold));
                                     index = if v.is_nan() {
                                         missing
-                                    } else if v < threshold || (inclusive && v == threshold) {
+                                    } else if goes_left {
                                         left
                                     } else {
                                         right

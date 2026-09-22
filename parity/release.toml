@@ -5,45 +5,60 @@ library = "antecedent"
 [[capabilities]]
 id = "release.parity_closure"
 status = "done"
-notes = "Shipped pinned baseline rows are done across inventories; no waivers other than the bit-identical replay waivers in calibration_waivers.toml; required 1.0 chapters closed"
+evidence_kind = "process_attested"
+notes = "Shipped pinned baseline rows are done across inventories; no waivers other than the bit-identical replay waivers in calibration_waivers.toml; required 1.0 chapters closed. Enforced by scripts/gate_release.sh (parity honesty pass over every inventory, all_done for release.toml) and scripts/gate_parity_schema.sh; no unit test executes it."
 
 [[capabilities]]
 id = "release.graph_dot_json"
 status = "done"
+evidence_test = "python/tests/test_graph_interchange.py"
+evidence_assertion = "test_dag_all_formats_preserve_names_and_edges"
+limitations = "Named test covers DOT, JSON, GML and NetworkX round trips on a two-node DAG."
 notes = "DOT + JSON + GML + NetworkX DAG interchange in antecedent-io"
 
 [[capabilities]]
 id = "release.artifact_schema"
 status = "done"
+evidence_test = "crates/antecedent-io/src/migrate.rs"
+evidence_assertion = "migrate_0_2_to_0_5_preserves_sections"
+limitations = "Named test covers the 0.2 to 0.5 migration chain preserving section bytes; the 0.1, 0.3 and 0.4 paths, golden fixtures and validate_result_* bindings are covered by sibling tests."
 notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. 1.10 composition: validate_result_* in crates/antecedent-io/src/analysis_result_artifact.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
 
 [[capabilities]]
 id = "release.wheel_matrix"
 status = "done"
-notes = "CPython 3.11–3.14 × Linux x86_64/aarch64, macOS arm64, Windows x86_64 wheels in CI"
+evidence_kind = "process_attested"
+notes = "CPython 3.11–3.14 × Linux x86_64/aarch64, macOS arm64, Windows x86_64 wheels in CI. Enforced by the python-wheels matrix in .github/workflows/ci.yml, required on the candidate SHA through scripts/gate_release_candidate.sh (CI_RUN_ID check via scripts/ci_workflow.py); a CI fact no unit test can execute."
 
 [[capabilities]]
 id = "release.conformance_docs"
 status = "done"
-notes = "docs/conformance generated from conformance/"
+evidence_kind = "process_attested"
+notes = "docs/conformance generated from conformance/. Enforced by scripts/gate_release.sh, which regenerates docs/conformance with scripts/generate_conformance_docs.py and fails on drift; the docs workflow runs the same generator."
 
 [[capabilities]]
 id = "release.hot_path_baselines"
 status = "done"
-notes = "docs/hot_paths.md + benches/baselines owners/contracts"
+evidence_kind = "process_attested"
+notes = "docs/hot_paths.md + benches/baselines owners/contracts. Enforced by scripts/gate_hot_path_baselines.sh (owner/contract metadata for docs/hot_paths.md and benches/baselines), run from scripts/gate_release.sh."
 
 [[capabilities]]
 id = "release.security_review"
 status = "done"
-notes = "unsafe/license/dependency review + cargo-deny"
+evidence_kind = "process_attested"
+notes = "unsafe/license/dependency review + cargo-deny. Enforced by scripts/gate_release_candidate.sh (cargo-deny required for the release candidate) and the CI deny job; docs/security_review.md is a reviewed document, not executable behaviour."
 
 [[capabilities]]
 id = "release.artifact_mmap_stream_skip"
 status = "done"
+evidence_test = "crates/antecedent-io/src/reader.rs"
+evidence_assertion = "mmap_uncompressed_section"
+limitations = "Named test covers the mmap view; section skip is covered by open_seek_loads_meta_only, and Arrow Never-compress and posterior meta-only are not exercised by it."
 notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only"
 
 [[capabilities]]
 id = "release.ci_required_jobs"
 status = "done"
-notes = "Job ids from .github/workflows/ci.yml that must succeed on the candidate SHA"
+evidence_kind = "process_attested"
+notes = "Job ids from .github/workflows/ci.yml that must succeed on the candidate SHA. Enforced by scripts/gate_release_candidate.sh, which reads required_jobs through scripts/ci_workflow.py and checks each is green on the candidate SHA; gate self-tests break the input on purpose."
 required_jobs = ["rust", "features", "deny", "gates", "python-lint", "python-wheels"]

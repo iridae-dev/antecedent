@@ -1,7 +1,14 @@
 //! Cross-fitted trial-to-nonparticipant transport with explicit sampling design.
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 use crate::{EstimationError, trial_to_target_effect};
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
+use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
     DesignView, LearnerSpec, PredictionTask, TargetView, cross_fit_selected, resolve_for,
@@ -94,17 +101,16 @@ pub fn trial_nuisance_diagnostics(
             .logloss
             .ok_or_else(|| EstimationError::data_msg("empty membership role"))?;
     let mut outcome_rmse = [0.; 2];
-    for arm in 0..2 {
+    for (arm, rmse) in outcome_rmse.iter_mut().enumerate() {
         let predictions = if arm == 0 { mu0 } else { mu1 };
         let rows: Vec<_> = (0..n)
             .filter(|i| input.source[*i] && usize::from(input.treatment[*i]) == arm)
             .collect();
         let observed: Vec<_> = rows.iter().map(|i| input.outcome[*i]).collect();
         let predicted: Vec<_> = rows.iter().map(|i| predictions[*i]).collect();
-        outcome_rmse[arm] =
-            antecedent_learn::diagnose(PredictionTask::Regression, &observed, &predicted)
-                .rmse
-                .ok_or_else(|| EstimationError::data_msg("empty source outcome role"))?;
+        *rmse = antecedent_learn::diagnose(PredictionTask::Regression, &observed, &predicted)
+            .rmse
+            .ok_or_else(|| EstimationError::data_msg("empty source outcome role"))?;
     }
     Ok(TrialNuisanceDiagnostics { membership_logloss, outcome_rmse })
 }
@@ -222,6 +228,10 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
 /// Fit the certified score with shared OOF roles and joint outer refits.
 /// # Errors
 /// Invalid inputs, unsupported certificate, cancellation, or numerical fit failure.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "i % folds is below the fold count, which the input check bounds by u16::MAX + 1"
+)]
 pub fn estimate_trial_aipw(
     id: &TransportIdentification,
     input: &TrialAipwInput,
@@ -249,7 +259,6 @@ pub fn estimate_trial_aipw(
         }
     }
     let mut result = fit_point(id, input, options, &folds, ctx)?;
-    use antecedent_data::{ResamplingPlan, fill_resample_indexes};
     let groups = match input.sampling {
         TrialSampling::NestedCohort => vec![(0..n).collect::<Vec<_>>()],
         TrialSampling::IndependentSamples => vec![
@@ -295,7 +304,9 @@ pub fn estimate_trial_aipw(
                 sampling: input.sampling,
             };
             let draw_folds: Vec<_> = rows.iter().map(|i| folds[*i]).collect();
-            if let Ok(estimate) = fit_point(id, &draw, options, &draw_folds, inner) { Ok((replicate, Some(estimate.estimate))) } else {
+            if let Ok(estimate) = fit_point(id, &draw, options, &draw_folds, inner) {
+                Ok((replicate, Some(estimate.estimate)))
+            } else {
                 cancelled(inner)?;
                 Ok((replicate, None))
             }
@@ -490,6 +501,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the serial and parallel bootstrap must reproduce the point estimate bit-for-bit"
+    )]
     fn bootstrap_replicates_do_not_depend_on_the_thread_budget() {
         let options = TrialAipwOptions { bootstrap: 12, ..TrialAipwOptions::default() };
         for sampling in [TrialSampling::NestedCohort, TrialSampling::IndependentSamples] {

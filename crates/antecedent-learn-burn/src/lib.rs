@@ -7,7 +7,14 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop, clippy::too_many_arguments)]
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use burn::backend::{Autodiff, NdArray};
 use burn::module::{AutodiffModule, Module};
@@ -19,7 +26,8 @@ use burn::tensor::{Tensor, TensorData, backend::Backend};
 type TrainBackend = Autodiff<NdArray<f32>>;
 type InferBackend = NdArray<f32>;
 
-/// Burn's backend RNG is global; training holds this lock so folds cannot reseed each other.
+/// Burn's backend RNG is global: training holds this lock so concurrent folds cannot
+/// reseed each other.
 static TRAIN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Trained two-hidden-layer MLP. Predicts one value per row.
@@ -77,7 +85,9 @@ pub fn train(
     if x_colmajor[..nrows * ncols].iter().chain(y).any(|v| !v.is_finite()) {
         return Err("neural_net design and target must be finite".into());
     }
-    if binary && y.iter().any(|&v| v != 0.0 && v != 1.0) {
+    #[allow(clippy::float_cmp, reason = "a binary target is exactly the labels 0 and 1")]
+    let not_a_label = |v: f64| v != 0.0 && v != 1.0;
+    if binary && y.iter().any(|&v| not_a_label(v)) {
         return Err("neural_net binary target must be 0/1".into());
     }
     if !learning_rate.is_finite() || learning_rate <= 0.0 {
@@ -95,6 +105,10 @@ pub fn train(
     let (y_center, y_scale) = if binary { (0.0, 1.0) } else { target_standardization(y) };
     let x_std = standardized(x_colmajor, nrows, ncols, &x_center, &x_scale);
     let x_rm = colmajor_to_rowmajor_f32(&x_std, nrows, ncols);
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the network trains in f32, so narrowing the standardized target is the intended precision"
+    )]
     let y_f: Vec<f32> = y.iter().map(|&v| ((v - y_center) / y_scale) as f32).collect();
     let mut model = Mlp::<TrainBackend>::new(&device, ncols, hidden);
     let mut optim = AdamConfig::new().init();
@@ -301,6 +315,10 @@ fn standardized(
     out
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the network consumes f32 inputs, so narrowing the standardized features is the intended precision"
+)]
 fn colmajor_to_rowmajor_f32(x: &[f64], nrows: usize, ncols: usize) -> Vec<f32> {
     let mut out = vec![0.0f32; nrows.saturating_mul(ncols)];
     for r in 0..nrows {

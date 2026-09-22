@@ -36,7 +36,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop)]
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -105,6 +112,29 @@ pub struct AipwAte {
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for [`AnalyticSeKind::PanelClusterHac`].
     pub panel_times: Option<Vec<i64>>,
+}
+
+/// Per-row influence of the control-to-treated score contrast: the plain score difference
+/// under uniform weights, otherwise the target-weighted centered difference.
+fn contrast_influence(
+    table: &crate::scores::ScoreTable,
+    weights: Option<&[f64]>,
+    contrast_value: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let n = table.n_rows as f64;
+    Ok(match weights {
+        Some(w) => {
+            let mass: f64 = w.iter().sum();
+            table
+                .column(0)?
+                .iter()
+                .zip(table.column(1)?)
+                .zip(w)
+                .map(|((&a, &b), &wi)| n * wi / mass * (b - a - contrast_value))
+                .collect()
+        }
+        None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
+    })
 }
 
 impl Default for AipwAte {
@@ -467,20 +497,7 @@ impl AipwAte {
         let summary = table.summarize(weights)?;
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
         let iid_se = matches!(self.se_kind, AnalyticSeKind::Homoskedastic);
-        let n = table.n_rows as f64;
-        let influence: Vec<f64> = match weights {
-            Some(w) => {
-                let mass: f64 = w.iter().sum();
-                table
-                    .column(0)?
-                    .iter()
-                    .zip(table.column(1)?)
-                    .zip(w)
-                    .map(|((&a, &b), &wi)| n * wi / mass * (b - a - contrast.value))
-                    .collect()
-            }
-            None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
-        };
+        let influence = contrast_influence(&table, weights, contrast.value)?;
         // The score table's covariance and simultaneous bands are iid objects; under a
         // dependence-robust SE kind they would contradict `se_analytic`, so they are withheld
         // rather than published at the wrong strength.
@@ -919,7 +936,10 @@ fn correct_aipw_psi_for_nuisances(
         e_score[i] = t - raw;
         e_info[i] = raw * (1.0 - raw);
         // Clipped rows do not depend on γ locally.
-        #[allow(clippy::float_cmp)]
+        #[allow(
+            clippy::float_cmp,
+            reason = "e is either exactly the raw propensity or the clipped bound, so exact inequality detects a clipped row"
+        )]
         let clipped = e != raw;
         e_deriv[i] =
             if clipped { 0.0 } else { -(t * r1 * (1.0 - e) / e + (1.0 - t) * r0 * e / (1.0 - e)) };
@@ -959,7 +979,11 @@ struct AipwNuisanceFit<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use antecedent_core::StreamDomain;
 

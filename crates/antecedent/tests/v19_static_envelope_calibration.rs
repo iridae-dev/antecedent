@@ -14,12 +14,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::too_many_lines,
     clippy::doc_markdown,
     clippy::too_many_arguments,
     clippy::single_match_else,
     clippy::type_complexity
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;

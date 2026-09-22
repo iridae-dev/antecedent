@@ -89,8 +89,12 @@ pub fn quantile_type7_sorted(sorted: &[f64], p: f64) -> f64 {
         return f64::NAN;
     }
     let h = (n - 1) as f64 * p;
-    let lo = h.floor() as usize;
-    let hi = (h.ceil() as usize).min(n - 1);
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "h = (n - 1) * p with p in [0, 1] is finite and within [0, n - 1], so floor and ceil are non-negative and fit usize"
+    )]
+    let (lo, hi) = (h.floor() as usize, (h.ceil() as usize).min(n - 1));
     if lo == hi {
         return sorted[lo];
     }
@@ -159,6 +163,10 @@ mod tests {
 
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "order-statistic hits with integer h return the stored sample unchanged, so equality is exact"
+    )]
     fn type7_matches_hand_interpolation() {
         let s = [1.0, 2.0, 4.0, 8.0, 16.0];
         // h = 4 * 0.25 = 1.0 -> exactly the 2nd order statistic.

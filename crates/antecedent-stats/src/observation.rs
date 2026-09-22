@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_kernels::{norm_cdf, norm_sf};
 
@@ -57,6 +63,7 @@ impl ObservationProbabilityFit {
 /// # Errors
 ///
 /// Invalid shapes/values, an invalid probability floor, or a failed logistic fit.
+#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
 pub fn fit_observation_logistic(
     indicator: &[f64],
     covariates_colmajor: &[f64],
@@ -122,6 +129,7 @@ pub fn fit_observation_logistic(
 ///
 /// Shape mismatch, non-binary indicators, invalid probabilities, missing observed values,
 /// or non-finite outcome-regression predictions.
+#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
 pub fn selected_outcome_pseudo_values(
     observed: &[f64],
     indicator: &[f64],
@@ -192,6 +200,7 @@ pub struct KaplanMeierIpcw {
 ///
 /// Invalid inputs, empty risk sets, or censoring survival below `survival_floor` at an
 /// observed event.
+#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
 pub fn kaplan_meier_ipcw(
     time: &[f64],
     event: &[f64],

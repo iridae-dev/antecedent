@@ -5,10 +5,13 @@
 
 #![allow(
     clippy::cast_lossless,
-    clippy::cast_possible_truncation,
     clippy::match_same_arms,
     clippy::needless_range_loop,
     clippy::too_many_lines
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;

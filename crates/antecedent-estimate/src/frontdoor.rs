@@ -40,7 +40,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -779,7 +785,12 @@ fn stacked_cluster_meat(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp, clippy::cast_sign_loss)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    reason = "the tests compare floats copied without rounding and cast small non-negative indices"
+)]
 pub(crate) mod tests {
     use antecedent_core::StreamDomain;
 

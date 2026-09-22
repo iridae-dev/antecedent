@@ -1247,7 +1247,8 @@ mod tests {
         clippy::map_unwrap_or,
         clippy::cast_possible_truncation,
         clippy::cast_lossless,
-        clippy::precedence
+        clippy::precedence,
+        reason = "the fixture compares exact 0/1 binary values and casts a bit already masked to 0 or 1 into u8"
     )]
     impl antecedent_expr::DistributionProvider for BinaryTyLaw {
         fn probability(

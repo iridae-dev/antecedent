@@ -385,20 +385,20 @@ fn partial_correlation_portable_impl(
     pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, pearson_fused_floored)
 }
 
+/// A Pearson kernel taking optional per-column constant-column floors.
+type FlooredPearson = fn(&[f64], &[f64], Option<(f64, f64)>) -> Option<f64>;
+
 /// Pearson on residuals, restoring `Some(0.0)` only for finite constant residuals.
 ///
 /// `constant_column` returns true for both non-finite css and a finite near-zero css,
 /// so a bare `pearson(..).or(Some(0.0))` would turn NaN input into false independence.
 /// Residuals are judged against the raw columns' scale (see [`residual_floor`]).
-/// A correlation kernel with an optional per-series noise floor.
-type CorrFn = fn(&[f64], &[f64], Option<(f64, f64)>) -> Option<f64>;
-
 fn pearson_after_residualize(
     rx: &[f64],
     ry: &[f64],
     x: &[f64],
     y: &[f64],
-    corr: CorrFn,
+    corr: FlooredPearson,
 ) -> Option<f64> {
     match corr(rx, ry, Some((residual_floor(x), residual_floor(y)))) {
         Some(r) => Some(r),

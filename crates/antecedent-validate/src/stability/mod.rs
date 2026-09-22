@@ -176,6 +176,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a resampled column copies source-row indices, which are small integers exactly representable in f64"
+    )]
     fn no_lag_window_straddles_a_block_junction() {
         // With gap = 2 * max_lag, any run of gap + 1 consecutive *valid* rows must be consecutive
         // in the original series: a lag window over them never mixes two blocks.

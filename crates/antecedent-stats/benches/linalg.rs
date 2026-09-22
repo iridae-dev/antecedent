@@ -1,9 +1,8 @@
 //! Linear-algebra microbenchmarks for the faer 0.24 substrate.
+#![allow(missing_docs, clippy::needless_range_loop, clippy::too_many_lines)]
 #![allow(
-    missing_docs,
     clippy::cast_possible_truncation,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use antecedent_stats::{

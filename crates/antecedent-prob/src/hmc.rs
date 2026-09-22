@@ -11,12 +11,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -348,7 +350,8 @@ fn fit_hmc_impl(
     } else {
         None
     };
-    let include_sigma2 = gaussian_model.is_some_and(super::prior::GaussianVarianceModel::include_sigma2);
+    let include_sigma2 =
+        gaussian_model.is_some_and(super::prior::GaussianVarianceModel::include_sigma2);
     let dim = ncols + usize::from(include_sigma2);
     // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
     let prec =
@@ -659,7 +662,7 @@ fn pack_and_gate_hmc(
 
     let mut diagnostics = InferenceDiagnostics {
         converged: false,
-        iterations: (hmc.n_warmup + n_keep) as u32,
+        iterations: u32::try_from(hmc.n_warmup + n_keep).unwrap_or(u32::MAX),
         grad_inf_norm: 0.0,
         hessian_condition: f64::NAN,
         factorization: HessianFactorization::Mcmc,
@@ -669,8 +672,8 @@ fn pack_and_gate_hmc(
             hmc.n_chains, hmc.n_warmup, hmc.leapfrog_steps, step_range.0, step_range.1
         ))],
         backend_id: Arc::from("hmc"),
-        n_chains: Some(hmc.n_chains as u32),
-        n_warmup: Some(hmc.n_warmup as u32),
+        n_chains: Some(u32::try_from(hmc.n_chains).unwrap_or(u32::MAX)),
+        n_warmup: Some(u32::try_from(hmc.n_warmup).unwrap_or(u32::MAX)),
         ess_bulk_min: Some(ess_bulk),
         ess_tail_min: Some(ess_tail),
         rhat_max: Some(rhat_max),

@@ -12,12 +12,18 @@
 #![allow(
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
-    clippy::float_cmp,
     clippy::doc_markdown,
-    clippy::cast_sign_loss,
     clippy::needless_range_loop
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use crate::{
@@ -126,6 +132,10 @@ fn read_column(data: &TimeSeriesData, variable: VariableId) -> Result<Vec<f64>, 
     Ok(values)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
+)]
 fn observations(
     data: &TimeSeriesData,
     query: &ResponseQuery,
@@ -267,6 +277,10 @@ fn latent_draw(
 type MechanismTemplates = BTreeMap<VariableId, Vec<(VariableId, usize)>>;
 
 // One canonical order for coefficient fitting and compiled response evaluation.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 fn mechanism_templates(
     graph: &TemporalDag,
     outcome: VariableId,
@@ -386,6 +400,10 @@ struct Evaluation {
     outcome: usize,
 }
 impl Evaluation {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
     fn new(
         graph: &TemporalDag,
         indexer: &TemporalIndexer,
@@ -506,6 +524,10 @@ impl Evaluation {
 /// # Errors
 /// Invalid observation data, incompatible priors/likelihood, numerical failure,
 /// cancellation, or failure of the MCMC publication gate.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits; chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
+)]
 pub fn estimate_observed_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,

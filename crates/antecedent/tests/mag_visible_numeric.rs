@@ -13,6 +13,7 @@ use antecedent_graph::{DenseNodeId, Pag};
 use std::sync::Arc;
 
 #[test]
+#[allow(clippy::cast_sign_loss, reason = "the row index i runs over 0..800, so it is non-negative")]
 fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
     // `r -> t`, a measured confounder `z -> t, z -> y`, and `y = 1 + 2t + 1.5z`. The
     // sample mean of `z` is exactly 0, so every certified functional equals the

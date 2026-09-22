@@ -21,7 +21,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -290,7 +297,7 @@ fn apply_screened_out_floor(
         .filter_map(|link| {
             let si = variables.iter().position(|v| *v == link.source)?;
             let ti = variables.iter().position(|v| *v == link.target)?;
-            Some((si.min(ti) as u32, si.max(ti) as u32))
+            Some((crate::indexing::dense_u32(si.min(ti)), crate::indexing::dense_u32(si.max(ti))))
         })
         .collect();
 
@@ -298,7 +305,7 @@ fn apply_screened_out_floor(
     let mut marginals = post.edge_marginals.to_vec();
     for i in 0..n {
         for j in (i + 1)..n {
-            let key = (i as u32, j as u32);
+            let key = (crate::indexing::dense_u32(i), crate::indexing::dense_u32(j));
             if screened_in.contains(&key) || forbidden_idx.contains(&key) {
                 continue;
             }

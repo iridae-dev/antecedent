@@ -517,7 +517,6 @@ fn composition_assumption(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transport::TransportAdjustment;
     use crate::prior::GaussianCoefficientPrior;
 
     fn gauss(mean: f64, var: f64) -> PriorSet {
@@ -800,6 +799,7 @@ mod tests {
 
     #[test]
     fn kish_ess_matches_hand_value() {
+        use crate::transport::TransportAdjustment;
         // Σw = 1, Σw² = 0.25 + 0.0625 + 0.0625 = 0.375, so ESS = 1 / 0.375 = 8/3.
         let expected = 8.0 / 3.0;
         assert!((kish_ess(&[0.5, 0.25, 0.25]) - expected).abs() < 1e-12);

@@ -212,6 +212,18 @@ pub fn grid_seed(seed: u64) -> u64 {
     seed ^ grid_salt()
 }
 
+/// Environment variable naming the commit under measurement (`scripts/gate_calibration.sh`
+/// exports it). Every record carries it, so a line copied from another run or another
+/// commit is refused by `scripts/collect_coverage_records.py` on its own, not only when
+/// its log's trailer happens to agree.
+pub const MEASURED_AT_ENV: &str = "ANTECEDENT_CALIBRATION_SHA";
+
+/// The commit this run measures; empty outside the gate (the collector then refuses the line).
+#[must_use]
+pub fn measured_at() -> String {
+    std::env::var(MEASURED_AT_ENV).unwrap_or_default()
+}
+
 /// Environment variable of a wiring smoke run (`1`): tallies emit their
 /// records flagged `"smoke": true` and never gate. A smoke run proves that
 /// designs scale with the grid and that the records key and bind; it measures
@@ -631,7 +643,11 @@ impl CoverageTally {
             format!("{file}::{}", record.key.dgp)
         };
         // A nominal level is in [0, 1], so the rounded percentage is in [0, 100].
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a nominal level is in [0, 1], so the rounded percentage is in [0, 100]"
+        )]
         let level_pct = (self.level * 100.0).round() as u32;
         let mut id = format!(
             "cov.{}.{}.{}.{}.l{level_pct}.{}",
@@ -672,6 +688,7 @@ impl CoverageTally {
                 "replicates": attempts,
                 "bound_replicates": record.bound,
                 "grid_point": grid_point(),
+                "measured_at": measured_at(),
                 "boundary": boundary,
                 "role": role,
                 "dgp": dgp,
@@ -970,7 +987,11 @@ pub fn quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
     values.sort_by(f64::total_cmp);
     let last = (values.len() - 1) as f64;
     let lo_p = (1.0 - level) / 2.0;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the rounded index is clamped to [0, last], a valid non-negative index"
+    )]
     let at = |q: f64| values[(last * q).round().clamp(0.0, last) as usize];
     Some((at(lo_p), at(1.0 - lo_p)))
 }

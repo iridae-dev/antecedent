@@ -111,7 +111,11 @@ pub fn refute_temporal_mediation(
 }
 
 /// Run the native suite with the same graph-derived adjustment as the estimate.
-#[allow(clippy::float_cmp, clippy::too_many_arguments)]
+#[allow(
+    clippy::float_cmp,
+    clippy::too_many_arguments,
+    reason = "the treatment column is compared to its own deduplicated level values, which are copies of the same floats; the argument list mirrors the estimate call"
+)]
 pub fn refute_temporal_mediation_adjusted(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,

@@ -131,7 +131,7 @@ impl LinearOlsSuffStats {
     /// variance.
     #[must_use]
     pub fn residual_variance(&self, beta: &[f64]) -> Option<f64> {
-        if beta.len() != self.ncols || self.n as usize <= self.ncols {
+        if beta.len() != self.ncols || usize::try_from(self.n).is_ok_and(|n| n <= self.ncols) {
             return None;
         }
         if self.joint.n != self.n || self.joint.dim != self.ncols.saturating_add(1) {

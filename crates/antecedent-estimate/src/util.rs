@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
 use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
@@ -70,7 +76,11 @@ pub(crate) fn sample_std(values: &[f64]) -> f64 {
 /// — so `+∞` is returned rather than a narrower, anti-conservative maximum. Every
 /// simultaneous response band (multiplier, Gaussian max-t and replicate sup-t)
 /// reads its critical value here. `NaN` for an empty slice.
-#[allow(clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the rank is at least 1 and the code below rejects any rank above b"
+)]
+#[allow(clippy::cast_sign_loss, reason = "the rank is clamped to at least 1 before the cast")]
 pub(crate) fn monte_carlo_critical(sorted_maxima: &[f64], level: f64) -> f64 {
     let b = sorted_maxima.len();
     if b == 0 {

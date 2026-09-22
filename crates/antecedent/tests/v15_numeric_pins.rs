@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -2552,6 +2556,11 @@ fn pag_route_refuses_the_front_door_admg() {
 /// latent `T <- L1 -> A <- L2 -> B`, as an exact table: every conditional is a
 /// multiple of 1/8, so 8192 rows reproduce the observational law exactly.
 /// Returns the rows and the exact `E[Y | do(T = level)]`.
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "rows is asserted to be an exact non-negative integer count of at most 8192 just above"
+)]
 fn mag_general_id_law(keep: impl Fn(f64, f64) -> bool) -> (TabularData, [f64; 2]) {
     let quarter = |k: usize| 0.25 * k as f64;
     let bern = |p1: f64, v: usize| if v == 1 { p1 } else { 1.0 - p1 };

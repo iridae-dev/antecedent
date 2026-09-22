@@ -2025,7 +2025,11 @@ struct PanelRefuteAtom {
 /// for its own fit would carry the same weight as a long one. The floor is the
 /// effective-row threshold below which a temporal response band is not calibrated
 /// ([`antecedent_estimate::RESPONSE_SHORT_SERIES_ROWS`]).
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "RESPONSE_SHORT_SERIES_ROWS is the positive integer-valued constant 15.0, so the cast is exact"
+)]
 const PANEL_MIN_UNIT_ROWS: usize = antecedent_estimate::RESPONSE_SHORT_SERIES_ROWS as usize;
 
 /// Refuse a panel whose unit has fewer than [`PANEL_MIN_UNIT_ROWS`] rows left after

@@ -45,7 +45,8 @@ pub use types::{
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::float_cmp,
-    clippy::similar_names
+    clippy::similar_names,
+    reason = "tests assert exact float values that are integer-valued or copied unchanged, and index small fixtures"
 )]
 mod tests {
     use antecedent_core::ExecutionContext;

@@ -26,7 +26,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown, clippy::float_cmp, clippy::too_many_arguments)]
+#![allow(clippy::doc_markdown, clippy::too_many_arguments)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 mod common;
 

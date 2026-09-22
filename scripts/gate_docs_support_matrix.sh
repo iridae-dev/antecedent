@@ -404,3 +404,5 @@ print(
     "forbidden patterns hold)"
 )
 PY
+
+python3 scripts/short_series_thresholds.py check

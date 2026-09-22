@@ -6,11 +6,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::needless_range_loop,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::too_many_arguments
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -394,7 +400,7 @@ pub fn edge_bit(n: usize, from: usize, to: usize) -> u32 {
     debug_assert_ne!(from, to);
     debug_assert!(from < n && to < n);
     let idx = from * (n - 1) + if to < from { to } else { to - 1 };
-    idx as u32
+    crate::indexing::dense_u32(idx)
 }
 
 /// Number of possible directed edges on `n` labeled nodes.
@@ -425,7 +431,7 @@ pub fn parents_of(mask: u64, n: usize, node: usize) -> Vec<u32> {
     let mut pa = Vec::new();
     for p in 0..n {
         if p != node && has_edge(mask, n, p, node) {
-            pa.push(p as u32);
+            pa.push(crate::indexing::dense_u32(p));
         }
     }
     pa
@@ -439,8 +445,8 @@ pub fn mask_is_dag(mask: u64, n: usize) -> bool {
     for i in 0..n {
         for j in 0..n {
             if i != j && has_edge(mask, n, i, j) {
-                let from = DenseNodeId::from_raw(i as u32);
-                let to = DenseNodeId::from_raw(j as u32);
+                let from = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+                let to = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
                 children[i].push(to);
                 parents[j].push(from);
             }
@@ -475,8 +481,8 @@ pub fn dag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Dag, Discover
         for j in 0..n_vars {
             if i != j && has_edge(mask, n_vars, i, j) {
                 dag.insert_directed(
-                    DenseNodeId::from_raw(i as u32),
-                    DenseNodeId::from_raw(j as u32),
+                    DenseNodeId::from_raw(crate::indexing::dense_u32(i)),
+                    DenseNodeId::from_raw(crate::indexing::dense_u32(j)),
                 )?;
             }
         }
@@ -512,8 +518,8 @@ pub fn cpdag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Cpdag, Disc
         for j in (i + 1)..n_vars {
             let ij = has_edge(mask, n_vars, i, j);
             let ji = has_edge(mask, n_vars, j, i);
-            let a = DenseNodeId::from_raw(i as u32);
-            let b = DenseNodeId::from_raw(j as u32);
+            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
             if ij && ji {
                 cpdag.insert_undirected(a, b)?;
             } else if ij {
@@ -574,8 +580,8 @@ pub fn pag_from_adjacency_mask(
             if !ij && !ji {
                 continue;
             }
-            let a = DenseNodeId::from_raw(i as u32);
-            let b = DenseNodeId::from_raw(j as u32);
+            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
             let circle_a = has_edge(mark_mask, n_vars, i, j);
             let circle_b = has_edge(mark_mask, n_vars, j, i);
             if ij && ji {
@@ -616,8 +622,8 @@ pub fn adjacency_masks_from_pag(pag: &Pag) -> Result<(u64, u64), DiscoveryError>
     let mut marks = 0_u64;
     for i in 0..n_vars {
         for j in (i + 1)..n_vars {
-            let a = DenseNodeId::from_raw(i as u32);
-            let b = DenseNodeId::from_raw(j as u32);
+            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
             let Some(edge) = pag.edge_between(a, b) else {
                 continue;
             };
@@ -683,8 +689,8 @@ pub fn admg_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Admg, Discov
             if !ij && !ji {
                 continue;
             }
-            let a = DenseNodeId::from_raw(i as u32);
-            let b = DenseNodeId::from_raw(j as u32);
+            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
             if ij && ji {
                 admg.insert_bidirected(a, b)?;
             } else if ij {
@@ -707,7 +713,7 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
     require_mask_capacity(n_vars, "adjacency_mask_from_admg")?;
     let mut mask = 0_u64;
     for i in 0..n_vars {
-        let from = DenseNodeId::from_raw(i as u32);
+        let from = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
         for &to in admg.children(from) {
             mask = set_edge(mask, n_vars, i, to.as_usize(), true);
         }
@@ -911,7 +917,7 @@ pub fn accumulate_marginals(n: usize, weights: &[f64], masks: &[u64]) -> (Vec<f6
 pub fn analytic_graph_diagnostics(n_graphs: usize, ess: f64) -> InferenceDiagnostics {
     InferenceDiagnostics {
         converged: true,
-        iterations: n_graphs as u32,
+        iterations: crate::indexing::dense_u32(n_graphs),
         grad_inf_norm: 0.0,
         hessian_condition: 1.0,
         factorization: HessianFactorization::Analytic,
@@ -1294,13 +1300,18 @@ mod tests {
     /// The MCSE of an indicator is `sqrt(p(1-p)/ESS)`; a constant indicator has none.
     #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an indicator that never varies has an MCSE of exactly zero by construction"
+    )]
     fn mcse_is_zero_for_constant_and_positive_for_varying_indicators() {
         let (n_chains, n_draws, n_params) = (2usize, 64usize, 2usize);
         let mut traces = vec![0.0; n_chains * n_draws * n_params];
         for c in 0..n_chains {
             for d in 0..n_draws {
                 traces[(c * n_draws + d) * n_params] = 1.0;
-                traces[(c * n_draws + d) * n_params + 1] = f64::from(u8::from((d * 7 + c * 3) % 5 < 2));
+                traces[(c * n_draws + d) * n_params + 1] =
+                    f64::from(u8::from((d * 7 + c * 3) % 5 < 2));
             }
         }
         let s = graph_chain_summary(&traces, n_chains, n_draws, n_params);

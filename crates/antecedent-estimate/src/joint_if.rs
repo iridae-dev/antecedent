@@ -8,7 +8,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::needless_range_loop)]
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -361,6 +369,14 @@ pub fn monotone_increasing(values: &[f64]) -> Vec<f64> {
     y
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "weights are non-negative integer replication counts far below usize::MAX"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "weights are non-negative integer replication counts; a negative value would saturate to zero replications"
+)]
 fn pava_increasing(y: &mut [f64]) {
     let n = y.len();
     if n < 2 {

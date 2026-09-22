@@ -286,7 +286,11 @@ impl AdaptiveBootstrapBudget {
         }
         let bound = (1.0 + 0.5 / (self.se_rel_epsilon * self.se_rel_epsilon)).ceil();
         // Saturate rather than truncate: a tiny ε is "never stop", not "stop at 0".
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the value is a non-negative ceil and the branch saturates at u32::MAX before the cast, so it can neither truncate nor lose sign"
+        )]
         let bound = if bound >= f64::from(u32::MAX) { u32::MAX } else { bound as u32 };
         bound.max(self.min_replicates).max(2)
     }
@@ -960,7 +964,7 @@ mod tests {
 
     #[test]
     fn unavailable_arch_simd_is_not_an_effective_request() {
-        // No arch-SIMD kernels are compiled in, so a request for them cannot take effect.
+        const { assert!(!ARCH_SIMD_COMPILED) };
         assert!(!KernelPolicy::default_policy().arch_simd_effective());
         assert!(!KernelPolicy::scalar_only().arch_simd_effective());
     }

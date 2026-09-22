@@ -4,7 +4,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::HashMap;
 use std::hash::BuildHasher;
@@ -40,10 +46,16 @@ pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> 
     for (i, node) in nodes.iter().enumerate() {
         match node {
             NodeRef::Lagged { variable, lag } => {
-                node_ids.insert((variable.raw(), lag.raw()), DenseNodeId::from_raw(i as u32));
+                node_ids.insert(
+                    (variable.raw(), lag.raw()),
+                    DenseNodeId::from_raw(crate::indexing::dense_u32(i)),
+                );
             }
             NodeRef::Context { variable, .. } => {
-                node_ids.insert((variable.raw(), 0), DenseNodeId::from_raw(i as u32));
+                node_ids.insert(
+                    (variable.raw(), 0),
+                    DenseNodeId::from_raw(crate::indexing::dense_u32(i)),
+                );
             }
             NodeRef::Static(_) | NodeRef::Unfolded { .. } => {}
         }

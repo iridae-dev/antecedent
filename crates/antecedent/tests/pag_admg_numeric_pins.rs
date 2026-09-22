@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -420,7 +424,12 @@ fn admg_frontdoor_response_pins_against_distribution() {
 /// `P(Y=1|x,u2) = (1 + x + x·u2)/4`. Every joint mass is a multiple of `1/2048`, so the table
 /// is the law itself. Returns the data (columns `w, z, x, y`) and `E[Y | do(X=x)]` for
 /// `x = 0, 1`, enumerated from the mechanisms: `1/4` and `1/2 + P(U2=1)/4 = 9/16`.
-#[allow(clippy::many_single_char_names, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the rounded value is a non-negative integer-valued row count from the pinned mechanism, far below usize::MAX"
+)]
 fn napkin_population() -> (TabularData, [f64; 2]) {
     let p = |one: bool, p1: f64| if one { p1 } else { 1.0 - p1 };
     let mut cols: [Vec<f64>; 4] = Default::default();

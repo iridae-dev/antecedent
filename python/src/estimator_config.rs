@@ -302,10 +302,16 @@ pub(crate) fn merge_rd_triple(
     // Exact equality is deliberate: this asks "did the caller pass the same literal
     // twice", not "are these numerically close". A tolerance here would silently accept
     // two genuinely different cutoffs.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a loose and a configured cutoff conflict unless they are exactly the same value"
+    )]
     let cutoff =
         merge_rd_field("cutoff", loose_cutoff, configured_cutoff, |a: &f64, b: &f64| a == b)?;
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a loose and a configured bandwidth conflict unless they are exactly the same value"
+    )]
     let bandwidth =
         merge_rd_field("bandwidth", loose_bandwidth, configured_bandwidth, |a: &f64, b: &f64| {
             a == b

@@ -83,11 +83,15 @@ impl FiniteJoint {
             let x = DesignView::from_column_major(&design, n, width)?;
             let mut hazards = Vec::new();
             for level in 0..cardinalities[axis] - 1 {
-                #[allow(clippy::cast_possible_truncation)]
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "the fit rejects n > u32::MAX above, so every row index r < n fits u32"
+                )]
                 let rows: Vec<u32> =
                     (0..n).filter(|r| columns[axis][*r] >= level).map(|r| r as u32).collect();
                 let y: Vec<f64> = columns[axis].iter().map(|v| f64::from(*v == level)).collect();
-                let positives = rows.iter().filter(|r| y[**r as usize] == 1.0).count();
+                let positives =
+                    rows.iter().filter(|r| columns[axis][**r as usize] == level).count();
                 hazards.push(if rows.is_empty() || positives == 0 {
                     Conditional::Constant(0.0)
                 } else if positives == rows.len() {
@@ -132,10 +136,10 @@ impl FiniteJoint {
             let width = 1 + self.cardinalities[..axis].iter().map(|k| k - 1).sum::<usize>();
             let mut design = vec![1.0; size * width];
             let mut col = 1;
-            for previous in 0..axis {
+            for (previous, earlier) in assignments.iter().enumerate().take(axis) {
                 for level in 0..self.cardinalities[previous] - 1 {
                     for row in 0..size {
-                        design[col * size + row] = f64::from(assignments[previous][row] == level);
+                        design[col * size + row] = f64::from(earlier[row] == level);
                     }
                     col += 1;
                 }
@@ -208,7 +212,10 @@ fn joint_size(cardinalities: &[usize], max_cells: usize) -> Result<usize, LearnE
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use super::*;
     #[test]

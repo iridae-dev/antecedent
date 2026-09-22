@@ -10,7 +10,10 @@
 //!   and `EVSI(n) = |Δβ| s_n G(|μ_b − μ₀| / s_n)` with the unit normal linear-loss
 //!   integral `G(u) = φ(u) − u (1 − Φ(u))`. `EVPI` is the same with `s = τ`.
 
-#![allow(clippy::float_cmp)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 

@@ -7,7 +7,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_wrap, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -160,38 +168,8 @@ impl CausalForest {
                 &x, n, p, y, t, min_leaf, max_depth, honesty, &mut rng,
             ))
         })?;
-        let mut cate = vec![0.0; n];
-        let mut hits = vec![0.0; n];
-        let mut se_ss = vec![0.0; n];
-        let mut se_hits = vec![0.0; n];
-        for tree in &trees {
-            for i in 0..n {
-                if let Some((tau, se)) = tree.predict_leaf(&x, n, p, i) {
-                    cate[i] += tau;
-                    hits[i] += 1.0;
-                    if let Some(leaf_se) = se {
-                        se_ss[i] += leaf_se * leaf_se;
-                        se_hits[i] += 1.0;
-                    }
-                }
-            }
-        }
-        let mut leaf_dispersion = vec![0.0; n];
-        let mut se_complete = true;
-        for i in 0..n {
-            if hits[i] > 0.0 {
-                cate[i] /= hits[i];
-            }
-            // Sqrt of the mean of honest two-sample leaf variances over trees
-            // that had both arms with n≥2. Trees that only return a point
-            // (single-observation arm) contribute to the CATE, not the dispersion.
-            // This is a diagnostic, not a standard error of the averaged CATE.
-            if se_hits[i] > 0.0 {
-                leaf_dispersion[i] = leaf_dispersion_from_leaf_ses(se_ss[i], se_hits[i]);
-            } else {
-                se_complete = false;
-            }
-        }
+        let ForestCate { cate, hits, leaf_dispersion, se_complete } =
+            aggregate_forest_cate(&trees, &x, n, p);
         // Variation across fitted CATEs is heterogeneity, not sampling
         // uncertainty in the ATE. Use the orthogonal marginal score instead.
         let mut effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
@@ -244,6 +222,51 @@ fn portable_forest(
             },
         },
     }
+}
+
+/// Per-row forest CATE, its leaf-hit counts, and its standard error.
+struct ForestCate {
+    cate: Vec<f64>,
+    hits: Vec<f64>,
+    leaf_dispersion: Vec<f64>,
+    /// Every row had at least one tree with a two-sample leaf variance.
+    se_complete: bool,
+}
+
+/// Average the per-tree leaf CATEs (and honest leaf variances) at every row.
+fn aggregate_forest_cate(trees: &[Node], x: &[f64], n: usize, p: usize) -> ForestCate {
+    let mut cate = vec![0.0; n];
+    let mut hits = vec![0.0; n];
+    let mut se_ss = vec![0.0; n];
+    let mut se_hits = vec![0.0; n];
+    for tree in trees {
+        for i in 0..n {
+            if let Some((tau, se)) = tree.predict_leaf(x, n, p, i) {
+                cate[i] += tau;
+                hits[i] += 1.0;
+                if let Some(leaf_se) = se {
+                    se_ss[i] += leaf_se * leaf_se;
+                    se_hits[i] += 1.0;
+                }
+            }
+        }
+    }
+    let mut leaf_dispersion = vec![0.0; n];
+    let mut se_complete = true;
+    for i in 0..n {
+        if hits[i] > 0.0 {
+            cate[i] /= hits[i];
+        }
+        // Sqrt of the mean of honest two-sample leaf variances over trees
+        // that had both arms with n≥2. Trees that only return a point
+        // (single-observation arm) contribute to the CATE, not the SE.
+        if se_hits[i] > 0.0 {
+            leaf_dispersion[i] = leaf_dispersion_from_leaf_ses(se_ss[i], se_hits[i]);
+        } else {
+            se_complete = false;
+        }
+    }
+    ForestCate { cate, hits, leaf_dispersion, se_complete }
 }
 
 #[derive(Clone, Debug)]
@@ -419,8 +442,11 @@ fn best_split(
     Some((feat, thr, left, right))
 }
 
-// `ceil(sqrt(p))` is a small non-negative integer; the modular draw is below `p - i`.
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the mtry count is ceil(sqrt(p)) for a feature count p, far below usize::MAX, and the u64 draw is reduced modulo the remaining feature range so truncating it on a 32-bit target still yields a valid index"
+)]
+#[allow(clippy::cast_sign_loss, reason = "ceil(sqrt(p)) of a feature count is non-negative")]
 fn choose_features(p: usize, rng: &mut CausalRng) -> Vec<usize> {
     if p == 0 {
         return Vec::new();

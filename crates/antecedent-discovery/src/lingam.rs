@@ -12,7 +12,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::manual_let_else, clippy::too_many_lines)]
+#![allow(clippy::manual_let_else, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -33,8 +40,8 @@ use crate::result::{
     discovery_assumptions,
 };
 
-/// A candidate parent index with its standardised coefficient.
-type ParentCoef = (usize, f64);
+/// `(parent index, coefficient)` pairs of one regression target.
+type ParentCoefs = Vec<(usize, f64)>;
 
 /// Static `DirectLiNGAM` discovery result (`Dag` evidence + review).
 pub type StaticDagDiscoveryResult = DiscoveryResult<Dag, DagReview>;
@@ -236,8 +243,8 @@ impl DirectLingam {
         };
         // Keep required parents unconditionally, then the largest standardised
         // coefficients above the threshold up to `max_parents`.
-        let select = |child: usize, coefs: &[ParentCoef]| -> Vec<ParentCoef> {
-            let (mut kept, mut optional): (Vec<ParentCoef>, Vec<ParentCoef>) =
+        let select = |child: usize, coefs: &[(usize, f64)]| -> Vec<(usize, f64)> {
+            let (mut kept, mut optional): (ParentCoefs, ParentCoefs) =
                 coefs.iter().copied().partition(|&(par, _)| required_pairs.contains(&(par, child)));
             optional.retain(|&(par, beta)| {
                 standardised(par, child, beta).abs() >= self.prune_threshold
@@ -289,8 +296,8 @@ impl DirectLingam {
         }
 
         for &(par, child, _) in &edge_coefs {
-            let from = DenseNodeId::from_raw(par as u32);
-            let to = DenseNodeId::from_raw(child as u32);
+            let from = DenseNodeId::from_raw(crate::indexing::dense_u32(par));
+            let to = DenseNodeId::from_raw(crate::indexing::dense_u32(child));
             if dag.children(from).contains(&to) {
                 continue;
             }

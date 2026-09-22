@@ -3,10 +3,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::similar_names,
-    clippy::trivially_copy_pass_by_ref
+#![allow(clippy::similar_names, clippy::trivially_copy_pass_by_ref)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_core::{CausalRng, KernelPolicy};

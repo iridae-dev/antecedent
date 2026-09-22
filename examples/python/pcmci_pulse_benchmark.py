@@ -19,9 +19,8 @@ Install with `python -m pip install antecedent`; see examples/README.md.
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 TRUE_PARENTS = {("x", 1, "y", 0)}
 TRUE_PULSE = 0.8
@@ -43,9 +42,7 @@ def _pcmci_lag1_scm(n: int = 500, seed: int = 0) -> dict[str, np.ndarray]:
 def main() -> None:
     data = _pcmci_lag1_scm()
 
-    accepted = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).accept(
-        data, seed=0
-    )
+    accepted = antecedent.discovery.PCMCI(max_lag=2, alpha=0.05, fdr=False).accept(data, seed=0)
     assert isinstance(accepted, antecedent.AcceptedGraph)
 
     recovered = set(accepted.graph.edges())

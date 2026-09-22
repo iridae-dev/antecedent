@@ -21,7 +21,8 @@ pub struct StatisticalOptionsWire {
 }
 
 impl StatisticalOptionsWire {
-    #[must_use] pub fn from_options(options: &EmpiricalTableOptions) -> Self {
+    #[must_use]
+    pub fn from_options(options: &EmpiricalTableOptions) -> Self {
         Self {
             estimator: options.estimator.as_str().into(),
             learner: match options.estimator {
@@ -106,7 +107,8 @@ pub struct TransportGridFailureWire {
 }
 
 impl TransportGridFailureWire {
-    #[must_use] pub fn from_failure(f: &antecedent_core::TransportGridFailure) -> Self {
+    #[must_use]
+    pub fn from_failure(f: &antecedent_core::TransportGridFailure) -> Self {
         Self {
             kind: f.kind.clone(),
             detail: f.detail.clone(),
@@ -122,7 +124,8 @@ impl TransportGridFailureWire {
                 .collect(),
         }
     }
-    #[must_use] pub fn to_failure(&self) -> antecedent_core::TransportGridFailure {
+    #[must_use]
+    pub fn to_failure(&self) -> antecedent_core::TransportGridFailure {
         antecedent_core::TransportGridFailure {
             kind: self.kind.clone(),
             detail: self.detail.clone(),

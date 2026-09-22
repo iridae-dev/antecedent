@@ -7,7 +7,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -239,7 +243,7 @@ fn napkin_joint(do_x: Option<usize>) -> Vec<f64> {
         for (k, p) in latent_p.iter().enumerate() {
             latent_mass *= if bit(u, k) == 1 { *p } else { 1.0 - *p };
         }
-        for obs in 0..16 {
+        for (obs, cell) in out.iter_mut().enumerate() {
             let (w, z, x, y) = (bit(obs, 0), bit(obs, 1), bit(obs, 2), bit(obs, 3));
             let mut mass = latent_mass;
             let pw = 0.2 + 0.3 * u1 as f64 + 0.25 * u2 as f64;
@@ -256,7 +260,7 @@ fn napkin_joint(do_x: Option<usize>) -> Vec<f64> {
             }
             let py = 0.1 + 0.35 * x as f64 + 0.4 * u2 as f64;
             mass *= if y == 1 { py } else { 1.0 - py };
-            out[obs] += mass;
+            *cell += mass;
         }
     }
     out
@@ -270,7 +274,7 @@ fn discriminating_joint(do_t: Option<usize>) -> Vec<f64> {
         for l2 in 0..2 {
             let latent_mass =
                 (if l1 == 1 { 0.4 } else { 0.6 }) * (if l2 == 1 { 0.55 } else { 0.45 });
-            for obs in 0..1 << 5 {
+            for (obs, cell) in out.iter_mut().enumerate() {
                 let (a, q, c, t, y) =
                     (bit(obs, 0), bit(obs, 1), bit(obs, 2), bit(obs, 3), bit(obs, 4));
                 let mut mass = latent_mass;
@@ -289,7 +293,7 @@ fn discriminating_joint(do_t: Option<usize>) -> Vec<f64> {
                 }
                 let py = 0.05 + 0.2 * q as f64 + 0.25 * c as f64 + 0.35 * t as f64;
                 mass *= if y == 1 { py } else { 1.0 - py };
-                out[obs] += mass;
+                *cell += mass;
             }
         }
     }
@@ -505,6 +509,11 @@ fn napkin_identified_expression_matches_enumerated_interventional_ate() {
 /// witness `A`, and with it the adjustment functional recovers the SCM ATE.
 #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 #[test]
+#[allow(clippy::float_cmp, reason = "a refused identification carries an exact zero weight")]
+#[allow(
+    clippy::float_cmp,
+    reason = "the weights are pinned reference values reproduced bit for bit"
+)]
 fn discriminating_path_visibility_matches_enumerated_effect() {
     let fixture = fixture();
     let pin = case(&fixture, "discriminating_path_visibility");

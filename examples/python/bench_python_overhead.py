@@ -151,7 +151,10 @@ def run_bench(
                 import pyarrow as pa
 
                 assert isinstance(data, pa.Table)
-                data = {name: data.column(i).combine_chunks() for i, name in enumerate(data.column_names)}
+                data = {
+                    name: data.column(i).combine_chunks()
+                    for i, name in enumerate(data.column_names)
+                }
 
             ingest_ms = _median_ms(lambda d=data: _ingest(d), iters, warmup)
             total_ms = _median_ms(lambda d=data: call(d), iters, warmup)

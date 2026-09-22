@@ -2,7 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::needless_range_loop)]
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -308,11 +316,19 @@ fn residual_independence_tests(
     for (node_i, resid_opt) in residuals.iter().enumerate() {
         let Some(_) = resid_opt else { continue };
         let Some(rx) = resid_col[node_i] else { continue };
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+        )]
         let gather = model.gather_for(DenseNodeId::from_raw(node_i as u32)).unwrap();
         model.graph.descendants_of(&[gather.child], &mut descendants, &mut graph_ws);
         for other in 0..n_nodes {
             // ANM residuals are independent of non-descendants (parents already skipped).
             // Dependence on descendants is expected and must not falsify a correct model.
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+            )]
             let other_id = DenseNodeId::from_raw(other as u32);
             if other == node_i
                 || gather.parents.contains(&other_id)
@@ -443,6 +459,11 @@ fn permutation_baseline(
     for _ in 0..n_perm {
         // Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964)
         for i in (1..y.len()).rev() {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "next_f64 is in [0, 1), so the truncated index is non-negative and below i + 1"
+            )]
             let j = (rng.next_f64() * (i as f64 + 1.0)) as usize;
             y.swap(i, j.min(i));
         }

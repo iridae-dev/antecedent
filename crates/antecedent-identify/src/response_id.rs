@@ -324,7 +324,13 @@ pub fn identify_cpdag_response_general(
 #[cfg(test)]
 mod tests {
     // Envelope weights here are exact counts of unit-weight cases.
-    #![allow(clippy::float_cmp)]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            reason = "test fixtures compare exact constants and index with small literals"
+        )
+    )]
     use std::sync::Arc;
 
     use antecedent_core::{

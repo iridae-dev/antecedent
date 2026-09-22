@@ -159,7 +159,12 @@ pub(crate) fn validate_design(
                 }
             }
             BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit => {
-                if !(yi == 0.0 || yi == 1.0) {
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "a Bernoulli outcome must be exactly the coded value 0 or 1"
+                )]
+                let is_binary = yi == 0.0 || yi == 1.0;
+                if !is_binary {
                     return Err(ProbError::Shape { message: "Bernoulli outcomes must be 0 or 1" });
                 }
             }

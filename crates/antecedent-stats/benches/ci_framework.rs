@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(missing_docs)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{

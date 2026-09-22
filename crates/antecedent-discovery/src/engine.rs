@@ -5,7 +5,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines, clippy::type_complexity)]
+#![allow(clippy::too_many_lines, clippy::type_complexity)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::HashMap;
 use std::sync::Arc;

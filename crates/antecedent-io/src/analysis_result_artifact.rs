@@ -634,42 +634,50 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     }
     validate_cate_and_learner_metrics(result)?;
     if let Some(structural) = &result.structural_response {
-        if let Some(interval) = &structural.identified_set_interval {
-            identified_set_interval_from_wire(interval)?;
+        validate_structural_response(structural, variable_names.len())?;
+    }
+    Ok(())
+}
+
+fn validate_structural_response(
+    structural: &StructuralResponseMixtureWire,
+    n_variables: usize,
+) -> Result<(), IoError> {
+    if let Some(interval) = &structural.identified_set_interval {
+        identified_set_interval_from_wire(interval)?;
+    }
+    if !(0.0..=1.0).contains(&structural.subsampled_out_mass) {
+        return Err(IoError::Convert(
+            "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
+        ));
+    }
+    let total = structural.identified_mass
+        + structural.unidentified_mass
+        + structural.unevaluable_mass
+        + structural.subsampled_out_mass;
+    if !total.is_finite() || (total - 1.0).abs() > 1e-9 {
+        return Err(IoError::Convert("structural masses must sum to one".into()));
+    }
+    if !structural.atoms.is_empty() {
+        let weight: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
+        if !weight.is_finite() || (weight - 1.0).abs() > 1e-9 {
+            return Err(IoError::Convert("inconsistent atom totals".into()));
         }
-        if !(0.0..=1.0).contains(&structural.subsampled_out_mass) {
+    }
+    for atom in &structural.atoms {
+        if !atom.weight.is_finite() || atom.weight < 0.0 {
             return Err(IoError::Convert(
-                "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
+                "structural atom weight must be finite and nonnegative".into(),
             ));
         }
-        let total = structural.identified_mass
-            + structural.unidentified_mass
-            + structural.unevaluable_mass
-            + structural.subsampled_out_mass;
-        if !total.is_finite() || (total - 1.0).abs() > 1e-9 {
-            return Err(IoError::Convert("structural masses must sum to one".into()));
+        if let Some(value) = &atom.value {
+            crate::response_value_from_wire(value)?;
         }
-        if !structural.atoms.is_empty() {
-            let weight: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
-            if !weight.is_finite() || (weight - 1.0).abs() > 1e-9 {
-                return Err(IoError::Convert("inconsistent atom totals".into()));
-            }
+        if let Some(response) = &atom.response {
+            crate::causal_artifact::validate_response_result(response, n_variables)?;
         }
-        for atom in &structural.atoms {
-            if !atom.weight.is_finite() || atom.weight < 0.0 {
-                return Err(IoError::Convert(
-                    "structural atom weight must be finite and nonnegative".into(),
-                ));
-            }
-            if let Some(value) = &atom.value {
-                crate::response_value_from_wire(value)?;
-            }
-            if let Some(response) = &atom.response {
-                validate_response_result(response, variable_names.len())?;
-            }
-            if let Some(posterior) = &atom.posterior_artifact {
-                crate::decode_causal_posterior_bytes(posterior)?;
-            }
+        if let Some(posterior) = &atom.posterior_artifact {
+            crate::decode_causal_posterior_bytes(posterior)?;
         }
     }
     Ok(())

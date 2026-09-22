@@ -3,11 +3,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::needless_pass_by_value,
     clippy::needless_lifetimes,
     clippy::too_many_arguments,
     clippy::type_complexity
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_core::{CausalRng, ExecutionContext};
@@ -75,6 +81,14 @@ pub(crate) fn resolve_nuisance(
 ///
 /// `folds < 2`, length mismatch, more distinct units than the fold count allows, or fewer
 /// distinct units than folds.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the product is a uniform draw in [0, 1) times i + 1, so it is at most i; the index is additionally clamped to i; dealt % folds is below the fold count, which was checked to fit u32 on entry"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the product is a non-negative uniform draw in [0, 1) scaled by i + 1"
+)]
 pub(crate) fn crossfit_fold_plan(
     strata: &[u32],
     units: &[u32],
@@ -136,12 +150,23 @@ pub(crate) fn cross_fit_nuisance(
         })
         .collect::<Result<_, _>>()?;
     let plan = crossfit_fold_plan(&vec![0; nrows], &rows, folds, ctx.rng.master_seed())?;
-    let plan: Vec<u16> = plan.into_iter().map(|f| f as u16).collect();
+    let plan: Vec<u16> = plan
+        .into_iter()
+        .map(|f| {
+            u16::try_from(f).map_err(|_| {
+                EstimationError::unsupported("cross-fitting supports at most 65536 folds")
+            })
+        })
+        .collect::<Result<_, _>>()?;
     cross_fit_with_folds(factory.as_ref(), view, TargetView::new(y), plan, ctx, None)
         .map_err(learn_err)
 }
 
 /// Per-arm outcome models + propensity, trained on `train ∩ arm` and scored on the valid fold.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fold is below the fold count, which the sole caller checked to be at most u16::MAX + 1"
+)]
 pub(crate) fn cross_fit_aipw_nuisances(
     outcome: LearnerSpec,
     treatment: LearnerSpec,
@@ -216,6 +241,10 @@ struct AipwFold {
     provenance: [antecedent_learn::LearnerProvenance; 3],
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "i indexes the rows of a problem whose row count the caller checked to fit u32"
+)]
 fn fit_aipw_fold(
     outcome: &dyn LearnerFactory,
     treatment: &dyn LearnerFactory,
@@ -323,6 +352,39 @@ pub(crate) struct AipwCacheEntry {
     result: std::sync::Mutex<Option<std::sync::Arc<AipwPredictions>>>,
 }
 
+/// Per-row fold ids for the retained AIPW nuisances: the recorded assignment when the
+/// problem carries one, otherwise a fresh seeded plan stratified by treatment arm.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fold ids are below the fold count, which was checked above to be at most u16::MAX + 1"
+)]
+fn retained_fold_ids(
+    problem: &crate::propensity::PreparedPropensityProblem,
+    folds: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<u16>, EstimationError> {
+    // Preserve physical unit folds, including duplicated bootstrap rows.
+    if folds < 2
+        || folds > usize::from(u16::MAX) + 1
+        || problem.nrows < folds
+        || problem.nrows > u32::MAX as usize
+    {
+        return Err(EstimationError::data_msg("invalid retained nuisance fold count"));
+    }
+    Ok(if let Some(raw) = problem.fold_assignment.as_deref() {
+        if raw.len() != problem.nrows || raw.iter().any(|f| *f as usize >= folds) {
+            return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
+        }
+        raw.iter().map(|&f| f as u16).collect()
+    } else {
+        let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
+        crossfit_fold_plan(&arms, &problem.row_index, folds, ctx.rng.master_seed())?
+            .into_iter()
+            .map(|f| f as u16)
+            .collect()
+    })
+}
+
 pub(crate) fn cached_aipw_nuisances(
     problem: &crate::propensity::PreparedPropensityProblem,
     outcome: LearnerSpec,
@@ -406,26 +468,7 @@ pub(crate) fn cached_aipw_nuisances(
     if let Some(result) = slot.as_ref() {
         return Ok(Arc::clone(result));
     }
-    // Preserve physical unit folds, including duplicated bootstrap rows.
-    if folds < 2
-        || folds > usize::from(u16::MAX) + 1
-        || problem.nrows < folds
-        || problem.nrows > u32::MAX as usize
-    {
-        return Err(EstimationError::data_msg("invalid retained nuisance fold count"));
-    }
-    let fold_ids: Vec<u16> = if let Some(raw) = problem.fold_assignment.as_deref() {
-        if raw.len() != problem.nrows || raw.iter().any(|f| *f as usize >= folds) {
-            return Err(EstimationError::data_msg("invalid retained nuisance fold plan"));
-        }
-        raw.iter().map(|&f| f as u16).collect()
-    } else {
-        let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
-        crossfit_fold_plan(&arms, &problem.row_index, folds, ctx.rng.master_seed())?
-            .into_iter()
-            .map(|f| f as u16)
-            .collect()
-    };
+    let fold_ids = retained_fold_ids(problem, folds, ctx)?;
     let result = Arc::new(cross_fit_aipw_nuisances(
         outcome,
         treatment,

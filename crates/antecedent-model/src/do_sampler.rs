@@ -2,11 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -412,6 +415,11 @@ impl McmcDoSampler {
             if degenerate { f64::NAN } else { KdeDoSampler::density(&kde, current).max(1e-300) };
         for i in 0..iters {
             if degenerate {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "next_f64 is in [0, 1), so the floored index is non-negative and below pilot_col.len()"
+                )]
                 let idx = (rng.next_f64() * pilot_col.len() as f64).floor() as usize
                     % pilot_col.len().max(1);
                 current = pilot_col[idx];

@@ -5,7 +5,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -691,13 +698,17 @@ impl ContrastFit {
     }
 }
 
-/// Returns `(slope_x, intercept, design [1,x], σ²)`.
+/// `(first coefficient, second coefficient, design, σ², residuals)` of a fitted two- or
+/// three-column mediation regression.
+type OlsColumns = (f64, f64, Vec<f64>, f64, Vec<f64>);
+
+/// Returns `(slope_x, intercept, design [1,x], σ², residuals)`.
 fn ols_two_col(
     backend: FaerBackend,
     x: &[f64],
     y: &[f64],
     extra: &[&[f64]],
-) -> Result<(f64, f64, Vec<f64>, f64, Vec<f64>), EstimationError> {
+) -> Result<OlsColumns, EstimationError> {
     let n = x.len();
     let mut design = vec![0.0; n * 2];
     for i in 0..n {
@@ -719,7 +730,7 @@ fn ols_three_col(
     m: &[f64],
     y: &[f64],
     extra: &[&[f64]],
-) -> Result<(f64, f64, Vec<f64>, f64, Vec<f64>), EstimationError> {
+) -> Result<OlsColumns, EstimationError> {
     let n = t.len();
     let mut design = vec![0.0; n * 3];
     for i in 0..n {

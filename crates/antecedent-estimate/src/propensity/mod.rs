@@ -19,11 +19,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::too_many_arguments,
     clippy::needless_range_loop,
     clippy::manual_memcpy,
     clippy::needless_pass_by_value
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 mod distance;
@@ -70,7 +76,11 @@ pub(crate) fn propensity_overlap_report(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use std::sync::Arc;
 

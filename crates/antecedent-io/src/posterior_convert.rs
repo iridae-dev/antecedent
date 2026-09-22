@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::VERSION;
 use antecedent_estimate::CausalPosterior;
@@ -71,6 +78,10 @@ pub fn encode_causal_posterior(
 /// # Errors
 ///
 /// IO failures.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the wire format carries coefficient indices and draw counts as u32, and a posterior is bounded far below 2^32 of either"
+)]
 pub fn encode_causal_posterior_with_payload(
     posterior: &CausalPosterior,
     artifact_id: &str,

@@ -7,7 +7,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_graph::{DenseNodeId, Endpoint, MarkedEdge};
 
@@ -102,7 +108,7 @@ pub fn find_discriminating_paths_with_budget<G: PagOps>(
     }
     let n = pag.node_count();
     for i in 0..n {
-        let b = DenseNodeId::from_raw(i as u32);
+        let b = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
         for (c, _at_b, at_c) in pag.neighbors(b) {
             if !matches!(at_c, Endpoint::Circle) {
                 continue;

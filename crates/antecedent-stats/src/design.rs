@@ -429,7 +429,11 @@ pub fn standardize_columns(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_precision_loss,
+    reason = "tests assert exactly representable values (0/1 indicators, copied inputs) and cast small fixture indices"
+)]
 mod tests {
     use antecedent_core::VariableId;
 

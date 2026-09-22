@@ -16,9 +16,9 @@ if TYPE_CHECKING:
 
 import numpy as np
 
+from .._defaults import OMITTED
 from .._native import estimate_trial_transport as _estimate_trial_transport
 from .._native import identify_transport as _identify_transport
-from .._defaults import OMITTED
 from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .._transport_results import (
     TransportContrast,

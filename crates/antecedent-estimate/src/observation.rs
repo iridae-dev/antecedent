@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -875,6 +882,10 @@ impl ObservationMechanismEstimator {
         )
     }
 
+    #[allow(
+        clippy::float_cmp,
+        reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
+    )]
     fn selected_from_columns(
         &self,
         observed: &[f64],
@@ -1100,6 +1111,10 @@ impl ObservationMechanismEstimator {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
+    )]
     fn censored_from_columns(
         &self,
         observed: &[f64],
@@ -1398,6 +1413,10 @@ fn predict_linear(coefficients: &[f64], features: &[f64]) -> f64 {
 ///
 /// Returns coefficients rather than fitted values so the caller decides which rows the model
 /// is evaluated on; returning in-sample predictions would make out-of-fold use impossible.
+#[allow(
+    clippy::float_cmp,
+    reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
+)]
 fn fit_selected_outcome_regression(
     observed: &[f64],
     indicator: &[f64],
@@ -1434,6 +1453,10 @@ fn fit_selected_outcome_regression(
     Ok(fit.coefficients)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
+)]
 fn gaussian_observations(
     data: &TabularData,
     spec: &ObservationSpec,
@@ -1503,6 +1526,10 @@ fn gaussian_observations(
     })
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
+)]
 fn binary_events(events: &[f64]) -> Result<(), EstimationError> {
     if events.iter().all(|&event| event == 0.0 || event == 1.0) {
         Ok(())

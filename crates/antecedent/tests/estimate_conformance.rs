@@ -319,6 +319,12 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
 /// `P(M=1|T) = .1 + .7T`, `P(Y=1|M,U) = .05 + .9MU` with `U` dropped. The latent modifies the
 /// mediator's effect, so the enumerated effect `0.7 · 0.9 · E[U] = 0.315` is reached by the
 /// front-door functional and missed by the product of coefficients (0.363).
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "the cell counts are exact-fraction products of 0/1 indicator levels and non-negative probabilities, so the indicator comparisons are exact and the rounded counts are non-negative and small"
+)]
 fn frontdoor_interaction_table() -> TabularData {
     let (mut t, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());
     for u in [0.0_f64, 1.0] {
@@ -442,6 +448,12 @@ fn frontdoor_claim_follows_the_executed_estimator() {
 /// partial `T -> Y` slope by the symmetric design) solves
 /// `[.25 .10; .10 .25] [c1;c2] = [.14;.14]`, giving `c2 = .4`; the reported indirect effect is
 /// their product `.4 * .4 = .16`.
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "the cell counts are exact-fraction products of 0/1 indicator levels and non-negative probabilities, so the indicator comparisons are exact and the rounded counts are non-negative and small"
+)]
 fn mediation_interaction_table() -> TabularData {
     let (mut t, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());
     for ti in [0.0_f64, 1.0] {

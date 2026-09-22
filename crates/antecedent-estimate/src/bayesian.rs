@@ -3,12 +3,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::needless_pass_by_value,
     clippy::doc_markdown
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -343,7 +349,7 @@ fn residual_sigma2_for_hydrate(
     for (i, q) in quantities.iter().enumerate() {
         if matches!(q, PosteriorQuantityKind::ResidualVariance) {
             let s2 = mean[i];
-            if !(s2 > 0.0) || !s2.is_finite() {
+            if s2 <= 0.0 || !s2.is_finite() {
                 return Err(EstimationError::stats_msg(
                     "hydrate_prior: residual_variance mean must be finite and > 0",
                 ));
@@ -1726,6 +1732,7 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         workspace: &mut PosteriorEvalWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(), EstimationError> {
+        const PARALLEL_WORK_FLOOR: usize = 1 << 16;
         let n_draws = posterior.len;
         workspace.prepare(n_draws, self.ncols);
         output.prepare(n_draws);
@@ -1752,7 +1759,6 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
                 self.control,
             )
         };
-        const PARALLEL_WORK_FLOOR: usize = 1 << 16;
         let nonlinear = !matches!(self.family, GlmFamily::GaussianIdentity);
         if nonlinear && n_draws * self.nrows * self.ncols >= PARALLEL_WORK_FLOOR {
             let values = ctx.map_indexed(n_draws, |d, _| {
@@ -2844,7 +2850,10 @@ mod tests {
             let lo_p = (1.0 - self.level) / 2.0;
             let last = (v.len() - 1) as f64;
             // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
-            #[allow(clippy::cast_sign_loss)]
+            #[allow(
+                clippy::cast_sign_loss,
+                reason = "the rounded index is clamped to [0, last] so it is non-negative and in range"
+            )]
             let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
             let (lo, hi) = (at(lo_p), at(1.0 - lo_p));
             self.length_sum += hi - lo;

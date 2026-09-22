@@ -621,48 +621,7 @@ fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
 pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimate, IoError> {
     let overlap = overlap_policy_from_wire(w)?;
     let overlap_report = w.overlap_report.as_ref().map(overlap_report_from_wire).transpose()?;
-    let first_stage = w
-        .first_stage_diagnostics
-        .as_ref()
-        .map(|diagnostic| {
-            if !diagnostic.f_statistic.is_finite()
-                || diagnostic.f_statistic < 0.0
-                || !diagnostic.partial_r2.is_finite()
-                || !(0.0..=1.0).contains(&diagnostic.partial_r2)
-                || diagnostic.df1 == 0
-                || diagnostic.df2 == 0
-            {
-                return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
-            }
-            Ok(FirstStageDiagnostics {
-                f_statistic: diagnostic.f_statistic,
-                df1: usize::try_from(diagnostic.df1).map_err(|_| IoError::TooLarge)?,
-                df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
-                partial_r2: diagnostic.partial_r2,
-                anderson_rubin: diagnostic.anderson_rubin,
-                uncertainty_withheld: match diagnostic.uncertainty_withheld.as_deref() {
-                    None => None,
-                    Some("anderson_rubin_requires_homoskedastic") => {
-                        Some("anderson_rubin_requires_homoskedastic")
-                    }
-                    Some("anderson_rubin_set_is_union") => Some("anderson_rubin_set_is_union"),
-                    Some("anderson_rubin_set_empty") => Some("anderson_rubin_set_empty"),
-                    Some("anderson_rubin_requires_excluded_instruments") => {
-                        Some("anderson_rubin_requires_excluded_instruments")
-                    }
-                    Some("anderson_rubin_invalid_level") => Some("anderson_rubin_invalid_level"),
-                    Some("anderson_rubin_critical_value_failed") => {
-                        Some("anderson_rubin_critical_value_failed")
-                    }
-                    Some(_) => {
-                        return Err(IoError::Convert(
-                            "unknown first-stage uncertainty_withheld reason".into(),
-                        ));
-                    }
-                },
-            })
-        })
-        .transpose()?;
+    let first_stage = w.first_stage_diagnostics.as_ref().map(first_stage_from_wire).transpose()?;
     let mut estimate = EffectEstimate::from_parts(
         w.ate,
         w.se_analytic,
@@ -733,6 +692,47 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
         })
         .collect();
     Ok(estimate)
+}
+
+fn first_stage_from_wire(
+    diagnostic: &FirstStageDiagnosticsWire,
+) -> Result<FirstStageDiagnostics, IoError> {
+    if !diagnostic.f_statistic.is_finite()
+        || diagnostic.f_statistic < 0.0
+        || !diagnostic.partial_r2.is_finite()
+        || !(0.0..=1.0).contains(&diagnostic.partial_r2)
+        || diagnostic.df1 == 0
+        || diagnostic.df2 == 0
+    {
+        return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
+    }
+    Ok(FirstStageDiagnostics {
+        f_statistic: diagnostic.f_statistic,
+        df1: usize::try_from(diagnostic.df1).map_err(|_| IoError::TooLarge)?,
+        df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
+        partial_r2: diagnostic.partial_r2,
+        anderson_rubin: diagnostic.anderson_rubin,
+        uncertainty_withheld: match diagnostic.uncertainty_withheld.as_deref() {
+            None => None,
+            Some("anderson_rubin_requires_homoskedastic") => {
+                Some("anderson_rubin_requires_homoskedastic")
+            }
+            Some("anderson_rubin_set_is_union") => Some("anderson_rubin_set_is_union"),
+            Some("anderson_rubin_set_empty") => Some("anderson_rubin_set_empty"),
+            Some("anderson_rubin_requires_excluded_instruments") => {
+                Some("anderson_rubin_requires_excluded_instruments")
+            }
+            Some("anderson_rubin_invalid_level") => Some("anderson_rubin_invalid_level"),
+            Some("anderson_rubin_critical_value_failed") => {
+                Some("anderson_rubin_critical_value_failed")
+            }
+            Some(_) => {
+                return Err(IoError::Convert(
+                    "unknown first-stage uncertainty_withheld reason".into(),
+                ));
+            }
+        },
+    })
 }
 
 fn score_inference_from_wire(

@@ -2,11 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_core::{
@@ -441,27 +444,7 @@ fn sample_conditional_interventional_lw(
         }
     }
 
-    let max_lw = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    if !max_lw.is_finite() {
-        return Err(ModelError::Unsupported {
-            message: "conditional do: all likelihood weights are non-finite".into(),
-        });
-    }
-    let mut weights = vec![0.0; n_particles];
-    let mut sum_w = 0.0;
-    for p in 0..n_particles {
-        let w = (log_w[p] - max_lw).exp();
-        weights[p] = w;
-        sum_w += w;
-    }
-    if sum_w <= 0.0 {
-        return Err(ModelError::Unsupported {
-            message: "conditional do: likelihood weights sum to zero".into(),
-        });
-    }
-    for w in &mut weights {
-        *w /= sum_w;
-    }
+    let weights = normalized_weights(&log_w)?;
 
     // Systematic resampling.
     let mut accepted = vec![0.0; n_rows * n_nodes];
@@ -484,6 +467,34 @@ fn sample_conditional_interventional_lw(
     }
     let _ = ctx;
     Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() })
+}
+
+/// Self-normalised importance weights from log-weights, refusing an all-non-finite or
+/// zero-mass weight vector (no particle can then represent the conditional law).
+fn normalized_weights(log_w: &[f64]) -> Result<Vec<f64>, ModelError> {
+    let n_particles = log_w.len();
+    let max_lw = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if !max_lw.is_finite() {
+        return Err(ModelError::Unsupported {
+            message: "conditional do: all likelihood weights are non-finite".into(),
+        });
+    }
+    let mut weights = vec![0.0; n_particles];
+    let mut sum_w = 0.0;
+    for p in 0..n_particles {
+        let w = (log_w[p] - max_lw).exp();
+        weights[p] = w;
+        sum_w += w;
+    }
+    if sum_w <= 0.0 {
+        return Err(ModelError::Unsupported {
+            message: "conditional do: likelihood weights sum to zero".into(),
+        });
+    }
+    for w in &mut weights {
+        *w /= sum_w;
+    }
+    Ok(weights)
 }
 
 /// Posterior-predictive interventional sampling: for each coefficient draw block,
@@ -652,6 +663,11 @@ fn positive(value: f64, what: &str) -> Result<f64, ModelError> {
 }
 
 /// A non-negative integer-valued parameter (a count or a size).
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the guard admits only non-negative integral values up to u32::MAX, which fit usize on every supported target"
+)]
 fn count_param(value: f64, what: &str) -> Result<usize, ModelError> {
     if value >= 0.0 && value.fract() == 0.0 && value <= f64::from(u32::MAX) {
         Ok(value as usize)

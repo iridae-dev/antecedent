@@ -9,6 +9,8 @@ description = "Causal model construction from data and graph"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_reestimate_matches_fresh_analyze"
 notes = "CausalAnalysis builder + data/graph/query; Python analyze_ate / analyze"
 
 [[capabilities]]
@@ -18,6 +20,9 @@ description = "Explicit treatment/outcome/effect modifiers"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/facade_gaps.rs"
+evidence_assertion = "conditional_effect_via_causal_analysis"
+limitations = "Effect-modifier declaration is evidenced through a conditional-effect query with a known average conditional effect; plain treatment/outcome roles are exercised by the estimate conformance tests."
 notes = "AverageEffectQuery + RoleHint + effect_modifiers in antecedent-core"
 
 [[capabilities]]
@@ -28,6 +33,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/interchange/graph_dot_json"
 owner = "release"
+evidence_test = "crates/antecedent/tests/graph_interchange.rs"
+evidence_assertion = "conformance_dot_json_round_trip"
 notes = "DOT+JSON+GML+NetworkX via antecedent-io; programmatic DAG + CBOR"
 
 [[capabilities]]
@@ -37,6 +44,9 @@ description = "Inspectable assumptions"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_linear_gaussian_ate.rs"
+evidence_assertion = "estimate_linear_gaussian_ate_stable_float"
+limitations = "The evidence test asserts the assumption list and trace are non-empty; it does not pin the content of individual assumptions."
 notes = "typed Assumption* on identify + wire/provenance; Python exposes counts"
 
 [[capabilities]]
@@ -46,6 +56,8 @@ description = "Model, identify, estimate, refute workflow"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "dag_average_effect_vertical_path_is_independently_accepted"
 notes = "1.10 composition: inspect_does_not_identify and dag_average_effect_vertical_path_* in crates/antecedent/tests/v110_contract.rs. Compiler inspect/capability rows live in parity/compiler.toml and do not inherit estimator known-truth."
 
 [[capabilities]]
@@ -56,6 +68,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/efficient_adjustment"
 owner = "estimate"
+evidence_test = "crates/antecedent-identify/src/efficient.rs"
+evidence_assertion = "o_set_selects_confounder"
 notes = "backdoor + efficient adjustment search; same as identify.backdoor / efficient_backdoor"
 
 [[capabilities]]
@@ -66,6 +80,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/auto_envelopes"
 owner = "estimate"
+evidence_test = "crates/antecedent-identify/src/auto.rs"
+evidence_assertion = "auto_finds_backdoor_on_chain"
 
 [[capabilities]]
 id = "estimate.identify.backdoor"
@@ -78,6 +94,8 @@ external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/identify/general_id_backdoor_chain"
 limitations = "BackdoorIdentifier consumes the frozen Z -> T, Z -> Y, T -> Y oracle: identified status, backdoor estimand family, and the fixture graph_dot. Symbolic-expression formatting is not compared."
 owner = "estimate"
+evidence_test = "crates/antecedent-identify/src/backdoor.rs"
+evidence_assertion = "confounding_requires_z"
 python_facade = "full"
 notes = "Python antecedent.identify + analyze(AverageEffect, identifier=Identifier.BACKDOOR_ADJUSTMENT)"
 
@@ -90,6 +108,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/efficient_backdoor"
 limitations = "The consuming test asserts against the fixture's synthetic true_effect; the recorded DoWhy reference value is loaded but never compared."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_efficient_backdoor_ipw_recovers_ate"
 
 [[capabilities]]
 id = "estimate.identify.general_id"
@@ -100,8 +120,10 @@ evidence_kind = "frozen_external_oracle"
 oracle_components = ["identifier:general.id"]
 external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
-limitations = "Frozen external status/estimand-family/graph_dot comparisons cover backdoor, front-door, and bow-arc hedge graphs; clean-room conformance/identify/id_hedge separately pins the hedge certificate. Completeness of ID (identified-and-numerically-correct, or a definition-checked hedge, never an error) is evidenced by conformance/identify/id_completeness and the exhaustive <=4-node / sampled 5-6 node enumeration in crates/antecedent-identify/tests/id_completeness.rs, for binary variables; it is not proved for the implementation. Napkin-type functionals keep a free variable outside the query; functional.effect and functional.distribution average the functional over that variable's empirical law on the values where every required cell is observed (never summing over it) and say so in the estimate.functional.free_variables_averaged diagnostic, pinned on the exact napkin table in crates/antecedent/tests/pag_admg_numeric_pins.rs. Symbolic-expression prose is not compared byte-for-byte."
+limitations = "Frozen external status/estimand-family/graph_dot comparisons cover backdoor, front-door, and bow-arc hedge graphs; clean-room conformance/identify/id_hedge separately pins the hedge certificate. Completeness of ID (identified-and-numerically-correct, or a definition-checked hedge, never an error) is evidenced by conformance/identify/id_completeness and the exhaustive <=4-node / sampled 5-6 node enumeration in crates/antecedent-identify/tests/id_completeness.rs, for binary variables; it is not proved for the implementation. Napkin-type functionals keep a free variable outside the query; functional.effect and functional.distribution average the functional over that variable's empirical law on the values where every required cell is observed (never summing over it) and say so in the estimate.functional.free_variables_averaged diagnostic, pinned on the exact napkin table in crates/antecedent/tests/pag_admg_numeric_pins.rs. Symbolic-expression prose is not compared byte-for-byte. The named test covers the front-door case; the backdoor and bow-arc hedge cases are asserted by backdoor_chain_identified and hedge_not_identified in the same module."
 owner = "identify"
+evidence_test = "crates/antecedent-identify/src/id.rs"
+evidence_assertion = "frontdoor_admg_identified"
 notes = "Shpitser ID/IDC + hedges + AutoIdentifier; Distribution via ID/IDC + functional.distribution; PathSpecific via path_specific.natural + functional.effect; python_facade=full for PathSpecific/Interventional with discovery= (MAP for graph posteriors; incomplete CPDAG/PAG fail closed); the front-door FunctionalEffect number on the frozen ADMG law is pinned by conformance/estimate/admg_frontdoor_functional (1.1)"
 
 [[capabilities]]
@@ -111,6 +133,9 @@ description = "Identified-estimand representation"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "admg_frontdoor_contract_records_functional_identification"
+limitations = "The evidence test asserts the identification status, identified mass and identification product of a front-door estimand; backdoor estimand fields are asserted in the identify tests."
 python_facade = "full"
 notes = "Rust IdentifiedEstimand + CausalAnalysis::identify_only; Python antecedent.identify → Identification (.to_identify_result() for the legacy IdentifyResult shape; antecedent.estimation.identify still returns IdentifyResult directly)"
 
@@ -125,6 +150,8 @@ external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
 limitations = "The one estimate-group row whose test StableFloat-compares against the recorded DoWhy estimate itself."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_linear_gaussian_ate.rs"
+evidence_assertion = "estimate_linear_gaussian_ate_stable_float"
 calibration = ["cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage", "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage", "cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_hc1_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l90.average_effect_dag_frequentist_default_nominal_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l95.average_effect_dag_frequentist_default_nominal_coverage", "cov.average_effect.pag.frequentist.analytic_se.l90.static_pag_ate_envelope_frequentist_nominal_90_coverage", "cov.average_effect.pag.frequentist.analytic_se.l95.static_pag_ate_envelope_frequentist_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band", "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage", "cov.pulse_effect.temporal_cpdag.frequentist.identified_set.l90.frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.analytic_se.l95.panel_pulse_cluster_se_ar09_nominal_95_coverage", "cov.pulse_effect.temporal_dag.frequentist.bootstrap_se.l95.panel_pulse_unit_bootstrap_ar09_nominal_95_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_shared_block_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar09_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar09_n400_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar09_n60_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_ar05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_ar05_n60_boundary_within_band", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_ar09_n400_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_iid_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_shared_block_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar09_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar09_n400_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar09_n60_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_ar05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_ar05_n60_boundary_within_band", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_ar09_n400_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_iid_n160_nominal_90_coverage", "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_iid_n160_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_ar1_rho05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_envelope_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_ar1_rho05_n160_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary", "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_envelope_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_identified_set_interval_nominal_90_coverage", "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_ar05_n160_boundary_within_band", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_ar05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_ar09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_iid_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_ar05_n160_boundary_within_band", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_ar05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_ar09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_iid_n160_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_nominal_90_coverage"]
 
 [[capabilities]]
@@ -136,6 +163,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/glm_adjustment"
 limitations = "assert_recovers checks the synthetic true_effect; the fixture's DoWhy reference estimate is present but never compared."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_glm_adjustment_recovers_positive_ate"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.glm_adjustment_binary_outcome_nominal_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l90.glm_adjustment_binary_outcome_nominal_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l95.glm_adjustment_binary_outcome_nominal_coverage"]
 
 [[capabilities]]
@@ -145,8 +174,10 @@ description = "Propensity base, matching, stratification, weighting"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/propensity_ipw"
-limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference SE is not compared: at 0.273 (n=800) it is about five times the Monte Carlo sampling SD of any IPW estimator on the stated SCM, so it cannot calibrate this estimator; see SE_NOT_COMPARABLE in crates/antecedent/tests/estimate_conformance.rs. Propensity matching reports a simplified matched-effect variance and donor-reuse SE, not the Abadie-Imbens conditional-residual variance estimator, and enables an ordinary row bootstrap by default although that bootstrap is inconsistent for fixed-match nearest-neighbour estimators (provenance/estimate.propensity_matching.toml). The only matching coverage record is ATT on a constant-effect law, so the ATE path and its SE are unmeasured."
+limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference SE is not compared: at 0.273 (n=800) it is about five times the Monte Carlo sampling SD of any IPW estimator on the stated SCM, so it cannot calibrate this estimator; see SE_NOT_COMPARABLE in crates/antecedent/tests/estimate_conformance.rs. Propensity matching reports a simplified matched-effect variance and donor-reuse SE, not the Abadie-Imbens conditional-residual variance estimator, and enables an ordinary row bootstrap by default although that bootstrap is inconsistent for fixed-match nearest-neighbour estimators (provenance/estimate.propensity_matching.toml). The only matching coverage record is ATT on a constant-effect law, so the ATE path and its SE are unmeasured. The evidence test covers propensity weighting; matching and stratification are covered by estimate_propensity_matching_recovers_att and estimate_propensity_stratification_recovers_ate in the same file."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_propensity_ipw_recovers_ate"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage"]
 
 [[capabilities]]
@@ -156,8 +187,10 @@ description = "Distance matching"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/distance_matching"
-limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared. The reported SE is a simplified reuse-count formula (half the matched-effect sample variance), not the Abadie-Imbens conditional-residual variance estimator, and an ordinary row bootstrap is enabled by default although it is inconsistent for fixed-match nearest-neighbour estimators (provenance/estimate.distance_matching.toml)."
+limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared. The reported SE is a simplified reuse-count formula (half the matched-effect sample variance), not the Abadie-Imbens conditional-residual variance estimator, and an ordinary row bootstrap is enabled by default although it is inconsistent for fixed-match nearest-neighbour estimators (provenance/estimate.distance_matching.toml). Designs outside the stated SE model (heteroskedastic residuals; heterogeneous effects with ATT, ATC and ATE truths that differ) have named-boundary calibration cells (matching_heteroskedastic_adversarial_ci_coverage, matching_heterogeneous_{att,atc,ate}_ci_coverage) whose measured coverage is reported, never gated."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_distance_matching_recovers_att"
 calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
@@ -169,6 +202,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/aipw"
 limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference block ran backdoor.propensity_score_weighting, not AIPW, so neither its estimate nor its SE is compared (SE_NOT_COMPARABLE in estimate_conformance.rs). IF-level double robustness has single-draw oracle-nuisance tests in aipw.rs; no Monte Carlo misspecification study."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_aipw_recovers_ate"
 calibration = ["cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage", "cov.average_effect.co_determined.frequentist.analytic_se.l95.codetermined_aipw_closure_nominal_90_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_atc_hc1_boundary_within_band", "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_ate_hc1_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_att_cluster_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_att_hc1_ci_coverage", "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage", "cov.intervention_response.co_determined.frequentist.analytic_se.l95.intervention_response_codetermined_frequentist_nominal_coverage", "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage"]
 
 [[capabilities]]
@@ -178,8 +213,10 @@ description = "Instrumental variables"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/iv_2sls"
-limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE for both iv.2sls (iv_2sls) and iv.wald (iv_wald) after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared. Every coverage record and known-truth fixture uses a strong instrument (first stage 1.5 per unit of Z); weak-instrument behaviour has no record and no boundary record, so no coverage claim extends to a weak first stage."
+limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE for both iv.2sls (iv_2sls) and iv.wald (iv_wald) after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared. Every coverage record and known-truth fixture uses a strong instrument (first stage 1.5 per unit of Z); weak-instrument behaviour has no record and no boundary record, so no coverage claim extends to a weak first stage. The weak-first-stage design has a named-boundary cell (wald_iv_weak_first_stage_adversarial_ci_coverage) recording Anderson-Rubin coverage where Stock-Yogo F is far below 10; it is reported, never gated. The evidence test covers 2SLS; the Wald estimator is covered by estimate_iv_wald_recovers_structural_effect in the same file."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_iv_2sls_recovers_structural_effect"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_hc1_heteroskedastic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.wald_iv_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.wald_iv_hc1_ci_coverage"]
 
 [[capabilities]]
@@ -191,6 +228,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/rd_sharp"
 limitations = "Estimand is the effect at the cutoff only; other target populations are refused. Sharp assignment is verified against the treatment column (rd_assignment_not_sharp); fuzzy RD is not implemented. Continuity and no-manipulation are declared, not tested. Known truth: a heterogeneous-effect, curved-baseline design whose cutoff effect (2), window average (2.32) and population average (8) differ, plus the constant-slope jump fixture. Both coverage records use an exactly piecewise-linear outcome with the running variable uniform on the window, so they do not measure smoothing bias under curvature. No external oracle exists for this scenario: the fixture's DoWhy reference records available=false (upstream RD crashed)."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_rd_sharp_recovers_jump"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_hc1_heteroskedastic_ci_coverage"]
 
 [[capabilities]]
@@ -200,8 +239,10 @@ description = "Front-door estimation: plug-in of the nonparametric front-door fu
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/frontdoor"
-limitations = "frontdoor.linear_two_stage: Exact only under a linear SEM with no treatment-mediator interaction; a facade result built on it is IdentifiedUnderParametricRestrictions with frontdoor.linear_path_product in its identification assumptions, and conformance/estimate/frontdoor_functional pins the case where the product of coefficients converges to 0.3631 against an enumerated 0.315. assert_recovers checks the synthetic true_effect 0.4*5=2 at tolerance 0.06 on an uncentred treatment, so neither path coefficient alone passes; the reported SE is compared with the closed-form delta-method SE of the SCM (|ln ratio| < 0.1). The recorded DoWhy block predates the current SCM and is not compared. The hc1 coverage record predates the per-equation HC1 factor (n/(n-2), n/(n-3) instead of n/(n-5)); a replay at n=400 gives 0.935 against the recorded 0.9375. frontdoor.functional (known-truth fixture conformance/estimate/frontdoor_functional): Discrete treatment only (at most 32 observed levels, both contrasted levels observed); a continuous treatment is refused. Discrete mediators use saturated cell means and are refused, not extrapolated, when a mediator value seen under a contrasted arm is missing from another arm; continuous mediators use a per-arm linear outcome regression whose within-arm linearity and additivity are recorded as a parametric restriction. The analytic SE was checked by 400 seeded replicates per outcome model inside the crate (mean SE within 12% of the sampling SD, 95% coverage inside the three-sigma binomial band). Its coverage cells (frontdoor_functional_saturated_ci_coverage and frontdoor_functional_arm_linear_ci_coverage in crates/antecedent-estimate/src/calibration_coverage.rs, on a design with unequal arms and a latent confounder that modifies the mediator's effect) are wired into scripts/gate_calibration.sh but have not been measured: no record in this row's calibration list is a frontdoor.functional record, and until one is, every frontdoor.functional result carries the runtime calibration reason estimator_grid_not_measured. Selectable by id only: the outcome model is chosen automatically through the facade and Python."
+limitations = "frontdoor.linear_two_stage: Exact only under a linear SEM with no treatment-mediator interaction; a facade result built on it is IdentifiedUnderParametricRestrictions with frontdoor.linear_path_product in its identification assumptions, and conformance/estimate/frontdoor_functional pins the case where the product of coefficients converges to 0.3631 against an enumerated 0.315. assert_recovers checks the synthetic true_effect 0.4*5=2 at tolerance 0.06 on an uncentred treatment, so neither path coefficient alone passes; the reported SE is compared with the closed-form delta-method SE of the SCM (|ln ratio| < 0.1). The recorded DoWhy block predates the current SCM and is not compared. The hc1 coverage record predates the per-equation HC1 factor (n/(n-2), n/(n-3) instead of n/(n-5)); a replay at n=400 gives 0.935 against the recorded 0.9375. frontdoor.functional (known-truth fixture conformance/estimate/frontdoor_functional): Discrete treatment only (at most 32 observed levels, both contrasted levels observed); a continuous treatment is refused. Discrete mediators use saturated cell means and are refused, not extrapolated, when a mediator value seen under a contrasted arm is missing from another arm; continuous mediators use a per-arm linear outcome regression whose within-arm linearity and additivity are recorded as a parametric restriction. The analytic SE was checked by 400 seeded replicates per outcome model inside the crate (mean SE within 12% of the sampling SD, 95% coverage inside the three-sigma binomial band). Its coverage cells (frontdoor_functional_saturated_ci_coverage and frontdoor_functional_arm_linear_ci_coverage in crates/antecedent-estimate/src/calibration_coverage.rs, on a design with unequal arms and a latent confounder that modifies the mediator's effect) are wired into scripts/gate_calibration.sh but have not been measured: no record in this row's calibration list is a frontdoor.functional record, and until one is, every frontdoor.functional result carries the runtime calibration reason estimator_grid_not_measured. Selectable by id only: the outcome model is chosen automatically through the facade and Python. The linear product of coefficients on a curved mediator has a named-boundary cell (frontdoor_stacked_hc1_curved_mediator_ci_coverage) recording its coverage of the do(1) versus do(0) contrast; it is reported, never gated."
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
+evidence_assertion = "estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_does_not"
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_ci_coverage"]
 
 [[capabilities]]
@@ -214,6 +255,8 @@ oracle_components = ["estimator:conditional.linear.adjustment"]
 external_oracle = "statsmodels 0.14.4"
 known_truth_fixture = "conformance/estimate/conditional_effects"
 owner = "context"
+evidence_test = "crates/antecedent-estimate/src/conditional.rs"
+evidence_assertion = "conditional_effect_matches_pinned_statsmodels_oracle"
 notes = "ConditionalLinearAdjustment; conformance/context/conditional_effect; python_facade=full via ConditionalEffect"
 calibration = ["cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_frequentist_nominal_90_coverage", "cov.conditional_effect.cpdag.frequentist.analytic_se.l95.conditional_effect_cpdag_frequentist_nominal_90_coverage", "cov.conditional_effect.dag.frequentist.analytic_se.l90.conditional_effect_dag_frequentist_nominal_90_coverage", "cov.conditional_effect.dag.frequentist.analytic_se.l90.conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage", "cov.conditional_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage", "cov.conditional_effect.dag.frequentist.analytic_se.l95.conditional_effect_dag_frequentist_nominal_90_coverage", "cov.conditional_effect.dag.frequentist.analytic_se.l95.conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage", "cov.conditional_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage", "cov.conditional_effect.pag.frequentist.analytic_se.l90.conditional_effect_pag_frequentist_nominal_90_coverage", "cov.conditional_effect.pag.frequentist.analytic_se.l95.conditional_effect_pag_frequentist_nominal_90_coverage"]
 
@@ -226,6 +269,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "Band is self-authored (provenance discloses no upstream implementation observed) despite the fixture's DoWhy header."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "placebo_ols_is_non_informative"
 python_facade = "full"
 notes = "Placebo treatment; temporal-aware refit for unfolded backdoor (GraphRefuter N/A on temporal)"
 
@@ -238,6 +283,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "Self-authored band; see estimate.refute.placebo."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "rcc_ols_is_non_informative"
 python_facade = "full"
 
 [[capabilities]]
@@ -249,6 +296,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "The deterministic confounded-SCM fixture pins that the bootstrap interval contains the known ATE; package-specific interval prose is not compared."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "bootstrap_refute_contains_original_ate"
 python_facade = "full"
 
 [[capabilities]]
@@ -260,6 +309,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "Strength is in residual-SD units of treatment and outcome given the adjustment set, and the verdict is the mean |ΔATE| as a multiple of the published effect (fails at 1). The fixture bounds the relative shift under the default 0.5-SD simulated confounder on the known confounded SCM (analytic expected shift 0), and a unit test requires a strong confounder against a weak effect to fail. The recorded upstream output is an error string and is not claimed as compared."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "unobserved_common_cause_is_robust_to_mild_confounding"
 python_facade = "full"
 
 [[capabilities]]
@@ -269,8 +320,10 @@ description = "Overlap and overlap-rule assessment"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/overlap_graph_refutation"
-limitations = "Kish-ESS threshold is self-authored; provenance discloses no upstream implementation observed."
+limitations = "Kish-ESS threshold is self-authored; provenance discloses no upstream implementation observed. The evidence test covers the propensity overlap refuter; the overlap-rule refuter is covered by overlap_rule_passes_on_balanced_toy in overlap_rule.rs."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "overlap_flags_near_deterministic_treatment_assignment"
 python_facade = "full"
 notes = "OverlapRefuter + OverlapRuleRefuter (Crump-style retained support)."
 
@@ -283,6 +336,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "The fixed-seed subset refits must remain within the fixture's absolute-delta band around the known ATE."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "data_subset_ols_is_non_informative"
 python_facade = "full"
 
 [[capabilities]]
@@ -294,6 +349,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "A deterministic self-authored null band is consumed from the fixture. The recorded upstream null output is not claimed as numerically compared."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "dummy_outcome_ols_is_non_informative"
 python_facade = "full"
 
 [[capabilities]]
@@ -305,6 +362,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
 limitations = "Unit tests pin the closed-form E-values on designs with known residual SD (continuous outcome standardized by the residual SD of the outcome regression), the arm-risk-ratio path for a binary outcome (RR = 2 gives 2 + sqrt 2), the confidence-limit E-value (1 when the interval covers the null), and the default moderate-robustness verdict."
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/evalue.rs"
+evidence_assertion = "vanderweele_ding_risk_ratio_two_has_evalue_two_plus_root_two"
 python_facade = "full"
 
 [[capabilities]]
@@ -315,6 +374,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/overlap_graph_refutation"
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/tests.rs"
+evidence_assertion = "graph_refute_reports_the_confounder_dependence_descriptively"
 python_facade = "full"
 
 [[capabilities]]
@@ -325,6 +386,9 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/riesz_sensitivity"
 owner = "estimate"
+evidence_test = "crates/antecedent-validate/src/sensitivity.rs"
+evidence_assertion = "linear_and_partial_linear_tipping_match_the_partial_correlation_closed_form"
+limitations = "The evidence test pins the linear and partial-linear tipping points against the partial-correlation closed form; nonparametric and Riesz sensitivity are covered only by bounded-robustness and threshold tests in the same crate."
 python_facade = "full"
 notes = "Nonparametric = NW residualization + partial-R² grid; Riesz = IPW representer L2 bounds."
 
@@ -337,6 +401,8 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/gcm/do_sampling_weighting"
 limitations = "Weighting is checked against the analytic interventional mean; kde/mcmc tests check finiteness/acceptance only. The fixtures' DoWhy reference blocks are byte-identical across six scenarios and read by no test."
 owner = "gcm"
+evidence_test = "crates/antecedent/tests/gcm.rs"
+evidence_assertion = "do_sampling_weighting"
 notes = "antecedent-model WeightingDoSampler / KdeDoSampler / McmcDoSampler"
 
 [[capabilities]]
@@ -348,16 +414,18 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/gcm/gcm_fit_intervene"
 limitations = "Asserted against analytic interventional means; the templated DoWhy reference blocks are read by no test."
 owner = "gcm"
+evidence_test = "crates/antecedent/tests/gcm.rs"
+evidence_assertion = "gcm_fit_intervene"
 notes = "Core GCM+CF+basic anomaly/arrow strength done; Shapley in attribution inventory (parity/gcm.toml)"
 
 [[capabilities]]
 id = "estimate.secondary_surfaces"
 group = "secondary_surfaces"
 description = "Graph learners, transformers, interpreters, time-series helpers"
-status = "done"
+status = "pending"
 evidence_kind = "implementation_exists"
 owner = "release"
-notes = "pinned baseline secondary package is not mirrored; equivalent surfaces live as dedicated inventory IDs (discovery, transforms, effects, facade)"
+notes = "pinned baseline secondary package is not mirrored; equivalent surfaces live as dedicated inventory IDs (discovery, transforms, effects, facade). Downgraded: no single executing test evidences this aggregate row; the equivalent surfaces are evidenced by their dedicated inventory rows."
 
 [excluded]
 econml_adapter = true
@@ -372,6 +440,8 @@ id = "estimate.temporal_sequential"
 group = "estimation"
 description = "1.2 staged estimate.temporal_sequential with independent evidence"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/temporal_response_facade.rs"
+evidence_assertion = "multi_step_sequence_matches_two_step_truth_and_does_not_collapse"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/release_12_moments"
@@ -390,6 +460,8 @@ oracle_components = ["estimator:temporal.mediation"]
 external_oracle = "statsmodels 0.14.4"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
 owner = "estimate"
+evidence_test = "crates/antecedent-estimate/src/temporal_mediation.rs"
+evidence_assertion = "recovers_positive_mediated_effect"
 limitations = "One lag-one mediator with linear additive mechanisms on the fixture's n = 320 law; three independently fitted OLS models and the Sobel product variance are compared (TemporalMediationEstimator in temporal_mediation.rs; the licensed Frequentist TemporalDag cells' own outputs in prepared_analysis.rs). Circular-block and Bayesian uncertainty are not externally compared."
 notes = "Coverage for temporal.mediation stays on estimate.mediation.linear, the estimation-group row that owns the estimator's calibration."
 
@@ -401,6 +473,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/staged_static_kinds.rs"
+evidence_assertion = "static_kinds_known_truth"
 notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable. The identification claim is downgraded to IdentifiedUnderParametricRestrictions with the mediation.linear_no_interaction restriction whenever this estimator runs: total - direct is the total natural indirect effect, not the pure natural indirect effect the path-specific identifier certifies, and the two coincide only without treatment-mediator interaction."
 calibration = ["cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_default_nominal_coverage.nde", "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_nominal_90_coverage", "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nie_bayesian_default_nominal_coverage.nie", "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nie_bayesian_nominal_90_coverage", "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nde_bayesian_default_nominal_coverage.nde", "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nde_bayesian_nominal_90_coverage", "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nie_bayesian_default_nominal_coverage.nie", "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nie_bayesian_nominal_90_coverage", "cov.mediation_effect.dag.frequentist.bootstrap_se.l90.mediation_nde_frequentist_nominal_90_coverage", "cov.mediation_effect.dag.frequentist.bootstrap_se.l90.mediation_nie_frequentist_nominal_90_coverage", "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_nde_frequentist_nominal_90_coverage", "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_nie_frequentist_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.kappa_med_kappa", "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.kappa_0", "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.kappa_med_kappa", "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.kappa_0", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar05_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar05_n60_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar09_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar09_n400_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar09_n60_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_iid_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar05_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar05_n60_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar09_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar09_n400_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar09_n60_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage", "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_iid_n160_nominal_90_coverage"]
 
@@ -412,6 +486,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/staged_static_kinds.rs"
+evidence_assertion = "static_kinds_known_truth"
 notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable. The identification claim is downgraded to IdentifiedUnderParametricRestrictions with the mediation.linear_no_interaction restriction whenever this estimator runs: total - direct is the total natural indirect effect, not the pure natural indirect effect the path-specific identifier certifies, and the two coincide only without treatment-mediator interaction."
 
 [[capabilities]]
@@ -422,6 +498,8 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
 owner = "estimate"
+evidence_test = "crates/antecedent/tests/staged_static_kinds.rs"
+evidence_assertion = "static_kinds_known_truth"
 notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable."
 
 [[capabilities]]

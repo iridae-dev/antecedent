@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -70,6 +76,10 @@ impl SyntheticNullCalibration {
     /// # Errors
     ///
     /// Invalid config or discovery failures.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the synthetic-null variable count is a small simulation size, far below 2^32"
+    )]
     pub fn run(
         &self,
         workspace: &mut DiscoveryWorkspace,
@@ -114,6 +124,10 @@ impl SyntheticNullCalibration {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the synthetic-null variable count is a small simulation size, far below 2^32"
+)]
 fn independent_noise_series(
     n_obs: usize,
     n_vars: usize,

@@ -21,7 +21,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -297,6 +304,10 @@ fn run_grid_data_pass(
     for &r in &setup.sorted_grid {
         let r = r.clamp(0.0, 0.999);
         last_ate = data_pass_ate(problem, workspace, ctx, estimator, setup, r)?;
+        #[allow(
+            clippy::float_cmp,
+            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+        )]
         let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
         if explained_away {
             return Ok((grid_robustness_value(Some(r)), last_ate, true));
@@ -353,6 +364,10 @@ fn try_run_grid_gram(
             return Ok(None);
         };
         last_ate = ate;
+        #[allow(
+            clippy::float_cmp,
+            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+        )]
         let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
         if explained_away {
             return Ok(Some((grid_robustness_value(Some(r)), last_ate, true)));
@@ -550,6 +565,10 @@ impl LinearSensitivity {
     /// # Errors
     ///
     /// Data or estimation failures, or an empty `partial_r2_grid`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -635,6 +654,10 @@ impl PartialLinearSensitivity {
     /// # Errors
     ///
     /// Data or estimation failures, or an empty `partial_r2_grid`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -732,6 +755,10 @@ fn nw_loo_predict_pair(
                 continue;
             }
             // The nearest observations always have weight 1, even for a tiny bandwidth.
+            #[allow(
+                clippy::float_cmp,
+                reason = "nearest is the minimum of these very squared distances, so the nearest observations compare exactly equal"
+            )]
             let w = if d2 == nearest { 1.0 } else { (-0.5 * (d2 - nearest) / h2).exp() };
             num1 += w * y1[j];
             num2 += w * y2[j];
@@ -937,6 +964,10 @@ impl NonparametricSensitivity {
     ///
     /// Data failures or empty `partial_r2_grid`.
     #[allow(clippy::only_used_in_recursion)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -953,43 +984,7 @@ impl NonparametricSensitivity {
                 message: "nonparametric sensitivity requires a non-empty partial_r2_grid",
             });
         }
-        // One complete-case mask (adjustment ∪ {T, Y}) shared by the covariate matrix and
-        // the residualization pulls below — the two call sites used the identical id list.
-        let mut ids = problem.estimand.adjustment_set.to_vec();
-        ids.push(problem.treatment());
-        ids.push(problem.outcome());
-        let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
-        let (cov, n, dim) = covariate_matrix(problem, &mask)?;
-        let t = problem
-            .data
-            .float64_masked(problem.treatment(), &mask)
-            .map_err(ValidationError::from)?;
-        let y =
-            problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
-        if t.len() != n || y.len() != n {
-            return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
-        }
-        if n < 2 {
-            return Err(ValidationError::data_msg(
-                "nonparametric sensitivity requires at least 2 complete cases",
-            ));
-        }
-        if n > MAX_NONPARAMETRIC_ROWS {
-            return Err(ValidationError::NotApplicable {
-                message: "nonparametric sensitivity is quadratic in the sample size and is \
-                          limited to 20000 complete-case rows",
-            });
-        }
-        let h = self.bandwidth.unwrap_or_else(|| silverman_bandwidth(n, dim));
-        if !h.is_finite() || h <= 0.0 {
-            return Err(ValidationError::data_msg(
-                "nonparametric sensitivity bandwidth must be finite and positive",
-            ));
-        }
-        let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?;
-        let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
-        let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
-
+        let (t_res, y_res, n) = kernel_residuals(problem, self.bandwidth, ctx)?;
         let (_, _, treatment_delta) = antecedent_estimate::prepare::treatment_contrast(
             &problem.query.active,
             &problem.query.control,
@@ -1036,7 +1031,12 @@ impl NonparametricSensitivity {
             let y_pert: Vec<f64> =
                 y_res.iter().zip(&u).map(|(&yv, &uu)| yv + dir * scale * sd_y * uu).collect();
             last_ate = residual_ols_ate(&t_pert, &y_pert);
-            if last_ate.abs() < 1e-9 || last_ate.signum() != original_sign {
+            #[allow(
+                clippy::float_cmp,
+                reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+            )]
+            let sign_flipped = last_ate.signum() != original_sign;
+            if last_ate.abs() < 1e-9 || sign_flipped {
                 explained_away_at = Some(r);
                 break;
             }
@@ -1062,6 +1062,49 @@ impl NonparametricSensitivity {
             replicates: self.partial_r2_grid.len() as u32,
         })
     }
+}
+
+/// Leave-one-out Nadaraya–Watson residuals of treatment and outcome on the adjustment
+/// covariates, over the complete cases, with the complete-case row count.
+fn kernel_residuals(
+    problem: &RefutationProblem<'_>,
+    bandwidth: Option<f64>,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<f64>, Vec<f64>, usize), ValidationError> {
+    // One complete-case mask (adjustment ∪ {T, Y}) shared by the covariate matrix and
+    // the residualization pulls below — the two call sites used the identical id list.
+    let mut ids = problem.estimand.adjustment_set.to_vec();
+    ids.push(problem.treatment());
+    ids.push(problem.outcome());
+    let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
+    let (cov, n, dim) = covariate_matrix(problem, &mask)?;
+    let t =
+        problem.data.float64_masked(problem.treatment(), &mask).map_err(ValidationError::from)?;
+    let y = problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
+    if t.len() != n || y.len() != n {
+        return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
+    }
+    if n < 2 {
+        return Err(ValidationError::data_msg(
+            "nonparametric sensitivity requires at least 2 complete cases",
+        ));
+    }
+    if n > MAX_NONPARAMETRIC_ROWS {
+        return Err(ValidationError::NotApplicable {
+            message: "nonparametric sensitivity is quadratic in the sample size and is \
+                      limited to 20000 complete-case rows",
+        });
+    }
+    let h = bandwidth.unwrap_or_else(|| silverman_bandwidth(n, dim));
+    if !h.is_finite() || h <= 0.0 {
+        return Err(ValidationError::data_msg(
+            "nonparametric sensitivity bandwidth must be finite and positive",
+        ));
+    }
+    let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?;
+    let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
+    let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
+    Ok((t_res, y_res, n))
 }
 
 fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {

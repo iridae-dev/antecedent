@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::needless_range_loop)]
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::shuffled_fold_assignment;
@@ -56,6 +63,10 @@ const FOLD_STREAM: u64 = 0xF01D;
 /// # Errors
 ///
 /// Fewer than two folds, fewer rows than folds, or `strata` of the wrong length.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "folds is checked to be at most 2^16 above, so every fold index fits u16"
+)]
 pub fn assign_folds(
     n_rows: usize,
     folds: usize,
@@ -108,7 +119,8 @@ pub fn cross_fit(
     }
     let strata = binary_strata(factory.task(), y.values());
     let mut fold_rng = ctx.rng.stream_for(StreamDomain::Learner, FOLD_STREAM);
-    let fold_assignment = assign_folds(x.physical_nrows(), folds, &mut fold_rng, strata.as_deref())?;
+    let fold_assignment =
+        assign_folds(x.physical_nrows(), folds, &mut fold_rng, strata.as_deref())?;
     cross_fit_with_folds(factory, x, y, fold_assignment, ctx, transformer)
 }
 
@@ -120,6 +132,10 @@ pub fn cross_fit(
 /// # Errors
 ///
 /// Shape mismatch, fewer than two folds, an empty fold, or learner failure.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fold ids are u16 and at most max + 1 <= 2^16 of them exist, so the fold index fits u16"
+)]
 pub fn cross_fit_with_folds(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
@@ -137,7 +153,7 @@ pub fn cross_fit_with_folds(
     if y.len() != n {
         return Err(LearnError::Shape { message: "target length != physical rows" });
     }
-    if fold_assignment.len() != n || n == 0 {
+    if fold_assignment.len() != n || n == 0 || n > u32::MAX as usize {
         return Err(LearnError::Shape { message: "fold plan length != physical rows" });
     }
     let folds = usize::from(*fold_assignment.iter().max().unwrap_or(&0)) + 1;
@@ -168,6 +184,10 @@ struct FoldFit {
     provenance: LearnerProvenance,
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "cross_fit_with_folds rejects row counts above u32::MAX, so every row index fits u32"
+)]
 fn fit_one_fold(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
@@ -275,6 +295,10 @@ pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagno
 /// held-out rows. Fold assignment is shared across nuisance roles.
 /// # Errors
 /// Misaligned inputs, invalid folds, empty training roles, or provider failure.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "n is checked against u32::MAX above, so every row index fits u32"
+)]
 pub fn cross_fit_selected(
     factory: &dyn LearnerFactory,
     x: DesignView<'_>,
@@ -333,7 +357,11 @@ pub fn cross_fit_selected(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp, clippy::many_single_char_names)]
+#[allow(
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use super::*;
     use crate::linear::LinearLearner;

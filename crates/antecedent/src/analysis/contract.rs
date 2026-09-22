@@ -3181,7 +3181,10 @@ mod tests {
 
     // Exact 0.0 / 1.0 are the facts under test: no capped case contributes
     // exactly no mass, and an unexamined envelope is entirely incomplete.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an empty search leaves the mass exactly 0.0, which is the claim under test"
+    )]
     #[test]
     fn a_complete_envelope_reports_no_incomplete_search_mass() {
         let envelope = IdentificationEnvelope::from_cases(vec![
@@ -3217,7 +3220,10 @@ mod tests {
 
     // Exact 0.0 / 1.0 are the facts under test: no capped case contributes
     // exactly no mass, and an unexamined envelope is entirely incomplete.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an unexamined envelope has exactly 0.0 unidentified and 1.0 incomplete mass, which is the claim under test"
+    )]
     #[test]
     fn nothing_examined_is_not_proof_of_non_identification() {
         let envelope: IdentificationEnvelope<u32> = IdentificationEnvelope::from_cases(Vec::new());

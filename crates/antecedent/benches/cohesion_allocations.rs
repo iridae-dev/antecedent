@@ -2,7 +2,12 @@
 #![allow(missing_docs, clippy::too_many_lines)]
 use antecedent::analysis::{TransportGridData, TransportGridQuery, TransportGridState};
 use antecedent::{PreparedStudy, StudyBuilder};
-use antecedent_core::{AssumptionSet, AverageEffectQuery, ContinuousDomain, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext, GridSpec, RegimeId, RegimeKind, ResponseFunctional, ResponseQuery, TransportQuery, Value, VariableCoordinate, VariableDomain, VariableId};
+use antecedent_core::{
+    AssumptionSet, AverageEffectQuery, ContinuousDomain, DistributionAvailability, Environment,
+    EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext, GridSpec, RegimeId,
+    RegimeKind, ResponseFunctional, ResponseQuery, TransportQuery, Value, VariableCoordinate,
+    VariableDomain, VariableId,
+};
 use antecedent_estimate::{DrLearner, TrialAipwInput, TrialAipwOptions, TrialSampling};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData, ExprId,
@@ -152,6 +157,10 @@ fn grid_fixture(ctx: &ExecutionContext) -> (TransportGridQuery, TransportGridDat
         TransportGridData::Exact(data),
     )
 }
+#[allow(
+    clippy::float_cmp,
+    reason = "the same estimator on the same prepared problem must reproduce the ate bit for bit, so exact equality is the assertion"
+)]
 fn main() {
     let ctx = ExecutionContext::production(9, 1);
     let n = 600;
@@ -208,7 +217,9 @@ fn main() {
         TrialAipwOptions {
             bootstrap: 9,
             folds: 3,
-            outcome: antecedent_estimate::LearnerSpec::Linear(Default::default()),
+            outcome: antecedent_estimate::LearnerSpec::Linear(
+                antecedent_estimate::LinearSpec::default(),
+            ),
             ..Default::default()
         },
         &ctx,

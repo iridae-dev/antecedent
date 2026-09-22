@@ -114,6 +114,10 @@ fn static_pag_graph_edges(names: &[String], pag: &Pag) -> Vec<GraphEdge> {
 fn static_pag_definite_directed_count(pag: &Pag) -> u64 {
     let mut directed = 0u64;
     for i in 0..pag.node_count() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+        )]
         let a = DenseNodeId::from_raw(i as u32);
         for (b, at_a, at_b) in pag.neighbors(a) {
             if b.raw() < a.raw() {

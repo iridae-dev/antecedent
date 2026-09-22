@@ -24,11 +24,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::too_many_lines,
-    clippy::unused_self
+#![allow(clippy::too_many_lines, clippy::unused_self)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -828,11 +831,16 @@ fn apply_history_lag_filter(
 ) {
     config.max_history_lag = max_history_lag;
     let mut lags = Vec::with_capacity(indexer.dense_len());
-    for dense in 0..indexer.dense_len() as u32 {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the indexer addresses its dense nodes with u32 keys, so its length fits u32"
+    )]
+    let dense_len = indexer.dense_len() as u32;
+    for dense in 0..dense_len {
         let Ok(key) = indexer.key_of(dense) else {
             continue;
         };
-        let lag = reference_offset.saturating_sub(key.offset).max(0) as u32;
+        let lag = u32::try_from(reference_offset.saturating_sub(key.offset).max(0)).unwrap_or(0);
         lags.push((VariableId::from_raw(dense), lag));
     }
     config.history_lags = Arc::from(lags);

@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
@@ -415,6 +422,11 @@ pub fn uniform_bin_chi2(p_values: &[f64], n_bins: usize) -> (f64, usize) {
     let mut counts = vec![0u32; n_bins];
     for &p in p_values {
         let p = p.clamp(0.0, 1.0 - f64::EPSILON);
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "p is clamped to [0, 1 - EPSILON], so p * n_bins is non-negative and below n_bins"
+        )]
         let b = ((p * n_bins as f64).floor() as usize).min(n_bins - 1);
         counts[b] += 1;
     }

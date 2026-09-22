@@ -2,7 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_lossless, clippy::cast_sign_loss)]
+#![allow(clippy::cast_lossless)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 /// Gauss–Hermite rule for the standard normal: `(nodes, weights)` with
 /// `E[g(Z)] ≈ Σ w_i g(z_i)`, exact for polynomials of degree up to `2n − 1`.
@@ -238,6 +246,11 @@ fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -
     // a/b. Scale the cap with sqrt(max(a,b)) the same way `gamma_p_series` does for an
     // identical convergence-rate issue, so the tolerance break — not the cap — ends the
     // loop across the practically reachable range.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the sqrt is of a value >= 1 and capped at 1e9, so it is positive and fits usize"
+    )]
     let max_iter = 500 + 10 * (a.max(b).max(1.0).sqrt().min(1.0e9) as usize);
     for m in 1..max_iter {
         let m_f = m as f64;
@@ -368,6 +381,11 @@ fn gamma_p_series(a: f64, x: f64) -> f64 {
     // silently returns a partial sum once `a` grows. Scale the cap with sqrt(a) so the
     // tolerance break, not the cap, ends the loop (mirrored in
     // `regularized_incomplete_beta`'s continued fraction below, an identical issue).
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the sqrt is of a value >= 1 and capped at 1e9, so it is positive and fits usize"
+    )]
     let max_iter = 500 + 10 * (a.max(1.0).sqrt().min(1.0e9) as usize);
     for _ in 0..max_iter {
         ap += 1.0;
