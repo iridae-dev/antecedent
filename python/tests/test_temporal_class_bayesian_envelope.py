@@ -320,7 +320,13 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    assert result.ate is None
+    # 0388159c fixed execute_temporal_cpdag_mediation to track shared_design/designs_agree
+    # for Bayesian inference too (previously only the Frequentist arm updated that
+    # bookkeeping, so the post-loop match always fell to the '_' arm and published a NaN
+    # sentinel for the slice). With a single completion the shared-design condition holds
+    # trivially, so the canonical shared-design contrast is now a real, deterministic
+    # BayesianPointwise summary instead of NaN.
+    assert result.ate == pytest.approx(0.43924231380959483, abs=1e-9)
     payload = artifacts.loads(prepared.export_artifact()).payload
     atom = payload["structural_response"]["atoms"][0]
     assert atom["posterior_artifact"]
