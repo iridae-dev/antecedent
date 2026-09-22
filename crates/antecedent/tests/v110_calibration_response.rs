@@ -46,8 +46,8 @@ use antecedent_graph::{
     Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
 };
 use common::calibration::{
-    CoverageTally, GRID_POINTS, PRECISION_N_SIM, RecordKey, gaussian, grid_n, n_sim, stream_seed,
-    unit_uniform,
+    CoverageTally, GRID_POINTS, PRECISION_N_SIM, RecordKey, gaussian, grid_n, map_replicates,
+    n_sim, stream_seed, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::reported::{
@@ -265,14 +265,10 @@ fn intervention_response_dag_graph_posterior_frequentist_nominal_coverage() {
         "intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
         GP_CELL,
     );
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0001, rep);
         let data = response_data(grid_n(500), seed);
-        let Some((study, result)) = run_graph_posterior(data.clone(), RefuteSuite::None, seed)
-        else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_graph_posterior(data.clone(), RefuteSuite::None, seed)?;
         let pair = response_normal_pair(&result);
         if rep == 0 {
             assert_eq!(
@@ -294,8 +290,15 @@ fn intervention_response_dag_graph_posterior_frequentist_nominal_coverage() {
                 assert_eq!(response_scalar(&other), response_scalar(&result), "{suite:?}");
             }
         }
-        bind_pair(&mut tallies, &study, &result);
-        record_pair(&mut tallies, pair, GP_TRUTH);
+        Some((study, result, pair))
+    });
+    for scored in &runs {
+        let Some((study, result, pair)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, *pair, GP_TRUTH);
     }
     gate(&tallies, &[None, None]);
 }
@@ -405,7 +408,7 @@ fn pag_case() -> ClassCase {
 fn class_level_coverage(test: &'static str, case: &ClassCase) {
     let mut tallies = keyed_pair(test, case.cell);
     let graph = (case.graph)();
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(case.family, rep);
         let data = (case.data)(grid_n(case.cell.n as usize), seed);
         let truth = (case.truth)(1.0, mean_z(&data));
@@ -420,8 +423,7 @@ fn class_level_coverage(test: &'static str, case: &ClassCase) {
         );
         let (Some((reported_study, reported)), Some((gate_study, gate_run))) = (reported, gate_run)
         else {
-            skip_pair(&mut tallies);
-            continue;
+            return None;
         };
         let at_reported = response_scalar(&reported);
         let at_gate = response_scalar(&gate_run);
@@ -442,15 +444,24 @@ fn class_level_coverage(test: &'static str, case: &ClassCase) {
             .expect("accepted structure");
             assert_eq!(response_scalar(&accepted), at_reported, "accepted = explicit");
         }
-        bind(&mut tallies[0], &reported_study, &reported);
-        bind(&mut tallies[1], &gate_study, &gate_run);
+        Some(((reported_study, reported), (gate_study, gate_run), at_reported, at_gate, truth))
+    });
+    for scored in &runs {
+        let Some(((reported_study, reported), (gate_study, gate_run), at_reported, at_gate, truth)) =
+            scored
+        else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind(&mut tallies[0], reported_study, reported);
+        bind(&mut tallies[1], gate_study, gate_run);
         for (tally, (interval, level)) in
-            tallies.iter_mut().zip([(at_reported, REPORTED_LEVEL), (at_gate, GATE_LEVEL)])
+            tallies.iter_mut().zip([(*at_reported, REPORTED_LEVEL), (*at_gate, GATE_LEVEL)])
         {
             if let Some((_, _, published, _)) = interval {
                 assert!((published - level).abs() < 1e-12, "published level {published}");
             }
-            tally.record(interval.map(|(lo, hi, _, _)| (lo, hi)), truth);
+            tally.record(interval.map(|(lo, hi, _, _)| (lo, hi)), *truth);
         }
     }
     gate(&tallies, &[None, None]);
@@ -476,7 +487,7 @@ fn class_curve_coverage(
         })
         .collect();
     let graph = (case.graph)();
-    for rep in 0..u64::from(n_sim_at_least(PRECISION_N_SIM)) {
+    let runs = map_replicates(n_sim_at_least(PRECISION_N_SIM), |rep| {
         let seed = stream_seed(case.family ^ 0x0C, rep);
         let data = (case.data)(grid_n(case.cell.n as usize), seed);
         let z_bar = mean_z(&data);
@@ -491,10 +502,7 @@ fn class_curve_coverage(
         );
         let (Some((reported_study, reported)), Some((gate_study, gate_run))) = (reported, gate_run)
         else {
-            for tally in &mut tallies {
-                tally.skip();
-            }
-            continue;
+            return None;
         };
         let bands = [response_band(&reported), response_band(&gate_run)];
         if rep == 0 {
@@ -510,6 +518,16 @@ fn class_curve_coverage(
             .expect("accepted structure");
             assert_eq!(response_band(&accepted), bands[0], "accepted = explicit");
         }
+        Some(((reported_study, reported), (gate_study, gate_run), bands, z_bar))
+    });
+    for scored in &runs {
+        let Some(((reported_study, reported), (gate_study, gate_run), bands, z_bar)) = scored
+        else {
+            for tally in &mut tallies {
+                tally.skip();
+            }
+            continue;
+        };
         {
             // Every coordinate's tally scores the band of its own execution:
             // the even tallies the reported-level run, the odd ones the
@@ -522,11 +540,11 @@ fn class_curve_coverage(
                     at_gate.push(tally);
                 }
             }
-            bind_all(&mut at_reported, &reported_study, &reported);
-            bind_all(&mut at_gate, &gate_study, &gate_run);
+            bind_all(&mut at_reported, reported_study, reported);
+            bind_all(&mut at_gate, gate_study, gate_run);
         }
         for (j, &a) in GRID.iter().enumerate() {
-            let truth = (case.truth)(a, z_bar);
+            let truth = (case.truth)(a, *z_bar);
             for (k, level) in [REPORTED_LEVEL, GATE_LEVEL].into_iter().enumerate() {
                 let interval = bands[k].as_ref().map(|(lower, upper, published)| {
                     assert!((published - level).abs() < 1e-12, "published level {published}");
@@ -670,13 +688,9 @@ fn intervention_response_codetermined_frequentist_nominal_coverage() {
         "intervention_response_codetermined_frequentist_nominal_coverage",
         CODETERMINED_CELL,
     );
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0030, rep);
-        let Some((study, result)) = run_codetermined(codetermined_data(grid_n(1200), seed), seed)
-        else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_codetermined(codetermined_data(grid_n(1200), seed), seed)?;
         if rep == 0 {
             assert_eq!(
                 result.logical_plan.estimator.as_deref(),
@@ -684,8 +698,15 @@ fn intervention_response_codetermined_frequentist_nominal_coverage() {
                 "the default same-tier joint estimator"
             );
         }
-        bind_pair(&mut tallies, &study, &result);
-        record_pair(&mut tallies, response_normal_pair(&result), 3.5);
+        Some((study, result))
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, response_normal_pair(result), 3.5);
     }
     gate(&tallies, &[None, None]);
 }
