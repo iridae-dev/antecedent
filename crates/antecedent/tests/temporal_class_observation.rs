@@ -429,9 +429,26 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         "requested replicates must produce an outer circular-block diagnostic on atoms"
     );
 
-    let oriented =
-        run_pair(series, oriented_cpdag(), query, InferenceMode::Frequentist, 8).unwrap();
+    // A nominal 0.95 band needs at least `PERCENTILE_95_MIN_REPLICATES` (40) surviving
+    // bootstrap successes (`bootstrap_has_enough_successes`,
+    // crates/antecedent/src/analysis/execute/execute_helpers.rs); 8 (as used for the
+    // `incomplete` run above, which never publishes a band regardless of replicate count)
+    // cannot license one, so the strict `banded()` checks below need enough requested to
+    // clear that floor even after any refit failures.
+    let oriented = run_pair(
+        series,
+        oriented_cpdag(),
+        query,
+        InferenceMode::Frequentist,
+        antecedent::result::PERCENTILE_95_MIN_REPLICATES,
+    )
+    .unwrap();
     let response = oriented.response.as_ref().unwrap();
+    // The atom-level band assertions below are about this one-completion `oriented` run, not
+    // the two-completion `incomplete` run above: rebind `structural` to it (it was previously
+    // left pointing at `incomplete.structural_response`, so these assertions were silently
+    // re-checking the withheld two-completion atoms instead of the oriented ones).
+    let structural = oriented.structural_response.as_ref().unwrap();
     assert!(
         matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. })
             || response
@@ -457,9 +474,17 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         response.support.warnings.iter().any(|w| w.code.as_ref() == code)
     };
     let tuple_band_disclosed = |response: &antecedent_core::CausalResponse| {
+        // Not `response.temporal.pointwise_band_few_replicates`: that warning and a
+        // published observation tuple band are mutually exclusive by construction. The
+        // facade only publishes an observation `PointwiseBand` once the outer tuple
+        // bootstrap clears `PERCENTILE_95_BAND_MIN_SUCCESSES`
+        // (crates/antecedent/src/analysis/execute/execute_helpers.rs), and
+        // `disclose_response_block_bootstrap` (crates/antecedent-estimate/src/
+        // temporal_response.rs) only warns "few replicates" below
+        // `SIMULTANEOUS_BAND_MIN_REPLICATES` on the very same completed-replicate count —
+        // both constants are 40, so a banded response can never also carry that warning.
         !warns(response, "estimate.temporal_response.band_withheld")
             && warns(response, "response.temporal.block.persistence_boundary")
-            && warns(response, "response.temporal.pointwise_band_few_replicates")
             && response
                 .support
                 .diagnostics
