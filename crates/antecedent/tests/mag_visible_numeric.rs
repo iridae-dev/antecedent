@@ -19,12 +19,20 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
     // sample mean of `z` is exactly 0, so every certified functional equals the
     // structural value only when `z` is in the adjustment set; the crude slope of `y`
     // on `t` is far from 2, so an empty or partial set cannot pass.
-    let z: Vec<_> = (0..800).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
-    let r: Vec<_> = (0..800).map(|i| f64::from((i / 2) % 2)).collect();
+    //
+    // `z` and `r` cycle through 5 symmetric levels (mean exactly 0 for `z`, one full
+    // period every 5 rows) rather than 2. The PAG's InterventionResponse cell runs the
+    // visibility-aware general-ID path, which fits an additive-GAM plug-in target over
+    // every adjustment covariate (not only a minimal backdoor set); a cubic smooth spline
+    // needs more than two distinct knot locations, and a 2-valued `z`/`r` left that fit
+    // singular ("additive GAM target did not converge"). 5 levels is enough for the GAM's
+    // quantile knots to be non-degenerate while keeping the DGP exactly computable.
+    let z: Vec<_> = (0..800).map(|i: i32| 0.5 * f64::from(i % 5 - 2)).collect();
+    let r: Vec<_> = (0..800).map(|i| f64::from((i / 5) % 5)).collect();
     let t: Vec<_> = (0..800)
         .map(|i| {
             let jitter = f64::from((i * 7919) % 101) / 101.0 * 0.1 - 0.05;
-            0.5 + 0.2 * z[i as usize] + 0.15 * (r[i as usize] - 0.5) + jitter
+            0.5 + 0.2 * z[i as usize] + 0.0375 * (r[i as usize] - 2.0) + jitter
         })
         .collect();
     let y: Vec<_> = t.iter().zip(&z).map(|(t, z)| 1.0 + 2.0 * t + 1.5 * z).collect();
