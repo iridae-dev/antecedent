@@ -155,7 +155,7 @@ impl TransportIdentifier {
     /// (`identify_catalog_transport`). A query with no catalog at all asks only for the
     /// structural formula, whose target factors stay unbound.
     ///
-    /// The implementation deliberately returns [`Self::NotCertified`] rather than claiming
+    /// The implementation deliberately returns [`TransportIdentification::NotCertified`] rather than claiming
     /// non-transportability when general multi-node c-component recursion is required.
     #[allow(clippy::too_many_lines)]
     pub fn identify(

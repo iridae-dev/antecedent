@@ -355,7 +355,7 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
 /// estimation noise the longer block adds is carried by the fixed-b factor of
 /// [`block_dispersion_inflation`]; the kernel bias that remains at any licensed
 /// length on a persistent influence is carried by the per-cell factor of
-/// [`crate::temporal_response_dispersion::kernel_bias_factor`].
+/// [`crate::ar_kernel::kernel_bias_factor`].
 #[must_use]
 #[allow(
     clippy::cast_possible_truncation,
@@ -381,7 +381,7 @@ pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
 /// treatment column, say). The Bartlett kernel of the block still misses `O(1/ℓ)` of
 /// a persistent influence's long-run variance at any licensed length; each published
 /// cell's replicate deviations therefore also carry the parametric kernel-bias factor
-/// of [`crate::temporal_response_dispersion::kernel_bias_factor`]. Neither reading
+/// of [`crate::ar_kernel::kernel_bias_factor`]. Neither reading
 /// fires when a strongly persistent component is a small share of a score: with AR(1)
 /// ρ = 0.9 residuals under omitted iid treatment lags at n = 160 the residual's
 /// autocorrelations stay under the Politis–White significance threshold, the fitted

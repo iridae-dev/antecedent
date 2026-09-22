@@ -409,10 +409,10 @@ pub struct PublishedScalarUncertainty {
     /// The one scalar SE the facade publishes, when licensed and positive-finite.
     pub standard_error: Option<f64>,
     /// Interval method for what was published: a normal interval from
-    /// [`Self::standard_error`] ([`IntervalMethod::AnalyticSe`] or
-    /// [`IntervalMethod::BootstrapSe`]), an Anderson–Rubin set
-    /// ([`IntervalMethod::AndersonRubin`], endpoints in [`Self::lower`] /
-    /// [`Self::upper`], no standard error), or [`IntervalMethod::None`].
+    /// [`Self::standard_error`] ([`antecedent_core::IntervalMethod::AnalyticSe`] or
+    /// [`antecedent_core::IntervalMethod::BootstrapSe`]), an Anderson–Rubin set
+    /// ([`antecedent_core::IntervalMethod::AndersonRubin`], endpoints in [`Self::lower`] /
+    /// [`Self::upper`], no standard error), or [`antecedent_core::IntervalMethod::None`].
     /// Circular-block labeling is applied by
     /// [`StudyResult::primary_interval_binding`] when a block family is recorded.
     pub method: antecedent_core::IntervalMethod,

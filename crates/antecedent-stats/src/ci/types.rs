@@ -70,7 +70,7 @@ pub const DEFAULT_PERMUTATIONS: usize = 49;
 /// How many null replicates a nonparametric CI test should draw.
 ///
 /// [`SignificanceMethod::Analytic`] has no closed-form null for distance / MI proxies, so those
-/// tests draw [`DEFAULT_PERMUTATIONS`] (49) replicates and their smallest attainable p-value is
+/// tests draw `DEFAULT_PERMUTATIONS` (49) replicates and their smallest attainable p-value is
 /// `1/50 = 0.02`: with `alpha <= 0.02` no dependence can ever be declared, and Benjamini–
 /// Hochberg over a family of such p-values needs at least 40% of the family at that minimum.
 /// Discovery must compare [`ConditionalIndependenceTest::min_attainable_p`] with its `alpha`

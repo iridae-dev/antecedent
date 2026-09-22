@@ -486,7 +486,7 @@ impl TemporalBackdoorIdentifier {
     /// overlays. The identifier remains `temporal.backdoor.unfolded`.
     ///
     /// The active side of the emitted contrast is the schedule's own requested
-    /// level, not a fabricated 0-vs-1 pair: [`resolve_schedule_active_level`]
+    /// level, not a fabricated 0-vs-1 pair: `resolve_schedule_active_level`
     /// requires every `Some` level in the schedule to agree, since
     /// [`IdIdentifier::identify_schedule_contrast`] bakes a single literal into
     /// every schedule node.

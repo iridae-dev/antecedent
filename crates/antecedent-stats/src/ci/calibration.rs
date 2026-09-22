@@ -393,7 +393,7 @@ fn ln_binomial_pmf(k: u32, trials: u32, p: f64) -> f64 {
 
 /// Whether `rejections` of `trials` Monte Carlo rejections at nominal `alpha` lies in the exact
 /// two-sided binomial acceptance region: neither `P(X ≤ rejections)` nor `P(X ≥ rejections)`
-/// under `Binomial(trials, alpha)` is at or below [`BINOMIAL_GATE_TAIL`]` / 2`.
+/// under `Binomial(trials, alpha)` is at or below `BINOMIAL_GATE_TAIL`` / 2`.
 ///
 /// Unlike a normal-approximation band this is exact at small `alpha` and `trials`, and unlike
 /// an additive slack it does not widen the region beyond the stated Monte Carlo error.

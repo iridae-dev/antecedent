@@ -38,7 +38,7 @@ pub struct FalsePositiveCheckReport {
     /// Empirical edge rate: retained links per replicate over the candidate lagged links (every
     /// ordered variable pair at each lag of `min_lag..=max_lag`).
     pub empirical_fpr: f64,
-    /// Standard error of `empirical_fpr` (see [`SyntheticNullCalibration`]).
+    /// Standard error of `empirical_fpr` (see [`super::SyntheticNullCalibration`]).
     pub se: f64,
     /// Whether the empirical rate is at most `α + 3·se`. One-sided: surrogates that remove
     /// structure should not raise the false-positive rate, and a lower rate is not a failure.

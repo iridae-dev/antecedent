@@ -359,7 +359,7 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 /// (every horizon of a temporal response is its own design, but the class atoms
 /// of one adjustment set, a Study's estimate and its checks, or a re-run on the
 /// same series are not) reuse it through a small content-keyed cache
-/// ([`residual_fit`]). The fit is a pure function of the design, so a cache hit
+/// (`residual_fit`). The fit is a pure function of the design, so a cache hit
 /// and a recomputation are indistinguishable.
 ///
 /// # Errors
