@@ -1044,6 +1044,21 @@ fn select_estimand_index(
     if matches.len() == 1 {
         return Ok(matches[0]);
     }
+    // Auto (and the response identifiers) can list a criterion estimand (backdoor adjustment,
+    // front-door, path-specific, ...) beside the general-ID functional for the same query: ID
+    // is the general fallback, so when exactly one estimator-compatible match is criterion-
+    // shaped and the rest are general.id, the criterion match is the more specific claim and
+    // wins. This does not fire when every match is general.id (for example a MeanCurve's one
+    // general-ID estimand per grid level): that is a genuine ambiguity between distinct
+    // functionals, not a criterion-vs-fallback tiebreak, and still errors below.
+    let non_general: Vec<usize> = matches
+        .iter()
+        .copied()
+        .filter(|&i| estimands[i].method_kind() != Ok(EstimandMethod::GeneralId))
+        .collect();
+    if non_general.len() == 1 {
+        return Ok(non_general[0]);
+    }
     // Auto lists every strategy that identified the query (criterion estimands and the general
     // ID functional); name them so a caller sees which methods the estimator matched.
     let methods: Vec<&str> = estimands.iter().map(|e| e.method.as_ref()).collect();
