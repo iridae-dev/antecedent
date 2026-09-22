@@ -74,15 +74,13 @@ fn ate_study(
 
 const PIN_ABS: f64 = 1e-12;
 
-/// A batch member's cross-fit folds are a `SharedBatchDesign`-wide seeded balanced shuffle
-/// (`shuffled_fold_assignment`, batch.rs); a standalone `Study` draws its own folds from
-/// `crossfit_fold_plan` (`learn_nuisance.rs`). Both are seeded from the same run master seed
-/// (99edfd41 made every facade path seed its fold plan from it), but the two are different
-/// algorithms, so a batch member and a solo re-run of the same query are not bit-identical
-/// once the estimator actually cross-fits on a non-empty design (a pure-intercept design has
-/// no fold-dependent free parameters and does match exactly). The two remain consistent
-/// estimators of the same estimand on the same rows, so their gap is bounded by a small
-/// fraction of one analytic standard error rather than by float noise.
+/// A batch member and a standalone `Study` both draw their cross-fit folds from
+/// `crossfit_fold_plan` (`learn_nuisance.rs`), stratified by this query's own treatment
+/// arm / joint cell and keyed by the same run master seed, so they are bit-identical for
+/// the same query, seed, and rows (`SharedBatchDesign::apply_to_propensity` deliberately
+/// leaves `fold_assignment` unset for exactly this reason; see `batch.rs`). This generous,
+/// SE-scaled tolerance is kept as a loose sanity bound rather than tightened to float noise,
+/// so a real future divergence still fails loudly without this pin being brittle.
 fn fold_split_tol(batch: &antecedent::StudyResult, solo: &antecedent::StudyResult) -> f64 {
     let se = batch.estimate.se_analytic.max(solo.estimate.se_analytic);
     if se.is_finite() && se > 0.0 {
@@ -1511,8 +1509,8 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    // `prepare_cells` draws its folds from the batch-shared seeded shuffle
-    // (`SharedBatchDesign`), not the solo `crossfit_fold_plan`; see `fold_split_tol`.
+    // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
+    // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
     assert!(
         (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
     );
@@ -2194,6 +2192,8 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap();
     let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(3));
     let ctx = ExecutionContext::for_tests(211);
+    let solo_query = query.clone();
+    let solo_graph = graph.clone();
     let prepared = BatchStudy::new(data.clone(), graph)
         .estimator(EstimatorId::Aipw)
         .refute(RefuteSuite::None)
@@ -2213,7 +2213,17 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
     let t0 = prepared.plans()[0].score_table().expect("scores");
     let t1 = prepared.plans()[1].score_table().expect("scores");
     assert_eq!(t0.fold_ids.as_ref(), t1.fold_ids.as_ref());
-    assert_eq!(t0.fold_ids.as_ref(), shared.folds_for(&t0.row_index).unwrap());
+    // The batch member's actual cross-fit fold plan is *not* `shared.folds_for` (that array
+    // is only an opaque identity fingerprint; see `SharedBatchDesign` docs). It is the same
+    // arm-stratified `crossfit_fold_plan` a solo run of this query draws, keyed by the same
+    // master seed — so it matches the solo run's own score-table fold ids exactly.
+    let solo_table = ate_study(data.clone(), solo_graph, solo_query, EstimatorId::Aipw)
+        .prepare(&ctx)
+        .unwrap()
+        .score_table()
+        .expect("solo scores")
+        .clone();
+    assert_eq!(t0.fold_ids.as_ref(), solo_table.fold_ids.as_ref());
     assert!(t0.nuisance_provenance.contains("batch.shared_design"));
     assert!(t1.nuisance_provenance.contains("batch.shared_design"));
     assert_ne!(
@@ -2984,8 +2994,8 @@ fn codetermined_prepare_cells_pair_family_shares_joint_if() {
     ));
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 2);
-    // `prepare_cells` draws its folds from the batch-shared seeded shuffle
-    // (`SharedBatchDesign`), not the solo `crossfit_fold_plan`; see `fold_split_tol`.
+    // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
+    // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
     assert!(
         (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
     );
@@ -3086,8 +3096,8 @@ fn codetermined_distinct_pairs_share_folds_not_covariates() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    // `prepare_cells` draws its folds from the batch-shared seeded shuffle
-    // (`SharedBatchDesign`), not the solo `crossfit_fold_plan`; see `fold_split_tol`.
+    // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
+    // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
     assert!(
         (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
     );
