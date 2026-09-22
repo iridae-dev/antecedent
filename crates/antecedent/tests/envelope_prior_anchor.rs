@@ -126,7 +126,13 @@ fn first_identified_dropped(seed: u64, keys: &[u64]) -> bool {
     let flags = vec![GraphIdentFlag::Identified; keys.len()];
     let graphs = WeightedGraphSamples::new(weights, flags, keys.to_vec()).unwrap();
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream_for(StreamDomain::Test, SUBSAMPLE_STREAM);
+    // Must match interactive_subsample_graphs_accounted's own stream exactly
+    // (StreamDomain::Execute, 0xE11E): domain-separated RNG streams mean a
+    // StreamDomain::Test draw at the same seed is an *independent* stream, so
+    // a seed found against it would not reproduce the real subsample draw and
+    // the search below would not actually guarantee the first atom is
+    // dropped by the code path under test.
+    let mut rng = ctx.rng.stream_for(StreamDomain::Execute, SUBSAMPLE_STREAM);
     let sub = graphs.stratified_interactive_subsample(16, &mut rng).unwrap();
     assert!(sub.approximate);
     !sub.graphs
@@ -168,7 +174,18 @@ fn composed_cfg(data: &TabularData) -> BayesianConfig {
     }]);
     let baseline = PriorSet::weakly_informative(ncols);
     let composed = compose_external_priors(&sources, &baseline).unwrap();
-    let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
+    // p_min=0.0 disables the binary p-value cutoff (which fully zeros alpha for
+    // *both* the Z- and W-adjusted designs here — their prior-PPC p-values are
+    // 0.0497 and 0.0199, both under the usual 0.05 gate — collapsing both
+    // anchors to the same alpha=0 baseline prior and making the two runs
+    // indistinguishable regardless of which atom the prior actually anchored
+    // to). With only the continuous KL term left, alpha is shrunk by
+    // exp(-kl_scale * kl), which differs by design (kl differs because Z is a
+    // real confounder and W is near-noise, so their prior/likelihood
+    // conflicts differ), so the composed prior — and thus the ATE mean — is
+    // genuinely atom-specific, which is what this test needs to observe
+    // order-dependent anchoring at all.
+    let policy = ConflictPolicy::try_new(0.0, 1.0).unwrap();
     BayesianConfig::conjugate().n_draws(48).prior_from_composed(sources, composed, Some(policy))
 }
 
