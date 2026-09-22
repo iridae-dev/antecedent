@@ -879,8 +879,7 @@ impl StudyResult {
             });
         }
         let body = body_for(&contract.body, self)?;
-        let mut reasoning =
-            result_reasoning(self, &contract.reasoning, &body, &contract.inference)?;
+        let mut reasoning = result_reasoning(self, &contract.reasoning, &body)?;
         if let (SlotAvailability::Available(slot), Some(status)) =
             (&mut reasoning.identification, contract.body.identification_status)
         {
@@ -2397,7 +2396,6 @@ fn result_reasoning(
     result: &StudyResult,
     prepared: &ReasoningView,
     body: &AnalysisResultWire,
-    inference: &str,
 ) -> Result<ReasoningView, CausalError> {
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
@@ -2435,8 +2433,12 @@ fn result_reasoning(
     }
     // A function-valued posterior can carry its band directly on the response,
     // without a scalar posterior or SE on StudyResult. Its portable reasoning
-    // must not call that published parameter uncertainty "omitted".
-    if inference == "bayesian" {
+    // must not call that published parameter uncertainty "omitted". This runs for
+    // every inference kind: the interval's own tag decides the uncertainty source
+    // below, so a Frequentist response confidence band is exactly as available
+    // here as a Bayesian credible band — there is nothing left for an
+    // `inference == "bayesian"` gate to guard.
+    {
         if let Some(response) = &result.response {
             // The interval's own tag decides the source: a credible interval is posterior
             // parameter uncertainty; a confidence interval (a Wald interval on influence

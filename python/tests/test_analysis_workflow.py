@@ -226,6 +226,15 @@ def test_partial_and_missing_evidence_are_not_scalar_success():
         estimate=copy_model(result.estimate, se_analytic=float("nan")),
         assumptions=None,
     )
+    # `.inspect()` reports the same uncertainty/assumptions availability as
+    # `load(export()).inspect()`: whenever a native execution is retained, it
+    # re-derives both from that execution's own exported contract rather than
+    # from these Python-level fields (`_with_portable_record`). `_execution` is
+    # a `PrivateAttr`, invisible to `copy_model`'s `model_copy(update=...)`
+    # (pydantic stores it outside `__dict__`/extras), so exercising "missing
+    # evidence" here means clearing it directly, the same way
+    # `test_result_html.py` mutates a frozen result's fields for a test fixture.
+    object.__setattr__(empty, "_execution", None)
     assert not empty.inspect().uncertainty.available
     assert not empty.inspect().assumptions.available
     json.dumps(empty.inspect().to_dict(), allow_nan=False)
