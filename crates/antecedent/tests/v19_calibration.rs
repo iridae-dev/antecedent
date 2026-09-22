@@ -1388,7 +1388,16 @@ fn mediation_cpdag_fixture_has_two_completions_with_own_posteriors() {
         let data = mediation_series(SANITY_N, kappa, 13);
         let result =
             run_bayes(data, mediation_cpdag_two(), mediated_query(), None, RefuteSuite::None, 41);
-        assert!(result.estimate.ate.is_nan());
+        // The two completions share the same mediation design (per this fixture's own
+        // docstring), so the class collapses to one canonical shared-design contrast
+        // instead of the cross-design NaN sentinel; it must land at the same analytic
+        // truth each completion's own posterior already does below.
+        close(
+            &format!("shared-design mediation ate (kappa={kappa})"),
+            result.estimate.ate,
+            fixtures::mediation_truth(),
+            0.02,
+        );
         let atoms = &result.structural_response.as_ref().expect("atoms").atoms;
         assert_eq!(atoms.len(), 2, "two completions");
         let values: Vec<f64> = atoms
