@@ -34,11 +34,11 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, GaussianMixtureDensity,
-    LeastSquaresWorkspace, LocalQuadraticWorkspace, QuantileRule, SmoothSpec, StatsError,
-    equal_tail_interval_sorted, fit_gam, fit_gam_weighted, gauss_hermite_standard_normal,
-    gaussian_density, gaussian_local_quadratic_influence_prechecked, mad_sigma, median_sorted,
-    normal_ppf, quantile_sorted, silverman_bandwidth,
+    AdditiveDesign, DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace,
+    GaussianMixtureDensity, LeastSquaresWorkspace, LocalQuadraticWorkspace, QuantileRule,
+    SmoothSpec, StatsError, equal_tail_interval_sorted, fit_gam, fit_gam_weighted_design,
+    gauss_hermite_standard_normal, gaussian_density, gaussian_local_quadratic_influence_prechecked,
+    mad_sigma, median_sorted, normal_ppf, quantile_sorted, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -602,6 +602,9 @@ impl ContinuousResponseEstimator {
                     CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
                 let (_, _, support) =
                     self.average_derivative(data, *outcome, *treatment, weighting)?;
+                // Folds, their training designs and knots are fixed across draws:
+                // expanded once here, refit under each draw's weights.
+                let folds = self.cross_fit_folds(&sample)?;
                 // One RNG stream per draw: draws are independent, so they run across
                 // the context's thread budget and return in draw order.
                 let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
@@ -612,7 +615,7 @@ impl ContinuousResponseEstimator {
                         .rng
                         .stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
                     let weights = bootstrap_weights(sample.len(), &mut rng);
-                    self.weighted_cross_fitted_ade(&sample, &weights)
+                    self.weighted_cross_fitted_ade(&sample, &folds, &weights)
                 })?;
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 (
@@ -700,6 +703,19 @@ impl ContinuousResponseEstimator {
                     _ => unreachable!(),
                 };
                 let n = samples[0].len();
+                // Fold assignment, knots and bases are fixed across draws: the point
+                // route's cross-fitting folds and the GAM routes' plug-in target
+                // designs are expanded once here and refit under each draw's weights.
+                let folds =
+                    if point_derivative { self.cross_fit_folds(&samples[0])? } else { vec![] };
+                let target_designs: Vec<AdditiveDesign> = if point_derivative {
+                    vec![]
+                } else {
+                    samples
+                        .iter()
+                        .map(|sample| self.outcome_target_design(sample))
+                        .collect::<Result<_, _>>()?
+                };
                 // One RNG stream per draw: draws are independent, so they run across the
                 // context's thread budget and return in draw order. Each draw yields its
                 // point coordinates (local-quadratic, bias-corrected) or its GAM vector,
@@ -722,7 +738,11 @@ impl ContinuousResponseEstimator {
                     match &query.functional {
                         ResponseFunctional::PointDerivative { at, order, scale, .. } => {
                             let pseudo = self
-                                .cross_fitted_pseudo_outcome_weighted(&samples[0], Some(&weights))?
+                                .cross_fitted_pseudo_outcome_weighted(
+                                    &samples[0],
+                                    &folds,
+                                    Some(&weights),
+                                )?
                                 .values;
                             let p = antecedent_stats::gaussian_local_quadratic_weighted(
                                 &samples[0].treatments,
@@ -763,8 +783,11 @@ impl ContinuousResponseEstimator {
                         }
                         ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
                             for (s, sample) in samples.iter().enumerate() {
-                                let fit =
-                                    self.fit_outcome_target_weighted(sample, Some(&weights))?;
+                                let fit = Self::fit_outcome_target_weighted(
+                                    sample,
+                                    &target_designs[s],
+                                    Some(&weights),
+                                )?;
                                 out.edf[s] += fit.edf_approx;
                                 let (_, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
@@ -775,8 +798,11 @@ impl ContinuousResponseEstimator {
                         }
                         ResponseFunctional::Jacobian { at, scale, .. } => {
                             for (s, sample) in samples.iter().enumerate() {
-                                let fit =
-                                    self.fit_outcome_target_weighted(sample, Some(&weights))?;
+                                let fit = Self::fit_outcome_target_weighted(
+                                    sample,
+                                    &target_designs[s],
+                                    Some(&weights),
+                                )?;
                                 out.edf[s] += fit.edf_approx;
                                 let (level, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
@@ -1507,7 +1533,62 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
     ) -> Result<PseudoOutcome, EstimationError> {
-        self.cross_fitted_pseudo_outcome_weighted(sample, None)
+        let folds = self.cross_fit_folds(sample)?;
+        self.cross_fitted_pseudo_outcome_weighted(sample, &folds, None)
+    }
+
+    /// The cross-fitting folds of `sample`, with each fold's training designs
+    /// expanded once (see [`CrossFitFold`]).
+    ///
+    /// # Errors
+    ///
+    /// Too few rows for the folds and basis, or a basis expansion failure.
+    fn cross_fit_folds(
+        &self,
+        sample: &CompleteSample,
+    ) -> Result<Vec<CrossFitFold>, EstimationError> {
+        let n = sample.len();
+        ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
+        (0..self.options.folds)
+            .map(|fold| {
+                let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
+                let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
+                let outcome_design = AdditiveDesign::expand(
+                    &sample.raw_subset(&train),
+                    train.len(),
+                    sample.raw_cols,
+                    &self.nuisance_specs(sample.raw_cols),
+                )?;
+                let treatment_design = if sample.adjustment_cols == 0 {
+                    None
+                } else {
+                    Some(AdditiveDesign::expand(
+                        &sample.adjustment_subset(&train),
+                        train.len(),
+                        sample.adjustment_cols,
+                        &self.nuisance_specs(sample.adjustment_cols),
+                    )?)
+                };
+                Ok(CrossFitFold {
+                    outcome: train.iter().map(|&i| sample.outcome[i]).collect(),
+                    treatment: train.iter().map(|&i| sample.treatments[i]).collect(),
+                    train,
+                    valid,
+                    outcome_design,
+                    treatment_design,
+                })
+            })
+            .collect()
+    }
+
+    /// Penalized nuisance smooths over `ncols` raw columns, knots at the sample
+    /// quantiles of the rows they are expanded over.
+    fn nuisance_specs(&self, ncols: usize) -> Vec<SmoothSpec> {
+        (0..ncols)
+            .map(|col| {
+                SmoothSpec::new(col, self.options.nuisance_basis, self.options.nuisance_lambda)
+            })
+            .collect()
     }
 
     /// Cross-fitted Kennedy pseudo-outcome, optionally under row weights.
@@ -1517,10 +1598,12 @@ impl ContinuousResponseEstimator {
     /// covariate offset become weighted training-row averages. This is one
     /// Bayesian-bootstrap draw of the whole nuisance stage, not a reweight of the
     /// first-fit pseudo-outcome. `None` is the unweighted estimator (weights of
-    /// one, bit-identical).
+    /// one, bit-identical). `folds` is [`Self::cross_fit_folds`] of `sample`,
+    /// built once by a draw loop and shared by every draw.
     fn cross_fitted_pseudo_outcome_weighted(
         &self,
         sample: &CompleteSample,
+        folds: &[CrossFitFold],
         weights: Option<&[f64]>,
     ) -> Result<PseudoOutcome, EstimationError> {
         let n = sample.len();
@@ -1535,31 +1618,27 @@ impl ContinuousResponseEstimator {
         let mut gam_ws = GamWorkspace::default();
         let mut adj_row = vec![0.0; sample.adjustment_cols];
         let mut raw_row = vec![0.0; sample.raw_cols];
-        for fold in 0..self.options.folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
-            let train_weights: Option<Vec<f64>> =
-                weights.map(|_| train.iter().map(|&i| row_weight(i)).collect());
-            let train_weight_sum = match &train_weights {
+        let mut train_weights_buf: Vec<f64> = Vec::new();
+        for fold in folds {
+            let (train, valid) = (fold.train.as_slice(), fold.valid.as_slice());
+            let train_weights: Option<&[f64]> = weights.map(|_| {
+                train_weights_buf.clear();
+                train_weights_buf.extend(train.iter().map(|&i| row_weight(i)));
+                train_weights_buf.as_slice()
+            });
+            let train_weight_sum = match train_weights {
                 Some(w) => w.iter().sum::<f64>(),
                 None => train.len() as f64,
             };
             if !train_weight_sum.is_finite() || train_weight_sum <= 0.0 {
                 return Err(EstimationError::stats_msg("fold training weights are degenerate"));
             }
-            let (outcome_fit, treatment_fit, sigma) = match &train_weights {
-                None => {
-                    let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
-                    let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
-                    let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
-                    (outcome_fit, treatment_fit, sigma)
-                }
-                Some(w) => self.fit_train_nuisances_weighted(sample, &train, w, &mut gam_ws)?,
-            };
+            let (outcome_fit, treatment_fit, sigma) =
+                Self::fit_train_nuisances(sample, fold, train_weights, &mut gam_ws)?;
             // The training-row treatment means do not depend on the validation row;
             // computing them once per fold avoids |valid| x |train| spline expansions.
-            let constant_treatment_mean = match &train_weights {
-                None => sample.train_treatment_mean(&train),
+            let constant_treatment_mean = match train_weights {
+                None => sample.train_treatment_mean(train),
                 Some(w) => {
                     train.iter().zip(w).map(|(&i, wi)| wi * sample.treatments[i]).sum::<f64>()
                         / train_weight_sum
@@ -1568,7 +1647,7 @@ impl ContinuousResponseEstimator {
             let train_treatment_means: Vec<f64> = match treatment_fit.as_ref() {
                 Some(fit) => {
                     let mut means = Vec::with_capacity(train.len());
-                    for &j in &train {
+                    for &j in train {
                         sample.write_adjustment_row(j, &mut adj_row);
                         means.push(predict_one(fit, &adj_row)?);
                     }
@@ -1604,11 +1683,11 @@ impl ContinuousResponseEstimator {
             for (position, &j) in train.iter().enumerate() {
                 let treat_partial =
                     outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
-                let w = train_weights.as_ref().map_or(1.0, |tw| tw[position]);
+                let w = train_weights.map_or(1.0, |tw| tw[position]);
                 covariate_offset += w * (outcome_fit.fitted[position] - treat_partial);
                 covariate_weight_sum += w;
             }
-            for &j in &valid {
+            for &j in valid {
                 sample.write_raw_row(j, &mut raw_row);
                 let mu_j = predict_one(&outcome_fit, &raw_row)?;
                 let treat_partial =
@@ -1627,13 +1706,9 @@ impl ContinuousResponseEstimator {
             let marginal_mixture = if treatment_fit.is_none() {
                 GaussianMixtureDensity::new(&[constant_treatment_mean], None, sigma)?
             } else {
-                GaussianMixtureDensity::new(
-                    &train_treatment_means,
-                    train_weights.as_deref(),
-                    sigma,
-                )?
+                GaussianMixtureDensity::new(&train_treatment_means, train_weights, sigma)?
             };
-            for &i in &valid {
+            for &i in valid {
                 sample.write_raw_row(i, &mut raw_row);
                 let mu_observed = predict_one(&outcome_fit, &raw_row)?;
                 let treatment_mean = match treatment_fit.as_ref() {
@@ -1705,42 +1780,25 @@ impl ContinuousResponseEstimator {
     }
 
     /// Outcome GAM, treatment GAM (absent without adjusters) and treatment scale
-    /// fitted on the `train` rows under their row weights `w`.
-    fn fit_train_nuisances_weighted(
-        &self,
+    /// fitted on the fold's training rows, under their row weights `w` when given.
+    fn fit_train_nuisances(
         sample: &CompleteSample,
-        train: &[usize],
-        w: &[f64],
+        fold: &CrossFitFold,
+        w: Option<&[f64]>,
         gam_ws: &mut GamWorkspace,
     ) -> Result<(antecedent_stats::GamFit, Option<antecedent_stats::GamFit>, f64), EstimationError>
     {
-        let y: Vec<f64> = train.iter().map(|&i| sample.outcome[i]).collect();
-        let outcome_fit = fit_additive_weighted(
-            &sample.raw_subset(train),
-            train.len(),
-            sample.raw_cols,
-            &y,
-            w,
-            self.options.nuisance_basis,
-            self.options.nuisance_lambda,
-            gam_ws,
-        )?;
-        let treatment_fit = if sample.adjustment_cols == 0 {
-            None
-        } else {
-            let a: Vec<f64> = train.iter().map(|&i| sample.treatments[i]).collect();
-            Some(fit_additive_weighted(
-                &sample.adjustment_subset(train),
-                train.len(),
-                sample.adjustment_cols,
-                &a,
-                w,
-                self.options.nuisance_basis,
-                self.options.nuisance_lambda,
-                gam_ws,
-            )?)
+        let outcome_fit = fit_additive_design(&fold.outcome_design, &fold.outcome, w, gam_ws)?;
+        let treatment_fit = match &fold.treatment_design {
+            None => None,
+            Some(design) => Some(fit_additive_design(design, &fold.treatment, w, gam_ws)?),
         };
-        let sigma = treatment_sigma_train_weighted(sample, train, w, treatment_fit.as_ref())?;
+        let sigma = match w {
+            None => treatment_sigma(sample, &fold.train, treatment_fit.as_ref())?,
+            Some(w) => {
+                treatment_sigma_train_weighted(sample, &fold.train, w, treatment_fit.as_ref())?
+            }
+        };
         Ok((outcome_fit, treatment_fit, sigma))
     }
 
@@ -1753,6 +1811,7 @@ impl ContinuousResponseEstimator {
     fn weighted_cross_fitted_ade(
         &self,
         sample: &CompleteSample,
+        folds: &[CrossFitFold],
         weights: &[f64],
     ) -> Result<f64, EstimationError> {
         let n = sample.len();
@@ -1763,17 +1822,19 @@ impl ContinuousResponseEstimator {
         let mut gam_ws = GamWorkspace::default();
         let mut row = vec![0.0; sample.raw_cols];
         let mut adj_row = vec![0.0; sample.adjustment_cols];
+        let mut train_weights: Vec<f64> = Vec::new();
         let mut num = 0.0;
         let mut den = 0.0;
-        for fold in 0..self.options.folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-            let train_weights: Vec<f64> = train.iter().map(|&i| weights[i]).collect();
+        for fold in folds {
+            let train = fold.train.as_slice();
+            train_weights.clear();
+            train_weights.extend(train.iter().map(|&i| weights[i]));
             let train_weight_sum: f64 = train_weights.iter().sum();
             if !train_weight_sum.is_finite() || train_weight_sum <= 0.0 {
                 return Err(EstimationError::stats_msg("fold training weights are degenerate"));
             }
             let (outcome_fit, treatment_fit, sigma) =
-                self.fit_train_nuisances_weighted(sample, &train, &train_weights, &mut gam_ws)?;
+                Self::fit_train_nuisances(sample, fold, Some(&train_weights), &mut gam_ws)?;
             let treatment_mean_constant = train
                 .iter()
                 .zip(&train_weights)
@@ -1783,7 +1844,7 @@ impl ContinuousResponseEstimator {
             let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
                 EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
             })?;
-            for i in (0..n).filter(|i| i % self.options.folds == fold) {
+            for &i in &fold.valid {
                 sample.write_raw_row(i, &mut row);
                 let mu = predict_one(&outcome_fit, &row)?;
                 let derivative =
@@ -1877,25 +1938,34 @@ impl ContinuousResponseEstimator {
         }
     }
 
-    /// Fit the treatment-target outcome GAM once for this weight vector.
-    fn fit_outcome_target_weighted(
+    /// The plug-in target design of [`Self::outcome_target_specs`] expanded once
+    /// over every complete row, for the weighted refits of a draw loop.
+    fn outcome_target_design(
         &self,
         sample: &CompleteSample,
-        weights: Option<&[f64]>,
-    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+    ) -> Result<AdditiveDesign, EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
-        let x = sample.raw_subset(&rows);
-        let specs = self.outcome_target_specs(sample);
-        let mut gam_ws = GamWorkspace::default();
-        let fit = antecedent_stats::fit_gam_weighted(
-            &x,
+        Ok(AdditiveDesign::expand(
+            &sample.raw_subset(&rows),
             sample.len(),
             sample.raw_cols,
+            &self.outcome_target_specs(sample),
+        )?)
+    }
+
+    /// Fit the treatment-target outcome GAM of `design`
+    /// ([`Self::outcome_target_design`]) once for this weight vector.
+    fn fit_outcome_target_weighted(
+        sample: &CompleteSample,
+        design: &AdditiveDesign,
+        weights: Option<&[f64]>,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        let mut gam_ws = GamWorkspace::default();
+        let fit = fit_gam_weighted_design(
+            design,
             &sample.outcome,
-            &specs,
             &GamOptions { max_iter: 500, tol: 1e-6 },
             weights,
-            &FaerBackend,
             &mut gam_ws,
         )?;
         if !fit.converged {
@@ -1952,7 +2022,8 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         weights: Option<&[f64]>,
     ) -> Result<(f64, Vec<f64>), EstimationError> {
-        let fit = self.fit_outcome_target_weighted(sample, weights)?;
+        let design = self.outcome_target_design(sample)?;
+        let fit = Self::fit_outcome_target_weighted(sample, &design, weights)?;
         Self::plugin_gradient_at_fit(&fit, sample, at, weights)
     }
 
@@ -2333,35 +2404,55 @@ fn fit_additive(
     Ok(fit)
 }
 
-fn fit_additive_weighted(
-    x: &[f64],
-    nrows: usize,
-    ncols: usize,
+/// [`fit_additive`] on a design expanded once ([`AdditiveDesign`]), under
+/// optional row weights: the same backfitting budget and the same refusal of
+/// an unfinished fit.
+fn fit_additive_design(
+    design: &AdditiveDesign,
     y: &[f64],
-    weights: &[f64],
-    basis: usize,
-    lambda: f64,
+    weights: Option<&[f64]>,
     workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
-    let specs: Vec<SmoothSpec> =
-        (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
-    let fit = fit_gam_weighted(
-        x,
-        nrows,
-        ncols,
+    let fit = fit_gam_weighted_design(
+        design,
         y,
-        &specs,
         &GamOptions { max_iter: 500, tol: 1e-6 },
-        Some(weights),
-        &FaerBackend,
+        weights,
         workspace,
     )?;
     if !fit.converged {
-        return Err(EstimationError::unsupported(
-            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit",
-        ));
+        return Err(EstimationError::unsupported(if weights.is_some() {
+            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit"
+        } else {
+            "additive GAM nuisance did not converge; refuse rather than publish an unfinished fit"
+        }));
     }
     Ok(fit)
+}
+
+/// One cross-fitting fold of a [`CompleteSample`], prepared once per
+/// execution: its row split, the training rows' outcome and treatment
+/// vectors, and the training nuisance designs with their quantile knots and
+/// B-spline bases already expanded ([`AdditiveDesign`]).
+///
+/// A Bayesian-bootstrap draw loop refits the fold's nuisances once per draw
+/// under new row weights; the rows, knots and bases are the same for every
+/// draw, so re-expanding them per fit (a sort of every training column and a
+/// full basis evaluation, twice per fold per draw) was pure repetition. The
+/// refit on a prepared fold is bit-identical to the per-fit expansion.
+struct CrossFitFold {
+    /// Training rows (indices into the sample), ascending.
+    train: Vec<usize>,
+    /// Held-out rows, ascending.
+    valid: Vec<usize>,
+    /// Outcome on the training rows.
+    outcome: Vec<f64>,
+    /// Primary treatment on the training rows.
+    treatment: Vec<f64>,
+    /// Outcome nuisance over the training rows' raw predictors.
+    outcome_design: AdditiveDesign,
+    /// Treatment nuisance over the training rows' adjusters; absent without adjusters.
+    treatment_design: Option<AdditiveDesign>,
 }
 
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
@@ -3329,15 +3420,18 @@ mod tests {
         estimator.options.bandwidth = Some(0.35);
         let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
         let frozen = estimator.cross_fitted_pseudo_outcome(&sample).unwrap().values;
+        let folds = estimator.cross_fit_folds(&sample).unwrap();
         let ones = vec![1.0; sample.len()];
-        let unit = estimator.cross_fitted_pseudo_outcome_weighted(&sample, Some(&ones)).unwrap();
+        let unit =
+            estimator.cross_fitted_pseudo_outcome_weighted(&sample, &folds, Some(&ones)).unwrap();
         let unit_gap =
             frozen.iter().zip(&unit.values).map(|(f, u)| (f - u).abs()).fold(0.0, f64::max);
         assert!(unit_gap < 1e-9, "unit weights must reproduce the unweighted pseudo-outcome");
         let weights: Vec<f64> =
             (0..sample.len()).map(|i| if i % 3 == 0 { 2.2 } else { 0.4 }).collect();
-        let refit =
-            estimator.cross_fitted_pseudo_outcome_weighted(&sample, Some(&weights)).unwrap();
+        let refit = estimator
+            .cross_fitted_pseudo_outcome_weighted(&sample, &folds, Some(&weights))
+            .unwrap();
         let refit_gap =
             frozen.iter().zip(&refit.values).map(|(f, r)| (f - r).abs()).fold(0.0, f64::max);
         assert!(refit_gap > 1e-6, "weighted draws must refit the nuisance stage, not reuse φ");
@@ -4156,7 +4250,8 @@ mod tests {
         for (i, weight) in weights.iter_mut().enumerate() {
             *weight = if i < sample.len() / 5 { 8.0 } else { 0.2 };
         }
-        let plugin = estimator.weighted_cross_fitted_ade(&sample, &weights).unwrap();
+        let folds = estimator.cross_fit_folds(&sample).unwrap();
+        let plugin = estimator.weighted_cross_fitted_ade(&sample, &folds, &weights).unwrap();
         let frozen_mean =
             frozen.scores.iter().zip(&weights).map(|(score, weight)| score * weight).sum::<f64>()
                 / weights.iter().sum::<f64>();

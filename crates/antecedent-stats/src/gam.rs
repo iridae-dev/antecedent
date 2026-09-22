@@ -305,70 +305,170 @@ pub fn fit_gam_weighted(
     _backend: &impl DenseLinearAlgebra,
     workspace: &mut GamWorkspace,
 ) -> Result<GamFit, StatsError> {
-    let weights = match weights {
-        Some(w) => {
-            let sum: f64 = w.iter().sum();
-            if w.len() != nrows
-                || w.iter().any(|v| !v.is_finite() || *v < 0.0)
-                || !sum.is_finite()
-                || sum <= 0.0
-            {
-                return Err(StatsError::Shape { message: "invalid GAM observation weights" });
-            }
-            w.iter().map(|v| v * nrows as f64 / sum).collect::<Vec<_>>()
-        }
-        None => vec![1.0; nrows],
-    };
-    let weighted_mean =
-        |v: &[f64]| v.iter().zip(&weights).map(|(v, w)| v * w).sum::<f64>() / nrows as f64;
+    validate_weights(weights, nrows)?;
     if specs.is_empty() {
         return Err(StatsError::Shape { message: "GAM requires at least one smooth term" });
     }
+    validate_response(y, nrows)?;
+    let design = AdditiveDesign::expand(x_colmajor, nrows, n_raw_cols, specs)?;
+    fit_gam_weighted_design(&design, y, options, weights, workspace)
+}
+
+fn validate_weights(weights: Option<&[f64]>, nrows: usize) -> Result<(), StatsError> {
+    if let Some(w) = weights {
+        let sum: f64 = w.iter().sum();
+        if w.len() != nrows
+            || w.iter().any(|v| !v.is_finite() || *v < 0.0)
+            || !sum.is_finite()
+            || sum <= 0.0
+        {
+            return Err(StatsError::Shape { message: "invalid GAM observation weights" });
+        }
+    }
+    Ok(())
+}
+
+fn validate_response(y: &[f64], nrows: usize) -> Result<(), StatsError> {
     if y.len() != nrows {
         return Err(StatsError::Shape { message: "y length != nrows" });
     }
     if y.iter().any(|v| !v.is_finite()) {
         return Err(StatsError::Shape { message: "GAM response must be finite" });
     }
-    validate_raw_layout(x_colmajor, nrows, n_raw_cols, specs)?;
-    for s in specs {
-        if !(s.auto_lambda || (s.lambda.is_finite() && s.lambda >= 0.0)) {
-            return Err(StatsError::Shape { message: "smooth lambda must be finite and ≥ 0" });
+    Ok(())
+}
+
+/// An additive GAM design expanded once over a fixed row set: every smooth's
+/// knot vector and cubic B-spline basis, ready for any number of
+/// [`fit_gam_weighted_design`] refits on those rows.
+///
+/// [`fit_gam_weighted`] expands the design on every call, which re-places the
+/// quantile knots (a sort of each column) and re-evaluates every basis. A
+/// caller that refits the same rows under different responses or observation
+/// weights — a Bayesian-bootstrap draw loop over fixed cross-fitting folds —
+/// expands once and reuses the design; the fit is bit-identical to the
+/// per-call expansion, because the knots and bases are the same values.
+#[derive(Clone, Debug)]
+pub struct AdditiveDesign {
+    nrows: usize,
+    /// Specs as given, each with its knots resolved.
+    specs: Vec<SmoothSpec>,
+    /// Column-major `[nrows × n_basis]` basis of each smooth.
+    bases: Vec<Arc<[f64]>>,
+    /// Provenance template of each smooth (λ is the spec's; auto-λ fits overwrite it).
+    smooths: Vec<RecordedSmooth>,
+    coef_offsets: Vec<usize>,
+    total_coefs: usize,
+}
+
+impl AdditiveDesign {
+    /// Expand `specs` over the `nrows × n_raw_cols` column-major predictor matrix.
+    ///
+    /// Knots left `None` on a spec are placed at the column's sample quantiles,
+    /// exactly as [`fit_gam_weighted`] places them.
+    ///
+    /// # Errors
+    ///
+    /// Empty specs, shape mismatch, invalid λ / basis sizes, or B-spline
+    /// expansion failure.
+    pub fn expand(
+        x_colmajor: &[f64],
+        nrows: usize,
+        n_raw_cols: usize,
+        specs: &[SmoothSpec],
+    ) -> Result<Self, StatsError> {
+        if specs.is_empty() {
+            return Err(StatsError::Shape { message: "GAM requires at least one smooth term" });
         }
-        if s.n_basis < CUBIC_ORDER {
-            return Err(StatsError::Shape { message: "n_basis must be ≥ 4 for cubic B-splines" });
+        validate_raw_layout(x_colmajor, nrows, n_raw_cols, specs)?;
+        for s in specs {
+            if !(s.auto_lambda || (s.lambda.is_finite() && s.lambda >= 0.0)) {
+                return Err(StatsError::Shape {
+                    message: "smooth lambda must be finite and ≥ 0"
+                });
+            }
+            if s.n_basis < CUBIC_ORDER {
+                return Err(StatsError::Shape {
+                    message: "n_basis must be ≥ 4 for cubic B-splines",
+                });
+            }
         }
+        let mut resolved: Vec<SmoothSpec> = Vec::with_capacity(specs.len());
+        let mut bases: Vec<Arc<[f64]>> = Vec::with_capacity(specs.len());
+        let mut smooths: Vec<RecordedSmooth> = Vec::with_capacity(specs.len());
+        let mut coef_offsets = Vec::with_capacity(specs.len());
+        let mut total_coefs = 0usize;
+        let mut col_cursor = 1usize; // expanded-design column after intercept
+        for spec in specs {
+            let xcol = raw_column(x_colmajor, nrows, spec.raw_col);
+            let (basis, knots) = expand_bspline(xcol, spec.n_basis, spec.knots.as_deref())?;
+            coef_offsets.push(total_coefs);
+            total_coefs += spec.n_basis;
+            let start = col_cursor;
+            let end = col_cursor + spec.n_basis;
+            smooths.push(RecordedSmooth {
+                variable: spec.variable.or(Some(column_variable_id(spec.raw_col))),
+                basis: BasisKind::CubicBSpline,
+                knots: Arc::clone(&knots),
+                lambda: spec.lambda,
+                column_range: (start, end),
+                n_basis: spec.n_basis,
+            });
+            resolved.push(SmoothSpec { knots: Some(knots), ..spec.clone() });
+            bases.push(Arc::from(basis));
+            col_cursor = end;
+        }
+        Ok(Self { nrows, specs: resolved, bases, smooths, coef_offsets, total_coefs })
     }
+
+    /// Rows the design was expanded over.
+    #[must_use]
+    pub fn nrows(&self) -> usize {
+        self.nrows
+    }
+
+    /// The smooths with their resolved knots.
+    #[must_use]
+    pub fn specs(&self) -> &[SmoothSpec] {
+        &self.specs
+    }
+}
+
+/// Fit the additive GAM of an expanded [`AdditiveDesign`] to `y` under optional
+/// nonnegative observation weights: [`fit_gam_weighted`] without the expansion.
+///
+/// # Errors
+///
+/// Invalid weights or response, or a singular penalized Gram.
+pub fn fit_gam_weighted_design(
+    design: &AdditiveDesign,
+    y: &[f64],
+    options: &GamOptions,
+    weights: Option<&[f64]>,
+    workspace: &mut GamWorkspace,
+) -> Result<GamFit, StatsError> {
+    let nrows = design.nrows;
+    let specs = design.specs.as_slice();
+    let bases = design.bases.as_slice();
+    validate_weights(weights, nrows)?;
+    let weights = match weights {
+        Some(w) => {
+            let sum: f64 = w.iter().sum();
+            w.iter().map(|v| v * nrows as f64 / sum).collect::<Vec<_>>()
+        }
+        None => vec![1.0; nrows],
+    };
+    let weighted_mean =
+        |v: &[f64]| v.iter().zip(&weights).map(|(v, w)| v * w).sum::<f64>() / nrows as f64;
+    validate_response(y, nrows)?;
 
     let max_basis = specs.iter().map(|s| s.n_basis).max().unwrap_or(0);
     workspace.prepare(nrows, max_basis);
 
-    // Expand bases once.
-    let mut bases: Vec<Arc<[f64]>> = Vec::with_capacity(specs.len());
-    let mut smooth_meta: Vec<RecordedSmooth> = Vec::with_capacity(specs.len());
-    let mut coef_offsets = Vec::with_capacity(specs.len());
-    let mut chosen_lambda = Vec::with_capacity(specs.len());
-    let mut total_coefs = 0usize;
-    let mut col_cursor = 1usize; // expanded-design column after intercept
-    for spec in specs {
-        let xcol = raw_column(x_colmajor, nrows, spec.raw_col);
-        let (basis, knots) = expand_bspline(xcol, spec.n_basis, spec.knots.as_deref())?;
-        coef_offsets.push(total_coefs);
-        total_coefs += spec.n_basis;
-        let start = col_cursor;
-        let end = col_cursor + spec.n_basis;
-        chosen_lambda.push(spec.lambda);
-        smooth_meta.push(RecordedSmooth {
-            variable: spec.variable.or(Some(column_variable_id(spec.raw_col))),
-            basis: BasisKind::CubicBSpline,
-            knots,
-            lambda: spec.lambda,
-            column_range: (start, end),
-            n_basis: spec.n_basis,
-        });
-        bases.push(Arc::from(basis));
-        col_cursor = end;
-    }
+    let mut smooth_meta: Vec<RecordedSmooth> = design.smooths.clone();
+    let coef_offsets = design.coef_offsets.as_slice();
+    let total_coefs = design.total_coefs;
+    let mut chosen_lambda: Vec<f64> = specs.iter().map(|s| s.lambda).collect();
 
     let weighted_bases: Vec<Vec<f64>> = bases
         .iter()
@@ -1165,6 +1265,60 @@ mod tests {
 
     use super::*;
     use crate::faer_backend::FaerBackend;
+
+    /// A design expanded once and refit under several weight vectors is the
+    /// per-call expansion bit for bit: same quantile knots, same bases, same
+    /// coefficients, fitted values and edf.
+    #[test]
+    fn design_refits_are_bit_identical_to_per_call_expansion() {
+        let nrows = 80usize;
+        let x0: Vec<f64> = linspace(nrows, -1.0, 2.0);
+        let x1: Vec<f64> = (0..nrows).map(|i| ((i * 37) % 11) as f64 / 3.0).collect();
+        let x: Vec<f64> = x0.iter().chain(&x1).copied().collect();
+        let y: Vec<f64> = x0
+            .iter()
+            .zip(&x1)
+            .enumerate()
+            .map(|(i, (&a, &b))| (2.0 * a).sin() + 0.3 * b * b + 0.05 * (i % 5) as f64)
+            .collect();
+        let specs = [SmoothSpec::new(0, 6, 0.5), SmoothSpec::new(1, 5, 2.0)];
+        let options = GamOptions { max_iter: 500, tol: 1e-6 };
+        let design = AdditiveDesign::expand(&x, nrows, 2, &specs).unwrap();
+        assert_eq!(design.nrows(), nrows);
+        assert!(design.specs().iter().all(|s| s.knots.is_some()));
+        let weight_sets: [Option<Vec<f64>>; 3] = [
+            None,
+            Some((0..nrows).map(|i| 0.2 + (i % 4) as f64).collect()),
+            Some((0..nrows).map(|i| if i % 3 == 0 { 2.5 } else { 0.4 }).collect()),
+        ];
+        for weights in &weight_sets {
+            let mut ws_a = GamWorkspace::default();
+            let mut ws_b = GamWorkspace::default();
+            let per_call = fit_gam_weighted(
+                &x,
+                nrows,
+                2,
+                &y,
+                &specs,
+                &options,
+                weights.as_deref(),
+                &FaerBackend,
+                &mut ws_a,
+            )
+            .unwrap();
+            let on_design =
+                fit_gam_weighted_design(&design, &y, &options, weights.as_deref(), &mut ws_b)
+                    .unwrap();
+            assert_eq!(per_call.intercept.to_bits(), on_design.intercept.to_bits());
+            assert_eq!(per_call.coefficients, on_design.coefficients);
+            assert_eq!(per_call.fitted, on_design.fitted);
+            assert_eq!(per_call.residuals, on_design.residuals);
+            assert_eq!(per_call.edf_approx.to_bits(), on_design.edf_approx.to_bits());
+            assert_eq!(per_call.iterations, on_design.iterations);
+            assert_eq!(per_call.smooths, on_design.smooths);
+            assert_eq!(per_call.centers, on_design.centers);
+        }
+    }
 
     /// `edf_approx` must equal the trace of the smoother actually applied.
     ///

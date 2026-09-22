@@ -70,8 +70,9 @@ pub use fdr::{
     bonferroni, holm,
 };
 pub use gam::{
-    GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design, expand_bspline, fit_gam,
-    fit_gam_weighted, fitted_from_gam, predict_gam,
+    AdditiveDesign, GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design,
+    expand_bspline, fit_gam, fit_gam_weighted, fit_gam_weighted_design, fitted_from_gam,
+    predict_gam,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
