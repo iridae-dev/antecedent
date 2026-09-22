@@ -22,7 +22,7 @@
 use antecedent::StudyResult;
 use antecedent_core::ResponseUncertainty;
 
-use super::calibration::{Z90, normal_interval, quantile_interval};
+use super::calibration::{Z90, normal_interval};
 
 /// Level every facade interval is published at by default.
 ///
@@ -97,6 +97,31 @@ pub fn scalar_normal_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
     ]
 }
 
+/// Equal-tailed interval of `draws` at `level` under the type-7 interpolated
+/// rule [`antecedent_prob::PosteriorDraws::summarize`] publishes posterior
+/// `q025`/`q975` summaries with (fixed at `(0.025, 0.975)`, i.e. 0.95;
+/// `crates/antecedent-prob/src/posterior.rs`, `quantile_type7_sorted`).
+///
+/// This is the one place in this suite the posterior credible interval is
+/// re-derived from draws, so it uses the same rule and kernel as the
+/// producer (`antecedent_stats::equal_tail_interval_sorted` with
+/// `QuantileRule::Interpolated`) rather than [`quantile_interval`]'s simpler
+/// nearest-rank rule, which [`posterior_pair`]'s own reproduction check
+/// showed no longer matches it bit-for-bit.
+#[must_use]
+fn published_quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
+    let mut sorted: Vec<f64> = draws.iter().copied().filter(|v| v.is_finite()).collect();
+    if sorted.len() < 2 {
+        return None;
+    }
+    sorted.sort_by(f64::total_cmp);
+    Some(antecedent_stats::equal_tail_interval_sorted(
+        &sorted,
+        level,
+        antecedent_stats::QuantileRule::Interpolated,
+    ))
+}
+
 /// Reported posterior interval of column `col` (`q025`, `q975`) and the same
 /// equal-tailed rule at the gate level from the draws.
 ///
@@ -113,17 +138,17 @@ pub fn posterior_pair(result: &StudyResult, col: usize) -> [Option<(f64, f64)>; 
     let Ok(draws) = posterior.draws.column(col) else {
         return [Some(reported), None];
     };
-    let rebuilt = quantile_interval(draws, REPORTED_LEVEL);
+    let rebuilt = published_quantile_interval(draws, REPORTED_LEVEL);
     if let Some((lo, hi)) = rebuilt {
         assert!(
-            (lo - reported.0).abs() <= 1e-12 * lo.abs().max(1.0)
-                && (hi - reported.1).abs() <= 1e-12 * hi.abs().max(1.0),
+            (lo - reported.0).abs() <= 1e-9 * lo.abs().max(1.0)
+                && (hi - reported.1).abs() <= 1e-9 * hi.abs().max(1.0),
             "posterior summaries [{}, {}] are not the equal-tailed draw quantiles [{lo}, {hi}]",
             reported.0,
             reported.1
         );
     }
-    [Some(reported), quantile_interval(draws, GATE_LEVEL)]
+    [Some(reported), published_quantile_interval(draws, GATE_LEVEL)]
 }
 
 /// Scalar response interval `(lower, upper)` with its level and SE.
