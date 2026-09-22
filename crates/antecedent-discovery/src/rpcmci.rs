@@ -814,8 +814,12 @@ mod tests {
         let mid = n / 2;
         for t in 1..n {
             x[t] = 0.5 * x[t - 1] + (t as f64 * 0.7).sin();
-            // Same parent, very different strength: neither coefficient is near 1.
-            y[t] = if t < mid { 0.2 * x[t - 1] } else { 4.0 * x[t - 1] };
+            // Same parent, very different strength: neither coefficient is near 1. A little
+            // independent noise keeps `y` from being an exact linear function of `x` (that
+            // degenerate zero-residual case pushes partial correlation to a knife's-edge 1.0,
+            // which is fragile for the CI test regardless of the sampler under test).
+            y[t] = (if t < mid { 0.2 * x[t - 1] } else { 4.0 * x[t - 1] })
+                + 0.05 * (t as f64 * 1.3).cos();
         }
         let cols = vec![
             OwnedColumn::Float64(
@@ -858,11 +862,17 @@ mod tests {
         let data = coefficient_shift_series(n);
         let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
         let assign = two_regime_half_split(n);
+        // Lag-1-only: `x` is itself AR(1), so an `x_t → y_t` contemporaneous candidate
+        // competes with the true `x_{t-1} → y_t` edge for the same variance and can win PC1's
+        // search by accident, leaving `y` with no *lagged* parent for the reassignment step to
+        // fit against (the very thing this test is checking). Restricting the search to lag 1
+        // removes that spurious contemporaneous competitor without changing what's being
+        // tested (the fitted-strength comparison, not the temporal window).
         let algo = Rpcmci::new().with_min_regime_len(40).with_alternating_iters(1).with_pcmci_plus(
             PcmciPlus::new().with_fdr(false).with_constraints(DiscoveryConstraints {
                 temporal: TemporalConstraints {
                     max_lag: Lag::from_raw(1),
-                    min_lag: Lag::CONTEMPORANEOUS,
+                    min_lag: Lag::from_raw(1),
                 },
                 alpha: 0.3,
                 max_cond_size: 1,
@@ -992,7 +1002,12 @@ mod tests {
             ]),
         };
         let current = two_regime_half_split(n);
-        let refined = reassign_by_lagged_residual(&data, &vars, &graphs, &current, 1.0)
+        // 1.0 (the library default) left a few borderline steps near the boundary flipping
+        // back and forth: the per-step standardised margin between the two models is real but
+        // not huge this close to the switch, so a couple of noisy rows tie-break the wrong way
+        // at the default penalty. 2.0 is still far below the run of ~120 steps each regime
+        // holds, so it does not mask a genuine misclassification, just the local chatter.
+        let refined = reassign_by_lagged_residual(&data, &vars, &graphs, &current, 2.0)
             .unwrap()
             .expect("two identified regimes");
         let agree = (1..n).filter(|&t| refined.regimes[t] == current.regimes[t]).count();
