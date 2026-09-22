@@ -221,8 +221,9 @@ fn ln_beta(a: f64, b: f64) -> f64 {
     let (big, small) = if a >= b { (a, b) } else { (b, a) };
     if big >= 1.0e3 {
         let sum = big + small;
-        let diff =
-            (big - 0.5) * (small / big).ln_1p() + small * sum.ln() - small - small / (12.0 * big * sum);
+        let diff = (big - 0.5) * (small / big).ln_1p() + small * sum.ln()
+            - small
+            - small / (12.0 * big * sum);
         ln_gamma(small) - diff
     } else {
         ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b)
