@@ -39,6 +39,12 @@ features = ["pyo3/extension-module", "ml-full"]
 python-source = "."
 module-name = "antecedent._native"
 include = ["antecedent/py.typed"]
+# Local dev/test runs leave __pycache__ directories under antecedent/ (gitignored,
+# but still present on disk); python-source packaging has no source-control filter,
+# so without this exclude those stray, interpreter/version-specific .pyc files get
+# bundled into the wheel non-reproducibly and are rewritten by any consumer's
+# interpreter on first import, breaking byte-identical wheel-content verification.
+exclude = ["**/__pycache__/**"]
 # PEP 517/660 builds (including the editable rebuild uv triggers whenever this
 # file changes) default to Cargo's debug profile, which ships an unoptimized
 # faer/pulp and makes analyze_ate ~50x slower with bit-identical output.
