@@ -193,7 +193,9 @@ impl PosteriorDraws {
         let policy = KernelPolicy::default_policy();
         for q in 0..n_q {
             let col = &self.values[q * self.n_draws..(q + 1) * self.n_draws];
-            mean[q] = reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(0.0);
+            // No draws carry no location information either: NaN, never a zero mean.
+            mean[q] =
+                reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(f64::NAN);
             // Fewer than two draws carry no spread information: NaN, never a zero sd.
             sd[q] =
                 reduce_posterior_draws(col, PosteriorReduceOp::Std, &policy).unwrap_or(f64::NAN);
