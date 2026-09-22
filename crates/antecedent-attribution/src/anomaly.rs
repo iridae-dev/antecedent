@@ -134,7 +134,7 @@ fn median_of_sorted(sorted: &[f64]) -> f64 {
 }
 
 /// Per-unit anomaly score for a target variable, with noise-term attribution.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AnomalyScores {
     /// Target variable.
     pub target: VariableId,
@@ -164,6 +164,8 @@ pub struct AnomalyScores {
 /// (see the module docs for why that is a tail probability and not a density, and for the
 /// reference distribution).
 ///
+/// Runs serially; see [`score_anomalies_with`] for a thread budget.
+///
 /// # Errors
 ///
 /// Size limit, out-of-range `unit_rows`, non-finite target or reconstructed values, or
@@ -172,6 +174,23 @@ pub fn score_anomalies(
     model: &CompiledCausalModel,
     data: &TabularData,
     query: &AnomalyAttributionQuery,
+) -> Result<Vec<AnomalyScores>, AttributionError> {
+    score_anomalies_with(model, data, query, &ExecutionContext::for_tests(0xA10A))
+}
+
+/// [`score_anomalies`] under an [`ExecutionContext`]: rows are independent exact-Shapley
+/// problems (deterministic given the row), so they are scored in parallel up to the context's
+/// thread budget, and a cancelled context stops the run. The result does not depend on the
+/// thread count.
+///
+/// # Errors
+///
+/// As [`score_anomalies`]; the lowest-index failing row's error when several fail.
+pub fn score_anomalies_with(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &AnomalyAttributionQuery,
+    ctx: &ExecutionContext,
 ) -> Result<Vec<AnomalyScores>, AttributionError> {
     query.validate()?;
     let n = data.row_count();
@@ -197,12 +216,13 @@ pub fn score_anomalies(
     }
 
     let engine = CounterfactualEngine::from_ref(model);
-    let mut ctx = ExecutionContext::for_tests(0xA10A);
+    let mut ctx = ctx.clone();
     let exo = engine.abduct(data, AbductionMissingPolicy::Error, &ctx)?;
     // The exact-Shapley payoff is deterministic given (row, mask), so the
-    // coalition cache changes nothing numerically — but `for_tests` disables
-    // it, which forces 2^k·(1 + k/2) evaluations per row instead of 2^k.
+    // coalition cache changes nothing numerically — but a context without it forces
+    // 2^k·(1 + k/2) evaluations per row instead of 2^k.
     ctx.cache_policy = antecedent_core::CachePolicy::enabled(Some(16 << 20));
+    let ctx = &ctx;
     let shapley = ShapleyConfig::exact();
 
     let mut out = Vec::with_capacity(query.targets.len());
@@ -229,15 +249,11 @@ pub fn score_anomalies(
         }
 
         let y_all = data.float64_values(target)?;
-        let mut scores = Vec::with_capacity(rows.len());
-        let mut baselines = Vec::with_capacity(rows.len());
-        let mut abs_sums = Vec::with_capacity(rows.len());
-        let mut contrib = vec![0.0; rows.len() * players.len()];
-
         // Reference distribution for the IT score: the target's own observed marginal.
         let tail = OutlierTail::from_reference(&y_all);
 
-        for (ui, &row) in rows.iter().enumerate() {
+        let per_row = ctx.map_indexed(rows.len(), |ui, worker| {
+            let row = rows[ui];
             let mut payoff = NoiseShapleyPayoff {
                 model,
                 target: dense,
@@ -252,17 +268,22 @@ pub fn score_anomalies(
                 ws: MechanismWorkspace::default(),
             };
             // Factual IT score: how far into the target's marginal tail this value falls.
-            scores.push(tail.score(y_all[row])?);
+            let score = tail.score(y_all[row])?;
             // v(∅): every noise term at the reference. Exact Shapley efficiency makes
             // score(y) − v(∅) equal Σφ, so publishing v(∅) closes the accounting.
-            baselines.push(payoff.value(0)?);
-            let est = estimate_shapley(&players, &shapley, &mut payoff, &ctx)?;
-            let mut abs_sum = 0.0;
-            for (j, v) in est.values.iter().enumerate() {
-                contrib[ui * players.len() + j] = *v;
-                abs_sum += v.abs();
-            }
-            abs_sums.push(abs_sum);
+            let baseline = payoff.value(0)?;
+            let est = estimate_shapley(&players, &shapley, &mut payoff, worker)?;
+            Ok::<_, AttributionError>((score, baseline, est.values))
+        })?;
+        let mut scores = Vec::with_capacity(rows.len());
+        let mut baselines = Vec::with_capacity(rows.len());
+        let mut abs_sums = Vec::with_capacity(rows.len());
+        let mut contrib = Vec::with_capacity(rows.len() * players.len());
+        for (score, baseline, values) in per_row {
+            scores.push(score);
+            baselines.push(baseline);
+            abs_sums.push(values.iter().map(|v| v.abs()).sum::<f64>());
+            contrib.extend_from_slice(&values);
         }
 
         out.push(AnomalyScores {
@@ -634,6 +655,20 @@ mod tests {
         let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100).with_unit_rows([n]);
         let err = score_anomalies(&model, &data, &q).unwrap_err();
         assert_eq!(err, AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n });
+    }
+
+    /// Rows are independent deterministic problems: any thread budget returns bitwise the
+    /// serial result, and a bad row is the same typed error.
+    #[test]
+    fn threaded_scoring_reproduces_the_serial_result() {
+        let n = 12usize;
+        let (model, data) = scaled_anomaly_fixture(n, 1.0);
+        let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
+        let serial = score_anomalies(&model, &data, &q).unwrap();
+        let threaded_ctx = ExecutionContext::production(0xA10A, 4);
+        let threaded = score_anomalies_with(&model, &data, &q, &threaded_ctx).unwrap();
+        assert_eq!(serial, threaded);
+        assert_eq!(serial[0].rows.len(), n);
     }
 
     /// The IT score must be invariant to the target's scale.

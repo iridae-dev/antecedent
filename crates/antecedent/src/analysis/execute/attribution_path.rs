@@ -266,11 +266,12 @@ impl super::Study {
                 ))
             })?;
         let fitted = fit_gcm(graph.clone(), data)?;
-        let scores = anomaly_attribution(
+        let scores = anomaly_attribution_with(
             &fitted.model,
             data,
             query.targets.iter().copied(),
             query.max_units,
+            ctx,
         )?;
         Ok(self.finish_gcm(
             physical,

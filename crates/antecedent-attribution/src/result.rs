@@ -112,6 +112,37 @@ pub struct ChangeAttributionResult {
     pub component_mc_stderr: Option<Arc<[f64]>>,
     /// Coalition cache statistics.
     pub cache_stats: CacheStats,
+    /// Uncertainty from fitting the mechanisms on finite populations, when a row bootstrap
+    /// was requested (`distribution_change_with_fit_uncertainty`). `None` means not
+    /// quantified.
+    pub fit_uncertainty: Option<FitUncertainty>,
+}
+
+/// Row-bootstrap uncertainty of a change attribution: each replicate resamples the rows of
+/// the baseline and comparison populations with replacement, refits every mechanism on the
+/// resamples and recomputes the whole attribution (the Shapley sampling seed is held fixed,
+/// so the spread is due to the data alone).
+///
+/// The intervals are percentile intervals of the per-component contributions across
+/// replicates. They cover estimation uncertainty from finite populations, not the
+/// permutation-sampling error of [`ComponentContribution::stderr`], and not model
+/// misspecification.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FitUncertainty {
+    /// Replicates requested.
+    pub replicates: u32,
+    /// Replicates whose refit or attribution failed. Failures are never dropped to publish
+    /// an interval: when any occurred the intervals are withheld.
+    pub failures: u32,
+    /// Nominal two-sided level of the percentile intervals.
+    pub level: f64,
+    /// Lower percentile of each component's contribution, aligned with `contributions`;
+    /// `None` when withheld.
+    pub lower: Option<Arc<[f64]>>,
+    /// Upper percentile of each component's contribution, aligned with `contributions`.
+    pub upper: Option<Arc<[f64]>>,
+    /// Percentile interval of `total_change`, when not withheld.
+    pub total_interval: Option<(f64, f64)>,
 }
 
 impl ChangeAttributionResult {

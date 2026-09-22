@@ -47,12 +47,13 @@ pub mod unit_change;
 
 pub use anomaly::{
     AnomalyScores, ArrowStrength, PopulationDoContrast, arrow_strengths, population_do_contrast,
-    score_anomalies,
+    score_anomalies, score_anomalies_with,
 };
 pub use builder::ChangeAttribution;
 pub use coalition::{CoalitionCache, CoalitionKey};
 pub use distribution_change::{
     DifferenceMeasure, DistributionChangeOptions, distribution_change, distribution_change_shapley,
+    distribution_change_with_fit_uncertainty,
 };
 pub use error::AttributionError;
 pub use feature_relevance::feature_relevance;
@@ -61,7 +62,8 @@ pub use path::path_decompose;
 pub use population::{multi_env_series, resolve_multi_env_rows, resolve_rows, subset_table};
 pub use result::{
     CacheStats, ChangeAttributionResult, ComponentContribution, ComputeBudget, FeatureRelevance,
-    InteractionTerm, MechanismChangeDetection, PathContribution, RootCauseRank, UnitChangeResult,
+    FitUncertainty, InteractionTerm, MechanismChangeDetection, PathContribution, RootCauseRank,
+    UnitChangeResult,
 };
 pub use robust::{RobustChangeOptions, distribution_change_robust};
 pub use root_cause::{

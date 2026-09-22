@@ -269,6 +269,7 @@ mod tests {
             monte_carlo_stderr: None,
             component_mc_stderr: None,
             cache_stats: crate::result::CacheStats::default(),
+            fit_uncertainty: None,
         }
     }
 

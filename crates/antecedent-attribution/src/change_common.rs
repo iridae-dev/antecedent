@@ -347,6 +347,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         monte_carlo_stderr: None,
         component_mc_stderr: None,
         cache_stats: crate::result::CacheStats::default(),
+        fit_uncertainty: None,
     })
 }
 
@@ -395,6 +396,7 @@ pub(crate) fn pack_change_result(
         monte_carlo_stderr: mc_stderr,
         component_mc_stderr: component_mc,
         cache_stats,
+        fit_uncertainty: None,
     }
 }
 
