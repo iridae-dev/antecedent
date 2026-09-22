@@ -224,23 +224,16 @@ fn shared_factor_target_observational_nominal_coverage() {
     let n = grid_n(200);
     let (functional, request) = target_observational_xy();
     let mut tally = keyed("shared_factor_target_observational_nominal_coverage", "xy_shared_joint");
-    for (rep, input) in map_replicates(n_sim(), |rep| StatisticalTransportInput {
-        supplied: Vec::new(),
-        samples: vec![xy_shared_joint(n, rep.wrapping_mul(1_000_003))],
-    })
-    .into_iter()
-    .enumerate()
-    {
-        mean_interval(
-            &functional,
-            &input,
-            request.clone(),
-            v(1),
-            rep as u64,
-            n as u64,
-            &mut tally,
-            0.7,
-        );
+    for (rep, input) in map_replicates(n_sim(), |rep| {
+        (
+            rep,
+            StatisticalTransportInput {
+                supplied: Vec::new(),
+                samples: vec![xy_shared_joint(n, rep.wrapping_mul(1_000_003))],
+            },
+        )
+    }) {
+        mean_interval(&functional, &input, request.clone(), v(1), rep, n as u64, &mut tally, 0.7);
     }
     tally.assert();
 }
@@ -251,23 +244,16 @@ fn weak_overlap_near_empty_conditioner_boundary() {
     let n = grid_n(200);
     let (functional, request) = target_observational_xy();
     let mut tally = keyed("weak_overlap_near_empty_conditioner_boundary", "xy_rare_treatment");
-    for (rep, input) in map_replicates(n_sim(), |rep| StatisticalTransportInput {
-        supplied: Vec::new(),
-        samples: vec![xy_rare_treatment(n, rep.wrapping_mul(1_000_019))],
-    })
-    .into_iter()
-    .enumerate()
-    {
-        mean_interval(
-            &functional,
-            &input,
-            request.clone(),
-            v(1),
-            rep as u64,
-            n as u64,
-            &mut tally,
-            0.7,
-        );
+    for (rep, input) in map_replicates(n_sim(), |rep| {
+        (
+            rep,
+            StatisticalTransportInput {
+                supplied: Vec::new(),
+                samples: vec![xy_rare_treatment(n, rep.wrapping_mul(1_000_019))],
+            },
+        )
+    }) {
+        mean_interval(&functional, &input, request.clone(), v(1), rep, n as u64, &mut tally, 0.7);
     }
     tally.emit_named_boundary();
 }
@@ -368,20 +354,9 @@ fn source_target_imbalance_standardize_nominal_coverage() {
     let mut tally =
         keyed("source_target_imbalance_standardize_nominal_coverage", "standardize_imbalance");
     for (rep, input) in
-        map_replicates(n_sim(), |rep| standardize_imbalance(n, rep.wrapping_mul(1_000_037)))
-            .into_iter()
-            .enumerate()
+        map_replicates(n_sim(), |rep| (rep, standardize_imbalance(n, rep.wrapping_mul(1_000_037))))
     {
-        mean_interval(
-            &functional,
-            &input,
-            request.clone(),
-            v(2),
-            rep as u64,
-            n as u64,
-            &mut tally,
-            0.37,
-        );
+        mean_interval(&functional, &input, request.clone(), v(2), rep, n as u64, &mut tally, 0.37);
     }
     tally.assert();
 }
@@ -452,23 +427,16 @@ fn recursive_frontdoor_nominal_coverage() {
     let n = grid_n(300);
     let (functional, request) = frontdoor_functional();
     let mut tally = keyed("recursive_frontdoor_nominal_coverage", "frontdoor_binary_scm");
-    for (rep, input) in map_replicates(n_sim(), |rep| StatisticalTransportInput {
-        supplied: Vec::new(),
-        samples: vec![frontdoor_binary_scm(n, rep.wrapping_mul(1_000_049))],
-    })
-    .into_iter()
-    .enumerate()
-    {
-        mean_interval(
-            &functional,
-            &input,
-            request.clone(),
-            v(2),
-            rep as u64,
-            n as u64,
-            &mut tally,
-            0.495,
-        );
+    for (rep, input) in map_replicates(n_sim(), |rep| {
+        (
+            rep,
+            StatisticalTransportInput {
+                supplied: Vec::new(),
+                samples: vec![frontdoor_binary_scm(n, rep.wrapping_mul(1_000_049))],
+            },
+        )
+    }) {
+        mean_interval(&functional, &input, request.clone(), v(2), rep, n as u64, &mut tally, 0.495);
     }
     tally.assert();
 }
