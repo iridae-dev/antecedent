@@ -2045,6 +2045,7 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
             lower: Arc::from([0.0]),
             upper: Arc::from([1.0]),
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         }),
         std::mem::discriminant(&antecedent_core::ResponseUncertainty::SimultaneousBand {
             level: 0.95,

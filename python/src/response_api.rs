@@ -991,7 +991,9 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     let tag = |interpretation: IntervalInterpretation| Some(interpretation.as_str().to_owned());
     match value {
         ResponseUncertainty::None => ("none".into(), None, None, None, None, None, None, None),
-        ResponseUncertainty::Scalar { standard_error, level, lower, upper, interpretation } => (
+        ResponseUncertainty::Scalar {
+            standard_error, level, lower, upper, interpretation, ..
+        } => (
             "pointwise".into(),
             Some(vec![vec![lower]]),
             Some(vec![vec![upper]]),
@@ -1001,7 +1003,7 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
             None,
             tag(interpretation),
         ),
-        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation } => (
+        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation, .. } => (
             "pointwise".into(),
             Some(rows(lower)),
             Some(rows(upper)),

@@ -13,11 +13,12 @@
 //!
 //! * scalar posteriors publish `q025` / `q975` of the effect column; the 0.90
 //!   interval is the same equal-tailed rule on the draws;
-//! * response and derivative intervals use estimator-internal quantile rules,
-//!   so the 0.90 interval is the same study re-run with
-//!   `confidence_level = 0.90` on the same data and seed (response options
-//!   otherwise as in those designs: the caller bandwidth of the
-//!   point-derivative cells).
+//! * response and derivative intervals are exchangeable-rank quantiles of a
+//!   draw vector the estimator retains on the published uncertainty
+//!   (`CredibleDraws`), so the 0.90 interval is that rule on those draws
+//!   (checked to reproduce the published 0.95 endpoints exactly), from the
+//!   one execution (response options as in those designs: the caller
+//!   bandwidth of the point-derivative cells).
 //!
 //! Every tally is keyed through [`keyed`], this file's one emission point. A
 //! key declares only the provenance of the measurement: the emitting test, the
@@ -58,8 +59,8 @@ use common::calibration::{
 };
 use common::calibration_bind::bind;
 use common::reported::{
-    GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, n_sim_at_least, posterior_pair, response_band,
-    response_scalar,
+    GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, n_sim_at_least, posterior_pair,
+    response_posterior_pairs,
 };
 // The laws this suite shares with `v19_static_calibration` live in one owner:
 // the two records of a cell are comparable only if the replicate data
@@ -116,14 +117,14 @@ type Pair = [Option<(f64, f64)>; 2];
 /// from the study's contract and the result's reported intervals.
 type Run = (Study, StudyResult);
 
-/// One replicate's scored coordinates and the executions they were read from.
+/// One replicate's scored coordinates and the execution they were read from.
+///
+/// Both levels come from the one execution: the reported interval as
+/// published, the gate-level interval re-summarized from that execution's
+/// posterior draws (`posterior_pair` / `response_posterior_pairs`).
 struct Replicate {
     /// Execution that published every coordinate's reported-level interval.
     reported: Run,
-    /// Execution that published the gate-level intervals, when the gate level
-    /// needed its own run (the response and derivative designs). `None` when
-    /// both levels are read from [`Self::reported`].
-    at_gate: Option<Run>,
     /// `[reported, gate]` intervals, one entry per cell.
     pairs: Vec<Pair>,
     /// Truth, one entry per cell.
@@ -131,9 +132,8 @@ struct Replicate {
 }
 
 impl Replicate {
-    /// A replicate whose two levels are both read from a single execution.
-    fn from_one(reported: Run, pairs: Vec<Pair>, truths: Vec<f64>) -> Self {
-        Self { reported, at_gate: None, pairs, truths }
+    fn new(reported: Run, pairs: Vec<Pair>, truths: Vec<f64>) -> Self {
+        Self { reported, pairs, truths }
     }
 }
 
@@ -157,11 +157,10 @@ fn coverage_over(
         match scored {
             Some(scored) => {
                 assert_eq!(scored.pairs.len(), cells.len());
-                let (reported_study, reported_result) = &scored.reported;
-                let (gate_study, gate_result) = scored.at_gate.as_ref().unwrap_or(&scored.reported);
+                let (study, result) = &scored.reported;
                 for (j, (pair, truth)) in scored.pairs.iter().zip(&scored.truths).enumerate() {
-                    bind(&mut tallies[2 * j], reported_study, reported_result);
-                    bind(&mut tallies[2 * j + 1], gate_study, gate_result);
+                    bind(&mut tallies[2 * j], study, result);
+                    bind(&mut tallies[2 * j + 1], study, result);
                     tallies[2 * j].record(pair[0], *truth);
                     tallies[2 * j + 1].record(pair[1], *truth);
                 }
@@ -186,11 +185,10 @@ fn coverage_at(
         match scored {
             Some(scored) => {
                 assert_eq!(scored.pairs.len(), cells.len());
-                let (reported_study, reported_result) = &scored.reported;
-                let (gate_study, gate_result) = scored.at_gate.as_ref().unwrap_or(&scored.reported);
+                let (study, result) = &scored.reported;
                 for (j, (pair, truth)) in scored.pairs.iter().zip(&scored.truths).enumerate() {
-                    bind(&mut tallies[2 * j], reported_study, reported_result);
-                    bind(&mut tallies[2 * j + 1], gate_study, gate_result);
+                    bind(&mut tallies[2 * j], study, result);
+                    bind(&mut tallies[2 * j + 1], study, result);
                     tallies[2 * j].record(pair[0], *truth);
                     tallies[2 * j + 1].record(pair[1], *truth);
                 }
@@ -338,7 +336,7 @@ fn average_effect_dag_bayesian_default_nominal_coverage() {
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![2.0]))
+            Some(Replicate::new((study, result), pairs, vec![2.0]))
         },
         &[None, None],
     );
@@ -461,7 +459,7 @@ fn glm_likelihood_coverage(test: &'static str, dgp: &'static str, link: Link, st
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+            Some(Replicate::new((study, result), pairs, vec![truth]))
         },
         &[None, None],
     );
@@ -576,7 +574,7 @@ fn average_effect_cpdag_bayesian_default_nominal_coverage() {
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![CPDAG_TRUTH]))
+            Some(Replicate::new((study, result), pairs, vec![CPDAG_TRUTH]))
         },
         &[None, None],
     );
@@ -603,7 +601,7 @@ fn average_effect_pag_bayesian_default_nominal_coverage() {
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![PAG_TRUTH]))
+            Some(Replicate::new((study, result), pairs, vec![PAG_TRUTH]))
         },
         &[None, None],
     );
@@ -675,7 +673,7 @@ fn conditional_case(
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+            Some(Replicate::new((study, result), pairs, vec![truth]))
         },
         &[None, None],
     );
@@ -710,7 +708,7 @@ fn conditional_case_at(
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+            Some(Replicate::new((study, result), pairs, vec![truth]))
         },
         measured,
     );
@@ -823,7 +821,7 @@ fn distribution_case(
             let offset = usize::from(posterior.effect_column().is_some());
             let atom = dist.atoms.iter().position(|a| a.outcomes[0].1.as_f64() == Some(1.0))?;
             let pairs = vec![posterior_pair(&result, offset + atom)];
-            Some(Replicate::from_one((study, result), pairs, vec![base + 0.015]))
+            Some(Replicate::new((study, result), pairs, vec![base + 0.015]))
         },
         &[Some(measured[0]), Some(measured[1])],
     );
@@ -899,7 +897,7 @@ fn mediation_case(
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+            Some(Replicate::new((study, result), pairs, vec![truth]))
         },
         &[None, None],
     );
@@ -962,7 +960,7 @@ fn path_case(
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+            Some(Replicate::new((study, result), pairs, vec![truth]))
         },
         &[None, None],
     );
@@ -995,7 +993,7 @@ fn path_specific_chain_bayesian_default_nominal_coverage() {
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![0.2]))
+            Some(Replicate::new((study, result), pairs, vec![0.2]))
         },
         &[[None, None, None], [None, None, Some(0.850)]],
     );
@@ -1060,7 +1058,7 @@ fn counterfactual_bayesian_mean_ite_default_coverage() {
                 check_estimator(&result, cell);
             }
             let pairs = vec![effect_pair(&result)];
-            Some(Replicate::from_one((study, result), pairs, vec![11.0]))
+            Some(Replicate::new((study, result), pairs, vec![11.0]))
         },
         &[Some(COUNTERFACTUAL_MEASURED[0]), Some(COUNTERFACTUAL_MEASURED[1])],
     );
@@ -1082,11 +1080,13 @@ fn level_options(level: Option<f64>, bandwidth: Option<f64>) -> Option<Continuou
     })
 }
 
-/// Run `functional` at the default level and again at 0.90 on the same data
-/// and seed, reading the per-coordinate intervals of each run.
+/// Run `functional` once at the default level and read every coordinate's
+/// reported interval and its 0.90 re-summarization from the draws the
+/// estimator retained on the interval (`common::reported::response_posterior_pairs`).
 ///
-/// Both executions are returned: each level's record is bound to the execution
-/// that published the interval it scores.
+/// One execution scores both levels: the estimator's 0.90 interval is the
+/// same draw vector's quantiles at the other level, so a second run at
+/// `confidence_level = 0.90` would reproduce it bit for bit at twice the cost.
 fn response_pairs(
     data: &TabularData,
     graph: &Dag,
@@ -1094,33 +1094,13 @@ fn response_pairs(
     bandwidth: Option<f64>,
     seed: u64,
     coordinates: usize,
-) -> Option<(Run, Run, Vec<Pair>)> {
-    let query = || CausalQuery::Response(ResponseQuery::new(functional.clone()));
-    let reported = run(data.clone(), graph.clone(), query(), level_options(None, bandwidth), seed)?;
-    let at_gate = run(
-        data.clone(),
-        graph.clone(),
-        query(),
-        level_options(Some(GATE_LEVEL), bandwidth),
-        seed,
-    )?;
-    let read = |result: &StudyResult, level: f64| -> Vec<Option<(f64, f64)>> {
-        if let Some((lo, hi, published, _)) = response_scalar(result) {
-            assert!((published - level).abs() < 1e-12, "published level {published}");
-            return vec![Some((lo, hi))];
-        }
-        match response_band(result) {
-            Some((lower, upper, published)) => {
-                assert!((published - level).abs() < 1e-12, "published level {published}");
-                lower.iter().zip(&upper).map(|(&lo, &hi)| Some((lo, hi))).collect()
-            }
-            None => vec![None; coordinates],
-        }
-    };
-    let (a, b) = (read(&reported.1, REPORTED_LEVEL), read(&at_gate.1, GATE_LEVEL));
-    assert_eq!(a.len(), coordinates, "one interval per coordinate");
-    let pairs = a.into_iter().zip(b).map(|(x, y)| [x, y]).collect();
-    Some((reported, at_gate, pairs))
+) -> Option<(Run, Vec<Pair>)> {
+    let query = CausalQuery::Response(ResponseQuery::new(functional.clone()));
+    let reported = run(data.clone(), graph.clone(), query, level_options(None, bandwidth), seed)?;
+    let pairs =
+        response_posterior_pairs(&reported.1).unwrap_or_else(|| vec![[None, None]; coordinates]);
+    assert_eq!(pairs.len(), coordinates, "one interval per coordinate");
+    Some((reported, pairs))
 }
 
 /// One cell per coordinate of a response or derivative functional.
@@ -1175,13 +1155,13 @@ fn intervention_response_dag_bayesian_default_nominal_coverage() {
         |rep| {
             let seed = stream_seed(0x110_0510, rep);
             let data = response_data(grid_n(500), seed);
-            let (reported, at_gate, pairs) =
+            let (reported, pairs) =
                 response_pairs(&data, &response_dag(), &functional, None, seed, 1)?;
             if rep == 0 {
                 check_estimator(&reported.1, cells[0]);
             }
             let truths = vec![3.0 + 0.8 * mean_of(&data, "z")];
-            Some(Replicate { reported, at_gate: Some(at_gate), pairs, truths })
+            Some(Replicate::new(reported, pairs, truths))
         },
         &[None, None],
     );
@@ -1206,14 +1186,14 @@ fn response_curve_dag_bayesian_default_pointwise_nominal_coverage() {
         |rep| {
             let seed = stream_seed(0x110_0511, rep);
             let data = response_data(grid_n(500), seed);
-            let (reported, at_gate, pairs) =
+            let (reported, pairs) =
                 response_pairs(&data, &response_dag(), &functional, None, seed, 5)?;
             if rep == 0 {
                 check_estimator(&reported.1, cells[0]);
             }
             let z_bar = mean_of(&data, "z");
             let truths = GRID.iter().map(|a| 1.0 + 2.0 * a + 0.8 * z_bar).collect();
-            Some(Replicate { reported, at_gate: Some(at_gate), pairs, truths })
+            Some(Replicate::new(reported, pairs, truths))
         },
         &vec![None; 2 * GRID.len()],
     );
@@ -1314,12 +1294,12 @@ fn derivative_case(
             let seed = stream_seed(family, rep);
             let data =
                 if gam { gam_data(derivative_n(), seed) } else { point_data(derivative_n(), seed) };
-            let (reported, at_gate, pairs) =
+            let (reported, pairs) =
                 response_pairs(&data, &graph, functional, bandwidth, seed, truth.len())?;
             if rep == 0 {
                 check_estimator(&reported.1, cells[0]);
             }
-            Some(Replicate { reported, at_gate: Some(at_gate), pairs, truths: truth.to_vec() })
+            Some(Replicate::new(reported, pairs, truth.to_vec()))
         },
         measured,
     );
@@ -1446,17 +1426,12 @@ fn directional_derivative_bayesian_default_nominal_coverage() {
         |rep| {
             let seed = stream_seed(0x110_0525, rep);
             let data = gam_data(derivative_n(), seed);
-            let (reported, at_gate, pairs) =
+            let (reported, pairs) =
                 response_pairs(&data, &graph, &functional, None, seed, DIRECTIONAL_TRUTH.len())?;
             if rep == 0 {
                 check_estimator(&reported.1, cells[0]);
             }
-            Some(Replicate {
-                reported,
-                at_gate: Some(at_gate),
-                pairs,
-                truths: DIRECTIONAL_TRUTH.to_vec(),
-            })
+            Some(Replicate::new(reported, pairs, DIRECTIONAL_TRUTH.to_vec()))
         },
         &[[None, None, None], [Some(0.886), None, None], [None, None, None], [None, None, None]],
     );

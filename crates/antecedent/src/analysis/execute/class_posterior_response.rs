@@ -548,6 +548,7 @@ fn mix_class_posterior_responses(
             lower: *value - z * se,
             upper: *value + z * se,
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         }
     } else {
         ResponseUncertainty::None

@@ -904,19 +904,22 @@ fn interpretation_from_wire(i: IntervalInterpretationWire) -> IntervalInterpreta
     }
 }
 
+/// The retained `CredibleDraws` behind a credible scalar interval or pointwise
+/// band are an in-process payload for re-summarization: they are not encoded
+/// (the wire and artifact shape is unchanged) and decode as `None`.
 fn uncertainty_to_wire(u: &ResponseUncertainty) -> ResponseUncertaintyWire {
     match u {
         ResponseUncertainty::None => ResponseUncertaintyWire::None,
-        ResponseUncertainty::Scalar { standard_error, level, lower, upper, interpretation } => {
-            ResponseUncertaintyWire::Scalar {
-                standard_error: *standard_error,
-                level: *level,
-                lower: *lower,
-                upper: *upper,
-                interpretation: interpretation_to_wire(*interpretation),
-            }
-        }
-        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation } => {
+        ResponseUncertainty::Scalar {
+            standard_error, level, lower, upper, interpretation, ..
+        } => ResponseUncertaintyWire::Scalar {
+            standard_error: *standard_error,
+            level: *level,
+            lower: *lower,
+            upper: *upper,
+            interpretation: interpretation_to_wire(*interpretation),
+        },
+        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation, .. } => {
             ResponseUncertaintyWire::PointwiseBand {
                 level: *level,
                 lower: lower.to_vec(),
@@ -963,6 +966,7 @@ fn uncertainty_from_wire(u: &ResponseUncertaintyWire) -> ResponseUncertainty {
                 lower: *lower,
                 upper: *upper,
                 interpretation: interpretation_from_wire(*interpretation),
+                draws: None,
             }
         }
         ResponseUncertaintyWire::PointwiseBand { level, lower, upper, interpretation } => {
@@ -971,6 +975,7 @@ fn uncertainty_from_wire(u: &ResponseUncertaintyWire) -> ResponseUncertainty {
                 lower: lower.clone().into(),
                 upper: upper.clone().into(),
                 interpretation: interpretation_from_wire(*interpretation),
+                draws: None,
             }
         }
         ResponseUncertaintyWire::SimultaneousBand {
@@ -1235,12 +1240,14 @@ mod tests {
                     lower: -0.4,
                     upper: 0.6,
                     interpretation,
+                    draws: None,
                 },
                 ResponseUncertainty::PointwiseBand {
                     level: 0.95,
                     lower: Arc::from([0.0, 1.0]),
                     upper: Arc::from([1.0, 2.0]),
                     interpretation,
+                    draws: None,
                 },
             ] {
                 let wire = uncertainty_to_wire(&uncertainty);
@@ -1261,6 +1268,7 @@ mod tests {
                 lower: -0.4,
                 upper: 0.6,
                 interpretation: IntervalInterpretation::Credible,
+                draws: None,
             }
         );
     }

@@ -180,6 +180,7 @@ impl super::Study {
                 lower: value - z * se,
                 upper: value + z * se,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         } else {
             ResponseUncertainty::None
@@ -865,6 +866,7 @@ impl super::Study {
                 upper: scalar + crate::result::reported_se_interval_z() * se,
                 level: 0.95,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             },
             support: antecedent_core::SupportReport {
                 status: antecedent_core::SupportStatus::Supported,
@@ -1405,6 +1407,7 @@ impl super::Study {
                             lower: v - z * se,
                             upper: v + z * se,
                             interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            draws: None,
                         };
                     }
                     Some(ResponseValue::Surface { mean, .. }) if mean.len() == cov.dim => {
@@ -1440,6 +1443,7 @@ impl super::Study {
                                 lower,
                                 upper,
                                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                                draws: None,
                             },
                         };
                     }
@@ -2055,6 +2059,7 @@ mod uncertainty_tests {
             upper: 0.2,
             level: 0.95,
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         };
         let b = ResponseUncertainty::Scalar {
             standard_error: 0.1,
@@ -2062,6 +2067,7 @@ mod uncertainty_tests {
             upper: 10.2,
             level: 0.95,
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         };
         assert!(matches!(
             mix_response_uncertainty(&[(0.5, &a), (0.5, &b)]),

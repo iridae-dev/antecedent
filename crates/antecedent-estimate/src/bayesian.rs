@@ -47,17 +47,8 @@ use crate::serial_dependence::{
 };
 use crate::util::require_explicit_override;
 
-/// Posterior mean and equal-tail interval of a linear response level.
-/// `weights` is a design-row average after the intervention overlay.
-pub(crate) fn linear_response_summary(
-    posterior: &CausalPosterior,
-    weights: &[f64],
-    level: f64,
-) -> Result<(f64, f64, f64, f64), EstimationError> {
-    summarize_linear_response_draws(linear_response_draws(posterior, weights)?, level)
-}
-
 /// Posterior draws of the linear functional `weights' β`, one per retained draw.
+/// `weights` is a design-row average after the intervention overlay.
 pub(crate) fn linear_response_draws(
     posterior: &CausalPosterior,
     weights: &[f64],
