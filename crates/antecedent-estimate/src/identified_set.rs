@@ -367,12 +367,16 @@ mod tests {
     }
 
     #[test]
-    fn bound_quantile_is_type7_over_every_draw_and_nan_when_empty() {
-        // h = 0.9 * 4 = 3.6 -> 4 + 0.6 * (5 - 4).
-        assert!((quantile(&[5.0, 1.0, 3.0, 2.0, 4.0], 0.9) - 4.6).abs() < 1e-12);
+    fn bound_quantile_is_exchangeable_rank_over_finite_draws_and_nan_when_empty() {
+        // ExchangeableRank: zero-based rank = clamp(p * (d + 1), 1, d) - 1. For d = 5,
+        // p = 0.9: p * (d + 1) = 5.4, clamped to d = 5, rank 4 (0-based) -> the top order
+        // statistic, 5.0. (Old pin 4.6 was the type-7 rank this call site no longer uses;
+        // `quantile` moved to ExchangeableRank, see the doc comment above.)
+        assert!((quantile(&[5.0, 1.0, 3.0, 2.0, 4.0], 0.9) - 5.0).abs() < 1e-12);
         assert!(quantile(&[], 0.5).is_nan());
-        // A non-finite draw is not removed to shrink the sample behind the quantile.
-        assert!(quantile(&[1.0, 2.0, f64::NAN], 1.0).is_nan());
+        // A non-finite draw is removed to shrink the sample behind the quantile: with the
+        // NaN dropped, p = 1.0 over [1.0, 2.0] is the top order statistic, 2.0, not NaN.
+        assert!((quantile(&[1.0, 2.0, f64::NAN], 1.0) - 2.0).abs() < 1e-12);
     }
 
     #[test]
