@@ -38,6 +38,8 @@ EVIDENCE = {
     "bayes.ci.tests": "crates/antecedent-stats/src/ci/bayes.rs",
     "bayes.prior_bank.temporal_transfer": "crates/antecedent/tests/temporal_prior_transfer.rs",
     "bayes.prior_bank.catalog": "crates/antecedent-io/src/prior_bank.rs",
+    "bayes.panel.random_intercept_non_gaussian": "crates/antecedent-estimate/src/bayesian.rs",
+    "bayes.gcomp.negative_binomial_se": "crates/antecedent-estimate/src/glm_adjustment.rs",
     "bayes.prior_bank.effect_map": "crates/antecedent-estimate/src/bayesian.rs",
     "bayes.prior_bank.power_mixture": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conflict": "crates/antecedent-validate/src/conflict.rs",
