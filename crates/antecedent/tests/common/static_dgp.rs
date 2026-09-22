@@ -213,11 +213,10 @@ pub fn envelope_pag() -> Pag {
     g
 }
 
-// ------------------------------------------------------------------ adversarial
-// Cells the calibration gate will enrol after the harness precision layer is
-// remesured. Each law sits *outside* an estimator's comfort zone so a coverage
-// pass is evidence the interval survives that stress, not that the DGP was
-// chosen to make the estimator look calibrated.
+// ------------------------------------------------------------------ boundary designs
+// Each law sits *outside* an estimator's comfort zone, and the calibration gate
+// records the measured coverage as a named boundary: a coverage figure here is
+// what the interval does under that stress, not a claim that it is calibrated.
 
 /// Weak first-stage IV (columns `t, y, z`): `z ∈ {0,1}`,
 /// `t = 0.15 z + u + 0.1 e`, `y = 2t + u + 0.1 e`. Stock–Yogo F is routinely
@@ -286,6 +285,24 @@ pub fn heteroskedastic_matching_data(n: usize, seed: u64) -> TabularData {
         t[i] = bernoulli(&mut u, sigmoid(0.8 * z[i]));
         let s = 0.3 + 1.2 * z[i].abs();
         y[i] = 2.0 * t[i] + z[i] + s * g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+/// Heterogeneous-effect matching design (columns `t, y, z`): `z ~ N(0,1)`,
+/// `t ~ Bern(σ(0.8 z))`, `y = z + (2 + z) t + 0.5 e`. The unit effect is
+/// `τ(z) = 2 + z`, so ATE is 2, ATT is `2 + E[z | T = 1]` and ATC is
+/// `2 − E[z | T = 1]`: the three matching targets differ, and a variance
+/// formula that ignores the spread of `τ` is wrong for each.
+#[must_use]
+pub fn heterogeneous_effect_matching_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(0.8 * z[i]));
+        y[i] = z[i] + (2.0 + z[i]) * t[i] + 0.5 * g();
     }
     table(&[("t", &t), ("y", &y), ("z", &z)])
 }
