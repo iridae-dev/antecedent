@@ -2930,11 +2930,42 @@ impl Study {
                     let admg = self.graph.as_admg().ok_or_else(|| CausalError::Compile {
                         message: "ADMG prepare missing supplied graph".into(),
                     })?;
-                    let identification = identify_admg_query(
-                        identifier_id,
-                        admg,
-                        &CausalQuery::Response(query.clone()),
-                    )?;
+                    // `execute_admg_response` reuses this cache verbatim as the *first grid
+                    // level's* claim for a MeanCurve (it only re-identifies per level from the
+                    // second level on, mirroring the graph-posterior ADMG response cache). A
+                    // MeanCurve identified whole produces one general.id estimand per grid
+                    // level, and `select_estimand` then has no unique estimator match to pick
+                    // among them (they all report the same method). Cache the first level's
+                    // InterventionResponse claim instead, which is what downstream code
+                    // actually consumes and — being a single intervention level — is exactly
+                    // what `select_estimand` can disambiguate.
+                    let causal_query = match &query.functional {
+                        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+                            let first_level = treatment
+                                .grid
+                                .values()
+                                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+                                .into_iter()
+                                .next()
+                                .ok_or_else(|| CausalError::Compile {
+                                    message: "MeanCurve response requires a non-empty evaluation \
+                                              grid"
+                                        .into(),
+                                })?;
+                            let mut level_query = query.clone();
+                            level_query.functional =
+                                antecedent_core::ResponseFunctional::InterventionResponse {
+                                    outcome: *outcome,
+                                    interventions: Arc::from([Intervention::set(
+                                        treatment.variable,
+                                        Value::f64(first_level),
+                                    )]),
+                                };
+                            CausalQuery::Response(level_query)
+                        }
+                        _ => CausalQuery::Response(query.clone()),
+                    };
+                    let identification = identify_admg_query(identifier_id, admg, &causal_query)?;
                     let estimand = select_estimand(&identification, estimator_id)?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
