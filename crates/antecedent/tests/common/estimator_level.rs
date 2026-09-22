@@ -82,36 +82,18 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "homoskedastic",
         "treated.mean",
     ),
-    case(
-        "wald_iv_analytic_ci_coverage",
-        "iv.wald",
-        "anderson_rubin",
-        "",
-        "all_observed.mean",
-    ),
+    case("wald_iv_analytic_ci_coverage", "iv.wald", "anderson_rubin", "", "all_observed.mean"),
     // A non-homoskedastic Wald SE is never licensed (Anderson-Rubin requires the
     // homoskedastic assumption, and the estimator never publishes a finite
     // `se_analytic`), so the facade withholds the interval entirely: no product,
     // `calibration_coverage.rs::wald_coverage_on` only `report()`s this cell,
     // never `assert()`s or `emit()`s a coverage record for it.
     case("wald_iv_hc1_ci_coverage", "iv.wald", "none", "", "all_observed.mean"),
-    case(
-        "iv_2sls_analytic_ci_coverage",
-        "iv.2sls",
-        "anderson_rubin",
-        "",
-        "all_observed.mean",
-    ),
+    case("iv_2sls_analytic_ci_coverage", "iv.2sls", "anderson_rubin", "", "all_observed.mean"),
     // Non-homoskedastic (HC1): Anderson-Rubin requires the homoskedastic
     // assumption and 2SLS never publishes a finite `se_analytic`, so the
     // facade withholds the interval entirely, same as the Wald IV HC1 case.
-    case(
-        "iv_2sls_hc1_heteroskedastic_ci_coverage",
-        "iv.2sls",
-        "none",
-        "",
-        "all_observed.mean",
-    ),
+    case("iv_2sls_hc1_heteroskedastic_ci_coverage", "iv.2sls", "none", "", "all_observed.mean"),
     case(
         "frontdoor_stacked_hc0_ci_coverage",
         "frontdoor.linear_two_stage",
