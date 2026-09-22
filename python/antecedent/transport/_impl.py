@@ -23,8 +23,10 @@ from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .._transport_results import (
     TransportContrast,
     TransportGridPoint,
-    TransportSupport,
     TransportUncertainty,
+)
+from .._transport_results import (
+    TransportSupport as TransportSupport,  # re-exported via __all__, not used in this file
 )
 from ..errors import CausalTypeError, CausalValueError
 from ..graph import Admg
@@ -1021,7 +1023,7 @@ class RegimeSample:
             MappingProxyType(
                 {
                     name: tuple(
-                        None if value is None or value != value else float(value)
+                        None if value is None or math.isnan(value) else float(value)
                         for value in values
                     )
                     for name, values in self.columns.items()

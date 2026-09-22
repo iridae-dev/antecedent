@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Any, Literal, get_args
@@ -236,7 +237,7 @@ def _snapshot_digest(columns: Mapping[str, Sequence[Any]]) -> str:
 
 
 def _domain_for(values: Sequence[Any]) -> tuple[VariableDomainName, int | None]:
-    finite = [float(value) for value in values if value is not None and value == value]
+    finite = [float(value) for value in values if value is not None and not math.isnan(value)]
     unique = sorted(set(finite))
     if unique and all(item in (0.0, 1.0) for item in unique):
         return "binary", None
@@ -263,7 +264,7 @@ def _table_columns(data: Any) -> dict[str, tuple[float | None, ...]]:
         raise CausalTypeError("expected a column table, not a mapping of tables")
     names, columns = as_columns(data)
     return {
-        name: tuple(None if value != value else float(value) for value in column)
+        name: tuple(None if math.isnan(value) else float(value) for value in column)
         for name, column in zip(names, columns, strict=True)
     }
 
