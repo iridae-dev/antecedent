@@ -747,18 +747,21 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
 }
 
 /// A shift response reads the treatment mean, whose influence under an AR(1) φ = 0.9
-/// treatment has about ten effective rows at n = 160: its cell carries the short-series
-/// warning, while the same data's iid-treatment twin stays quiet with a factor near 1.
-/// The persistent influence here is the raw AR(1) treatment mean itself (not a residual
-/// under an omitted lag), so `kernel_bias_factor`'s own AR(1)/AR(q) fit sees it and lifts
-/// the factor a little above 1 even at this short `n` — but per that function's
-/// documented limit, a fit at few effective rows cannot fully see a strong persistence,
-/// so the short-series warning carries the real signal here, not a large factor.
+/// treatment has few effective rows at n = 60: its cell carries the short-series warning
+/// (`< RESPONSE_SHORT_SERIES_ROWS` rows), while the same data's iid-treatment twin at the
+/// full n = 160 stays quiet with a factor near 1. The persistent influence here is the raw
+/// AR(1) treatment mean itself (not a residual under an omitted lag), so
+/// `kernel_bias_factor`'s own AR(1)/AR(q) fit sees it and lifts the factor a little above 1
+/// — but per that function's documented limit, a fit at few effective rows cannot fully see
+/// a strong persistence, so the short-series warning carries the real signal here, not a
+/// large factor. At the full n = 160 this same φ = 0.9 case reads too many effective rows
+/// (≈ 19, above the threshold) to trigger the warning, so the series is shortened instead
+/// of relying on n = 160 alone.
 #[test]
 fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment() {
-    let fit = |phi: f64| {
+    let fit = |rows: usize, phi: f64| {
         run(
-            persistent_treatment_series(phi, 0.0, 42),
+            persistent_treatment_series_n(rows, phi, 0.0, 42),
             dag(&[(0, 1, 1, 0)]),
             intervention_query(
                 Intervention::soft(VariableId::from_raw(0), MechanismOverride::additive_shift(0.5)),
@@ -769,7 +772,7 @@ fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment(
             42,
         )
     };
-    let (iid, persistent) = (fit(0.0), fit(0.9));
+    let (iid, persistent) = (fit(N, 0.0), fit(60, 0.9));
     let iid = iid.response.as_ref().expect("shift response");
     let persistent = persistent.response.as_ref().expect("shift response");
     let factor = |r: &antecedent_core::CausalResponse| {
