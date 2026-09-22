@@ -16,8 +16,10 @@ from ..results import (
     EstimateView,
     IdentificationView,
     PerformanceView,
+    ReasoningSlots,
     ResponseUncertainty,
     ResponseView,
+    SlotView,
     SupportDiagnostic,
     SupportReport,
     ValidationView,
@@ -414,6 +416,45 @@ def _unavailable_result(
     return _attach(result, study, None, section)
 
 
+def _reasoning_from_specialist(specialist: Any) -> ReasoningSlots | None:
+    """Four-slot reasoning read from the specialist's own native ``inspect()``.
+
+    ``AnalysisResult``/``CausalResponseView`` default their ``reasoning`` to
+    ``None``, which ``ExecutionResult.inspect()`` then treats as an empty
+    contract (every slot ``unavailable:missing``). The specialist distribution
+    already carries a native four-slot report (identification, support,
+    uncertainty, assumptions); this copies it over so the outer wrapped result
+    reports the same slots instead of a manufactured "missing" one.
+    """
+    inspect = getattr(specialist, "inspect", None)
+    if specialist is None or inspect is None:
+        return None
+    report = inspect()
+
+    def slot(name: str) -> SlotView:
+        model = getattr(report, name)
+        return SlotView(model.available, model.reason, model.summary, dict(model.payload))
+
+    return ReasoningSlots(
+        identification=slot("identification"),
+        support=slot("support"),
+        uncertainty=slot("uncertainty"),
+        assumptions=slot("assumptions"),
+        program_id=getattr(report, "program_id", None),
+        claim_id=getattr(report, "claim_id", None),
+        target_id=getattr(report, "target_id", None),
+        identification_id=getattr(report, "identification_id", None),
+        identification_product_id=getattr(report, "identification_product_id", None),
+        inference_binding_id=getattr(report, "inference_binding_id", None),
+        observation_id=getattr(report, "observation_id", None),
+        data_snapshot_id=getattr(report, "data_snapshot_id", None),
+        execution_id=getattr(report, "execution_id", None),
+        score_reuse_id=getattr(report, "score_reuse_id", None),
+        target_weights_id=getattr(report, "target_weights_id", None),
+        contract=dict(report.contract) if isinstance(getattr(report, "contract", None), Mapping) else None,
+    )
+
+
 def _bindings(stage: Mapping[str, Any] | None) -> tuple[str, ...]:
     catalog = None if stage is None else stage.get("catalog")
     if catalog is None:
@@ -469,6 +510,7 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
             diagnostics=[],
             provenance={"operation_ids": ["estimate.trial_to_target"]},
             transport=section,
+            reasoning=_reasoning_from_specialist(specialist),
         )
         return _attach(result, study, specialist, section)
     if isinstance(specialist, TransportResponseGrid):
@@ -501,6 +543,7 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
             diagnostics=[],
             provenance={"operation_ids": ["estimate.transport"]},
             transport=section,
+            reasoning=_reasoning_from_specialist(specialist),
         )
         return _attach(result, study, specialist, section)
     return specialist
@@ -604,6 +647,7 @@ def _wrap_grid(
             diagnostics=[],
             provenance={"operation_ids": ["estimate.transport"]},
             transport=section,
+            reasoning=_reasoning_from_specialist(grid),
         )
         return _attach(contrast_result, study, grid, section)
     if not points:
@@ -639,6 +683,7 @@ def _wrap_grid(
         ),
         identification=view,
         transport=section,
+        reasoning=_reasoning_from_specialist(grid),
     )
     return _attach(result, study, grid, section)
 
