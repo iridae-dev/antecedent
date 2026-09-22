@@ -32,8 +32,11 @@ fn execute_static_refute_reuses_estimate_workspace() {
         .unwrap();
     assert!(result.estimate.ate.is_finite());
     assert!(!result.refutations.is_empty());
-    // Placebo/RCC must be informative under linear adjustment.
-    assert!(result.refutations.iter().any(|r| r.informative));
+    // Placebo and RCC are OLS-powerless sampling-stability diagnostics, not
+    // claim falsifiers, and report informative: false under linear adjustment
+    // ("fix: make validate refuters, sensitivity and stability checks say
+    // only what they test").
+    assert!(result.refutations.iter().all(|r| !r.informative));
 }
 
 #[test]
