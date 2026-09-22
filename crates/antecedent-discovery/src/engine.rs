@@ -272,8 +272,8 @@ impl PcmciEngine {
             }
             sort_by_strength(&mut parents, &mut min_stat);
         }
-        // `max_parents` caps the *surviving* parents, strongest first (tigramite's
-        // `max_conds_py`), never the candidate list: truncating candidates by enumeration
+        // `max_parents` caps the *surviving* parents, strongest first (the reference PCMCI+
+        // implementation's `max_conds_py`), never the candidate list: truncating candidates by enumeration
         // order would decide by variable index which links are ever tested. Required
         // parents are exempt from the cap.
         if let Some(max_p) = self.constraints.max_parents {
