@@ -25,6 +25,10 @@ run side by side instead of one after another.
 Each job's `map_replicates` gets `ceil(cores / jobs)` worker threads
 (`ANTECEDENT_CALIBRATION_THREADS`), so `--jobs` jobs share the machine instead
 of each taking all of it; the default is one job per core, one thread each.
+The gate's recheck extends a first run (it computes only the replicates the
+first run did not), so the plan books it at
+`(RECHECK_NSIM - NSIM) / NSIM` of the first run, weighted by the share of
+each suite's grid points the last measurement rechecked.
 
 `scripts/measure_calibration.sh` is the one command a developer runs: it
 refuses a dirty tree, runs `run`, collects the records and re-runs the
@@ -54,6 +58,7 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,11 +68,16 @@ GATE = ROOT / "scripts" / "gate_calibration.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 PREVIOUS_LOG_DIR = ROOT / "target" / "calibration-records.previous"
 CONSOLE_DIR = ROOT / "target" / "calibration-console"
+REGISTRY = ROOT / "parity" / "coverage_records.toml"
 # Wall-clock seconds of each (group, grid point) task from earlier local runs:
 # label, seconds, exit, sha, worker threads the task ran with. Older rows have
 # no threads column and are read as whole-machine runs.
 TIMINGS = ROOT / "target" / "calibration-timings.tsv"
 CORES = os.cpu_count() or 1
+# The harness default (DEFAULT_N_SIM / RECHECK_N_SIM in
+# crates/antecedent/tests/common/calibration.rs), unless the gate is told otherwise.
+FIRST_NSIM = int(os.environ.get("ANTECEDENT_CALIBRATION_NSIM", "400"))
+RECHECK_NSIM = int(os.environ.get("ANTECEDENT_CALIBRATION_RECHECK_NSIM", "2000"))
 
 # Groups whose 2000-replicate recheck, when it fires, has run for hours on its
 # own on an M-series laptop: the recheck of
@@ -87,11 +97,19 @@ LONG_PATTERNS = (
     "*: interventional_distribution_admg_frontdoor_bayesian_*",
 )
 
+# Per-replicate cost of a LONG_PATTERNS design relative to the other designs
+# of its suite: measured at 400 replicates, the Bayesian derivative designs of
+# v110_calibration_bayesian_static run 2.4-4.6 s per replicate per run while
+# its other designs run about 1 s per whole run, a ratio of roughly 50 in a
+# suite's wall time. Until a local run has timed a group, a suite's recorded
+# seconds are apportioned to its tests by this weight instead of evenly.
+LONG_WEIGHT = 50.0
+
 # Suite wall-clock totals of the recorded merged-tree measurement on an M-series
 # laptop (release build, the `test result: ... finished in` line of each
 # suite's log): (seconds, tests run, test threads). All suites ran at once, so
-# these are loaded-machine numbers. A group's estimate is its suite's average
-# wall time per test; a local run's own timing replaces it.
+# these are loaded-machine numbers. A group's estimate is its weighted share
+# of its suite's wall time (LONG_WEIGHT); a local run's own timing replaces it.
 SUITE_SECONDS = {
     "antecedent-estimate": (2.06, 19, 2),
     "v110_calibration_bayesian_static": (14448.34, 22, 2),
@@ -271,25 +289,57 @@ def task_label(group: Group, point: int | None) -> str:
     return group.label if point is None else f"{group.label} [grid point {point}]"
 
 
-def estimate(group: Group, timings: dict[str, float]) -> tuple[float | None, str]:
-    """Seconds over every grid point and where the number comes from (None when
-    there is no data)."""
+def suite_weights(groups: list[Group]) -> dict[str, float]:
+    """Total weight of each suite's groups in the gate (LONG_WEIGHT per long
+    group, 1 per other), for apportioning a suite's recorded seconds."""
+    out: dict[str, float] = {}
+    for group in groups:
+        out[group.head] = out.get(group.head, 0.0) + (LONG_WEIGHT if group.long else 1.0)
+    return out
+
+
+def estimate(
+    group: Group, timings: dict[str, float], weights: dict[str, float]
+) -> tuple[float | None, str]:
+    """Machine-seconds over every grid point, first run only, and where the
+    number comes from (None when there is no data)."""
     labels = [task_label(group, point) for point in group.points]
     if all(label in timings for label in labels):
         return sum(timings[label] for label in labels), "local run"
     measured = SUITE_SECONDS.get(group.head)
     if measured is None:
         return None, "no data"
-    seconds, tests, _threads = measured
+    seconds, _tests, _threads = measured
     # The recorded sweep measured one sample size per design, every suite at once
-    # on the whole machine, so a suite's wall time divided by its tests is the
-    # machine time of one test. It is not scaled by the suite's libtest threads:
-    # those shared the machine (each test already runs on every core), they did
-    # not each get a machine of their own.
+    # on the whole machine, so a suite's wall time is machine time. It is not
+    # scaled by the suite's libtest threads: those shared the machine (each test
+    # already ran on every core), they did not each get a machine of their own.
+    # The suite's seconds are apportioned to its groups by weight: a long
+    # design costs LONG_WEIGHT of a cheap one, and an even split books every
+    # cheap design at the suite average (18 one-second designs of the Bayesian
+    # static suite at 0.64 h each).
     grid = GRID_COST if len(group.points) > 1 else 1.0
     if group.head in WHOLE_FILE:
         return seconds * grid, "recorded sweep x grid"
-    return seconds / tests * grid, "recorded sweep, suite average x grid"
+    weight = LONG_WEIGHT if group.long else 1.0
+    share = weight / weights.get(group.head, weight)
+    return seconds * share * grid, "recorded sweep, weighted suite share x grid"
+
+
+def recheck_rates() -> dict[str, float]:
+    """Share of each suite's grid points that the last measurement rechecked
+    (a registry grid entry at RECHECK_NSIM replicates or more), by test file
+    stem. A suite with no record has rate 0."""
+    if not REGISTRY.is_file():
+        return {}
+    counts: dict[str, list[int]] = {}
+    for rec in tomllib.loads(REGISTRY.read_text()).get("record", []):
+        stem = Path(str(rec["test"]).rpartition("::")[0]).stem
+        tally = counts.setdefault(stem, [0, 0])
+        for point in rec.get("grid", []):
+            tally[1] += 1
+            tally[0] += int(int(point["replicates"]) >= RECHECK_NSIM)
+    return {stem: hit / total for stem, (hit, total) in counts.items() if total}
 
 
 def _clock(seconds: float) -> str:
@@ -299,24 +349,37 @@ def _clock(seconds: float) -> str:
     return f"{hours}h{minutes:02d}m" if hours else f"{minutes}m{secs:02d}s"
 
 
-def print_plan(selection: Selection, total: int, jobs: int) -> None:
+def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
     timings = local_timings()
+    weights = suite_weights(groups)
+    rates = recheck_rates()
+    threads = threads_per_job(jobs)
     known: list[float] = []
+    recheck_extra = 0.0
+    longest_task = 0.0
     unknown = 0
     if selection.owed_records:
         print(f"records owing a re-measurement: {selection.owed_records}")
-    threads = threads_per_job(jobs)
     print(
-        f"groups to run: {len(selection.groups)} of {total} "
+        f"groups to run: {len(selection.groups)} of {len(groups)} "
         f"(parallel jobs: {jobs}, worker threads per job: {threads}, cores: {CORES})"
     )
+    # A recheck extends the first run from FIRST_NSIM to RECHECK_NSIM replicates,
+    # so it costs (RECHECK_NSIM - FIRST_NSIM) / FIRST_NSIM of the first run.
+    recheck_factor = (RECHECK_NSIM - FIRST_NSIM) / FIRST_NSIM
     for g in selection.groups:
-        seconds, source = estimate(g, timings)
+        seconds, source = estimate(g, timings, weights)
         if seconds is None:
             unknown += 1
             shown = "estimate: no data"
         else:
             known.append(seconds)
+            recheck_extra += seconds * rates.get(g.head, 0.0) * recheck_factor
+            # The largest grid point (factor 2 of GRID_COST) is a grid group's
+            # longest task; a run-once group is one task.
+            longest_task = max(
+                longest_task, seconds * (2.0 / GRID_COST if len(g.points) > 1 else 1.0)
+            )
             shown = f"~{_clock(seconds)} ({source})"
         long_note = "; its recheck, if it fires, can take hours" if g.long else ""
         print(f"  group {g.index}: {g.label}  [{selection.reasons[g.index]}; {shown}{long_note}]")
@@ -326,23 +389,33 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
     # gets `threads` of the CORES cores (ANTECEDENT_CALIBRATION_THREADS), so
     # the parallel phase takes about the total work, and no schedule beats the
     # longest single task at its thread budget: wall ~ max(total, longest).
-    # Rechecks are not included.
     work = sum(known)
-    longest_wall = max(known, default=0.0) * CORES / threads
+    longest_wall = longest_task * CORES / threads
     print(
-        f"rough estimate: about {_clock(max(work, longest_wall))} wall-clock for the "
-        f"{len(known)} group(s) with timing data: {_clock(work)} of work spread over {CORES} "
-        f"cores by {jobs} job(s) of {threads} thread(s), bounded below by the longest group "
-        f"at {threads} thread(s) (~{_clock(longest_wall)})"
+        f"rough estimate: about {_clock(work)} of machine time for the {len(known)} group(s) with "
+        f"timing data, first runs only"
         + (f"; {unknown} group(s) have none" if unknown else "")
-        + ". 2000-replicate rechecks come on top."
+        + "."
+    )
+    print(
+        f"expected recheck overhead: about {_clock(recheck_extra)} more (each suite's share of "
+        f"grid points rechecked in the last measurement, from {REGISTRY.relative_to(ROOT)}, "
+        f"times {recheck_factor:g}x its first run: a recheck extends {FIRST_NSIM} to "
+        f"{RECHECK_NSIM} replicates instead of restarting)."
+    )
+    print(
+        f"wall-clock: about {_clock(max(work + recheck_extra, longest_wall))}: total work "
+        f"spread over {CORES} cores by {jobs} job(s) of {threads} thread(s), bounded below by "
+        f"the longest single task at {threads} thread(s) (~{_clock(longest_wall)} before its "
+        f"recheck, {1 + recheck_factor:g}x that if it fires)."
     )
     if any(g.long for g in selection.groups):
         print(
-            "long groups are selected: suite averages understate them. In the recorded sweep (one "
-            "sample size per design) the Bayesian static suite ran 4h01m, and one Bayesian "
-            "derivative recheck at 2000 replicates ran for more than 2h50m on its own; the "
-            "grid measures each such design at three sample sizes."
+            "long groups are selected: their estimates are weighted suite shares, not "
+            "measurements. In the recorded sweep (one sample size per design) the Bayesian "
+            "static suite ran 4h01m, and one Bayesian derivative recheck at 2000 replicates "
+            "ran for more than 2h50m on its own; the grid measures each such design at three "
+            "sample sizes."
         )
 
 
@@ -399,6 +472,9 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_GRID_POINT",
             "ANTECEDENT_CALIBRATION_GRID_POINTS",
             "ANTECEDENT_CALIBRATION_THREADS",
+            "ANTECEDENT_CALIBRATION_REPLICATE_START",
+            "ANTECEDENT_CALIBRATION_PRIOR_TALLIES",
+            "ANTECEDENT_CALIBRATION_TALLY_OUT",
         )
     }
     # Each job's `map_replicates` gets its share of the cores, so `jobs` jobs
@@ -443,7 +519,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             print(
                 f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
                 f"group {group.index}: {verdict} in {_clock(elapsed)}"
-                + (" (rechecked at 2000 replicates)" if rechecked else "")
+                + (f" (rechecked at {RECHECK_NSIM} replicates)" if rechecked else "")
                 + f": {label}",
                 flush=True,
             )
@@ -483,7 +559,7 @@ def main() -> int:
         raise SystemExit("--jobs must be at least 1")
     groups = gate_groups()
     selection = select(groups, args.all)
-    print_plan(selection, len(groups), args.jobs)
+    print_plan(selection, groups, args.jobs)
     if args.command == "plan":
         return 0
     return run(selection, len(groups), args.jobs)
