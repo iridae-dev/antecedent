@@ -25,8 +25,7 @@ exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
 [capabilities](capabilities.md) for the methods behind each path. The
-[2.0 draft release notes](release-notes/v2.0.0.md) describe the active
-preparation line and its calibration boundary.
+[2.0 release notes](release-notes/v2.0.0.md) describe the release and its calibration boundary.
 
 Some important distinctions when choosing a workflow:
 

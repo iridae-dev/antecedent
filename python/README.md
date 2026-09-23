@@ -17,4 +17,4 @@ For large adjustment problems, 2.0 adds configured DML, DR-Learner, and causal-f
 
 Structural transport uses `antecedent.transport.Transport` with explicit target and evidence information. Evidence availability is not inferred from a column name or a selection label.
 
-Read the [Python workflow](../docs/python-workflow.md), [supported analyses](../docs/supported-analyses.md), and [2.0 draft notes](../docs/release-notes/v2.0.0.md). The [support matrix](../docs/support-matrix.md) remains authoritative.
+Read the [Python workflow](../docs/python-workflow.md), [supported analyses](../docs/supported-analyses.md), and [2.0 release notes](../docs/release-notes/v2.0.0.md). The [support matrix](../docs/support-matrix.md) remains authoritative.

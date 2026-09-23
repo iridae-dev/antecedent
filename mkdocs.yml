@@ -71,8 +71,8 @@ nav:
       - 2.0 milestone audit: audits/2.0-milestone-audit.md
       - Hot paths: hot_paths.md
       - Security review: security_review.md
-  - Release preparation:
-      - "2.0.0 draft": release-notes/v2.0.0.md
+  - Release notes:
+      - "2.0.0": release-notes/v2.0.0.md
 
 plugins:
   - search

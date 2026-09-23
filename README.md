@@ -1,34 +1,8 @@
 # Antecedent 2.0
 
-> **Release preparation.** The workspace and Python package are stamped
-> 2.0.0, but this tree has not been tagged or published, and its calibration
-> measurement has not yet been re-run for this commit. This branch documents
-> the 2.0 product and does not claim that its calibration program has
-> completed.
+[![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
-Antecedent is designed for causal inference as a composable systems primitive,
-built to preserve the epistemic correctness of causal analysis. It unifies
-discovery, structural uncertainty, identification, estimation, validation,
-interventions, temporal analysis, and durable artifacts in one typed workflow.
-
-Antecedent applies high-assurance engineering principles to causal inference:
-claims are explicitly scoped, unsupported combinations fail closed, evidence is
-classified, implementations are checked against independent oracles where
-available, and provenance and traceability are machine-audited.
-
-**Antecedent is a causal inference system for turning causal questions and
-evidence into checked, executable scientific claims.** It is designed not only
-to calculate an answer, but to preserve what that answer means—its assumptions,
-identification status, empirical support, uncertainty, provenance, and
-limits—as the analysis is estimated, reused, combined, saved, transported, and
-consumed by other software.
-
-Give it data, a causal question, and a graph or discovery strategy. Antecedent
-determines what is identified, runs only a licensed inference path, or refuses
-claims the available evidence does not warrant. Results preserve assumptions,
-uncertainty, diagnostics, and provenance across system boundaries, so analyses
-can be composed, reviewed, reused, and audited without losing scientific
-meaning.
+**Antecedent is a high-assurance causal inference compiler:** it turns a causal question and declared structural and evidential assumptions into a typed executable contract, runs an estimator only when that contract permits it, and returns a durable scientific claim with its identification, uncertainty, support, assumptions, and provenance attached.
 
 ```mermaid
 flowchart TD
@@ -41,9 +15,11 @@ flowchart TD
     Q --> C --> K --> E --> R --> O
 ```
 
-Antecedent's job is to stop the meaning at the top of this diagram from
-disappearing by the time a result reaches another person or system. Start with
-the [system model](docs/system-model.md) before choosing an API.
+Antecedent prevents the meaning declared at the start of an analysis from disappearing by the time a result reaches another person or system.
+
+## What’s new in Antecedent 2.0?
+
+Antecedent 2.0 builds on the existing causal workflow—discovery, graph review, identification, frequentist and Bayesian estimation, validation, interventions, temporal analysis, counterfactuals, attribution, design, state, and durable artifacts:
 
 ```python
 import antecedent as ant
@@ -56,49 +32,63 @@ reused = result.study.refresh(new_data)
 loaded = ant.load(result.export())
 ```
 
-`analyze(...)` is the one-call form of the same lifecycle. A successful result
-does not prove that a graph is true or that an interval is calibrated for every
-population; it makes the assumptions, evidence, support, and calibration scope
-available for review.
+2.0 adds native prediction and transport foundations to that workflow.
 
-## One system, several causal jobs
+**Learner-backed estimation.** DML, DR-Learner, and honest causal-forest paths use fold-local nuisance fitting, held-out diagnostics, learner provenance, overlap checks, and explicit limits. CATE predictions are not pointwise confidence intervals.
 
-Antecedent combines the established causal workflow—discovery, graph review,
-identification, frequentist and Bayesian estimation, validation, interventions,
-temporal analysis, counterfactuals, attribution, design, state, and durable
-artifacts—with 2.0's new prediction and transport foundations.
+```python
+from antecedent.estimators import DML, DRLearner, CausalForest
 
-- **Learner-backed estimation.** DML, DR-Learner, and honest causal forest
-  paths use fold-local nuisance fitting, held-out diagnostics, learner
-  provenance, overlap checks, and explicit limits. CATE predictions are not
-  pointwise confidence intervals.
-- **Structural transport.** Population identity, evidence regimes, available
-  experiments, sampling, and selected mechanisms are explicit. A formula can
-  be identified yet unavailable to evaluate when a required joint law or
-  provider is absent.
-- **Preserved epistemic boundaries.** Graph classes remain distinct (a MAG edge
-  is read as unconfounded only when it is visible); priors do not turn
-  nonidentification into identification; unsupported combinations refuse rather
-  than silently fall back.
+query = ant.AverageEffect("treatment", "outcome")
+dml = ant.analyze(data, graph=graph, query=query, estimator=DML(learner="auto", folds=5))
+# fold-local nuisances: dml.estimate.outcome_oof_r2, .learner_provenance
 
-The [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), and [examples](examples/README.md) are the best starting points. The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
+dr = ant.analyze(data, graph=graph, query=query, estimator=DRLearner(learner="ridge"))
+# dr.estimate.cate is a vector of predictions, not a pointwise interval
 
-## Evidence and release status
+forest = ant.analyze(
+    data, graph=graph, query=query, estimator=CausalForest()
+)
+# forest.estimate.cate_leaf_dispersion; cate_se stays unset
+```
 
-2.0 retains conformance fixtures, provenance, compatibility migrations, and
-machine-checked support boundaries. The full calibration sweep is still a
-roadmapped release requirement and has deliberately not been rerun for this
-preparation tree. Read `result.calibration`: `calibrated` means a coverage
-record matches the execution, the execution is inside that record's scope, and
-the record still attests the current code. Existing records have drifted facets
-and do not attest this tree, so a `calibrated` slot is not expected here.
-Licensed also does not mean measured: of the 463 licensed cells, 167 have no
-coverage measurement for their estimator and 4 report no interval (counts in the
-[support matrix](docs/support-matrix.md)).
+**Structural transport.** Population identity, evidence regimes, available experiments, sampling, and selected mechanisms are explicit. A formula can be identified yet unavailable to evaluate when a required joint law or provider is absent.
 
-See the [2.0 draft release notes](docs/release-notes/v2.0.0.md),
-[architecture](docs/architecture.md), [artifacts](docs/artifacts.md), and
-[development guide](docs/development.md).
+```python
+query = ant.transport.Transport(
+    ant.AverageEffect("treatment", "outcome"),
+    target="target",
+    evidence=ant.transport.Evidence(
+        source=ant.transport.Source(
+            "trial",
+            kind="experimental",
+            interventions=["treatment"],
+            sampling="independent",
+        ),
+        target_sampling="representative_sample",
+    ),
+)
+identification = ant.identify(graph=graph, query=query)
+# transportable formula is not yet an estimate
+result = identification.estimate(ant.transport.StatisticalTransportData(...))
+# missing regime samples leave the functional unavailable
+```
+
+Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
+
+## How Antecedent is built
+
+Antecedent does not treat scientific validity as a layer of documentation around code. Its ability to make a causal claim is represented explicitly and checked at runtime. Every supported analysis is governed by machine-readable contracts:
+
+- **The support matrix** defines which combinations of query, graph, evidence, inference mode, and validation level are licensed. Anything outside that surface fails closed.
+- **Oracles and parity evidence** record what establishes correctness for an implementation or composition. The presence of an algorithm in the codebase does not, by itself, license its use.
+- **Provenance** records how a claim was produced: the causal contract, estimator path, assumptions, evidence, implementation identity, and relevant execution metadata.
+- **Calibration status travels with the result.** An interval or uncertainty statement carries its calibration scope and evidence rather than being presented as an unqualified guarantee.
+- **Unsupported or unverified cases remain explicit.** Antecedent prefers `unavailable`, `partial`, or refusal over silently widening the claim.
+
+The result distinguishes **implemented**, **tested**, **licensed**, and **scientifically justified** instead of collapsing them into “the function ran.”
+
+For the full 2.0 change summary and migration-impacting changes, read the [release notes](docs/release-notes/v2.0.0.md) and [changelog](CHANGELOG.md).
 
 ## License
 
