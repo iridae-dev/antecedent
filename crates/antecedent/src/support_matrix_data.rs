@@ -1105,7 +1105,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "none",
         route_estimator: Some("linear.adjustment.ate"),
-        estimators: &["linear.adjustment.ate", "aipw", "causal.forest", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
+        estimators: &["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1114,7 +1114,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "cheap",
         route_estimator: Some("linear.adjustment.ate"),
-        estimators: &["linear.adjustment.ate", "aipw", "causal.forest", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
+        estimators: &["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1123,7 +1123,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "full",
         route_estimator: Some("linear.adjustment.ate"),
-        estimators: &["linear.adjustment.ate", "aipw", "causal.forest", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
+        estimators: &["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1132,7 +1132,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "none",
         route_estimator: Some("linear.adjustment.ate"),
-        estimators: &["linear.adjustment.ate", "aipw", "causal.forest", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
+        estimators: &["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1141,7 +1141,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "cheap",
         route_estimator: Some("linear.adjustment.ate"),
-        estimators: &["linear.adjustment.ate", "aipw", "causal.forest", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
+        estimators: &["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1150,7 +1150,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "full",
         route_estimator: Some("linear.adjustment.ate"),
-        estimators: &["linear.adjustment.ate", "aipw", "causal.forest", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
+        estimators: &["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp"],
     },
     LicensedCell {
         query: "ResponseCurve",
