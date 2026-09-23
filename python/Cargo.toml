@@ -19,7 +19,7 @@ crate-type = ["cdylib"]
 workspace = true
 
 [features]
-default = ["ml-full"]
+default = ["ml-full", "ml-neural"]
 ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]

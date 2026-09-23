@@ -100,3 +100,14 @@ def test_explicit_learner_roles_refuse_task_mismatch(estimator):
 
 def test_shared_learner_convenience_adapts_at_configuration():
     assert analyze(DML(learner=Ridge(2.0))).effect is not None
+
+
+def test_neural_nuisance_executes_in_standard_python_wheel():
+    result = analyze(
+        DML(
+            outcome=NeuralNet(hidden=4, epochs=3, learning_rate=0.01),
+            treatment=Logistic(),
+            folds=2,
+        )
+    )
+    assert result.effect is not None

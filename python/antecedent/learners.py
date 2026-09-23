@@ -108,7 +108,7 @@ class RandomForest:
 
 @dataclass(frozen=True, slots=True)
 class NeuralNet:
-    """Optional neural provider; excluded from the CPU feature bundle."""
+    """CPU-native neural nuisance learner included in the standard Python wheel."""
 
     hidden: int = 32
     epochs: int = 40

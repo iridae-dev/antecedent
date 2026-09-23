@@ -10,6 +10,67 @@ distinctive workflow is to keep the query, graph class, identification status,
 empirical support, inference mode, and validation contract explicit through
 estimation.
 
+## How Antecedent is different: epistemic type safety
+
+Antecedent is built to make certain scientifically invalid transformations as difficult as type errors are in a programming language.
+
+For example, Antecedent explicitly tries to prevent these equivalences:
+
+- `estimated == identified`
+- `confidence interval == structural uncertainty`
+- `discovered graph == known graph`
+- `search failed == impossible`
+- `implemented algorithm == supported scientific claim`
+- `same numeric answer == same causal analysis`
+
+That means that a result isn't fundamentally:
+
+```
+ATE = 0.23 ± 0.04
+```
+
+It is closer to:
+
+```
+Claim:
+    question = ...
+    target population = ...
+    structural knowledge = ...
+    identification = ...
+    estimator/inference binding = ...
+    empirical support = ...
+    uncertainty represented = ...
+    uncertainty NOT represented = ...
+    assumptions = ...
+    data snapshot = ...
+    provenance = ...
+    calibration evidence = ...
+    answer shape = point | bounds | partial | response | ...
+```
+
+Antecedent explicitly has result shapes such as point, bounds, partial, response, structured, and unavailable. It does not want a partially identified problem to become a scalar simply because a consumer expects a float.
+
+That distinction is much deeper than having better diagnostics.
+
+Compared to a typical causal influence library:
+
+| Dimension              | Typical estimator-oriented library                 | Antecedent                                                                                      |
+| ---------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Main object            | Estimator/model                                    | **Causal question / contract**                                                                  |
+| Starting point         | `Y, T, X, W, Z`                                    | Question + structure + evidence + population                                                    |
+| Identification         | Often assumed by estimator setup                   | **Explicit compiler stage**                                                                     |
+| Confounders            | User chooses covariates                            | Estimator is forbidden from deciding identification                                             |
+| Graph                  | Often absent or a DAG                              | DAG / ADMG / CPDAG / PAG / temporal classes remain semantically distinct                        |
+| Discovery              | Often separate package                             | Discovery produces **evidence**, not automatic truth                                            |
+| Structural uncertainty | Often resolved before estimation                   | Can propagate through to bounds/envelopes/partial answers                                       |
+| Unsupported case       | Error, NaN, undefined use, or documentation caveat | **Typed refusal with reason**                                                                   |
+| Uncertainty            | Usually sampling/model CI                          | Sampling, graph, orientation, identification, mechanism, regime, measurement etc. kept separate |
+| Output                 | Estimate/model                                     | **Claim + contract + diagnostics + provenance**                                                 |
+| Reuse                  | Refit estimator                                    | Re-execute a compiled `Study`                                                                   |
+| Serialization          | Model/result pickle/object                         | Versioned semantic artifact intended to preserve claim meaning                                  |
+| Correctness evidence   | Tests                                              | Tests + provenance + external oracles + conformance + calibration records                       |
+
+
 ## What Antecedent is licensed to run
 
 The [support matrix](support-matrix.md) is authoritative. A capability present

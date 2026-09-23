@@ -34,7 +34,7 @@ loaded = ant.load(result.export())
 
 2.0 adds native prediction and transport foundations to that workflow.
 
-**Learner-backed estimation.** DML, DR-Learner, and honest causal-forest paths use fold-local nuisance fitting, held-out diagnostics, learner provenance, overlap checks, and explicit limits. CATE predictions are not pointwise confidence intervals.
+**Learner-backed estimation.** DML, DR-Learner, and honest causal-forest paths use fold-local nuisance fitting, held-out diagnostics, learner provenance, overlap checks, and explicit limits. The standard Python wheel includes the CPU-native `NeuralNet` nuisance learner. CATE predictions are not pointwise confidence intervals.
 
 ```python
 from antecedent.estimators import DML, DRLearner, CausalForest
@@ -78,7 +78,7 @@ Start with the [Python workflow](docs/python-workflow.md), [supported analyses](
 
 ## How Antecedent is built
 
-Antecedent does not treat scientific validity as a layer of documentation around code. Its ability to make a causal claim is represented explicitly and checked at runtime. Every supported analysis is governed by machine-readable contracts:
+Antecedent does not treat scientific validity as a layer of documentation around code. Its ability to make a causal claim is represented explicitly and checked at runtime. Think of this as **epistemic type safety** — every supported analysis is governed by machine-readable contracts:
 
 - **The support matrix** defines which combinations of query, graph, evidence, inference mode, and validation level are licensed. Anything outside that surface fails closed.
 - **Oracles and parity evidence** record what establishes correctness for an implementation or composition. The presence of an algorithm in the codebase does not, by itself, license its use.
@@ -86,7 +86,21 @@ Antecedent does not treat scientific validity as a layer of documentation around
 - **Calibration status travels with the result.** An interval or uncertainty statement carries its calibration scope and evidence rather than being presented as an unqualified guarantee.
 - **Unsupported or unverified cases remain explicit.** Antecedent prefers `unavailable`, `partial`, or refusal over silently widening the claim.
 
-The result distinguishes **implemented**, **tested**, **licensed**, and **scientifically justified** instead of collapsing them into “the function ran.”
+The result distinguishes **implemented**, **tested**, **licensed**, and **scientifically justified** instead of collapsing them into “the function ran.” It means that Antecedent will fail closed (with a reason) if asked to do something unlicensed. That can sound restrictive until you realize that the restriction **is part of the product**.
+
+In most statistical software:
+
+```
+function exists → try to run it
+```
+
+In Antecedent:
+
+```
+algorithm exists ≠ this causal claim is licensed
+```
+
+We believe this approach is critical when causal inference is built to exist beyond the notebook as part of composed software systems and agentic workflows.
 
 For the full 2.0 change summary and migration-impacting changes, read the [release notes](docs/release-notes/v2.0.0.md) and [changelog](CHANGELOG.md).
 

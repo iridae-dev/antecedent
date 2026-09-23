@@ -13,7 +13,7 @@ print(result.answer)
 print(result.inspect().to_dict())
 ```
 
-For large adjustment problems, 2.0 adds configured DML, DR-Learner, and causal-forest estimators. They use held-out nuisance predictions and disclose their learner, folds, overlap, and uncertainty limitations; they do not make a CATE interval appear where none was estimated.
+For large adjustment problems, 2.0 adds configured DML, DR-Learner, and causal-forest estimators. The standard wheel includes the CPU-native `NeuralNet` nuisance learner; no separate Python extra is needed. These estimators use held-out nuisance predictions and disclose their learner, folds, overlap, and uncertainty limitations; they do not make a CATE interval appear where none was estimated.
 
 Structural transport uses `antecedent.transport.Transport` with explicit target and evidence information. Evidence availability is not inferred from a column name or a selection label.
 
