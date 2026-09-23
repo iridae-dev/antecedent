@@ -1,12 +1,6 @@
 # Is my analysis supported?
 
-Support depends on the question, graph, how the graph was obtained, inference
-method, and validation settings. In these docs, **licensed** means that this
-combination has a supported execution path with recorded evidence and limits.
-It does not establish that your graph is correct or your data are adequate,
-and it does not mean the cell's interval coverage was measured: the
-[support matrix](support-matrix.md) counts the licensed cells that have no
-coverage measurement for their estimator.
+Support depends on the question, graph, how the graph was obtained, inference method, and validation settings. In these docs, **licensed** means that this combination has a supported execution path with recorded evidence and limits. It does not establish that your graph is correct or your data are adequate, and it does not mean the cell's interval coverage was measured: the [support matrix](support-matrix.md) counts the licensed cells that have no coverage measurement for their estimator.
 
 Start with the closest worked example, then check its exact settings:
 
@@ -19,14 +13,9 @@ Start with the closest worked example, then check its exact settings:
 | How does an intervention act over time? | [Temporal examples](examples.md#python-scripts) | Graph lags, requested horizons, and uncertainty |
 | Can I reuse earlier evidence? | [Prior bank](priors.md) | Compatibility of the source and target analyses |
 | Is the outcome censored or selected? | [Observation contract](observation-contract.md) | The mechanism and its separate identifying assumptions |
-| Can I transfer effects or model interference? | [Transport and interference](transport-interference.md) | The required design assumptions |
+| Can I transfer effects or model interference? | [Transport and interference](transport-interference.md) and `antecedent.transport.Transport` | Target, evidence, and the [support matrix](support-matrix.md); 1.11 names moved — see the [migration](migrations/2.0-transport-day1.md) |
+| Can I fit nuisance models with DML, DR-Learner, or a causal forest? | [Python package notes](../python/README.md) | The estimator is licensed for that graph, inference, and validation cell; a forest does not add a CATE interval that was not estimated |
 
-These are starting points, not permission to combine arbitrary options.
-The [full support matrix](support-matrix.md#licensed-cells) is the authoritative
-list. Its [refusal reasons](support-matrix.md#refusal-reasons) explain excluded
-combinations. `n/a` means the combination does not define a valid question.
+These are starting points, not permission to combine arbitrary options. The [full support matrix](support-matrix.md#licensed-cells) is the authoritative list. Its [refusal reasons](support-matrix.md#refusal-reasons) explain excluded combinations. `n/a` means the combination does not define a valid question.
 
-For an analysis you have configured, `ant.prepare(...)` checks identification
-without estimating. Use `study.inspect()` to read what is known before calling
-`study.estimate()`. Preparation itself can refuse an unsupported request; see
-[handling refusals](python-workflow.md#when-an-analysis-is-refused).
+For an analysis you have configured, `ant.prepare(...)` checks identification without estimating. Use `study.inspect()` to read what is known before calling `study.estimate()`. Preparation itself can refuse an unsupported request; see [handling refusals](python-workflow.md#when-an-analysis-is-refused).

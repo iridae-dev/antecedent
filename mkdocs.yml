@@ -51,6 +51,7 @@ nav:
       - Transport and interference: transport-interference.md
       - Transport failures: guides/transport-failure.md
       - Transport theorem scope: guides/transport-scope.md
+      - Transport names moved in 2.0: migrations/2.0-transport-day1.md
       - Prior bank: priors.md
   - Concepts:
       - Capabilities: capabilities.md
@@ -68,7 +69,6 @@ nav:
       - Conformance: conformance/README.md
       - 2.0 learner audit: audits/2.0-learner-audit.md
       - 2.0 milestone audit: audits/2.0-milestone-audit.md
-      - 2.0 transport UX: migrations/2.0-transport-day1.md
       - Hot paths: hot_paths.md
       - Security review: security_review.md
   - Release preparation:

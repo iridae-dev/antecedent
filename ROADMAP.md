@@ -6,7 +6,7 @@ Last updated: 2026-09-20.
 nuisance flexibility, Rust-native, and consistent with Antecedent's architecture.
 Existing **transport work (T0–T10 / M0–M4)** is unchanged in substance and runs
 after G, so T6/X4 consume `antecedent-learn` instead of inventing a second
-provider stack. Workspace version stays 1.11.0 until a real 2.0 release.
+provider stack. The workspace and Python package are stamped 2.0.0; the tag and publish are still pending.
 
 The first compelling user path is not twelve new named estimators. It is:
 
