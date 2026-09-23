@@ -74,7 +74,7 @@ result = identification.estimate(ant.transport.StatisticalTransportData(...))
 # missing regime samples leave the functional unavailable
 ```
 
-Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
+Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature. What comes after 2.0 is in the [2.x roadmap](ROADMAP.md).
 
 ## How Antecedent is built
 
