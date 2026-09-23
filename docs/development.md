@@ -335,8 +335,11 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
 Each gate that decides a release has a `--self-test` mode that feeds it
 deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
-`gate_release_candidate.sh` and `gate_calibration_attestation.sh`.
-`gate_release.sh` runs all of them.
+`gate_release_candidate.sh` and `gate_calibration_attestation.sh`, plus the
+citation, reachability, metadata and support-matrix gates.
+`scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and
+runs a whole gate, so it takes tens of minutes and is run on demand (after
+changing a gate or its cases), not by `gate_release.sh` or CI.
 
 ## Python lint / types
 
