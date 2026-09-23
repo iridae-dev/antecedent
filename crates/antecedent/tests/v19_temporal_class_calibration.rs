@@ -132,7 +132,11 @@ struct FreqTally {
     estimates: Vec<f64>,
     ses: Vec<f64>,
     truth: f64,
-    warned: u32,
+    /// A plain per-replicate flag counter, not a coverage record: see
+    /// CoverageTally::persist. A raw `u32` counter here would only count an
+    /// extending recheck's own new replicates while `n_sim()` reports the full
+    /// count, undercounting the warning rate.
+    warned: CoverageTally,
 }
 
 impl FreqTally {
@@ -145,7 +149,7 @@ impl FreqTally {
             estimates: Vec::new(),
             ses: Vec::new(),
             truth,
-            warned: 0,
+            warned: CoverageTally::new(format!("{test} short-series-warned"), 0.95),
         }
     }
 
@@ -163,7 +167,8 @@ impl FreqTally {
         if let Some(se) = est.se_bootstrap.filter(|se| se.is_finite()) {
             self.ses.push(se);
         }
-        self.warned += u32::from(has_diagnostic(result, SHORT_SERIES));
+        let fired = has_diagnostic(result, SHORT_SERIES);
+        self.warned.record(Some((0.0, 1.0)), if fired { 0.5 } else { 2.0 });
     }
 
     fn report(&self) {
@@ -178,13 +183,14 @@ impl FreqTally {
             self.name,
             mean - self.truth,
             mean_se / mc_sd,
-            self.warned,
+            self.warned.covered(),
             self.estimates.len()
         );
     }
 
     fn assert(&self) {
         self.report();
+        self.warned.persist();
         self.tally.assert();
         self.reported.emit();
     }
@@ -272,22 +278,21 @@ fn frequentist_chain_pag_boundary(
 fn boundary(tally: &FreqTally) {
     tally.report();
     let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
+    let warned_covered = tally.warned.covered();
+    let warned_attempts = tally.warned.attempts();
     eprintln!(
-        "info {}: nominal band=[{lo:.3}, {hi:.3}] (not gated; short_series warnings {}/{})",
+        "info {}: nominal band=[{lo:.3}, {hi:.3}] (not gated; short_series warnings {warned_covered}/{warned_attempts})",
         tally.name,
-        tally.warned,
-        n_sim()
     );
+    tally.warned.persist();
     tally.tally.emit_named_boundary();
     tally.reported.emit();
     // The warning is a property of the base sample size the design names; at
     // the other grid points its rate is reported and coverage recorded.
     if grid_point() == BASE_GRID_POINT && !smoke() {
         assert!(
-            tally.warned * 20 >= n_sim() * 19,
-            "boundary design must carry the short-series warning: {}/{}",
-            tally.warned,
-            n_sim()
+            warned_covered * 20 >= warned_attempts * 19,
+            "boundary design must carry the short-series warning: {warned_covered}/{warned_attempts}"
         );
     }
 }

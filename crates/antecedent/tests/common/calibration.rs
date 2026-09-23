@@ -1082,6 +1082,15 @@ impl CoverageTally {
         self.scored + self.skipped
     }
 
+    /// The numerator of [`Self::rate`]: replicates whose interval covered
+    /// the recorded truth (a plain per-replicate flag counter reuses this by
+    /// recording a fixed in-range/out-of-range pair, see e.g. a short-series
+    /// warning rate that must stay extension-safe across a recheck).
+    #[must_use]
+    pub fn covered(&self) -> u32 {
+        self.covered
+    }
+
     /// Empirical coverage over scored replicates and skips (skips are misses).
     #[must_use]
     pub fn rate(&self) -> f64 {
