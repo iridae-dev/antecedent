@@ -3,7 +3,7 @@
 Last updated: 2026-09-23.
 This file outlines the 2.x release cycle. Each workstream starts with a
 bounded scientific contract and ends with an executable, calibrated, portable
-capability. A workstream may span releases; X1–X10 are workstream labels, and
+capability. A workstream may span releases; X1–X11 are workstream labels, and
 the dependency checkpoints below govern their composition. The release map
 sets proposed 2.x delivery targets rather than API compatibility promises.
 Preserve the 2.0 gates. X4 binds statistical providers through
@@ -26,6 +26,7 @@ appropriate to its published uncertainty.
 - [X8 — Counterfactual coverage expansion](#x8--counterfactual-coverage-expansion)
 - [X9 — Heterogeneous evidence and proof search](#x9--heterogeneous-evidence-and-proof-search)
 - [X10 — Causal observation recovery](#x10--causal-observation-recovery)
+- [X11 — Calibration coverage of the licensed surface](#x11--calibration-coverage-of-the-licensed-surface)
 - [Transport coverage promotion matrix](#transport-coverage-promotion-matrix)
 - [Ordering and promotion rule](#ordering-and-promotion-rule)
 
@@ -54,6 +55,12 @@ or any distribution gate fails, keep the CPU path as the released provider and
 move X7 to a later 2.x release; no other release depends on it. This gives GPU
 users an early decision and a possible mid-cycle delivery without making
 causal coverage contingent on hardware.
+
+**Calibration lane (X11).** Runs in every release rather than in one. Each
+release that adds licensed cells must add their calibration in the same
+release; X11 additionally works down the cells 2.0 licensed without a coverage
+measurement. It carries no headline outcome of its own, so it is never a reason
+to delay or to broaden another workstream's release.
 
 **Dependency checkpoints.** X2's finite scenarios can use the 2.0 fixed-graph
 transport path before ADMG extensions; an ADMG transport row must pass before
@@ -519,6 +526,57 @@ and, only for a promoted sampled row, calibrated end-to-end inference.
 motivates this research contract; its [manual](https://santikka.r-universe.dev/dosearch/doc/manual.html)
 states the missing-data search incompleteness boundary.
 
+## X11 — Calibration coverage of the licensed surface
+
+**Question:** For each licensed cell, is there a coverage measurement of the
+estimator and inference path that cell runs? **Depends on:** the 2.0 registry,
+its attestation gates and the sample-size grid; new cells from X1–X10 add
+obligations to this list rather than joining it after the fact.
+
+**Baseline (2.0, 2026-09-23).** Of 463 licensed cells, 295 cite coverage records
+and 164 carry `estimator_grid_not_measured`. Records are keyed on query, graph
+class, inference and structure (`fixed` or `graph_posterior`); validation level
+does not change a record, so the 164 cells are 69 distinct coordinates: 49
+graph-posterior and 20 fixed-graph. Graph-posterior is 140 of the 463 cells but
+has 34 of the 604 records, and 113 of its 140 cells are unmeasured. Fixed-graph
+cells are 51 of 323 unmeasured. Most records are on Dag and TemporalDag (468 of
+604); Admg has 12 and Pag 24. The gap is the size of the license against the
+measured designs, not a shortage of calibration runs.
+
+- [ ] Publish the 69 coordinates as a tracked list generated from the registry,
+      with the count of cells behind each, and ratchet it: the count of
+      `estimator_grid_not_measured` cells may only fall, as `max_uses` does in
+      `parity/reason_codes.toml`. Report distinct coordinates beside cell counts
+      wherever the 463/164 figures appear, so validation-level triplication does
+      not read as 164 separate gaps.
+- [ ] Fixed-graph coordinates first (20), by consumer value: ResponseCurve and
+      InterventionResponse on Admg, Pag and the temporal Cpdag/Pag classes (both
+      inferences where licensed); TemporalMediationEffect on temporal Cpdag
+      (Bayesian); InterventionalDistribution on Admg (Frequentist); the
+      Frequentist Elasticity, DirectionalDerivative and ResponseJacobian cells on
+      Dag; and AverageEffect with an unknown graph. Each design has a
+      known-truth generator, a gated level, a reported-level record, all three
+      grid points, and the 2000-replicate recheck.
+- [ ] Graph-posterior coordinates (49): known-truth generators that include graph
+      uncertainty, measured marginally over the graph. Score completions that
+      agree (point coverage) separately from completions that disagree
+      (identified-set coverage); do not report one as the other.
+- [ ] A cell is closed by a record at its own coordinate. A record for the other
+      structure, a `reported_level`-only diagnostic, or a record for a
+      neighboring query does not close it. Where a coordinate cannot be measured,
+      the cell states a typed `calibration_reason` or is unlicensed; never
+      relabel a cell to reduce the count.
+- [ ] Record deviations as named boundaries with the measured value at each grid
+      point, as 2.0 does; do not drop a design because it under-covers.
+- [ ] Keep each design's code in its own facet, and route generated licensing
+      tables through a replay waiver rather than a re-measurement, so adding
+      coverage for one coordinate does not owe the registry.
+
+**Exit evidence:** the tracked list reaches zero, or each remaining coordinate has
+a typed reason and no `estimator_grid_not_measured`; every cell added in 2.x
+lands with its coverage record; and the docs' cell and coordinate counts are
+generated from the registry rather than written by hand.
+
 ## Ordering and promotion rule
 
 - [ ] Prioritize X1 and fixed-graph X3 to expand usable evidence and make
@@ -548,6 +606,9 @@ states the missing-data search incompleteness boundary.
       transfer and orchestration costs do not dominate the intended neural
       nuisance workloads. Keep it independent of X4's causal/statistical
       provider scope unless a later contract explicitly joins them.
+- [ ] Give X11 a coverage record for every cell a release adds, in that release;
+      spend its remaining effort on the fixed-graph coordinates before the
+      graph-posterior ones, and never trade a cell's license for its count.
 - [ ] For every promoted capability, name the consumer problem, exact theorem/
       estimator scope, existing owner, support rows, positive and negative
       fixtures, calibration obligations, artifact changes, and compatibility
