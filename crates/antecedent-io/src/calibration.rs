@@ -36,7 +36,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::contract_section::CalibrationSlotWire;
-use crate::coverage_records_data::{CoverageGridPoint, CoverageRecord, RECORDS};
+use crate::coverage_records_data::{
+    ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, RECORDS,
+};
 
 /// No interval was reported.
 pub const NO_INTERVAL_REPORTED: &str = "no_interval_reported";
@@ -64,7 +66,7 @@ pub const BASIS_MISSING: &str = "calibration_basis_missing";
 pub const RECORD_NOT_ATTESTING: &str = "coverage_record_not_attesting";
 
 /// Every reason code the matcher can emit (all listed in `parity/reason_codes.toml`,
-/// except [`RECORD_NOT_ATTESTING`], which is runtime-only until remesure).
+/// except [`RECORD_NOT_ATTESTING`], which is runtime-only).
 pub const REASON_CODES: [&str; 11] = [
     NO_INTERVAL_REPORTED,
     CONSTRUCTION_NOT_MEASURED,
@@ -79,22 +81,17 @@ pub const REASON_CODES: [&str; 11] = [
     RECORD_NOT_ATTESTING,
 ];
 
-/// Commits whose coverage records currently attest this tree.
-///
-/// Empty while every measured SHA has drifted facets (`scripts/calibration_facets.py
-/// status`). Remesure restamps this list; a synthetic table used only in unit
-/// tests may pass its own attestation predicate instead.
-const ATTESTING_CALIBRATION_SHAS: &[&str] = &[];
-
 /// Whether `record` attests the code this binary was built from.
 ///
-/// A `calibrated` slot requires this to be true for the governing record.
-/// Stale or otherwise non-attesting records may still be reported as
-/// `scope_not_assessed` with [`RECORD_NOT_ATTESTING`].
+/// A `calibrated` slot requires this to be true for the governing record. The
+/// answer is generated with the registry ([`ATTESTING_RECORD_IDS`], from
+/// `scripts/calibration_facets.py`), so it changes when a record is re-measured
+/// or the statistical surface drifts, and never by hand. Stale or otherwise
+/// non-attesting records may still be reported as `scope_not_assessed` with
+/// [`RECORD_NOT_ATTESTING`].
 #[must_use]
 pub fn record_attests_current_code(record: &CoverageRecord) -> bool {
-    !record.calibration_sha.is_empty()
-        && ATTESTING_CALIBRATION_SHAS.contains(&record.calibration_sha)
+    ATTESTING_RECORD_IDS.contains(&record.id)
 }
 
 /// Tolerance for comparing nominal levels and structural masses.
@@ -672,8 +669,8 @@ mod tests {
         assert_eq!(stale_slot.record_id.as_deref(), Some("cov.stale"));
         assert_eq!(stale_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
 
-        // Production attestation is empty until remesure: a measured-looking
-        // record with a drifted SHA is not calibrated.
+        // A measured-looking record the registry does not list as attesting is not
+        // calibrated.
         let drifted = record("cov.drifted");
         assert!(!record_attests_current_code(&drifted));
         let drifted_slot = calibration_slot_with(&basis(), &[drifted], record_attests_current_code);
