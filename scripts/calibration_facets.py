@@ -263,6 +263,32 @@ def strip_test_modules(text: str) -> str:
     out.append(text[last:])
     return "".join(out)
 
+
+def declares_out_of_line_test_module(rel: str, root: Path | None = None) -> bool:
+    """Whether `rel` is a file that a sibling module declares as `#[cfg(test)] mod stem;`,
+    so the whole file is compiled only into unit-test builds."""
+    root = ROOT if root is None else root
+    path = Path(rel)
+    stem = path.stem
+    parent = root / path.parent
+    candidates = [parent / "lib.rs", parent / "mod.rs", parent / "main.rs"]
+    candidates.append(root / path.parent.parent / f"{path.parent.name}.rs")
+    pattern = re.compile(
+        r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+"
+        + re.escape(stem)
+        + r"\s*;"
+    )
+    for cand in candidates:
+        if cand.is_file() and pattern.search(rust_mask(cand.read_text(errors="ignore"))):
+            return True
+    return False
+
+
+def scaffolding_view(rel: str, text: str) -> str:
+    """`text` as the calibration surface sees a testmod file: without its inline test
+    modules, or empty when the whole file is an out-of-line `#[cfg(test)]` module."""
+    return "" if declares_out_of_line_test_module(rel) else strip_test_modules(text)
+
 _PUB_USE = re.compile(r"^[ \t]*pub(?:\([^)]*\))?[ \t]+use\b([^;]*);", re.M)
 
 
@@ -773,7 +799,7 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
             if (
                 old.returncode == 0
                 and new_text is not None
-                and strip_test_modules(old.stdout) == strip_test_modules(new_text)
+                and scaffolding_view(rel, old.stdout) == scaffolding_view(rel, new_text)
             ):
                 continue
         if NORMALIZED.search(rel):
@@ -2227,6 +2253,11 @@ def self_test() -> int:
         strip_test_modules("#[cfg(test)]\nmod tests;\nfn a() {}\n") == "#[cfg(test)]\nmod tests;\nfn a() {}\n"
         and "cfg(test)" in strip_test_modules("#[cfg(test)]\nfn helper() {}\n"),
         "an out-of-line test module and a cfg(test) function are not stripped",
+    )
+    expect(
+        declares_out_of_line_test_module("crates/antecedent-validate/src/tests.rs")
+        and not declares_out_of_line_test_module("crates/antecedent-validate/src/validator.rs"),
+        "a file declared `#[cfg(test)] mod name;` is test-only; a production file is not",
     )
     refs = references(base)
     counterfactual = {
