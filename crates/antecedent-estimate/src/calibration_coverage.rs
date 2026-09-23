@@ -1159,13 +1159,13 @@ fn frontdoor_functional_coverage(
     let est = FrontDoorFunctional::new().with_bootstrap_replicates(0);
     let (dgp, truth, model) = if discrete {
         (
-            "frontdoor_functional_discrete_scm",
+            "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_scm",
             frontdoor_functional_truth(0.5),
             SATURATED_ASSUMPTION_ID,
         )
     } else {
         (
-            "frontdoor_functional_continuous_scm",
+            "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_scm",
             frontdoor_functional_truth(0.4),
             ARM_LINEAR_ASSUMPTION_ID,
         )
