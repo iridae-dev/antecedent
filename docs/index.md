@@ -1,9 +1,5 @@
 # Antecedent
 
-> **Release preparation:** these are the active 2.0 docs. The workspace and
-> Python package are stamped 2.0.0; the tag and publish steps are still
-> pending.
-
 Antecedent is a causal inference system for turning causal questions and
 evidence into checked, executable scientific claims. It preserves what an
 answer means—its assumptions, identification status, empirical support,
@@ -38,8 +34,4 @@ For exact public boundaries, consult the [support matrix](support-matrix.md).
 An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
-The long-running 2.0 calibration measurement remains planned, not completed.
-Read `result.calibration`: status `calibrated` requires a coverage record that
-still attests the current code. Existing records are retained for scope and
-provenance, but with drifted facets they are not `calibrated`. See the
-[draft release notes](release-notes/v2.0.0.md).
+Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [2.0 release notes](release-notes/v2.0.0.md).

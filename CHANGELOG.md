@@ -1,8 +1,31 @@
 # Changelog
 
-## 2.0.0 — draft
+## 2.0.0
 
-This is a release-preparation record. Workspace and Python package metadata are 2.0.0; the tag and publish are still pending, so PyPI still serves the last published release. `calibrated` still requires a coverage record that attests this commit. Historical per-release prose has been removed from the working tree and remains available in Git history.
+Antecedent 2.0.0 keeps the established `identify → estimate → inspect → refresh → export → consume` lifecycle across discovery, graph uncertainty, identification, estimation, validation, temporal and response analysis, Bayesian inference, attribution, design, state, and artifacts.
+
+### What's New?
+
+#### Learners and heterogeneous effects
+
+- Adds a Rust-native prediction layer with stable learner specifications, capability checks, zero-copy design views, row-indexed folds, and fold-local preprocessing. The causal estimators remain independent of a particular ML provider.
+- Adds controlled linear, ridge, logistic, elastic-net, gradient-boosted-tree, random-forest, and extra-tree nuisance routes, plus restrained automatic nuisance selection where licensed.
+- Adds reusable out-of-fold predictions, fold assignments, nuisance diagnostics, overlap/trimming disclosure, and implementation provenance.
+- Adds DML, cross-fitted AIPW, DR-Learner, and honest causal-forest paths. CATE uncertainty remains deliberately limited: a forest's leaf dispersion is a diagnostic, not a pointwise standard error or confidence interval.
+
+#### Structural transport
+
+- Adds explicit population, environment, evidence-regime, sampling, and dependence contracts. Separate experimental marginals never silently become a joint experiment, and a proposed intervention never becomes observed evidence.
+- Adds population- and regime-aware functionals with checked derivation DAGs, theorem-scoped single-source identification, target-only identification, checked non-transportability witnesses, and bounded catalog search.
+- Adds exact finite-discrete evaluation and prepared statistical transport with factor-level provider bindings, support diagnostics, joint bootstrap uncertainty, complementary-source synthesis, and target response grids.
+- Adds durable transport artifacts and migrations that preserve evidence and source lineage across Rust, Python, and independent consumers.
+- Distinguishes an unavailable joint/provider from invalid input, theorem-stage non-certification, structural non-transportability, support failure, numerical failure, and budget/cancellation.
+
+#### Claim integrity and release boundaries
+
+- Strengthens typed support, evidence, provenance, calibration, artifact, and refusal contracts across the expanded workflow.
+- Makes calibration scope part of the result contract: `calibrated` requires a coverage record that applies to and attests the executing code.
+
 
 ### Breaking changes from 1.11
 
@@ -62,37 +85,3 @@ Wire formats and readers
   evidence (for example Monte Carlo Shapley returns `Cancelled` unless every
   permutation finished, and `PriorSensitivity::evaluate` refuses when the estimator
   already carries a prior); the per-crate fixes are recorded in the commit history.
-
-### Cohesive causal workflow
-
-- Keeps the established identify → estimate → inspect → refresh → export →
-  consume lifecycle across discovery, graph uncertainty, identification,
-  estimation, validation, temporal and response analysis, Bayesian inference,
-  attribution, design, state, and artifacts.
-- Preserves fail-closed support boundaries, typed assumptions, diagnostics,
-  provenance, and durable claims instead of strengthening a result at an API
-  or serialization seam.
-
-### Learners and heterogeneous effects
-
-- Adds the Rust-native learner substrate and learner specifications for
-  fold-local prediction.
-- Adds DML, DR-Learner, and honest causal-forest paths with held-out nuisance
-  diagnostics, overlap/trimming disclosure, learner provenance, and explicit
-  limits on CATE uncertainty.
-
-### Structural transport
-
-- Adds population and evidence-regime catalogs, typed transport outcomes,
-  population-aware expression evaluation, and durable derivations.
-- Distinguishes an unavailable joint/provider from an invalid request,
-  theorem-stage non-certification, support failure, or numerical failure.
-
-### Calibration status
-
-- Does not claim a new calibration attestation. The long-running measurement
-  program remains a release-roadmap item; existing records retain only their
-  recorded scope and do not attest this tree.
-- Runtime `calibrated` requires a covering record that still attests the
-  current code; matching but stale or non-attesting records are
-  `scope_not_assessed` (`coverage_record_not_attesting`), not calibrated.
