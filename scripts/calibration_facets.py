@@ -170,6 +170,99 @@ def rust_code(text: str) -> str:
     return "".join(out)
 
 
+
+def rust_mask(text: str) -> str:
+    """`text` with comments and string / char literals blanked to spaces, keeping every
+    offset and newline, so braces found in the mask are braces of the code."""
+    out: list[str] = []
+    i, n = 0, len(text)
+
+    def blank(a: int, b: int) -> None:
+        out.append("".join("\n" if c == "\n" else " " for c in text[a:b]))
+
+    while i < n:
+        m = _SPECIAL.search(text, i)
+        if m is None:
+            out.append(text[i:])
+            break
+        start = m.start()
+        tok = m.group(0)
+        if tok.startswith(("r", "b")) and start > 0 and (
+            text[start - 1].isalnum() or text[start - 1] == "_"
+        ):
+            out.append(text[i : start + len(tok) - 1])
+            i = start + len(tok) - 1
+            continue
+        out.append(text[i:start])
+        if tok == "//":
+            end = text.find("\n", start)
+            end = n if end < 0 else end
+            blank(start, end)
+            i = end
+        elif tok == "/*":
+            depth, j = 1, start + 2
+            while j < n and depth:
+                if text.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            j = min(j, n)
+            blank(start, j)
+            i = j
+        elif tok == '"':
+            j = start + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            end = min(j + 1, n)
+            blank(start, end)
+            i = end
+        elif tok == "'":
+            ch = _CHAR.match(text, start)
+            if ch:
+                blank(start, ch.end())
+                i = ch.end()
+            else:  # a lifetime or label
+                out.append("'")
+                i = start + 1
+        else:  # raw string r#"..."#
+            hashes = tok.count("#")
+            end = text.find('"' + "#" * hashes, m.end())
+            end = n if end < 0 else end + 1 + hashes
+            blank(start, end)
+            i = end
+    return "".join(out)
+
+
+_TEST_MOD = re.compile(
+    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{"
+)
+
+
+def strip_test_modules(text: str) -> str:
+    """`text` without its inline `#[cfg(test)] mod name { ... }` blocks.
+
+    Only inline test modules go; a `#[cfg(test)]` item of any other kind, and an
+    out-of-line `mod tests;` (a different file), stay."""
+    mask = rust_mask(text)
+    spans: list[tuple[int, int]] = []
+    pos = 0
+    while (m := _TEST_MOD.search(mask, pos)) is not None:
+        depth, j = 1, m.end()
+        while j < len(mask) and depth:
+            depth += (mask[j] == "{") - (mask[j] == "}")
+            j += 1
+        spans.append((m.start(), j))
+        pos = j
+    out: list[str] = []
+    last = 0
+    for a, b in spans:
+        out.append(text[last:a])
+        last = b
+    out.append(text[last:])
+    return "".join(out)
+
 _PUB_USE = re.compile(r"^[ \t]*pub(?:\([^)]*\))?[ \t]+use\b([^;]*);", re.M)
 
 
@@ -227,6 +320,7 @@ def anchored_names(code: str, anchor: str) -> tuple[set[str], bool]:
 class Surface:
     entries: list[tuple[str, str]] = field(default_factory=list)  # (facet, path)
     allows: dict[tuple[str, str], set[str]] = field(default_factory=dict)
+    testmods: set[str] = field(default_factory=set)
     keys: list[tuple[str, str, list[str]]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -269,6 +363,13 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
             if key in surface.allows:
                 surface.errors.append(f"{where}: duplicate allow for {parts[1]} {parts[2]}")
             surface.allows[key] = set(parts[3:])
+        elif parts[0] == "testmod":
+            if len(parts) != 2 or not parts[1].endswith(".rs"):
+                surface.errors.append(f"{where}: testmod <path to a .rs file>")
+                continue
+            if parts[1] in surface.testmods:
+                surface.errors.append(f"{where}: duplicate testmod for {parts[1]}")
+            surface.testmods.add(parts[1])
         elif parts[0] == "key":
             if len(parts) < 4 or parts[2] not in RECORD_KEY_FIELDS:
                 surface.errors.append(
@@ -534,6 +635,21 @@ def check(surface: Surface) -> list[str]:
     for (facet, rel), _ in sorted(surface.allows.items()):
         if rel not in refs.by_facet.get(facet, {}):
             problems.append(f"allow {facet} {rel}: the file no longer names {facet} items")
+    hosted = {
+        str(spec).rsplit("::", 1)[0]
+        for rec in load_records()
+        for spec in (rec.get("test", ""), rec.get("dgp", ""))
+        if spec
+    }
+    for rel in sorted(surface.testmods):
+        facet = surface.facet_of(rel)
+        if facet is None:
+            problems.append(f"testmod {rel}: not a path of the calibration surface")
+        elif facet.startswith("suite.") or rel in hosted:
+            problems.append(
+                f"testmod {rel}: a record's test or dgp lives in this file, so its test "
+                "modules are measurement, not scaffolding"
+            )
     return problems
 
 
@@ -647,6 +763,19 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
         changed |= {p for p in untracked.stdout.split("\0") if p}
     kept = []
     for rel in sorted(changed):
+        if rel in surface.testmods:
+            old = _git("show", f"{sha}:{rel}")
+            if head is None:
+                new_text = (ROOT / rel).read_text() if (ROOT / rel).is_file() else None
+            else:
+                new = _git("show", f"{head}:{rel}")
+                new_text = new.stdout if new.returncode == 0 else None
+            if (
+                old.returncode == 0
+                and new_text is not None
+                and strip_test_modules(old.stdout) == strip_test_modules(new_text)
+            ):
+                continue
         if NORMALIZED.search(rel):
             old = _git("show", f"{sha}:{rel}")
             if head is None:
@@ -2083,6 +2212,21 @@ def self_test() -> int:
     expect(
         "fit_gcm" not in code and "a();" in code and "b();" in code and "d::<'a>()" in code,
         "comments and literals are not code; code after them survives",
+    )
+    tm = "fn a() { 1 }\n#[cfg(test)]\nmod tests {\n    fn t() { let s = \"}\"; /* } */ }\n}\nfn b() {}\n"
+    expect(
+        strip_test_modules(tm) == "fn a() { 1 }\n\nfn b() {}\n",
+        "an inline test module goes, braces in its strings and comments included",
+    )
+    expect(
+        strip_test_modules(tm.replace("fn a() { 1 }", "fn a() { 2 }")) != strip_test_modules(tm)
+        and strip_test_modules(tm.replace("let s", "let z")) == strip_test_modules(tm),
+        "an edit to production code counts; an edit inside the test module does not",
+    )
+    expect(
+        strip_test_modules("#[cfg(test)]\nmod tests;\nfn a() {}\n") == "#[cfg(test)]\nmod tests;\nfn a() {}\n"
+        and "cfg(test)" in strip_test_modules("#[cfg(test)]\nfn helper() {}\n"),
+        "an out-of-line test module and a cfg(test) function are not stripped",
     )
     refs = references(base)
     counterfactual = {
