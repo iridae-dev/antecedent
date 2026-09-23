@@ -3,11 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
+use antecedent_stats::first_col_is_exact_ones;
 
 use crate::crossfit::{NuisanceDiagnostics, cross_fit};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
-use crate::learner::{LearnerFactory, PredictionTask};
+use crate::learner::{FittedPredictor, LearnerFactory, LearnerProvenance, PredictionTask};
 use crate::spec::{ElasticNetSpec, GbtSpec, LearnerSpec, LogisticSpec, RidgeSpec, resolve_for};
 
 const LARGE_N: usize = 5_000;
@@ -24,16 +25,46 @@ pub fn resolve_auto(
     y: TargetView<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(Box<dyn LearnerFactory>, NuisanceDiagnostics), LearnError> {
-    select_auto(task, x, y, ctx, x.is_sparse())
+    let sparse = x.is_sparse();
+    let (values, n, p) = crate::dense::materialize_dense_colmajor(x)?;
+    let target = if y.len() == x.physical_nrows() {
+        crate::dense::gather_physical(y.values(), x, n)?
+    } else if y.len() == n {
+        y.values()[..n].to_vec()
+    } else {
+        return Err(LearnError::Shape {
+            message: "auto selection needs a non-empty aligned design",
+        });
+    };
+    let view = DesignView::from_column_major(values.as_ref(), n, p)?;
+    let tree_view = if p > 1 && first_col_is_exact_ones(values.as_ref(), n) {
+        Some(DesignView::from_column_major(&values.as_ref()[n..], n, p - 1)?)
+    } else {
+        None
+    };
+    let (factory, diagnostics, _) =
+        select_auto(task, view, tree_view, TargetView::new(&target), ctx, sparse)?;
+    Ok((factory, diagnostics))
+}
+
+/// Tree learners share the explicit-GBT contract: a constant intercept column is dropped.
+const fn drops_constant_intercept(spec: LearnerSpec) -> bool {
+    matches!(
+        spec,
+        LearnerSpec::GradientBoostedTrees(_)
+            | LearnerSpec::RandomForest(_)
+            | LearnerSpec::NeuralNet(_)
+    )
 }
 
 fn select_auto(
     task: PredictionTask,
     x: DesignView<'_>,
+    x_tree: Option<DesignView<'_>>,
     y: TargetView<'_>,
     ctx: &ExecutionContext,
     sparse: bool,
-) -> Result<(Box<dyn LearnerFactory>, NuisanceDiagnostics), LearnError> {
+) -> Result<(Box<dyn LearnerFactory>, NuisanceDiagnostics, LearnerSpec), LearnError> {
     let n = x.nrows();
     let p = x.ncols();
     if n == 0 || y.len() != x.physical_nrows() {
@@ -60,6 +91,7 @@ fn select_auto(
                 winner: Some(candidates[0].name()),
                 ..NuisanceDiagnostics::default()
             },
+            candidates[0],
         ));
     }
     let mut best: Option<(f64, LearnerSpec, Box<dyn LearnerFactory>, NuisanceDiagnostics)> = None;
@@ -71,7 +103,13 @@ fn select_auto(
             Err(LearnError::ProviderUnavailable { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let oof = cross_fit(factory.as_ref(), x, y, folds, ctx, None)?;
+        // Match explicit GBT/forest design handling: trees never see a constant intercept.
+        let design = if drops_constant_intercept(spec) {
+            x_tree.unwrap_or(x)
+        } else {
+            x
+        };
+        let oof = cross_fit(factory.as_ref(), design, y, folds, ctx, None)?;
         let loss = match task {
             PredictionTask::Regression => oof.validation.rmse,
             PredictionTask::BinaryProbability => oof.validation.logloss,
@@ -109,7 +147,7 @@ fn select_auto(
     };
     validation.winner = Some(spec.name());
     validation.challenger_loss = challenger_loss;
-    Ok((factory, validation))
+    Ok((factory, validation, spec))
 }
 
 /// The held-out loss of a candidate that may compete: present and finite.
@@ -154,6 +192,37 @@ pub fn required_for_auto(task: PredictionTask) -> crate::learner::LearnerCapabil
     cap
 }
 
+/// Tree winner fitted without a constant intercept; predict strips the same column.
+struct DropInterceptPredictor {
+    inner: Box<dyn FittedPredictor>,
+}
+
+impl FittedPredictor for DropInterceptPredictor {
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        self.inner.portable()
+    }
+
+    fn predict(
+        &self,
+        x: DesignView<'_>,
+        out: &mut [f64],
+        ctx: &ExecutionContext,
+    ) -> Result<(), LearnError> {
+        let (values, n, p) = crate::dense::materialize_dense_colmajor(x)?;
+        if p > 1 && first_col_is_exact_ones(values.as_ref(), n) {
+            let stripped = DesignView::from_column_major(&values[n..], n, p - 1)?;
+            self.inner.predict(stripped, out, ctx)
+        } else {
+            let view = DesignView::from_column_major(values.as_ref(), n, p)?;
+            self.inner.predict(view, out, ctx)
+        }
+    }
+
+    fn provenance(&self) -> LearnerProvenance {
+        self.inner.provenance()
+    }
+}
+
 /// Auto selection is deferred until fit so outer validation rows cannot select a model.
 pub(crate) struct AutoLearner(pub PredictionTask);
 
@@ -172,7 +241,7 @@ impl LearnerFactory for AutoLearner {
         y: TargetView<'_>,
         weights: Option<&[f64]>,
         ctx: &ExecutionContext,
-    ) -> Result<Box<dyn crate::FittedPredictor>, LearnError> {
+    ) -> Result<Box<dyn FittedPredictor>, LearnError> {
         if weights.is_some() {
             return Err(LearnError::Unsupported { message: "Auto does not accept sample weights" });
         }
@@ -182,10 +251,22 @@ impl LearnerFactory for AutoLearner {
         let sparse = x.is_sparse();
         let (values, n, p) = crate::dense::materialize_dense_colmajor(x)?;
         let target = crate::dense::gather_physical(y.values(), x, n)?;
-        let view = DesignView::from_column_major(&values, n, p)?;
+        let view = DesignView::from_column_major(values.as_ref(), n, p)?;
         let target = TargetView::new(&target);
-        let (factory, _) = select_auto(self.0, view, target, ctx, sparse)?;
-        factory.fit(view, target, None, ctx)
+        let drop_intercept = p > 1 && first_col_is_exact_ones(values.as_ref(), n);
+        let tree_view = if drop_intercept {
+            Some(DesignView::from_column_major(&values.as_ref()[n..], n, p - 1)?)
+        } else {
+            None
+        };
+        let (factory, _, winner) = select_auto(self.0, view, tree_view, target, ctx, sparse)?;
+        if drops_constant_intercept(winner) && drop_intercept {
+            let fit_view = DesignView::from_column_major(&values.as_ref()[n..], n, p - 1)?;
+            let fitted = factory.fit(fit_view, target, None, ctx)?;
+            Ok(Box::new(DropInterceptPredictor { inner: fitted }))
+        } else {
+            factory.fit(view, target, None, ctx)
+        }
     }
 }
 
@@ -245,5 +326,46 @@ mod audit_tests {
         let sparse = auto_candidates(30, 3, true, PredictionTask::Regression, parametric, gbdt);
         assert!(sparse.iter().any(|spec| matches!(spec, LearnerSpec::ElasticNet(_))));
         assert!(!sparse.iter().any(|spec| matches!(spec, LearnerSpec::GradientBoostedTrees(_))));
+    }
+
+    #[cfg(feature = "ml-gbdt")]
+    #[test]
+    fn auto_tree_winner_strips_the_same_intercept_as_explicit_gbt() {
+        // XOR-like nonlinear outcome so restrained Auto prefers GBDT over ridge.
+        let n = 80usize;
+        let mut x = vec![0.0; n * 3];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let a = if i % 2 == 0 { 1.0 } else { -1.0 };
+            let b = if (i / 2) % 2 == 0 { 1.0 } else { -1.0 };
+            x[i] = 1.0;
+            x[n + i] = a;
+            x[2 * n + i] = b;
+            y[i] = a * b;
+        }
+        let view = DesignView::from_column_major(&x, n, 3).unwrap();
+        let ctx = ExecutionContext::for_tests(9);
+        let auto = AutoLearner(PredictionTask::Regression)
+            .fit(view, TargetView::new(&y), None, &ctx)
+            .unwrap();
+        assert_eq!(auto.provenance().spec, "gradient_boosted_trees");
+        let explicit = resolve_for(
+            LearnerSpec::GradientBoostedTrees(SHALLOW_GBT),
+            PredictionTask::Regression,
+        )
+        .unwrap()
+        .fit(
+            DesignView::from_column_major(&x[n..], n, 2).unwrap(),
+            TargetView::new(&y),
+            None,
+            &ctx,
+        )
+        .unwrap();
+        let mut pa = vec![0.0; n];
+        let mut pe = vec![0.0; n];
+        auto.predict(view, &mut pa, &ctx).unwrap();
+        explicit.predict(DesignView::from_column_major(&x[n..], n, 2).unwrap(), &mut pe, &ctx).unwrap();
+        let mae = (0..n).map(|i| (pa[i] - pe[i]).abs()).sum::<f64>() / n as f64;
+        assert!(mae < 0.15, "auto GBT with intercept strip must match explicit GBT; mae={mae}");
     }
 }
