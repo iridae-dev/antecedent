@@ -469,10 +469,13 @@ mod tests {
 
     #[test]
     fn screened_posterior_runs() {
+        // 2 chains / 300 draws were refused by the per-edge MCSE gate for about a third of
+        // seeds, so this passed only on a lucky one and flipped with last-bit platform
+        // differences; 4 chains / 1200 draws clear it for every seed tried.
         let (data, vars) = chain_data(180);
         let eng = CiScreenedPosterior::new()
             .with_soft_weight(CiSoftWeight::BayesFactor)
-            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+            .with_mcmc(StructureMcmc::new().with_schedule(4, 150, 1200, 1));
         let ctx = ExecutionContext::for_tests(5);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng
@@ -491,7 +494,7 @@ mod tests {
     fn screened_out_edge_keeps_nonzero_marginal_under_explicit_prior() {
         let (data, vars) = chain_data(180);
         let eng = CiScreenedPosterior::new()
-            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+            .with_mcmc(StructureMcmc::new().with_schedule(4, 150, 1200, 1));
         let ctx = ExecutionContext::for_tests(5);
         let mut ws = DiscoveryWorkspace::default();
         let prior = GraphPrior::bernoulli_edges(0.3).unwrap();
@@ -543,7 +546,7 @@ mod tests {
                 forbidden: Arc::from([crate::graph_posterior::static_link(&vars, 0, 2)]),
                 ..DiscoveryConstraints::default()
             })
-            .with_mcmc(StructureMcmc::new().with_schedule(2, 150, 300, 1));
+            .with_mcmc(StructureMcmc::new().with_schedule(4, 150, 1200, 1));
         let ctx = ExecutionContext::for_tests(5);
         let mut ws = DiscoveryWorkspace::default();
         let mut prior = GraphPrior::uniform();
