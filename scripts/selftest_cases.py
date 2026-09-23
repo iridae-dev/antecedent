@@ -560,14 +560,39 @@ def schema_cases() -> list[bool]:
     ]
 
 
-COND_DAG_BAYES = (
-    "0.890 (record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90."
-    "conditional_effect_dag_bayesian_nominal_90_coverage`)"
-)
-BOUNDARY_CITE = (
-    "0.858 (boundary record `cov.mediation_effect.dag.bayesian.posterior_quantile.l90."
-    "mediation_nde_bayesian_nominal_90_coverage`)"
-)
+def _live_citation(boundary: bool) -> tuple[str, str, float]:
+    """A coverage figure the licensed prose cites today, as `(text, figure, observed)`.
+
+    The fixtures below mutate this text, so it is read from the committed prose and
+    registry rather than written here: a hard-coded figure fails the self-test at the
+    next collection, before any of its cases runs."""
+    records = {
+        rec["id"]: rec
+        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text())["record"]
+    }
+    prose = (ROOT / "parity/support_licensed.toml").read_text()
+    for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
+        rec = records.get(m.group(3))
+        if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:
+            continue
+        if boundary:
+            # The undisclosed-boundary case strips the words `boundary record`; the
+            # sentence must not name the boundary another way, or nothing is undisclosed.
+            from coverage_citations import BOUNDARY_DISCLOSURE_RE
+
+            head = prose[: m.start()]
+            sentence = head[max(head.rfind(". "), head.rfind("\\n")) + 1 :]
+            if BOUNDARY_DISCLOSURE_RE.search(sentence):
+                continue
+        if abs(float(rec["observed"]) - float(m.group(1))) <= 0.0005 + 1e-9:
+            return m.group(0), m.group(1), float(rec["observed"])
+    raise SystemExit(f"no live {'boundary ' if boundary else ''}l90 citation to build a fixture from")
+
+
+COND_DAG_BAYES, COND_FIG, COND_OBSERVED = _live_citation(boundary=False)
+BOUNDARY_CITE, _, _ = _live_citation(boundary=True)
+# A figure that differs from the cited record's by far more than the gate's tolerance.
+OTHER_FIG = "0.931" if abs(COND_OBSERVED - 0.931) > 0.01 else "0.812"
 
 
 def citation_cases() -> list[bool]:
@@ -578,14 +603,17 @@ def citation_cases() -> list[bool]:
         case(
             g,
             "coverage_figure_unattributed",
-            {lic: replace(COND_DAG_BAYES, "0.890")},
-            ["coverage figure 0.890 has no record citation"],
+            {lic: replace(COND_DAG_BAYES, COND_FIG)},
+            [f"coverage figure {COND_FIG} has no record citation"],
         ),
         case(
             g,
             "coverage_figure_disagrees_with_record",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("0.890", "0.931"))},
-            ["coverage figure 0.931 does not match its cited record(s) (0.8900)"],
+            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace(COND_FIG, OTHER_FIG))},
+            [
+                f"coverage figure {OTHER_FIG} does not match its cited record(s) "
+                f"({COND_OBSERVED:.4f})"
+            ],
         ),
         case(
             g,
@@ -598,10 +626,11 @@ def citation_cases() -> list[bool]:
             "attribution_for_a_later_clause_does_not_cover",
             {
                 lic: replace(
-                    COND_DAG_BAYES, "0.890; the probe measured 0.180 (not a registry value)"
+                    COND_DAG_BAYES,
+                    f"{COND_FIG}; the probe measured 0.180 (not a registry value)",
                 )
             },
-            ["coverage figure 0.890 has no record citation"],
+            [f"coverage figure {COND_FIG} has no record citation"],
         ),
         case(
             g,
