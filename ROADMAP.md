@@ -290,7 +290,8 @@ small workload where CPU correctly remains the selected or faster route.
 
 **Question:** Which currently unsupported counterfactual query/graph/evidence
 cells can become executable without weakening cross-world, identification, or
-uncertainty claims? **Depends on:** the 2.0 counterfactual engine, the existing
+uncertainty claims? **Depends on:** the existing invertible-SCM,
+abduction–action–prediction counterfactual execution path, the existing
 transport lifecycle, and X2 where a counterfactual is transported rather than
 evaluated in one fixed population.
 
