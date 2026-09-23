@@ -418,7 +418,11 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
 
 
 def load_records(
-    sha: str, log_dir: Path = LOG_DIR, smoke: bool = False, verify_logs: bool = True
+    sha: str,
+    log_dir: Path = LOG_DIR,
+    smoke: bool = False,
+    verify_logs: bool = True,
+    allow_gate_only: bool = False,
 ) -> dict[str, dict]:
     if not log_dir.is_dir():
         raise SystemExit(f"missing {log_dir}: run scripts/gate_calibration.sh first")
@@ -426,6 +430,10 @@ def load_records(
     if verify_logs and not smoke:
         check_logs(logs, sha)
     records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
+    # A pass/fail-only re-run (the record-less groups) measures no record but still
+    # refreshes the group ledger; --keep-attested keeps every record that stands.
+    if not records and allow_gate_only and gate_ledger(logs, sha):
+        return records
     if not records:
         raise SystemExit(
             f"no calibration-record lines in {log_dir}: nothing measured, so nothing to commit"
@@ -650,7 +658,7 @@ def main() -> int:
     ).strip()
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")
-    records = load_records(sha, args.log_dir)
+    records = load_records(sha, args.log_dir, allow_gate_only=args.keep_attested)
     if not args.sha:
         tag_facets(records)
         surface = facets.load_surface()
