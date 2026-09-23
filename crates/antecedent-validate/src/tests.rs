@@ -17,6 +17,14 @@ use antecedent_identify::{IdentifiedEstimand, TemporalBackdoorIdentifier};
 use super::*;
 
 fn toy_confounded() -> (TabularData, IdentifiedEstimand, f64) {
+    toy_confounded_with_noise(0.0)
+}
+
+/// `toy_confounded` with a deterministic outcome perturbation of amplitude `noise`
+/// (zero reproduces the exactly linear outcome). The perturbation is a fixed
+/// multiplicative-hash sequence in [-noise/2, noise/2], uncorrelated with `t` and `z`
+/// by construction of the hash, so the true ATE stays 2 in expectation.
+fn toy_confounded_with_noise(noise: f64) -> (TabularData, IdentifiedEstimand, f64) {
     // True ATE = 2; Z confounds T and Y.
     let n = 400usize;
     let mut b = CausalSchemaBuilder::new();
@@ -50,7 +58,11 @@ fn toy_confounded() -> (TabularData, IdentifiedEstimand, f64) {
     let schema = b.build().unwrap();
     let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
     let t: Vec<f64> = (0..n).map(|i| if z[i] > 0.5 { 1.0 } else { 0.0 }).collect();
-    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 3.0 * z[i]).collect();
+    let jitter = |i: usize| {
+        let h = (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 40;
+        ((h % 1000) as f64 / 1000.0 - 0.5) * noise
+    };
+    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 3.0 * z[i] + jitter(i)).collect();
     let cols = vec![
         OwnedColumn::Float64(
             Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
@@ -689,7 +701,10 @@ fn bootstrap_refute_contains_original_ate() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/validate/refuters/expected.json"))
             .unwrap();
-    let (data, estimand, _) = toy_confounded();
+    // A noisy outcome: with the exactly linear toy data every refit returns 2 to within a
+    // few ulps, so the bootstrap interval is ~1e-14 wide and whether it contains the
+    // original estimate is decided by platform rounding (it did not on Linux CI).
+    let (data, estimand, _) = toy_confounded_with_noise(1.0);
     let mut est = LinearAdjustmentAte::new();
     est.bootstrap_replicates = 0;
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));

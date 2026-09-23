@@ -23,10 +23,11 @@
 #                      records that do not carry it. Any other reference, and
 #                      any stale name here, fails `calibration_facets.py check`.
 #   testmod <path>     A reviewed file whose inline `#[cfg(test)] mod name { ... }`
-#                      blocks hold unit-test scaffolding, not measurement: an edit
-#                      confined to them is not a change to the surface. No record's
-#                      test or dgp may live in the file; `calibration_facets.py
-#                      check` refuses one that does, and a suite file.
+#                      blocks hold unit-test scaffolding, not measurement (or that
+#                      is itself a `#[cfg(test)] mod name;` file): an edit confined
+#                      to them is not a change to the surface. No record's test or
+#                      dgp may live in the file; `calibration_facets.py check`
+#                      refuses one that does, and a suite file.
 #
 # Cargo.toml / Cargo.lock are compared with workspace version numbers removed:
 # a release bump is not interval theory, but a feature, profile or external
@@ -275,3 +276,4 @@ core crates/antecedent-learn-burn/
 # ---- files whose inline unit tests are scaffolding, not measurement ---------
 testmod crates/antecedent-prob/src/hmc.rs
 testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
+testmod crates/antecedent-validate/src/tests.rs
