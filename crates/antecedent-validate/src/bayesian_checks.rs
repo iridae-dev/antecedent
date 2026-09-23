@@ -2125,18 +2125,33 @@ mod tests {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn sbc_conjugate_gaussian_ranks_are_uniform() {
+            use antecedent_prob::InvGammaPrior;
             let (data, estimand, query) = toy();
+            // SBC needs a residual-variance prior with a finite mean to simulate from
+            // (an inverse-gamma shape > 1, or a known variance): the weakly informative
+            // default (InvGamma(1e-3, 1e-3)) has neither, so this test supplies one
+            // explicitly instead of the isotropic prior_scale shorthand.
+            let mut prior = PriorSet {
+                specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                    3, 5.0,
+                ))],
+                contrast: None,
+                categorical: Vec::new(),
+                restrictions: Vec::new(),
+            };
+            prior.push(PriorSpec::ResidualInvGamma(InvGammaPrior { shape: 3.0, scale: 2.0 }));
             let bayes = BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 300,
                 seed: 11,
-                prior_scale: 5.0,
+                prior: Some(prior),
                 ..BayesianGComputationAte::new()
             };
             let prep = bayes.prepare(&data, &estimand, &query).unwrap();
             let mut ws = BayesianGCompWorkspace::default();
             let ctx = ExecutionContext::for_tests(1);
-            let sbc = SimulationBasedCalibration { n_reps: 200, n_draws: 300, seed: 42 };
+            // n_draws + 1 must be a multiple of the 10 rank bins (SimulationBasedCalibration::check).
+            let sbc = SimulationBasedCalibration { n_reps: 200, n_draws: 299, seed: 42 };
             let report = sbc
                 .check(
                     &bayes,
