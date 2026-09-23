@@ -1403,14 +1403,17 @@ mod tests {
             offsets: None,
         };
         let mut ws = LaplaceWorkspace::default();
-        let fit_opts = BayesFitOptions { n_draws: 1000, seed: 17, max_iter: 50, grad_tol: 1e-8 };
+        let fit_opts = BayesFitOptions { n_draws: 2000, seed: 17, max_iter: 50, grad_tol: 1e-8 };
         let conj = fit_conjugate_gaussian(design, &prior, &fit_opts, &mut ws).unwrap();
+        // 1000 warmup / step 0.04 was refused by the R-hat gate for 10 of 500 seeds, so this
+        // passed only on its fixed seed and flipped on Linux CI (rhat=1.0107). The schedule of
+        // the sibling test above (1500 warmup, step 0.03, 2000 draws) is refused for none of 500.
         let hmc = HmcOptions {
             n_chains: 4,
-            n_warmup: 1000,
-            leapfrog_steps: 15,
-            step_size: 0.04,
-            target_accept: 0.8,
+            n_warmup: 1500,
+            leapfrog_steps: 16,
+            step_size: 0.03,
+            target_accept: 0.85,
             mass: 1.0,
             adapt_metric: false,
         };
