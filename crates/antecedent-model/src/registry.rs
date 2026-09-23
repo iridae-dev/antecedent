@@ -763,19 +763,37 @@ fn oof_linear_residuals(
 }
 
 /// Free parameters of a fitted mechanism, for the complexity penalty.
+///
+/// A basis expansion's own extra terms are *not* charged beyond what its
+/// plain (non-expanded) counterpart already pays, for the same reason a
+/// [`MechanismSlot::GaussianProcess`]'s kernel is not charged for its
+/// effectively unbounded flexibility: both are scored out-of-fold, on rows
+/// that never saw the expansion's fit, so the held-out log-likelihood already
+/// prices however much of that flexibility is real signal versus noise.
+/// Charging a further `k ln n / 2n` per expansion term double-counts that
+/// cost — it stacks a training-sample complexity penalty on top of a
+/// criterion whose entire purpose is to measure generalization directly —
+/// and for a basis with many terms relative to `n` the stacked penalty can
+/// exceed the genuine held-out log-likelihood gain of following real
+/// curvature, so the expansion loses to a plainer family even when it
+/// predicts held-out rows measurably better. `LinearBasis` and
+/// `DiscreteBasis` are therefore charged exactly what `LinearGaussian` and
+/// `Discrete` charge a fit over the same parents — the same handful of
+/// nuisance parameters (an intercept and a noise scale, or one weight per
+/// non-reference category) every family in the comparison carries regardless
+/// of richness — so an expansion's basis size cannot tilt the comparison
+/// either way; only the difference in held-out fit does.
 fn parameter_count(slot: &MechanismSlot, n_parents: usize) -> f64 {
     let p = n_parents;
     let count = match slot {
         MechanismSlot::LinearGaussian { .. }
         | MechanismSlot::HierarchicalLinear { .. }
-        | MechanismSlot::Bvar { .. } => p + 2,
-        MechanismSlot::LinearBasis { basis, .. } => basis.n_terms() + 2,
+        | MechanismSlot::Bvar { .. }
+        | MechanismSlot::LinearBasis { .. } => p + 2,
         MechanismSlot::Discrete { support, logit_coeffs, .. } => {
             (support.len().saturating_sub(1)) * if logit_coeffs.is_some() { 1 + p } else { 1 }
         }
-        MechanismSlot::DiscreteBasis { support, basis, .. } => {
-            support.len().saturating_sub(1) * (1 + basis.n_terms())
-        }
+        MechanismSlot::DiscreteBasis { support, .. } => (support.len().saturating_sub(1)) * (1 + p),
         MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => p + 1 + 4,
         MechanismSlot::LinearGaussianStateSpace { .. } => 4,
         // length scale, noise and the prior mean; the interpolant's effective
