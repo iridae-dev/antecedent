@@ -549,10 +549,13 @@ def _resolves(spec: str) -> bool:
     return "macro_rules!" in text and bool(re.search(rf"\b{re.escape(fn)}\b", text))
 
 
-def _band(nominal: float, replicates: int) -> tuple[float, float, float | None]:
+def _band(
+    nominal: float, replicates: int
+) -> tuple[float, float, float | None, float | None]:
     mcse = (nominal * (1.0 - nominal) / max(replicates, 1)) ** 0.5
     floor = nominal - 2.0 * mcse if replicates >= 1000 else None
-    return (max(nominal - 3.0 * mcse, 0.0), min(nominal + 3.0 * mcse, 1.0), floor)
+    ceiling = nominal + 2.0 * mcse if replicates >= 1000 else None
+    return (max(nominal - 3.0 * mcse, 0.0), min(nominal + 3.0 * mcse, 1.0), floor, ceiling)
 
 
 cr = root / "parity/coverage_records.toml"
@@ -640,7 +643,7 @@ if cr.is_file():
         boundary = bool(rec["boundary"])
 
         def nominal_pass(point: dict) -> bool:
-            lo, hi, floor = _band(nominal, int(point["replicates"]))
+            lo, hi, floor, ceiling = _band(nominal, int(point["replicates"]))
             observed = float(point["observed"])
             # The harness reruns a point that shortfalls the level by more than
             # RECHECK_SHORTFALL at fewer than PRECISION_N_SIM replicates at
@@ -648,7 +651,14 @@ if cr.is_file():
             # that far under the level is unresolved for every role, not a pass.
             if int(point["replicates"]) < 1000 and observed < nominal - 0.02:
                 return False
-            return lo <= observed <= hi and (floor is None or observed >= floor)
+            if floor is not None and observed < floor:
+                return False
+            # Symmetric counterpart of the floor: a conservative interval that
+            # over-covers must fail too, once measured precisely (see
+            # precision_ceiling in crates/antecedent/tests/common/calibration.rs).
+            if ceiling is not None and observed > ceiling:
+                return False
+            return lo <= observed <= hi
 
         # The measured range is the sample-size grid: every point present, in
         # order, strictly growing, and the row's summary exactly what
