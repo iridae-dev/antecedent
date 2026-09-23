@@ -773,10 +773,16 @@ CALIBRATION_ESTIMATOR_TOKENS: list[tuple[str, str]] = [
 
 
 def estimators_from_calibration(record_ids: list[str]) -> list[str]:
-    """Wire-ids implied by unambiguous tokens in calibration record ids."""
+    """Wire-ids implied by unambiguous tokens in calibration record ids.
+
+    Only gated and named-boundary records are licensing evidence. A
+    `reported_level` record is an unasserted diagnostic that a cell may cite,
+    but it never licenses the estimator it measures.
+    """
+    roles = {r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []}
     found: set[str] = set()
     for cid in record_ids:
-        if not isinstance(cid, str):
+        if not isinstance(cid, str) or roles.get(cid) == "reported_level":
             continue
         for token, wire in CALIBRATION_ESTIMATOR_TOKENS:
             if token in cid:
