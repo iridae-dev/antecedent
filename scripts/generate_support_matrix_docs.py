@@ -545,6 +545,32 @@ def rust_f64(value: float) -> str:
     return text if ("." in text or "e" in text or "inf" in text or "nan" in text) else text + ".0"
 
 
+def attesting_record_ids() -> list[str]:
+    """Ids of the coverage records that attest the tree this is generated from.
+
+    The same assessment as `scripts/gate_calibration_attestation.sh` and
+    `collect_coverage_records.py --keep-attested`: a record attests while none of
+    its facets differs between its `calibration_sha` and the tree, or a valid
+    replay waiver covers the change. The runtime reads this list to decide whether
+    a matching record may report `calibrated`. It fails closed: a commit this clone
+    cannot resolve, or no git at all, leaves a record out.
+    """
+    import calibration_facets as facets
+
+    try:
+        registry = facets.load_records(COVERAGE_OUT.parents[3] / "parity/coverage_records.toml")
+        surface = facets.load_surface()
+        ids: set[str] = set()
+        for assessment in facets.assess(surface, registry, registry=registry):
+            stale = {rec["id"] for rec in assessment.stale}
+            if assessment.resolved:
+                ids |= {rec["id"] for rec in assessment.records if rec["id"] not in stale}
+        return sorted(ids)
+    except (OSError, subprocess.SubprocessError, SystemExit) as exc:
+        print(f"warning: no record is marked attesting ({exc})", file=sys.stderr)
+        return []
+
+
 def render_coverage_records() -> str:
     """`crates/antecedent-io/src/coverage_records_data.rs` from the TOML.
 
@@ -612,6 +638,7 @@ def render_coverage_records() -> str:
         for variant, name in methods
     )
     block = ",\n".join(items) if items else ""
+    attesting = "".join(f'    "{rust_escape(rid)}",\n' for rid in attesting_record_ids())
     return f"""//! Generated from `parity/coverage_records.toml` by
 //! `scripts/generate_support_matrix_docs.py`. Do not edit.
 //!
@@ -673,6 +700,13 @@ pub struct CoverageGridPoint {{
 pub static RECORDS: &[CoverageRecord] = &[
 {block}
 ];
+
+/// Ids of the records in [`RECORDS`] that attest the tree this file was generated
+/// from (`scripts/calibration_facets.py`: no facet drifted since the record's
+/// `calibration_sha`, or a valid replay waiver covers it). Regenerated with the
+/// registry; a `calibrated` slot requires its governing record to be listed.
+pub static ATTESTING_RECORD_IDS: &[&str] = &[
+{attesting}];
 
 pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&'static str>)] = &[
 {reason_items}

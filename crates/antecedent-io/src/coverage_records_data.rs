@@ -19991,6 +19991,13 @@ pub static RECORDS: &[CoverageRecord] = &[
     }
 ];
 
+/// Ids of the records in [`RECORDS`] that attest the tree this file was generated
+/// from (`scripts/calibration_facets.py`: no facet drifted since the record's
+/// `calibration_sha`, or a valid replay waiver covers it). Regenerated with the
+/// registry; a `calibrated` slot requires its governing record to be listed.
+pub static ATTESTING_RECORD_IDS: &[&str] = &[
+];
+
 pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&'static str>)] = &[
     (antecedent_core::IntervalMethod::AnalyticSe, None),
     (antecedent_core::IntervalMethod::BootstrapSe, None),
