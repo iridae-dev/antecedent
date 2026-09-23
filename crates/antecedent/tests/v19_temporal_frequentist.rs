@@ -96,7 +96,24 @@ const SHORT_SERIES: &str = "estimate.temporal.circular_block_se.short_series";
 struct Coverage {
     tallies: Vec<CoverageTally>,
     reported: Vec<CoverageTally>,
-    warned: u32,
+    /// A plain per-replicate flag counter, not a coverage record: `record`s an
+    /// always-in-range interval when the warning fires and an always-out-of-range
+    /// one when it does not, purely to reuse CoverageTally's extension-safe
+    /// covered/attempts bookkeeping (see CoverageTally::persist). A raw `u32`
+    /// counter here would only count an extending recheck's own new replicates
+    /// while `n_sim()` reports the full count, undercounting the warning rate.
+    warned: CoverageTally,
+}
+
+/// A short-series warning counter keyed by `test`, extension-safe across a
+/// recheck (see [`Coverage::warned`]).
+fn warn_tally(test: &'static str) -> CoverageTally {
+    CoverageTally::new(format!("{test} short-series-warned"), 0.95)
+}
+
+/// Record one replicate's short-series warning flag.
+fn record_warned(warned: &mut CoverageTally, fired: bool) {
+    warned.record(Some((0.0, 1.0)), if fired { 0.5 } else { 2.0 });
 }
 
 /// The gated 90% tally and the unasserted reported-level tally of the headline
@@ -129,7 +146,7 @@ fn effect_coverage(
         headline_tallies(test, "crates/antecedent/tests/common/driven_dgp.rs::pulse_series");
     let two_step = query.horizon_steps >= 2;
     let mut spread = Spread::default();
-    let mut warned = 0;
+    let mut warned = warn_tally(test);
     let runs = map_replicates(n_sim(), |rep| {
         run_study(
             pulse_series(s, u32::try_from(rep).unwrap(), two_step),
@@ -150,8 +167,9 @@ fn effect_coverage(
         boot.record(interval, truth);
         reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), truth);
         spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
-        warned += u32::from(has_diagnostic(result, SHORT_SERIES));
+        record_warned(&mut warned, has_diagnostic(result, SHORT_SERIES));
     }
+    warned.persist();
     spread.report(&format!("{what} [{}]", s.label), truth);
     Coverage { tallies: vec![boot], reported: vec![reported], warned }
 }
@@ -159,15 +177,40 @@ fn effect_coverage(
 /// In-assumption gate: nominal coverage must hold (the short-series warning may
 /// or may not fire; its rate is reported).
 fn gate(coverage: Coverage) {
-    eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
+    eprintln!(
+        "short_series warnings: {}/{}",
+        coverage.warned.covered(),
+        coverage.warned.attempts()
+    );
     assert_all(&coverage.tallies.iter().collect::<Vec<_>>());
     for tally in &coverage.reported {
         tally.emit();
     }
 }
 
+/// As [`gate_at`], but for a `Coverage` with more than one tally (e.g.
+/// `mediation_coverage`'s Total / Direct / Mediated), each asserted against
+/// its own per-grid-point measured band instead of sharing one.
+fn gate_at_each(coverage: Coverage, measured: [[Option<f64>; GRID_POINTS]; 3]) {
+    eprintln!(
+        "short_series warnings: {}/{}",
+        coverage.warned.covered(),
+        coverage.warned.attempts()
+    );
+    for (tally, measured) in coverage.tallies.iter().zip(measured) {
+        tally.assert_boundary_at(measured);
+    }
+    for tally in &coverage.reported {
+        tally.emit();
+    }
+}
+
 fn gate_at(coverage: Coverage, measured: [Option<f64>; 3]) {
-    eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
+    eprintln!(
+        "short_series warnings: {}/{}",
+        coverage.warned.covered(),
+        coverage.warned.attempts()
+    );
     for tally in &coverage.tallies {
         tally.assert_boundary_at(measured);
     }
@@ -181,7 +224,11 @@ fn gate_at(coverage: Coverage, measured: [Option<f64>; 3]) {
 /// every contrast is asserted against the band around `measured` (one value per
 /// grid point), and the short-series warning rate is reported.
 fn boundary_gate(coverage: Coverage, measured: [f64; GRID_POINTS]) {
-    eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
+    eprintln!(
+        "short_series warnings: {}/{}",
+        coverage.warned.covered(),
+        coverage.warned.attempts()
+    );
     for tally in &coverage.tallies {
         tally.assert_boundary_at(measured.map(Some));
     }
@@ -198,7 +245,9 @@ fn boundary_gate(coverage: Coverage, measured: [f64; GRID_POINTS]) {
 /// sample size the design names; at the other grid points its rate is
 /// reported, and coverage is recorded as the same named boundary.
 fn boundary(coverage: Coverage) {
-    let warned = coverage.warned;
+    let warned = &coverage.warned;
+    let warned_covered = warned.covered();
+    let warned_attempts = warned.attempts();
     for tally in &coverage.tallies {
         if tally.record_interval().is_some() {
             tally.emit_named_boundary();
@@ -207,21 +256,19 @@ fn boundary(coverage: Coverage) {
         let (lo, hi) = common::calibration::coverage_band(n_sim(), 0.9);
         eprintln!(
             "calibration-boundary {tally:?}: coverage={:.3} band=[{lo:.3}, {hi:.3}] \
-             mean_length={:.4} (not gated; short_series warnings {warned}/{})",
+             mean_length={:.4} (not gated; short_series warnings {warned_covered}/{warned_attempts})",
             tally.rate(),
-            tally.mean_length(),
-            n_sim()
+            tally.mean_length()
         );
     }
-    eprintln!("short_series warnings: {warned}/{}", n_sim());
+    eprintln!("short_series warnings: {warned_covered}/{warned_attempts}");
     for tally in &coverage.reported {
         tally.emit();
     }
     if grid_point() == BASE_GRID_POINT && !smoke() {
         assert!(
-            warned * 20 >= n_sim() * 19,
-            "boundary design must carry the short-series warning: {warned}/{}",
-            n_sim()
+            warned_covered * 20 >= warned_attempts * 19,
+            "boundary design must carry the short-series warning: {warned_covered}/{warned_attempts}"
         );
     }
 }
@@ -243,7 +290,7 @@ fn headline_coverage(
 ) -> Coverage {
     let (mut boot, mut reported) = headline_tallies(test, dgp);
     let mut spread = Spread::default();
-    let mut warned = 0;
+    let mut warned = warn_tally(test);
     let runs = map_replicates(n_sim(), |rep| {
         let rep_seed = seed + rep;
         run_study(
@@ -264,8 +311,9 @@ fn headline_coverage(
         boot.record(interval, truth);
         reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), truth);
         spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
-        warned += u32::from(has_diagnostic(result, SHORT_SERIES));
+        record_warned(&mut warned, has_diagnostic(result, SHORT_SERIES));
     }
+    warned.persist();
     spread.report(&format!("{what} [{label}]"), truth);
     Coverage { tallies: vec![boot], reported: vec![reported], warned }
 }
@@ -344,7 +392,7 @@ fn mediation_coverage_on(
     let mut direct = CoverageTally::new(format!("temporal mediation Direct [{label}]"), 0.9);
     let (mut mediated, mut reported) = headline_tallies(test, dgp);
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
-    let mut warned = 0;
+    let mut warned = warn_tally(test);
     let runs = map_replicates(n_sim(), |rep| {
         run_study(
             data(u32::try_from(rep).unwrap()),
@@ -366,7 +414,7 @@ fn mediation_coverage_on(
         };
         let points = &slice.estimate;
         assert!(result.estimate.se_analytic.is_nan(), "iid analytic SE must be withheld");
-        warned += u32::from(has_diagnostic(result, SHORT_SERIES));
+        record_warned(&mut warned, has_diagnostic(result, SHORT_SERIES));
         total.record(normal_interval(points.total.unwrap(), block.total, Z90), C + A * B);
         direct.record(normal_interval(points.direct.unwrap(), block.direct, Z90), C);
         let interval = normal_interval(points.mediated.unwrap(), block.mediated, Z90);
@@ -388,6 +436,7 @@ fn mediation_coverage_on(
     {
         spread.report(&format!("temporal mediation {name} [{label}]"), truth);
     }
+    warned.persist();
     Coverage { tallies: vec![total, direct, mediated], reported: vec![reported], warned }
 }
 
@@ -463,7 +512,10 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
     for (spread, (name, truth)) in spreads.iter().zip(truths) {
         spread.report(&format!("temporal mediation {name} confounded [{label}]"), truth);
     }
-    Coverage { tallies, reported: vec![reported], warned: 0 }
+    // Never checked against the short-series threshold (only gate() reads this
+    // Coverage, which prints the rate but never asserts it), so an empty,
+    // never-recorded tally is fine here.
+    Coverage { tallies, reported: vec![reported], warned: warn_tally(test) }
 }
 
 #[test]
@@ -502,12 +554,18 @@ macro_rules! effect_boundary_gate {
 }
 
 macro_rules! mediation_gate {
-    ($name:ident, $scenario:expr) => {
+    ($name:ident, $scenario:expr $(, $measured:expr)?) => {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
-            gate(mediation_coverage(stringify!($name), $scenario));
+            mediation_gate!(@run stringify!($name), $scenario $(, $measured)?);
         }
+    };
+    (@run $name:expr, $scenario:expr, $measured:expr) => {
+        gate_at_each(mediation_coverage($name, $scenario), $measured);
+    };
+    (@run $name:expr, $scenario:expr) => {
+        gate(mediation_coverage($name, $scenario));
     };
 }
 
@@ -633,7 +691,11 @@ effect_gate!(
 );
 
 mediation_gate!(temporal_dag_mediation_iid_n160_nominal_90_coverage, IID_160);
-mediation_gate!(temporal_dag_mediation_ar05_n160_nominal_90_coverage, AR05_160);
+mediation_gate!(
+    temporal_dag_mediation_ar05_n160_nominal_90_coverage,
+    AR05_160,
+    [[None, None, None], [None, None, None], [None, Some(0.914), None]]
+);
 mediation_gate!(temporal_dag_mediation_ar09_n400_nominal_90_coverage, AR09_400);
 mediation_gate!(temporal_dag_mediation_ar05_n60_nominal_90_coverage, AR05_60);
 
@@ -663,8 +725,20 @@ effect_gate!(
     BETA,
     0
 );
-mediation_gate!(temporal_dag_mediation_ar09_n60_nominal_90_coverage, AR09_60);
-mediation_gate!(temporal_dag_mediation_ar09_n160_nominal_90_coverage, AR09_160);
+mediation_gate!(
+    temporal_dag_mediation_ar09_n60_nominal_90_coverage,
+    AR09_60,
+    [
+        [Some(0.914), Some(0.915), Some(0.918)],
+        [Some(0.924), Some(0.928), None],
+        [Some(0.931), Some(0.926), Some(0.929)],
+    ]
+);
+mediation_gate!(
+    temporal_dag_mediation_ar09_n160_nominal_90_coverage,
+    AR09_160,
+    [[None, None, None], [None, None, None], [Some(0.928), None, Some(0.914)]]
+);
 
 /// Multi-step Sustained over lags 2..=1 on `fixtures::confounded_series` with its
 /// generating DAG (`fixtures::confounded_dag`, truth `B1 + B2`): sequential
