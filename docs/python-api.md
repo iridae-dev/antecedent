@@ -5,7 +5,9 @@ New to Antecedent? Start with the [Python quickstart](python-workflow.md). For c
 <!-- pdoc adds this sibling directory after MkDocs builds the narrative. -->
 <strong><a href="../python/antecedent.html">Browse the Python API</a></strong>
 
-Read the Docs builds this reference from the same source checkout as the guide. The link stays within the documentation version you are reading.
+Read the Docs builds this reference from the matching Antecedent release (and
+falls back to the checked-out source only before that release reaches PyPI).
+The link stays within the documentation version you are reading.
 
 To generate a local reference for the installed package, run:
 

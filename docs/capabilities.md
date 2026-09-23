@@ -6,7 +6,7 @@ mental model or a promise that every combination can run. Read
 licensed execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
 is the public **license** for analysis cells. Inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](../parity/compiler.toml)
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/2.0/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).

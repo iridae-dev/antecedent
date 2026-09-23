@@ -195,7 +195,7 @@ results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb an external CATE.
 
 A worked handoff is in
-[`examples/python/econml_cate_handoff.py`](../examples/python/econml_cate_handoff.py):
+[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/2.0/examples/python/econml_cate_handoff.py):
 Antecedent identifies and estimates ATE, then the caller optionally fits
 EconML `LinearDML` on `spec.columns(data)` when `econml` is installed.
 

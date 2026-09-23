@@ -14,7 +14,7 @@ Use the same small backdoor SCM in both libraries:
   selection on `z`)
 
 The runnable recipe is
-[`examples/python/dowhy_handoff.py`](../examples/python/dowhy_handoff.py).
+[`examples/python/dowhy_handoff.py`](https://github.com/iridae-dev/antecedent/blob/2.0/examples/python/dowhy_handoff.py).
 `dowhy` is a **soft dependency**: the Antecedent half always runs; the DoWhy
 half is skipped when `dowhy` is not installed.
 

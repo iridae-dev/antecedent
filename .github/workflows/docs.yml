@@ -4,6 +4,9 @@
 name: docs
 
 on:
+  push:
+    branches: [main, "2.0"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -46,6 +49,19 @@ jobs:
 
       - name: Conformance docs
         run: python3 scripts/generate_conformance_docs.py
+
+      - name: Generated documentation is current
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_support_matrix_docs.py
+          git diff --exit-code -- docs/conformance docs/support-matrix.md
+
+      - name: Build narrative site strictly
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-docs.txt
+          mkdocs build --strict --site-dir site
 
       - name: Python API docs (pdoc)
         run: |
