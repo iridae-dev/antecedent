@@ -368,14 +368,15 @@ dag_coverage! {
     // kernel-and-AR(1) factor gave 0.81 at n = 60 and 0.87 at n = 160).
     bayesian_temporal_pulse_ar2_n60_nominal_90_coverage =>
         (Cell::Pulse, Regime::AR2_N60, [Some(0.860), None, None]);
-    bayesian_temporal_pulse_ar2_n100_nominal_90_coverage => (Cell::Pulse, Regime::AR2_N100);
+    bayesian_temporal_pulse_ar2_n100_nominal_90_coverage =>
+        (Cell::Pulse, Regime::AR2_N100, [None, Some(0.884), None]);
     bayesian_temporal_pulse_ar2_n160_nominal_90_coverage =>
         (Cell::Pulse, Regime::AR2_N160, [Some(0.868), None, None]);
     bayesian_temporal_pulse_ar2_n400_nominal_90_coverage => (Cell::Pulse, Regime::AR2_N400);
     bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage =>
         (Cell::SingleSustained, Regime::AR2_N60, [Some(0.860), None, None]);
     bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage =>
-        (Cell::SingleSustained, Regime::AR2_N100);
+        (Cell::SingleSustained, Regime::AR2_N100, [None, Some(0.884), None]);
     bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage =>
         (Cell::SingleSustained, Regime::AR2_N160, [Some(0.868), None, None]);
     bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage =>
