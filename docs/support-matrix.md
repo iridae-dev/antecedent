@@ -43,7 +43,7 @@ Do not read "463 / 3402" as coverage. Read: **463 cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
-Interval calibration of the 463 licensed cells: 289 cite coverage records; 170 have no coverage measurement for their estimator (`estimator_grid_not_measured`); 4 report no interval (`no_interval_reported`). A licensed cell therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
+Interval calibration of the 463 licensed cells: 295 cite coverage records; 164 have no coverage measurement for their estimator (`estimator_grid_not_measured`); 4 report no interval (`no_interval_reported`). A licensed cell therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
