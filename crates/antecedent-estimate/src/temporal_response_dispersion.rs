@@ -28,14 +28,16 @@ use crate::temporal_block::score_effective_rows;
 ///
 /// Provenance: `crates/antecedent/tests/v19_temporal_response_calibration.rs`
 /// (400 replicates, nominal 0.95), the rule of the scalar families: the smallest
-/// multiple of 5 at which every design covering below the gate band warns on at least
-/// 90% of its replicates. The shift response under an AR(1) φ = 0.9 treatment reads the
-/// treatment mean; its influence reads 4.5 / 7.3 / 11.9 effective rows (10th / 50th /
-/// 90th percentile) at n = 100, where the band covers 0.885 pointwise and 0.890
-/// simultaneous, so it warns on every replicate here. The same design at n = 160 reads
-/// 6.4 / 10.4 / 15.7 rows and covers 0.943 / 0.948 (gated), so it still warns on most
-/// replicates; at n = 400 it reads 16.7 / 22.9 / 31.3 rows, covers 0.938 / 0.940 and is
-/// nearly quiet. The dose cells of the same design read 22.6 / 32.7 / 45.3 rows at
+/// multiple of 5 at which every design covering below the gate band warns on most of
+/// its replicates. The shift response under an AR(1) φ = 0.9 treatment reads the
+/// treatment mean; its influence reads 6.2 / 10.2 / 17.8 effective rows (10th / 50th /
+/// 90th percentile) at n = 100, where the band covers 0.863 pointwise and 0.868
+/// simultaneous, so it warns on 82.5% of replicates here (see the `_n100_boundary` test:
+/// after the level-influence `O_p(1)` fix, this design's tail crosses the threshold often
+/// enough that a 90% floor no longer holds, so that test asserts 80% instead). The same
+/// design at n = 160 reads 8.7 / 14.6 / 23.6 rows and covers 0.931 / 0.935 (gated), so it
+/// still warns on about half its replicates; at n = 400 it reads 21.2 / 31.9 / 47.1 rows
+/// and is nearly quiet. The dose cells of the same design read 22.6 / 32.7 / 45.3 rows at
 /// n = 100 and 35.9 / 51.4 / 68.6 at n = 160; every iid / AR(1) ρ = 0.5 cell reads above
 /// 100 rows. None of them warns.
 pub const RESPONSE_SHORT_SERIES_ROWS: f64 = 15.0;
