@@ -42,8 +42,14 @@ pub fn resolve_auto(
     } else {
         None
     };
-    let (factory, diagnostics, _) =
+    let strips_intercept = tree_view.is_some();
+    let (factory, diagnostics, winner) =
         select_auto(task, view, tree_view, TargetView::new(&target), ctx, sparse)?;
+    let factory: Box<dyn LearnerFactory> = if strips_intercept && drops_constant_intercept(winner) {
+        Box::new(DropInterceptFactory { inner: factory })
+    } else {
+        factory
+    };
     Ok((factory, diagnostics))
 }
 
@@ -104,11 +110,7 @@ fn select_auto(
             Err(e) => return Err(e),
         };
         // Match explicit GBT/forest design handling: trees never see a constant intercept.
-        let design = if drops_constant_intercept(spec) {
-            x_tree.unwrap_or(x)
-        } else {
-            x
-        };
+        let design = if drops_constant_intercept(spec) { x_tree.unwrap_or(x) } else { x };
         let oof = cross_fit(factory.as_ref(), design, y, folds, ctx, None)?;
         let loss = match task {
             PredictionTask::Regression => oof.validation.rmse,
@@ -192,14 +194,34 @@ pub fn required_for_auto(task: PredictionTask) -> crate::learner::LearnerCapabil
     cap
 }
 
-/// Tree winner fitted without a constant intercept; predict strips the same column.
+/// Tree winner fitted without a constant intercept; predict and export retain that contract.
 struct DropInterceptPredictor {
     inner: Box<dyn FittedPredictor>,
 }
 
 impl FittedPredictor for DropInterceptPredictor {
     fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
-        self.inner.portable()
+        let mut portable = self.inner.portable()?;
+        portable.columns = portable
+            .columns
+            .checked_add(1)
+            .ok_or(LearnError::Shape { message: "portable prediction columns overflow" })?;
+        match &mut portable.model {
+            crate::PredictionMap::Linear { coefficients, .. } => coefficients.insert(0, 0.0),
+            crate::PredictionMap::Trees { trees, .. } => {
+                for tree in trees {
+                    for node in tree {
+                        if let crate::PredictionNode::Split { feature, .. } = node {
+                            *feature = feature.checked_add(1).ok_or(LearnError::Shape {
+                                message: "portable tree feature index overflow",
+                            })?;
+                        }
+                    }
+                }
+            }
+        }
+        portable.validate()?;
+        Ok(portable)
     }
 
     fn predict(
@@ -220,6 +242,50 @@ impl FittedPredictor for DropInterceptPredictor {
 
     fn provenance(&self) -> LearnerProvenance {
         self.inner.provenance()
+    }
+}
+
+/// A selected tree factory whose fit input includes a generated leading intercept.
+///
+/// `resolve_auto` exposes the selected factory publicly, so this wrapper must make its
+/// fitting behavior agree with the intercept-free OOF comparison used to select it.
+struct DropInterceptFactory {
+    inner: Box<dyn LearnerFactory>,
+}
+
+impl LearnerFactory for DropInterceptFactory {
+    fn task(&self) -> PredictionTask {
+        self.inner.task()
+    }
+
+    fn capabilities(&self) -> crate::LearnerCapabilities {
+        self.inner.capabilities()
+    }
+
+    fn fit(
+        &self,
+        x: DesignView<'_>,
+        y: TargetView<'_>,
+        weights: Option<&[f64]>,
+        ctx: &ExecutionContext,
+    ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+        if y.len() != x.physical_nrows() {
+            return Err(LearnError::Shape { message: "target length != physical rows" });
+        }
+        if weights.is_some_and(|w| w.len() != x.physical_nrows()) {
+            return Err(LearnError::Shape { message: "weights length != physical rows" });
+        }
+        let (values, n, p) = crate::dense::materialize_dense_colmajor(x)?;
+        if p <= 1 || !first_col_is_exact_ones(values.as_ref(), n) {
+            return Err(LearnError::Shape {
+                message: "selected tree requires a leading constant intercept column",
+            });
+        }
+        let view = DesignView::from_column_major(&values[n..], n, p - 1)?;
+        let target = crate::dense::gather_physical(y.values(), x, n)?;
+        let weights = weights.map(|w| crate::dense::gather_physical(w, x, n)).transpose()?;
+        let fitted = self.inner.fit(view, TargetView::new(&target), weights.as_deref(), ctx)?;
+        Ok(Box::new(DropInterceptPredictor { inner: fitted }))
     }
 }
 
@@ -349,23 +415,75 @@ mod audit_tests {
             .fit(view, TargetView::new(&y), None, &ctx)
             .unwrap();
         assert_eq!(auto.provenance().spec, "gradient_boosted_trees");
-        let explicit = resolve_for(
-            LearnerSpec::GradientBoostedTrees(SHALLOW_GBT),
-            PredictionTask::Regression,
-        )
-        .unwrap()
-        .fit(
-            DesignView::from_column_major(&x[n..], n, 2).unwrap(),
-            TargetView::new(&y),
-            None,
-            &ctx,
-        )
-        .unwrap();
+        let explicit =
+            resolve_for(LearnerSpec::GradientBoostedTrees(SHALLOW_GBT), PredictionTask::Regression)
+                .unwrap()
+                .fit(
+                    DesignView::from_column_major(&x[n..], n, 2).unwrap(),
+                    TargetView::new(&y),
+                    None,
+                    &ctx,
+                )
+                .unwrap();
         let mut pa = vec![0.0; n];
         let mut pe = vec![0.0; n];
         auto.predict(view, &mut pa, &ctx).unwrap();
-        explicit.predict(DesignView::from_column_major(&x[n..], n, 2).unwrap(), &mut pe, &ctx).unwrap();
+        explicit
+            .predict(DesignView::from_column_major(&x[n..], n, 2).unwrap(), &mut pe, &ctx)
+            .unwrap();
         let mae = (0..n).map(|i| (pa[i] - pe[i]).abs()).sum::<f64>() / n as f64;
         assert!(mae < 0.15, "auto GBT with intercept strip must match explicit GBT; mae={mae}");
+
+        let portable = auto.portable().unwrap();
+        assert_eq!(portable.columns, 3);
+        let mut pp = vec![0.0; n];
+        portable.predict(view, &mut pp, &ctx).unwrap();
+        let portable_mae = (0..n).map(|i| (pa[i] - pp[i]).abs()).sum::<f64>() / n as f64;
+        assert!(portable_mae < 1e-12, "portable Auto tree must retain its intercept schema");
+    }
+
+    #[cfg(feature = "ml-gbdt")]
+    #[test]
+    fn resolved_auto_tree_factory_keeps_its_intercept_contract() {
+        let n = 80usize;
+        let mut x = vec![0.0; n * 3];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let a = if i % 2 == 0 { 1.0 } else { -1.0 };
+            let b = if (i / 2) % 2 == 0 { 1.0 } else { -1.0 };
+            x[i] = 1.0;
+            x[n + i] = a;
+            x[2 * n + i] = b;
+            y[i] = a * b;
+        }
+        let view = DesignView::from_column_major(&x, n, 3).unwrap();
+        let ctx = ExecutionContext::for_tests(10);
+        let (factory, diagnostics) =
+            resolve_auto(PredictionTask::Regression, view, TargetView::new(&y), &ctx).unwrap();
+        assert_eq!(diagnostics.winner, Some("gradient_boosted_trees"));
+        let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
+        let mut actual = vec![0.0; n];
+        fitted.predict(view, &mut actual, &ctx).unwrap();
+        let expected =
+            resolve_for(LearnerSpec::GradientBoostedTrees(SHALLOW_GBT), PredictionTask::Regression)
+                .unwrap()
+                .fit(
+                    DesignView::from_column_major(&x[n..], n, 2).unwrap(),
+                    TargetView::new(&y),
+                    None,
+                    &ctx,
+                )
+                .unwrap();
+        let mut expected_predictions = vec![0.0; n];
+        expected
+            .predict(
+                DesignView::from_column_major(&x[n..], n, 2).unwrap(),
+                &mut expected_predictions,
+                &ctx,
+            )
+            .unwrap();
+        let mae =
+            (0..n).map(|i| (actual[i] - expected_predictions[i]).abs()).sum::<f64>() / n as f64;
+        assert!(mae < 0.15, "resolved Auto tree must fit the intercept-free design; mae={mae}");
     }
 }
