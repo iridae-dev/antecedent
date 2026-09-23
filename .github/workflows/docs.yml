@@ -45,7 +45,11 @@ jobs:
           sccache: "true"
 
       - name: Rustdoc
-        run: cargo doc -p antecedent --no-deps
+        # maturin-action enables sccache for the wheel build, but its wrapper is
+        # not available to later steps. Rustdoc must use the installed rustc.
+        run: |
+          unset RUSTC_WRAPPER
+          cargo doc -p antecedent --no-deps
 
       - name: Conformance docs
         run: python3 scripts/generate_conformance_docs.py
