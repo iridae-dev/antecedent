@@ -102,6 +102,8 @@ algorithm exists ≠ this causal claim is licensed
 
 We believe this approach is critical when causal inference is built to exist beyond the notebook as part of composed software systems and agentic workflows.
 
+Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 463 licensed cells, 164 have no coverage measurement for their estimator and 4 report no interval (counts in the [support matrix](docs/support-matrix.md)).
+
 For the full 2.0 change summary and migration-impacting changes, read the [release notes](docs/release-notes/v2.0.0.md) and [changelog](CHANGELOG.md).
 
 ## License

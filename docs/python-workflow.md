@@ -75,7 +75,7 @@ Read identification, data support, uncertainty, and assumptions together. Calibr
 
 An identified effect or a passing diagnostic does not establish calibration.
 
-Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution. Custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 
 Every reported interval states its calibration: `calibrated` only when a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code; `scope_not_assessed` when a record matches but the execution is outside its scope, the record is a boundary, or the record is stale or non-attesting; `unavailable` with a reason code when no record exists.
 
