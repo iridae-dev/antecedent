@@ -301,8 +301,8 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 
 ## Release candidates
 
-For 1.11, the independent [practitioner acceptance suite](practitioner-acceptance.md)
-is an additional cut requirement. Run its Python and Rust jobs and both scale
+The independent [practitioner acceptance suite](practitioner-acceptance.md)
+is an additional cut requirement for this 2.0.0 tree. Run its Python and Rust jobs and both scale
 sizes against the candidate, and close its leftover ledger. It remains outside
 `gate_release.sh`; passing the commands below alone does not discharge S.
 

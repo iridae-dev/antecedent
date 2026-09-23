@@ -2,20 +2,15 @@
 
 ## Python environment
 
-These examples use Antecedent 1.11 and Python 3.11 or later.
-Install the package and notebook tools from PyPI:
+These examples use Antecedent from PyPI and Python 3.11 or later:
 
 ```bash
 python -m pip install antecedent pandas matplotlib ipykernel jupyterlab
 ```
 
-Download an example notebook and open it with `jupyter lab`. If you have the
-repository locally, run `jupyter lab examples/notebooks` from its root.
-Choose the kernel for the Python environment where you installed Antecedent.
+Download an example notebook and open it with `jupyter lab`. If you have the repository locally, run `jupyter lab examples/notebooks` from its root. Choose the kernel for the Python environment where you installed Antecedent.
 
-For Google Colab, **Runtime → Run all**. The first code cell installs
-`antecedent>=1.11.0,<1.12` from PyPI when the package is missing. If you
-upgrade after importing it, restart the kernel or Colab session.
+For Google Colab, **Runtime → Run all**. If you upgrade after importing Antecedent, restart the kernel or Colab session.
 
 ## Start with one analysis
 
@@ -25,19 +20,13 @@ Run the [first analysis](python/analysis_workflow.py):
 python examples/python/analysis_workflow.py
 ```
 
-It creates a simulated experiment with a treatment effect of 2, estimates that
-effect, and then repeats the analysis on updated data. It also shows how to save
-and reload the result. Read the [step-by-step guide](../docs/python-workflow.md)
-for installation, expected output, and explanations.
+It creates a simulated experiment with a treatment effect of 2, estimates that effect, and then repeats the analysis on updated data. It also shows how to save and reload the result. Read the [step-by-step guide](../docs/python-workflow.md) for installation, expected output, and explanations.
 
-Choose an example below by the question you want to answer. All datasets are
-simulated. The assertions check the examples; they do not validate assumptions
-for your own data.
+Choose an example below by the question you want to answer. All datasets are simulated. The assertions check the examples; they do not validate assumptions for your own data.
 
 ## Notebooks
 
-See Antecedent on a real decision. Open a notebook locally or in Google Colab
-after the setup above. Run all cells to generate the tables, plots, and reports in your environment.
+See Antecedent on a real decision. Open a notebook locally or in Google Colab after the setup above. Run all cells to generate the tables, plots, and reports in your environment.
 
 ### [Paid-search attribution](notebooks/marketing_channel_structural_uncertainty.ipynb)
 
@@ -97,7 +86,4 @@ cargo run -p antecedent --example <name>
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |
 
-The three transport scripts need Antecedent 2.0 (in preparation); the 1.11
-release does not have `antecedent.transport.Transport`. They share one workflow and differ only in evidence.
-Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`.
-Exact and complementary-source examples make no sampling-coverage claim.
+The three transport scripts use `antecedent.transport.Transport`, which is part of this 2.0.0 tree and is absent from the published 1.11 release. Callers moving 1.11 names should read the [transport migration](../docs/migrations/2.0-transport-day1.md). The scripts share one workflow and differ only in evidence. Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`. Exact and complementary-source examples make no sampling-coverage claim.

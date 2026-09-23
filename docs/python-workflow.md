@@ -1,9 +1,6 @@
 # Your first Python analysis
 
-Estimate an effect, check the answer, and reuse the analysis on new data.
-This guide uses Antecedent 1.11 except for the [transport](#transport-the-same-way)
-section, which needs 2.0 (in preparation; the 1.11 release has no
-`antecedent.transport.Transport`).
+Estimate an effect, check the answer, and reuse the analysis on new data. This guide is the 2.0.0 analysis: a graph, a query, `analyze`, then `answer.kind`, inspection, and calibration. Transport uses those same verbs. Callers moving names from the published 1.11 release should read the [transport migration](migrations/2.0-transport-day1.md).
 
 ## Install
 
@@ -13,14 +10,11 @@ You need Python 3.11 or later. Install Antecedent from PyPI:
 python -m pip install antecedent
 ```
 
-NumPy is installed with Antecedent. If you already have an older version, use
-`python -m pip install --upgrade antecedent`.
+NumPy is installed with Antecedent. If you already have an older version, use `python -m pip install --upgrade antecedent`.
 
 ## Estimate a known effect
 
-In this simulated experiment, treatment increases the outcome by 2 units.
-A baseline measurement, `z`, also affects the outcome. Treatment is randomly
-assigned, so `z` does not determine who receives it.
+In this simulated experiment, treatment increases the outcome by 2 units. A baseline measurement, `z`, also affects the outcome. Treatment is randomly assigned, so `z` does not determine who receives it.
 
 Copy this whole block into Python:
 
@@ -45,13 +39,9 @@ print("Estimated effect:", result.answer.value)
 print("Calibration:", result.calibration.status)
 ```
 
-Expect a `point` answer with an estimated effect close to **2**. Sampling noise
-means it will not be exactly 2. The small bootstrap budget keeps this example
-quick; it is not a recommended budget for a final analysis.
+Expect a `point` answer with an estimated effect close to **2**. Sampling noise means it will not be exactly 2. The small bootstrap budget keeps this example quick; it is not a recommended budget for a final analysis.
 
-The graph states your causal assumptions. Antecedent checks whether those
-assumptions allow the effect to be estimated before fitting it. A successful
-run does not prove the graph is correct.
+The graph states your causal assumptions. Antecedent checks whether those assumptions allow the effect to be estimated before fitting it. A successful run does not prove the graph is correct.
 
 ## Read the answer
 
@@ -66,10 +56,7 @@ Start with `result.answer.kind` before extracting a number:
 | `structured` | Several related results, such as temporal mediation | The query's fields, such as `result.mediation_grid` |
 | `unavailable` | No usable claim | `answer.detail` |
 
-Bounds describe what the assumptions determine; they are not a confidence
-interval. A `partial` answer does not supply an unrestricted scalar or curve.
-Use the answer interface rather than legacy `.effect` or `.ate` fields, which
-can warn when a scalar would misrepresent the result.
+Bounds describe what the assumptions determine; they are not a confidence interval. A `partial` answer does not supply an unrestricted scalar or curve. Use the answer interface rather than legacy `.effect` or `.ate` fields, which can warn when a scalar would misrepresent the result.
 
 For the reasoning and diagnostics behind the answer:
 
@@ -78,8 +65,7 @@ report = result.inspect().to_dict()
 print(result.inspect())
 ```
 
-Read identification, data support, uncertainty, and assumptions together.
-Calibration describes the evidence for the reported interval:
+Read identification, data support, uncertainty, and assumptions together. Calibration describes the evidence for the reported interval:
 
 | Status | Meaning |
 |---|---|
@@ -89,14 +75,15 @@ Calibration describes the evidence for the reported interval:
 
 An identified effect or a passing diagnostic does not establish calibration.
 
-Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
-Every reported interval states its calibration: calibrated only when a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code; scope_not_assessed when a record matches but the execution is outside its scope, the record is a boundary, or the record is stale / non-attesting; unavailable with a reason code when no record exists.
-Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
+Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution. Custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+
+Every reported interval states its calibration: `calibrated` only when a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code; `scope_not_assessed` when a record matches but the execution is outside its scope, the record is a boundary, or the record is stale or non-attesting; `unavailable` with a reason code when no record exists.
+
+Identities are distinct and stable: every `IdentityDomain` plus `target_weights` is domain-separated and registered in `parity/identity.toml`.
 
 ## Run the same analysis on new data
 
-Keep `result.study` to reuse the graph, question, and settings. Here we simulate
-an outcome whose treatment effect is one unit larger:
+Keep `result.study` to reuse the graph, question, and settings. Here we simulate an outcome whose treatment effect is one unit larger:
 
 ```python
 new_data = {**data, "outcome": data["outcome"] + treatment}
@@ -106,9 +93,7 @@ print("Original:", result.answer.value)
 print("Updated:", updated.answer.value)
 ```
 
-The updated estimate should be one unit larger. The original result stays
-unchanged. Refresh replaces the study's data only after a successful run;
-new data must have the same schema.
+The updated estimate should be one unit larger. The original result stays unchanged. Refresh replaces the study's data only after a successful run; new data must have the same schema.
 
 ## Save and reload a result
 
@@ -119,14 +104,11 @@ print("Accepted:", loaded.acceptance.verified)
 print(loaded.answer)
 ```
 
-The loaded result should be accepted and have the same answer. Acceptance checks
-the saved result's contract, not whether its causal assumptions are true.
-Loading restores the report, not the dataset or a live study for new estimates.
+The loaded result should be accepted and have the same answer. Acceptance checks the saved result's contract, not whether its causal assumptions are true. Loading restores the report, not the dataset or a live study for new estimates.
 
 ## When an analysis is refused
 
-A refusal explains why the requested analysis cannot run. Keep the explanation
-visible rather than replacing the answer with a default value:
+A refusal explains why the requested analysis cannot run. Keep the explanation visible rather than replacing the answer with a default value:
 
 ```python
 try:
@@ -143,20 +125,13 @@ except ant.CausalError as error:
 | `population_not_estimable` | Check the estimator's supported target populations. Changing the population changes the question. |
 | `score_table_unavailable` | Retargeting needs prepared scores; check the supported retargeting workflow. |
 
-Do not add graph directions or assumptions solely to make a refusal disappear.
-See [supported analyses](supported-analyses.md) and the
-[workflow reference](python-options.md) for the relevant options.
+Do not add graph directions or assumptions solely to make a refusal disappear. See [supported analyses](supported-analyses.md) and the [workflow reference](python-options.md) for the relevant options.
 
 ## Transport the same way
 
-This section needs Antecedent 2.0. Its `data` and `graph` are not the
-quickstart's: `data` holds `price`, `sales`, and `preference` columns for the
-trial, and `graph` is an `Admg` over those three variables, for example
-`ant.Admg.from_edges(["price", "sales", "preference"], [("price", "sales"), ("preference", "sales")])`.
+Transport is the same `analyze` call. Its `data` and `graph` are not the quickstart's: `data` holds `price`, `sales`, and `preference` columns for the trial, and `graph` is an `Admg` over those three variables, for example `ant.Admg.from_edges(["price", "sales", "preference"], [("price", "sales"), ("preference", "sales")])`.
 
-Wrap an ordinary question. Source identity, intervention regime, and sampling
-are scientific claims on `evidence`; the table only supplies columns and a
-snapshot digest.
+Wrap an ordinary question. Source identity, intervention regime, and sampling are scientific claims on `evidence`; the table only supplies columns and a snapshot digest.
 
 ```python
 evidence = ant.transport.Evidence(
@@ -175,25 +150,13 @@ result = ant.analyze(data, graph=graph, query=query)
 print(result.answer.kind, result.inspect().support.summary)
 ```
 
-`EmpiricalTable` is the default provider. `LearnedCategorical` and `TrialAipw`
-change the assumption set and must be passed explicitly. If the formula is
-identified but a joint is unbound, `identify(...).inspect()` and
-`result.answer.detail` name the missing evidence.
+`EmpiricalTable` is the default provider. `LearnedCategorical` and `TrialAipw` change the assumption set and must be passed explicitly. If the formula is identified but a joint is unbound, `identify(...).inspect()` and `result.answer.detail` name the missing evidence.
 
-Not-certified, missing evidence, local support failure, an uncalibrated
-interval, and a budget refusal are different outcomes. Do not treat them as
-one error.
+Not-certified, missing evidence, local support failure, an uncalibrated interval, and a budget refusal are different outcomes. Do not treat them as one error.
 
-A transport result exports through its own day-1 view, not the contracted
-execution the sections above describe. `ant.load(result.export())` rebuilds the
-result view from the verified identification and specialist artifacts and
-returns that view (`AnalysisResult` or `CausalResponseView`), not a
-`LoadedResult`: there is no `acceptance` slot to read, it is not a verified
-analysis program, and it does not restore a live study.
+A transport result exports through its own day-1 view, not the contracted execution the sections above describe. `ant.load(result.export())` rebuilds the result view from the verified identification and specialist artifacts and returns that view (`AnalysisResult` or `CausalResponseView`), not a `LoadedResult`: there is no `acceptance` slot to read, it is not a verified analysis program, and it does not restore a live study.
 
-See [the 2.0 transport UX migration](migrations/2.0-transport-day1.md),
-[the failure guide](guides/transport-failure.md), and
-[theorem scope](guides/transport-scope.md).
+See the [2.0 transport migration](migrations/2.0-transport-day1.md), the [failure guide](guides/transport-failure.md), and [theorem scope](guides/transport-scope.md).
 
 ## Next steps
 

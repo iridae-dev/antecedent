@@ -2,9 +2,7 @@
 
 ## 2.0.0 — draft
 
-This is a release-preparation record. The published package version remains
-1.11.0 until the 2.0 release cut; historical per-release prose has been
-removed from the working tree and remains available in Git history.
+This is a release-preparation record. Workspace and Python package metadata are 2.0.0; the tag and publish are still pending, so PyPI still serves the last published release. `calibrated` still requires a coverage record that attests this commit. Historical per-release prose has been removed from the working tree and remains available in Git history.
 
 ### Breaking changes from 1.11
 
