@@ -3,10 +3,11 @@
 Last updated: 2026-09-23.
 This file outlines the 2.x release cycle. Each workstream starts with a
 bounded scientific contract and ends with an executable, calibrated, portable
-capability. A workstream may span releases; numbering below is dependency
-order, not a promise of 2.1, 2.2, or API compatibility. Preserve the 2.0
-gates. X4 binds statistical providers through `antecedent-learn`; do not
-invent a second ML stack. Transport promotion is coverage-led: a new theorem,
+capability. A workstream may span releases; X1–X8 numbering is dependency
+order, while the release map below sets proposed 2.x delivery targets rather
+than API compatibility promises. Preserve the 2.0 gates. X4 binds statistical
+providers through `antecedent-learn`; do not invent a second ML stack.
+Transport promotion is coverage-led: a new theorem,
 graph class, evidence mode, or inferential provider does not broaden the
 licensed surface until it has a named support row, executable positive and
 negative cases, and the calibration evidence appropriate to its published
@@ -14,6 +15,7 @@ uncertainty.
 
 ## Contents
 
+- [Proposed 2.x release map](#proposed-2x-release-map)
 - [X1 — Additional restricted-experiment settings](#x1--additional-restricted-experiment-settings)
 - [X2 — Transport under graph and selection uncertainty](#x2--transport-under-graph-and-selection-uncertainty)
 - [X3 — Sensitivity to mechanism-invariance violations](#x3--sensitivity-to-mechanism-invariance-violations)
@@ -24,6 +26,50 @@ uncertainty.
 - [X8 — Counterfactual coverage expansion](#x8--counterfactual-coverage-expansion)
 - [Transport coverage promotion matrix](#transport-coverage-promotion-matrix)
 - [Ordering and promotion rule](#ordering-and-promotion-rule)
+
+## Proposed 2.x release map
+
+Each release should open complete, user-facing coverage cells in several
+workstreams. The version is a target, not permission to publish an identifier,
+provider, or interval before its full evidence gate passes. Keep the 2.0
+support and artifact gates in every release. If a proposed cell fails its gate,
+ship the other independently licensed cells and carry that cell forward with
+its refusal visible; do not silently broaden the release claim.
+
+| Release | User-visible outcome | Scoped workstreams and acceptance boundary |
+| --- | --- | --- |
+| **2.1 — Evidence and assumptions** | Recover an effect from a named surrogate experiment; see how much one declared mechanism may change the conclusion; find a feasible next experiment after a transport failure; evaluate a first compatible nested counterfactual. | **X1:** single-source z-transportability for a bounded controllable set, including joint-regime evidence and exact/empirical execution. **X3:** one-factor sensitivity on a fixed graph, with zero-violation and tipping-point checks. **X6:** structural sufficiency and cost ranking over a finite candidate catalog, with verified derivations. **X8:** a named fixed-DAG compatible nested cell with shared exogenous draws and a typed cross-world refusal. Establish the checked-in transport and counterfactual coverage matrices and publish refused cells alongside licensed ones. |
+| **2.2 — More study designs and responses** | Combine a limited catalog of experiments across sources; compare finite graph/selection scenarios; estimate one overlap-supported continuous-outcome transport effect; transport a finite two-step intervention sequence. | **X1:** separately scoped limited-experiment multi-source route, including explicit incomplete-search outcomes. **X2:** finite supplied scenarios with shared coordinates, evidence binding, structural envelopes, and unidentified/unevaluated mass; no CPDAG/PAG-native claim. **X4:** one named conditional-mean/effect functional through `antecedent-learn`, with support, approximation, and inferential limits stated separately. **X5:** one unrolled finite-horizon discrete sequence with time-varying confounding and history-support refusal. **X8:** next fixed-DAG nested/path-specific cell only where its cross-world contract is proven. |
+| **2.3 — Confounding and calibrated execution** | Handle one latent-confounded transport setting; execute a smoothed dose-response grid; plan studies against the new restricted catalogs; quantify a joint mechanism-deviation scenario. | **X2:** one bounded semi-Markovian ADMG transport theorem and executable evidence row, with obstruction cases; selection-diagram variants only if their evidence maps to that row. **X4:** one smoothed dose-response grid with its estimand, bias, numerical tolerances, and licensed whole-estimator uncertainty stated separately. **X3:** compatible jointly varying deviations and a licensed composition with sampling error. **X6:** sufficient additions across restricted catalogs and competing designs, with search-limit receipts. **X8:** a bounded ADMG counterfactual-ID cell only after its fixed-population theorem, engine, and refusal fixtures pass. |
+| **2.4 — Population and time uncertainty** | Carry a licensed transport claim across more graph/selection assumptions, model a source and target jointly where justified, and report uncertainty for temporal transport. | **X2:** additional selection-diagram or enumerated class-completion rows with scenario-specific evidence and shared-data covariance. **X4:** one Bayesian transport provider with a joint source/target model and calibrated posterior decisions; add further sampling designs only as separate rows. **X5:** dependence-preserving inference, initial-state uncertainty, and explicit refresh/invalidation for new periods. **X8:** temporal fixed-population counterfactuals with shared unit histories; transported counterfactuals only where both underlying transport and counterfactual rows are already licensed. |
+| **2.5 — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** expected information or value of information only with a predictive model, utility, posterior, and calibrated uncertainty; retain structural/cost planning without them. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. |
+
+**Accelerator lane (X7).** Benchmark a representative cross-fitted neural
+workload during 2.1. If end-to-end transfer and fold orchestration show a
+material gain, target one explicit, opt-in backend for 2.3, with its device,
+wheel, lease, replay, portability, and CPU-comparison gates. If that benchmark
+or any distribution gate fails, keep the CPU path as the released provider and
+move X7 to a later 2.x release; no other release depends on it. This gives GPU
+users an early decision and a possible mid-cycle delivery without making
+causal coverage contingent on hardware.
+
+**Dependency checkpoints.** X2's finite scenarios can use the 2.0 fixed-graph
+transport path before ADMG extensions; an ADMG transport row must pass before
+that row enters a scenario envelope. X3 starts on fixed graphs and is composed
+with X2 only after both contracts pass. X4's statistical rows and X2's graph
+rows are separately licensed before combination. X5 begins with discrete
+finite-horizon execution before continuous providers or temporal uncertainty.
+X6 may use the 2.0 certificate immediately; restricted catalogs require X1,
+and probabilistic objectives require the relevant X2/X3/X4 uncertainty rows.
+X8's fixed-population cells precede transported counterfactuals, and its
+temporal cells require the accepted temporal query and execution semantics.
+
+For each release, the promotion unit is a named matrix cell with a consumer
+problem, theorem and estimand, provider, required evidence, positive truth
+fixture, negative/refusal fixture, inference calibration where claimed,
+artifact round trip, and compatibility decision. A release may contain scoped
+research or experimental APIs, but its headline outcomes must satisfy this
+unit end to end.
 
 ## Transport coverage promotion matrix
 
