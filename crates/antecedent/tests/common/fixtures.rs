@@ -1,4 +1,4 @@
-//! Heterogeneous multi-atom calibration fixtures (1.9, R-15 / R-17 / R-18).
+//! Heterogeneous multi-atom calibration fixtures (R-15 / R-17 / R-18).
 //!
 //! Every fixture pairs a linear-Gaussian data-generating process with a graph
 //! object carrying several atoms. The DBN, `TemporalCpdag` and [`chain_pag`]
@@ -18,7 +18,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, clippy::many_single_char_names, clippy::similar_names)]
+#![allow(dead_code)]
 
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::TimeSeriesData;
@@ -600,8 +600,8 @@ pub fn mediation_total_truth() -> f64 {
 /// Probability limit of an estimator that adjusts only the `t -> y` backdoor
 /// set (empty here) and so omits the mediator-outcome confounder: the outcome
 /// coefficient on `m` absorbs `kappa·Cov(w[t-1], m | t) / Var(m | t)` with
-/// `Cov = 0.6·MED_ETA` and `Var = MED_ETA² + 0.4²`. This was the pre-1.9
-/// behaviour (≈0.519 at `kappa = 0.5`); recorded for diagnosis only.
+/// `Cov = 0.6·MED_ETA` and `Var = MED_ETA² + 0.4²` (≈0.519 at `kappa = 0.5`);
+/// recorded for diagnosis only.
 #[must_use]
 pub fn mediation_backdoor_only_plim(kappa: f64) -> f64 {
     MED_ALPHA * (MED_DELTA + kappa * 0.6 * MED_ETA / (MED_ETA * MED_ETA + 0.16))

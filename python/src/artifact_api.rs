@@ -8,6 +8,8 @@ use antecedent_io::{
     encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
     payload_digest,
 };
+use numpy::{PyArray1, PyReadonlyArray1};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;
@@ -208,7 +210,7 @@ fn accept_analysis_result_contract(
 }
 
 #[pyfunction(name = "encode_external_estimate_claim")]
-#[pyo3(signature = (*, learner, config, payload, names, treatment, outcome, identifier, status, confounders, identification=None, data_snapshot=None, snapshot_payload=None, scalar_value=None))]
+#[pyo3(signature = (*, learner, config, payload, names, treatment, outcome, identifier, status, confounders, identification=None, data_snapshot=None, snapshot_payload=None, scalar_value=None, value_types=None, contrast=None, modifiers=None))]
 #[allow(clippy::too_many_arguments)]
 fn encode_external_estimate_claim_py<'py>(
     py: Python<'py>,
@@ -225,7 +227,22 @@ fn encode_external_estimate_claim_py<'py>(
     data_snapshot: Option<&str>,
     snapshot_payload: Option<&[u8]>,
     scalar_value: Option<f64>,
+    value_types: Option<Vec<String>>,
+    contrast: Option<(f64, f64)>,
+    modifiers: Option<Vec<String>>,
 ) -> PyResult<Bound<'py, PyBytes>> {
+    let value_types = value_types
+        .unwrap_or_default()
+        .iter()
+        .map(|name| match name.as_str() {
+            "continuous" => Ok(antecedent_core::ValueType::Continuous),
+            "binary" => Ok(antecedent_core::ValueType::Binary),
+            "count" => Ok(antecedent_core::ValueType::Count),
+            other => Err(serialization_error(format!(
+                "unsupported value type `{other}` (use continuous, binary or count)"
+            ))),
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     let identification =
         identification.map(parse_digest_hex).transpose().map_err(serialization_error)?;
     let data_snapshot = match data_snapshot {
@@ -245,13 +262,97 @@ fn encode_external_estimate_claim_py<'py>(
         identification,
         data_snapshot,
         scalar_value,
+        value_types,
+        contrast,
+        modifiers: modifiers.unwrap_or_default(),
     })
     .map_err(serialization_error)?;
     Ok(PyBytes::new(py, &bytes))
 }
 
+/// A verified parent claim and its immutable provider-independent predictor.
+#[pyclass(frozen, skip_from_py_object)]
+struct FittedEffectModel {
+    model: antecedent_estimate::FittedEffect,
+    bytes: Vec<u8>,
+    #[pyo3(get)]
+    features: Vec<String>,
+    #[pyo3(get)]
+    parent_claim: String,
+}
+
+#[pymethods]
+impl FittedEffectModel {
+    #[staticmethod]
+    fn load(bytes: &[u8]) -> PyResult<Self> {
+        let consumed =
+            antecedent_io::consume_analysis_result(bytes).map_err(serialization_error)?;
+        if !consumed.acceptance.accepts_as_verified_program()
+            || !consumed.acceptance.verified_references
+        {
+            return Err(serialization_error("fitted prediction requires a verified parent claim"));
+        }
+        let claim =
+            consumed.contract.as_ref().and_then(|c| c.claim.as_ref()).ok_or_else(|| {
+                serialization_error("fitted prediction requires an executed claim")
+            })?;
+        let model = consumed
+            .body
+            .fitted_effect
+            .ok_or_else(|| serialization_error("this result has no portable fitted effect"))?;
+        model.validate().map_err(serialization_error)?;
+        let features = model
+            .features
+            .iter()
+            .map(|v| consumed.header.variable_names[*v as usize].clone())
+            .collect();
+        Ok(Self {
+            model,
+            bytes: bytes.to_vec(),
+            features,
+            parent_claim: antecedent_io::digest_hex(&claim.claim_id),
+        })
+    }
+
+    /// Predict from NumPy feature columns without copying them into Python lists.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        columns: Vec<PyReadonlyArray1<'py, f64>>,
+        nrows: usize,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let ids: Vec<_> =
+            self.model.features.iter().map(|v| antecedent_core::VariableId::from_raw(*v)).collect();
+        // The read-only guards in `columns` outlive the detached closure that borrows the slices.
+        let slices: Vec<&[f64]> = columns
+            .iter()
+            .map(|column| {
+                column.as_slice().map_err(|_| {
+                    PyValueError::new_err("prediction columns must be contiguous float64 arrays")
+                })
+            })
+            .collect::<PyResult<_>>()?;
+        let values = py.detach(|| {
+            self.model
+                .predict(
+                    &ids,
+                    &slices,
+                    nrows,
+                    &antecedent_core::ExecutionContext::production_default(0),
+                )
+                .map_err(serialization_error)
+        })?;
+        Ok(PyArray1::from_vec(py, values))
+    }
+
+    fn export<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.bytes)
+    }
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DecodedCausalArtifact>()?;
+    m.add_class::<FittedEffectModel>()?;
     m.add_function(wrap_pyfunction!(encode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;

@@ -12,8 +12,9 @@ papers = [
 ]
 
 implementation_deviations = [
- "The reported leading canonical correlation uses 64-step power iteration after adding 1e-8 diagonal regularization, while Wilks-Lambda significance is computed from the unregularized full canonical spectrum.",
- "Robust rank-transform and weighted-WLS variants are not procedures described by the three cited canonical-correlation papers.",
+ "The reported leading canonical correlation uses 64-step power iteration on the same unregularized whitened Gram matrix that supplies the Wilks-Lambda significance.",
+ "Robust partial correlation applies van der Waerden normal scores (inverse-normal of rank/(n+1)) to each column before ordinary partial correlation, and weighted partial correlation is weighted least squares with a Kish effective-sample-size degrees-of-freedom rule; neither is a procedure described by the three cited canonical-correlation papers.",
+ "Block-preserving permutation nulls (scalar, weighted and multivariate) residualise X and Y on Z once and block-permute the X residual; this residual-permutation construction is not taken from the cited papers.",
 ]
 
 upstream_implementations_observed = []

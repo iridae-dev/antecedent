@@ -30,6 +30,14 @@ fn node_ref_parts(names: &[String], node: NodeRef) -> (String, u32) {
                 .unwrap_or_else(|| format!("var{}", variable.raw())),
             lag.raw(),
         ),
+        // Discovery graphs are never unfolded; an unfolded slot reads as its history lag.
+        NodeRef::Unfolded { variable, offset } => (
+            names
+                .get(variable.as_usize())
+                .cloned()
+                .unwrap_or_else(|| format!("var{}", variable.raw())),
+            u32::try_from(-i64::from(offset)).unwrap_or(0),
+        ),
         NodeRef::Static(variable) | NodeRef::Context { variable, .. } => (
             names
                 .get(variable.as_usize())
@@ -106,6 +114,10 @@ fn static_pag_graph_edges(names: &[String], pag: &Pag) -> Vec<GraphEdge> {
 fn static_pag_definite_directed_count(pag: &Pag) -> u64 {
     let mut directed = 0u64;
     for i in 0..pag.node_count() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+        )]
         let a = DenseNodeId::from_raw(i as u32);
         for (b, at_a, at_b) in pag.neighbors(a) {
             if b.raw() < a.raw() {
@@ -220,6 +232,10 @@ pub(crate) struct PcmciDiscoveryResult {
     /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
     #[pyo3(get)]
     pub(crate) graph_edges: Vec<GraphEdge>,
+    /// The schema's variable names, in column order. Includes variables the
+    /// algorithm found no adjacency for, which no edge list can name.
+    #[pyo3(get)]
+    pub(crate) variable_names: Vec<String>,
     /// The Rust review artifact and variable names this discovery produced.
     pub(crate) review: Option<Arc<(ReviewSlot, Vec<String>)>>,
 }
@@ -321,9 +337,49 @@ pub(crate) fn series_from_batch(
     Ok((series, variables))
 }
 
+/// The per-unit series of a panel passed as row-concatenated columns plus each unit's length.
+///
+/// Every unit becomes its own series, so lagged discovery builds each unit's lag windows inside
+/// that unit and never takes a lagged parent across a unit boundary.
+///
+/// # Errors
+///
+/// `unit_lengths` that are empty, contain a zero, or do not add up to the column length.
+pub(crate) fn panel_units_from_batch(
+    batch: &RecordBatch,
+    unit_lengths: &[usize],
+) -> PyResult<(Vec<TimeSeriesData>, Vec<VariableId>)> {
+    let rows = batch.num_rows();
+    if unit_lengths.is_empty()
+        || unit_lengths.contains(&0)
+        || unit_lengths.iter().sum::<usize>() != rows
+    {
+        return Err(crate::refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!(
+                "unit_lengths must be positive and add up to the {rows} rows of the pooled \
+                 columns; got {unit_lengths:?}"
+            ),
+        ));
+    }
+    let mut units = Vec::with_capacity(unit_lengths.len());
+    let mut variables = Vec::new();
+    let mut offset = 0;
+    for &len in unit_lengths {
+        let (series, ids) = series_from_batch(&batch.slice(offset, len))?;
+        offset += len;
+        variables = ids;
+        units.push(series);
+    }
+    Ok((units, variables))
+}
+
 type SharedCi = std::sync::Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>;
 
 /// Shared NumPy→series discovery preamble (CI resolve + GIL release).
+///
+/// `unit_lengths` marks the columns as the row-concatenated units of a panel; `f` then gets one
+/// series per unit and `panel = true`, otherwise exactly one series and `panel = false`.
 fn run_series_discovery<F>(
     py: Python<'_>,
     names: Vec<String>,
@@ -331,12 +387,15 @@ fn run_series_discovery<F>(
     seed: u64,
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
+    unit_lengths: Option<Vec<usize>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     f: F,
 ) -> PyResult<PcmciDiscoveryResult>
 where
     F: FnOnce(
-            &TimeSeriesData,
+            &[TimeSeriesData],
+            bool,
             &[VariableId],
             SharedCi,
             String,
@@ -345,14 +404,30 @@ where
         ) -> PyResult<PcmciDiscoveryResult>
         + Send,
 {
+    if unit_lengths.is_some() && weights.is_some() {
+        // Observation weights are aligned to the end of one series; pooled units have no such
+        // alignment, so a weighted test over a panel would weight the wrong rows.
+        return Err(crate::refusal(
+            antecedent_core::reason_code!("option_not_applicable"),
+            "observation weights are defined per row of one series and cannot be combined with a \
+             panel (unit_lengths)",
+        ));
+    }
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
     let threads = if is_callback { Some(1) } else { threads };
     detach_catch(py, move || {
-        let (series, variables) = series_from_batch(&batch)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        f(&series, &variables, ci_impl, ci_name, &ctx, &names)
+        let (units, variables, panel) = if let Some(lengths) = unit_lengths {
+            let (units, variables) = panel_units_from_batch(&batch, &lengths)?;
+            (units, variables, true)
+        } else {
+            let (series, variables) = series_from_batch(&batch)?;
+            (vec![series], variables, false)
+        };
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+        f(&units, panel, &variables, ci_impl, ci_name, &ctx, &names)
     })
 }
 
@@ -437,6 +512,7 @@ fn discovery_result_fields(
         cpdag_directed_edges,
         cpdag_undirected_edges,
         graph_edges,
+        variable_names: names.to_vec(),
         review: None,
     }
 }
@@ -480,7 +556,7 @@ fn pcmci_result_from_static_cpdag(
 /// unless `ci` is an explicit slow-path callable — ).
 /// `ci` selects a named test (default `parcorr`) or a Python batch callable.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
 fn discover_pcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -492,7 +568,9 @@ fn discover_pcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -501,8 +579,10 @@ fn discover_pcmci(
         seed,
         ci,
         weights,
+        unit_lengths,
         threads,
-        |series, variables, ci_impl, ci_name, ctx, names| {
+        cancel,
+        |units, panel, variables, ci_impl, ci_name, ctx, names| {
             let params = DiscoverParams {
                 max_lag,
                 alpha,
@@ -511,7 +591,12 @@ fn discover_pcmci(
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
             };
-            let result = facade_discover_pcmci(series, variables, &params, ctx).map_err(py_err)?;
+            let result = if panel {
+                facade_discover_pcmci_panel(units, variables, &params, ctx)
+            } else {
+                facade_discover_pcmci(&units[0], variables, &params, ctx)
+            }
+            .map_err(py_err)?;
             let slot = ReviewSlot::TemporalGraph(result.review.clone());
             Ok(discovery_result_fields(
                 names,
@@ -534,7 +619,7 @@ fn discover_pcmci(
 
 /// Run static PC discovery over tabular (non-temporal) columns.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None))]
 fn discover_pc(
     py: Python<'_>,
     names: Vec<String>,
@@ -545,6 +630,7 @@ fn discover_pc(
     ci: Option<Bound<'_, PyAny>>,
     max_cond_size: usize,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -561,7 +647,8 @@ fn discover_pc(
             screen_pc: false,
             max_subset: None,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(py_err)?;
         let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
@@ -582,7 +669,7 @@ fn discover_pc(
 
 /// Run GES discovery over tabular columns → CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, screen_pc=false, max_subset=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None, screen_pc=false, max_subset=None))]
 fn discover_ges(
     py: Python<'_>,
     names: Vec<String>,
@@ -593,6 +680,7 @@ fn discover_ges(
     ci: Option<Bound<'_, PyAny>>,
     max_cond_size: usize,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     screen_pc: bool,
     max_subset: Option<usize>,
 ) -> PyResult<PcmciDiscoveryResult> {
@@ -611,7 +699,8 @@ fn discover_ges(
             screen_pc,
             max_subset,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_ges(&data, &variables, &params, &ctx).map_err(py_err)?;
         let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
@@ -632,7 +721,7 @@ fn discover_ges(
 
 /// Run DirectLiNGAM discovery over tabular columns → DAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, prune_threshold=0.05, seed=1, max_cond_size=8, threads=None))]
+#[pyo3(signature = (names, columns, *, prune_threshold=0.05, seed=1, max_cond_size=8, threads=None, cancel=None))]
 fn discover_lingam(
     py: Python<'_>,
     names: Vec<String>,
@@ -641,6 +730,7 @@ fn discover_lingam(
     seed: u64,
     max_cond_size: usize,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -655,7 +745,8 @@ fn discover_lingam(
             screen_pc: false,
             max_subset: None,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_lingam(&data, &variables, &params, prune_threshold, &ctx)
             .map_err(py_err)?;
 
@@ -685,7 +776,7 @@ fn discover_lingam(
 
 /// Run NOTEARS discovery over tabular columns → DAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=None))]
+#[pyo3(signature = (names, columns, *, l1=0.1, threshold=0.3, standardize=true, seed=1, max_cond_size=8, threads=None, cancel=None))]
 fn discover_notears(
     py: Python<'_>,
     names: Vec<String>,
@@ -696,6 +787,7 @@ fn discover_notears(
     seed: u64,
     max_cond_size: usize,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -710,7 +802,8 @@ fn discover_notears(
             screen_pc: false,
             max_subset: None,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result =
             facade_discover_notears(&data, &variables, &params, l1, threshold, standardize, &ctx)
                 .map_err(py_err)?;
@@ -740,7 +833,7 @@ fn discover_notears(
 
 /// Run classic static FCI discovery over tabular columns → PAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None))]
 fn discover_fci(
     py: Python<'_>,
     names: Vec<String>,
@@ -751,6 +844,7 @@ fn discover_fci(
     ci: Option<Bound<'_, PyAny>>,
     max_cond_size: usize,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -767,7 +861,8 @@ fn discover_fci(
             screen_pc: false,
             max_subset: None,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_fci(&data, &variables, &params, &ctx).map_err(py_err)?;
 
         let pag = &result.evidence.graph;
@@ -796,7 +891,7 @@ fn discover_fci(
 
 /// Run classic static RFCI discovery over tabular columns → PAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None))]
+#[pyo3(signature = (names, columns, *, alpha=0.05, fdr=true, seed=1, ci=None, max_cond_size=2, threads=None, cancel=None))]
 fn discover_rfci(
     py: Python<'_>,
     names: Vec<String>,
@@ -807,6 +902,7 @@ fn discover_rfci(
     ci: Option<Bound<'_, PyAny>>,
     max_cond_size: usize,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
     let batch = columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
@@ -823,7 +919,8 @@ fn discover_rfci(
             screen_pc: false,
             max_subset: None,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_rfci(&data, &variables, &params, &ctx).map_err(py_err)?;
 
         let pag = &result.evidence.graph;
@@ -852,7 +949,7 @@ fn discover_rfci(
 
 /// Run PCMCI+ discovery returning links plus oriented temporal CPDAG summary.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
 fn discover_pcmci_plus(
     py: Python<'_>,
     names: Vec<String>,
@@ -864,7 +961,9 @@ fn discover_pcmci_plus(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -873,8 +972,10 @@ fn discover_pcmci_plus(
         seed,
         ci,
         weights,
+        unit_lengths,
         threads,
-        |series, variables, ci_impl, ci_name, ctx, names| {
+        cancel,
+        |units, panel, variables, ci_impl, ci_name, ctx, names| {
             let params = DiscoverParams {
                 max_lag,
                 alpha,
@@ -883,8 +984,12 @@ fn discover_pcmci_plus(
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
             };
-            let result =
-                facade_discover_pcmci_plus(series, variables, &params, ctx).map_err(py_err)?;
+            let result = if panel {
+                facade_discover_pcmci_plus_panel(units, variables, &params, ctx)
+            } else {
+                facade_discover_pcmci_plus(&units[0], variables, &params, ctx)
+            }
+            .map_err(py_err)?;
             let cpdag = &result.evidence.graph;
             let directed = cpdag.directed_edge_count() as u64;
             let undirected = cpdag.undirected_edge_count() as u64;
@@ -912,7 +1017,7 @@ fn discover_pcmci_plus(
 
 /// Run LPCMCI discovery returning links plus temporal PAG summary (no per-edge GIL).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, unit_lengths=None))]
 fn discover_lpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -924,7 +1029,9 @@ fn discover_lpcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
+    unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
     run_series_discovery(
         py,
@@ -933,8 +1040,10 @@ fn discover_lpcmci(
         seed,
         ci,
         weights,
+        unit_lengths,
         threads,
-        |series, variables, ci_impl, ci_name, ctx, names| {
+        cancel,
+        |units, panel, variables, ci_impl, ci_name, ctx, names| {
             let params = DiscoverParams {
                 max_lag,
                 alpha,
@@ -943,7 +1052,12 @@ fn discover_lpcmci(
                 multi_dataset: MultiDatasetConstraints::default(),
                 max_cond_size,
             };
-            let result = facade_discover_lpcmci(series, variables, &params, ctx).map_err(py_err)?;
+            let result = if panel {
+                facade_discover_lpcmci_panel(units, variables, &params, ctx)
+            } else {
+                facade_discover_lpcmci(&units[0], variables, &params, ctx)
+            }
+            .map_err(py_err)?;
             let pag = &result.evidence.graph;
             let pending = result.review.pending_circles.len() as u64;
             let directed = pag_definite_directed_edge_count(pag);
@@ -986,6 +1100,7 @@ fn discover_lpcmci(
     ci=None,
     weights=None,
     threads=None,
+    cancel=None,
     context_names=None,
     include_space_dummy=true,
     include_time_dummy=false,
@@ -1005,6 +1120,7 @@ fn discover_jpcmci_plus(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     context_names: Option<Vec<String>>,
     include_space_dummy: bool,
     include_time_dummy: bool,
@@ -1072,7 +1188,8 @@ fn discover_jpcmci_plus(
             },
             max_cond_size,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_jpcmci_plus(&multi, &system, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
         let graph_edges = cpdag_graph_edges(&names, cpdag);
@@ -1103,7 +1220,7 @@ fn two_regime_half_split_py(series_len: usize) -> Vec<u32> {
 
 /// RPCMCI with caller-supplied regimes (required; no silent half-split).
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -1116,6 +1233,7 @@ fn discover_rpcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
 ) -> PyResult<RpcmciDiscoverySummary> {
     let batch = columns_to_batch(&names, &columns)?;
@@ -1143,7 +1261,8 @@ fn discover_rpcmci(
             multi_dataset: MultiDatasetConstraints::default(),
             max_cond_size,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
             .map_err(py_err)?;
         let mut regime_ids = Vec::new();
@@ -1171,7 +1290,7 @@ fn discover_rpcmci(
 /// regimes raise `ReviewRequired` (each regime's CPDAG is reviewed separately).
 /// `accept_discovered=False` leaves pending undirected edges under review.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, max_cond_size=2, accept_discovered=true))]
+#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, accept_discovered=true))]
 fn accept_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
@@ -1184,6 +1303,7 @@ fn accept_rpcmci(
     ci: Option<Bound<'_, PyAny>>,
     weights: Option<Vec<f64>>,
     threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
     accept_discovered: bool,
 ) -> PyResult<Py<PyAny>> {
@@ -1213,7 +1333,8 @@ fn accept_rpcmci(
             multi_dataset: MultiDatasetConstraints::default(),
             max_cond_size,
         };
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
             .map_err(py_err)?;
         crate::accept_rpcmci_review(&result, accept_discovered).map_err(py_err)

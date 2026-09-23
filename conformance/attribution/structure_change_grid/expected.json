@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "closed_form_linear_scm",
+    "kind": "closed_form",
+    "method": "closed_form_linear_scm",
     "generator": "temporary clean-room harness (deleted after artifact import)",
     "formula": "With one structurally changed outcome node, Shapley efficiency requires that node's contribution equal the full hybrid-payoff difference."
   },

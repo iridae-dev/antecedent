@@ -3,14 +3,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::needless_pass_by_value,
-    clippy::doc_markdown,
-    clippy::many_single_char_names
+    clippy::doc_markdown
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -18,8 +22,8 @@ use std::sync::Arc;
 use antecedent_core::IdentificationStatus;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, AverageEffectQuery, ExecutionContext, PriorAssumption, TargetPopulation,
-    VariableId,
+    AssumptionStatus, AverageEffectQuery, ExecutionContext, PriorAssumption, StreamDomain,
+    TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
@@ -43,17 +47,8 @@ use crate::serial_dependence::{
 };
 use crate::util::require_explicit_override;
 
-/// Posterior mean and equal-tail interval of a linear response level.
-/// `weights` is a design-row average after the intervention overlay.
-pub(crate) fn linear_response_summary(
-    posterior: &CausalPosterior,
-    weights: &[f64],
-    level: f64,
-) -> Result<(f64, f64, f64, f64), EstimationError> {
-    summarize_linear_response_draws(linear_response_draws(posterior, weights)?, level)
-}
-
 /// Posterior draws of the linear functional `weights' β`, one per retained draw.
+/// `weights` is a design-row average after the intervention overlay.
 pub(crate) fn linear_response_draws(
     posterior: &CausalPosterior,
     weights: &[f64],
@@ -78,7 +73,6 @@ pub(crate) fn linear_response_draws(
 }
 
 /// `(mean, lower, upper, sd)` of linear-functional draws at an equal-tailed `level`.
-#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
 pub(crate) fn summarize_linear_response_draws(
     mut values: Vec<f64>,
     level: f64,
@@ -92,13 +86,14 @@ pub(crate) fn summarize_linear_response_draws(
     let sd =
         (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
     values.sort_by(f64::total_cmp);
-    let quantile = |p: f64| {
-        let x = p * (values.len() - 1) as f64;
-        let lo = x.floor() as usize;
-        let hi = x.ceil() as usize;
-        values[lo] + (values[hi] - values[lo]) * (x - lo as f64)
-    };
-    Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
+    // Exchangeable-rank (type-6) ranks so a finite-draw interval covers at its level;
+    // the same rule as every other posterior-draw interval in the crate.
+    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+        &values,
+        level,
+        antecedent_stats::QuantileRule::ExchangeableRank,
+    );
+    Ok((mean, lower, upper, sd))
 }
 
 /// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
@@ -108,6 +103,12 @@ pub const HMC_MIN_DRAWS: usize = 3_000;
 /// Stable prefix of the inference-diagnostics note recorded when [`HMC_MIN_DRAWS`]
 /// raised the requested draw count (`requested=<n> used=<m>`).
 pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
+
+/// Diagnostics note when `unit_ids` request random-intercept GLS whitening under a
+/// non-Gaussian likelihood. Whitening is a Gaussian linear transform and must not be
+/// applied to count or binary outcomes.
+pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str = "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
+     GaussianIdentity; unit_ids were ignored for this likelihood";
 
 /// `(requested, used)` draw counts when the HMC draw floor raised the request.
 #[must_use]
@@ -146,15 +147,24 @@ pub struct CausalPosterior {
     pub assumptions: AssumptionSet,
     /// Unidentified graph mass retained when aggregating envelopes (0 if single graph).
     ///
-    /// Mass of graph atoms on which identification (or, on paths that demote
-    /// failed fits, estimation) failed. Never includes atoms a latency tier
-    /// skipped; those are [`Self::subsampled_out_mass`].
+    /// Mass of graph atoms that were structurally not identified. Never
+    /// includes atoms a latency tier skipped (see [`Self::subsampled_out_mass`])
+    /// or atoms that were identified but whose estimation failed (see
+    /// [`Self::unevaluable_mass`]) — a refusal to estimate is not a proof of
+    /// non-identification.
     pub unidentified_mass: f64,
     /// Identified graph mass the Interactive latency tier left out of the
     /// envelope subsample (0 outside that tier). Those atoms were not evaluated,
     /// so this is neither unidentified mass nor part of the published mixture;
-    /// the identified-atom mixture covers `1 − unidentified − subsampled_out`.
+    /// the identified-atom mixture covers `1 − unidentified − unevaluable − subsampled_out`.
     pub subsampled_out_mass: f64,
+    /// Identified graph mass excluded from the mixture because estimation
+    /// (design preparation, fitting, composition, or draw extraction) failed
+    /// on that atom, not because identification failed. Zero unless the
+    /// caller separates the two reasons; a path that has not yet been audited
+    /// for this distinction may still fold this mass into
+    /// [`Self::unidentified_mass`].
+    pub unevaluable_mass: f64,
     /// Adaptive draw early-stop (Laplace / conjugate Gaussian redraw path).
     pub early_stopped: bool,
     /// Source treatment contrast `active − control` used to form the effect.
@@ -236,9 +246,18 @@ fn effect_functional_bind_col(
 
 /// Build a Gaussian coefficient [`PriorSet`] from posterior quantity summaries.
 ///
-/// Uses coefficient-column posterior means and SDs (index-aligned). Effect /
-/// residual columns are ignored. When `expected_n_coef` is `Some`, it must match
-/// the number of coefficient columns.
+/// Uses coefficient-column posterior means and SDs (index-aligned). Effect
+/// columns are ignored. Coefficient SDs are **absolute**; they are converted
+/// into conjugate scale `V0` via [`GaussianCoefficientPrior::from_absolute_variance`]
+/// using the source residual-variance posterior mean when a
+/// [`PosteriorQuantityKind::ResidualVariance`] column is present, otherwise
+/// `σ² = 1` (documented in the sequential-prior assumption text).
+///
+/// Hydration is **diagonal**: off-diagonal posterior covariance is dropped, so
+/// a transferred coefficient prior can be tighter than the source marginal on
+/// linear combinations (and, for a single coefficient, is the source marginal
+/// converted to `V0` — not a claim that every functional stays as wide as the
+/// source).
 ///
 /// # Errors
 ///
@@ -272,9 +291,10 @@ pub fn hydrate_prior_from_quantity_summaries(
     }
     if let Some(expected) = expected_n_coef {
         if n_coef != expected {
-            return Err(EstimationError::stats_msg(format!(
-                "posterior coefficient dimension {n_coef} != expected n_coef {expected}"
-            )));
+            return Err(EstimationError::PriorDimensionMismatch {
+                posterior: n_coef,
+                design: expected,
+            });
         }
     }
     for (i, (index, _)) in coef_cols.iter().enumerate() {
@@ -284,8 +304,9 @@ pub fn hydrate_prior_from_quantity_summaries(
             )));
         }
     }
+    let sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
     let mut means = Vec::with_capacity(n_coef);
-    let mut variance = Vec::with_capacity(n_coef);
+    let mut abs_vars = Vec::with_capacity(n_coef);
     for (_, col) in &coef_cols {
         let m = mean[*col];
         let s = sd[*col];
@@ -295,16 +316,39 @@ pub fn hydrate_prior_from_quantity_summaries(
             ));
         }
         means.push(m);
-        variance.push((s * s).max(HYDRATE_VAR_FLOOR));
+        abs_vars.push((s * s).max(HYDRATE_VAR_FLOOR * sigma2));
     }
-    let coef = GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(variance) };
-    coef.validate().map_err(EstimationError::from)?;
+    let coef = GaussianCoefficientPrior::from_absolute_variance(
+        Arc::from(means),
+        Arc::from(abs_vars),
+        sigma2,
+    )
+    .map_err(EstimationError::from)?;
     Ok(PriorSet {
         specs: vec![PriorSpec::GaussianCoefficients(coef)],
         contrast: None,
         categorical: Vec::new(),
         restrictions: Vec::new(),
     })
+}
+
+/// Source `σ²` for absolute→`V0` hydrate: residual-variance posterior mean, else 1.
+fn residual_sigma2_for_hydrate(
+    quantities: &[PosteriorQuantityKind],
+    mean: &[f64],
+) -> Result<f64, EstimationError> {
+    for (i, q) in quantities.iter().enumerate() {
+        if matches!(q, PosteriorQuantityKind::ResidualVariance) {
+            let s2 = mean[i];
+            if s2 <= 0.0 || !s2.is_finite() {
+                return Err(EstimationError::stats_msg(
+                    "hydrate_prior: residual_variance mean must be finite and > 0",
+                ));
+            }
+            return Ok(s2);
+        }
+    }
+    Ok(1.0)
 }
 
 /// Build a Gaussian coefficient [`PriorSet`] from a fitted posterior (sequential Bayes).
@@ -414,10 +458,12 @@ pub fn hydrate_prior(
             let (slope_mean, slope_sd) = identity_ate_to_slope(m, s, delta)?;
             let effect = EffectPrior::new(slope_mean, slope_sd.max(HYDRATE_VAR_FLOOR.sqrt()))
                 .map_err(EstimationError::from)?;
+            let sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
             let mut means: Vec<f64> = base_coef.mean.to_vec();
             let mut vars: Vec<f64> = base_coef.variance.to_vec();
             means[t_col] = effect.mean;
-            vars[t_col] = (effect.sd * effect.sd).max(HYDRATE_VAR_FLOOR);
+            let abs_var = (effect.sd * effect.sd).max(HYDRATE_VAR_FLOOR * sigma2);
+            vars[t_col] = abs_var / sigma2;
             let coef =
                 GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(vars) };
             coef.validate().map_err(EstimationError::from)?;
@@ -430,7 +476,7 @@ pub fn hydrate_prior(
                 restrictions: vec![PriorAssumption {
                     id: Arc::from("external_effect_prior"),
                     description: Arc::from(format!(
-                        "external effect-functional prior: identity-link ATE→β via N(μ/Δ, (σ/Δ)²) from `{source_quantity}` (Δ={delta}) onto {target_name}; implied NDE/ATE mean {implied}"
+                        "external effect-functional prior: identity-link ATE→β via N(μ/Δ, (σ/Δ)²) from `{source_quantity}` (Δ={delta}) onto {target_name}; implied NDE/ATE mean {implied}; absolute Var(β) converted to V0 with source σ²={sigma2}"
                     )),
                 }],
             };
@@ -447,6 +493,7 @@ pub fn hydrate_prior(
             let mut vars: Vec<f64> = base_coef.variance.to_vec();
             let name_index: std::collections::HashMap<&str, usize> =
                 target_coef_names.iter().enumerate().map(|(i, n)| (n.as_ref(), i)).collect();
+            let sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
             for (src, tgt) in pairs {
                 let (m, s) = quantity_moments(quantities, mean, sd, src)?;
                 let Some(&idx) = name_index.get(tgt.as_str()) else {
@@ -455,7 +502,8 @@ pub fn hydrate_prior(
                     )));
                 };
                 means[idx] = m;
-                vars[idx] = (s * s).max(HYDRATE_VAR_FLOOR);
+                let abs_var = (s * s).max(HYDRATE_VAR_FLOOR * sigma2);
+                vars[idx] = abs_var / sigma2;
             }
             let coef =
                 GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(vars) };
@@ -468,7 +516,9 @@ pub fn hydrate_prior(
                 categorical: baseline.categorical.clone(),
                 restrictions: vec![PriorAssumption {
                     id: Arc::from("external_named_prior"),
-                    description: Arc::from(format!("external named-parameter prior ({pair_desc})")),
+                    description: Arc::from(format!(
+                        "external named-parameter prior ({pair_desc}); absolute posterior Var converted to V0 with source σ²={sigma2}; diagonal only (off-diagonal covariance dropped)"
+                    )),
                 }],
             };
             merge_baseline_residuals(&mut prior, baseline);
@@ -529,7 +579,7 @@ fn quantity_moments(
 pub struct BayesianGlmMechanism {
     /// Fitted coefficient draws (columnar).
     pub coefficient_draws: PosteriorDraws,
-    /// MAP / posterior mode coefficients.
+    /// Point-estimate coefficients: posterior mode (Laplace) or posterior mean (conjugate, HMC).
     pub map: Vec<f64>,
     /// Likelihood used.
     pub likelihood: BayesLikelihood,
@@ -918,7 +968,10 @@ impl BayesianGComputationAte {
             let mut pa = spec.as_assumption();
             if sequential {
                 pa.description = Arc::from(format!(
-                    "{} (sequential prior from posterior artifact)",
+                    "{} (sequential prior from posterior artifact; diagonal V0 only — \
+                     off-diagonal posterior covariance dropped, so transferred priors can be \
+                     tighter than the source marginal on linear combinations; absolute \
+                     coefficient SD² converted to conjugate scale V0 via source residual variance)",
                     pa.description
                 ));
             }
@@ -1021,15 +1074,22 @@ impl BayesianGComputationAte {
                 ));
             }
         }
-        let whitened = problem.unit_ids.as_deref().and_then(|ids| {
-            random_intercept_gls_whiten(
+        // GLS whitening is a Gaussian residual transform. Applying it to Poisson /
+        // binomial / other GLM outcomes silently corrupts the likelihood.
+        let whitened = match (likelihood, problem.unit_ids.as_deref()) {
+            (BayesLikelihood::GaussianIdentity, Some(ids)) => random_intercept_gls_whiten(
                 &problem.design.matrix,
                 &problem.design.outcome,
                 problem.design.nrows,
                 problem.design.ncols,
                 ids,
-            )
-        });
+            ),
+            (_, Some(_)) => {
+                extra_notes.push(Arc::from(RANDOM_INTERCEPT_WHITEN_SKIP_NOTE));
+                None
+            }
+            (_, None) => None,
+        };
         let (x_fit, y_fit) = match &whitened {
             Some((x, y)) => (x.as_slice(), y.as_slice()),
             None => (problem.design.matrix.as_ref(), problem.design.outcome.as_ref()),
@@ -1103,6 +1163,16 @@ impl BayesianGComputationAte {
 
         let mut early_stopped = false;
         let mut n_draws = fit.draws.n_draws;
+        // Capture residual-variance draws before stripping to coefficient-only schema
+        // (g-comp evaluates β only; hydrate still needs σ² for absolute→V0 conversion).
+        let residual_sigma2_col: Option<Vec<f64>> = fit
+            .draws
+            .schema
+            .quantities
+            .iter()
+            .enumerate()
+            .find(|(_, q)| matches!(q, PosteriorQuantityKind::ResidualVariance))
+            .and_then(|(i, _)| fit.draws.column(i).ok().map(<[f64]>::to_vec));
         // Adaptive MVN sampling uses the β-block covariance only; drop residual-variance
         // columns so batch merges match `PosteriorSchema::coefficients`.
         let coef_draws = coefficient_only_draws(&fit.draws)?;
@@ -1179,17 +1249,21 @@ impl BayesianGComputationAte {
             }
 
             // Rebuild combined posterior from accumulated effects + final coef draws.
+            // Re-attach ResidualVariance (same length as initial block; adaptive MVN
+            // path only runs for known-σ² Laplace, which has no residual column).
             let mechanism_draws = concat_coefficient_draws(&coef_draws, &extra_blocks)?;
             let mut quantities = mechanism_draws.schema.quantities.to_vec();
-            quantities.retain(|q| !matches!(q, PosteriorQuantityKind::ResidualVariance));
+            let residual_idx = if residual_sigma2_col.as_ref().is_some_and(|c| c.len() == n_draws) {
+                quantities.push(PosteriorQuantityKind::ResidualVariance);
+                Some(quantities.len() - 1)
+            } else {
+                None
+            };
             let effect_idx = quantities.len();
             quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("ate") });
             let n_q = quantities.len();
             let mut values = vec![0.0; n_draws * n_q];
             for (qi, q) in mechanism_draws.schema.quantities.iter().enumerate() {
-                if matches!(q, PosteriorQuantityKind::ResidualVariance) {
-                    continue;
-                }
                 let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
                     EstimationError::stats_msg(format!(
                         "posterior quantity missing from schema: {q:?}"
@@ -1197,6 +1271,9 @@ impl BayesianGComputationAte {
                 })?;
                 let coef_col = mechanism_draws.column(qi).map_err(EstimationError::from)?;
                 values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(coef_col);
+            }
+            if let (Some(idx), Some(col)) = (residual_idx, residual_sigma2_col.as_ref()) {
+                values[idx * n_draws..(idx + 1) * n_draws].copy_from_slice(col);
             }
             values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
                 .copy_from_slice(&effect_acc[..n_draws]);
@@ -1220,6 +1297,7 @@ impl BayesianGComputationAte {
             let summaries = draws.summarize();
             return Ok(CausalPosterior {
                 subsampled_out_mass: 0.0,
+                unevaluable_mass: 0.0,
                 draws,
                 summaries,
                 identification,
@@ -1251,21 +1329,25 @@ impl BayesianGComputationAte {
         evaluator.evaluate_batch(&compiled, batch, &mut effect_out, &mut workspace.eval, ctx)?;
 
         let mut quantities = mechanism.coefficient_draws.schema.quantities.to_vec();
-        // Drop residual variance column from combined effect artifact if present — keep coefs + effect.
-        quantities.retain(|q| !matches!(q, PosteriorQuantityKind::ResidualVariance));
+        let residual_idx = if residual_sigma2_col.as_ref().is_some_and(|c| c.len() == n_draws) {
+            quantities.push(PosteriorQuantityKind::ResidualVariance);
+            Some(quantities.len() - 1)
+        } else {
+            None
+        };
         let effect_idx = quantities.len();
         quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("ate") });
         let n_q = quantities.len();
         let mut values = vec![0.0; n_draws * n_q];
         for (qi, q) in mechanism.coefficient_draws.schema.quantities.iter().enumerate() {
-            if matches!(q, PosteriorQuantityKind::ResidualVariance) {
-                continue;
-            }
             let dest = quantities.iter().position(|qq| qq == q).ok_or_else(|| {
                 EstimationError::stats_msg(format!("posterior quantity missing from schema: {q:?}"))
             })?;
             let col = mechanism.coefficient_draws.column(qi).map_err(EstimationError::from)?;
             values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(col);
+        }
+        if let (Some(idx), Some(col)) = (residual_idx, residual_sigma2_col.as_ref()) {
+            values[idx * n_draws..(idx + 1) * n_draws].copy_from_slice(col);
         }
         values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
             .copy_from_slice(&effect_out.values[..n_draws]);
@@ -1293,6 +1375,7 @@ impl BayesianGComputationAte {
         let _ = mechanism;
         Ok(CausalPosterior {
             subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
             draws,
             summaries,
             identification,
@@ -1447,6 +1530,9 @@ fn apply_coefficient_names(quantities: &mut [PosteriorQuantityKind], names: &[Ar
 }
 
 /// Compound-symmetry GLS whitening for a random intercept (coefficient fit only).
+///
+/// Callers must gate on [`BayesLikelihood::GaussianIdentity`]: this transform is a
+/// Gaussian linear residual map and is not valid for non-Gaussian GLM outcomes.
 ///
 /// Returns `None` when unit ids are unusable (length mismatch, <2 units, all
 /// singleton units, or non-finite MOM variance components). The transform
@@ -1635,8 +1721,9 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
         posterior: PosteriorBatch<'_>,
         output: &mut EffectBatch,
         workspace: &mut PosteriorEvalWorkspace,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<(), EstimationError> {
+        const PARALLEL_WORK_FLOOR: usize = 1 << 16;
         let n_draws = posterior.len;
         workspace.prepare(n_draws, self.ncols);
         output.prepare(n_draws);
@@ -1648,12 +1735,11 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
             coef_cols.push(col);
         }
 
-        for d in 0..n_draws {
-            for c in 0..self.ncols {
-                workspace.row[c] = coef_cols[c][d];
-            }
-            let beta = &workspace.row[..self.ncols];
-            output.values[d] = gcomp_mean_contrast(
+        // Non-identity links average over every row per draw (O(draws × n × p)); the
+        // draws are independent and draw-order results are kept, so the pass is spread
+        // over the context's thread budget once it is large enough to repay the spawn.
+        let contrast = |beta: &[f64]| {
+            gcomp_mean_contrast(
                 self.family,
                 &self.matrix,
                 self.nrows,
@@ -1662,7 +1748,22 @@ impl PosteriorFunctionalEvaluator for GCompAteEvaluator {
                 beta,
                 self.active,
                 self.control,
-            );
+            )
+        };
+        let nonlinear = !matches!(self.family, GlmFamily::GaussianIdentity);
+        if nonlinear && n_draws * self.nrows * self.ncols >= PARALLEL_WORK_FLOOR {
+            let values = ctx.map_indexed(n_draws, |d, _| {
+                let beta: Vec<f64> = coef_cols.iter().map(|col| col[d]).collect();
+                Ok::<f64, EstimationError>(contrast(&beta))
+            })?;
+            output.values[..n_draws].copy_from_slice(&values);
+            return Ok(());
+        }
+        for d in 0..n_draws {
+            for c in 0..self.ncols {
+                workspace.row[c] = coef_cols[c][d];
+            }
+            output.values[d] = contrast(&workspace.row[..self.ncols]);
         }
         Ok(())
     }
@@ -1784,16 +1885,29 @@ fn coefficient_only_draws(draws: &PosteriorDraws) -> Result<PosteriorDraws, Esti
 
 /// Build a non-identified posterior artifact that still records priors (exit criterion #2).
 ///
-/// Samples prior-predictive draws for a scalar effect mean (isotropic Gaussian / weakly
-/// informative scale from `prior`) so Bayesian envelopes can surface uncertainty without
-/// inventing identification. Status remains [`IdentificationStatus::NotIdentified`].
-#[must_use]
+/// Samples prior-predictive draws of the scalar effect from the explicit effect prior
+/// `N(effect_mean, effect_sd²)` so Bayesian envelopes can surface uncertainty without
+/// inventing identification; `prior` is recorded as assumptions. The effect prior is
+/// passed explicitly because a design-shaped [`PriorSet`] has no single effect
+/// coefficient (its first entry is the intercept) and its Gaussian variances are
+/// σ²-relative, not an effect SD. Status remains [`IdentificationStatus::NotIdentified`].
+///
+/// # Errors
+///
+/// A non-finite `effect_mean` or a non-finite / non-positive `effect_sd`.
 pub fn nonidentified_with_prior(
     prior: &PriorSet,
+    effect_mean: f64,
+    effect_sd: f64,
     diagnostics: InferenceDiagnostics,
     n_draws: usize,
     seed: u64,
-) -> CausalPosterior {
+) -> Result<CausalPosterior, EstimationError> {
+    if !effect_mean.is_finite() || !effect_sd.is_finite() || effect_sd <= 0.0 {
+        return Err(EstimationError::unsupported(
+            "non-identified prior-predictive effect needs a finite mean and a positive finite sd",
+        ));
+    }
     let mut assumptions = AssumptionSet::new();
     for spec in &prior.specs {
         assumptions.push(AssumptionRecord {
@@ -1806,10 +1920,11 @@ pub fn nonidentified_with_prior(
     let schema = PosteriorSchema {
         quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("ate") }]),
     };
-    let (mean, scale) = prior_predictive_effect_params(prior);
+    let (mean, scale) = (effect_mean, effect_sd);
     let n = n_draws.max(1);
     let mut values = vec![0.0; n];
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xBA7E_u64);
+    let mut rng =
+        ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Bayesian, 0xBA7E_u64);
     for v in &mut values {
         *v = mean + scale * antecedent_kernels::standard_normal(&mut rng);
     }
@@ -1822,8 +1937,9 @@ pub fn nonidentified_with_prior(
             values: Arc::from([]),
         });
     let summaries = draws.summarize();
-    CausalPosterior {
+    Ok(CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification: IdentificationStatus::NotIdentified,
@@ -1834,16 +1950,7 @@ pub fn nonidentified_with_prior(
         unidentified_mass: 1.0,
         early_stopped: false,
         treatment_contrast: None,
-    }
-}
-
-fn prior_predictive_effect_params(prior: &PriorSet) -> (f64, f64) {
-    if let Some(g) = prior.gaussian_coefficients() {
-        let mean = g.mean.first().copied().unwrap_or(0.0);
-        let var = g.variance.first().copied().unwrap_or(100.0).max(1e-12);
-        return (mean, var.sqrt());
-    }
-    (0.0, 10.0)
+    })
 }
 
 #[cfg(test)]
@@ -1871,6 +1978,21 @@ mod tests {
     }
 
     fn linear_scm_table(n: usize) -> (TabularData, VariableId, VariableId, VariableId) {
+        linear_scm_table_with_noise(n, 0.0, 0)
+    }
+
+    fn linear_scm_table_shifted(
+        n: usize,
+        noise: f64,
+    ) -> (TabularData, VariableId, VariableId, VariableId) {
+        linear_scm_table_with_noise(n, noise, 17)
+    }
+
+    fn linear_scm_table_with_noise(
+        n: usize,
+        noise: f64,
+        seed_off: usize,
+    ) -> (TabularData, VariableId, VariableId, VariableId) {
         let mut b = CausalSchemaBuilder::new();
         b.add_variable(
             "Z",
@@ -1909,7 +2031,69 @@ mod tests {
         for i in 0..n {
             zv[i] = (i as f64) * 0.1;
             tv[i] = if i % 2 == 0 { 1.0 } else { 0.0 };
-            yv[i] = 2.0 * tv[i] + 0.5 * zv[i];
+            let e = if noise == 0.0 { 0.0 } else { (((i + seed_off) % 7) as f64 - 3.0) * noise };
+            yv[i] = 2.0 * tv[i] + 0.5 * zv[i] + e;
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(Float64Column::new(z, Arc::from(zv), validity.clone()).unwrap()),
+            OwnedColumn::Float64(Float64Column::new(t, Arc::from(tv), validity.clone()).unwrap()),
+            OwnedColumn::Float64(Float64Column::new(y, Arc::from(yv), validity).unwrap()),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        (TabularData::new(storage), t, y, z)
+    }
+
+    fn linear_scm_pooled(
+        n_each: usize,
+        noise: f64,
+    ) -> (TabularData, VariableId, VariableId, VariableId) {
+        // Two batches concatenated (batch A seed_off=0, batch B seed_off=17).
+        let n = n_each * 2;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "Z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "T",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let z = VariableId::from_raw(0);
+        let t = VariableId::from_raw(1);
+        let y = VariableId::from_raw(2);
+        let mut zv = vec![0.0; n];
+        let mut tv = vec![0.0; n];
+        let mut yv = vec![0.0; n];
+        for batch in 0..2 {
+            let seed_off = if batch == 0 { 0 } else { 17 };
+            for i in 0..n_each {
+                let r = batch * n_each + i;
+                zv[r] = (i as f64) * 0.1;
+                tv[r] = if i % 2 == 0 { 1.0 } else { 0.0 };
+                let e = (((i + seed_off) % 7) as f64 - 3.0) * noise;
+                yv[r] = 2.0 * tv[r] + 0.5 * zv[r] + e;
+            }
         }
         let validity = ValidityBitmap::all_valid(n);
         let cols = vec![
@@ -2008,11 +2192,61 @@ mod tests {
     #[test]
     fn prior_does_not_create_identification() {
         let prior = PriorSet::weakly_informative(3);
-        let post = nonidentified_with_prior(&prior, InferenceDiagnostics::analytic("none"), 64, 1);
+        let post = nonidentified_with_prior(
+            &prior,
+            0.0,
+            10.0,
+            InferenceDiagnostics::analytic("none"),
+            64,
+            1,
+        )
+        .unwrap();
         assert_eq!(post.identification, IdentificationStatus::NotIdentified);
         assert!(!post.assumptions.is_empty());
         assert!((post.unidentified_mass - 1.0).abs() < 1e-12);
         assert!(post.draws.n_draws > 0, "prior-predictive draws required");
+    }
+
+    #[test]
+    fn prior_predictive_effect_follows_the_explicit_effect_prior_not_the_intercept() {
+        // The design-shaped prior's first coefficient (the intercept) is N(50, 0.1²);
+        // the effect prior is N(-3, 0.5²). The draws must follow the effect prior.
+        let mut prior = PriorSet::weakly_informative(2);
+        if let Some(antecedent_prob::PriorSpec::GaussianCoefficients(g)) = prior.specs.first_mut() {
+            *g = antecedent_prob::GaussianCoefficientPrior {
+                mean: Arc::from(vec![50.0, 0.0]),
+                variance: Arc::from(vec![0.01, 4.0]),
+            };
+        }
+        let post = nonidentified_with_prior(
+            &prior,
+            -3.0,
+            0.5,
+            InferenceDiagnostics::analytic("none"),
+            4000,
+            9,
+        )
+        .unwrap();
+        let draws = post.draws.column(0).unwrap();
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        let sd = (draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (draws.len() - 1) as f64)
+            .sqrt();
+        // Monte Carlo error of the mean is 0.5/sqrt(4000) = 0.008; of the sd about 0.006.
+        assert!((mean + 3.0).abs() < 0.04, "mean={mean}");
+        assert!((sd - 0.5).abs() < 0.03, "sd={sd}");
+        for (mean, sd) in [(f64::NAN, 1.0), (0.0, 0.0), (0.0, f64::INFINITY), (0.0, -1.0)] {
+            assert!(
+                nonidentified_with_prior(
+                    &prior,
+                    mean,
+                    sd,
+                    InferenceDiagnostics::analytic("none"),
+                    8,
+                    1
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
@@ -2325,6 +2559,152 @@ mod tests {
         );
     }
 
+    /// estimate-bayes-transport-response-3 / R15: GLS whitening must not feed a
+    /// Poisson likelihood. With unit_ids present, the fit must consume the raw
+    /// count column (same posterior as stacked iid) and disclose the skip.
+    #[test]
+    fn poisson_random_intercept_does_not_consume_whitened_outcome() {
+        use crate::adjustment::LinearAdjustmentAte;
+        use antecedent_core::AverageEffectQuery;
+
+        let n_units = 20usize;
+        let t_len = 6usize;
+        let n = n_units * t_len;
+        let mut t = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut z = Vec::with_capacity(n);
+        let mut unit_ids = Vec::with_capacity(n);
+        for u in 0..n_units {
+            let a = if u % 2 == 0 { 1.0 } else { 0.0 };
+            // Unit intercepts vary within each treatment arm so MOM τ²>0 after OLS.
+            let unit_base = 4.0 + (u % 5) as f64;
+            for k in 0..t_len {
+                t.push(a);
+                z.push(0.0);
+                // Within-unit count variation so residual σ²>0 (required by the whitener).
+                let rate: f64 = unit_base * if a > 0.5 { 2.0 } else { 1.0 } + (k % 3) as f64;
+                y.push(rate.round().max(0.0));
+                unit_ids.push(u as u32);
+            }
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "T",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "Z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y.clone()), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(z), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([] as [VariableId; 0]),
+            ExprId::from_raw(0),
+        );
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let freq = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = freq.prepare(&data, &estimand, &query).unwrap();
+
+        // Whitening is applicable on this panel and would change the outcome column.
+        let (x_star, y_star) = random_intercept_gls_whiten(
+            &prep.design.matrix,
+            &prep.design.outcome,
+            prep.design.nrows,
+            prep.design.ncols,
+            &unit_ids,
+        )
+        .expect("panel with shared unit intercepts must admit GLS whitening");
+        assert!(
+            y_star.iter().zip(prep.design.outcome.iter()).any(|(a, b)| (a - b).abs() > 1e-9),
+            "sanity: whitened outcome must differ from the raw counts"
+        );
+        assert_eq!(x_star.len(), prep.design.matrix.len());
+
+        let stacked = BayesianGComputationAte::from_prepared_estimation(&prep);
+        let mut hierarchical = stacked.clone();
+        hierarchical.unit_ids = Some(unit_ids);
+
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::Laplace,
+            likelihood: BayesLikelihood::PoissonLog,
+            n_draws: 200,
+            seed: 19,
+            prior_scale: 10.0,
+            ..BayesianGComputationAte::new()
+        };
+        let mut ws = BayesianGCompWorkspace::default();
+        let ctx = ExecutionContext::for_tests(2);
+        let post_plain = bayes
+            .fit(&stacked, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+            .unwrap();
+        let post_ri = bayes
+            .fit(&hierarchical, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
+            .unwrap();
+
+        let eq = post_plain.effect_column().unwrap();
+        let mean_plain = post_plain.summaries.mean[eq];
+        let mean_ri = post_ri.summaries.mean[eq];
+        assert!(
+            (mean_plain - mean_ri).abs() < 1e-12,
+            "Poisson + unit_ids must not consume the whitened column \
+             (stacked={mean_plain}, with_unit_ids={mean_ri})"
+        );
+        assert!(
+            post_ri
+                .diagnostics
+                .notes
+                .iter()
+                .any(|n| n.as_ref() == RANDOM_INTERCEPT_WHITEN_SKIP_NOTE),
+            "non-Gaussian random-intercept skip must be disclosed, got {:?}",
+            post_ri.diagnostics.notes
+        );
+        assert!(
+            !post_plain
+                .diagnostics
+                .notes
+                .iter()
+                .any(|n| n.as_ref() == RANDOM_INTERCEPT_WHITEN_SKIP_NOTE),
+            "stacked fit must not emit the skip note"
+        );
+    }
+
     /// Seeded standard-normal draws for the calibration DGPs: Box-Muller over an LCG.
     ///
     /// Test-local on purpose — the calibration cases need a stream that is reproducible
@@ -2419,7 +2799,7 @@ mod tests {
         g
     }
 
-    /// Default replicate count for the 1.9 coverage gate (matches
+    /// Default replicate count for the coverage gate (matches
     /// `crates/antecedent/tests/common/calibration.rs`, which this crate cannot import).
     const CALIBRATION_N_SIM: u32 = 400;
 
@@ -2461,7 +2841,10 @@ mod tests {
             let lo_p = (1.0 - self.level) / 2.0;
             let last = (v.len() - 1) as f64;
             // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
-            #[allow(clippy::cast_sign_loss)]
+            #[allow(
+                clippy::cast_sign_loss,
+                reason = "the rounded index is clamped to [0, last] so it is non-negative and in range"
+            )]
             let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
             let (lo, hi) = (at(lo_p), at(1.0 - lo_p));
             self.length_sum += hi - lo;
@@ -2865,10 +3248,156 @@ mod tests {
             .unwrap();
         assert!(post2.assumptions.entries.iter().any(|a| {
             matches!(a.source, AssumptionSource::Artifact)
-                && matches!(&a.assumption, Assumption::PriorRestriction(pa) if pa.description.contains("sequential"))
+                && matches!(&a.assumption, Assumption::PriorRestriction(pa) if pa.description.contains("sequential")
+                    && pa.description.contains("diagonal")
+                    && pa.description.contains("tighter"))
         }));
         let eq = post2.effect_column().unwrap();
         assert!(post2.summaries.mean[eq].is_finite());
+    }
+
+    /// Earns `estimate-bayes-transport-response-1`: absolute SD² must not be stored as V0.
+    #[test]
+    fn sequential_hydrate_v0_not_orders_narrower_than_pooled() {
+        let n = 80;
+        let noise = 0.4;
+        let (data_a, t, y, z) = linear_scm_table_with_noise(n, noise, 0);
+        let (data_b, _, _, _) = linear_scm_table_shifted(n, noise);
+        let (pool, _, _, _) = linear_scm_pooled(n, noise);
+
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(t, y);
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 400,
+            seed: 9,
+            prior_scale: 10.0,
+            ..BayesianGComputationAte::new()
+        };
+        let mut ws = BayesianGCompWorkspace::default();
+
+        let prep_a = bayes.prepare(&data_a, &estimand, &query).unwrap();
+        let post_a = bayes
+            .fit(
+                &prep_a,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert!(
+            post_a
+                .draws
+                .schema
+                .quantities
+                .iter()
+                .any(|q| matches!(q, PosteriorQuantityKind::ResidualVariance)),
+            "source posterior must retain residual_variance for V0 conversion"
+        );
+        let prior = hydrate_prior_from_posterior(&post_a, Some(prep_a.design.ncols)).unwrap();
+        let coef = prior.gaussian_coefficients().unwrap();
+        let sigma2 = post_a
+            .draws
+            .schema
+            .quantities
+            .iter()
+            .position(|q| matches!(q, PosteriorQuantityKind::ResidualVariance))
+            .map(|i| post_a.summaries.mean[i])
+            .unwrap();
+        for i in 0..coef.len() {
+            let abs = post_a.summaries.sd[i] * post_a.summaries.sd[i];
+            let expected_v0 = abs / sigma2;
+            assert!(
+                (coef.variance[i] - expected_v0).abs() / expected_v0.max(1e-18) < 1e-6,
+                "coef {i}: V0 {} vs abs/σ² {expected_v0} (abs={abs}, σ²={sigma2})",
+                coef.variance[i]
+            );
+        }
+
+        let prep_b = bayes.prepare(&data_b, &estimand, &query).unwrap();
+        let sequential = BayesianGComputationAte { prior: Some(prior), ..bayes.clone() };
+        let post_seq = sequential
+            .fit(
+                &prep_b,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let prep_pool = bayes.prepare(&pool, &estimand, &query).unwrap();
+        let post_pool = bayes
+            .fit(
+                &prep_pool,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let eq_s = post_seq.effect_column().unwrap();
+        let eq_p = post_pool.effect_column().unwrap();
+        let sd_seq = post_seq.summaries.sd[eq_s];
+        let sd_pool = post_pool.summaries.sd[eq_p];
+        assert!(sd_seq.is_finite() && sd_pool.is_finite() && sd_seq > 0.0 && sd_pool > 0.0);
+        let ratio = sd_pool / sd_seq;
+        assert!(
+            ratio < 20.0,
+            "sequential SD {sd_seq} is orders narrower than pooled {sd_pool} (ratio {ratio}) — \
+             likely absolute SD² stored as V0"
+        );
+    }
+
+    /// Earns `tests-quality-7`: strong prior vs flat prior vs prior-dominated.
+    #[test]
+    fn strong_prior_moves_posterior_away_from_flat_and_data_moves_away_from_prior() {
+        let n = 100;
+        let (data, t, y, z) = linear_scm_table(n);
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(t, y);
+        let mut ws = BayesianGCompWorkspace::default();
+        let flat = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 300,
+            seed: 5,
+            prior_scale: 1e4,
+            ..BayesianGComputationAte::new()
+        };
+        let strong = BayesianGComputationAte { prior_scale: 0.05, ..flat.clone() };
+        let prep = flat.prepare(&data, &estimand, &query).unwrap();
+        let post_flat = flat
+            .fit(
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let post_strong = strong
+            .fit(
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let eq = post_flat.effect_column().unwrap();
+        let m_flat = post_flat.summaries.mean[eq];
+        let m_strong = post_strong.summaries.mean[eq];
+        // True ATE ≈ 2; flat recovers it; strong isotropic prior at 0 pulls toward 0.
+        assert!((m_flat - m_strong).abs() > 0.15, "prior ignored? flat={m_flat} strong={m_strong}");
+        assert!(
+            m_strong.abs() < m_flat.abs(),
+            "strong prior should shrink toward 0: flat={m_flat} strong={m_strong}"
+        );
+        // Data not ignored: informative sample must move off the prior mean (0).
+        assert!(m_strong.abs() > 0.05, "data ignored? strong posterior {m_strong} ≈ prior mean 0");
     }
 
     #[test]

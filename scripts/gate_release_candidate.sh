@@ -97,6 +97,16 @@ PY
   else
     echo "self-test ok: missing CI_RUN_ID refused"
   fi
+  local skip
+  for skip in SKIP_PRIOR_GATES SKIP_PYTHON_SMOKE ALLOW_SKIP_PYTHON_SMOKE; do
+    if env "$skip=1" CI_RUN_ID=0 bash "$0" >"$tmp/out" 2>&1; then
+      echo "SELF-TEST FAIL: RC ran with $skip=1"; status=1
+    elif ! grep -q "$skip is set" "$tmp/out"; then
+      echo "SELF-TEST FAIL: $skip=1 failed for the wrong reason"; cat "$tmp/out"; status=1
+    else
+      echo "self-test ok: $skip=1 refused"
+    fi
+  done
   if [[ "$status" -ne 0 ]]; then
     return 1
   fi
@@ -111,6 +121,26 @@ fi
 if [[ -z "${CI_RUN_ID:-}" ]]; then
   echo "FAIL: RC requires CI_RUN_ID (GitHub Actions ci run that built this SHA)"
   echo "  find it with: gh run list --workflow ci.yml --commit \"\$(git rev-parse HEAD)\""
+  exit 1
+fi
+# A release candidate is the whole gate. Every escape hatch that lets a feature
+# gate, a Python smoke or the dependency policy be skipped is refused here,
+# including SKIP_PRIOR_GATES, which would drop composition and transport (the
+# two gates that never soft-skip).
+for var in SKIP_PRIOR_GATES SKIP_PYTHON_SMOKE ALLOW_SKIP_PYTHON_SMOKE; do
+  if [[ -n "${!var:-}" && "${!var}" != "0" ]]; then
+    echo "FAIL: $var is set; a release candidate runs every gate (unset it)"
+    exit 1
+  fi
+done
+if ! command -v cargo-deny >/dev/null 2>&1; then
+  echo "FAIL: cargo-deny is required for the RC dependency policy check (cargo install cargo-deny --locked)"
+  exit 1
+fi
+export REQUIRE_CARGO_DENY=1
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  echo "FAIL: RC requires a clean working tree: the gate's local steps test the tree, the tag names HEAD"
+  git status --short
   exit 1
 fi
 if ! command -v gh >/dev/null 2>&1; then

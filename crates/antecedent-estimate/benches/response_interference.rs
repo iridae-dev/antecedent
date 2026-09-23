@@ -1,13 +1,13 @@
-//! Criterion smokes for the 0.5 causal-response and interference hot paths.
+//! Criterion smokes for the causal-response and interference hot paths.
 //!
 //! Each workload carries a soft-budget gate (asserted on every invocation
 //! including the `--test` smoke) sized with ~5× headroom over the accepted
 //! local means, so superlinear regressions — like the O(n²) pseudo-outcome
-//! loop fixed in 0.5.2 — fail the gate instead of shipping.
+//! loop — fail the gate instead of shipping.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_precision_loss, clippy::many_single_char_names)]
+#![allow(missing_docs)]
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -130,22 +130,29 @@ fn bench_response_interference(c: &mut Criterion) {
         });
     });
 
-    // Soft-budget gates. Accepted local means (Apple M1 Max): curve ~210 ms
-    // (0.5.2), simultaneous band ~216 ms (0.6.0), interference ~167 ms (0.5.2).
-    // Budgets carry ~5× headroom; the pre-0.5.2 quadratic pseudo-outcome loop
+    // Soft-budget gates. Accepted local means (Apple M1 Max, `cargo bench`'s optimized
+    // profile): curve ~210 ms, simultaneous band ~216 ms, interference ~167 ms.
+    // Budgets carry ~5× headroom over that; the quadratic pseudo-outcome loop
     // (~4 s at this size) and the per-draw cluster scan both fail them.
+    //
+    // `run_curve`/`run_curve_simultaneous`'s hot loop lives mostly in this crate, which
+    // `[profile.dev.package.*]` does not opt-level-bump (only faer/antecedent-stats/
+    // antecedent-kernels are), so under `cargo test --bench` (this smoke, unoptimized) they
+    // run ~7-8× slower than the optimized baseline above -- consistently ~1.5-1.7 s here,
+    // well under the ~4 s quadratic-regression trip wire. 3 s keeps that margin while still
+    // catching a real superlinear regression.
     let t0 = Instant::now();
     run_curve(&curve);
     let elapsed = t0.elapsed();
     assert!(
-        elapsed < Duration::from_secs(1),
+        elapsed < Duration::from_secs(3),
         "kennedy_curve_n4k_grid5 exceeded soft budget: {elapsed:?}"
     );
     let t0 = Instant::now();
     run_curve_simultaneous(&curve);
     let elapsed = t0.elapsed();
     assert!(
-        elapsed < Duration::from_secs(1),
+        elapsed < Duration::from_secs(3),
         "kennedy_curve_n4k_grid5_simultaneous exceeded soft budget: {elapsed:?}"
     );
     let t0 = Instant::now();

@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "closed_form_moments_and_ranking",
+    "kind": "closed_form",
+    "method": "closed_form_moments_and_ranking",
     "generator": "temporary clean-room harness (deleted after artifact import)",
     "formula": "score_j=abs(mean(draw_j)); graph_std_j=sqrt(E[draw_j^2]-E[draw_j]^2)."
   },

@@ -32,7 +32,8 @@ class Estimator(StrEnum):
     DISTANCE_MATCHING = "distance.matching"
     AIPW = "aipw"
     GLM_ADJUSTMENT = "glm.adjustment"
-    FRONTDOOR_TWO_STAGE = "frontdoor.two_stage"
+    FRONTDOOR_FUNCTIONAL = "frontdoor.functional"
+    FRONTDOOR_LINEAR_TWO_STAGE = "frontdoor.linear_two_stage"
     IV_WALD = "iv.wald"
     IV_2SLS = "iv.2sls"
     RD_SHARP = "rd.sharp"
@@ -55,6 +56,9 @@ class Estimator(StrEnum):
     CELL_AIPW = "cell.aipw"
     GCM_FIT = "gcm.fit"
     MEDIATION_LINEAR = "mediation.linear"
+    DML = "dml"
+    DR_LEARNER = "dr.learner"
+    CAUSAL_FOREST = "causal.forest"
 
 
 class Latency(StrEnum):

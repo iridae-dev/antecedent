@@ -1,5 +1,7 @@
 # Causal-response / interference benchmark baselines
 
+Commit: c2671624 (the commit that added this file; the measured commit was not written down)
+
 Workloads (`antecedent-estimate` bench `response_interference`):
 
 - `kennedy_curve_n4k_grid5` — cross-fitted Kennedy DR mean curve, n = 4 000,

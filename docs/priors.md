@@ -65,19 +65,23 @@ Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iri
 
 ## Coefficient priors are diagonal
 
-`GaussianCoefficientPrior` stores a mean and a **diagonal** scale (`V0`) per
-coefficient; there is no off-diagonal prior covariance. Hydrating a prior from
-a posterior artifact (`IdenticalCoefficientSubspace`, `EffectFunctional`,
-`NamedParameters`, and every power / mixture compose built on them) reads only
-the per-coefficient posterior **means and standard deviations**, so posterior
-correlation between coefficients is **dropped**. Each coefficient's prior
-variance equals its source marginal variance, so no single coefficient is
-more tightly constrained than the source said. That does **not** hold for
-linear combinations: dropping the covariance replaces `Σ` by `diag(Σ)`, and
-`diag(Σ) − Σ` is not positive semidefinite in general, so a combination
-along which the source was uncertain because of correlated coefficients can
-receive a *tighter* prior than the source supports. For two coefficients the
-transferred variance of `β₁ ± β₂` is `σ₁² + σ₂²` instead of
+`GaussianCoefficientPrior` stores a mean and a **diagonal** conjugate scale
+(`V0`) per coefficient in `β | σ² ~ N(mean, σ² · diag(V0))`; there is no
+off-diagonal prior covariance. Absolute prior variance of coefficient `i` is
+`σ² · V0[i]` — use `GaussianCoefficientPrior::absolute_variance` /
+`from_absolute_variance` at the boundary; do not write absolute SD² into `V0`.
+
+Hydrating a prior from a posterior artifact (`IdenticalCoefficientSubspace`,
+`EffectFunctional`, `NamedParameters`, and every power / mixture compose built
+on them) reads only the per-coefficient posterior **means and standard
+deviations**, converts absolute SD² → `V0` with the source residual-variance
+mean, and **drops** posterior correlation between coefficients. That diagonal
+approximation **can be tighter than the source marginal** on linear
+combinations of coefficients: dropping the covariance replaces `Σ` by
+`diag(Σ)`, and `diag(Σ) − Σ` is not positive semidefinite in general, so a
+combination along which the source was uncertain because of correlated
+coefficients can receive a *tighter* prior than the source supports. For two
+coefficients the transferred variance of `β₁ ± β₂` is `σ₁² + σ₂²` instead of
 `σ₁² + σ₂² ± 2σ₁₂`: positive source correlation makes the transferred prior on
 the sum too narrow, negative correlation (typical of collinear lags such as
 `coef_x@lag1` and `coef_x@lag2`) makes the prior on their difference too

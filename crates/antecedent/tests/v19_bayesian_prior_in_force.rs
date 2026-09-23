@@ -1,10 +1,10 @@
-//! 1.9: Bayesian validation uses the prior in force (R-4, R-5), the temporal
+//! Bayesian validation uses the prior in force (R-4, R-5), the temporal
 //! serial-dependence posterior check (C-4), the tempering diagnostic (R-9) and
 //! the HMC draw-floor diagnostic (B-5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines, clippy::many_single_char_names)]
+#![allow(clippy::too_many_lines)]
 
 mod common;
 
@@ -468,7 +468,13 @@ fn full_posterior_ppc_flags_serial_dependence_and_pins_a_value() {
 /// Mean lag-1 residual autocorrelation on the `full_posterior_ppc_flags_serial_dependence`
 /// fixture (AR(1) rho 0.7, n 200, seed 5). The posterior draws depend on the
 /// tempering factor, so a change to its estimator moves this pin.
-const PINNED_LAG1_AUTOCORRELATION: f64 = 0.693_134_463_691_538_7;
+///
+/// Re-pinned from `0.693_134_463_691_538_7`: `36a14c46` (convert absolute
+/// prior SD^2 to conjugate V0 scale) changed how the default weakly-informative
+/// conjugate-Gaussian coefficient prior is combined with the likelihood, which
+/// moves every conjugate posterior draw, including this one's tempered-residual
+/// autocorrelation. `serial.p_value` stays well under 0.05 on the new value.
+const PINNED_LAG1_AUTOCORRELATION: f64 = 0.693_981_173_492_369_5;
 
 #[test]
 fn hmc_draw_floor_raises_draws_with_a_diagnostic() {

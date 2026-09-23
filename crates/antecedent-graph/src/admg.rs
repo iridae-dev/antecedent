@@ -4,7 +4,7 @@
 
 use antecedent_core::VariableId;
 
-use crate::algo::{bfs_reaches, is_dag};
+use crate::algo::{bfs_reaches, is_dag, kahn_order};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -87,8 +87,10 @@ impl Admg {
     ///
     /// Non-static node or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
-        if !matches!(node, NodeRef::Static(_)) {
-            return Err(GraphError::InvalidEndpoints { message: "Admg accepts only Static nodes" });
+        if !node.is_static_graph_node() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "Admg accepts only Static or Unfolded nodes",
+            });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
@@ -182,22 +184,22 @@ impl Admg {
         }
     }
 
-    /// Children of `id` (directed).
+    /// Children of `id` (directed; empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.children[id.as_usize()]
+        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
-    /// Parents of `id` (directed).
+    /// Parents of `id` (directed; empty for an id outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.parents[id.as_usize()]
+        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
-    /// Bidirected neighbors of `id`.
+    /// Bidirected neighbors of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn bidirected_neighbors(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.bidirected[id.as_usize()]
+        self.bidirected.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
     /// Whether any bidirected edge is present.
@@ -258,21 +260,46 @@ impl Admg {
     /// Returns a district id per dense node (`0..n_districts-1`).
     #[must_use]
     pub fn districts(&self) -> Vec<u32> {
+        let mut label = Vec::new();
+        self.districts_into(None, &mut label, &mut Vec::new());
+        label
+    }
+
+    /// Districts of the subgraph induced on `within`: bidirected-connected components using
+    /// only nodes of `within`. Returns a district id per dense node; nodes outside `within`
+    /// carry `u32::MAX`.
+    #[must_use]
+    pub fn districts_within(&self, within: &BitSet) -> Vec<u32> {
+        let mut label = Vec::new();
+        self.districts_into(Some(within), &mut label, &mut Vec::new());
+        label
+    }
+
+    /// Allocation-reusing core of [`Self::districts`] / [`Self::districts_within`]; returns
+    /// the number of districts.
+    pub(crate) fn districts_into(
+        &self,
+        within: Option<&BitSet>,
+        label: &mut Vec<u32>,
+        stack: &mut Vec<DenseNodeId>,
+    ) -> u32 {
         let n = self.node_count();
-        let mut label = vec![u32::MAX; n];
+        let inside = |v: DenseNodeId| within.is_none_or(|w| w.contains(v));
+        label.clear();
+        label.resize(n, u32::MAX);
+        stack.clear();
         let mut next = 0u32;
-        let mut stack = Vec::new();
         for i in 0..n {
-            if label[i] != u32::MAX {
+            let root = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            if label[i] != u32::MAX || !inside(root) {
                 continue;
             }
-            let root = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
             label[i] = next;
             stack.push(root);
             while let Some(u) = stack.pop() {
                 for &v in self.bidirected_neighbors(u) {
                     let vi = v.as_usize();
-                    if label[vi] == u32::MAX {
+                    if label[vi] == u32::MAX && inside(v) {
                         label[vi] = next;
                         stack.push(v);
                     }
@@ -280,7 +307,73 @@ impl Admg {
             }
             next += 1;
         }
-        label
+        next
+    }
+
+    /// Topological order of the directed edges (Kahn, stack discipline).
+    ///
+    /// `None` only if a directed cycle slipped in; insertion refuses cycles.
+    #[must_use]
+    pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
+        kahn_order(&self.parents, &self.children)
+    }
+
+    /// Districts (bidirected-connected components) of the subgraph induced by `nodes`.
+    ///
+    /// Unlike [`Self::districts`], only edges with both endpoints in `nodes` connect, so
+    /// nodes that a bidirected edge joins through a removed node fall apart. Components come
+    /// out in ascending order of their smallest member.
+    #[must_use]
+    pub fn district_components_within(&self, nodes: &BitSet) -> Vec<BitSet> {
+        let n = self.node_count();
+        let mut label = Vec::new();
+        let count = self.districts_into(Some(nodes), &mut label, &mut Vec::new());
+        // Labels are handed out in ascending order of each component's smallest member.
+        let mut comps = vec![BitSet::with_len(n); count as usize];
+        for id in nodes.to_dense_ids() {
+            comps[label[id.as_usize()] as usize].insert(id);
+        }
+        comps
+    }
+
+    /// Directed ancestors of `seeds` (seeds included) inside `active`.
+    ///
+    /// Seeds outside `active` are ignored. With `bar_x` set, the nodes in it have no
+    /// incoming edges, which is the ancestry of the graph with all edges into `bar_x`
+    /// removed.
+    #[must_use]
+    pub fn ancestors_within(
+        &self,
+        seeds: &BitSet,
+        active: &BitSet,
+        bar_x: Option<&BitSet>,
+        ws: &mut GraphWorkspace,
+    ) -> BitSet {
+        let n = self.node_count();
+        let mut out = BitSet::with_len(n);
+        ws.prepare(n);
+        for id in seeds.to_dense_ids() {
+            if !active.contains(id) {
+                continue;
+            }
+            if !out.contains(id) {
+                out.insert(id);
+                ws.frontier.push(id);
+            }
+        }
+        while let Some(u) = ws.frontier.pop() {
+            if bar_x.is_some_and(|bx| bx.contains(u)) {
+                continue;
+            }
+            for &p in self.parents(u) {
+                if !active.contains(p) || out.contains(p) {
+                    continue;
+                }
+                out.insert(p);
+                ws.frontier.push(p);
+            }
+        }
+        out
     }
 
     /// Number of districts.
@@ -319,6 +412,60 @@ mod tests {
         assert!(g.has_bidirected());
         let dag_shaped = Admg::with_variables(2);
         assert!(!dag_shaped.has_bidirected());
+    }
+
+    fn set(n: usize, members: &[u32]) -> BitSet {
+        let mut b = BitSet::with_len(n);
+        for &m in members {
+            b.insert(DenseNodeId::from_raw(m));
+        }
+        b
+    }
+
+    #[test]
+    fn district_components_within_only_join_through_present_nodes() {
+        // 0 <-> 1 <-> 2: dropping 1 separates 0 from 2.
+        let mut g = Admg::with_variables(3);
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let all = g.district_components_within(&set(3, &[0, 1, 2]));
+        assert_eq!(all.len(), 1);
+        assert!(all[0].equal_set(&set(3, &[0, 1, 2])));
+        let split = g.district_components_within(&set(3, &[0, 2]));
+        assert_eq!(split.len(), 2);
+        assert!(split[0].equal_set(&set(3, &[0])));
+        assert!(split[1].equal_set(&set(3, &[2])));
+    }
+
+    #[test]
+    fn ancestors_within_respects_active_set_and_bar_x() {
+        // 0 -> 1 -> 2 -> 3.
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(0, 1), (1, 2), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let mut ws = GraphWorkspace::default();
+        let seeds = set(4, &[3]);
+        let full = set(4, &[0, 1, 2, 3]);
+        assert!(g.ancestors_within(&seeds, &full, None, &mut ws).equal_set(&full));
+        // Node 1 is absent, so 0 is no longer reachable from 3.
+        let holed = set(4, &[0, 2, 3]);
+        assert!(g.ancestors_within(&seeds, &holed, None, &mut ws).equal_set(&set(4, &[2, 3])));
+        // Edges into 2 removed: ancestry stops at 2.
+        let bar = set(4, &[2]);
+        assert!(g.ancestors_within(&seeds, &full, Some(&bar), &mut ws).equal_set(&set(4, &[2, 3])));
+    }
+
+    #[test]
+    fn topological_order_places_parents_first() {
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(2, 0), (0, 1), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let order = g.topological_order().unwrap();
+        let pos = |v: u32| order.iter().position(|&d| d.raw() == v).unwrap();
+        assert_eq!(order.len(), 4);
+        assert!(pos(2) < pos(0) && pos(0) < pos(1) && pos(2) < pos(3));
     }
 
     #[test]

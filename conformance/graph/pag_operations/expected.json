@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "oracle": {"kind": "endpoint algebra and ancestral-graph constraints", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {"kind": "closed_form", "method": "endpoint algebra and ancestral-graph constraints", "generator": "temporary clean-room harness (deleted after artifact import)"},
   "cases": [
     {"id": "circle_arrow", "edge": "0o->1", "marks": ["circle", "arrow"]},
     {"id": "circle_circle", "edge": "0o-o1", "marks": ["circle", "circle"]},

@@ -17,16 +17,22 @@
 
 pub mod adjustment;
 pub mod aipw;
+pub mod ar_kernel;
 pub mod bayesian;
 pub mod bayesian_mediation;
+pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
 pub mod crossfit_aipw;
 pub mod design_compile;
+pub mod dml;
+pub mod dr;
+pub mod empirical_table;
 pub mod envelope;
 pub mod error;
 pub mod estimator;
 pub mod frontdoor;
+pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
@@ -34,6 +40,7 @@ pub mod identified_set;
 pub mod interference;
 pub mod iv;
 pub mod joint_if;
+mod learn_nuisance;
 pub mod observation;
 pub mod overlap;
 pub mod prediction;
@@ -46,6 +53,7 @@ pub mod retarget;
 pub mod scores;
 pub mod se;
 pub mod serial_dependence;
+pub mod statistical_transport;
 pub mod temporal_adjustment;
 pub mod temporal_block;
 pub mod temporal_mediation;
@@ -65,9 +73,22 @@ pub use adjustment::{
     BlockResampling, CandidateSelectionRecord, EffectEstimate, EstimationWorkspace,
     LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
+pub mod learned_trial;
+pub use learned_trial::{
+    TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
+    validate_trial_aipw, validate_trial_query,
+};
+mod fitted_effect;
+pub use fitted_effect::FittedEffect;
+
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;
+pub use antecedent_learn::{
+    ForestSpec, GbtSpec, LearnerProvenance, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
+    RidgeSpec,
+};
 pub use antecedent_stats::FirstStageDiagnostics;
+pub use ar_kernel::kernel_bias_factor;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
@@ -76,6 +97,7 @@ pub use bayesian::{
     hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
     nonidentified_with_prior, require_bayesian_n_draws,
 };
+pub use causal_forest::CausalForest;
 pub use cell_aipw::{
     CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
     cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
@@ -86,18 +108,31 @@ pub use crossfit_aipw::{
     crossfit_binary_scores, thresholds_of, weighted_support,
 };
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
+pub use dml::{DmlAte, DmlScore};
+pub use dr::DrLearner;
+pub use empirical_table::{
+    EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN, EmpiricalTableEstimator,
+    EmpiricalTableOptions, RegimeSample, StatisticalTransportInput, assemble_point_laws,
+    assemble_statistical_laws, catalog_axes, dependence_refusal, fit_empirical_joint,
+    licensed_iid_dependence, licensed_iid_regimes,
+};
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
     aggregate_mixture_functional_envelope, couple_mixture_functional_draws,
 };
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
-pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
+pub use frontdoor::{
+    FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem,
+    linear_path_product_restriction,
+};
+pub use frontdoor_functional::{FrontDoorFunctional, FrontDoorOutcomeModel};
 pub use functional_distribution::{
-    AtomUncertainty, DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace,
-    FunctionalEffect, InterventionalDistributionEstimate, PreparedFunctionalDistribution,
-    PreparedFunctionalEffect, ProbabilityInterval, ProbabilityIntervalUnavailable,
-    functional_cell_unevaluable, logit_probability_interval, support_from_functional_eval,
+    AtomUncertainty, DistributionAtom, FREE_VARIABLES_AVERAGED_CODE, FunctionalDistribution,
+    FunctionalDistributionWorkspace, FunctionalEffect, InterventionalDistributionEstimate,
+    PreparedFunctionalDistribution, PreparedFunctionalEffect, ProbabilityInterval,
+    ProbabilityIntervalUnavailable, free_variables_diagnostic, functional_cell_unevaluable,
+    functional_free_variables, logit_probability_interval, support_from_functional_eval,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use identified_set::{
@@ -130,8 +165,8 @@ pub use retarget::{
     check_depends_on, exceedance_cdf_values, retarget, summarize_functional,
 };
 pub use scores::{
-    LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreTable, ScoreTableWire,
-    inference_from_influence_columns,
+    LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
+    ScoreTableWire, inference_from_influence_columns,
 };
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
@@ -140,6 +175,10 @@ pub use serial_dependence::{
     TemperingFactor, long_run_tempering_factor, tempering_capped_from_notes,
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
+pub use statistical_transport::{
+    PERCENTILE_BOOTSTRAP, StatisticalTransportEstimate, TransportUncertaintyRow,
+    evaluate_statistical_transport, percentile_interval,
+};
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
     is_temporal_coefficient_name, temporal_coefficient_names,
@@ -147,8 +186,9 @@ pub use temporal_adjustment::{
 pub use temporal_block::{
     AlignedRows, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap, block_effective_rows,
     circular_fixed_b_scale, common_time_window, dependence_block_length, effective_rows,
-    fixed_b_scale, kernel_bias_scale, normal_equation_scores, politis_white_block_length,
-    row_block_bootstrap_vec, score_effective_rows, testing_block_length,
+    fixed_b_scale, kernel_bias_scale, normal_equation_scores, normal_equation_scores_of_residuals,
+    politis_white_block_length, row_block_bootstrap_vec, score_effective_rows,
+    testing_block_length,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -169,7 +209,7 @@ pub use temporal_response::{
     plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_response_dispersion::{
-    CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows, kernel_bias_factor,
+    CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows,
 };
 pub use temporal_sequential::{
     SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,
@@ -180,12 +220,13 @@ pub use temporal_sequential_tuples::{
 };
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
-    TransportResponseGridEstimate, transport_augmented_response_grid, trial_to_target_effect,
-    trial_to_target_ipw_se,
+    TransportResponseGridEstimate, evaluate_exact_transport, prepare_exact_transport,
+    transport_augmented_response_grid, trial_to_target_effect, trial_to_target_ipw_se,
 };
 pub use util::BootstrapSeResult;
 
 mod static_mediation;
 pub use static_mediation::{
     MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,
+    linear_no_interaction_restriction,
 };

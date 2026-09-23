@@ -5,22 +5,28 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
     clippy::field_reassign_with_default,
-    clippy::float_cmp,
     clippy::manual_let_else,
-    clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::too_many_lines
 )]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
-use antecedent_core::{RoleHint, VariableId};
+use antecedent_core::{CausalRng, RoleHint, ValueType, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
+use antecedent_kernels::shuffled_fold_assignment;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
     MultinomialDesignRef, fit_glm_ridge,
@@ -34,7 +40,7 @@ use crate::compile::{
     CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan,
 };
 use crate::error::ModelError;
-use crate::mechanism::{gp_predictive_mean_column, log_prob_column};
+use crate::mechanism::log_prob_column;
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -138,7 +144,9 @@ impl MechanismFamily {
 pub struct MechanismCandidate {
     /// Family.
     pub family: MechanismFamily,
-    /// Validation score (higher is better; e.g. negative MSE or log-lik).
+    /// Mean held-out predictive log-likelihood (nats per row, on shared cross-validation
+    /// folds) less a `k ln n / 2n` parameter-count penalty; higher is better. Differences
+    /// between families are free of the outcome's units. A degenerate `Constant` scores `0`.
     pub score: f64,
     /// Estimated fit cost (relative).
     pub fit_cost: f64,
@@ -157,11 +165,39 @@ pub struct MechanismAssignment {
     pub candidates: Arc<[MechanismCandidate]>,
     /// Selected family (must be chosen explicitly from candidates).
     pub selected: MechanismFamily,
+    /// Which rule sent the node to the discrete or the continuous family list.
+    pub typing: MechanismTyping,
     /// Fitted slot.
     pub fitted: MechanismSlot,
     /// Families that failed to score/fit, with error messages.
     pub failed_families: Arc<[(MechanismFamily, String)]>,
 }
+
+/// Which rule decided that a node draws its mechanism from the discrete or the
+/// continuous family list.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum MechanismTyping {
+    /// The schema declares a discrete value type (binary, categorical or
+    /// ordinal), so the node is categorical however many levels it has.
+    DeclaredDiscrete,
+    /// The declared type does not assert a discrete variable (continuous or
+    /// count) but the column has at most [`LOW_CARDINALITY_MAX_LEVELS`] levels,
+    /// each observed at least [`LOW_CARDINALITY_MIN_ROWS_PER_LEVEL`] times on
+    /// average: a categorical mechanism is the better description.
+    LowCardinality,
+    /// Continuous mechanism families.
+    Continuous,
+}
+
+/// Most distinct values a column not declared discrete may take and still be
+/// typed categorical.
+pub const LOW_CARDINALITY_MAX_LEVELS: usize = 8;
+
+/// Average rows per level below which a short column is not read as
+/// categorical: a level set seen once or twice per level is a small sample of
+/// a continuous variable, and a categorical fit would restrict counterfactual
+/// support to the handful of values observed.
+pub const LOW_CARDINALITY_MIN_ROWS_PER_LEVEL: usize = 5;
 
 /// Registry of mechanism families.
 #[derive(Clone, Debug)]
@@ -355,15 +391,26 @@ impl MechanismRegistry {
             let node = gather.child;
             let var = model.output_layout.variables[node.as_usize()];
             let y = data.float64_cow(var).map_err(ModelError::from)?;
-            let is_discrete = is_low_cardinality(&y, 8);
-            let families: &[MechanismFamily] =
-                if is_discrete { &self.discrete } else { &self.continuous };
+            let typing = classify_node(data, var, &y);
+            let families: &[MechanismFamily] = if typing == MechanismTyping::Continuous {
+                &self.continuous
+            } else {
+                &self.discrete
+            };
+            let frame = FitFrame::from_data(gather, model, data, y.len())?;
 
             let mut candidates = Vec::new();
             let mut fits: Vec<(MechanismFamily, MechanismSlot)> = Vec::new();
             let mut failed = Vec::new();
             for &family in families {
-                match score_family(family, gather, model, data, &y, backend, &mut ls_ws) {
+                match score_family(family, &frame, &y, backend, &mut ls_ws) {
+                    // A non-finite score is not a low score: it is the family's own admissibility
+                    // gate (see `CONSTANT_FAMILY_MAX_VARIANCE` above) reporting that the fit is
+                    // not a candidate at all. Treat it exactly like an `Err` from the fit itself —
+                    // it must never win selection just because everything else also failed.
+                    Ok((c, _)) if !c.score.is_finite() => {
+                        failed.push((family, format!("score not finite ({})", c.score)));
+                    }
                     Ok((c, slot)) => {
                         candidates.push(c);
                         fits.push((family, slot));
@@ -383,8 +430,10 @@ impl MechanismRegistry {
                     ),
                 });
             }
-            candidates
-                .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+            // Every score here is finite (non-finite ones were moved to `failed` above), so
+            // the order is total; exact ties keep the registry's listing order, which lists
+            // the simpler family first.
+            candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
             let selected = policy.select(&candidates).ok_or_else(|| ModelError::Unsupported {
                 message: "selection policy produced no family".into(),
             })?;
@@ -402,6 +451,7 @@ impl MechanismRegistry {
                 variable: var,
                 candidates: Arc::from(candidates),
                 selected,
+                typing,
                 fitted,
                 failed_families: Arc::from(failed),
             });
@@ -414,7 +464,9 @@ impl MechanismRegistry {
 /// How to pick among scored candidates (no silent fallback).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SelectionPolicy {
-    /// Highest validation score.
+    /// Highest score: mean held-out predictive log-likelihood (every family
+    /// refit on the training folds of one shared deterministic partition) less a
+    /// parameter-count complexity penalty.
     BestScore,
     /// Require the named family to appear; error if missing.
     RequireFamily(MechanismFamily),
@@ -433,110 +485,358 @@ impl SelectionPolicy {
     }
 }
 
-fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
-    // Distinct-value scan with early exit: at most `max_levels` keys are ever
-    // retained, and the (max_levels + 1)-th distinct key bails out immediately.
-    // Equivalent to the historical sort+dedup of a full column copy (same 1e-6
-    // quantization, non-finite values skipped) without the O(n log n) copy.
+/// Number of distinct values (1e-6 quantization, non-finite skipped) when it is
+/// at most `max_levels`, else `None`; `None` also for an all-non-finite column.
+///
+/// Early-exiting scan: at most `max_levels` keys are ever retained, and the
+/// (`max_levels` + 1)-th distinct key bails out immediately, so no full-column
+/// sort or copy.
+fn distinct_level_count(y: &[f64], max_levels: usize) -> Option<usize> {
     let mut seen: Vec<i64> = Vec::with_capacity(max_levels.min(64));
     for v in y.iter().filter(|v| v.is_finite()) {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the key quantises a rounded finite outcome to 1e-6, and the saturating cast only merges outcomes beyond 9e12 in magnitude"
+        )]
         let key = (v * 1e6).round() as i64;
         if !seen.contains(&key) {
             if seen.len() == max_levels {
-                return false;
+                return None;
             }
             seen.push(key);
         }
     }
-    !seen.is_empty()
+    (!seen.is_empty()).then_some(seen.len())
 }
 
-/// Residual variance above which [`MechanismFamily::Constant`] is inadmissible.
+#[cfg(test)]
+fn is_low_cardinality(y: &[f64], max_levels: usize) -> bool {
+    distinct_level_count(y, max_levels).is_some()
+}
+
+/// Decide which family list a node draws from.
 ///
-/// `Constant` claims the variable is deterministic. Scored on conditional-mean fit alone it
-/// ties — and then beats, on the `sigma` tie-break — the correct marginal for any parentless
-/// node, which silently strips every root of its distribution. Anything above numerical noise
-/// means the claim is false.
-const CONSTANT_FAMILY_MAX_VARIANCE: f64 = 1e-12;
+/// A declared discrete value type (binary, categorical, ordinal) is
+/// authoritative; an unspecified type (schema migrated from a names-only artifact) is not a
+/// declaration. Otherwise the level count decides, but only when the levels
+/// are observed repeatedly ([`LOW_CARDINALITY_MIN_ROWS_PER_LEVEL`]): a short
+/// column of a continuous variable must not become a multinomial whose
+/// counterfactual support is the few values that happened to be observed.
+fn classify_node(data: &TabularData, var: VariableId, y: &[f64]) -> MechanismTyping {
+    let declared_discrete = data.schema().get(var).is_ok_and(|v| {
+        matches!(v.value_type, ValueType::Binary | ValueType::Categorical | ValueType::Ordinal)
+    });
+    if declared_discrete {
+        return MechanismTyping::DeclaredDiscrete;
+    }
+    match distinct_level_count(y, LOW_CARDINALITY_MAX_LEVELS) {
+        Some(levels) if y.len() >= levels * LOW_CARDINALITY_MIN_ROWS_PER_LEVEL => {
+            MechanismTyping::LowCardinality
+        }
+        _ => MechanismTyping::Continuous,
+    }
+}
+
+/// Spread, relative to the outcome's largest magnitude, above which
+/// [`MechanismFamily::Constant`] is inadmissible.
+///
+/// `Constant` claims the variable is deterministic. A held-out likelihood cannot
+/// score a point mass against a density, so its admissibility is decided on the
+/// claim itself: any spread above numerical noise means the claim is false, and it
+/// would silently strip every root of its distribution. The threshold is relative so
+/// a variable measured in small units is not declared deterministic for its units.
+const CONSTANT_FAMILY_MAX_RELATIVE_SD: f64 = 1e-6;
+
+/// Folds of the deterministic cross-validation that scores every family.
+pub const MECHANISM_CV_FOLDS: usize = 5;
+
+/// Seed of the partition behind [`MECHANISM_CV_FOLDS`]. Fixed so the score of a
+/// family is a function of the table alone; not a user-facing random stream.
+const CV_FOLD_SEED: u64 = 0x4D45_4348_4356_0001;
+
+/// Column view a mechanism fit reads: the parent columns of one node and the
+/// optional unit grouping. Fits and their cross-validation refits go through
+/// this view, so a training fold is a row subset of the same object rather than
+/// a second table.
+struct FitFrame<'d> {
+    parents: Vec<Cow<'d, [f64]>>,
+    /// Raw `UnitId` labels per row (the group structure is validated where used).
+    groups: Option<Vec<u32>>,
+    n: usize,
+}
+
+impl<'d> FitFrame<'d> {
+    fn from_data(
+        gather: &ParentGatherPlan,
+        model: &CompiledCausalModel,
+        data: &'d TabularData,
+        n: usize,
+    ) -> Result<Self, ModelError> {
+        let parents = gather_parent_cols(gather, model, data)?;
+        if parents.iter().any(|c| c.len() < n) {
+            return Err(ModelError::Shape {
+                message: "parent column shorter than the outcome".into(),
+            });
+        }
+        Ok(Self { parents, groups: unit_id_groups(data, n), n })
+    }
+
+    fn n_parents(&self) -> usize {
+        self.parents.len()
+    }
+
+    /// Owned frame over `rows` (in the given order).
+    fn select(&self, rows: &[usize]) -> FitFrame<'static> {
+        FitFrame {
+            parents: self
+                .parents
+                .iter()
+                .map(|c| Cow::Owned(rows.iter().map(|&r| c[r]).collect::<Vec<f64>>()))
+                .collect(),
+            groups: self.groups.as_ref().map(|g| rows.iter().map(|&r| g[r]).collect()),
+            n: rows.len(),
+        }
+    }
+
+    /// Same rows, replaced parent columns (e.g. within-group demeaned).
+    fn with_parents(&self, parents: Vec<Vec<f64>>) -> FitFrame<'static> {
+        FitFrame {
+            parents: parents.into_iter().map(Cow::Owned).collect(),
+            groups: self.groups.clone(),
+            n: self.n,
+        }
+    }
+
+    /// Column-major parent matrix `[parent * n + row]`.
+    fn column_major(&self) -> Vec<f64> {
+        let mut out = Vec::with_capacity(self.n * self.n_parents());
+        for c in &self.parents {
+            out.extend_from_slice(&c[..self.n]);
+        }
+        out
+    }
+}
+
+fn family_is_categorical(family: MechanismFamily) -> bool {
+    matches!(
+        family,
+        MechanismFamily::Discrete
+            | MechanismFamily::DiscreteInteractions
+            | MechanismFamily::DiscreteSpline
+            | MechanismFamily::HierarchicalGlm
+    )
+}
+
+/// Dense stratum id per row for a categorical outcome (quantized value order).
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "keys quantise outcomes to 1e-6 with a saturating cast that only merges values beyond 9e12 in magnitude, and a stratum id is a position among at most y.len() distinct keys, which fits u32"
+)]
+fn category_strata(y: &[f64]) -> Vec<u32> {
+    let key = |v: f64| (v * 1e6).round() as i64;
+    let mut keys: Vec<i64> = y.iter().map(|&v| key(v)).collect();
+    keys.sort_unstable();
+    keys.dedup();
+    y.iter().map(|&v| keys.binary_search(&key(v)).map_or(0, |i| i as u32)).collect()
+}
+
+/// Seeded fold of every row, shared by every family scored on the same node so
+/// candidates are compared on identical training/held-out splits. Stratified on
+/// the outcome for categorical families so each training fold keeps every level.
+fn cv_fold_plan(n: usize, strata: Option<&[u32]>) -> Result<Vec<usize>, ModelError> {
+    let folds = MECHANISM_CV_FOLDS.min(n);
+    if folds < 2 {
+        return Err(ModelError::Unsupported {
+            message: "not enough rows to cross-validate a mechanism family".into(),
+        });
+    }
+    let mut rng = CausalRng::from_seed(CV_FOLD_SEED);
+    Ok(shuffled_fold_assignment(&mut rng, n, folds, strata))
+}
+
+/// Mean held-out predictive log-likelihood of `family`, refit on each training
+/// fold and scored on the rows it did not see.
+///
+/// One criterion for every family: the log-likelihood is a density, so
+/// rescaling the outcome shifts every family's score by the same `ln(scale)` and
+/// cannot change which family wins. Held-out rows of a categorical outcome whose
+/// level is absent from a training fold are not scored (a sampling zero, not
+/// evidence against the family).
+fn oof_mean_loglik(
+    family: MechanismFamily,
+    frame: &FitFrame<'_>,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<f64, ModelError> {
+    let n = y.len();
+    let categorical = family_is_categorical(family);
+    let strata = categorical.then(|| category_strata(y));
+    let fold = cv_fold_plan(n, strata.as_deref())?;
+    let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
+    let p = frame.n_parents();
+    let mut total = 0.0;
+    let mut scored = 0usize;
+    let mut last_fold_error: Option<ModelError> = None;
+    for k in 0..folds {
+        let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
+        if train.len() < 2 || test.is_empty() {
+            continue;
+        }
+        let y_train: Vec<f64> = train.iter().map(|&r| y[r]).collect();
+        // A fold whose training rows cannot be fit (a quasi-separated multinomial, a
+        // parent constant within the fold) is not scored rather than failing the family:
+        // the mechanism itself is the full-data fit, which already succeeded. If no fold
+        // can be scored the family is refused with the last fit error.
+        let slot =
+            match fit_frame_family(family, &frame.select(&train), &y_train, backend, ls_ws, None) {
+                Ok(slot) => slot,
+                Err(e) => {
+                    last_fold_error = Some(e);
+                    continue;
+                }
+            };
+        let held_out = frame.select(&test);
+        let y_test: Vec<f64> = test.iter().map(|&r| y[r]).collect();
+        let values = held_out.column_major();
+        let mut lp = vec![0.0; test.len()];
+        log_prob_column(
+            &slot,
+            &y_test,
+            ParentBatch { n_rows: test.len(), n_parents: p, values: &values },
+            &mut lp,
+        )?;
+        for v in lp {
+            if categorical && v == f64::NEG_INFINITY {
+                continue;
+            }
+            total += v;
+            scored += 1;
+        }
+    }
+    if scored == 0 {
+        return Err(last_fold_error.unwrap_or_else(|| ModelError::Unsupported {
+            message: "not enough rows to cross-validate a mechanism family".into(),
+        }));
+    }
+    Ok(total / scored as f64)
+}
+
+/// Out-of-fold residuals of the ordinary-least-squares parent mean (the linear
+/// part of a conditional state-space mechanism).
+fn oof_linear_residuals(
+    frame: &FitFrame<'_>,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<Vec<f64>, ModelError> {
+    let n = y.len();
+    let fold = cv_fold_plan(n, None)?;
+    let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
+    let mut residual = vec![0.0; n];
+    for k in 0..folds {
+        let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
+        if train.len() < 2 || test.is_empty() {
+            continue;
+        }
+        let y_train: Vec<f64> = train.iter().map(|&r| y[r]).collect();
+        let slot = fit_frame_family(
+            MechanismFamily::LinearGaussian,
+            &frame.select(&train),
+            &y_train,
+            backend,
+            ls_ws,
+            None,
+        )?;
+        let MechanismSlot::LinearGaussian { intercept, coeffs, .. } = slot else {
+            return Err(ModelError::Unsupported { message: "linear reference fit failed".into() });
+        };
+        for &r in &test {
+            let mut pred = intercept;
+            for (c, col) in frame.parents.iter().enumerate() {
+                pred += coeffs[c] * col[r];
+            }
+            residual[r] = y[r] - pred;
+        }
+    }
+    Ok(residual)
+}
+
+/// Free parameters of a fitted mechanism, for the complexity penalty.
+///
+/// A basis expansion's own extra terms are *not* charged beyond what its
+/// plain (non-expanded) counterpart already pays, for the same reason a
+/// [`MechanismSlot::GaussianProcess`]'s kernel is not charged for its
+/// effectively unbounded flexibility: both are scored out-of-fold, on rows
+/// that never saw the expansion's fit, so the held-out log-likelihood already
+/// prices however much of that flexibility is real signal versus noise.
+/// Charging a further `k ln n / 2n` per expansion term double-counts that
+/// cost — it stacks a training-sample complexity penalty on top of a
+/// criterion whose entire purpose is to measure generalization directly —
+/// and for a basis with many terms relative to `n` the stacked penalty can
+/// exceed the genuine held-out log-likelihood gain of following real
+/// curvature, so the expansion loses to a plainer family even when it
+/// predicts held-out rows measurably better. `LinearBasis` and
+/// `DiscreteBasis` are therefore charged exactly what `LinearGaussian` and
+/// `Discrete` charge a fit over the same parents — the same handful of
+/// nuisance parameters (an intercept and a noise scale, or one weight per
+/// non-reference category) every family in the comparison carries regardless
+/// of richness — so an expansion's basis size cannot tilt the comparison
+/// either way; only the difference in held-out fit does.
+fn parameter_count(slot: &MechanismSlot, n_parents: usize) -> f64 {
+    let p = n_parents;
+    let count = match slot {
+        MechanismSlot::LinearGaussian { .. }
+        | MechanismSlot::HierarchicalLinear { .. }
+        | MechanismSlot::Bvar { .. }
+        | MechanismSlot::LinearBasis { .. } => p + 2,
+        MechanismSlot::Discrete { support, logit_coeffs, .. } => {
+            (support.len().saturating_sub(1)) * if logit_coeffs.is_some() { 1 + p } else { 1 }
+        }
+        MechanismSlot::DiscreteBasis { support, .. } => (support.len().saturating_sub(1)) * (1 + p),
+        MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => p + 1 + 4,
+        MechanismSlot::LinearGaussianStateSpace { .. } => 4,
+        // length scale, noise and the prior mean; the interpolant's effective
+        // freedom is already charged by the held-out likelihood.
+        MechanismSlot::GaussianProcess { .. } => 3,
+        _ => 1,
+    };
+    count as f64
+}
 
 fn score_family(
     family: MechanismFamily,
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<(MechanismCandidate, MechanismSlot), ModelError> {
-    let fitted = fit_family(family, gather, model, data, y, backend, ls_ws)?;
+    let fitted = fit_frame_family(family, frame, y, backend, ls_ws, None)?;
+    let n = y.len();
+    let p = frame.n_parents();
+    // Every family is scored by the same criterion, mean held-out predictive
+    // log-likelihood on one shared fold partition, less a BIC-scaled
+    // parameter-count penalty (`k ln n / 2n` per row). Both terms are free of the
+    // outcome's units: rescaling `y` shifts every family's log-density by the same
+    // `ln(scale)`, and the penalty depends on counts only. Nothing is scored on
+    // its own training rows, so a richer family (basis expansion, GP) wins only by
+    // predicting rows it did not fit.
+    let penalty = 0.5 * parameter_count(&fitted, p) * (n.max(2) as f64).ln() / n.max(1) as f64;
     let score = match &fitted {
-        MechanismSlot::LinearGaussian { intercept, coeffs, sigma }
-        | MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, .. }
-        | MechanismSlot::Bvar { intercept, coeffs, sigma } => {
-            let mse = residual_mse(gather, model, data, y, *intercept, coeffs)?;
-            -mse - sigma.ln().abs() * 0.01
-        }
         MechanismSlot::Constant { value } => {
-            let mse = y.iter().map(|yi| (yi - value).powi(2)).sum::<f64>() / y.len().max(1) as f64;
-            // A `Constant` mechanism asserts the variable is *deterministic*: it samples the
-            // same value every draw and carries no distribution at all. Every other family is
-            // scored on conditional-mean fit, and on that measure `Constant` ties the
-            // best-fitting alternative for a parentless node — a root's `LinearGaussian` fit is
-            // `intercept = mean, coeffs = [], sigma = SD`, whose residual MSE is exactly this
-            // `mse`. `Constant` then won on the tie-break, because `LinearGaussian` alone pays
-            // the `sigma` penalty above.
-            //
-            // That made every root deterministic. Interventional and attribution paths that
-            // swap a root's mechanism between populations became no-ops, since both fits are
-            // `Constant{mean}` and neither carries the variance that actually changed.
-            //
-            // Mean-squared error cannot see this: it compares point predictions, and a point
-            // mass predicts the mean perfectly. So gate on the claim `Constant` is making —
-            // it is only admissible when the target really is degenerate.
-            if mse > CONSTANT_FAMILY_MAX_VARIANCE { f64::NEG_INFINITY } else { -mse }
-        }
-        MechanismSlot::Discrete { support, probs, logit_coeffs } => match logit_coeffs {
-            None => {
-                let ent: f64 = probs.iter().map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 }).sum();
-                -ent
-            }
-            Some(logits) => discrete_mean_loglik(gather, model, data, y, support, logits)?,
-        },
-        // The basis families are scored **out of fold** while every incumbent
-        // family above is scored in sample. That asymmetry is deliberate and it
-        // is one-directional: an expansion with more columns always fits the
-        // training rows at least as well, so an in-sample comparison would hand
-        // it every node. Requiring its cross-validated error to beat the simpler
-        // family's in-sample error is a strictly harder bar than a like-for-like
-        // comparison, so a basis family never wins by being richer — only by
-        // predicting rows it did not see better than the incumbent predicts rows
-        // it did. On data with no effect modification it loses, and the selected
-        // mechanism (and every number downstream of it) is unchanged.
-        //
-        // The `|ln σ|` tie-break term is not invariant to the outcome's units, so a
-        // basis family borrows the *linear-Gaussian* fit's term instead of its own.
-        // Against `LinearGaussian` the penalties then cancel and the verdict is
-        // `cv_mse < in-sample mse`; between the two basis families it is the
-        // smaller cv_mse. Both are ratios of squared errors, so rescaling the
-        // outcome can never change which family is selected.
-        MechanismSlot::LinearBasis { basis, .. } => {
-            let parent_cols = gather_parent_cols(gather, model, data)?;
-            let x = basis_design_matrix(basis, &parent_cols, y.len())?;
-            let mse = basis_cv_mse(basis, &x, y.len(), y, basis_ridge_rel(basis), backend, ls_ws)?;
-            let MechanismSlot::LinearGaussian { sigma: linear_sigma, .. } =
-                fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?
-            else {
-                return Err(ModelError::Unsupported {
-                    message: "linear reference fit for basis scoring failed".into(),
-                });
-            };
-            -mse - linear_sigma.ln().abs() * 0.01
-        }
-        MechanismSlot::DiscreteBasis { support, basis, .. } => {
-            let parent_cols = gather_parent_cols(gather, model, data)?;
-            let x = basis_design_matrix(basis, &parent_cols, y.len())?;
-            let y_cat = discrete_categories(y, support)?;
-            basis_cv_loglik(basis, &x, y.len(), &y_cat, support.len(), backend, ls_ws)?
+            let sd =
+                (y.iter().map(|yi| (yi - value).powi(2)).sum::<f64>() / n.max(1) as f64).sqrt();
+            let max_abs = y.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+            // A `Constant` mechanism asserts the variable is *deterministic*: it carries no
+            // distribution at all. A held-out density cannot score a point mass, and squared
+            // error ties the best-fitting alternative on a root (`LinearGaussian` with
+            // `intercept = mean`, `sigma = SD` has exactly this MSE), which used to make every
+            // root deterministic and turn interventions on a root's mechanism into no-ops. So
+            // gate on the claim `Constant` is making: it is admissible only when the target
+            // really is degenerate, and then its log-mass on its own single value is 0 — the
+            // score a one-level discrete fit earns, so the two tie and the listing order breaks
+            // the tie.
+            if sd > CONSTANT_FAMILY_MAX_RELATIVE_SD * max_abs { f64::NEG_INFINITY } else { 0.0 }
         }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean }
         | MechanismSlot::ConditionalLinearGaussianStateSpace {
@@ -546,77 +846,34 @@ fn score_family(
             initial_mean,
             ..
         } => {
-            // Kalman one-step-ahead predictive residual, on the same fitted-residual scale as
-            // the other families (was: mean(y²), the raw second moment of the target — not a
-            // fitted residual at all, and incomparable across families).
-            let mut residuals = y.to_vec();
-            if let MechanismSlot::ConditionalLinearGaussianStateSpace {
-                intercept, coeffs, ..
-            } = &fitted
-            {
-                let parent_cols = gather_parent_cols(gather, model, data)?;
-                for (i, residual) in residuals.iter_mut().enumerate() {
-                    *residual -= intercept;
-                    for (p, col) in parent_cols.iter().enumerate() {
-                        *residual -= coeffs[p] * col[i];
-                    }
-                }
-            }
-            let scaled =
-                crate::lgssm::scaled_lgssm(&residuals, *a, *process_std, *obs_std, *initial_mean)?;
-            let (_, _, x_pred, _) = crate::lgssm::kalman_filter(
-                &scaled.values,
-                *a,
-                scaled.process_var,
-                scaled.obs_var,
-                scaled.initial_mean,
-                scaled.process_var,
-            );
-            let mse = scaled
-                .values
-                .iter()
-                .zip(&x_pred)
-                .map(|(yi, xp)| ((yi - xp) * scaled.scale).powi(2))
-                .sum::<f64>()
-                / y.len().max(1) as f64;
-            -mse - (process_std + obs_std).ln().abs() * 0.01
+            // The Kalman filter's one-step-ahead predictive density at row `t` uses only
+            // `y_{<t}` (prequential, so out of sample in the state), and the parent mean
+            // it is applied to is the out-of-fold linear prediction. Row-shuffled folds
+            // cannot refit the state model because the rows are a series.
+            let residual = if matches!(fitted, MechanismSlot::LinearGaussianStateSpace { .. }) {
+                y.to_vec()
+            } else {
+                oof_linear_residuals(frame, y, backend, ls_ws)?
+            };
+            let state = MechanismSlot::LinearGaussianStateSpace {
+                a: *a,
+                process_std: *process_std,
+                obs_std: *obs_std,
+                initial_mean: *initial_mean,
+            };
+            let mut lp = vec![0.0; n];
+            log_prob_column(&state, &residual, ParentBatch::empty(n), &mut lp)?;
+            lp.iter().sum::<f64>() / n.max(1) as f64 - penalty
         }
-        MechanismSlot::GaussianProcess {
-            length_scale,
-            variance,
-            noise_std,
-            x_train,
-            n_train,
-            n_parents,
-            alpha,
-        } => {
-            let mse = gp_residual_mse(
-                gather,
-                model,
-                data,
-                y,
-                *length_scale,
-                *variance,
-                x_train,
-                *n_train,
-                *n_parents,
-                alpha,
-            )?;
-            -mse - noise_std.ln().abs() * 0.01
-        }
-        _ => f64::NEG_INFINITY,
+        _ => oof_mean_loglik(family, frame, y, backend, ls_ws)? - penalty,
     };
     Ok((
-        MechanismCandidate {
-            family,
-            score,
-            fit_cost: 1.0 + gather.n_parents() as f64,
-            eval_cost: 1.0 + gather.n_parents() as f64,
-        },
+        MechanismCandidate { family, score, fit_cost: 1.0 + p as f64, eval_cost: 1.0 + p as f64 },
         fitted,
     ))
 }
 
+#[cfg(test)]
 fn fit_family(
     family: MechanismFamily,
     gather: &ParentGatherPlan,
@@ -640,6 +897,18 @@ fn fit_family_weighted(
     ls_ws: &mut LeastSquaresWorkspace,
     weights: Option<&[f64]>,
 ) -> Result<MechanismSlot, ModelError> {
+    let frame = FitFrame::from_data(gather, model, data, y.len())?;
+    fit_frame_family(family, &frame, y, backend, ls_ws, weights)
+}
+
+fn fit_frame_family(
+    family: MechanismFamily,
+    frame: &FitFrame<'_>,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+    weights: Option<&[f64]>,
+) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
     match family {
         MechanismFamily::Constant => {
@@ -651,7 +920,7 @@ fn fit_family_weighted(
         MechanismFamily::Discrete => {
             let (support, probs) = discrete_support(y, weights)?;
             let k = support.len();
-            let p = gather.n_parents();
+            let p = frame.n_parents();
             if p == 0 {
                 return Ok(MechanismSlot::Discrete {
                     support: Arc::from(support),
@@ -673,8 +942,7 @@ fn fit_family_weighted(
             // optimizer from the list of things that decide whether a licensed
             // cell can run at all. The stored coefficients are on the original
             // parent scale, so nothing downstream changes shape.
-            let parent_cols = gather_parent_cols(gather, model, data)?;
-            let refs: Vec<&[f64]> = parent_cols.iter().map(|c| &c[..n]).collect();
+            let refs: Vec<&[f64]> = frame.parents.iter().map(|c| &c[..n]).collect();
             let (centers, scales) = column_moments(&refs, n);
             let ncols = 1 + p;
             let mut x = vec![0.0; n * ncols];
@@ -730,34 +998,28 @@ fn fit_family_weighted(
             })
         }
         MechanismFamily::LinearGaussian => {
-            fit_linear_gaussian_weighted(gather, model, data, y, backend, ls_ws, 0.0, weights)
+            fit_linear_gaussian_weighted(frame, y, backend, ls_ws, 0.0, weights)
         }
         MechanismFamily::LinearInteractions | MechanismFamily::LinearSpline => {
-            let basis = build_basis(family, gather, model, data, n)?;
-            fit_linear_basis(&basis, gather, model, data, y, backend, ls_ws, weights)
+            let basis = build_basis(family, frame, n)?;
+            fit_linear_basis(&basis, frame, y, backend, ls_ws, weights)
         }
         MechanismFamily::DiscreteInteractions | MechanismFamily::DiscreteSpline => {
-            let basis = build_basis(family, gather, model, data, n)?;
-            fit_discrete_basis(&basis, gather, model, data, y, backend, ls_ws, weights)
+            let basis = build_basis(family, frame, n)?;
+            fit_discrete_basis(&basis, frame, y, backend, ls_ws, weights)
         }
-        MechanismFamily::HierarchicalLinear => {
-            fit_hierarchical_linear(gather, model, data, y, backend, ls_ws)
-        }
-        MechanismFamily::HierarchicalGlm => {
-            fit_hierarchical_glm(gather, model, data, y, backend, ls_ws)
-        }
-        MechanismFamily::Bvar => fit_bvar_minnesota(gather, model, data, y, backend, ls_ws),
-        MechanismFamily::LinearGaussianStateSpace => {
-            fit_lgssm_kalman_em(gather, model, data, y, backend, ls_ws)
-        }
+        MechanismFamily::HierarchicalLinear => fit_hierarchical_linear(frame, y, backend, ls_ws),
+        MechanismFamily::HierarchicalGlm => fit_hierarchical_glm(frame, y, backend, ls_ws),
+        MechanismFamily::Bvar => fit_bvar_minnesota(frame, y, backend, ls_ws),
+        MechanismFamily::LinearGaussianStateSpace => fit_lgssm_kalman_em(frame, y, backend, ls_ws),
         MechanismFamily::GaussianProcess => {
             #[cfg(feature = "gaussian-process")]
             {
-                fit_gaussian_process(gather, model, data, y)
+                fit_gaussian_process(frame, y)
             }
             #[cfg(not(feature = "gaussian-process"))]
             {
-                let _ = (gather, model, data, y, backend, ls_ws);
+                let _ = (frame, y, backend, ls_ws);
                 Err(ModelError::Unsupported {
                     message: "GaussianProcess requires feature `gaussian-process`".into(),
                 })
@@ -770,7 +1032,7 @@ fn gather_parent_cols<'d>(
     gather: &ParentGatherPlan,
     model: &CompiledCausalModel,
     data: &'d TabularData,
-) -> Result<Vec<std::borrow::Cow<'d, [f64]>>, ModelError> {
+) -> Result<Vec<Cow<'d, [f64]>>, ModelError> {
     let mut parent_cols = Vec::with_capacity(gather.n_parents());
     for &parent in gather.parents.iter() {
         let var = model.output_layout.variables[parent.as_usize()];
@@ -779,21 +1041,59 @@ fn gather_parent_cols<'d>(
     Ok(parent_cols)
 }
 
-/// Empirical-Bayes hierarchical linear: estimate τ² / λ from OLS, optional `UnitId`
-/// random-intercept demeaning for partial pooling.
+/// Relative floor of a fitted residual standard deviation: a fraction of the
+/// outcome's own RMS, so a deterministic relation measured in small units keeps a
+/// σ at the data's scale instead of an absolute `1e-8` that may exceed it.
+fn sigma_floor(y: &[f64]) -> f64 {
+    let rms = (y.iter().map(|v| v * v).sum::<f64>() / y.len().max(1) as f64).sqrt();
+    (1e-8 * rms).max(f64::MIN_POSITIVE)
+}
+
+/// Residual standard deviation from a data-row residual sum of squares.
+fn residual_sigma(rss: f64, n: usize, ncols: usize, y: &[f64]) -> f64 {
+    (rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(sigma_floor(y))
+}
+
+/// Residual sum of squares of `[1 | parents]·(intercept, coeffs)` over the data rows
+/// only (no pseudo-observations), weighted when `weights` are given.
+fn data_rss(
+    frame: &FitFrame<'_>,
+    y: &[f64],
+    intercept: f64,
+    coeffs: &[f64],
+    weights: Option<&[f64]>,
+) -> f64 {
+    let mut rss = 0.0;
+    for r in 0..y.len() {
+        let mut pred = intercept;
+        for (c, col) in frame.parents.iter().enumerate() {
+            pred += coeffs[c] * col[r];
+        }
+        rss += weights.map_or(1.0, |w| w[r]) * (y[r] - pred).powi(2);
+    }
+    rss
+}
+
+/// Whether raw `UnitId` labels define a usable grouping: at least two groups, and
+/// fewer groups than rows (otherwise every group mean is its own observation).
+fn group_structure_usable(groups: &[u32]) -> bool {
+    let mut uniq = groups.to_vec();
+    uniq.sort_unstable();
+    uniq.dedup();
+    uniq.len() >= 2 && uniq.len() < groups.len()
+}
+
+/// Empirical-Bayes hierarchical linear: estimate τ² / λ from OLS; with a `UnitId`
+/// column, the slopes come from the within-unit (fixed-effects) regression.
 fn fit_hierarchical_linear(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
-    let ols = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
-    let MechanismSlot::LinearGaussian { intercept: ols_int, coeffs: ols_coeffs, sigma: ols_sigma } =
-        ols
-    else {
+    let ols = fit_linear_gaussian(frame, y, backend, ls_ws, 0.0)?;
+    let MechanismSlot::LinearGaussian { coeffs: ols_coeffs, sigma: ols_sigma, .. } = ols else {
         return Err(ModelError::Unsupported { message: "hierarchical base fit failed".into() });
     };
     let p = ols_coeffs.len();
@@ -804,15 +1104,20 @@ fn fit_hierarchical_linear(
     let tau2 = (mean_b2 - ols_sigma * ols_sigma / n.max(1) as f64).max(1e-8);
     let mut lambda = (ols_sigma * ols_sigma / tau2).clamp(1e-6, 1e6);
 
-    // Optional UnitId random-intercept: demean within groups, then refit EB ridge.
-    let mut y_work = y.to_vec();
-    let mut group_tau = 0.0;
-    if let Some(groups) = unit_id_groups(data, y.len()) {
-        let (demeaned, tau) = demean_by_group(&y_work, &groups);
-        y_work = demeaned;
-        group_tau = tau;
-        // Re-estimate λ on demeaned series.
-        let ols2 = fit_linear_gaussian(gather, model, data, &y_work, backend, ls_ws, 0.0)?;
+    // Optional UnitId random intercept. The within estimator demeans the outcome *and*
+    // every parent by unit: demeaning only `y` regresses it on a parent that still
+    // carries its between-unit variance, attenuating the slope by
+    // `Var_within(x)/Var(x)`. The between-unit spread of the outcome is not
+    // discarded: the residual σ below is measured on the population-intercept mean
+    // function, so it carries that spread, exactly as abduction (`y − mean`) and the
+    // log-density will see it.
+    let grouped = frame.groups.as_deref().filter(|g| group_structure_usable(g));
+    let slot = if let Some(groups) = grouped {
+        let y_work = demean_by_group(y, groups);
+        let within = frame
+            .with_parents(frame.parents.iter().map(|c| demean_by_group(&c[..n], groups)).collect());
+        // Re-estimate λ on the demeaned series.
+        let ols2 = fit_linear_gaussian(&within, &y_work, backend, ls_ws, 0.0)?;
         if let MechanismSlot::LinearGaussian { coeffs, sigma, .. } = ols2 {
             let mean_b2 = if coeffs.is_empty() {
                 0.0
@@ -822,28 +1127,27 @@ fn fit_hierarchical_linear(
             let tau2 = (mean_b2 - sigma * sigma / n.max(1) as f64).max(1e-8);
             lambda = (sigma * sigma / tau2).clamp(1e-6, 1e6);
         }
-    }
-
-    let slot = fit_linear_gaussian(gather, model, data, &y_work, backend, ls_ws, lambda)?;
-    match slot {
-        MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
-            // Restore population intercept when we demeaned.
-            let intercept = if group_tau > 0.0 {
-                y.iter().sum::<f64>() / n.max(1) as f64
-                    - coeffs.iter().enumerate().try_fold(0.0, |acc, (i, c)| {
-                        let var = model.output_layout.variables[gather.parents[i].as_usize()];
-                        let col = data.float64_cow(var).map_err(ModelError::from)?;
-                        let mean = col.iter().sum::<f64>() / n.max(1) as f64;
-                        Ok::<_, ModelError>(acc + c * mean)
-                    })?
-            } else {
-                intercept
-            };
-            let _ = (ols_int, group_tau);
-            Ok(MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, shrinkage: lambda })
+        fit_linear_gaussian(&within, &y_work, backend, ls_ws, lambda)?
+    } else {
+        fit_linear_gaussian(frame, y, backend, ls_ws, lambda)?
+    };
+    let MechanismSlot::LinearGaussian { intercept, coeffs, sigma } = slot else {
+        return Ok(slot);
+    };
+    let (intercept, sigma) = if grouped.is_some() {
+        // Population intercept, then σ on the same mean function every downstream
+        // consumer evaluates.
+        let mean_y = y.iter().sum::<f64>() / n.max(1) as f64;
+        let mut intercept = mean_y;
+        for (c, col) in frame.parents.iter().enumerate() {
+            intercept -= coeffs[c] * col[..n].iter().sum::<f64>() / n.max(1) as f64;
         }
-        other => Ok(other),
-    }
+        let rss = data_rss(frame, y, intercept, &coeffs, None);
+        (intercept, residual_sigma(rss, n, 1 + p, y))
+    } else {
+        (intercept, sigma)
+    };
+    Ok(MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, shrinkage: lambda })
 }
 
 /// Hierarchical Bernoulli logit with always-on empirical-Bayes ridge.
@@ -852,14 +1156,16 @@ fn fit_hierarchical_linear(
 /// [`fit_glm_ridge`], which applies the penalty on ordinary (non-separated) data
 /// as well as separated cases (MM-014). Intercept is left unpenalized.
 fn fit_hierarchical_glm(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
+    #[allow(
+        clippy::float_cmp,
+        reason = "a binary outcome is coded exactly 0/1, so exact equality is the membership test"
+    )]
     let binary = y.iter().all(|&yi| yi == 0.0 || yi == 1.0);
     if !binary {
         return Err(ModelError::Unsupported {
@@ -867,7 +1173,7 @@ fn fit_hierarchical_glm(
         });
     }
     // EB λ from linear-probability OLS moments.
-    let ols = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
+    let ols = fit_linear_gaussian(frame, y, backend, ls_ws, 0.0)?;
     let lambda = match &ols {
         MechanismSlot::LinearGaussian { coeffs, sigma, .. } => {
             let p = coeffs.len().max(1);
@@ -877,15 +1183,13 @@ fn fit_hierarchical_glm(
         }
         _ => 1.0,
     };
-    let p = gather.n_parents();
+    let p = frame.n_parents();
     let ncols = 1 + p;
     let mut x = vec![0.0; n * ncols];
     for r in 0..n {
         x[r] = 1.0;
     }
-    for (pi, &parent) in gather.parents.iter().enumerate() {
-        let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_cow(var).map_err(ModelError::from)?;
+    for (pi, col) in frame.parents.iter().enumerate() {
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
@@ -907,6 +1211,10 @@ fn fit_hierarchical_glm(
     // Encode as 2-category Discrete with baseline-category logits (cat0 = 0, cat1 = β).
     let mut logit_coeffs = vec![0.0; 2 * ncols];
     logit_coeffs[ncols..].copy_from_slice(&fit.coefficients[..ncols]);
+    #[allow(
+        clippy::float_cmp,
+        reason = "a binary outcome is coded exactly 0/1, so exact equality is the membership test"
+    )]
     let n1 = y.iter().filter(|&&yi| yi == 1.0).count() as f64;
     let p1 = n1 / n.max(1) as f64;
     Ok(MechanismSlot::Discrete {
@@ -916,65 +1224,61 @@ fn fit_hierarchical_glm(
     })
 }
 
-/// Minnesota-prior single-equation BVAR: prior variance φ/(ℓ+1)² on coefficient ℓ.
+/// Minnesota-style single-equation Bayesian regression: a zero-mean normal prior
+/// on each parent's coefficient, with the intercept unpenalized.
+///
+/// The prior is placed on the coefficient *per standard deviation of the parent*
+/// and scales with the error variance (`b'ⱼ ~ N(0, φ σ²)`, the conjugate
+/// normal–inverse-gamma form), so the posterior mode is a ridge fit on
+/// scale-standardized columns with pseudo-row weight `1/√φ`. That makes the fit
+/// equivariant to a change of units of the outcome and of every parent, which the
+/// unstandardized pseudo-rows were not. The Minnesota lag decay `φ/ℓ²` is not
+/// applied: the gather plan carries no lag metadata, a parent's position in the
+/// list is not a lag, and letting it set the shrinkage made the fit depend on the
+/// order the parents happened to be listed in.
 fn fit_bvar_minnesota(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
-    let p = gather.n_parents();
+    let p = frame.n_parents();
     let ncols = 1 + p;
     let phi: f64 = 0.2; // overall tightness
-    let mut x = vec![0.0; n * ncols];
-    for r in 0..n {
-        x[r] = 1.0;
-    }
-    for (pi, &parent) in gather.parents.iter().enumerate() {
-        let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_cow(var).map_err(ModelError::from)?;
-        let base = (1 + pi) * n;
-        x[base..base + n].copy_from_slice(&col[..n]);
-    }
-    // Augment with Minnesota prior pseudo-observations: √(1/v_j) * e_j → 0.
-    let extra = ncols; // intercept + each lag coeff
-    let mut x2 = vec![0.0; (n + extra) * ncols];
-    let mut y2 = vec![0.0; n + extra];
-    for c in 0..ncols {
+    let refs: Vec<&[f64]> = frame.parents.iter().map(|c| &c[..n]).collect();
+    let (_, scales) = column_moments(&refs, n);
+    let extra = p;
+    let rows = n + extra;
+    let mut x2 = vec![0.0; rows * ncols];
+    let mut y2 = vec![0.0; rows];
+    x2[..n].fill(1.0);
+    for (j, col) in refs.iter().enumerate() {
         for r in 0..n {
-            x2[c * (n + extra) + r] = x[c * n + r];
+            x2[(1 + j) * rows + r] = col[r] / scales[j];
         }
+        x2[(1 + j) * rows + n + j] = (1.0 / phi).sqrt();
     }
     y2[..n].copy_from_slice(y);
-    // Intercept prior: loose (v = 100 * φ)
-    let v0: f64 = (100.0 * phi).max(1e-6);
-    x2[n] = (1.0 / v0).sqrt();
-    for j in 0..p {
-        let lag = (j + 1) as f64;
-        let v: f64 = (phi / (lag * lag)).max(1e-8);
-        x2[(1 + j) * (n + extra) + (n + 1 + j)] = (1.0 / v).sqrt();
-    }
-    let fit = backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?;
+    let fit = backend.least_squares(&x2, rows, ncols, &y2, ls_ws).map_err(ModelError::from)?;
     let intercept = fit.coefficients[0];
-    let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
-    let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
-    Ok(MechanismSlot::Bvar { intercept, coeffs, sigma })
+    let coeffs: Vec<f64> =
+        fit.coefficients[1..].iter().zip(scales.iter()).map(|(b, s)| b / s).collect();
+    // σ from the data rows: the augmented RSS also holds Σ b'²/φ from the prior rows.
+    let rss = data_rss(frame, y, intercept, &coeffs, None);
+    let sigma = residual_sigma(rss, n, ncols, y);
+    Ok(MechanismSlot::Bvar { intercept, coeffs: Arc::from(coeffs), sigma })
 }
 
 /// Scalar LGSSM on parent-adjusted residuals via EM (Kalman 1960 filter / Rauch–Tung–Striebel
 /// 1965 smoother).
 fn fit_lgssm_kalman_em(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
-    let lg = fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?;
+    let lg = fit_linear_gaussian(frame, y, backend, ls_ws, 0.0)?;
     let (intercept, coeffs) = match lg {
         MechanismSlot::LinearGaussian { intercept, coeffs, .. } => (intercept, coeffs),
         _ => {
@@ -983,11 +1287,10 @@ fn fit_lgssm_kalman_em(
             });
         }
     };
-    let parent_cols = gather_parent_cols(gather, model, data)?;
     let mut resid = vec![0.0; y.len()];
     for r in 0..y.len() {
         let mut pred = intercept;
-        for (p, col) in parent_cols.iter().enumerate() {
+        for (p, col) in frame.parents.iter().enumerate() {
             pred += coeffs[p] * col[r];
         }
         resid[r] = y[r] - pred;
@@ -1053,6 +1356,7 @@ fn lgssm_em_normalized(y: &[f64], max_iters: usize) -> (f64, f64, f64, f64) {
     (a, q.sqrt(), r.sqrt(), x0)
 }
 
+/// Raw `UnitId` labels per row, when a finite `UnitId` column of length `n` exists.
 fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
     let schema = data.schema();
     for var in schema.variables() {
@@ -1068,49 +1372,41 @@ fn unit_id_groups(data: &TabularData, n: usize) -> Option<Vec<u32>> {
         let mut groups = Vec::with_capacity(n);
         let mut ok = true;
         for &v in col.iter() {
-            if !v.is_finite() {
+            let id = v.round();
+            if !v.is_finite() || id < 0.0 || id > f64::from(u32::MAX) {
                 ok = false;
                 break;
             }
-            groups.push(v.round() as u32);
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "id was just checked to lie in [0, u32::MAX] and is already rounded to an integer"
+            )]
+            groups.push(id as u32);
         }
         if ok {
-            let mut uniq = groups.clone();
-            uniq.sort_unstable();
-            uniq.dedup();
-            if uniq.len() >= 2 && uniq.len() < n {
-                return Some(groups);
-            }
+            return Some(groups);
         }
     }
     None
 }
 
-fn demean_by_group(y: &[f64], groups: &[u32]) -> (Vec<f64>, f64) {
+/// Subtract each unit's mean from its rows.
+fn demean_by_group(values: &[f64], groups: &[u32]) -> Vec<f64> {
     let mut sums = std::collections::HashMap::<u32, (f64, usize)>::new();
-    for (&g, &yi) in groups.iter().zip(y.iter()) {
+    for (&g, &v) in groups.iter().zip(values.iter()) {
         let e = sums.entry(g).or_insert((0.0, 0));
-        e.0 += yi;
+        e.0 += v;
         e.1 += 1;
     }
-    let grand = y.iter().sum::<f64>() / y.len().max(1) as f64;
-    let mut tau2 = 0.0;
-    let mut gcount = 0usize;
-    for (s, c) in sums.values() {
-        let m = s / (*c).max(1) as f64;
-        tau2 += (m - grand).powi(2);
-        gcount += 1;
-    }
-    let tau = (tau2 / gcount.max(1) as f64).sqrt();
-    let out: Vec<f64> = groups
+    groups
         .iter()
-        .zip(y.iter())
-        .map(|(&g, &yi)| {
+        .zip(values.iter())
+        .map(|(&g, &v)| {
             let (s, c) = sums[&g];
-            yi - s / c.max(1) as f64
+            v - s / c.max(1) as f64
         })
-        .collect();
-    (out, tau)
+        .collect()
 }
 
 fn fit_ar1(series: &[f64]) -> (f64, f64) {
@@ -1135,22 +1431,18 @@ fn fit_ar1(series: &[f64]) -> (f64, f64) {
 }
 
 fn fit_linear_gaussian(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
     ridge: f64,
 ) -> Result<MechanismSlot, ModelError> {
-    fit_linear_gaussian_weighted(gather, model, data, y, backend, ls_ws, ridge, None)
+    fit_linear_gaussian_weighted(frame, y, backend, ls_ws, ridge, None)
 }
 
 #[allow(clippy::too_many_arguments)]
 fn fit_linear_gaussian_weighted(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
@@ -1158,20 +1450,18 @@ fn fit_linear_gaussian_weighted(
     weights: Option<&[f64]>,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
-    let p = gather.n_parents();
+    let p = frame.n_parents();
     let ncols = 1 + p;
     let mut x = vec![0.0; n * ncols];
     for r in 0..n {
         x[r] = 1.0;
     }
-    for (pi, &parent) in gather.parents.iter().enumerate() {
-        let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_cow(var).map_err(ModelError::from)?;
+    for (pi, col) in frame.parents.iter().enumerate() {
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
     let weighted_y;
-    let y = if let Some(weights) = weights {
+    let y_fit = if let Some(weights) = weights {
         weighted_y = y.iter().zip(weights).map(|(v, w)| v * w.sqrt()).collect::<Vec<_>>();
         for c in 0..ncols {
             for r in 0..n {
@@ -1182,7 +1472,7 @@ fn fit_linear_gaussian_weighted(
     } else {
         y
     };
-    if ridge > 0.0 {
+    let fit = if ridge > 0.0 {
         // Augment with ridge rows for coefficients (not intercept).
         let extra = p;
         let mut x2 = vec![0.0; (n + extra) * ncols];
@@ -1192,22 +1482,21 @@ fn fit_linear_gaussian_weighted(
                 x2[c * (n + extra) + r] = x[c * n + r];
             }
         }
-        y2[..n].copy_from_slice(y);
+        y2[..n].copy_from_slice(y_fit);
         let sqrt_r = ridge.sqrt();
         for j in 0..p {
             x2[(1 + j) * (n + extra) + (n + j)] = sqrt_r;
         }
-        let fit =
-            backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?;
-        let intercept = fit.coefficients[0];
-        let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
-        let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
-        return Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma });
-    }
-    let fit = backend.least_squares(&x, n, ncols, y, ls_ws).map_err(ModelError::from)?;
+        backend.least_squares(&x2, n + extra, ncols, &y2, ls_ws).map_err(ModelError::from)?
+    } else {
+        backend.least_squares(&x, n, ncols, y_fit, ls_ws).map_err(ModelError::from)?
+    };
     let intercept = fit.coefficients[0];
     let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
-    let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
+    // σ from the data rows only: a ridge fit's `fit.rss` also sums the penalty
+    // pseudo-rows (`λ Σ β²`), which would inflate σ with the prior.
+    let rss = if ridge > 0.0 { data_rss(frame, y, intercept, &coeffs, weights) } else { fit.rss };
+    let sigma = residual_sigma(rss, n, ncols, y);
     Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
 }
 
@@ -1222,9 +1511,6 @@ fn fit_linear_gaussian_weighted(
 /// [`MechanismAssignment::failed_families`].
 pub const BASIS_MIN_ROWS_PER_COLUMN: usize = 10;
 
-/// Folds of the deterministic cross-validation that scores a basis family.
-pub const BASIS_CV_FOLDS: usize = 5;
-
 /// Relative rank-deficiency floor for the spline solve, on column-scaled design
 /// columns. Not a smoothing penalty: smoothing comes from the fixed three-knot
 /// cubic *regression* spline, and this only keeps a near-collinear truncated
@@ -1234,12 +1520,10 @@ const SPLINE_CONDITIONING_RIDGE: f64 = 1e-6;
 /// Build the expansion a basis family fits on.
 fn build_basis(
     family: MechanismFamily,
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     n: usize,
 ) -> Result<ParentBasis, ModelError> {
-    let p = gather.n_parents();
+    let p = frame.n_parents();
     if p < 2 {
         return Err(ModelError::Unsupported {
             message: format!(
@@ -1250,8 +1534,7 @@ fn build_basis(
             ),
         });
     }
-    let parent_cols = gather_parent_cols(gather, model, data)?;
-    let refs: Vec<&[f64]> = parent_cols.iter().map(|c| &c[..n]).collect();
+    let refs: Vec<&[f64]> = frame.parents.iter().map(|c| &c[..n]).collect();
     let (centers, scales) = column_moments(&refs, n);
     let centers: Arc<[f64]> = Arc::from(centers);
     let scales: Arc<[f64]> = Arc::from(scales);
@@ -1369,7 +1652,17 @@ fn solve_scaled_ridge(
             message: "basis mechanism solve produced a non-finite coefficient".into(),
         });
     }
-    Ok((coeffs, fit.rss))
+    // Residual sum of squares over the data rows only: the solver's own RSS also
+    // sums the penalty pseudo-rows.
+    let mut rss = 0.0;
+    for r in 0..n {
+        let mut pred = 0.0;
+        for c in 0..ncols {
+            pred += coeffs[c] * x[c * n + r];
+        }
+        rss += weights.map_or(1.0, |w| w[r]) * (y[r] - pred).powi(2);
+    }
+    Ok((coeffs, rss))
 }
 
 /// Per-row ridge weight for a basis solve: the conditioning floor for a spline
@@ -1383,21 +1676,18 @@ fn basis_ridge_rel(basis: &ParentBasis) -> f64 {
 #[allow(clippy::too_many_arguments)]
 fn fit_linear_basis(
     basis: &ParentBasis,
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
     weights: Option<&[f64]>,
 ) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
-    let parent_cols = gather_parent_cols(gather, model, data)?;
-    let x = basis_design_matrix(basis, &parent_cols, n)?;
+    let x = basis_design_matrix(basis, &frame.parents, n)?;
     let ncols = 1 + basis.n_terms();
     let ridge = basis_ridge_rel(basis) * n as f64;
     let (coeffs, rss) = solve_scaled_ridge(&x, n, ncols, y, weights, ridge, backend, ls_ws)?;
-    let sigma = (rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
+    let sigma = residual_sigma(rss, n, ncols, y);
     Ok(MechanismSlot::LinearBasis {
         intercept: coeffs[0],
         basis: basis.clone(),
@@ -1409,9 +1699,7 @@ fn fit_linear_basis(
 #[allow(clippy::too_many_arguments)]
 fn fit_discrete_basis(
     basis: &ParentBasis,
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
+    frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
@@ -1425,8 +1713,7 @@ fn fit_discrete_basis(
             message: "discrete basis families need at least two categories".into(),
         });
     }
-    let parent_cols = gather_parent_cols(gather, model, data)?;
-    let x = basis_design_matrix(basis, &parent_cols, n)?;
+    let x = basis_design_matrix(basis, &frame.parents, n)?;
     let ncols = 1 + basis.n_terms();
     let y_cat = discrete_categories(y, &support)?;
     let fit = antecedent_stats::fit_multinomial_logit_weighted(
@@ -1468,6 +1755,10 @@ fn discrete_support(
         if !yi.is_finite() {
             continue;
         }
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the key quantises a rounded finite outcome to 1e-6, and the saturating cast only merges outcomes beyond 9e12 in magnitude"
+        )]
         let key = (yi * 1e6).round() as i64;
         if let Some(e) = pairs.iter_mut().find(|(k, _, _)| *k == key) {
             e.2 += weights.map_or(1.0, |w| w[r]);
@@ -1501,155 +1792,12 @@ fn discrete_categories(y: &[f64], support: &[f64]) -> Result<Vec<u32>, ModelErro
     Ok(out)
 }
 
-/// Deterministic `row % BASIS_CV_FOLDS` fold assignment.
-///
-/// No RNG and no permutation: the folds are a function of row position alone,
-/// so the score of a family is reproducible from the table without a seed.
-const fn basis_fold(row: usize) -> usize {
-    row % BASIS_CV_FOLDS
-}
-
-/// Out-of-fold mean squared error of a [`MechanismSlot::LinearBasis`] fit.
-fn basis_cv_mse(
-    basis: &ParentBasis,
-    x: &[f64],
-    n: usize,
-    y: &[f64],
-    ridge_rel: f64,
-    backend: FaerBackend,
-    ls_ws: &mut LeastSquaresWorkspace,
-) -> Result<f64, ModelError> {
-    let ncols = 1 + basis.n_terms();
-    let mut sse = 0.0;
-    let mut scored = 0usize;
-    for fold in 0..BASIS_CV_FOLDS {
-        let train: Vec<usize> = (0..n).filter(|&r| basis_fold(r) != fold).collect();
-        let test: Vec<usize> = (0..n).filter(|&r| basis_fold(r) == fold).collect();
-        if train.len() < ncols + 1 || test.is_empty() {
-            continue;
-        }
-        let m = train.len();
-        let mut xt = vec![0.0; m * ncols];
-        let mut yt = vec![0.0; m];
-        for (i, &r) in train.iter().enumerate() {
-            yt[i] = y[r];
-            for c in 0..ncols {
-                xt[c * m + i] = x[c * n + r];
-            }
-        }
-        let (coeffs, _) =
-            solve_scaled_ridge(&xt, m, ncols, &yt, None, ridge_rel * m as f64, backend, ls_ws)?;
-        for &r in &test {
-            let mut pred = 0.0;
-            for c in 0..ncols {
-                pred += coeffs[c] * x[c * n + r];
-            }
-            let e = y[r] - pred;
-            sse += e * e;
-            scored += 1;
-        }
-    }
-    if scored == 0 {
-        return Err(ModelError::Unsupported {
-            message: "not enough rows to cross-validate a basis family".into(),
-        });
-    }
-    Ok(sse / scored as f64)
-}
-
-/// Out-of-fold mean log-likelihood of a [`MechanismSlot::DiscreteBasis`] fit.
-fn basis_cv_loglik(
-    basis: &ParentBasis,
-    x: &[f64],
-    n: usize,
-    y_cat: &[u32],
-    k: usize,
-    backend: FaerBackend,
-    ls_ws: &mut LeastSquaresWorkspace,
-) -> Result<f64, ModelError> {
-    let ncols = 1 + basis.n_terms();
-    let width = ncols;
-    let mut total = 0.0;
-    let mut scored = 0usize;
-    for fold in 0..BASIS_CV_FOLDS {
-        let train: Vec<usize> = (0..n).filter(|&r| basis_fold(r) != fold).collect();
-        let test: Vec<usize> = (0..n).filter(|&r| basis_fold(r) == fold).collect();
-        if train.len() < ncols + 1 || test.is_empty() {
-            continue;
-        }
-        let m = train.len();
-        let mut xt = vec![0.0; m * ncols];
-        let mut yt = vec![0u32; m];
-        for (i, &r) in train.iter().enumerate() {
-            yt[i] = y_cat[r];
-            for c in 0..ncols {
-                xt[c * m + i] = x[c * n + r];
-            }
-        }
-        // A fold that drops a category entirely cannot be scored against the
-        // full support; skip it rather than score a degenerate fit.
-        let mut present = vec![false; k];
-        for &c in &yt {
-            present[c as usize] = true;
-        }
-        if present.iter().any(|p| !p) {
-            continue;
-        }
-        let fit = antecedent_stats::fit_multinomial_logit_weighted(
-            MultinomialDesignRef {
-                x_colmajor: &xt,
-                nrows: m,
-                ncols,
-                y_category: &yt,
-                n_categories: k,
-            },
-            None,
-            &backend,
-            ls_ws,
-            &GlmOptions::default(),
-        )?;
-        if !fit.converged {
-            return Err(ModelError::NotConverged {
-                message: format!(
-                    "multinomial logit did not converge on a cross-validation fold (iters={}, \
-                     deviance={})",
-                    fit.iterations, fit.deviance
-                ),
-            });
-        }
-        for &r in &test {
-            let mut max_eta = f64::NEG_INFINITY;
-            let mut etas = vec![0.0; k];
-            for cat in 0..k {
-                let base = cat * width;
-                let mut pred = fit.coefficients[base];
-                for c in 1..ncols {
-                    pred += fit.coefficients[base + c] * x[c * n + r];
-                }
-                etas[cat] = pred;
-                if pred > max_eta {
-                    max_eta = pred;
-                }
-            }
-            let sum: f64 = etas.iter().map(|e| (e - max_eta).exp()).sum();
-            let p = (etas[y_cat[r] as usize] - max_eta).exp() / sum.max(f64::EPSILON);
-            total += p.max(f64::EPSILON).ln();
-            scored += 1;
-        }
-    }
-    if scored == 0 {
-        return Err(ModelError::Unsupported {
-            message: "not enough rows to cross-validate a basis family".into(),
-        });
-    }
-    Ok(total / scored as f64)
-}
-
 /// Row cap for the [`MechanismFamily::GaussianProcess`] grid search.
 ///
-/// The fit runs a 20-cell `(ℓ, σ)` grid where every cell builds an O(n²) dense
-/// Gram matrix and factors it with an O(n³) Cholesky. At n = 2 000 that is a
-/// 32 MB Gram and ≈ 20 · n³/3 ≈ 5×10¹⁰ flops — seconds on current hardware and
+/// The fit runs a 25-cell `(ℓ, σ)` grid where every cell builds an O(n²) dense
+/// Gram matrix and factors it with an O(n³) Cholesky, and family scoring refits
+/// it on every training fold. At n = 1 000 that is an 8 MB Gram and about six
+/// full grid searches of ≈ 25 · n³/3 flops each — seconds on current hardware and
 /// the last point where the exact GP is a reasonable candidate; n = 10 000
 /// would already need 800 MB and minutes per node. Above the cap
 /// `fit_family(GaussianProcess)` refuses with [`ModelError::Unsupported`]
@@ -1657,23 +1805,66 @@ fn basis_cv_loglik(
 /// families and picks among the rest, the refusal is surfaced in
 /// [`MechanismAssignment::failed_families`] and another family is selected.
 #[cfg(feature = "gaussian-process")]
-pub const GP_FAMILY_MAX_ROWS: usize = 2_000;
+pub const GP_FAMILY_MAX_ROWS: usize = 1_000;
+
+/// Hyperparameter grid of the GP fit, on the data's own scale.
+///
+/// Length scales are multiples of the parents' RMS spread and noise levels are
+/// multiples of the outcome's SD, so the grid — and therefore the fit — is
+/// equivariant to a change of units of the outcome and of every parent. The
+/// signal variance is the outcome's variance and the prior mean its sample mean
+/// (the fitted surface reverts to that mean off-support, not to zero).
+#[cfg(feature = "gaussian-process")]
+#[derive(Clone, Debug)]
+pub(crate) struct GpGrid {
+    pub mean: f64,
+    pub variance: f64,
+    pub length_scales: [f64; 5],
+    pub noise_stds: [f64; 5],
+}
+
+#[cfg(feature = "gaussian-process")]
+pub(crate) fn gp_grid(parents: &[&[f64]], y: &[f64]) -> Result<GpGrid, ModelError> {
+    let n = y.len().max(1) as f64;
+    let mean = y.iter().sum::<f64>() / n;
+    let variance = y.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
+    if !(variance.is_finite() && variance > 0.0) {
+        return Err(ModelError::Unsupported {
+            message: "GaussianProcess needs an outcome with positive variance".into(),
+        });
+    }
+    let x_var = parents
+        .iter()
+        .map(|c| {
+            let m = c.iter().sum::<f64>() / n;
+            c.iter().map(|v| (v - m).powi(2)).sum::<f64>() / n
+        })
+        .sum::<f64>()
+        / parents.len().max(1) as f64;
+    if !(x_var.is_finite() && x_var > 0.0) {
+        return Err(ModelError::Unsupported {
+            message: "GaussianProcess needs at least one parent that varies".into(),
+        });
+    }
+    let (s_x, s_y) = (x_var.sqrt(), variance.sqrt());
+    Ok(GpGrid {
+        mean,
+        variance,
+        length_scales: [0.25, 0.5, 1.0, 2.0, 4.0].map(|m| m * s_x),
+        noise_stds: [0.05, 0.1, 0.2, 0.5, 1.0].map(|m| m * s_y),
+    })
+}
 
 #[cfg(feature = "gaussian-process")]
 /// Grid-search RBF GP hyperparameters by exact Cholesky NLML.
 ///
-/// For each `(ℓ, σ)` cell, form `K = k_RBF + σ²I`, factor once with
+/// For each `(ℓ, σ)` cell of [`gp_grid`], form `K = k_RBF + σ²I`, factor once with
 /// [`cholesky_spd`], reuse that factor for both `log|K|` ([`chol_log_det`]) and
-/// `α = K⁻¹y` ([`chol_solve`]). Do not proxy the determinant by `Σ log Kᵢᵢ`
+/// `α = K⁻¹(y − ȳ)` ([`chol_solve`]). Do not proxy the determinant by `Σ log Kᵢᵢ`
 /// (MM-015).
-fn fit_gaussian_process(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    y: &[f64],
-) -> Result<MechanismSlot, ModelError> {
+fn fit_gaussian_process(frame: &FitFrame<'_>, y: &[f64]) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
-    let p = gather.n_parents();
+    let p = frame.n_parents();
     if p == 0 {
         return Err(ModelError::Unsupported {
             message: "GaussianProcess requires at least one parent".into(),
@@ -1688,20 +1879,19 @@ fn fit_gaussian_process(
             ),
         });
     }
-    let parent_cols = gather_parent_cols(gather, model, data)?;
     let mut x_train = vec![0.0; n * p];
     for r in 0..n {
         for c in 0..p {
-            x_train[r * p + c] = parent_cols[c][r];
+            x_train[r * p + c] = frame.parents[c][r];
         }
     }
-    // Grid-search length_scale and noise on log marginal likelihood (variance fixed at 1).
-    let variance = 1.0;
-    let length_scales = [0.25, 0.5, 1.0, 2.0, 4.0];
-    let noise_stds = [0.05, 0.1, 0.2, 0.5];
+    let refs: Vec<&[f64]> = frame.parents.iter().map(|c| &c[..n]).collect();
+    let grid = gp_grid(&refs, y)?;
+    let yc: Vec<f64> = y.iter().map(|v| v - grid.mean).collect();
+    let variance = grid.variance;
     let mut best = None::<(f64, f64, f64, Vec<f64>)>; // (nlml, ℓ, σ, α)
-    for &length_scale in &length_scales {
-        for &noise_std in &noise_stds {
+    for &length_scale in &grid.length_scales {
+        for &noise_std in &grid.noise_stds {
             let mut k = vec![0.0; n * n];
             let inv_l2 = 1.0 / (length_scale * length_scale);
             for i in 0..n {
@@ -1720,12 +1910,12 @@ fn fit_gaussian_process(
             let Some(chol) = cholesky_spd(&k, n) else {
                 continue;
             };
-            let Some(alpha) = chol_solve(&chol, n, y) else {
+            let Some(alpha) = chol_solve(&chol, n, &yc) else {
                 continue;
             };
             let mut y_alpha = 0.0;
             for i in 0..n {
-                y_alpha += y[i] * alpha[i];
+                y_alpha += yc[i] * alpha[i];
             }
             let nlml = 0.5 * y_alpha
                 + 0.5 * chol_log_det(&chol, n)
@@ -1743,102 +1933,12 @@ fn fit_gaussian_process(
         length_scale,
         variance,
         noise_std,
+        mean: grid.mean,
         x_train: Arc::from(x_train),
         n_train: n,
         n_parents: p,
         alpha: Arc::from(alpha),
     })
-}
-
-// Keep the old LinearGaussian arm body removed — already handled above.
-
-fn residual_mse(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    y: &[f64],
-    intercept: f64,
-    coeffs: &[f64],
-) -> Result<f64, ModelError> {
-    let n = y.len();
-    let mut sse = 0.0;
-    let parent_cols = gather_parent_cols(gather, model, data)?;
-    for r in 0..n {
-        let mut pred = intercept;
-        for (p, col) in parent_cols.iter().enumerate() {
-            pred += coeffs[p] * col[r];
-        }
-        let e = y[r] - pred;
-        sse += e * e;
-    }
-    Ok(sse / n.max(1) as f64)
-}
-
-/// Fitted-residual MSE for a GP mechanism, on the same scale as [`residual_mse`]: uses the
-/// dual-form predictive mean (shared with `evaluate_column` / `log_prob_column`), not the raw
-/// second moment of `y`.
-#[allow(clippy::too_many_arguments)]
-fn gp_residual_mse(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    y: &[f64],
-    length_scale: f64,
-    variance: f64,
-    x_train: &[f64],
-    n_train: usize,
-    n_parents: usize,
-    alpha: &[f64],
-) -> Result<f64, ModelError> {
-    let n = y.len();
-    let p = gather.n_parents();
-    let parent_cols = gather_parent_cols(gather, model, data)?;
-    let mut parent_mat = vec![0.0; n * p.max(1)];
-    for (pi, col) in parent_cols.iter().enumerate() {
-        parent_mat[pi * n..pi * n + n].copy_from_slice(&col[..n]);
-    }
-    let parents =
-        ParentBatch { n_rows: n, n_parents: p, values: &parent_mat[..p.saturating_mul(n)] };
-    let mut pred = vec![0.0; n];
-    gp_predictive_mean_column(
-        length_scale,
-        variance,
-        x_train,
-        n_train,
-        n_parents,
-        alpha,
-        parents,
-        &mut pred,
-    )?;
-    Ok(y.iter().zip(pred.iter()).map(|(yi, m)| (yi - m).powi(2)).sum::<f64>() / n.max(1) as f64)
-}
-
-fn discrete_mean_loglik(
-    gather: &ParentGatherPlan,
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    y: &[f64],
-    support: &[f64],
-    logits: &[f64],
-) -> Result<f64, ModelError> {
-    let n = y.len();
-    let p = gather.n_parents();
-    let mut parent_mat = vec![0.0; n * p.max(1)];
-    for (pi, &parent) in gather.parents.iter().enumerate() {
-        let var = model.output_layout.variables[parent.as_usize()];
-        let col = data.float64_cow(var).map_err(ModelError::from)?;
-        let base = pi * n;
-        parent_mat[base..base + n].copy_from_slice(&col[..n]);
-    }
-    let parents = ParentBatch { n_rows: n, n_parents: p, values: &parent_mat[..n * p] };
-    let slot = MechanismSlot::Discrete {
-        support: Arc::from(support.to_vec()),
-        probs: Arc::from(vec![0.0; support.len()]),
-        logit_coeffs: Some(Arc::from(logits.to_vec())),
-    };
-    let mut lp = vec![0.0; n];
-    log_prob_column(&slot, y, parents, &mut lp)?;
-    Ok(lp.iter().sum::<f64>() / n.max(1) as f64)
 }
 
 #[cfg(test)]
@@ -1945,6 +2045,65 @@ mod tests {
         };
         assert!(coeffs.is_empty());
         assert!((intercept - 1.95).abs() < 1e-10, "root mean must survive residualization");
+    }
+
+    /// When every real family fails to fit (here: collinear parents make the
+    /// design matrix rank-deficient, so `LinearGaussian` errors), the registry
+    /// must refuse the node rather than silently select `Constant` at its
+    /// `-∞` inadmissibility score. A varying `y` is not degenerate, so a
+    /// `Constant` fit is not a legitimate answer here — it must be excluded
+    /// from selection along with the family that errored outright.
+    #[test]
+    fn assign_and_fit_refuses_when_only_admissible_candidate_is_negative_infinity() {
+        let n = 20usize;
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["p1", "p2", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut p1 = vec![0.0; n];
+        let mut p2 = vec![0.0; n];
+        let mut yv = vec![0.0; n];
+        for i in 0..n {
+            p1[i] = i as f64 * 0.1;
+            p2[i] = 2.0 * p1[i]; // exactly collinear with p1 -> rank-deficient design
+            yv[i] = if i % 2 == 0 { 10.0 } else { -10.0 }; // clearly not degenerate
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(p1), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(p2), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let reg = MechanismRegistry::standard();
+        let result = reg.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore);
+        assert!(
+            result.is_err(),
+            "must refuse to fit y when LinearGaussian is rank-deficient and Constant is \
+             inadmissible, not silently select Constant at -infinity: {result:?}"
+        );
     }
 
     #[test]
@@ -2185,66 +2344,105 @@ mod tests {
     }
 
     #[cfg(feature = "gaussian-process")]
+    fn gp_oracle_table(x_scale: f64, y_scale: f64, y_shift: f64) -> (TabularData, Vec<f64>) {
+        let n = 24usize;
+        let x: Vec<f64> =
+            (0..n).map(|i| x_scale * (-2.4 + 4.8 * i as f64 / (n - 1) as f64)).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let t = -2.4 + 4.8 * i as f64 / (n - 1) as f64;
+                y_shift + y_scale * ((1.3 * t).sin() + 0.18 * (3.1 * t).cos())
+            })
+            .collect();
+        let data =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        (data, y)
+    }
+
+    #[cfg(feature = "gaussian-process")]
+    fn fit_gp(data: &TabularData, y: &[f64]) -> MechanismSlot {
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let gather = compiled.gather_for(DenseNodeId::from_raw(1)).unwrap();
+        fit_family(
+            MechanismFamily::GaussianProcess,
+            gather,
+            &compiled,
+            data,
+            y,
+            FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+        )
+        .unwrap()
+    }
+
+    /// The GP hyperparameters are the exact-Cholesky NLML argmin over the data-scaled
+    /// grid, checked against a frozen `SciPy` oracle (`conformance/gcm/gaussian_process`).
+    /// The diagonal-proxy determinant the old code used (MM-015) picks a different cell.
+    #[cfg(feature = "gaussian-process")]
     #[test]
     fn gaussian_process_matches_exact_logdet_oracle() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/gcm/gaussian_process/expected.json"
         ))
         .unwrap();
-        let n = fixture["data"]["n"].as_u64().unwrap() as usize;
-        let mut builder = CausalSchemaBuilder::new();
-        for name in ["x", "y"] {
-            builder
-                .add_variable(
-                    name,
-                    ValueType::Continuous,
-                    SmallRoleSet::from_hint(RoleHint::Context),
-                    None,
-                    None,
-                    MeasurementSpec::default(),
-                )
-                .unwrap();
-        }
-        let schema = builder.build().unwrap();
-        let x: Vec<f64> = (0..n).map(|i| -2.4 + 4.8 * i as f64 / (n - 1) as f64).collect();
-        let y: Vec<f64> =
-            x.iter().map(|value| (1.3 * value).sin() + 0.18 * (3.1 * value).cos()).collect();
-        let validity = ValidityBitmap::all_valid(n);
-        let columns = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(x), validity.clone())
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(y), validity).unwrap(),
-            ),
-        ];
-        let data =
-            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
-        let mut graph = Dag::with_variables(2);
-        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let compiled = CompiledCausalModel::compile(graph).unwrap();
-        let gather = compiled.gather_for(DenseNodeId::from_raw(1)).unwrap();
-        let outcome = data.float64_values(VariableId::from_raw(1)).unwrap();
-        let mut workspace = LeastSquaresWorkspace::default();
-        let slot = fit_family(
-            MechanismFamily::GaussianProcess,
-            gather,
-            &compiled,
-            &data,
-            &outcome,
-            FaerBackend,
-            &mut workspace,
-        )
-        .unwrap();
-        let MechanismSlot::GaussianProcess { length_scale, noise_std, .. } = slot else {
+        let (data, y) = gp_oracle_table(1.0, 1.0, 0.0);
+        let MechanismSlot::GaussianProcess { length_scale, noise_std, variance, mean, .. } =
+            fit_gp(&data, &y)
+        else {
             panic!("GP slot");
         };
-        // MM-015: exact `log|K|` from Cholesky selects ℓ=1.0; the old Σlog Kᵢᵢ proxy
-        // preferred ℓ=0.5 on this fixture.
-        assert_eq!(length_scale, fixture["reference"]["length_scale"].as_f64().unwrap());
-        assert_eq!(noise_std, fixture["reference"]["noise_std"].as_f64().unwrap());
-        assert_ne!(length_scale, 0.5, "must not select the diagonal-proxy length scale");
+        let reference = &fixture["reference"];
+        for (got, key) in [
+            (length_scale, "length_scale"),
+            (noise_std, "noise_std"),
+            (variance, "variance"),
+            (mean, "mean"),
+        ] {
+            let want = reference[key].as_f64().unwrap();
+            assert!(((got - want) / want).abs() < 1e-9, "{key}: {got} vs {want}");
+        }
+    }
+
+    /// A GP fit must not depend on the units of the outcome or the parent: rescaling `y`
+    /// by 100 (and shifting it by 1000) and `x` by 10 multiplies the chosen length scale by
+    /// 10, the noise level, signal variance (by 100²) and prior mean accordingly, and
+    /// leaves the dual weights `α = K⁻¹(y − ȳ)` scaled by exactly 1/100 — the fixed
+    /// absolute grid the old fit used chose different cells at different units.
+    #[cfg(feature = "gaussian-process")]
+    #[test]
+    fn gaussian_process_fit_is_equivariant_to_units() {
+        let (data, y) = gp_oracle_table(1.0, 1.0, 0.0);
+        let (data_s, y_s) = gp_oracle_table(10.0, 100.0, 1000.0);
+        let (
+            MechanismSlot::GaussianProcess {
+                length_scale: l0,
+                noise_std: n0,
+                variance: v0,
+                mean: m0,
+                alpha: a0,
+                ..
+            },
+            MechanismSlot::GaussianProcess {
+                length_scale: l1,
+                noise_std: n1,
+                variance: v1,
+                mean: m1,
+                alpha: a1,
+                ..
+            },
+        ) = (fit_gp(&data, &y), fit_gp(&data_s, &y_s))
+        else {
+            panic!("GP slots");
+        };
+        assert!((l1 / l0 - 10.0).abs() < 1e-9, "length scale ratio {}", l1 / l0);
+        assert!((n1 / n0 - 100.0).abs() < 1e-9, "noise ratio {}", n1 / n0);
+        assert!((v1 / v0 - 1.0e4).abs() < 1e-6, "variance ratio {}", v1 / v0);
+        assert!((m1 - (1000.0 + 100.0 * m0)).abs() < 1e-9, "mean {m1}");
+        for (b, a) in a1.iter().zip(a0.iter()) {
+            assert!((b * 100.0 - a).abs() < 1e-8, "alpha {b} vs {a}");
+        }
     }
 
     /// MM-A1: LGSSM/GP scoring must use a genuine fitted residual, on the same scale as the
@@ -2398,6 +2596,307 @@ mod tests {
             lg_candidate.score
         );
         assert_eq!(assignment.selected, MechanismFamily::LinearGaussianStateSpace);
+    }
+
+    // ------------------------------------------------------------ scoring, typing, fits
+
+    fn single_node_assignment(registry: &MechanismRegistry, y: &[f64]) -> Vec<MechanismAssignment> {
+        let data = TabularData::from_f64_columns([("y", y)]).unwrap();
+        let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+        registry.assign_and_fit(&compiled, &data, SelectionPolicy::BestScore).unwrap().1
+    }
+
+    /// Every family is scored by held-out log-likelihood less a count-based penalty, so
+    /// rescaling the outcome shifts each family's score by exactly `−ln(scale)` (the
+    /// change of variables of a density) and cannot change which family wins. The old
+    /// `−mse − 0.01·|ln σ|` mixed a unit-squared term with a unit-free one, and picked
+    /// a different family at scale 0.01 than at scale 1.
+    #[test]
+    fn family_scores_shift_by_minus_ln_scale_when_the_outcome_is_rescaled() {
+        use antecedent_kernels::standard_normal;
+        let mut rng = antecedent_core::CausalRng::from_seed(21);
+        let mut y = vec![0.0; 120];
+        let mut x = 0.0;
+        for v in &mut y {
+            x = 0.5 * x + standard_normal(&mut rng);
+            *v = x;
+        }
+        let registry = MechanismRegistry::with_bayesian_families();
+        let base = single_node_assignment(&registry, &y).remove(0);
+        for scale in [0.01, 100.0] {
+            let scaled_y: Vec<f64> = y.iter().map(|v| v * scale).collect();
+            let scaled = single_node_assignment(&registry, &scaled_y).remove(0);
+            assert_eq!(scaled.selected, base.selected, "scale {scale}");
+            assert_eq!(scaled.candidates.len(), base.candidates.len());
+            for c in base.candidates.iter() {
+                let s = scaled
+                    .candidates
+                    .iter()
+                    .find(|s| s.family == c.family)
+                    .unwrap_or_else(|| panic!("{:?} missing at scale {scale}", c.family));
+                assert!(
+                    (s.score - (c.score - scale.ln())).abs() < 1e-6,
+                    "{:?} at scale {scale}: {} vs {} − ln(scale)",
+                    c.family,
+                    s.score,
+                    c.score
+                );
+            }
+        }
+    }
+
+    /// The `LinearGaussian` score is *exactly* its mean held-out Gaussian log-likelihood on
+    /// the shared folds minus `k ln(n) / 2n` with `k = p + 2` free parameters, recomputed
+    /// here from first principles (training mean/SD per fold, closed-form density).
+    #[test]
+    fn linear_gaussian_score_is_held_out_loglik_less_the_bic_penalty() {
+        let n = 25usize;
+        let y: Vec<f64> =
+            (0..n).map(|i| 3.0 + (0.7 * i as f64).sin() + 0.4 * (2.3 * i as f64).cos()).collect();
+        let a = single_node_assignment(&MechanismRegistry::standard(), &y).remove(0);
+        let candidate = a
+            .candidates
+            .iter()
+            .find(|c| c.family == MechanismFamily::LinearGaussian)
+            .expect("LinearGaussian scored");
+        let fold = cv_fold_plan(n, None).unwrap();
+        let (mut total, mut count) = (0.0, 0usize);
+        for k in 0..MECHANISM_CV_FOLDS {
+            let train: Vec<f64> = (0..n).filter(|&r| fold[r] != k).map(|r| y[r]).collect();
+            let m = train.len() as f64;
+            let mean = train.iter().sum::<f64>() / m;
+            let rss = train.iter().map(|v| (v - mean).powi(2)).sum::<f64>();
+            let sigma = (rss / (m - 1.0)).sqrt();
+            for r in (0..n).filter(|&r| fold[r] == k) {
+                let z = (y[r] - mean) / sigma;
+                total += -0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln() - 0.5 * z * z;
+                count += 1;
+            }
+        }
+        assert_eq!(count, n, "every row is held out exactly once");
+        let penalty = 0.5 * 2.0 * (n as f64).ln() / n as f64;
+        let expected = total / count as f64 - penalty;
+        assert!(
+            (candidate.score - expected).abs() < 1e-10,
+            "score {} vs held-out log-likelihood {expected}",
+            candidate.score
+        );
+    }
+
+    fn typed_table(value_type: ValueType, y: &[f64]) -> (TabularData, VariableId) {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            value_type,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let data = TabularData::try_from_schema_f64(b.build().unwrap(), [("y", y)]).unwrap();
+        (data, VariableId::from_raw(0))
+    }
+
+    /// The declared value type decides discreteness; a level count only decides for a
+    /// column not declared discrete, and only when levels repeat. The old rule sent any
+    /// column with ≤ 8 distinct values (including every column with n ≤ 8) to a
+    /// multinomial whose counterfactual support is the observed values.
+    #[test]
+    fn declared_value_type_decides_discreteness_and_short_columns_stay_continuous() {
+        let cycle =
+            |levels: usize, n: usize| -> Vec<f64> { (0..n).map(|i| (i % levels) as f64).collect() };
+        // Declared binary beats the level count: 12 levels, still categorical.
+        let twelve = cycle(12, 120);
+        let (data, var) = typed_table(ValueType::Binary, &twelve);
+        assert_eq!(classify_node(&data, var, &twelve), MechanismTyping::DeclaredDiscrete);
+        // Continuous with two repeated levels: the heuristic reads it as categorical.
+        let binary = cycle(2, 40);
+        let (data, var) = typed_table(ValueType::Continuous, &binary);
+        assert_eq!(classify_node(&data, var, &binary), MechanismTyping::LowCardinality);
+        let five = cycle(5, 40);
+        let (data, var) = typed_table(ValueType::Continuous, &five);
+        assert_eq!(classify_node(&data, var, &five), MechanismTyping::LowCardinality);
+        // Too few rows per level: a short sample of a continuous variable.
+        let short_binary = cycle(2, 4);
+        let (data, var) = typed_table(ValueType::Continuous, &short_binary);
+        assert_eq!(classify_node(&data, var, &short_binary), MechanismTyping::Continuous);
+        let short_five = cycle(5, 12);
+        let (data, var) = typed_table(ValueType::Continuous, &short_five);
+        assert_eq!(classify_node(&data, var, &short_five), MechanismTyping::Continuous);
+        // Many distinct values.
+        let ramp: Vec<f64> = (0..40).map(f64::from).collect();
+        let (data, var) = typed_table(ValueType::Continuous, &ramp);
+        assert_eq!(classify_node(&data, var, &ramp), MechanismTyping::Continuous);
+
+        // The rule that fired is recorded on the assignment.
+        let (data, _) = typed_table(ValueType::Binary, &twelve);
+        let compiled = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+        let (_, assignments) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        assert_eq!(assignments[0].typing, MechanismTyping::DeclaredDiscrete);
+        assert!(matches!(assignments[0].fitted, MechanismSlot::Discrete { .. }));
+    }
+
+    /// σ floors are relative to the outcome's scale: a deterministic relation measured
+    /// in units of 1e-6 keeps a σ at that scale, not an absolute 1e-8 that dwarfs it.
+    #[test]
+    fn residual_sigma_floor_is_relative_to_the_outcome_scale() {
+        let n = 40usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1e-6 * (1.0 + 2.0 * v)).collect();
+        let data =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let gather = compiled.gather_for(DenseNodeId::from_raw(1)).unwrap();
+        let slot = fit_family(
+            MechanismFamily::LinearGaussian,
+            gather,
+            &compiled,
+            &data,
+            &y,
+            FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+        )
+        .unwrap();
+        let MechanismSlot::LinearGaussian { sigma, .. } = slot else { panic!("linear slot") };
+        assert!(sigma < 1e-9, "sigma {sigma} exceeds the data scale");
+    }
+
+    /// `HierarchicalLinear` with a `UnitId` column is a within-unit (fixed-effects)
+    /// regression: parents are demeaned by unit as well as the outcome. Demeaning only
+    /// `y` regresses it on a parent that still carries its between-unit variance, which
+    /// attenuates the slope to `β·Var_within/Var_total`. σ is measured on the reported
+    /// population-intercept mean function, so abduction and log-density see the
+    /// between-unit spread instead of a σ that excludes it.
+    #[test]
+    fn hierarchical_linear_uses_the_within_estimator_and_sigma_keeps_between_unit_spread() {
+        let (groups, per) = (8usize, 10usize);
+        let n = groups * per;
+        let (mut unit, mut x, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for g in 0..groups {
+            for j in 0..per {
+                let i = g * per + j;
+                unit[i] = g as f64;
+                x[i] = 1.5 * g as f64 + (0.9 * i as f64 + g as f64).sin();
+                y[i] = 2.0 * x[i] + 0.3 * g as f64 + 0.05 * (1.7 * i as f64).cos();
+            }
+        }
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("unit", RoleHint::UnitId),
+            ("x", RoleHint::Context),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let data = TabularData::try_from_schema_f64(
+            b.build().unwrap(),
+            [("unit", unit.as_slice()), ("x", x.as_slice()), ("y", y.as_slice())],
+        )
+        .unwrap();
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let gather = compiled.gather_for(DenseNodeId::from_raw(2)).unwrap();
+        let slot = fit_family(
+            MechanismFamily::HierarchicalLinear,
+            gather,
+            &compiled,
+            &data,
+            &y,
+            FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+        )
+        .unwrap();
+        let MechanismSlot::HierarchicalLinear { intercept, coeffs, sigma, .. } = slot else {
+            panic!("hierarchical slot");
+        };
+
+        // Closed-form within estimator, and the attenuated "demean y only" estimator.
+        let demean = |v: &[f64]| -> Vec<f64> {
+            let mut out = vec![0.0; n];
+            for g in 0..groups {
+                let rows = g * per..(g + 1) * per;
+                let mean = v[rows.clone()].iter().sum::<f64>() / per as f64;
+                for i in rows {
+                    out[i] = v[i] - mean;
+                }
+            }
+            out
+        };
+        let (xd, yd) = (demean(&x), demean(&y));
+        let beta_within = xd.iter().zip(&yd).map(|(a, b)| a * b).sum::<f64>()
+            / xd.iter().map(|a| a * a).sum::<f64>();
+        let x_mean = x.iter().sum::<f64>() / n as f64;
+        let attenuated = x.iter().zip(&yd).map(|(a, b)| (a - x_mean) * b).sum::<f64>()
+            / x.iter().map(|a| (a - x_mean).powi(2)).sum::<f64>();
+        assert!(
+            (coeffs[0] - beta_within).abs() < 1e-3 * beta_within.abs(),
+            "slope {} vs within-unit estimator {beta_within}",
+            coeffs[0]
+        );
+        assert!((attenuated - beta_within).abs() > 1.0, "attenuated estimator {attenuated}");
+
+        let rss: f64 = (0..n).map(|i| (y[i] - intercept - coeffs[0] * x[i]).powi(2)).sum::<f64>();
+        let expected_sigma = (rss / (n - 2) as f64).sqrt();
+        assert!((sigma - expected_sigma).abs() < 1e-9, "sigma {sigma} vs {expected_sigma}");
+        assert!(sigma > 0.3, "sigma {sigma} lost the between-unit spread");
+    }
+
+    /// The single-equation BVAR is a ridge fit on scale-standardized parents with the
+    /// intercept unpenalized, so it is exactly equivariant to the units of the outcome
+    /// and of every parent (`x → 1000x`, `y → 7y` moves the coefficient by `7/1000`,
+    /// the intercept and σ by 7); and σ is the data-row residual SD of its own reported
+    /// coefficients — the augmented solver RSS also holds the prior pseudo-rows.
+    #[test]
+    fn bvar_is_unit_equivariant_and_sigma_excludes_the_prior_rows() {
+        let n = 100usize;
+        let x: Vec<f64> = (0..n).map(|i| (0.37 * i as f64).sin() + 0.01 * i as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * x[i] + 0.4 * (1.9 * i as f64).cos()).collect();
+        let fit = |x: &[f64], y: &[f64]| -> (f64, f64, f64) {
+            let data = TabularData::from_f64_columns([("x", x), ("y", y)]).unwrap();
+            let mut g = Dag::with_variables(2);
+            g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+            let compiled = CompiledCausalModel::compile(g).unwrap();
+            let gather = compiled.gather_for(DenseNodeId::from_raw(1)).unwrap();
+            let slot = fit_family(
+                MechanismFamily::Bvar,
+                gather,
+                &compiled,
+                &data,
+                y,
+                FaerBackend,
+                &mut LeastSquaresWorkspace::default(),
+            )
+            .unwrap();
+            let MechanismSlot::Bvar { intercept, coeffs, sigma } = slot else {
+                panic!("bvar slot");
+            };
+            (intercept, coeffs[0], sigma)
+        };
+        let (i0, c0, s0) = fit(&x, &y);
+        let x_big: Vec<f64> = x.iter().map(|v| v * 1000.0).collect();
+        let y_big: Vec<f64> = y.iter().map(|v| v * 7.0).collect();
+        let (i1, c1, s1) = fit(&x_big, &y_big);
+        assert!((i1 - 7.0 * i0).abs() < 1e-9 * i0.abs().max(1.0), "intercept {i1} vs 7·{i0}");
+        assert!((c1 - c0 * 7.0 / 1000.0).abs() < 1e-9 * c0.abs(), "coefficient {c1}");
+        assert!((s1 - 7.0 * s0).abs() < 1e-9 * s0, "sigma {s1} vs 7·{s0}");
+
+        let rss: f64 = (0..n).map(|i| (y[i] - i0 - c0 * x[i]).powi(2)).sum();
+        let expected = (rss / (n - 2) as f64).sqrt();
+        assert!((s0 - expected).abs() < 1e-12, "sigma {s0} vs data-row {expected}");
     }
 
     // ------------------------------------------------------------ basis families

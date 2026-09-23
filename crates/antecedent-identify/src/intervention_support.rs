@@ -6,11 +6,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::float_cmp
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_core::{Intervention, InterventionSequence, StochasticPolicy, Value};
@@ -67,6 +70,10 @@ pub(crate) fn non_set_unsupported_message(kind: &'static str) -> &'static str {
 /// # Errors
 ///
 /// Unsupported Soft family, additive shift, continuous Stochastic, empty/mixed Sequence, etc.
+#[allow(
+    clippy::float_cmp,
+    reason = "a degenerate stochastic policy has probabilities that are exactly 0 or 1 by definition"
+)]
 pub(crate) fn normalize_to_set(
     intervention: &Intervention,
 ) -> Result<Intervention, IdentificationError> {
@@ -275,6 +282,10 @@ fn bernoulli_weight(intervention: &Intervention) -> Result<Option<f64>, Identifi
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "a degenerate Bernoulli level is exactly 0 or 1 by definition; only those collapse to a Set"
+)]
 fn set_binary_weight(intervention: &Intervention) -> Result<f64, IdentificationError> {
     let set = normalize_to_set(intervention)?;
     let Intervention::Set { value, .. } = set else {

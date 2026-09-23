@@ -13,6 +13,8 @@ pub enum MaterializationReason {
     LayoutIncompatible,
     /// Arrow / foreign buffer could not be borrowed zero-copy.
     ForeignBufferIncompatible,
+    /// A validity bitmap was built from Arrow null slots beside a zero-copy value borrow.
+    ValidityBitmap,
 }
 
 /// Record a materialization as an execution diagnostic.
@@ -22,6 +24,7 @@ pub fn materialization_diagnostic(reason: MaterializationReason, bytes: u64) -> 
         MaterializationReason::ExplicitCopy => "exec.materialize.explicit_copy",
         MaterializationReason::LayoutIncompatible => "exec.materialize.layout",
         MaterializationReason::ForeignBufferIncompatible => "exec.materialize.foreign",
+        MaterializationReason::ValidityBitmap => "exec.materialize.validity",
     };
     let mut d = Diagnostic::new(
         code,

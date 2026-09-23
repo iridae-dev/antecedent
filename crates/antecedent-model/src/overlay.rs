@@ -70,6 +70,19 @@ impl InterventionOverlay {
                 });
             }
         }
+        // Replacement directives (hard set, stochastic policy, soft mechanism) each
+        // define the node's whole assignment, so two of them on one node have no
+        // well-defined combination; evaluation order would silently pick a winner.
+        for idx in 0..self.hard_set.len() {
+            let kinds = [
+                self.hard_set[idx].is_some(),
+                self.stochastic.get(idx).is_some_and(Option::is_some),
+                self.soft.get(idx).is_some_and(Option::is_some),
+            ];
+            if kinds.iter().filter(|k| **k).count() > 1 {
+                return Err(conflicting_directives(idx));
+            }
+        }
         Ok(())
     }
 
@@ -128,11 +141,22 @@ impl InterventionOverlay {
     }
 }
 
+fn conflicting_directives(idx: usize) -> ModelError {
+    ModelError::Unsupported {
+        message: format!(
+            "dense node {idx} is targeted by two conflicting interventions (a hard set, a \
+             stochastic policy or a soft mechanism replaces the node's whole assignment); \
+             state one, or make the repeated directive identical"
+        ),
+    }
+}
+
 fn temporal_active(policy: &TemporalPolicy, t: i32) -> Result<bool, ModelError> {
     policy.validate().map_err(|e| ModelError::Unsupported { message: e.to_string() })?;
     Ok(policy.is_active_at(t))
 }
 
+#[allow(clippy::float_cmp)] // a repeated identical set is idempotent: exact equality is intended
 fn apply_intervention(
     model: &CompiledCausalModel,
     overlay: &mut InterventionOverlay,
@@ -145,7 +169,16 @@ fn apply_intervention(
             let v = value.as_f64().ok_or_else(|| ModelError::Unsupported {
                 message: "hard set requires numeric value".into(),
             })?;
-            overlay.hard_set[dense.as_usize()] = Some(v);
+            let idx = dense.as_usize();
+            // A repeated identical set is idempotent; a different value would silently
+            // overwrite the first.
+            if overlay.hard_set[idx].is_some_and(|prev| prev != v)
+                || overlay.stochastic[idx].is_some()
+                || overlay.soft[idx].is_some()
+            {
+                return Err(conflicting_directives(idx));
+            }
+            overlay.hard_set[idx] = Some(v);
             Ok(())
         }
         Intervention::Shift { variable, delta } => {
@@ -159,19 +192,41 @@ fn apply_intervention(
         Intervention::Stochastic { variable, policy } => {
             policy.validate().map_err(|e| ModelError::Unsupported { message: e.to_string() })?;
             let dense = require_dense(model, *variable)?;
-            overlay.stochastic[dense.as_usize()] = Some(policy.clone());
+            let idx = dense.as_usize();
+            if overlay.hard_set[idx].is_some()
+                || overlay.soft[idx].is_some()
+                || overlay.stochastic[idx].as_ref().is_some_and(|prev| prev != policy)
+            {
+                return Err(conflicting_directives(idx));
+            }
+            overlay.stochastic[idx] = Some(policy.clone());
             Ok(())
         }
         Intervention::Soft { variable, mechanism } => {
             let dense = require_dense(model, *variable)?;
+            let idx = dense.as_usize();
             // Unify with `Intervention::Shift`: additive soft overrides are shifts, so
             // ancestral and structural sampling share the same noise semantics.
             if mechanism.family_id.as_ref() == "additive_shift" {
-                let d = mechanism.parameters.first().copied().unwrap_or(0.0);
-                overlay.shifts[dense.as_usize()] += d;
+                let d = match &mechanism.parameters[..] {
+                    [d] if d.is_finite() => *d,
+                    _ => {
+                        return Err(ModelError::Unsupported {
+                            message: "additive_shift override needs exactly one finite delta"
+                                .into(),
+                        });
+                    }
+                };
+                overlay.shifts[idx] += d;
                 return Ok(());
             }
-            overlay.soft[dense.as_usize()] = Some(mechanism.clone());
+            if overlay.hard_set[idx].is_some()
+                || overlay.stochastic[idx].is_some()
+                || overlay.soft[idx].as_ref().is_some_and(|prev| prev != mechanism)
+            {
+                return Err(conflicting_directives(idx));
+            }
+            overlay.soft[idx] = Some(mechanism.clone());
             Ok(())
         }
         Intervention::Sequence(seq) => {
@@ -180,11 +235,20 @@ fn apply_intervention(
                     message: "nested intervention sequences are not supported here".into(),
                 });
             }
-            // Simultaneous interpretation at t=0 for static models.
+            // A static model has a single time point, t = 0. Steps active there compose as
+            // one simultaneous intervention; a step scheduled for another time has no
+            // meaning in a static evaluation and dropping it would report a counterfactual
+            // that omits part of the request.
             for step in seq.steps.iter() {
-                if temporal_active(&step.temporal, 0)? {
-                    apply_intervention(model, overlay, &step.intervention, false)?;
+                if !temporal_active(&step.temporal, 0)? {
+                    return Err(ModelError::Unsupported {
+                        message: "an intervention sequence has steps not active at t = 0; a \
+                                  static evaluation has only t = 0, so those steps cannot be \
+                                  applied (evaluate the sequence per time step instead)"
+                            .into(),
+                    });
                 }
+                apply_intervention(model, overlay, &step.intervention, false)?;
             }
             Ok(())
         }
@@ -386,6 +450,91 @@ mod tests {
             matches!(&err, ModelError::Unsupported { message } if message.contains("dense node 0")),
             "error should name the offending node: {err}"
         );
+    }
+
+    /// Two different hard sets, or a set beside a soft mechanism or stochastic policy,
+    /// used to resolve by evaluation order with no error; an identical repeat is fine.
+    #[test]
+    fn conflicting_replacement_directives_on_one_node_are_rejected() {
+        let g = Dag::with_variables(1);
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let x = VariableId::from_raw(0);
+        let conflicts = [
+            vec![Intervention::set(x, Value::f64(1.0)), Intervention::set(x, Value::f64(2.0))],
+            vec![
+                Intervention::set(x, Value::f64(1.0)),
+                Intervention::soft(x, MechanismOverride::constant(3.0)),
+            ],
+            vec![
+                Intervention::soft(x, MechanismOverride::constant(3.0)),
+                Intervention::set(x, Value::f64(1.0)),
+            ],
+            vec![
+                Intervention::soft(x, MechanismOverride::constant(3.0)),
+                Intervention::soft(x, MechanismOverride::constant(4.0)),
+            ],
+        ];
+        for ivs in conflicts {
+            let err = InterventionOverlay::from_interventions(&model, &ivs).unwrap_err();
+            assert!(
+                matches!(&err, ModelError::Unsupported { message }
+                    if message.contains("conflicting interventions")),
+                "unexpected error: {err}"
+            );
+        }
+        let repeated = InterventionOverlay::from_interventions(
+            &model,
+            &[Intervention::set(x, Value::f64(1.0)), Intervention::set(x, Value::f64(1.0))],
+        )
+        .unwrap();
+        assert_eq!(repeated.hard_set[0], Some(1.0));
+    }
+
+    /// A hand-built overlay carrying two replacement directives on one node fails
+    /// `validate`.
+    #[test]
+    fn hand_built_overlay_with_two_replacements_fails_validate() {
+        let mut overlay = InterventionOverlay::observational(1);
+        overlay.hard_set[0] = Some(1.0);
+        overlay.soft[0] = Some(MechanismOverride::constant(2.0));
+        assert!(overlay.validate().is_err());
+    }
+
+    /// A static evaluation has only t = 0; a sequence step scheduled later must not be
+    /// dropped silently.
+    #[test]
+    fn static_sequence_with_a_step_after_t0_is_refused() {
+        let g = Dag::with_variables(2);
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let seq = Intervention::sequence(InterventionSequence::new(vec![
+            SequencedIntervention::new(
+                Intervention::set(x, Value::f64(1.0)),
+                TemporalPolicy::dynamic(DynamicRuleId::from_raw(0), [0]),
+            ),
+            SequencedIntervention::new(
+                Intervention::set(y, Value::f64(2.0)),
+                TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), [1]),
+            ),
+        ]));
+        let err = InterventionOverlay::from_interventions(&model, &[seq]).unwrap_err();
+        assert!(
+            matches!(&err, ModelError::Unsupported { message } if message.contains("t = 0")),
+            "{err}"
+        );
+    }
+
+    /// The additive-shift family needs exactly one finite delta; an empty or NaN list
+    /// used to become a zero shift.
+    #[test]
+    fn additive_shift_override_requires_a_finite_delta() {
+        let g = Dag::with_variables(1);
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let x = VariableId::from_raw(0);
+        for parameters in [vec![], vec![f64::NAN], vec![1.0, 2.0]] {
+            let iv = Intervention::soft(x, MechanismOverride::named("additive_shift", parameters));
+            assert!(InterventionOverlay::from_interventions(&model, &[iv]).is_err());
+        }
     }
 
     #[test]

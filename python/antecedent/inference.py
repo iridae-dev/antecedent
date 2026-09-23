@@ -18,7 +18,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Frequentist:
-    """Frequentist point estimate + bootstrap SE (default)."""
+    """Frequentist point estimate with the estimator's own standard error.
+
+    Which standard error is reported, and when it is valid, is scoped by the chosen
+    estimator (see its docstring), not by this marker.
+    """
 
     kind: Literal["frequentist"] = "frequentist"
 

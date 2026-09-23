@@ -11,6 +11,12 @@
 //! older artifacts and clients, but the 0.9 gate requires
 //! `parity/support_allowlist.toml` to have zero active entries. Any refused
 //! cell without a reason uses the shared default-refusal message.
+//!
+//! Geometric [`classify`] keys on the five-tuple cell. [`classify_estimator`]
+//! additionally requires the concrete [`EstimatorId`] to appear on that cell's
+//! evidence list (`LicensedCell::estimators`), so matching / IV / RD / forest /
+//! two-stage front-door cannot inherit a license whose calibration never ran
+//! them.
 
 use antecedent_core::{
     CausalQuery, DerivativeScale, LicensedNeighbor, PremiseChange, ResponseFunctional,
@@ -23,6 +29,7 @@ use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
+use crate::strategy_table::EstimatorId;
 use crate::support_matrix_data::{ALLOWED_RULES, CLOSED_RULES, LICENSED, NA_RULES};
 
 /// Stable support-matrix refusal id.
@@ -204,6 +211,57 @@ pub fn classify(cell: SupportCell) -> CellStatus {
     CellStatus::Refused
 }
 
+/// Estimator wire-ids whose evidence ran for this geometric cell.
+///
+/// Empty when the cell is not licensed, or when neither the compiler route nor
+/// a calibration-record token named an estimator (do not guess one).
+#[must_use]
+pub fn licensed_estimators(cell: SupportCell) -> &'static [&'static str] {
+    licensed_row(cell).map_or(&[], |row| row.estimators)
+}
+
+/// Compiler-plan estimator for this geometric cell (`parity/licensed_routes.toml`).
+///
+/// This is the default unbound compile path; it is independent of how many
+/// additional estimators the cell's calibration records license.
+#[must_use]
+pub fn licensed_route_estimator(cell: SupportCell) -> Option<EstimatorId> {
+    let wire = licensed_row(cell)?.route_estimator?;
+    wire.parse().ok()
+}
+
+fn licensed_row(cell: SupportCell) -> Option<&'static crate::support_matrix_data::LicensedCell> {
+    LICENSED.iter().find(|row| {
+        row.query == cell.query
+            && row.graph_class == cell.graph_class
+            && row.structure == cell.structure
+            && row.inference == cell.inference
+            && row.validation == cell.validation
+    })
+}
+
+/// Classify `cell` for a concrete estimator.
+///
+/// [`CellStatus::Licensed`] only when the geometric cell is licensed and the
+/// row's evidence list contains `estimator`. Otherwise [`CellStatus::Refused`]
+/// (or the geometric n/a status). Never returns [`CellStatus::Allowlisted`]:
+/// that status is historical compatibility only, and unmeasured estimators
+/// must not ride it to stay runnable.
+#[must_use]
+pub fn classify_estimator(cell: SupportCell, estimator: EstimatorId) -> CellStatus {
+    match classify(cell) {
+        CellStatus::NotApplicable { reason } => CellStatus::NotApplicable { reason },
+        CellStatus::Licensed => {
+            if licensed_estimators(cell).contains(&estimator.as_str()) {
+                CellStatus::Licensed
+            } else {
+                CellStatus::Refused
+            }
+        }
+        CellStatus::Refused | CellStatus::Allowlisted { .. } => CellStatus::Refused,
+    }
+}
+
 /// Matrix query name for `query` on `graph_class`, if the query is on the public axis.
 #[must_use]
 pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&'static str> {
@@ -273,8 +331,8 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         // Off the public axis: the mechanism-change and unit-change queries
         // that exist today, and any variant added after this release.
         //
-        // This cannot be made exhaustive. `CausalQuery` is `#[non_exhaustive]`
-        // for the 1.0 API freeze, so a downstream crate is required by the
+        // This cannot be made exhaustive. `CausalQuery` is `#[non_exhaustive]`,
+        // so a downstream crate is required by the
         // compiler to keep a wildcard here, and clippy refuses a named arm
         // beside it with the same body. The wire-side classifier that used to
         // shadow this table is gone — a consumer reads the `query_kind` the
@@ -285,6 +343,40 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         _ => None,
     }
 }
+
+/// Query kinds that intentionally sit off the matrix axes: the two GCM attribution studies, which
+/// have no geometric cell to license and run only against a supplied static DAG.
+///
+/// This is the closed allow-list for "no cell": every other query kind must classify onto the
+/// axis (for some graph class), so a variant added later without a matrix row is refused at build
+/// rather than silently defaulting to allowed.
+#[must_use]
+pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
+    matches!(query, CausalQuery::MechanismChange(_) | CausalQuery::UnitChange(_))
+}
+
+/// Refuse a query the matrix does not know and that is not a declared off-axis kind.
+///
+/// "Default = refused" holds on the axis because [`classify`] falls through to
+/// [`CellStatus::Refused`]; this closes the same default for a query kind with no axis name at
+/// all. A `Response` whose temporal/static attachment disagrees with the graph class has an axis
+/// name for some class and is left to the compiler's typed refusal.
+///
+/// # Errors
+///
+/// [`CausalError::Support`] ([`SupportRefusal::Refused`]) for an unlisted off-axis kind.
+pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError> {
+    if is_declared_off_axis(query)
+        || query_axis_name(query, GraphClass::Dag).is_some()
+        || query_axis_name(query, GraphClass::TemporalDag).is_some()
+    {
+        return Ok(());
+    }
+    Err(CausalError::Support { id: SupportRefusal::Refused, message: UNDECLARED_OFF_AXIS })
+}
+
+const UNDECLARED_OFF_AXIS: &str = "this query kind has no support-matrix cell and is not a \
+     declared off-axis kind; it is refused until a cell licenses it.";
 
 fn inference_axis(mode: &InferenceMode) -> &'static str {
     match mode {
@@ -655,9 +747,84 @@ mod tests {
     }
 
     #[test]
+    fn declared_off_axis_kinds_are_the_only_axisless_queries_that_build() {
+        use antecedent_core::{TemporalEffectQuery, UnitChangeQuery, VariableId};
+        // Unit change has no matrix cell for any class, and is on the closed allow-list.
+        let unit = CausalQuery::UnitChange(UnitChangeQuery::new(VariableId::from_raw(1), 20));
+        for class in [GraphClass::Dag, GraphClass::TemporalDag] {
+            assert_eq!(query_axis_name(&unit, class), None);
+        }
+        assert!(is_declared_off_axis(&unit));
+        assert!(refuse_undeclared_off_axis(&unit).is_ok());
+        // An on-axis query never needs the allow-list.
+        let pulse = CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            1.0,
+        ));
+        assert!(!is_declared_off_axis(&pulse));
+        assert!(refuse_undeclared_off_axis(&pulse).is_ok());
+    }
+
+    #[test]
     fn pulse_on_static_dag_is_not_applicable() {
         let status = classify(cell("PulseEffect", "Dag", "explicit", "Frequentist", "none"));
         assert!(matches!(status, CellStatus::NotApplicable { .. }));
+    }
+
+    #[test]
+    fn classify_estimator_licenses_calibration_and_route_estimators() {
+        let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+        assert_eq!(classify(c), CellStatus::Licensed);
+        let named = licensed_estimators(c);
+        assert!(named.contains(&"linear.adjustment.ate"), "{named:?}");
+        // Route default.
+        assert_eq!(licensed_route_estimator(c), Some(EstimatorId::LinearAdjustmentAte));
+        // Calibration-record tokens on this row (plus the route).
+        for est in [
+            EstimatorId::LinearAdjustmentAte,
+            EstimatorId::Aipw,
+            EstimatorId::PropensityWeighting,
+            EstimatorId::GlmAdjustment,
+            EstimatorId::FrontDoorTwoStage,
+            EstimatorId::IvWald,
+            EstimatorId::Iv2Sls,
+            EstimatorId::PropensityMatching,
+            EstimatorId::RdSharp,
+        ] {
+            assert_eq!(
+                classify_estimator(c, est),
+                CellStatus::Licensed,
+                "{est:?} is named by this cell's route or calibration ids; got refuse"
+            );
+        }
+        // No record id names these on this cell.
+        for est in [EstimatorId::DistanceMatching, EstimatorId::CausalForest] {
+            assert_eq!(
+                classify_estimator(c, est),
+                CellStatus::Refused,
+                "{est:?} must stay refused without a calibration token"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_estimator_never_allowlists_unmeasured_estimators() {
+        let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+        let status = classify_estimator(c, EstimatorId::CausalForest);
+        assert_eq!(status, CellStatus::Refused);
+        assert!(!matches!(status, CellStatus::Allowlisted { .. }));
+    }
+
+    #[test]
+    fn classify_estimator_refuses_estimator_with_no_route_or_token() {
+        // Stratification has neither a licensed_routes entry nor a calibration
+        // token on the AverageEffect Dag frequentist/none cell.
+        let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+        assert_eq!(
+            classify_estimator(c, EstimatorId::PropensityStratification),
+            CellStatus::Refused
+        );
     }
 
     #[test]

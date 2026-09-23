@@ -5,7 +5,7 @@
 use std::str::FromStr;
 use std::sync::OnceLock;
 
-use antecedent_core::IdentificationStatus;
+use antecedent_core::{AssumptionRecord, IdentificationStatus};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_identify::IdentificationResult;
 
@@ -241,8 +241,10 @@ pub enum EstimatorId {
     Aipw,
     /// GLM (logit) adjustment.
     GlmAdjustment,
-    /// Front-door two-stage.
+    /// Linear front-door two-stage (product of coefficients).
     FrontDoorTwoStage,
+    /// Plug-in of the nonparametric front-door functional.
+    FrontDoorFunctional,
     /// Wald IV.
     IvWald,
     /// Two-stage least squares.
@@ -293,6 +295,12 @@ pub enum EstimatorId {
     TransportTrialIpw,
     /// Horvitz–Thompson / Hájek exposure contrast under a known assignment design.
     InterferenceHtHajek,
+    /// Cross-fitted DML / AIPW average treatment effect.
+    Dml,
+    /// Doubly robust CATE learner (DRLearner).
+    DrLearner,
+    /// Native honest causal forest CATE.
+    CausalForest,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -379,10 +387,16 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             provenance: ("estimate.glm_adjustment", "estimate.glm_adjustment_ate"),
         },
         EstimatorId::FrontDoorTwoStage => EstimatorData {
-            name: "frontdoor.two_stage",
+            name: "frontdoor.linear_two_stage",
             parallel_task_dimension: "bootstrap.replicate",
-            kernel_label: "frontdoor.two_stage",
+            kernel_label: "frontdoor.linear_two_stage",
             provenance: ("estimate.frontdoor", "estimate.frontdoor_two_stage"),
+        },
+        EstimatorId::FrontDoorFunctional => EstimatorData {
+            name: "frontdoor.functional",
+            parallel_task_dimension: "bootstrap.replicate",
+            kernel_label: "frontdoor.functional",
+            provenance: ("estimate.frontdoor_functional", "estimate.frontdoor_functional"),
         },
         EstimatorId::IvWald => EstimatorData {
             name: "iv.wald",
@@ -542,6 +556,24 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "interference.ht_hajek",
             provenance: ("estimate.interference.ht_hajek", "estimate.interference.ht_hajek"),
+        },
+        EstimatorId::Dml => EstimatorData {
+            name: "dml",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "dml",
+            provenance: ("estimate.dml", "estimate.dml"),
+        },
+        EstimatorId::DrLearner => EstimatorData {
+            name: "dr.learner",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "dr.learner",
+            provenance: ("estimate.dr.learner", "estimate.dr.learner"),
+        },
+        EstimatorId::CausalForest => EstimatorData {
+            name: "causal.forest",
+            parallel_task_dimension: "forest.tree",
+            kernel_label: "causal.forest",
+            provenance: ("estimate.causal.forest", "estimate.causal.forest"),
         },
     }
 }
@@ -713,6 +745,9 @@ pub fn validate_static_pair(
             | EstimatorId::DistanceMatching
             | EstimatorId::Aipw
             | EstimatorId::GlmAdjustment
+            | EstimatorId::Dml
+            | EstimatorId::DrLearner
+            | EstimatorId::CausalForest
             | EstimatorId::BayesianGcomp
             | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment
@@ -723,7 +758,10 @@ pub fn validate_static_pair(
         {
             true
         }
-        (IdentifierId::Frontdoor, EstimatorId::FrontDoorTwoStage)
+        (
+            IdentifierId::Frontdoor,
+            EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional,
+        )
         | (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls)
         | (IdentifierId::RdSharp, EstimatorId::RdSharp)
         | (
@@ -735,6 +773,9 @@ pub fn validate_static_pair(
             | EstimatorId::DistanceMatching
             | EstimatorId::Aipw
             | EstimatorId::GlmAdjustment
+            | EstimatorId::Dml
+            | EstimatorId::DrLearner
+            | EstimatorId::CausalForest
             | EstimatorId::BayesianGcomp
             | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment,
@@ -744,7 +785,10 @@ pub fn validate_static_pair(
             if backdoor_estimators
                 || matches!(
                     estimator,
-                    EstimatorId::FrontDoorTwoStage | EstimatorId::IvWald | EstimatorId::Iv2Sls
+                    EstimatorId::FrontDoorTwoStage
+                        | EstimatorId::FrontDoorFunctional
+                        | EstimatorId::IvWald
+                        | EstimatorId::Iv2Sls
                 ) =>
         {
             true
@@ -857,8 +901,13 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::ResponseGamDerivative
         | EstimatorId::ResponseInterventionGcomp
         | EstimatorId::CellAipw
+        | EstimatorId::Dml
+        | EstimatorId::DrLearner
+        | EstimatorId::CausalForest
         | EstimatorId::ResponseBayesian => method.is_backdoor_family(),
-        EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
+        EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {
+            matches!(method, EstimandMethod::FrontDoor)
+        }
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
         EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
         EstimatorId::TemporalLinearAdjustment
@@ -895,16 +944,91 @@ pub fn select_estimand(
     identification: &IdentificationResult,
     estimator: EstimatorId,
 ) -> Result<IdentifiedEstimand, CausalError> {
+    select_estimand_index(identification, estimator).map(|i| identification.estimands[i].clone())
+}
+
+/// Select the estimand as [`select_estimand`] does and narrow the identification to it.
+///
+/// A multi-strategy identification lists alternatives whose status and assumptions
+/// differ. The returned identification carries exactly the selected estimand's claim, so
+/// what reaches the estimate and the result is the claim of the strategy actually used.
+///
+/// # Errors
+///
+/// No estimand, or multiple estimands without a unique estimator-compatible match.
+pub fn select_claim(
+    identification: IdentificationResult,
+    estimator: EstimatorId,
+) -> Result<(IdentificationResult, IdentifiedEstimand), CausalError> {
+    let index = select_estimand_index(&identification, estimator)?;
+    let estimand = identification.estimands[index].clone();
+    let mut claim = if identification.estimand_claims.is_empty() {
+        identification
+    } else {
+        identification.narrowed_to(index).unwrap_or(identification)
+    };
+    if let Some(restriction) = estimator_claim_restriction(estimator) {
+        restrict_claim(&mut claim, &restriction);
+    }
+    Ok((claim, estimand))
+}
+
+/// Restriction under which `estimator`'s target equals the identified functional.
+///
+/// An estimator that evaluates the identified functional keeps the identifier's claim; how
+/// it models a regression inside that functional is an estimation-scope record, because the
+/// regression is a feature of the observed law that a richer model can fit without changing
+/// the target. An estimator that computes a *different* functional of the observed law is
+/// the queried effect only under a restriction on the structural model, and that
+/// restriction is part of the identification claim: the constant-effect (or monotonicity)
+/// restriction of a Wald ratio, recorded by the IV identifier, the restriction under
+/// which a product of regression coefficients is the front-door effect, and the restriction
+/// under which `total − direct` is the pure natural indirect effect the path-specific
+/// identifier certifies, recorded here because those identifiers cannot know which estimator
+/// will run.
+fn estimator_claim_restriction(estimator: EstimatorId) -> Option<AssumptionRecord> {
+    match estimator {
+        EstimatorId::FrontDoorTwoStage => {
+            Some(antecedent_estimate::linear_path_product_restriction())
+        }
+        EstimatorId::StaticMediationLinear => {
+            Some(antecedent_estimate::linear_no_interaction_restriction())
+        }
+        _ => None,
+    }
+}
+
+/// Add `restriction` to a claim and weaken a nonparametric status to a parametric one.
+/// Statuses that are already weaker are kept.
+fn restrict_claim(claim: &mut IdentificationResult, restriction: &AssumptionRecord) {
+    let weaken = |status: &mut IdentificationStatus| {
+        if *status == IdentificationStatus::NonparametricallyIdentified {
+            *status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+        }
+    };
+    weaken(&mut claim.status);
+    claim.required_assumptions.extend_unique([restriction]);
+    for own in &mut claim.estimand_claims {
+        weaken(&mut own.status);
+        own.required_assumptions.extend_unique([restriction]);
+    }
+}
+
+fn select_estimand_index(
+    identification: &IdentificationResult,
+    estimator: EstimatorId,
+) -> Result<usize, CausalError> {
     let estimands = &identification.estimands;
     if estimands.is_empty() {
         return Err(CausalError::Compile { message: "no estimand returned".into() });
     }
     if estimands.len() == 1 {
-        return Ok(estimands[0].clone());
+        return Ok(0);
     }
-    let matches: Vec<&IdentifiedEstimand> = estimands
+    let matches: Vec<usize> = estimands
         .iter()
-        .filter(|e| {
+        .enumerate()
+        .filter(|(_, e)| {
             if e.is_adjustment_shaped() {
                 return estimand_compatible_with_estimator(
                     EstimandMethod::BackdoorAdjustment,
@@ -915,16 +1039,37 @@ pub fn select_estimand(
                 .map(|m| estimand_compatible_with_estimator(m, &estimator))
                 .unwrap_or(false)
         })
+        .map(|(i, _)| i)
         .collect();
     if matches.len() == 1 {
-        return Ok(matches[0].clone());
+        return Ok(matches[0]);
     }
+    // Auto (and the response identifiers) can list a criterion estimand (backdoor adjustment,
+    // front-door, path-specific, ...) beside the general-ID functional for the same query: ID
+    // is the general fallback, so when exactly one estimator-compatible match is criterion-
+    // shaped and the rest are general.id, the criterion match is the more specific claim and
+    // wins. This does not fire when every match is general.id (for example a MeanCurve's one
+    // general-ID estimand per grid level): that is a genuine ambiguity between distinct
+    // functionals, not a criterion-vs-fallback tiebreak, and still errors below.
+    let non_general: Vec<usize> = matches
+        .iter()
+        .copied()
+        .filter(|&i| estimands[i].method_kind() != Ok(EstimandMethod::GeneralId))
+        .collect();
+    if non_general.len() == 1 {
+        return Ok(non_general[0]);
+    }
+    // Auto lists every strategy that identified the query (criterion estimands and the general
+    // ID functional); name them so a caller sees which methods the estimator matched.
+    let methods: Vec<&str> = estimands.iter().map(|e| e.method.as_ref()).collect();
     Err(CausalError::Compile {
         message: format!(
-            "identifier returned {} estimands; select an explicit identifier or an estimator \
-             that uniquely matches one method (got estimator {:?})",
+            "identifier returned {} estimands ({}); select an explicit identifier or an estimator \
+             that uniquely matches one method (got estimator {:?}, matching {})",
             estimands.len(),
-            estimator.as_str()
+            methods.join(", "),
+            estimator.as_str(),
+            matches.len()
         ),
     })
 }

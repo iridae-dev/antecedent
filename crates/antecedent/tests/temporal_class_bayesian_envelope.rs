@@ -1,12 +1,11 @@
-//! 1.7 Bayesian temporal-class envelope pins.
+//! Bayesian temporal-class envelope pins.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::float_cmp,
-    clippy::too_many_lines,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -314,6 +313,31 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
     }
 }
 
+/// The closed-form structural truth of the horizon-1 response for the deterministic class
+/// law of the test below (`conformance/estimate/temporal_class_response_truth`): `(value per
+/// cell, tolerance)` for the completion with the given adjustment set. The z-adjusting
+/// completion identifies the interventional level `1 + 2 x + 0.6 mean(z) + mean(w)`; the
+/// completion without `z` identifies the association, whose closed form is the
+/// omitted-variable-bias line through the sample means.
+fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64) {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_response_truth/expected.json"
+    ))
+    .unwrap();
+    let key = match adjustment {
+        [] => "z_as_mediator",
+        [(2, -1)] => "adjusting_z",
+        other => panic!("no closed-form truth for adjustment set {other:?}"),
+    };
+    let values = truth["horizon_1"][key][kind]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    (values, truth["tolerance"][key].as_f64().unwrap())
+}
+
 #[test]
 fn temporal_class_bayesian_response_is_identified_set() {
     // Deterministic law with aperiodic wiggles: r → {z, t}, z → t, {t, z}@-1 → y.
@@ -446,6 +470,19 @@ fn temporal_class_bayesian_response_is_identified_set() {
                             (got - want).abs() < tolerance,
                             "{label} h={horizon} adj={adjustment:?}: posterior mean {got} vs OLS {want} (tolerance {tolerance})"
                         );
+                        if horizon == 1 {
+                            // Closed-form structural value of this completion; the
+                            // posterior mean may sit its Monte Carlo tolerance from the
+                            // fitted OLS, which itself sits within the truth tolerance.
+                            let (structural_values, truth_tolerance) =
+                                horizon_one_truth(kind, &adjustment);
+                            assert!(
+                                (got - structural_values[cell]).abs() < tolerance + truth_tolerance,
+                                "{label} adj={adjustment:?}: posterior mean {got} vs closed-form {} (tolerance {})",
+                                structural_values[cell],
+                                tolerance + truth_tolerance
+                            );
+                        }
                     }
                     if h_index == 0 {
                         distinct_h1.insert(adjustment);
@@ -1912,5 +1949,78 @@ fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
                 }
             }
         }
+    }
+}
+
+/// The Bayesian identified set contains the structural value: the same noisy law as the
+/// Frequentist companion (`y_t = 1 + 2 t_{t-1} + 0.6 z_{t-1} + 0.3 e_t`), so at h = 1 the
+/// level of `E[y | do(t@-1 := 1)]` is `1 + 2 + 0.6 mean(z)`. With a near-flat coefficient
+/// prior each atom's posterior mean is its OLS g-computation, and the completion that
+/// adjusts for `z` lands within a few posterior SDs of the truth, while the
+/// `z`-as-mediator completion is biased up.
+#[test]
+fn temporal_class_bayesian_identified_set_contains_the_structural_level() {
+    const N: usize = 300;
+    let mut columns = vec![vec![0.0; N]; 4];
+    let mut noise = common::calibration::gaussian(0x20_260A);
+    for i in 0..N {
+        let s = i as f64;
+        columns[3][i] = (s * 0.29).sin();
+        columns[2][i] = 0.4 * columns[3][i] + (s * 0.13).cos() + 0.3 * (s * 1.7).sin();
+        columns[0][i] = 0.3 + 0.5 * columns[3][i] + 0.2 * columns[2][i] + 0.4 * (s * 2.3).cos();
+        if i > 0 {
+            columns[1][i] = 1.0 + 2.0 * columns[0][i - 1] + 0.6 * columns[2][i - 1] + 0.3 * noise();
+        }
+    }
+    let mean_z = columns[2][..N - 1].iter().sum::<f64>() / (N - 1) as f64;
+    let truth = 1.0 + 2.0 * 1.0 + 0.6 * mean_z;
+    let series = |with_r: bool| {
+        let names = ["t", "y", "z", "r"];
+        let used = if with_r { 4 } else { 3 };
+        TimeSeriesData::from_f64_columns(
+            (0..used).map(|i| (names[i], columns[i].as_slice())).collect::<Vec<_>>(),
+            1,
+        )
+        .unwrap()
+    };
+    let query = CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32, 2], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    );
+    let inference =
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400).prior_scale(1000.0));
+    for (class, data) in [("cpdag", series(false)), ("pag", series(true))] {
+        let builder = Study::series(data);
+        let builder =
+            if class == "cpdag" { builder.graph(cpdag()) } else { builder.graph(mixed_id_pag()) };
+        let result = builder
+            .query(query.clone())
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(17))
+            .unwrap();
+        let envelope = result
+            .structural_response
+            .as_ref()
+            .and_then(|s| s.identified_set.as_ref())
+            .expect("identified set");
+        // Cell 0 is horizon 1 (horizons 1 and 2 within the single dose).
+        let (lower, upper) = (envelope.lower[0], envelope.upper[0]);
+        assert!(
+            lower - 0.2 <= truth && truth <= upper + 0.2,
+            "{class}: identified set [{lower:.4}, {upper:.4}] misses the structural level {truth:.4}"
+        );
+        assert!(
+            (lower - truth).abs() < 0.2,
+            "{class}: the z-adjusting completion must estimate the level: {lower:.4} vs {truth:.4}"
+        );
     }
 }

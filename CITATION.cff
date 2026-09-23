@@ -12,7 +12,7 @@ authors:
     given-names: Charles
     orcid: "https://orcid.org/0009-0000-2421-4351"
   - name: Antecedent Contributors
-version: 1.11.0
+version: 2.0.0
 doi: 10.5281/zenodo.21556247
 url: "https://github.com/iridae-dev/antecedent"
 repository-code: "https://github.com/iridae-dev/antecedent"
@@ -35,6 +35,3 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.21556247
     description: Concept DOI (always resolves to the latest version)
-  - type: doi
-    value: 10.5281/zenodo.21702494
-    description: Version DOI for 0.4.0

@@ -18,7 +18,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -404,27 +410,31 @@ impl PreparedSequenceLevel {
             let y = &gathered[self.column_of[i]];
             coefficients[i] = FaerBackend.least_squares(x_boot, m, p, y, ls_ws).ok()?.coefficients;
         }
-        let mut level = vec![0.0; self.column_of.len()];
-        for &i in &self.order {
-            let natural = if coefficients[i].is_empty() {
-                mean(self.column_of[i])
-            } else {
-                coefficients[i][0]
-                    + self.parents[i]
-                        .iter()
-                        .enumerate()
-                        .map(|(k, &node)| coefficients[i][k + 1] * level[node])
-                        .sum::<f64>()
-            };
-            level[i] = self.overlay_at[i].map_or(natural, |overlay| overlay.assigned(natural));
-        }
-        let value = level[self.outcome];
+        let value = crate::temporal_sequential::propagate_linear_level(
+            &self.order,
+            self.column_of.len(),
+            self.outcome,
+            |i| self.overlay_at[i],
+            |i, level| {
+                if coefficients[i].is_empty() {
+                    mean(self.column_of[i])
+                } else {
+                    crate::temporal_sequential::linear_natural(
+                        &coefficients[i],
+                        &self.parents[i],
+                        level,
+                    )
+                }
+            },
+        );
         value.is_finite().then_some(value)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use antecedent_core::{
         AssumptionSet, ExecutionContext, IdentificationStatus, Lag, TargetPopulation, VariableId,
     };
@@ -438,7 +448,7 @@ mod tests {
     fn fixture() -> (TimeSeriesData, TemporalDag) {
         let n = 240usize;
         let ctx = ExecutionContext::for_tests(11);
-        let mut rng = ctx.rng.stream(3);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 3);
         let mut draw = || 2.0 * rng.next_f64() - 1.0;
         let z: Vec<f64> = (0..n).map(|_| draw()).collect();
         let t: Vec<f64> = z.iter().map(|z| 0.5 * z + draw()).collect();
@@ -471,8 +481,8 @@ mod tests {
         graph: &TemporalDag,
         overlays: &[SequentialMechanismOverlay],
     ) -> (IdentifiedEstimand, TemporalIndexer) {
-        let schedule: Vec<(VariableId, i32)> =
-            overlays.iter().map(|o| (o.node.variable, o.node.offset)).collect();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
         let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
             .identify_temporal_schedule(
                 graph,

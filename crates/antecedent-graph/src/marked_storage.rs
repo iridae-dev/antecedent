@@ -132,7 +132,7 @@ pub(crate) fn neighbors(
     adj: &[Vec<AdjEntry>],
     id: DenseNodeId,
 ) -> impl Iterator<Item = (DenseNodeId, Endpoint, Endpoint)> + '_ {
-    adj[id.as_usize()].iter().map(|e| (e.neighbor, e.at_self, e.at_neighbor))
+    adj.get(id.as_usize()).into_iter().flatten().map(|e| (e.neighbor, e.at_self, e.at_neighbor))
 }
 
 /// Shared tail of `insert_marked` across CPDAG/PAG-family graphs, after each type's own
@@ -147,8 +147,7 @@ pub(crate) fn insert_marked_finish(
         return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
     }
     if let Some((from, to)) = edge.parent_child() {
-        let mut ws = GraphWorkspace::default();
-        if reaches_directed(adj, &mut ws, to, from) {
+        if reaches_directed_scratch(adj, to, from) {
             return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
         }
     }
@@ -171,8 +170,7 @@ pub(crate) fn orient_undirected_finish(
             message: "orient_undirected requires an undirected Tail–Tail edge",
         });
     }
-    let mut ws = GraphWorkspace::default();
-    if reaches_directed(adj, &mut ws, to, from) {
+    if reaches_directed_scratch(adj, to, from) {
         return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
     }
     set_marks(adj, from, to, Endpoint::Tail, Endpoint::Arrow)
@@ -205,8 +203,7 @@ pub(crate) fn set_marks_finish(
     let edge = MarkedEdge { a, b, at_a, at_b, middle: previous.middle };
     if let Some((from, to)) = edge.parent_child() {
         remove_edge(adj, a, b);
-        let mut ws = GraphWorkspace::default();
-        let cycle = reaches_directed(adj, &mut ws, to, from);
+        let cycle = reaches_directed_scratch(adj, to, from);
         if cycle {
             push_marked_pair(adj, previous);
             return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
@@ -215,6 +212,19 @@ pub(crate) fn set_marks_finish(
         return Ok(());
     }
     set_marks(adj, a, b, at_a, at_b)
+}
+
+/// [`reaches_directed`] on a per-thread scratch workspace, so the inner loops of PAG / CPDAG
+/// construction and orientation do not allocate a fresh workspace per inserted edge.
+fn reaches_directed_scratch(adj: &[Vec<AdjEntry>], from: DenseNodeId, to: DenseNodeId) -> bool {
+    thread_local! {
+        static SCRATCH: std::cell::RefCell<GraphWorkspace> =
+            std::cell::RefCell::new(GraphWorkspace::default());
+    }
+    SCRATCH.with(|cell| match cell.try_borrow_mut() {
+        Ok(mut ws) => reaches_directed(adj, &mut ws, from, to),
+        Err(_) => reaches_directed(adj, &mut GraphWorkspace::default(), from, to),
+    })
 }
 
 /// Whether `from` reaches `to` via definite directed edges, reusing `ws`.
@@ -319,4 +329,145 @@ pub(crate) fn set_middle(
 pub(crate) fn remove_edge(adj: &mut [Vec<AdjEntry>], a: DenseNodeId, b: DenseNodeId) {
     adj[a.as_usize()].retain(|e| e.neighbor != b);
     adj[b.as_usize()].retain(|e| e.neighbor != a);
+}
+
+/// Read-only accessors shared verbatim by [`crate::Cpdag`] and [`crate::TemporalCpdag`]:
+/// both store `nodes: Vec<NodeRef>` and `adj: Vec<Vec<AdjEntry>>`, and differ only in which
+/// node kinds and edge orientations their insertion methods admit. Expanded inside each
+/// type's inherent `impl`; the call site imports the names used here.
+macro_rules! impl_cpdag_accessors {
+    () => {
+        /// Node count.
+        #[must_use]
+        pub fn node_count(&self) -> usize {
+            self.nodes.len()
+        }
+
+        /// Whether empty.
+        #[must_use]
+        pub fn is_empty(&self) -> bool {
+            self.nodes.is_empty()
+        }
+
+        /// Nodes in dense order.
+        #[must_use]
+        pub fn nodes(&self) -> &[NodeRef] {
+            &self.nodes
+        }
+
+        /// Whether any edge exists between `a` and `b`.
+        #[must_use]
+        pub fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+            self.edge_between(a, b).is_some()
+        }
+
+        /// Marked edge between `a` and `b` if present.
+        #[must_use]
+        pub fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge> {
+            marked_storage::edge_between(&self.adj, a, b)
+        }
+
+        /// All marked edges (each pair once).
+        #[must_use]
+        pub fn edges(&self) -> Vec<MarkedEdge> {
+            marked_storage::all_marked_edges(&self.adj)
+        }
+
+        /// Directed children of `id`.
+        #[must_use]
+        pub fn children(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+            marked_storage::directed_children(&self.adj, id).collect()
+        }
+
+        /// Directed parents of `id`.
+        #[must_use]
+        pub fn parents(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+            marked_storage::directed_parents(&self.adj, id).collect()
+        }
+
+        /// Undirected neighbors of `id`.
+        #[must_use]
+        pub fn undirected_neighbors(&self, id: DenseNodeId) -> Vec<DenseNodeId> {
+            marked_storage::undirected_neighbors(&self.adj, id).collect()
+        }
+
+        /// Borrowed directed-child iterator.
+        pub fn children_iter(&self, id: DenseNodeId) -> impl Iterator<Item = DenseNodeId> + '_ {
+            marked_storage::directed_children(&self.adj, id)
+        }
+
+        /// Count conflict (`x-x`) edges.
+        #[must_use]
+        pub fn conflict_edge_count(&self) -> usize {
+            self.edges().iter().filter(|e| e.is_conflict()).count()
+        }
+
+        /// Count undirected (Tail–Tail) edges.
+        #[must_use]
+        pub fn undirected_edge_count(&self) -> usize {
+            self.edges().iter().filter(|e| e.is_undirected()).count()
+        }
+
+        /// Count directed edges.
+        #[must_use]
+        pub fn directed_edge_count(&self) -> usize {
+            self.edges().iter().filter(|e| e.parent_child().is_some()).count()
+        }
+
+        /// Directed reachability reusing a caller-owned workspace.
+        #[must_use]
+        pub fn reaches_directed_with(
+            &self,
+            ws: &mut GraphWorkspace,
+            from: DenseNodeId,
+            to: DenseNodeId,
+        ) -> bool {
+            marked_storage::reaches_directed(&self.adj, ws, from, to)
+        }
+
+        fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
+            if id.as_usize() >= self.node_count() {
+                Err(GraphError::UnknownNode { id: id.raw() })
+            } else {
+                Ok(())
+            }
+        }
+    };
+}
+pub(crate) use impl_cpdag_accessors;
+
+#[cfg(test)]
+mod tests {
+    use crate::pag::Pag;
+
+    use super::*;
+
+    #[test]
+    fn cycle_checks_stay_correct_when_the_scratch_is_reused_across_graph_sizes() {
+        // Large graph first, so the per-thread scratch is sized for 300 nodes.
+        let mut big = Pag::with_variables(300);
+        for i in 0..299u32 {
+            big.insert_directed(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        assert!(matches!(
+            big.insert_directed(DenseNodeId::from_raw(299), DenseNodeId::from_raw(0)),
+            Err(GraphError::Cycle { .. })
+        ));
+        // Small graph afterwards: stale visited bits from the big graph must not leak. A path
+        // (not a triangle) so the cycle-closing edge below is between a node pair that has no
+        // edge yet — the duplicate-edge check that runs before the cycle check would otherwise
+        // preempt it, since every pair among 3 fully-connected nodes already has an edge.
+        let mut small = Pag::with_variables(4);
+        let (a, b, c, d) = (
+            DenseNodeId::from_raw(0),
+            DenseNodeId::from_raw(1),
+            DenseNodeId::from_raw(2),
+            DenseNodeId::from_raw(3),
+        );
+        small.insert_directed(a, b).unwrap();
+        small.insert_directed(b, c).unwrap();
+        small.insert_directed(c, d).unwrap();
+        assert!(matches!(small.insert_directed(d, a), Err(GraphError::Cycle { .. })));
+        assert!(matches!(small.insert_directed(a, b), Err(GraphError::DuplicateEdge { .. })));
+    }
 }

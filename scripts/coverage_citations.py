@@ -18,8 +18,18 @@ it in the same sentence:
   the `observed` value of one cited record to three decimals, so a re-measured
   record forces the prose to follow it; or
 * the disclosure `not a registry value`, for a figure a probe or an earlier run
-  measured that no registry row carries at that value. The figure stays public; the text says
-  where it comes from.
+  measured that no registry row carries at that value. The figure stays public; the
+  text says where it comes from: a new disclosure names its source,
+  `not a registry value (probe <module>::<test_fn>)`, which must resolve to a
+  compiled, non-ignored test in crates/antecedent/tests/<module>.rs.
+
+Two-decimal rates (`0.93`) and percentages (`93 %`, `93.5%`) in a coverage
+sentence are coverage figures too, except the nominal levels 0.90/0.95/90%/95%.
+Those forms predate the gate, and the figures written before it existed, together
+with the bare disclosures written before disclosures named a source, are listed in
+parity/_coverage_citation_backlog.txt. The backlog only shrinks: a figure or
+bare disclosure that is not listed fails, and a listed one that no longer exists
+must be removed (`python3 scripts/coverage_citations.py backlog` rewrites it).
 
 `cite` inserts record citations after figures whose value matches a record of a
 test the sentence already names, marks the remaining figures as disclosures, and
@@ -40,6 +50,14 @@ LICENSED = ROOT / "parity/support_licensed.toml"
 RECORDS = ROOT / "parity/coverage_records.toml"
 
 DISCLOSURE = "not a registry value"
+BACKLOG = ROOT / "parity/_coverage_citation_backlog.txt"
+# A source-naming disclosure: `not a registry value (probe <module>::<test_fn>)`.
+PROBE_RE = re.compile(r"\s*\(probe ([a-z0-9_]+)::([A-Za-z0-9_]+)\)")
+# Two-decimal rates and percentages; three- and four-decimal rates are FIGURE_RE.
+WIDE_FIGURE_RE = re.compile(
+    r"(?<![\w.])(?:0\.(?P<dec>\d{2})(?![\d])|(?P<pct>\d{2,3}(?:\.\d+)?)\s?%)"
+)
+NOMINAL_LEVELS = {0.9, 0.95, 1.0}
 FIGURE_RE = re.compile(r"(?<![\w.])0\.(\d{3,4})(?![\d])")
 RECORD_RE = re.compile(r"`(cov\.[A-Za-z0-9_.]+)`")
 DISCLOSURE_RE = re.compile(re.escape(DISCLOSURE))
@@ -78,6 +96,29 @@ def figures(text: str, lo: int, hi: int) -> list[re.Match]:
     return out
 
 
+def wide_figures(text: str, lo: int, hi: int) -> list[tuple[re.Match, float, float]]:
+    """Two-decimal rates and percentages of a coverage sentence: (match, value, tolerance).
+
+    The value is the rate in [0.1, 1]; the tolerance is half a unit in the last
+    written place. Nominal levels are not figures."""
+    if not COVERAGE_WORD_RE.search(text[lo:hi]):
+        return []
+    out = []
+    for m in WIDE_FIGURE_RE.finditer(text, lo, hi):
+        if m.group("dec") is not None:
+            value, tol = float(m.group(0)), 0.005 + 1e-9
+        else:
+            digits = m.group("pct")
+            places = len(digits.split(".", 1)[1]) if "." in digits else 0
+            value, tol = float(digits) / 100.0, 0.5 * 10 ** (-(places + 2)) + 1e-9
+        if value < 0.1 or value > 1.0 or round(value, 6) in NOMINAL_LEVELS:
+            continue
+        if EXEMPT_BEFORE.search(text[max(lo, m.start() - 12) : m.start()]):
+            continue
+        out.append((m, value, tol))
+    return out
+
+
 def load_records() -> dict[str, dict]:
     return {r["id"]: r for r in tomllib.loads(RECORDS.read_text()).get("record", [])}
 
@@ -113,9 +154,114 @@ def row_label(cell: dict) -> str:
     )
 
 
+def probe_problem(module: str, name: str) -> str | None:
+    """Why `<module>::<name>` is not a compiled, non-ignored test of crates/antecedent/tests."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import test_evidence  # noqa: PLC0415  (only the disclosures that name a source need it)
+
+    path = ROOT / "crates/antecedent/tests" / f"{module}.rs"
+    if not path.is_file():
+        return f"{path.relative_to(ROOT)} does not exist"
+    why = test_evidence.static_rust_test(path, name).problems
+    return why[0] if why else None
+
+
+def open_items() -> tuple[set[str], list[str]]:
+    """Backlog-eligible items now in the prose, and the problems that are never backlogged.
+
+    An item is `kind|row|figure`: an `unattributed` two-decimal or percent figure, or a
+    `disclosure` that names no probe source. Attributed and probe-sourced ones are checked
+    here and never listed."""
+    records = load_records()
+    items: set[str] = set()
+    problems: list[str] = []
+    for cell in tomllib.loads(LICENSED.read_text()).get("cell", []):
+        text = str(cell.get("limitations", ""))
+        label = row_label(cell)
+        for lo, hi in sentences(text):
+            for fig in figures(text, lo, hi):
+                kind, _ = attribution_after(text, fig.end(), hi)
+                if kind == "disclosure":
+                    dis = DISCLOSURE_RE.search(text, fig.end(), hi)
+                    probe = PROBE_RE.match(text, dis.end())
+                    if probe is None:
+                        items.add(f"disclosure|{label}|{fig.group(0)}")
+                    elif (why := probe_problem(*probe.groups())) is not None:
+                        problems.append(
+                            f"{label}: disclosure of {fig.group(0)} names probe "
+                            f"{probe.group(1)}::{probe.group(2)}, which is not a test: {why}"
+                        )
+            for fig, value, tol in wide_figures(text, lo, hi):
+                kind, ids = attribution_after(text, fig.end(), hi)
+                if kind == "records":
+                    known = [records[i] for i in ids if i in records]
+                    if known and not any(abs(float(r["observed"]) - value) <= tol for r in known):
+                        observed = ", ".join(f"{float(r['observed']):.4f}" for r in known)
+                        problems.append(
+                            f"{label}: coverage figure {fig.group(0)} does not match its cited "
+                            f"record(s) ({observed})"
+                        )
+                elif kind == "disclosure":
+                    dis = DISCLOSURE_RE.search(text, fig.end(), hi)
+                    probe = PROBE_RE.match(text, dis.end())
+                    if probe is None:
+                        items.add(f"disclosure|{label}|{fig.group(0)}")
+                    elif (why := probe_problem(*probe.groups())) is not None:
+                        problems.append(
+                            f"{label}: disclosure of {fig.group(0)} names probe "
+                            f"{probe.group(1)}::{probe.group(2)}, which is not a test: {why}"
+                        )
+                else:
+                    items.add(f"unattributed|{label}|{fig.group(0)}")
+    return items, problems
+
+
+def read_backlog() -> set[str]:
+    if not BACKLOG.is_file():
+        return set()
+    return {
+        line
+        for line in BACKLOG.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+
+
+def backlog_problems() -> list[str]:
+    items, problems = open_items()
+    listed = read_backlog()
+    for item in sorted(items - listed):
+        kind, label, figure = item.split("|", 2)
+        what = (
+            "is a disclosure that names no source; write "
+            f"'{DISCLOSURE} (probe <module>::<test_fn>)'"
+            if kind == "disclosure"
+            else "is a two-decimal or percent coverage figure with no record citation and no "
+            f"'{DISCLOSURE} (probe ...)' disclosure"
+        )
+        problems.append(f"{label}: {figure} {what}")
+    for item in sorted(listed - items):
+        problems.append(
+            f"{BACKLOG.name}: {item!r} no longer occurs; remove it (the backlog only shrinks)"
+        )
+    return problems
+
+
+def write_backlog() -> int:
+    items, _ = open_items()
+    BACKLOG.write_text(
+        "# Coverage figures and disclosures that predate scripts/coverage_citations.py's\n"
+        "# two-decimal/percent scan and source-naming disclosures: kind|row|figure.\n"
+        "# The list only shrinks (scripts/gate_coverage_citations.sh fails on a new or a\n"
+        "# stale line). Regenerate with `python3 scripts/coverage_citations.py backlog`\n"
+        "# after attributing figures; it must never be used to admit a new one.\n"
+        + "".join(f"{item}\n" for item in sorted(items))
+    )
+    return len(items)
+
+
 def check() -> list[str]:
     records = load_records()
-    problems = []
+    problems = backlog_problems()
     for cell in tomllib.loads(LICENSED.read_text()).get("cell", []):
         text = str(cell.get("limitations", ""))
         label = row_label(cell)
@@ -311,6 +457,9 @@ def main(argv: list[str]) -> int:
                 print(" -", p)
             return 1
         print("Coverage figures OK (every coverage figure cites a matching record or is disclosed)")
+        return 0
+    if argv == ["backlog"]:
+        print(f"wrote {write_backlog()} backlog line(s) to {BACKLOG.relative_to(ROOT)}")
         return 0
     if argv == ["cite"]:
         print(f"cited coverage records in {cite()} rows")

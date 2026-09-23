@@ -8,19 +8,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::match_same_arms,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::type_complexity
+#![allow(clippy::match_same_arms, clippy::too_many_lines, clippy::type_complexity)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
 use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
@@ -28,7 +28,7 @@ use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
 use crate::combinations::for_each_combination;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{
-    DiscoveryWorkspace, PcmciEngine, mci_conditioning, mci_conditioning_bounded, parents_of_target,
+    DiscoveryWorkspace, PcmciEngine, mci_conditioning_bounded, parents_of_target,
     refuse_truncated_mci,
 };
 use crate::error::DiscoveryError;
@@ -48,7 +48,7 @@ use crate::pipeline::{
 };
 use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, PcSepsets,
-    ScoredLink,
+    ScoredLink, discovery_assumptions,
 };
 
 /// Column budget for one MCI conditioning set (kernel cap `MAX_CI_COLS` minus the pair
@@ -100,10 +100,36 @@ impl PcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
-        let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        let frame_depth = 2 * max_lag;
-        let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-            .map_err(DiscoveryError::from)?;
+        let frame = LaggedFrame::from_series(
+            data,
+            variables,
+            self.engine.frame_depth(),
+            &ctx.kernel_policy,
+        )
+        .map_err(DiscoveryError::from)?;
+        self.run_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// Run PCMCI+ over the units of a panel: every unit's lag windows are built inside that
+    /// unit and the rows are pooled ([`LaggedFrame::from_panel`]).
+    ///
+    /// # Errors
+    ///
+    /// Engine / orientation failures.
+    pub fn run_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
+        let frame = LaggedFrame::from_panel(
+            units,
+            variables,
+            self.engine.frame_depth(),
+            &ctx.kernel_policy,
+        )
+        .map_err(DiscoveryError::from)?;
         self.run_on_frame(&frame, variables, workspace, ctx)
     }
 
@@ -120,6 +146,13 @@ impl PcmciPlus {
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
         let alpha = self.engine.constraints.alpha;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
+            alpha,
+            self.fdr.is_some(),
+        )?;
+        crate::ci::ensure_ci_fits_frame(&*self.engine.ci, frame)?;
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {
@@ -229,7 +262,7 @@ impl PcmciPlus {
             evidence,
             review,
             algorithm,
-            assumptions: AssumptionSet::new(),
+            assumptions: discovery_assumptions("pcmci_plus", true),
             iterations,
             diagnostics,
             performance: with_links_retained(
@@ -503,7 +536,7 @@ pub(crate) fn orient_majority_colliders(
 
     let mut contemp_nodes = Vec::new();
     for i in 0..n {
-        let id = DenseNodeId::from_raw(i as u32);
+        let id = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
         if is_contemp_node(graph, id) {
             contemp_nodes.push(id);
         }
@@ -546,11 +579,15 @@ pub(crate) fn orient_majority_colliders(
                     ctx,
                 )?;
                 if n_sep == 0 {
+                    // No subset separated a,b: collider status unknown — not a definite
+                    // non-collider for Meek R1. Conflict-on-non-edge alone is not enough.
+                    state.mark_ambiguous_triple(a, c, b);
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
                 let frac = f64::from(n_with_c) / f64::from(n_sep);
                 if (frac - 0.5).abs() < f64::EPSILON {
+                    state.mark_ambiguous_triple(a, c, b);
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
@@ -691,21 +728,37 @@ fn majority_sep_counts(
     let mut n_with_c = 0u32;
     let c_key = (vc, lc);
     let mut scratch = Vec::new();
+    let mut vote_err: Option<DiscoveryError> = None;
     for q in 0..=max_cond.min(cand.len()) {
         for_each_combination(&cand, q, &mut scratch, |s| {
-            // Build MCI-style Z = S ∪ lagged parents.
+            if vote_err.is_some() {
+                return false;
+            }
+            // Reserve room for S *before* building the lagged MCI block (same honesty as
+            // the contemporaneous MCI phase): truncating after appending S would drop
+            // lagged parents from the tail.
             let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
-            let _ = mci_conditioning(
+            let s_budget = MAX_MCI_COND.saturating_sub(s.len());
+            let dropped = mci_conditioning_bounded(
                 link,
                 parents_of_target(lagged_parents, vb),
                 parents_of_target(lagged_parents, va),
+                s_budget,
                 &mut workspace.others,
             );
-            for &x in s {
-                if !workspace.others.contains(&x) {
-                    workspace.others.push(x);
+            if let Err(e) = refuse_truncated_mci(dropped) {
+                vote_err = Some(e);
+                return false;
+            }
+            let mut merged: Vec<(VariableId, Lag)> =
+                Vec::with_capacity(s.len() + workspace.others.len());
+            merged.extend_from_slice(s);
+            for &x in &workspace.others {
+                if !merged.contains(&x) {
+                    merged.push(x);
                 }
             }
+            workspace.others = merged;
             let cond = std::mem::take(&mut workspace.others);
             let result = engine.ci_statistic(frame, va, la, vb, lb, &cond, workspace, ctx);
             workspace.others = cond;
@@ -717,10 +770,16 @@ fn majority_sep_counts(
                     }
                 }
                 Ok(_) => {}
-                Err(_) => {}
+                Err(e) => {
+                    vote_err = Some(e);
+                    return false;
+                }
             }
             true
         });
+        if let Some(e) = vote_err.take() {
+            return Err(e);
+        }
     }
     Ok((n_sep, n_with_c))
 }
@@ -1028,5 +1087,93 @@ mod tests {
 
         assert_eq!(graph.edge_between(a, c).unwrap().parent_child(), Some((a, c)));
         assert_eq!(graph.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
+    }
+
+    /// CI test double that always reports independence (every subset is a sepset).
+    /// With candidate set `{c}` only, subsets `∅` and `{c}` both separate → majority tie.
+    struct AlwaysIndependent;
+
+    impl ConditionalIndependence for AlwaysIndependent {
+        fn test_batch(
+            &self,
+            prepared: &PreparedCiTest,
+            request: &CiBatchRequest<'_>,
+            _workspace: &mut CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<CiBatchResult, StatsError> {
+            prepared.ensure_compatible(request)?;
+            let request = &prepared.bind_request(request);
+            let results = request
+                .queries
+                .iter()
+                .map(|_| CiResult { statistic: 0.0, p_value: 1.0, df: 0.0, ci: None })
+                .collect();
+            Ok(CiBatchResult { results })
+        }
+    }
+
+    /// CI test double that always fails — forces [`majority_sep_counts`] to propagate Err.
+    struct AlwaysCiError;
+
+    impl ConditionalIndependence for AlwaysCiError {
+        fn test_batch(
+            &self,
+            prepared: &PreparedCiTest,
+            request: &CiBatchRequest<'_>,
+            _workspace: &mut CiWorkspace,
+            _ctx: &ExecutionContext,
+        ) -> Result<CiBatchResult, StatsError> {
+            prepared.ensure_compatible(request)?;
+            Err(StatsError::Unsupported { message: "forced CI failure for majority vote" })
+        }
+    }
+
+    #[test]
+    fn majority_tie_marks_ambiguous_triple() {
+        let ctx = ExecutionContext::for_tests(1);
+        let (data, vars) = tiny_abc(5);
+        let frame = LaggedFrame::from_series(&data, &vars, 0, &ctx.kernel_policy).unwrap();
+        let (mut graph, a, c, b) = unshielded_triple();
+        let engine = PcmciEngine::new().with_ci(Arc::new(AlwaysIndependent)).with_constraints(
+            DiscoveryConstraints {
+                alpha: 0.05,
+                max_cond_size: 1,
+                ..DiscoveryConstraints::default()
+            },
+        );
+        let mut state = OrientationState::default();
+        let mut ws = DiscoveryWorkspace::default();
+        orient_majority_colliders(&engine, &frame, &[], &mut graph, &mut state, &mut ws, &ctx)
+            .unwrap();
+
+        assert!(state.is_ambiguous_triple(a, c, b), "majority tie must mark a—c—b ambiguous");
+        assert!(graph.edge_between(a, c).unwrap().is_undirected());
+        assert!(graph.edge_between(c, b).unwrap().is_undirected());
+
+        // ContempMeekR1 must not treat the tie as a definite non-collider.
+        graph.orient_undirected(a, c).unwrap();
+        let mut queue = crate::orientation::OrientationQueue::new();
+        queue.push(c);
+        let d = ContempMeekR1.apply(&mut graph, &mut state, &mut queue).unwrap();
+        assert_eq!(d.edges_changed, 0);
+        assert!(graph.edge_between(c, b).unwrap().is_undirected());
+    }
+
+    #[test]
+    fn majority_sep_counts_propagates_ci_error() {
+        let ctx = ExecutionContext::for_tests(1);
+        let (data, vars) = tiny_abc(5);
+        let frame = LaggedFrame::from_series(&data, &vars, 0, &ctx.kernel_policy).unwrap();
+        let (graph, a, c, b) = unshielded_triple();
+        let engine = PcmciEngine::new().with_ci(Arc::new(AlwaysCiError));
+        let mut ws = DiscoveryWorkspace::default();
+        let err =
+            majority_sep_counts(&engine, &frame, &[], &graph, a, b, c, 1, 0.05, &mut ws, &ctx)
+                .expect_err("CI failure must not be swallowed as a non-vote");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("forced CI failure") || msg.contains("Internal") || msg.contains("stats"),
+            "unexpected error: {msg}"
+        );
     }
 }

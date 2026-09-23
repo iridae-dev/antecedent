@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -95,6 +98,10 @@ fn name_idx(names: &[String], name: &str) -> usize {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one reference-parity scenario: fit, then compare edges, p-values and matrices against the stored reference in sequence"
+)]
 fn discovery_pcmci_multivar_edges_and_matrices() {
     let expected = load_expected();
     let tig = &expected["reference"];
@@ -153,6 +160,29 @@ fn discovery_pcmci_multivar_edges_and_matrices() {
     let atol_p = expected["atol_p"].as_f64().unwrap();
     let rtol_p = expected["rtol_p"].as_f64().unwrap();
 
+    // The fixtures carry no q_matrix, so the FDR check is against Benjamini-Hochberg applied
+    // to the reference implementation's own p_matrix over the lagged family (lags 1..=max_lag
+    // of every ordered pair; lag 0 is excluded from the correction).
+    let mut reference_q: BTreeMap<(u32, u32, u32), f64> = BTreeMap::new();
+    if fdr && q_matrix.is_none() {
+        let mut family = Vec::new();
+        for (i, row) in p_matrix.iter().enumerate() {
+            for (j, cell) in row.as_array().unwrap().iter().enumerate() {
+                for tau in 1..=max_lag as usize {
+                    family.push(((i as u32, tau as u32, j as u32), cell[tau].as_f64().unwrap()));
+                }
+            }
+        }
+        let m = family.len() as f64;
+        let mut order: Vec<usize> = (0..family.len()).collect();
+        order.sort_by(|&a, &b| family[a].1.total_cmp(&family[b].1));
+        let mut running = 1.0_f64;
+        for (rank, &idx) in order.iter().enumerate().rev() {
+            running = running.min(family[idx].1 * m / (rank as f64 + 1.0));
+            reference_q.insert(family[idx].0, running);
+        }
+    }
+
     let by_key: BTreeMap<(u32, u32, u32), _> = result
         .evidence
         .links
@@ -177,13 +207,17 @@ fn discovery_pcmci_multivar_edges_and_matrices() {
             scored.p_value
         );
         if fdr {
-            if let (Some(qmat), Some(adj)) = (q_matrix, scored.adjusted_p_value) {
-                let ref_q = qmat[i][j][tau].as_f64().unwrap();
-                assert!(
-                    close(adj, ref_q, atol_p, rtol_p),
-                    "q mismatch link=({src},{slag}->{tgt}): rust={adj} tig={ref_q}"
-                );
-            }
+            let adj = scored.adjusted_p_value.unwrap_or_else(|| {
+                panic!("FDR run must publish an adjusted p for ({src},{slag}->{tgt})")
+            });
+            let ref_q = q_matrix.map_or_else(
+                || reference_q[&(*src, *slag, *tgt)],
+                |qmat| qmat[i][j][tau].as_f64().unwrap(),
+            );
+            assert!(
+                close(adj, ref_q, atol_p, rtol_p),
+                "q mismatch link=({src},{slag}->{tgt}): rust={adj} reference={ref_q}"
+            );
         }
     }
 }

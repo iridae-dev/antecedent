@@ -8,6 +8,24 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from .errors import CausalTypeError, CausalValueError
+
+# Integers beyond this are not exactly representable as float64.
+_EXACT_INT_LIMIT = 2**53
+
+
+def _refuse_column(message: str) -> CausalTypeError:
+    """Typed refusal for non-numeric or unsafe column coercions."""
+    return CausalTypeError(message, reason_code="invalid_argument")
+
+
+def _is_missing_scalar(value: Any) -> bool:
+    """True for ``None`` and pandas-style NA sentinels (not NumPy NaN floats)."""
+    if value is None:
+        return True
+    name = type(value).__name__
+    return name in {"NAType", "NaTType", "_NaT"}
+
 
 def ingest_columns(
     data: Mapping[str, Any] | Any,
@@ -25,14 +43,50 @@ def as_columns(
     """Normalize a mapping or pandas DataFrame to ``(names, float64 columns)``."""
     if isinstance(data, Mapping):
         names = list(data.keys())
-        cols = [to_f64(data[n]) for n in names]
+        cols = [to_f64(data[n], name=str(n)) for n in names]
+        _check_column_lengths([str(n) for n in names], cols)
         return names, cols
     if hasattr(data, "columns") and hasattr(data, "to_numpy"):
         names = [str(c) for c in data.columns]
-        cols = [to_f64(data[c].to_numpy()) for c in data.columns]
+        duplicated = sorted({n for n in names if names.count(n) > 1})
+        if duplicated:
+            raise CausalValueError(f"data has duplicate column names: {duplicated}")
+        cols = [to_f64(data[c].to_numpy(), name=str(c)) for c in data.columns]
+        _check_column_lengths(names, cols)
         return names, cols
+    arrow = try_as_arrow_c_columns(data)
+    if arrow is not None:
+        names, cols = arrow
+        return names, [_materialize_f64(col) for col in cols]
     raise TypeError(
-        f"data must be a mapping of name→array or a pandas DataFrame; got {type(data)!r}"
+        "data must be a mapping of name→array, a pandas DataFrame, or an Arrow-exporting "
+        f"table (PyArrow, Polars); got {type(data)!r}"
+    )
+
+
+def _arrow_float64(column: Any) -> Any:
+    """An Arrow-exporting column as float64, so every Arrow route casts alike.
+
+    Integer, boolean and floating columns cast (Arrow refuses an integer beyond
+    2**53); any other type is refused, as strings and dates are on the numpy
+    route. Without PyArrow the column passes through for the native reader.
+    """
+    try:
+        import pyarrow as pa
+    except ImportError:
+        return column
+    try:
+        col = column if isinstance(column, pa.Array) else pa.array(column)
+    except (TypeError, ValueError, pa.ArrowException):
+        return column  # not a readable Arrow export; the native reader decides
+    kind = col.type
+    if pa.types.is_float64(kind):
+        return col
+    if pa.types.is_integer(kind) or pa.types.is_boolean(kind) or pa.types.is_floating(kind):
+        return col.cast(pa.float64())
+    raise _refuse_column(
+        f"column type {kind} is not numeric; only float, integer and boolean columns are "
+        "accepted (encode categories and parse dates explicitly)"
     )
 
 
@@ -53,7 +107,7 @@ def try_as_arrow_c_columns(
         names = list(data.keys())
         cols = [data[n] for n in names]
         if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-            return names, cols
+            return names, [_arrow_float64(c) for c in cols]
         return None
 
     # PyArrow Table / RecordBatch style
@@ -70,7 +124,7 @@ def try_as_arrow_c_columns(
                 c = c.combine_chunks()
             flat.append(c)
         if flat and all(hasattr(c, "__arrow_c_array__") for c in flat):
-            return names, flat
+            return names, [_arrow_float64(c) for c in flat]
         return None
 
     # Frame columns that export CDI, but not pandas (it has to_numpy and
@@ -80,38 +134,86 @@ def try_as_arrow_c_columns(
             names = [str(c) for c in data.columns]
             cols = [data[c] for c in data.columns]
             if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-                return names, cols
-        except Exception:  # noqa: BLE001 — try a table-level stream next
-            pass
+                return names, [_arrow_float64(c) for c in cols]
+        except (AttributeError, KeyError, TypeError):
+            pass  # not a column-indexable frame; try a table-level stream next
 
-    # Table-level Arrow PyCapsule (Polars, DuckDB). Cast to float64 so
-    # integer treatments match the dict / pandas to_f64 ingest.
+    # Table-level Arrow PyCapsule (Polars, DuckDB); the same float64 cast as above.
     if hasattr(data, "__arrow_c_stream__"):
         try:
             import pyarrow as pa
-
-            table = pa.table(data)
-            names = [str(n) for n in table.column_names]
-            cols = []
-            for i in range(len(names)):
-                col = table.column(i).combine_chunks()
-                if not pa.types.is_float64(col.type):
-                    col = col.cast(pa.float64())
-                cols.append(col)
-            if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-                return names, cols
-        except Exception:  # noqa: BLE001 — fall through to numpy ingest
+        except ImportError:
             return None
+        table = pa.table(data)
+        names = [str(n) for n in table.column_names]
+        cols = [_arrow_float64(table.column(i).combine_chunks()) for i in range(len(names))]
+        if names:
+            return names, cols
     return None
 
 
-def to_f64(arr: Any) -> NDArray[np.float64]:
-    a = np.asarray(arr, dtype=np.float64)
-    if a.ndim != 1:
-        raise ValueError(f"expected 1-d column, got shape {a.shape}")
-    if a.dtype == object:
-        raise TypeError("object-dtype columns are not supported")
-    return a
+def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
+    """One numeric column as float64, naming the column in errors when known.
+
+    Only numeric inputs are accepted: floats, integers within 2**53 (larger ones
+    do not survive the cast), and booleans (as 0/1). Strings, datetimes,
+    timedeltas and complex numbers are refused rather than parsed or reinterpreted
+    (digit strings are labels, and a datetime is not a number of nanoseconds).
+    A nullable pandas column's ``NA`` and ``None`` become NaN, which is missing.
+    """
+    label = f" {name!r}" if name is not None else ""
+    raw = np.asarray(arr)
+    if raw.ndim != 1:
+        raise CausalValueError(f"expected 1-d column{label}, got shape {raw.shape}")
+    kind = raw.dtype.kind
+    if kind == "O":
+        values: list[float] = []
+        for value in raw:
+            if _is_missing_scalar(value):
+                values.append(float("nan"))
+            elif isinstance(value, (bool, np.bool_)):
+                values.append(float(value))
+            elif isinstance(value, (int, np.integer)):
+                if abs(int(value)) > _EXACT_INT_LIMIT:
+                    raise _refuse_column(
+                        f"integer {int(value)} exceeds 2**53 and would lose precision as float64"
+                        + (f" (column{label})" if name is not None else "")
+                    )
+                values.append(float(value))
+            elif isinstance(value, (float, np.floating)):
+                values.append(float(value))
+            else:
+                raise _refuse_column(
+                    f"column{label} holds {type(value).__name__} values; only numeric values are "
+                    "accepted (encode categories / one-hot, or exclude the column; "
+                    "typed numeric Arrow columns can use try_as_arrow_c_columns for zero-copy)"
+                )
+        return np.asarray(values, dtype=np.float64)
+    if kind not in "fiub":
+        raise _refuse_column(
+            f"column{label} dtype {raw.dtype} is not numeric; only float, integer and boolean "
+            "columns are accepted (encode categories / one-hot, or exclude the column; "
+            "typed numeric Arrow columns can use try_as_arrow_c_columns for zero-copy)"
+        )
+    if kind in "iu" and raw.size:
+        lowest, highest = int(raw.min()), int(raw.max())
+        if highest > _EXACT_INT_LIMIT or lowest < -_EXACT_INT_LIMIT:
+            raise _refuse_column(
+                f"integer column{label} spans [{lowest}, {highest}], beyond 2**53, and would lose "
+                "precision as float64"
+            )
+    return np.asarray(raw, dtype=np.float64)
+
+
+def _check_column_lengths(names: list[str], cols: list[NDArray[np.float64]]) -> None:
+    if len(cols) < 2:
+        return
+    lengths = [int(c.shape[0]) for c in cols]
+    n0 = lengths[0]
+    if all(n == n0 for n in lengths):
+        return
+    detail = ", ".join(f"{name}={n}" for name, n in zip(names, lengths, strict=True))
+    raise ValueError(f"column length mismatch ({detail}); align rows or subset to a common index")
 
 
 def _materialize_f64(column: Any) -> NDArray[np.float64]:
@@ -119,10 +221,10 @@ def _materialize_f64(column: Any) -> NDArray[np.float64]:
     if hasattr(column, "__arrow_c_array__"):
         try:
             import pyarrow as pa
-
+        except ImportError:
+            pass  # no PyArrow: read the column through its array protocols
+        else:
             return to_f64(pa.array(column).to_numpy(zero_copy_only=False))
-        except Exception:  # noqa: BLE001 — try array protocols
-            pass
     if hasattr(column, "to_numpy"):
         return to_f64(column.to_numpy())
     return to_f64(column)
@@ -156,4 +258,7 @@ def coerce_data_args(
         return as_columns(data)
     if names is None or columns is None:
         raise TypeError("provide data=… or both names= and columns=")
-    return list(names), [to_f64(c) for c in columns]
+    out_names = list(names)
+    cols = [to_f64(c, name=str(n)) for n, c in zip(out_names, columns, strict=True)]
+    _check_column_lengths(out_names, cols)
+    return out_names, cols

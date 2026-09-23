@@ -222,6 +222,7 @@ impl GeneralizedAdjustmentIdentifier {
                 query,
                 &indexer,
                 self.config.max_candidates,
+                self.config.max_examinations,
             )?;
             unfolded.push(finite);
             cases.push(GraphIdentificationCase {

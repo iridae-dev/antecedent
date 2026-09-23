@@ -18,14 +18,14 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 57 names as of 1.10**.
+The root namespace (`import antecedent`) is **frozen at 56 names as of 2.0**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
 them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
-and the two design queries `TransportQuery` and `InterferenceQuery`, whose licensed
-cells `analyze()` now executes (they were previously reachable only from their stage
-modules).
+and the design query `InterferenceQuery`. The licensed trial-IPW cell is
+`antecedent.transport.advanced.TransportQuery`; the 2.0 compiler is
+`antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](python-workflow.md) for lifetime and report semantics.
 The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
@@ -36,8 +36,8 @@ above; the accepted-structure and result types (`AcceptedGraph`, `Identification
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
 `InterventionResponse`) plus the two attribution queries
-(`AnomalyAttribution`, `ChangeAttribution`) plus the two design queries
-(`TransportQuery`, `InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+(`AnomalyAttribution`, `ChangeAttribution`) plus the design query
+(`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
@@ -58,7 +58,7 @@ Each of those twelve modules has an explicit, separately frozen `__all__`
 surface. The 56-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**15** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**17** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -72,7 +72,7 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other ten are left off because they're a narrower surface than the twelve stage
+The other twelve are left off because they're a narrower surface than the twelve stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
@@ -87,6 +87,8 @@ directly:
   the adapter refuses front-door, IV, general ID, partial ID, and
   graph-posterior results rather than inventing a set. Temporal results export
   certified offsets and trim boundaries.
+- ``antecedent.learners`` — typed nuisance learners shared by estimators and
+  transport providers.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for
@@ -96,6 +98,8 @@ directly:
   scientific outcomes.
 - ``antecedent.population`` — named predicates and custom target-distribution
   weights for `analyze()`.
+- ``antecedent.prediction`` — portable fitted CATE predictions bound to a
+  parent claim; no interval is implied.
 - ``antecedent.transport`` — single-source graphical transportability
   specifications.
 
@@ -137,7 +141,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
 | Intervention response | `ResponseFunctional::InterventionResponse` | `InterventionResponse(..., intervention=intervention.Set/Shift/Bernoulli/Gaussian/Categorical(...))` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
-| Structural transport | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)`; `antecedent.transport.identify` stages identification |
+| Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
+| Structural transport (1.10 trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the 2.0 compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
@@ -149,7 +154,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Estimator strategy | `EstimatorId::LinearAdjustmentAte` | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"` |
 | Per-estimator tuning | `EstimatorSpec::LinearAdjustmentAte { .. }` (builder setters) | `analyze(..., estimator_config={...})` — one table-driven dict kwarg; see `python/src/estimator_config.rs` for the estimator-id → valid-keys table |
 | Discovery algorithm | `discover_pc` / `discover_ges` / … (still free functions) | `antecedent.discovery.PC(...).run(...)` / `.accept(...)` (config dataclass, not a free `discover_*` function) |
-| Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.accepted(...)` / `.asserted(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
+| Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.from_discovery(...)` / `.from_graph(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
 | Target population | Rust `TargetPopulation` enum | `antecedent.population.AllRows` / `Treated` / `Untreated` / `Named` / `Rows` / `CustomDistribution` dataclasses (module not at root; `target_all()`-style constructors still work and return these types) |
 | Inference | `InferenceMode::Bayesian(BayesianConfig::…)` | `Bayesian(...)` / `Frequentist()` |
 | Refutation suite | `RefuteSuite::…` | `Refute.FULL` / `"placebo"` / `"cheap"` / `"full"` — `refute=True` is rejected (`TypeError`); leave `refute` unset for the query's licensed default. Function-valued `ResponseCurve` and temporal / class-aware `InterventionResponse` license validation `none`. Scalar Dag `InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control contrast; plugin g-comp cheap is overlap only and full omits E-value. |
@@ -159,7 +164,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
 | Target identity | target digest on the inspect/contract | `inspect().target_id` |
-| Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection, and observation contract | `inspect().identification_id` |
+| Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection and the full optional evidence catalog (`source_experiments` only for legacy queries), and observation contract | `inspect().identification_id` |
 | Identification product identity | identification-product digest | `inspect().identification_product_id` |
 | Compiled program identity | program digest on the inspect/contract; covers the target population, so ATE and ATT are different programs | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id` |
 | Inference binding identity | inference-binding digest over prior contents, backend and likelihood, and numeric knobs (a response bandwidth moves this, not the program); independent of structure | `inspect().inference_binding_id` |
@@ -169,6 +174,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Execution claim identity | `StudyResult::claim` digest over the contract seal (identities, four slots, audit fields), the claim fields, and the executed result body | `result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]` |
 | Score reuse identity | score-reuse digest | `inspect().score_reuse_id` |
 | Target-weight identity | target-weights digest | `inspect().target_weights_id` |
+| Learned-trial artifact identity | `manifest.artifact_id` on `LearnedTrialWire` | n/a (artifact_id in the learned-trial artifact manifest) |
+| Transport-certificate artifact identity | `manifest.artifact_id` on `TransportCertificateWire` | n/a (artifact_id in the transport-certificate artifact manifest) |
 | Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
 | Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); HTML also on `Identification`, graphs, `CausalResponseView`, `ReviewRequired`; `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_columns()`; `PosteriorView` supports `__array__` / `.interval()` |

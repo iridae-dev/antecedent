@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
+#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments, clippy::too_many_lines)]
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, PopulationRegistry,
@@ -10,11 +10,11 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::{
-    AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
-    FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
-    LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityStratification, PropensityWeighting, TwoStageLeastSquares,
-    TwoStageLeastSquaresWorkspace, WaldIv,
+    AipwAte, AipwWorkspace, CausalForest, DistanceMatching, DmlAte, DrLearner, EffectEstimate,
+    EstimationError, EstimationWorkspace, FrontDoorFunctional, FrontDoorTwoStage,
+    FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace, LinearAdjustmentAte,
+    OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching, PropensityStratification,
+    PropensityWeighting, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Dag, Pag};
@@ -458,6 +458,18 @@ pub fn estimate_static_effect(
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
+        EstimatorSpec::Dml(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::DrLearner(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::CausalForest(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
     }
 }
 
@@ -497,7 +509,8 @@ fn estimate_static_effect_default(
         }
         EstimatorId::PropensityMatching => {
             let mut est = PropensityMatching::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // NN matching bootstrap is not a valid CI (Abadie–Imbens 2008).
+            est.bootstrap_replicates = 0;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -517,7 +530,8 @@ fn estimate_static_effect_default(
         }
         EstimatorId::DistanceMatching => {
             let mut est = DistanceMatching::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // NN matching bootstrap is not a valid CI (Abadie–Imbens 2008).
+            est.bootstrap_replicates = 0;
             if let Some(policy) = overlap_policy {
                 est.overlap = policy;
             }
@@ -549,15 +563,22 @@ fn estimate_static_effect_default(
             let mut ws = FrontDoorWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
+        EstimatorId::FrontDoorFunctional => {
+            let est = FrontDoorFunctional::new().with_bootstrap_replicates(bootstrap_replicates);
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
         EstimatorId::IvWald => {
             let mut est = WaldIv::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // Do not arm IV with the facade bootstrap; that bypasses the weak-instrument gate.
+            est.bootstrap_replicates = 0;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             est.fit(&prep, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::Iv2Sls => {
             let mut est = TwoStageLeastSquares::new();
-            est.bootstrap_replicates = bootstrap_replicates;
+            // Do not arm IV with the facade bootstrap; that bypasses the weak-instrument gate.
+            est.bootstrap_replicates = 0;
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
@@ -565,7 +586,107 @@ fn estimate_static_effect_default(
         EstimatorId::GcmFit => {
             Err(CausalError::Unsupported { message: "gcm.fit is not a static ATE estimator" })
         }
+        EstimatorId::Dml => {
+            let mut est = DmlAte::new();
+            if let Some(overlap) = overlap_policy {
+                est.overlap = overlap;
+            }
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorId::DrLearner => {
+            let mut est = DrLearner::new();
+            if let Some(overlap) = overlap_policy {
+                est.overlap = overlap;
+            }
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorId::CausalForest => {
+            let est = CausalForest::new();
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
         _ => Err(CausalError::Unsupported { message: "unknown static estimator" }),
+    }
+}
+
+/// Attach the facade bootstrap SE onto the point estimate [`estimate_static_effect`] returned
+/// for an [`EstimatorSpec::Default`] id with `bootstrap_replicates == 0`, without refitting the
+/// point model. The published estimate equals a one-shot `estimate_static_effect` with
+/// `bootstrap_replicates` (the estimator's own `fit` is `fit point` + `attach_bootstrap`).
+///
+/// Only ids whose bootstrap the facade owns are supported; every other id (matching, IV,
+/// double-ML, forests, linear adjustment with its own workspace) is refused.
+///
+/// # Errors
+///
+/// An id with no attachable bootstrap, preparation failure, or bootstrap failure.
+pub fn attach_static_bootstrap(
+    estimator: EstimatorId,
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+    point: EffectEstimate,
+    bootstrap_replicates: u32,
+    overlap_policy: Option<OverlapPolicy>,
+    population_registry: Option<&PopulationRegistry>,
+    ctx: &ExecutionContext,
+    workspaces: &mut StaticEstimateWorkspaces,
+) -> Result<EffectEstimate, CausalError> {
+    match estimator {
+        EstimatorId::PropensityWeighting => {
+            let mut est = PropensityWeighting::new();
+            est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
+            est.population_registry = population_registry.cloned();
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.attach_bootstrap(&prep, &mut workspaces.propensity, ctx, point).map_err(est_err)
+        }
+        EstimatorId::PropensityStratification => {
+            let mut est = PropensityStratification::new();
+            est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
+            est.population_registry = population_registry.cloned();
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.attach_bootstrap(&prep, &mut workspaces.propensity, ctx, point).map_err(est_err)
+        }
+        EstimatorId::Aipw => {
+            let mut est = AipwAte::new();
+            est.bootstrap_replicates = bootstrap_replicates;
+            if let Some(policy) = overlap_policy {
+                est.overlap = policy;
+            }
+            est.population_registry = population_registry.cloned();
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.attach_bootstrap(&prep, &mut workspaces.aipw, ctx, point).map_err(est_err)
+        }
+        EstimatorId::GlmAdjustment => {
+            let mut est = GlmAdjustmentAte::new();
+            est.bootstrap_replicates = bootstrap_replicates;
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            let mut ws = GlmAdjustmentWorkspace::default();
+            est.attach_bootstrap(&prep, &mut ws, ctx, point).map_err(est_err)
+        }
+        EstimatorId::FrontDoorTwoStage => {
+            let mut est = FrontDoorTwoStage::new();
+            est.bootstrap_replicates = bootstrap_replicates;
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            let mut ws = FrontDoorWorkspace::default();
+            est.attach_bootstrap(&prep, &mut ws, ctx, point).map_err(est_err)
+        }
+        EstimatorId::FrontDoorFunctional => {
+            let est = FrontDoorFunctional::new().with_bootstrap_replicates(bootstrap_replicates);
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.attach_bootstrap(&prep, ctx, point).map_err(est_err)
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "the facade bootstrap cannot be attached to this estimator",
+        }),
     }
 }
 

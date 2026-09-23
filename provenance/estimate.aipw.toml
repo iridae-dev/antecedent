@@ -11,15 +11,16 @@ papers = [
 ]
 
 # Derived from the AIPW/Neyman-orthogonal score, NOT the exact estimator analyzed
-# in Chernozhukov et al. (2018). That paper's central device is cross-fitting, and
-# this implementation has none: `aipw.rs` fits the GLM propensity and the OLS
-# outcome regressions on the full sample. (`split_by_treatment` splits by treatment
-# arm, not by fold.) The DML convergence-rate and Donsker-free guarantees therefore
-# do not transfer; the applicable citation for the uncross-fit estimator is Funk et
-# al. (2011). Cross-fitted continuous-treatment work lives in
-# estimate.response.kennedy_dr, which does fold.
+# in Chernozhukov et al. (2018). Untrimmed AllObserved fits use five-fold cross-fitting
+# with a seeded, arm-stratified, unit-level fold plan (the point estimate does not depend
+# on the requested SE kind); ATT/ATC, trimmed, and predicate-target fits fit the GLM
+# propensity and the OLS outcome regressions on the full sample, and there the DML
+# convergence-rate and Donsker-free guarantees do not transfer (Funk et al. (2011) is the
+# applicable citation). Their analytic SE adds the exact stacked-M terms for the logistic
+# and per-arm OLS fits for ATE-type targets, and the efficient-influence-function form,
+# valid only when both nuisances are consistent, for ATT/ATC.
 implementation_deviations = [
- "no cross-fitting: propensity and outcome nuisances are fit on the full sample, so Chernozhukov et al.'s sample-splitting premise is not met and its rate conditions are not inherited",
+ "no cross-fitting on the ATT/ATC, trimmed, and predicate-target paths: propensity and outcome nuisances are fit on the full sample, so Chernozhukov et al.'s sample-splitting premise is not met there and its rate conditions are not inherited",
  "nuisance families are fixed GLM (propensity) and OLS (outcome), not the arbitrary ML learners the DML analysis admits",
 ]
 

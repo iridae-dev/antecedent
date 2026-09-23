@@ -1,17 +1,15 @@
-"""1.7 Bayesian temporal-class envelope pins."""
+"""Bayesian temporal-class envelope pins."""
 
 from __future__ import annotations
 
 import json
 import pathlib
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import load_json
-
-antecedent = pytest.importorskip("antecedent")
-
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 _PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_class_envelope" / "expected.json")
@@ -249,7 +247,7 @@ def test_class_curve_prior_survives_artifact_roundtrip() -> None:
 
 @pytest.mark.parametrize("masses", [[float("inf")], [float("nan")], [1e308, 1e308]])
 def test_class_prior_rejects_nonfinite_total(masses) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="finite and nonnegative|total mass"):
         antecedent.ClassPrior.from_ordered(masses)
 
 
@@ -322,7 +320,13 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    assert result.ate is None
+    # 0388159c fixed execute_temporal_cpdag_mediation to track shared_design/designs_agree
+    # for Bayesian inference too (previously only the Frequentist arm updated that
+    # bookkeeping, so the post-loop match always fell to the '_' arm and published a NaN
+    # sentinel for the slice). With a single completion the shared-design condition holds
+    # trivially, so the canonical shared-design contrast is now a real, deterministic
+    # BayesianPointwise summary instead of NaN.
+    assert result.ate == pytest.approx(0.43924231380959483, abs=1e-9)
     payload = artifacts.loads(prepared.export_artifact()).payload
     atom = payload["structural_response"]["atoms"][0]
     assert atom["posterior_artifact"]

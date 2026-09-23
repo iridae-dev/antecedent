@@ -1,0 +1,5 @@
+# Coverage figures and disclosures that predate scripts/coverage_citations.py's
+# two-decimal/percent scan and source-naming disclosures: kind|row|figure.
+# The list only shrinks (scripts/gate_coverage_citations.sh fails on a new or a
+# stale line). Regenerate with `python3 scripts/coverage_citations.py backlog`
+# after attributing figures; it must never be used to admit a new one.

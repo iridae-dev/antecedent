@@ -6,8 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -168,7 +166,7 @@ fn identify_joint_closure_on(
 ) -> Result<IdentificationResult, IdentificationError> {
     let prepared = prepare_joint_response(admg.nodes(), query)?;
     let set = background.tier_closure_set(&prepared.treatments, prepared.outcome)?;
-    let z: Vec<DenseNodeId> = set.iter().map(|v| DenseNodeId::from_raw(v.raw())).collect();
+    let z: Vec<DenseNodeId> = set.iter().map(|&v| node_of(admg, v)).collect::<Result<_, _>>()?;
     let holds = joint_adjustment_holds(admg, &prepared.targets, prepared.y, &z, |_, _| true)?;
     if !holds {
         let mut result = not_identified(prepared.query, TIERED_JOINT_ADJUSTMENT_REFUSE);
@@ -212,11 +210,7 @@ fn node_of(
     admg: &Admg,
     variable: antecedent_core::VariableId,
 ) -> Result<DenseNodeId, IdentificationError> {
-    admg.nodes()
-        .iter()
-        .position(|n| *n == antecedent_graph::NodeRef::Static(variable))
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
-        .ok_or(IdentificationError::UnknownVariable { id: variable })
+    crate::prepared::dense_of_static(admg.nodes(), variable)
 }
 
 /// Single-treatment closure. With `admg`, the closure must pass the generalized
@@ -883,6 +877,53 @@ mod tests {
                 || d.kind == DiagnosticKind::Scientific
                     && d.code.as_ref() == "identify.tiered.joint.adjustment"
         }));
+    }
+
+    /// The closure set is named by variable; the ADMG's node order is its own. On a graph
+    /// whose nodes are stored `y, t2, t1, z` the variable `z` sits at dense index 3, so
+    /// reading its id as a dense index would test `y` instead and refuse.
+    #[test]
+    fn joint_closure_on_a_reordered_admg_maps_variables_to_nodes() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("z")
+            .finish()
+            .continuous("t1")
+            .finish()
+            .continuous("t2")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let ordered = background.to_admg(&schema).unwrap();
+        let variable_at = |i: usize| match ordered.nodes()[i] {
+            antecedent_graph::NodeRef::Static(v) => v,
+            _ => unreachable!("Admg holds only static nodes"),
+        };
+        let mut reordered = Admg::empty();
+        for name in ["y", "t2", "t1", "z"] {
+            let variable = schema.id_of(name).unwrap();
+            reordered.add_node(antecedent_graph::NodeRef::Static(variable)).unwrap();
+        }
+        for i in 0..ordered.node_count() {
+            let from = node_of(&reordered, variable_at(i)).unwrap();
+            for &child in ordered.children(DenseNodeId::from_raw(u32::try_from(i).unwrap())) {
+                let to = node_of(&reordered, variable_at(child.as_usize())).unwrap();
+                reordered.insert_directed(from, to).unwrap();
+            }
+        }
+        let query = joint_query(&schema, "t1", "t2", "y");
+        let id = identify_tiered_joint_on(&background, &reordered, &query).unwrap();
+        assert_eq!(id.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(id.estimands[0].adjustment_set.as_ref(), &[schema.id_of("z").unwrap()]);
+        let in_order = identify_tiered_joint_on(&background, &ordered, &query).unwrap();
+        assert_eq!(in_order.estimands[0].adjustment_set, id.estimands[0].adjustment_set);
     }
 
     #[test]

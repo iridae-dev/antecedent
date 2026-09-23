@@ -19,7 +19,8 @@ papers = [
 ]
 
 implementation_deviations = [
- "Block-bootstrap checks use fixed-length moving blocks, not the cited stationary bootstrap's geometrically distributed block lengths.",
+ "Block-bootstrap checks use fixed-length moving blocks, not the cited stationary bootstrap's geometrically distributed block lengths. Blocks are joined with twice-the-maximum-lag missing rows at each junction so no lagged window mixes two blocks (and none straddles two regimes); the complete within-block windows PCMCI-family runs keep are the effective sample.",
+ "Synthetic-null and false-positive checks count candidate lagged links as every ordered variable pair at each lag of min_lag..max_lag, and judge the empirical rate by a band whose standard error is the larger of the binomial value over all link trials and the run-to-run spread (no absolute floor); the surrogate false-positive check is one-sided.",
  "Orientation, regime, link-frequency, parameter-grid, synthetic-null, and environment-holdout wrappers and their replicate counts or verdict thresholds are repository-defined.",
  "The surrogate citation supports the null-data primitives, but repeated PCMCI-family discovery and edge-frequency/FPR summaries are not procedures introduced by that paper.",
 ]

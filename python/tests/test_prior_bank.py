@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
 
-pytest.importorskip("antecedent")
-import antecedent
+from _refusal import assert_registered_refusal
 
 
 def _confounded(n: int = 120, seed: int = 7):
@@ -41,12 +41,14 @@ def _meta(
 
 def _unnamed_artifact_bytes() -> bytes:
     art = antecedent.inference.PosteriorArtifact(
-        n_draws=2,
+        n_draws=3,
         mean=[0.0, 1.0, 2.0],
         sd=[1.0, 1.0, 0.1],
-        q025=[-1.0, 0.0, 1.8],
-        q975=[1.0, 2.0, 2.2],
-        draws=[0.0, 0.0, 1.0, 1.0, 2.0, 2.0],
+        # Three draws per quantity at (mean - sd, mean, mean + sd): the sample mean and SD are
+        # the summaries and the type-7 quantiles are mean -/+ 0.95 sd.
+        q025=[-0.95, 0.05, 1.905],
+        q975=[0.95, 1.95, 2.095],
+        draws=[-1.0, 0.0, 1.0, 0.0, 1.0, 2.0, 1.9, 2.0, 2.1],
         backend_id="laplace",
         identification="NonparametricallyIdentified",
         quantity_names=["coef_0", "coef_1", "ate"],
@@ -225,7 +227,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
     auto_mean = float(auto.posterior.effect_mean)
     assert abs(auto_mean - source_mean) < abs(baseline_mean - source_mean)
 
-    with pytest.raises(antecedent.CausalError):
+    with pytest.raises(antecedent.CausalError) as caught:
         antecedent.analyze(
             data_b,
             graph=edges_b,
@@ -240,6 +242,7 @@ def test_effect_prior_transfer_shrinks_toward_source():
             seed=5,
             return_posterior_artifact=True,
         )
+    assert_registered_refusal(caught.value)
 
 
 def test_summary_only_artifact_round_trips_and_hydrates_prior():
@@ -816,7 +819,7 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
     reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))
     restored = antecedent.inference.decode_posterior_artifact(reencoded)
     assert restored.quantity_names == decoded.quantity_names
-    assert restored.draws == decoded.draws
+    assert np.array_equal(restored.draws, decoded.draws)
     assert restored.treatment_contrast == contrast
     for mapping in [
         antecedent.priors.PriorMapping.identical(),

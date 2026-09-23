@@ -1,10 +1,6 @@
-# Practitioner acceptance for 1.11
+# Practitioner acceptance
 
-Workstream S ships with 1.11. The independent suite lives in the sibling
-`../antecedent-practitioner-scenarios` repository. It exercises installed Python
-and public `antecedent` Rust APIs; its runner does not import library test helpers
-or read the parity inventory. The library's consuming regression tests remain
-in this repository.
+Workstream S is an additional cut requirement for this 2.0.0 tree. The independent suite lives in the sibling `../antecedent-practitioner-scenarios` repository. It exercises installed Python and public `antecedent` Rust APIs; its runner does not import library test helpers or read the parity inventory. The library's consuming regression tests remain in this repository. The 2026-09-19 evidence later in this page is a past 1.11 candidate, not a claim about the current tree.
 
 ## Run against a candidate
 
@@ -16,17 +12,12 @@ cd python
 uv run maturin build --release --out /tmp/antecedent-s-wheel
 cd ../../antecedent-practitioner-scenarios
 python3 run.py \
-  --wheel /tmp/antecedent-s-wheel/<antecedent-1.11.0-platform-wheel>.whl \
+  --wheel /tmp/antecedent-s-wheel/<antecedent-2.0.0-platform-wheel>.whl \
   --rust-checkout ../causal-library \
   --scale
 ```
 
-Without overrides, `python3 run.py --scale` installs `antecedent==1.11.0` and
-builds against the same exact crates.io version. This mode requires the release
-to have been published. The local override never makes an editable Python
-installation: the runner creates its own environment and checks that imports
-resolve inside it. Python artifacts are loaded in a fresh isolated interpreter;
-Rust artifacts are consumed by a fresh invocation of the consumer binary.
+Without overrides, `python3 run.py --scale` installs `antecedent==2.0.0` and builds against the same exact crates.io version. This mode requires the release to have been published. Until the tag and publish, use the local wheel. The local override never makes an editable Python installation: the runner creates its own environment and checks that imports resolve inside it. Python artifacts are loaded in a fresh isolated interpreter; Rust artifacts are consumed by a fresh invocation of the consumer binary.
 
 The suite owns its dependency locks, scenario inventory, known-truth generators,
 runner self-tests and `leftovers.json`. `reports/acceptance.json` records the
@@ -37,7 +28,7 @@ is useful during development but cannot accept S.
 
 ## Acceptance rule
 
-Before cutting 1.11, require all of the following:
+Before cutting 2.0.0, require all of the following:
 
 - Every inventoried Python and Rust job passes, including the separately
   selected 10,000- and 100,000-row jobs. Expected refusals pass only when the
@@ -47,7 +38,7 @@ Before cutting 1.11, require all of the following:
   scenario and supporting claim. Classify it as `bug`, `silent_refuse`,
   `inspect_execute_drift`, `docs_lie`, `missing_pin`, `unusable_default`, or
   `too_slow_to_be_true`. Close it only with a tested fix or an evidenced reason;
-  do not defer an in-scope defect to 2.0 or use skips to hide it.
+  do not defer an in-scope defect to a later release or use skips to hide it.
 - Library fixes have consuming in-repo regression tests. Support changes retain
   the existing matrix and calibration obligations. A known-truth scenario is
   not a substitute for interval-coverage measurement.
@@ -91,11 +82,14 @@ leftover ledger, per-case subprocess isolation, and acceptance accounting tests.
 
 ## Current candidate
 
-Coverage claims for the library candidate attach to remesure `6a41568f`
-plus replay waiver `facade-reexports-02c06614` (waiver `to` = `02c06614`).
-The 587 records were remesured after the finding repairs. The 2026-09-19
-count below (258 matching plus 329 replay-attested) is the pre-repair
-working-tree snapshot; it is not the claim for this candidate.
+This section records a past candidate and does not describe the current
+tree. Coverage claims for that library candidate attached to remesure
+`6a41568f` plus replay waiver `facade-reexports-02c06614` (waiver `to` =
+`02c06614`), and its 587 records were remesured after the finding repairs. The
+2026-09-19 count below (258 matching plus 329 replay-attested) is the
+pre-repair working-tree snapshot. On the current tree the coverage records owe
+re-measurement (see `result.calibration`), so none of these figures is a
+current coverage claim.
 
 The sibling suite and `scripts/gate_release.sh` on 2026-09-19 were
 working-tree checks. The acceptance rule above still requires a rerun of

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -74,6 +74,7 @@ def accept_rpcmci(
     ci: CiArg = None,
     weights: Sequence[Any] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
     accept_discovered: bool = True,
 ) -> Any:
@@ -218,6 +219,7 @@ class ResponseAnalysisResult:
     scalar: float | None
     matrix: list[list[float]] | None
     uncertainty_kind: str
+    interval_interpretation: str | None
     lower: list[list[float]] | None
     upper: list[list[float]] | None
     level: float | None
@@ -257,6 +259,7 @@ class ResponseAnalysisResult:
     identifier: str | None
 
 class TransportIdentificationResult:
+    outcome: str
     transportable: bool
     formula_kind: str | None
     rule: str | None
@@ -268,6 +271,13 @@ class TransportIdentificationResult:
     factor_variables: list[list[str]]
     factor_conditioned_on: list[list[str]]
     factor_interventions: list[list[str]]
+    factor_regimes: list[int | None]
+    expr_pretty: str | None
+    expr_latex: str | None
+    leaf_populations: list[str]
+    leaf_regimes: list[int | None]
+    expr_root: int | None
+    expr_wire_json: str | None
 
 class TrialTransportResult:
     rule: str
@@ -421,6 +431,15 @@ class EstimateSection:
     distribution_atoms: list[DistributionAtomSection] | None
     mean_interval: ProbabilityIntervalSection | None
 
+    cate: list[float] | None
+    cate_se: list[float] | None
+    cate_leaf_dispersion: list[float] | None
+    learner_provenance: list[tuple[str, str, str]]
+    outcome_oof_r2: float | None
+    treatment_oof_logloss: float | None
+    crossfit_folds: int | None
+    crossfit_seed: int | None
+
 class ProbabilityIntervalSection:
     """Bounded interval for one interventional probability, or why none exists."""
 
@@ -503,7 +522,7 @@ class PosteriorArtifact:
     sd: list[float]
     q025: list[float]
     q975: list[float]
-    draws: list[float]
+    draws: NDArray[np.float64]
     backend_id: str
     identification: str
     unidentified_mass: float
@@ -583,6 +602,7 @@ class PcmciDiscoveryResult:
     cpdag_directed_edges: int
     cpdag_undirected_edges: int
     graph_edges: list[GraphEdge]
+    variable_names: list[str]
 
     def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
         """The reviewed accepted graph; refuses while edges are pending."""
@@ -1036,6 +1056,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        catalog: object | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_interference(
@@ -1449,6 +1470,8 @@ class MechanismChangeDetection:
     p_value: float
     adjusted_p_value: float | None
     changed: bool
+    n_permutations: int | None
+    p_value_floor: float | None
 
 class FeatureRelevance:
     feature: str
@@ -1990,6 +2013,7 @@ def analyze_response(
     export_row_diagnostics: bool = False,
     accepted: bool = False,
     refute: bool | str | None = None,
+    seed: int = 1,
 ) -> ResponseAnalysisResult: ...
 def analyze_temporal_response(
     names: list[str],
@@ -2059,7 +2083,12 @@ def identify_transport(
     order: int = 1,
     scale: str = "identity",
     weighting: str = "observed",
+    catalog: object | None = None,
 ) -> TransportIdentificationResult: ...
+def roundtrip_expr_arena(
+    wire_json: str,
+    root: int,
+) -> tuple[str, str, list[str], list[int | None], list[int]]: ...
 def estimate_trial_transport(
     identification: TransportIdentificationResult,
     outcome: NDArray[np.float64],
@@ -2135,6 +2164,7 @@ def analyze_observation_response(
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
     accepted: bool = False,
+    seed: int = 1,
 ) -> ObservationResponseResult: ...
 def prepare_observation_response(
     names: list[str],
@@ -2445,7 +2475,9 @@ def discover_pcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
+    unit_lengths: list[int] | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
     names: list[str],
@@ -2458,7 +2490,9 @@ def discover_pcmci_plus(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
+    unit_lengths: list[int] | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
     names: list[str],
@@ -2470,6 +2504,7 @@ def discover_pc(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_ges(
     names: list[str],
@@ -2481,6 +2516,7 @@ def discover_ges(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     screen_pc: bool = False,
     max_subset: int | None = None,
 ) -> PcmciDiscoveryResult: ...
@@ -2492,6 +2528,7 @@ def discover_lingam(
     seed: int = 1,
     max_cond_size: int = 8,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_notears(
     names: list[str],
@@ -2503,6 +2540,7 @@ def discover_notears(
     seed: int = 1,
     max_cond_size: int = 8,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_fci(
     names: list[str],
@@ -2514,6 +2552,7 @@ def discover_fci(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_rfci(
     names: list[str],
@@ -2525,6 +2564,7 @@ def discover_rfci(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lpcmci(
     names: list[str],
@@ -2537,7 +2577,9 @@ def discover_lpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
+    unit_lengths: list[int] | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_jpcmci_plus(
     names: list[str],
@@ -2550,6 +2592,7 @@ def discover_jpcmci_plus(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     context_names: list[str] | None = None,
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
@@ -2570,6 +2613,7 @@ def discover_rpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
@@ -2631,6 +2675,7 @@ def discover_dbn_posterior(
     thin: int = 1,
     seed: int = 1,
     threads: int | None = None,
+    unit_lengths: list[int] | None = None,
 ) -> GraphPosterior: ...
 def mediation_effects_summary(
     names: list[str],
@@ -2642,7 +2687,7 @@ def mediation_effects_summary(
     seed: int = 1,
     threads: int | None = None,
 ) -> MediationEffectsSummary: ...
-def predict_intervened_summary(
+def predict_conditional_summary(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     target: str,
@@ -2930,6 +2975,15 @@ class Pag:
         max_paths: int = 32,
         max_len: int = 6,
     ) -> bool: ...
+    def m_separation_status(
+        self,
+        x: str,
+        y: str,
+        z: list[str] | None = None,
+        *,
+        max_paths: int = 32,
+        max_len: int = 6,
+    ) -> Literal["separated", "connected", "undetermined"]: ...
 
 class Admg:
     @classmethod
@@ -3431,6 +3485,9 @@ def encode_external_estimate_claim(
     data_snapshot: str | None = None,
     snapshot_payload: bytes | None = None,
     scalar_value: float | None = None,
+    value_types: list[str] | None = None,
+    contrast: tuple[float, float] | None = None,
+    modifiers: list[str] | None = None,
 ) -> bytes: ...
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
@@ -3440,3 +3497,228 @@ def default_user_threads() -> int:
 
 def identification_status_names() -> list[str]:
     """Every native identification status string, exhaustively (the verdict table's key set)."""
+
+class ClassicalTransportStage:
+    def export(self) -> bytes: ...
+    def certificate_json(self) -> str: ...
+    @property
+    def outcome(self) -> str: ...
+    @property
+    def outcomes(self) -> list[str]: ...
+    @property
+    def formula(self) -> str | None: ...
+    @property
+    def rules(self) -> list[str]: ...
+    def evaluate_exact(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int = 1_000_000,
+        memory_bytes: int | None = None,
+    ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
+    def prepare_exact(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int = 1_000_000,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedExactStage: ...
+    def catalog_search(
+        self,
+        catalog: Any,
+        *,
+        max_steps: int = 100_000,
+        max_depth: int = 256,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+
+def identify_classical_transport_stage(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ClassicalTransportStage: ...
+
+class PreparedExactStage:
+    @property
+    def outcomes(self) -> list[str]: ...
+    def estimate(
+        self, execution: str | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
+    def refresh(
+        self, laws: Any, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
+    def replace_snapshot(self, laws: Any, cancel: CancellationToken | None = None) -> None: ...
+    def last_result(self) -> tuple[list[list[float]], list[float], str, list[str]]: ...
+    def plan_summary(self) -> dict[str, str]: ...
+    def freeze(self) -> PreparedExactStage: ...
+    def inspection_json(self) -> str: ...
+    def export(self) -> bytes: ...
+    def preview_transform(self, intent: str) -> dict[str, str]: ...
+
+def consume_exact_transport(
+    bytes: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedExactStage: ...
+
+class PreparedStatisticalStage:
+    @property
+    def outcomes(self) -> list[str]: ...
+    def estimate_grid(
+        self, assignments: list[dict[str, float]], cancel: CancellationToken | None = None
+    ) -> list[PreparedStatisticalStage]: ...
+    def estimate(
+        self, execution: str | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
+    def refresh(
+        self, payload: Any, cancel: CancellationToken | None = None
+    ) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
+    def replace_snapshot(self, payload: Any, cancel: CancellationToken | None = None) -> None: ...
+    def contrast(self, reference: PreparedStatisticalStage, outcome: str) -> str: ...
+    def last_result(self) -> tuple[list[list[float]], list[float], str, list[str], str]: ...
+    def plan_summary(self) -> dict[str, str]: ...
+    def freeze(self) -> PreparedStatisticalStage: ...
+    def inspection_json(self) -> str: ...
+    def export(self) -> bytes: ...
+    def preview_transform(self, intent: str) -> dict[str, str]: ...
+
+def prepare_statistical_transport(
+    stage: ClassicalTransportStage,
+    catalog: Any,
+    payload: Any,
+    assignments: dict[str, float],
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+    bootstrap: int = 199,
+    coverage_level: float = 0.95,
+    estimator: object = None,
+    seed: int = 1,
+) -> PreparedStatisticalStage: ...
+def consume_statistical_transport(
+    bytes: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+    seed: int = 1,
+) -> PreparedStatisticalStage: ...
+
+class PreparedTransportGridStage:
+    def freeze(self) -> PreparedTransportGridStage: ...
+    def estimate(self, cancel: CancellationToken | None = None) -> str: ...
+    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> str: ...
+    def replace_snapshot(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def last_result(self) -> str: ...
+    def export(self) -> bytes: ...
+    def contrast(self, left: int, right: int, outcome: str) -> str: ...
+    def scalar_projection(self, point: int, outcome: str) -> str: ...
+    def inspection_json(self) -> str: ...
+    def plan_summary(self) -> dict[str, str]: ...
+    def preview_transform(self, intent: str) -> dict[str, str]: ...
+
+def prepare_transport_grid(
+    stage: ClassicalTransportStage,
+    catalog: Any,
+    data: Any,
+    at: list[dict[str, float]],
+    *,
+    statistical: bool = False,
+    estimator: object = None,
+    bootstrap: int = 199,
+    coverage_level: float = 0.95,
+    seed: int = 1,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedTransportGridStage: ...
+def consume_transport_grid(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedTransportGridStage: ...
+def identify_meta_transport_stage(
+    graph: Admg,
+    catalog: Any,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ClassicalTransportStage: ...
+def consume_transport_certificate(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ClassicalTransportStage: ...
+
+class FittedEffectModel:
+    features: list[str]
+    parent_claim: str
+    @staticmethod
+    def load(bytes: bytes) -> FittedEffectModel: ...
+    def predict(self, columns: list[NDArray[np.float64]], nrows: int) -> NDArray[np.float64]: ...
+    def export(self) -> bytes: ...
+
+class PreparedLearnedTrial:
+    def preview_transform(self, intent: str) -> dict[str, str]: ...
+    def estimate(self, cancel: CancellationToken | None = None) -> str: ...
+    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> str: ...
+    def replace_snapshot(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def last_result(self) -> str: ...
+    def freeze(self) -> PreparedLearnedTrial: ...
+    def inspection_json(self) -> str: ...
+    def plan_summary(self) -> dict[str, str]: ...
+    def export(self) -> bytes: ...
+
+def prepare_learned_trial(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    treatment: str,
+    outcome: str,
+    data: Any,
+    options: str,
+    *,
+    seed: int = 1,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedLearnedTrial: ...
+def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...

@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import pytest
 from antecedent._native import temporal_response_spec as native_spec
 from antecedent.errors import CausalValueError
 from antecedent.query import temporal_response_spec as spec

@@ -20,13 +20,13 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 pub mod anomaly;
@@ -48,12 +48,14 @@ pub mod structure_change;
 pub mod unit_change;
 
 pub use anomaly::{
-    AnomalyScores, ArrowStrength, arrow_strengths, population_do_contrast, score_anomalies,
+    AnomalyScores, ArrowStrength, PopulationDoContrast, arrow_strengths, population_do_contrast,
+    score_anomalies, score_anomalies_with,
 };
 pub use builder::ChangeAttribution;
 pub use coalition::{CoalitionCache, CoalitionKey};
 pub use distribution_change::{
     DifferenceMeasure, DistributionChangeOptions, distribution_change, distribution_change_shapley,
+    distribution_change_with_fit_uncertainty,
 };
 pub use error::AttributionError;
 pub use feature_relevance::feature_relevance;
@@ -62,7 +64,8 @@ pub use path::path_decompose;
 pub use population::{multi_env_series, resolve_multi_env_rows, resolve_rows, subset_table};
 pub use result::{
     CacheStats, ChangeAttributionResult, ComponentContribution, ComputeBudget, FeatureRelevance,
-    InteractionTerm, MechanismChangeDetection, PathContribution, RootCauseRank, UnitChangeResult,
+    FitUncertainty, InteractionTerm, MechanismChangeDetection, PathContribution, RootCauseRank,
+    UnitChangeResult,
 };
 pub use robust::{RobustChangeOptions, distribution_change_robust};
 pub use root_cause::{

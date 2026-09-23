@@ -3,9 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::fs;

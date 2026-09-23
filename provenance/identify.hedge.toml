@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "The hedge certificate stores only the two node sets returned at ID line 5; it does not construct or validate the directed and bidirected edge subgraphs, shared root set, or R-rooted C-forest properties required by the paper's hedge definition.",
+ "The hedge certificate stores only the two node sets (F, F') returned at ID line 5, not the edge subgraphs of the two C-forests. HedgeCertificate::verify checks the definition existentially over edge subsets: F' within F, F meets X, F' avoids X, both induced subgraphs bidirected-connected, and both ancestral to the shared root set R = F' intersected with An(Y) in G with edges into X removed.",
+ "The certificate does not name the sub-query (X', Y') for which line 5 fired; verification is against the original query.",
 ]
 
 papers = [
@@ -21,4 +22,6 @@ test_sources = [
  "clean-room ID status case expecting a hedge label (conformance/identify/id_hedge)",
  "consumed DoWhy 0.14 non-identifiable status oracle (conformance/identify/general_id_hedge)",
  "hedge_not_identified (crates/antecedent-identify/src/id.rs)",
+ "hand-derived hedge node sets for bow arc, confounded-mediator front-door and a joint-treatment query, plus negative mutations of the certificate (conformance/identify/id_completeness; crates/antecedent-identify/tests/id_completeness.rs)",
+ "every non-identified query of the exhaustive <=4-node sweep (9163) and of the seeded 5-6 node joint sample is checked against the hedge definition (crates/antecedent-identify/tests/id_completeness.rs)",
 ]

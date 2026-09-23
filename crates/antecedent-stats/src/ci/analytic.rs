@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_lossless, clippy::many_single_char_names)]
+#![allow(clippy::cast_lossless)]
 
 use crate::special::{normal_ppf, student_t_sf};
 

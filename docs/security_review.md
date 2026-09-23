@@ -1,8 +1,25 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-09-22
+Scope: workspace crates + `python` extension (package version **2.0.0**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+2.0.0 is a correctness and identification-machinery pass on the 1.11.0
+reviewed tree: dense-variable-lookup unification across temporal and static
+identification, Kennedy-theorem covariate marginalization, HMC step-size
+jittering, general-ID estimand tiebreaking, Bayesian temporal mediation
+shared-design tracking, and a batch/solo cross-fit fold-plan unification,
+plus supporting Python-boundary and registry fixes. The diff against the
+1.11.0 tree adds no new crate dependency (`Cargo.lock`'s package set is
+unchanged) and no new `unsafe` block; reviewed `unsafe` remains concentrated
+in `antecedent-kernels` (SIMD), the `antecedent-data` buffer/Arrow FFI
+adapters, and IO mmap, as in 1.11.0. A `cargo deny check` against a freshly
+fetched advisory database on 2026-09-22 passed advisories, bans, licenses,
+and sources; `RUSTSEC-2024-0436` (`paste`) remains ignored in `deny.toml` as
+a faer/gemm build-time macro. Artifact format remains 0.5.
+
 Date: 2026-09-19
 Scope: workspace crates + `python` extension (package version **1.11.0**)
-ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
 1.11.0 is the 1.x close-out on the 1.10.0 reviewed tree. This stamp covers the
 version and notes cut. Re-review the source diff before the cut is tagged
@@ -142,8 +159,9 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 ## Licensing
 
 - Project: `MIT OR Apache-2.0` (see `LICENSE-MIT`, `LICENSE-APACHE`, ADR 0008).
-- Dependencies audited with **cargo-deny** (`deny.toml` license allow-list); run
-  locally (`cargo deny check`) — not part of CI.
+- Dependencies audited with **cargo-deny** (`deny.toml` license allow-list and
+  advisories): the CI `deny` job runs `cargo deny check` on every PR and push, and
+  the release-candidate gate refuses to run without cargo-deny installed.
 - Default features must remain wheel-distributable without system BLAS
   ([ADR 0001](https://github.com/iridae-dev/antecedent/blob/main/adr/0001-linear-algebra-backend.md)).
 
@@ -153,6 +171,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 |-----------|------|--------|
 | `faer` | Default linear algebra | Pure Rust; no system BLAS in default wheels |
 | `paste` (transitive via `gemm`) | faer build-time macro | Unmaintained (`RUSTSEC-2024-0436`); ignored in `deny.toml` with reason — no runtime use; revisit when faer drops it |
+| `bincode` (transitive via `burn-core`) | Record serialization in the CPU-native neural learner, included in standard Python wheels and optional for Rust consumers | Unmaintained (`RUSTSEC-2025-0141`), no vulnerability; ignored in `deny.toml` with a documented exception; revisit with the Burn upgrade |
 | `arrow-array` / `arrow-schema` / `arrow-buffer` | Tabular / IPC sections | Feature-gated where needed; no algorithm duplication in Python |
 | `pyo3` 0.29 / `numpy` 0.29 | Python boundary | Current Python bindings; the lockfile passes the advisory policy in `deny.toml` |
 | `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums under the format-0.5 artifact contract |
@@ -183,7 +202,7 @@ Optional `blas` features (if added later) are non-default.
 
 | Surface | Destination | Notes |
 |---------|-------------|--------|
-| Rust facade `antecedent` + `antecedent-*` library crates | crates.io | Tag workflow `publish-crates.yml`; see `scripts/publish_crates.sh` |
+| Rust facade `antecedent` + `antecedent-*` library crates | crates.io | Tag workflow `publish-release.yml` (jobs `crates-dry-run`, `publish-crates`); see `scripts/publish_crates.sh` |
 | Python package `antecedent` (PyO3 crate `antecedent-py`) | PyPI / GitHub Release assets | **Not** on crates.io (`publish = false`) |
 
 ## Evidence commands

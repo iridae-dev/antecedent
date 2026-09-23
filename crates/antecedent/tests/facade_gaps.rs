@@ -3,9 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;
@@ -219,7 +218,9 @@ fn conditional_effect_via_causal_analysis() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.estimate.ate.is_finite());
+    // y = 1 + 2t + 0.5 t w, so the conditional effect at w is 2 + 0.5 w; over the fixture's
+    // w = i mod 5 (mean 2, balanced across the two arms) the average conditional effect is 3.
+    assert!((result.estimate.ate - 3.0).abs() < 0.05, "average CATE {}", result.estimate.ate);
 }
 
 #[test]
@@ -326,6 +327,30 @@ fn auto_multi_estimand_requires_unique_match() {
         assert!(err.to_string().contains("estimands"));
     }
     let _ = data;
+}
+
+#[test]
+fn auto_lists_the_general_id_functional_and_selection_follows_the_estimator() {
+    // Back-door already identifies the chain; general ID also does, and its functional is
+    // listed beside the criterion estimand rather than dropped, so an estimator that consumes
+    // general-ID functionals selects it and no other estimator's match changes.
+    let (_, g) = chain_table(40);
+    let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let id = identify_static_query(IdentifierId::Auto, &g, &CausalQuery::AverageEffect(q)).unwrap();
+    assert_eq!(id.estimand_claims.len(), id.estimands.len());
+    let general: Vec<usize> = id
+        .estimands
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.method.as_ref() == "general.id")
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(general.len(), 1, "one general.id estimand is listed");
+    assert!(id.estimands.len() > 1, "and it sits beside the criterion estimand");
+    let chosen = select_estimand(&id, EstimatorId::FunctionalEffect).unwrap();
+    assert_eq!(chosen.method.as_ref(), "general.id");
+    assert_eq!(chosen.functional, id.estimands[general[0]].functional);
+    let _ = id.arena.node(chosen.functional);
 }
 
 #[test]

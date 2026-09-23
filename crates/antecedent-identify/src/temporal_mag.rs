@@ -130,6 +130,7 @@ pub(crate) fn identify(
     query: &TemporalEffectQuery,
     indexer: &TemporalIndexer,
     max_candidates: usize,
+    max_examinations: u64,
 ) -> Result<(IdentificationResult, Pag), IdentificationError> {
     let unfolded = graph.unfold(indexer.clone())?;
     let keys = query_keys(query)?;
@@ -164,6 +165,7 @@ pub(crate) fn identify(
             level(&query.active)?,
             level(&query.control)?,
             max_candidates,
+            max_examinations,
         )?
     };
     let mut conditioning = keys.clone();

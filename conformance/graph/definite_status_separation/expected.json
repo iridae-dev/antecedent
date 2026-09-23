@@ -1,10 +1,150 @@
 {
-  "schema_version": 1,
-  "oracle": {"kind": "independent path-status enumeration", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "schema_version": 2,
+  "oracle": {
+    "kind": "enumeration",
+    "method": "m-separation in every MAG of the class, by hand enumeration of the member MAGs",
+    "generator": "hand-derived; statuses are statements about every member (separated / connected) or undetermined. An edge is '<a><left mark>-<right mark><b>' with marks '<' / '>' arrowhead, 'o' circle, 'x' conflict, none for a tail: '0->1', '0<->1', '0o-o1', '0o->1', '0-o1', '0x-x1'.",
+    "reference": "Zhang (2008), On the completeness of orientation rules for causal discovery, definite-status paths"
+  },
   "cases": [
-    {"id": "noncollider_chain_open", "edges": ["0->1", "1->2"], "conditioned": [], "separated": false},
-    {"id": "noncollider_chain_blocked", "edges": ["0->1", "1->2"], "conditioned": [1], "separated": true},
-    {"id": "collider_closed", "edges": ["0->1", "2->1"], "conditioned": [], "separated": true},
-    {"id": "collider_open", "edges": ["0->1", "2->1"], "conditioned": [1], "separated": false}
+    {
+      "id": "noncollider_chain_open",
+      "edges": [
+        "0->1",
+        "1->2"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [],
+      "separated": false,
+      "status": "connected"
+    },
+    {
+      "id": "noncollider_chain_blocked",
+      "edges": [
+        "0->1",
+        "1->2"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [
+        1
+      ],
+      "separated": true,
+      "status": "separated"
+    },
+    {
+      "id": "collider_closed",
+      "edges": [
+        "0->1",
+        "2->1"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [],
+      "separated": true,
+      "status": "separated"
+    },
+    {
+      "id": "collider_open",
+      "edges": [
+        "0->1",
+        "2->1"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [
+        1
+      ],
+      "separated": false,
+      "status": "connected"
+    },
+    {
+      "id": "unshielded_circle_noncollider_open",
+      "edges": [
+        "0o-o1",
+        "1o-o2"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [],
+      "status": "connected",
+      "reason": "0 and 2 are not adjacent and 1 is not marked a collider, so 1 is a non-collider in all three members (0->1->2, 0<-1<-2, 0<-1->2)"
+    },
+    {
+      "id": "unshielded_circle_noncollider_blocked",
+      "edges": [
+        "0o-o1",
+        "1o-o2"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [
+        1
+      ],
+      "status": "separated"
+    },
+    {
+      "id": "collider_opened_by_a_descendant_reached_over_a_circle",
+      "edges": [
+        "1<->0",
+        "2o->0",
+        "0-o3"
+      ],
+      "x": 1,
+      "y": 2,
+      "conditioned": [
+        3
+      ],
+      "status": "connected",
+      "reason": "0 is a definite collider between 1 and 2; 0 -o 3 is 0 -> 3 in every member, so conditioning on 3 opens it although 3 is not a definite descendant"
+    },
+    {
+      "id": "shielded_circle_path_separated_in_every_member",
+      "edges": [
+        "0o-o1",
+        "0o-o2",
+        "1o-o2",
+        "1o-o3",
+        "2o-o3"
+      ],
+      "x": 0,
+      "y": 3,
+      "conditioned": [
+        1,
+        2
+      ],
+      "status": "separated",
+      "reason": "0 o-o 1 o-o 2 o-o 3 is not of definite status; every member MAG (a DAG without a collider at 1 or 2 on the unshielded triples 0-1-3 and 0-2-3) separates 0 and 3 given {1, 2}"
+    },
+    {
+      "id": "shielded_circle_path_connected_in_every_member",
+      "edges": [
+        "0o-o1",
+        "0o-o2",
+        "1o-o2",
+        "1o-o3",
+        "2o-o3"
+      ],
+      "x": 0,
+      "y": 3,
+      "conditioned": [
+        1
+      ],
+      "status": "connected",
+      "reason": "0 o-o 2 o-o 3 is an unshielded definite non-collider path avoiding the conditioning set"
+    },
+    {
+      "id": "conflict_mark_is_unknown",
+      "edges": [
+        "0->1",
+        "1x-x2"
+      ],
+      "x": 0,
+      "y": 2,
+      "conditioned": [],
+      "status": "undetermined",
+      "reason": "a conflict mark records that the orientation at 1 is unknown; the path is neither discarded nor asserted"
+    }
   ]
 }

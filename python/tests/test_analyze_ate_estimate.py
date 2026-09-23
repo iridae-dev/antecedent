@@ -11,11 +11,9 @@ from __future__ import annotations
 import math
 import random
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _confounded_scm(n: int = 800, seed: int = 5):
@@ -114,20 +112,64 @@ def test_analyze_iv_2sls_smoke():
     assert np.isfinite(result.ate)
 
 
-def test_analyze_frontdoor_smoke():
-    rng = random.Random(4)
-    n = 900
-    t = np.array([1.0 if rng.random() < 0.5 else 0.0 for _ in range(n)], dtype=np.float64)
-    m = t + np.array([rng.gauss(0, 0.4) for _ in range(n)], dtype=np.float64)
-    y = m + np.array([rng.gauss(0, 0.4) for _ in range(n)], dtype=np.float64)
-    result = antecedent.analyze(
-        {"t": t, "m": m, "y": y},
+def _frontdoor_interaction_table() -> dict[str, np.ndarray]:
+    """Exact 4000-row table of U~Bern(.5), P(T=1|U)=.1+.5U, P(M=1|T)=.1+.7T,
+    P(Y=1|M,U)=.05+.9MU with U dropped; the enumerated effect is 0.7*0.9*0.5 = 0.315."""
+    rows: list[tuple[float, float, float]] = []
+    for u in (0.0, 1.0):
+        for t in (0.0, 1.0):
+            pt = 0.1 + 0.5 * u if t else 0.9 - 0.5 * u
+            for m in (0.0, 1.0):
+                pm = 0.1 + 0.7 * t if m else 0.9 - 0.7 * t
+                for y in (0.0, 1.0):
+                    py1 = 0.05 + 0.9 * m * u
+                    py = py1 if y else 1.0 - py1
+                    rows += [(t, m, y)] * round(0.5 * pt * pm * py * 4000)
+    assert len(rows) == 4000
+    arr = np.array(rows, dtype=np.float64)
+    return {"t": arr[:, 0].copy(), "m": arr[:, 1].copy(), "y": arr[:, 2].copy()}
+
+
+def _analyze_frontdoor(estimator: str):
+    return antecedent.analyze(
+        _frontdoor_interaction_table(),
         graph=[("t", "m"), ("m", "y")],
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         identifier="frontdoor",
-        estimator="frontdoor.two_stage",
-        bootstrap=5,
+        estimator=estimator,
+        bootstrap=0,
         seed=1,
         refute=False,
     )
-    assert np.isfinite(result.ate)
+
+
+def test_analyze_frontdoor_functional_matches_enumerated_truth():
+    result = _analyze_frontdoor(str(antecedent.Estimator.FRONTDOOR_FUNCTIONAL))
+    assert abs(result.ate - 0.315) < 1e-12
+    assert result.estimate.se_analytic > 0.0
+    assert any("frontdoor.functional.saturated_cells" in a for a in result.assumptions or [])
+
+
+def test_analyze_frontdoor_linear_two_stage_converges_to_its_own_limit():
+    # The latent modifies the mediator effect, so the product of coefficients lands on
+    # 0.3631 (variance-weighted within-arm slope times 0.7), not the effect 0.315.
+    result = _analyze_frontdoor(str(antecedent.Estimator.FRONTDOOR_LINEAR_TWO_STAGE))
+    assert abs(result.ate - 0.3631) < 1e-3
+    assert any("frontdoor.linear_path_product" in a for a in result.assumptions or [])
+
+
+def test_lagged_prediction_is_labelled_conditional_not_interventional():
+    # U_t drives X_t and Y_{t+1}; X has no effect on Y, so E[Y | do(X=1)] = 0 while the
+    # association E[Y_t | X_{t-1}=1] = Var(U)/Var(X) = 0.8. The helper can only see the latter.
+    from antecedent import model
+
+    rng = np.random.default_rng(11)
+    n = 20_000
+    u = rng.normal(size=n)
+    x = u + 0.5 * rng.normal(size=n)
+    y = np.concatenate([[0.0], u[:-1]]) + 0.5 * rng.normal(size=n)
+    summary = model.predict_conditional_summary(["x", "y"], [x, y], "y", "x", level=1.0)
+    assert abs(summary.mean_prediction - 0.8) < 0.03
+    assert not hasattr(model, "predict_intervened_summary")
+    with pytest.raises(Exception, match="finite"):
+        model.predict_conditional_summary(["x", "y"], [x, y], "y", "x", level=float("nan"))

@@ -1,11 +1,12 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "independent_reimplementation",
     "project": "clean-room closed-form two-predictor batch OLS",
     "algorithm": "rebuild each trailing window; solve the 2x2 normal equations analytically; recompute residual summaries directly",
     "pin": "fixture-algorithm-v1",
     "python": "3.12.7",
-    "command": "python3 /tmp/antecedent_rolling_diagnostics_oracle.py",
+    "command": "python3 /tmp/antecedent_rolling_diagnostics_oracle.py", "generator_retained": false,
     "generation_location": "temporary external harness; deleted after artifact import",
     "dependencies": "Python standard library only"
   },

@@ -5,18 +5,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::type_complexity
+#![allow(clippy::too_many_lines, clippy::type_complexity)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_blocks_for_frame};
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::{
@@ -29,7 +30,7 @@ use crate::error::DiscoveryError;
 use crate::evidence::graph_evidence_from_scored_with_sepsets;
 use crate::result::{
     AlgorithmRecord, DagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord,
-    LaggedLink, PcSepsets, ScoredLink,
+    LaggedLink, PcSepsets, ScoredLink, discovery_assumptions,
 };
 
 /// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
@@ -79,8 +80,13 @@ pub struct DiscoveryWorkspace {
     pub compact_values: Vec<f64>,
     /// Involved-column scratch for keep-mask construction.
     pub involved_cols: Vec<usize>,
-    /// Cache: sorted involved column indexes → keep mask.
-    pub keep_cache: HashMap<Vec<usize>, Arc<[bool]>>,
+    /// Cache: (frame row count, sorted involved column indexes) → keep mask.
+    ///
+    /// The row count is part of the key, not just the columns: this workspace is reused across
+    /// calls whose lagged frames can differ in row count (e.g. one bootstrap replicate's frame
+    /// against the next in [`crate::rpcmci::Rpcmci::run`]), and a mask cached for a larger frame
+    /// would otherwise be replayed against a smaller one and read past its rows.
+    pub keep_cache: HashMap<(usize, Vec<usize>), Arc<[bool]>>,
 }
 
 /// Shared PCMCI engine core.
@@ -169,34 +175,13 @@ impl PcmciEngine {
             };
             compiled.allows(link)
         });
-        if let Some(max_p) = self.constraints.max_parents {
-            // Never drop required parents when truncating.
-            let mut required: Vec<_> = parents
-                .iter()
-                .copied()
-                .filter(|&(src, slag)| {
-                    compiled.requires(LaggedLink {
-                        source: src,
-                        source_lag: slag,
-                        target,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    })
-                })
-                .collect();
-            let mut optional: Vec<_> =
-                parents.iter().copied().filter(|p| !required.contains(p)).collect();
-            let room = max_p.saturating_sub(required.len());
-            optional.truncate(room);
-            required.extend(optional);
-            parents = required;
-        }
         let mut ci_tests = 0u64;
         let max_cond = self.constraints.max_cond_size;
         // PC1 strength ranking: minimum |statistic| across the levels a candidate survived.
         let mut min_stat = vec![f64::INFINITY; parents.len()];
         for cond_size in 0..=max_cond {
             if ctx.cancellation.is_cancelled() {
-                break;
+                return Err(DiscoveryError::Cancelled);
             }
             // A level-q test needs q other candidates to condition on.
             if parents.is_empty() || parents.len() <= cond_size {
@@ -207,10 +192,10 @@ impl PcmciEngine {
                 p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
-            // Multi-query CI batches salt permutation RNGs by batch index. Sequential
-            // `ci_statistic` always used a 1-query batch (salt 0). Keep that salt for
-            // BlockShuffle so parent selection stays bit-identical to 0.6.0; Analytic
-            // ignores the salt and benefits from the batched statistic path.
+            // Permutation nulls are keyed by the query (x, y, sorted Z), not by its position in
+            // a batch, so a batched and a sequential BlockShuffle p-value agree. BlockShuffle
+            // stays on the sequential path here; Analytic benefits from the batched statistic
+            // path.
             let use_batch = frame.is_fully_valid()
                 && !matches!(
                     self.constraints.significance,
@@ -230,7 +215,7 @@ impl PcmciEngine {
             } else {
                 for pi in 0..parents.len() {
                     if ctx.cancellation.is_cancelled() {
-                        break;
+                        return Err(DiscoveryError::Cancelled);
                     }
                     let (src, slag) = parents[pi];
                     // Single strongest-q conditioning set: candidates are kept sorted by
@@ -287,6 +272,24 @@ impl PcmciEngine {
             }
             sort_by_strength(&mut parents, &mut min_stat);
         }
+        // `max_parents` caps the *surviving* parents, strongest first (the reference PCMCI+
+        // implementation's `max_conds_py`), never the candidate list: truncating candidates by enumeration
+        // order would decide by variable index which links are ever tested. Required
+        // parents are exempt from the cap.
+        if let Some(max_p) = self.constraints.max_parents {
+            let n_required = parents
+                .iter()
+                .filter(|&&(src, slag)| compiled.requires(link_to_target(src, slag, target)))
+                .count();
+            let mut room = max_p.saturating_sub(n_required);
+            parents.retain(|&(src, slag)| {
+                compiled.requires(link_to_target(src, slag, target)) || {
+                    let keep = room > 0;
+                    room = room.saturating_sub(1);
+                    keep
+                }
+            });
+        }
         Ok((parents, ci_tests))
     }
 
@@ -304,7 +307,7 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<u64, DiscoveryError> {
         if ctx.cancellation.is_cancelled() {
-            return Ok(0);
+            return Err(DiscoveryError::Cancelled);
         }
         let mut queries = Vec::with_capacity(parents.len());
         let mut z_flat = Vec::new();
@@ -435,12 +438,53 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
-        let max_lag = self.constraints.temporal.max_lag.raw();
-        // Align with pinned baseline's default `cut_off='2xtau_max'`: both PC and MCI use a
-        // frame materializing lags up to 2·max_lag (same effective sample count).
-        let frame_depth = 2 * max_lag;
-        let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-            .map_err(DiscoveryError::from)?;
+        let frame =
+            LaggedFrame::from_series(data, variables, self.frame_depth(), &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
+        self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// [`Self::run_pc_mci`] over the units of a panel: each unit's lag windows are built inside
+    /// that unit ([`LaggedFrame::from_panel`]) and the rows are pooled, so a unit boundary never
+    /// supplies a lagged parent. The pooled design is the lagged design of one structural model
+    /// shared by exchangeable units.
+    ///
+    /// # Errors
+    ///
+    /// Data / CI / graph construction / memory-budget failures.
+    pub fn run_pc_mci_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        let frame =
+            LaggedFrame::from_panel(units, variables, self.frame_depth(), &ctx.kernel_policy)
+                .map_err(DiscoveryError::from)?;
+        self.run_pc_mci_on_frame(&frame, variables, workspace, ctx)
+    }
+
+    /// Depth of the lagged frame PC and MCI both run on.
+    ///
+    /// Aligned with the pinned baseline's default `cut_off='2xtau_max'`: both use a frame
+    /// materializing lags up to `2·max_lag` (same effective sample count).
+    pub(crate) fn frame_depth(&self) -> u32 {
+        2 * self.constraints.temporal.max_lag.raw()
+    }
+
+    /// [`Self::run_pc_mci`] on a pre-built lagged frame of depth `Self::frame_depth`.
+    ///
+    /// # Errors
+    ///
+    /// Data / CI / graph construction / memory-budget failures.
+    pub fn run_pc_mci_on_frame(
+        &self,
+        frame: &LaggedFrame,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
         if let Some(hard) = ctx.memory.hard_limit_bytes {
             if frame.values_bytes() > hard {
                 return Err(DiscoveryError::Unsupported {
@@ -453,9 +497,16 @@ impl PcmciEngine {
             &self.ci,
             &self.column_blocks,
             &self.constraints.vector_groups,
-            &frame,
+            frame,
             variables,
         )?;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*ci,
+            self.constraints.significance,
+            self.constraints.alpha,
+            false,
+        )?;
+        crate::ci::ensure_ci_fits_frame(&*ci, frame)?;
         let engine = PcmciEngine { constraints: self.constraints.clone(), ci, column_blocks };
 
         let threads = ctx.parallelism.max_threads.get().max(1);
@@ -476,11 +527,13 @@ impl PcmciEngine {
         }
 
         let (all_parents, iterations, mut ci_tests) =
-            engine.select_parents_all(&frame, &search_vars, &compiled, workspace, ctx, threads)?;
+            engine.select_parents_all(frame, &search_vars, &compiled, workspace, ctx, threads)?;
 
         let mut scored = Vec::new();
-        let (mci_tests, truncated) = engine.mci_all(
-            &frame,
+        // MCI conditioning that overflows the column cap is refused (`refuse_truncated_mci`),
+        // so a successful run never carries a truncated test.
+        let (mci_tests, _) = engine.mci_all(
+            frame,
             &search_vars,
             &compiled,
             &all_parents,
@@ -503,22 +556,12 @@ impl PcmciEngine {
         };
         let review = TemporalGraphReview::from_graph(evidence.graph.clone(), algorithm.id.clone());
         let n_links = evidence.links.len() as u64;
-        let mut diagnostics = Vec::new();
-        if truncated > 0 {
-            diagnostics.push(crate::result::DiscoveryDiagnostic {
-                code: Arc::from("mci.conditioning_truncated"),
-                message: Arc::from(format!(
-                    "MCI conditioning sets dropped {truncated} weakest condition(s) at the \
-                     {MAX_CI_COLS}-column cap; statistics for the affected links use a \
-                     reduced conditioning set"
-                )),
-            });
-        }
+        let diagnostics = Vec::new();
         Ok(DagDiscoveryResult {
             evidence,
             review,
             algorithm,
-            assumptions: AssumptionSet::new(),
+            assumptions: discovery_assumptions("pcmci", true),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
@@ -573,7 +616,9 @@ impl PcmciEngine {
             (0..n).map(|_| None).collect();
 
         let prepared_ci = workspace.prepared_ci.clone();
+        let mut worker_panicked = false;
         std::thread::scope(|scope| {
+            let mut handles = Vec::new();
             let mut rest = slots.as_mut_slice();
             let mut cursor = 0usize;
             for (start, end) in chunk_ranges(n, threads) {
@@ -582,7 +627,7 @@ impl PcmciEngine {
                 let chunk_vars = &variables[start..end];
                 let engine = self;
                 let prepared_ci = prepared_ci.clone();
-                scope.spawn(move || {
+                handles.push(scope.spawn(move || {
                     let mut local_ws =
                         DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
                     for (i, &target) in chunk_vars.iter().enumerate() {
@@ -604,11 +649,20 @@ impl PcmciEngine {
                                 }),
                         );
                     }
-                });
+                }));
                 rest = next;
                 cursor = end;
             }
+            // A panicking worker becomes an error, not a panic across the FFI boundary.
+            for h in handles {
+                worker_panicked |= h.join().is_err();
+            }
         });
+        if worker_panicked {
+            return Err(DiscoveryError::Unsupported {
+                message: "parent-selection worker panicked",
+            });
+        }
 
         let mut all_parents = Vec::with_capacity(n);
         let mut iterations = Vec::with_capacity(n);
@@ -699,7 +753,9 @@ impl PcmciEngine {
                 }));
             }
             for h in handles {
-                partials.push(Some(h.join().expect("MCI worker panicked")));
+                partials.push(Some(h.join().unwrap_or({
+                    Err(DiscoveryError::Unsupported { message: "MCI worker panicked" })
+                })));
             }
         });
 
@@ -736,6 +792,9 @@ impl PcmciEngine {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ScoredLink>, u64), DiscoveryError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
         let mut candidates = self.constraints.candidate_sources(variables, target);
         candidates.retain(|&(src, slag)| compiled.allows(link_to_target(src, slag, target)));
         if candidates.is_empty() {
@@ -747,6 +806,9 @@ impl PcmciEngine {
             let mut scored = Vec::with_capacity(candidates.len());
             let mut truncated = 0u64;
             for &(src, slag) in &candidates {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
                 let link = link_to_target(src, slag, target);
                 let src_parents = parents_of(all_parents, src);
                 let (s, trunc) =
@@ -929,11 +991,11 @@ impl PcmciEngine {
         workspace.involved_cols.sort_unstable();
         workspace.involved_cols.dedup();
 
+        let frame_n = if frame.ncols() == 0 { 0 } else { frame.column(0).len() };
         let keep = if workspace.involved_cols.is_empty() {
-            let n = if frame.ncols() == 0 { 0 } else { frame.column(0).len() };
-            Arc::from(vec![true; n])
+            Arc::from(vec![true; frame_n])
         } else {
-            let key = workspace.involved_cols.clone();
+            let key = (frame_n, workspace.involved_cols.clone());
             if let Some(cached) = workspace.keep_cache.get(&key) {
                 Arc::clone(cached)
             } else {
@@ -1127,9 +1189,11 @@ fn link_to_target(src: VariableId, slag: Lag, target: VariableId) -> LaggedLink 
     LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS }
 }
 
-/// Build the MCI conditioning set for `link` into `out`: parents of the target minus the
-/// link endpoints, then parents of the source *time-shifted by the source lag* (a parent
-/// `(v, l)` of `X_t` is `(v, l+τ)` for `X_{t−τ}`). Both inputs are strongest-first, so the
+/// Build the MCI conditioning set for `link` into `out`: parents of the target and of the
+/// source, each *time-shifted by its endpoint's lag* (a parent `(v, l)` of `X_t` is
+/// `(v, l+τ)` for `X_{t−τ}`), minus the link endpoints. Parent sets are keyed to lag 0. The
+/// target shift is zero for every skeleton-phase link (`Y_t`); it matters when a caller tests a
+/// pair whose later node is the source. Both inputs are strongest-first, so the
 /// `MAX_CI_COLS` truncation keeps the strongest conditions; returns how many were dropped.
 pub(crate) fn mci_conditioning(
     link: LaggedLink,
@@ -1140,7 +1204,12 @@ pub(crate) fn mci_conditioning(
     out.clear();
     let src_key = (link.source, link.source_lag);
     let tgt_key = (link.target, link.target_lag);
-    out.extend(parents_target.iter().copied().filter(|p| *p != src_key && *p != tgt_key));
+    for &(v, l) in parents_target {
+        let shifted = (v, Lag::from_raw(l.raw() + link.target_lag.raw()));
+        if !out.contains(&shifted) && shifted != src_key && shifted != tgt_key {
+            out.push(shifted);
+        }
+    }
     for &(v, l) in parents_source {
         let shifted = (v, Lag::from_raw(l.raw() + link.source_lag.raw()));
         if !out.contains(&shifted) && shifted != src_key && shifted != tgt_key {

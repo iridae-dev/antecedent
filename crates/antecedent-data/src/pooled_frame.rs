@@ -5,7 +5,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -126,7 +132,7 @@ pub fn pool_multi_env_lagged_frame(
     }
     let mut pooled = LaggedFrame::stack(&frames)?;
 
-    let next_id = next_synthetic_id(variables);
+    let next_id = next_synthetic_id(variables, data.schema().len());
     let mut space_dummies = Vec::new();
     let mut time_dummies = Vec::new();
     let mut cursor = next_id;
@@ -227,8 +233,11 @@ fn effective_raw_times(
     Ok(times)
 }
 
-fn next_synthetic_id(variables: &[VariableId]) -> u32 {
-    variables.iter().map(|v| v.raw()).max().map_or(0, |m| m.saturating_add(1))
+/// First id for synthetic dummy columns: past every requested id and past the whole
+/// schema, so a dummy can never carry the id of a real (merely un-requested) variable.
+fn next_synthetic_id(variables: &[VariableId], schema_len: usize) -> u32 {
+    let past_requested = variables.iter().map(|v| v.raw()).max().map_or(0, |m| m.saturating_add(1));
+    past_requested.max(u32::try_from(schema_len).unwrap_or(u32::MAX))
 }
 
 #[cfg(test)]
@@ -268,6 +277,32 @@ mod tests {
         assert!(pooled.time_dummy_variables.is_empty());
     }
 
+    /// Requesting a subset of the schema must not let a dummy alias a real, un-requested
+    /// variable: with 3 schema variables and only variable 0 requested, dummies start at 3.
+    #[test]
+    fn dummy_ids_start_above_the_whole_schema() {
+        let multi = MultiEnvironmentData::try_new(Arc::from([
+            float_series(16, 3),
+            float_series(16, 3),
+            float_series(16, 3),
+        ]))
+        .unwrap();
+        let pooled = pool_multi_env_lagged_frame(
+            &multi,
+            &[VariableId::from_raw(0)],
+            2,
+            DummyOptions {
+                include_space_dummy: true,
+                include_time_dummy: false,
+                ..DummyOptions::default()
+            },
+            &KernelPolicy::default_policy(),
+        )
+        .unwrap();
+        let ids: Vec<u32> = pooled.space_dummy_variables.iter().map(|v| v.raw()).collect();
+        assert_eq!(ids, vec![3, 4]);
+    }
+
     #[test]
     fn space_dummy_one_hot_m_minus_1() {
         let a = float_series(16, 2);
@@ -295,6 +330,33 @@ mod tests {
         assert!((col[13] - 1.0).abs() < 1e-12);
         // Second env: 0.0 for first hot column
         assert!((col[14]).abs() < 1e-12);
+    }
+
+    #[test]
+    fn dummies_never_alias_unrequested_schema_variables() {
+        // Schema has variables 0..4 but only 0 and 1 are pooled: the space dummy
+        // must not take the id of the real variables 2 or 3.
+        let multi =
+            MultiEnvironmentData::try_new(Arc::from([float_series(16, 4), float_series(16, 4)]))
+                .unwrap();
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let pooled = pool_multi_env_lagged_frame(
+            &multi,
+            &vars,
+            2,
+            DummyOptions {
+                include_space_dummy: true,
+                include_time_dummy: true,
+                time_dummy_encoding: TimeDummyEncoding::IntegerIndex,
+                ..DummyOptions::default()
+            },
+            &KernelPolicy::default_policy(),
+        )
+        .unwrap();
+        assert_eq!(pooled.space_dummy_variables.as_ref(), &[VariableId::from_raw(4)]);
+        assert_eq!(pooled.time_dummy_variables.as_ref(), &[VariableId::from_raw(5)]);
+        assert!(pooled.is_dummy(VariableId::from_raw(4)));
+        assert!(!pooled.is_dummy(VariableId::from_raw(2)));
     }
 
     #[test]

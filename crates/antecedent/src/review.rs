@@ -8,7 +8,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::{ExecutionContext, TemporalEffectQuery};
 use antecedent_data::{DiscoveryEstimationSplit, TemporalNodeKey, TimeSeriesData};
@@ -155,6 +161,10 @@ fn edge_in_graph(graph: &TemporalDag, from: TemporalNodeKey, to: TemporalNodeKey
     let mut from_id = None;
     let mut to_id = None;
     for i in 0..graph.nodes().len() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+        )]
         let id = DenseNodeId::from_raw(i as u32);
         if let Some(k) = graph.temporal_key(id) {
             if k == from {

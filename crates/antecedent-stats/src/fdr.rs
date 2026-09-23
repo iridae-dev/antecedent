@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 /// Multiple-testing adjustment procedure.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum MultipleTestingMethod {

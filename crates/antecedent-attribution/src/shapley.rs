@@ -6,7 +6,7 @@ use antecedent_core::{
     AllocationMethod, CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode,
 };
 use antecedent_kernels::shuffle;
-use antecedent_stats::student_t_ppf;
+use antecedent_stats::{Welford, student_t_ppf};
 
 use crate::coalition::{CoalitionCache, CoalitionKey};
 use crate::error::AttributionError;
@@ -33,9 +33,16 @@ pub struct ShapleyEstimate {
     pub interactions: Vec<InteractionTerm>,
     /// Compute budget.
     pub budget: ComputeBudget,
-    /// Mean Monte Carlo stderr across players (approx modes only).
+    /// Mean across players of the permutation-sampling standard error (approx modes only).
     pub monte_carlo_stderr: Option<f64>,
-    /// Per-player MC stderr.
+    /// Per-player permutation-sampling standard error: the spread of one player's marginal
+    /// contribution across the sampled permutations, divided by `√permutations`.
+    ///
+    /// It quantifies only the error from sampling permutations *given the payoff values*.
+    /// It excludes Monte Carlo noise inside each coalition value `v(S)` and, for
+    /// data-fitted payoffs, all estimation uncertainty from fitting the mechanisms; an
+    /// additive game has zero permutation variance however noisy `v` is. `None` (exact
+    /// mode, sequential allocation) means *not quantified*, not zero.
     pub component_mc_stderr: Option<Vec<f64>>,
     /// Cache stats.
     pub cache_stats: CacheStats,
@@ -44,7 +51,10 @@ pub struct ShapleyEstimate {
 impl ShapleyEstimate {
     /// Convert to component contributions.
     ///
-    /// CIs use a Student-t critical value with `n_samples - 1` degrees of freedom (from
+    /// `ci_low`/`ci_high` are the *permutation-sampling* interval
+    /// `contribution ± t · component_mc_stderr` (see that field for what it excludes); they
+    /// are not a confidence interval for the underlying change attribution. The interval
+    /// uses a Student-t critical value with `n_samples - 1` degrees of freedom (from
     /// [`ComputeBudget::samples`]) rather than a fixed asymptotic `z = 1.96`: Monte Carlo /
     /// permutation Shapley runs often use modest sample counts, where the normal
     /// approximation understates interval width. Exact mode never populates `stderr`
@@ -176,6 +186,27 @@ pub(crate) fn check_coalition_sample_budget(
     Ok(())
 }
 
+/// Largest player count for which exact mode keeps a dense `2^k` value table (`8 · 2^k`
+/// bytes, 128 MiB at the limit). Beyond it the walk is lazy and leans on the cache.
+const MAX_DENSE_TABLE_PLAYERS: usize = 24;
+
+/// Value of coalition `mask`, through the semantic cache.
+fn evaluate_coalition<P: CoalitionPayoff>(
+    mask: u64,
+    payoff: &mut P,
+    cache: &mut CoalitionCache,
+    budget: &mut ComputeBudget,
+) -> Result<f64, AttributionError> {
+    let key = CoalitionKey { mask, tag: 0 };
+    if let Some(v) = cache.get(key) {
+        return Ok(v);
+    }
+    let v = payoff.value(mask)?;
+    budget.evaluations += 1;
+    cache.insert(key, v);
+    Ok(v)
+}
+
 /// Estimate Shapley values for `players` under `payoff`.
 ///
 /// Uses a semantic [`CoalitionCache`] keyed by coalition mask. Approximate
@@ -203,20 +234,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     }
     let mut budget = ComputeBudget::default();
 
-    let eval = |mask: u64,
-                payoff: &mut P,
-                cache: &mut CoalitionCache,
-                budget: &mut ComputeBudget|
-     -> Result<f64, AttributionError> {
-        let key = CoalitionKey { mask, tag: 0 };
-        if let Some(v) = cache.get(key) {
-            return Ok(v);
-        }
-        let v = payoff.value(mask)?;
-        budget.evaluations += 1;
-        cache.insert(key, v);
-        Ok(v)
-    };
+    let eval = evaluate_coalition::<P>;
 
     match config.mode {
         ShapleyMode::Exact => {
@@ -224,23 +242,65 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
             budget.exact_coalitions = n_coalitions;
             let mut phi = vec![0.0; n];
             let fact = factorial_weights(n);
-            for mask in 0..n_coalitions {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(AttributionError::Cancelled);
-                }
-                if let Some(p) = &ctx.progress {
-                    #[allow(clippy::cast_precision_loss)]
-                    p.report(mask as f64 / n_coalitions as f64, "shapley");
-                }
-                let v_s = eval(mask, payoff, &mut cache, &mut budget)?;
-                for i in 0..n {
-                    let bit = 1u64 << i;
-                    if mask & bit != 0 {
-                        continue;
+            if n <= MAX_DENSE_TABLE_PLAYERS {
+                // Evaluate every coalition exactly once into a dense table, whatever the
+                // cache policy: with the cache off (or saturated) the lazy walk below
+                // re-evaluates each `v(S ∪ {i})` and costs up to `2^k (1 + k/2)` payoff calls,
+                // which `check_coalition_sample_budget` (2^k) does not account for.
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                )]
+                let mut table = Vec::with_capacity(n_coalitions as usize);
+                for mask in 0..n_coalitions {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(AttributionError::Cancelled);
                     }
-                    let v_si = eval(mask | bit, payoff, &mut cache, &mut budget)?;
+                    if let Some(p) = &ctx.progress {
+                        #[allow(clippy::cast_precision_loss)]
+                        p.report(mask as f64 / n_coalitions as f64, "shapley");
+                    }
+                    table.push(eval(mask, payoff, &mut cache, &mut budget)?);
+                }
+                for mask in 0..n_coalitions {
+                    #[allow(
+                        clippy::cast_possible_truncation,
+                        reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                    )]
+                    let v_s = table[mask as usize];
                     let s = (mask.count_ones()) as usize;
-                    phi[i] += fact[s] * (v_si - v_s);
+                    for i in 0..n {
+                        let bit = 1u64 << i;
+                        if mask & bit != 0 {
+                            continue;
+                        }
+                        #[allow(
+                            clippy::cast_possible_truncation,
+                            reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                        )]
+                        let v_with_i = table[(mask | bit) as usize];
+                        phi[i] += fact[s] * (v_with_i - v_s);
+                    }
+                }
+            } else {
+                for mask in 0..n_coalitions {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(AttributionError::Cancelled);
+                    }
+                    if let Some(p) = &ctx.progress {
+                        #[allow(clippy::cast_precision_loss)]
+                        p.report(mask as f64 / n_coalitions as f64, "shapley");
+                    }
+                    let v_s = eval(mask, payoff, &mut cache, &mut budget)?;
+                    for i in 0..n {
+                        let bit = 1u64 << i;
+                        if mask & bit != 0 {
+                            continue;
+                        }
+                        let v_si = eval(mask | bit, payoff, &mut cache, &mut budget)?;
+                        let s = (mask.count_ones()) as usize;
+                        phi[i] += fact[s] * (v_si - v_s);
+                    }
                 }
             }
             Ok(ShapleyEstimate {
@@ -256,15 +316,11 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
         ShapleyMode::MonteCarlo { n_samples } => {
             budget.samples = n_samples as u64;
             let mut rng = CausalRng::from_seed(config.seed);
-            let mut phi = vec![0.0; n];
-            // Welford's online sum-of-squared-deviations (from the running mean),
-            // accumulated per sample. Numerically stable vs. the naive two-pass
-            // `E[X^2] - E[X]^2` form, which suffers catastrophic cancellation when
-            // the mean is large relative to the variance.
-            let mut phi_m2 = vec![0.0; n];
+            // Per-player Welford accumulators over the sampled permutations (stable when a
+            // marginal's mean is large relative to its spread).
+            let mut acc = vec![Welford::new(); n];
             let mut completed = 0u64;
-            // Permutation scratch reused across samples (was two fresh Vecs
-            // per permutation).
+            // Permutation scratch reused across samples.
             let mut order: Vec<usize> = Vec::with_capacity(n);
             let mut sample_phi = vec![0.0; n];
             for _ in 0..n_samples {
@@ -285,24 +341,23 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     v_prev = v_new;
                 }
                 completed += 1;
-                let cf = completed as f64;
-                for i in 0..n {
-                    let delta = sample_phi[i] - phi[i];
-                    phi[i] += delta / cf;
-                    let delta2 = sample_phi[i] - phi[i];
-                    phi_m2[i] += delta * delta2;
+                for (a, &x) in acc.iter_mut().zip(&sample_phi) {
+                    a.push(x);
                 }
                 if let Some(p) = &ctx.progress {
                     #[allow(clippy::cast_precision_loss)]
                     p.report(completed as f64 / n_samples as f64, "shapley");
                 }
             }
-            if completed == 0 {
+            // Exact mode refuses on cancellation; a permutation estimate stopped early is
+            // likewise not the estimate that was asked for, so it is refused rather than
+            // returned as `Ok` with a smaller sample count nobody is told to check.
+            if completed < n_samples as u64 {
                 return Err(AttributionError::Cancelled);
             }
             budget.samples = completed;
-            let ns = completed as f64;
-            let phi2: Vec<f64> = phi_m2.iter().map(|&m2| mc_stderr_of_mean(m2, ns)).collect();
+            let phi: Vec<f64> = acc.iter().map(Welford::mean).collect();
+            let phi2: Vec<f64> = acc.iter().map(Welford::stderr_of_mean).collect();
             let mean_se = phi2.iter().sum::<f64>() / n as f64;
             Ok(ShapleyEstimate {
                 players: players.to_vec(),
@@ -344,20 +399,7 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
     cache.enable_dense_index(order.len());
     let mut budget = ComputeBudget::default();
-    let eval = |mask: u64,
-                payoff: &mut P,
-                cache: &mut CoalitionCache,
-                budget: &mut ComputeBudget|
-     -> Result<f64, AttributionError> {
-        let key = CoalitionKey { mask, tag: 0 };
-        if let Some(v) = cache.get(key) {
-            return Ok(v);
-        }
-        let v = payoff.value(mask)?;
-        budget.evaluations += 1;
-        cache.insert(key, v);
-        Ok(v)
-    };
+    let eval = evaluate_coalition::<P>;
     let mut mask = 0u64;
     let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
     let mut values = Vec::with_capacity(order.len());
@@ -412,21 +454,6 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     })
 }
 
-/// Bessel-corrected standard error of a Monte Carlo mean, given the running
-/// sum of squared deviations from the mean (`m2`, e.g. Welford's `M2`) and the
-/// completed sample count `ns`.
-///
-/// The sample variance is `m2 / (ns - 1)` (Bessel-corrected, unbiased); the SE of
-/// the mean is `sqrt(sample_var / ns) == sqrt(m2 / (ns * (ns - 1)))`. Undefined for
-/// `ns < 2` (a single draw has no sample variance) — returns `f64::INFINITY`,
-/// matching `antecedent_design::ranker::mc_stderr`'s convention for `n < 2`.
-fn mc_stderr_of_mean(m2: f64, ns: f64) -> f64 {
-    if ns < 2.0 {
-        return f64::INFINITY;
-    }
-    (m2 / (ns * (ns - 1.0))).sqrt()
-}
-
 fn factorial_weights(n: usize) -> Vec<f64> {
     // w(s) = s! * (n-s-1)! / n!
     let mut fact = vec![1.0; n + 1];
@@ -473,7 +500,8 @@ mod tests {
         assert!((est.values[0] - 1.0).abs() < 1e-9);
         assert!((est.values[1] - 2.0).abs() < 1e-9);
         assert!((est.values[2] - 3.0).abs() < 1e-9);
-        assert!(est.cache_stats.hits > 0 || est.budget.evaluations > 0);
+        // 3 players: 2^3 = 8 distinct coalitions, each evaluated exactly once.
+        assert_eq!(est.budget.evaluations, 8);
     }
 
     #[test]
@@ -529,7 +557,7 @@ mod tests {
         }
     }
 
-    /// E1: `mc_stderr_of_mean` against a known, hand-computed Bessel-corrected
+    /// E1: the per-player standard error against a known, hand-computed Bessel-corrected
     /// reference (not derived from the estimator itself).
     #[test]
     fn monte_carlo_se_matches_bessel_corrected_reference() {
@@ -542,18 +570,20 @@ mod tests {
         let sample_var_ref = m2 / (ns - 1.0); // Bessel-corrected, textbook two-pass.
         assert!((sample_var_ref - 2.5).abs() < 1e-12);
         let se_ref = (sample_var_ref / ns).sqrt();
-        assert!((mc_stderr_of_mean(m2, ns) - se_ref).abs() < 1e-12);
+        let mut acc = Welford::new();
+        draws.iter().for_each(|&x| acc.push(x));
+        assert!((acc.stderr_of_mean() - se_ref).abs() < 1e-12);
 
         // The pre-fix formula (population variance, no Bessel correction, i.e.
         // `sqrt(m2 / ns) / sqrt(ns)`) would instead give `sqrt(m2 / ns^2)` — a
-        // strictly smaller, wrong value. Confirm the fixed helper does not match it.
+        // strictly smaller, wrong value. Confirm the accumulator does not match it.
         let biased_old = (m2 / ns).sqrt() / ns.sqrt();
-        assert!(mc_stderr_of_mean(m2, ns) > biased_old);
+        assert!(acc.stderr_of_mean() > biased_old);
 
-        // n < 2: sample SE is undefined. The biased pre-fix formula would (wrongly)
-        // report exactly 0.0 for a single draw (E[X^2] - E[X]^2 == 0 for one point);
-        // the fix must report +inf instead.
-        assert!(mc_stderr_of_mean(0.0, 1.0).is_infinite());
+        // n < 2: sample SE is undefined and must be +inf, not 0.
+        let mut one = Welford::new();
+        one.push(3.0);
+        assert!(one.stderr_of_mean().is_infinite());
     }
 
     /// E1 end-to-end: with a single Monte Carlo sample, the pre-fix formula
@@ -769,5 +799,55 @@ mod tests {
             "efficiency: sum={sum} v(N)-v(∅)={}",
             v_full - v_empty
         );
+    }
+
+    /// Exact mode evaluates each of the `2^k` coalitions exactly once even with the
+    /// coalition cache off (the `for_tests` default). The lazy walk it replaced made
+    /// `2^k (1 + k/2)` payoff calls there (48 for k = 4), so the sample-budget guard's
+    /// `2^k` assumption held only with a warm cache.
+    #[test]
+    fn exact_mode_evaluates_each_coalition_once_without_a_cache() {
+        struct Counting {
+            calls: u64,
+        }
+        impl CoalitionPayoff for Counting {
+            fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+                self.calls += 1;
+                Ok(f64::from(mask.count_ones()).powi(2))
+            }
+        }
+        let players: Vec<_> = (0..4).map(ComponentId::from_raw).collect();
+        let mut payoff = Counting { calls: 0 };
+        let ctx = ExecutionContext::for_tests(1);
+        let est = estimate_shapley(&players, &ShapleyConfig::exact(), &mut payoff, &ctx).unwrap();
+        assert_eq!(payoff.calls, 16);
+        assert_eq!(est.budget.evaluations, 16);
+        // v(S) = |S|² is symmetric: every player gets v(N)/4 = 16/4 = 4.
+        for v in &est.values {
+            assert!((v - 4.0).abs() < 1e-12, "φ={v}");
+        }
+    }
+
+    /// A Monte Carlo run cancelled before all requested permutations complete is refused,
+    /// like exact mode, instead of returned as `Ok` with fewer samples than asked for.
+    #[test]
+    fn monte_carlo_cancellation_is_refused_not_returned_partial() {
+        struct CancelAfterFirstChain {
+            token: antecedent_core::CancellationToken,
+        }
+        impl CoalitionPayoff for CancelAfterFirstChain {
+            fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+                if mask == 0b1111 {
+                    self.token.cancel();
+                }
+                Ok(f64::from(mask.count_ones()))
+            }
+        }
+        let players: Vec<_> = (0..4).map(ComponentId::from_raw).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let mut payoff = CancelAfterFirstChain { token: ctx.cancellation.clone() };
+        let cfg = ShapleyConfig::monte_carlo(200).with_seed(7);
+        let err = estimate_shapley(&players, &cfg, &mut payoff, &ctx).unwrap_err();
+        assert_eq!(err, AttributionError::Cancelled);
     }
 }

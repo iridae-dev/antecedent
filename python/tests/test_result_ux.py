@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.errors import (
     EffectNotIdentified,
     PendingEdge,
@@ -17,6 +15,8 @@ from antecedent.errors import (
     resolve_display_name,
 )
 from antecedent.results import IdentificationView, ResponseView
+
+from _repo_text import REPO_ROOT, load_json
 
 
 def _ate_result():
@@ -47,11 +47,40 @@ def test_analyze_returns_analysis_and_claim():
         result.as_response()
 
 
+def _cpdag_envelope_result():
+    """A partially identified result: the two MEC completions (0.40, 0.52) disagree."""
+    pin = load_json(REPO_ROOT / "conformance" / "estimate" / "cpdag_ate_envelope" / "expected.json")
+    columns = {name: [] for name in pin["columns"]}
+    for cell in pin["contingency_table"]:
+        for name in columns:
+            columns[name].extend([float(cell[name])] * int(cell["count"]))
+    graph = antecedent.Cpdag.from_directed_undirected(
+        pin["columns"],
+        [tuple(edge) for edge in pin["graph"]["directed_edges"]],
+        [tuple(edge) for edge in pin["graph"]["undirected_edges"]],
+    )
+    return antecedent.analyze(
+        {name: np.asarray(values) for name, values in columns.items()},
+        graph=graph,
+        query=antecedent.AverageEffect("t", "y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+
+
 def test_as_point_refuses_partial_or_unavailable():
-    result = _ate_result()
-    if result.answer.kind != "point":
-        pytest.skip("fixture produced a non-point answer")
-    # Direct constructor path: Identification refuses as a result claim.
+    result = _cpdag_envelope_result()
+    assert result.identification.status == "PartiallyIdentified"
+    assert result.answer.kind in ("bounds", "partial")
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError,
+        match=r"requires answer\.kind='point'; got '(bounds|partial)'",
+    ):
+        result.as_point()
+
+
+def test_identification_claim_and_html():
     ident = antecedent.identify(
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
         query=antecedent.AverageEffect("t", "y"),

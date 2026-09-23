@@ -6,10 +6,10 @@ use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cel
 use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, Intervention, InterventionSequence, MechanismOverride,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    SequencedIntervention, StochasticPolicy, SupportStatus, TemporalPolicy, TemporalResponseSpec,
-    Value, VariableId,
+    IdentificationStatus, IntervalInterpretation, Intervention, InterventionSequence,
+    MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
+    TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::ContinuousResponseEstimator;
@@ -40,6 +40,10 @@ pub(crate) struct ResponseAnalysisResult {
     matrix: Option<Vec<Vec<f64>>>,
     #[pyo3(get)]
     uncertainty_kind: String,
+    /// `"confidence"` or `"credible"` for an interval-bearing uncertainty (a credible
+    /// interval's `standard_error` is a posterior standard deviation); `None` otherwise.
+    #[pyo3(get)]
+    interval_interpretation: Option<String>,
     #[pyo3(get)]
     lower: Option<Vec<Vec<f64>>>,
     #[pyo3(get)]
@@ -132,7 +136,7 @@ pub(crate) struct ResponseAnalysisResult {
     order=1, scale="identity", weighting="observed", bandwidth=None,
     simultaneous_replicates=None, confidence_level=0.95,
     multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false, accepted=false,
-    refute=None
+    refute=None, seed=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_response(
@@ -158,6 +162,7 @@ fn analyze_response(
     export_row_diagnostics: bool,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
 ) -> PyResult<ResponseAnalysisResult> {
     let suite = match refute.as_ref() {
         None => RefuteSuite::None,
@@ -204,7 +209,7 @@ fn analyze_response(
             .bootstrap_replicates(0)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(1, crate::resolve_user_threads(None));
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
         crate::prepared_api::response_from_study(&names, &result)
@@ -358,6 +363,7 @@ fn analyze_response_pag(
             scalar: None,
             matrix: None,
             uncertainty_kind: "identified_set".into(),
+            interval_interpretation: None,
             lower: Some(lower_rows),
             upper: Some(upper_rows),
             level: None,
@@ -714,9 +720,11 @@ pub(crate) fn response_result(
         standard_error,
         replicates,
         artifact_id,
+        mut interval_interpretation,
     ) = uncertainty_parts(response.uncertainty);
     if let Some(envelope) = identified_set {
         uncertainty_kind = "identified_set".into();
+        interval_interpretation = None;
         lower = Some(envelope.lower.iter().map(|value| vec![*value]).collect());
         upper = Some(envelope.upper.iter().map(|value| vec![*value]).collect());
         level = None;
@@ -739,6 +747,7 @@ pub(crate) fn response_result(
         scalar,
         matrix,
         uncertainty_kind,
+        interval_interpretation,
         lower,
         upper,
         level,
@@ -974,13 +983,17 @@ type UncertaintyParts = (
     Option<f64>,
     Option<u32>,
     Option<String>,
+    Option<String>,
 );
 
 fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     let rows = |values: Arc<[f64]>| values.iter().map(|value| vec![*value]).collect();
+    let tag = |interpretation: IntervalInterpretation| Some(interpretation.as_str().to_owned());
     match value {
-        ResponseUncertainty::None => ("none".into(), None, None, None, None, None, None),
-        ResponseUncertainty::Scalar { standard_error, level, lower, upper } => (
+        ResponseUncertainty::None => ("none".into(), None, None, None, None, None, None, None),
+        ResponseUncertainty::Scalar {
+            standard_error, level, lower, upper, interpretation, ..
+        } => (
             "pointwise".into(),
             Some(vec![vec![lower]]),
             Some(vec![vec![upper]]),
@@ -988,8 +1001,9 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
             Some(standard_error),
             None,
             None,
+            tag(interpretation),
         ),
-        ResponseUncertainty::PointwiseBand { level, lower, upper } => (
+        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation, .. } => (
             "pointwise".into(),
             Some(rows(lower)),
             Some(rows(upper)),
@@ -997,8 +1011,15 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
             None,
             None,
             None,
+            tag(interpretation),
         ),
-        ResponseUncertainty::SimultaneousBand { level, lower, upper, replicates } => (
+        ResponseUncertainty::SimultaneousBand {
+            level,
+            lower,
+            upper,
+            replicates,
+            interpretation,
+        } => (
             "simultaneous".into(),
             Some(rows(lower)),
             Some(rows(upper)),
@@ -1006,8 +1027,14 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
             None,
             Some(replicates),
             None,
+            tag(interpretation),
         ),
-        ResponseUncertainty::IdentifiedEnvelopeBand { level, lower_outer, upper_outer } => (
+        ResponseUncertainty::IdentifiedEnvelopeBand {
+            level,
+            lower_outer,
+            upper_outer,
+            interpretation,
+        } => (
             "identified_set".into(),
             Some(rows(lower_outer)),
             Some(rows(upper_outer)),
@@ -1015,9 +1042,10 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
             None,
             None,
             None,
+            tag(interpretation),
         ),
         ResponseUncertainty::Posterior { artifact_id } => {
-            ("posterior".into(), None, None, None, None, None, Some(artifact_id.to_string()))
+            ("posterior".into(), None, None, None, None, None, Some(artifact_id.to_string()), None)
         }
     }
 }

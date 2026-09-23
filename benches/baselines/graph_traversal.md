@@ -1,5 +1,7 @@
 # Graph traversal benchmark baseline
 
+Commit: 88dfb155 (the commit that added this file; the measured commit was not written down)
+
 Workload: `dag_reach_chain_5k` — directed reachability on a 5,000-node chain
 using a reusable [`GraphWorkspace`].
 

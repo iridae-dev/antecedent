@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::{Arc, Mutex};
 
@@ -340,9 +343,17 @@ fn effect_quantile_width_95(post: &antecedent_estimate::CausalPosterior) -> f64 
     let mut vals = vals_src.to_vec();
     let n = vals.len();
     vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0.025 * n is non-negative and below n, so the truncated index fits usize"
+    )]
     let lo_idx = ((n as f64) * 0.025) as usize;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0.975 * n is non-negative and below n, so the truncated index fits usize"
+    )]
     let hi_idx = (((n as f64) * 0.975) as usize).min(n.saturating_sub(1));
     let lo = vals[lo_idx];
     let hi = vals[hi_idx];
@@ -413,4 +424,91 @@ fn progressive_stages_stream_payloads_in_order() {
             && timing_ids.contains(&"uncertainty"),
         "timings={timing_ids:?}"
     );
+}
+
+#[test]
+fn latency_tier_resizes_only_a_default_posterior_draw_count() {
+    use antecedent::inference::{BayesianConfig, InferenceMode};
+
+    let (data, dag, query) = confounded_scm(400, 31);
+    let ctx = ExecutionContext::for_tests(9);
+    let draws = |cfg: BayesianConfig| {
+        Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(cfg))
+            .latency_mode(LatencyMode::Interactive)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+            .posterior
+            .expect("posterior")
+            .draws
+            .n_draws
+    };
+    // A count the caller chose on the config survives the tier ...
+    assert_eq!(draws(BayesianConfig::laplace().n_draws(500)), 500);
+    // ... while an untouched config takes the tier's own count.
+    assert_eq!(draws(BayesianConfig::laplace()), antecedent::analysis::INTERACTIVE_N_DRAWS);
+}
+
+#[test]
+fn configured_estimator_bootstrap_beside_a_tier_is_reported() {
+    use antecedent_estimate::LinearAdjustmentAte;
+
+    let (data, dag, query) = confounded_scm(300, 5);
+    let ctx = ExecutionContext::for_tests(5);
+    let run = |mode, replicates| {
+        Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query.clone())
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(replicates))
+            .latency_mode(mode)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let has = |r: &antecedent::StudyResult| {
+        r.diagnostics.iter().any(|d| d.code.as_ref() == "latency.bootstrap_not_applied")
+    };
+    // Interactive maps to no bootstrap; the estimator's 50 replicates win, and say so.
+    assert!(has(&run(LatencyMode::Interactive, 50)));
+    // Standard maps to 199: a configured 199 is what the tier would have run anyway.
+    assert!(!has(&run(LatencyMode::Standard, 199)));
+}
+
+#[test]
+fn omitted_refute_suite_is_dropped_for_a_quantile_but_an_explicit_one_is_refused() {
+    let (data, dag, query) = confounded_scm(600, 7);
+    let query = query.with_outcome_functional(antecedent_core::OutcomeFunctional::quantile(0.5));
+    let builder = |explicit: Option<RefuteSuite>| {
+        let b = Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query.clone())
+            .estimator(antecedent::EstimatorId::Aipw)
+            .bootstrap_replicates(0);
+        match explicit {
+            Some(suite) => b.refute(suite),
+            None => b,
+        }
+    };
+    let ctx = ExecutionContext::for_tests(7);
+    let prepared = builder(None).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "exec.refute.default_suite_unsupported"),
+        "the dropped default suite must be reported"
+    );
+    assert!(matches!(
+        builder(Some(RefuteSuite::PlaceboAndRcc)).build(),
+        Err(antecedent::CausalError::Unsupported { .. })
+    ));
+    assert!(builder(Some(RefuteSuite::None)).build().is_ok());
 }

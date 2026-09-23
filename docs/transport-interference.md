@@ -1,5 +1,12 @@
 # Structural transport and randomized interference
 
+Transport is not a second product or a population flag. It extends the same
+causal contract to a richer evidence environment: the target population,
+source regimes, experiments, measurements, sampling, and dependencies remain
+explicit. Read [refusal and partial knowledge](refusal-and-partial-knowledge.md)
+for why missing evidence, non-certification, support failure, and budget
+exhaustion have different meanings.
+
 Transport and interference are licensed causal settings that should not be
 hidden behind an ordinary target-population flag: both change what information
 identifies the estimand, so their design facts are explicit fields of their
@@ -16,9 +23,9 @@ licensed cell:
 import antecedent as ant
 from antecedent import interference, transport
 
-query = ant.TransportQuery(
+query = transport.advanced.TransportQuery(
     ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
-    transport.SelectionDiagram("trial", "target", ["x"]),
+    transport.advanced.SelectionDiagram("trial", "target", ["x"]),
     source_experiments=["a"],
     trial="trial",                    # source-trial membership column
     selection_probability="s",        # P(S=1 | X) on every row
@@ -62,7 +69,7 @@ fails closed.
 
 ## Unlicensed utilities
 
-`transport.estimate_trial_effect` and `interference.estimate` are unlicensed
+`transport.advanced.estimate_trial_effect` and `interference.estimate` are unlicensed
 utilities that return bare numbers: augmented IPW via `mu0` /
 `mu1`, Bernoulli, complete and cluster randomization, every built-in exposure
 mapping, and `seed` as the exposure-probability Monte Carlo seed. They call the
@@ -111,7 +118,7 @@ When a general multi-node c-component requires recursion outside that subset,
 the result is `NotCertified`. That means “this implementation has not certified
 a formula,” not “the effect is proven non-transportable.”
 
-`antecedent.transport.identify` stages identification alone: it decides
+`antecedent.transport.advanced.identify` stages identification alone: it decides
 *whether* a formula is sound and returns the formula and certificate. The Rust
 `trial_to_target_effect` and `transport_augmented_response_grid` primitives take
 the identification result as a required argument and refuse to run when it is
@@ -122,7 +129,7 @@ standardization, not the truncated product of population-labelled factors.
 
 The binary randomized-trial estimator reports IPW and optional augmented IPW
 (the licensed `TransportQuery` cell publishes IPW; augmented IPW is available
-from the unlicensed `estimate_trial_effect` utility), plus separate
+from the unlicensed `transport.advanced.estimate_trial_effect` utility), plus separate
 diagnostics for trial-selection overlap and within-trial treatment overlap. A single combined overlap number would conceal which assumption is
 failing.
 

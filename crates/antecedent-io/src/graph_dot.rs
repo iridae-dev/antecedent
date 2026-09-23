@@ -59,6 +59,14 @@ pub fn dag_wire_from_dot(dot: &str) -> Result<DagWire, IoError> {
     dag_wire_and_names_from_dot(dot).map(|(wire, _names)| wire)
 }
 
+/// Graphviz `node [..]`, `edge [..]` and `graph [..]` set defaults for later statements;
+/// they name no variable. A quoted `"node"` is an ordinary node id.
+pub(crate) fn is_default_attribute_statement(id: &str, quoted: bool, next: Option<char>) -> bool {
+    !quoted
+        && next == Some('[')
+        && matches!(id.to_ascii_lowercase().as_str(), "node" | "edge" | "graph")
+}
+
 /// Parse DOT into [`DagWire`] plus node labels in dense-id order.
 fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoError> {
     let mut lexer = Lexer::new(dot);
@@ -89,8 +97,13 @@ fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoEr
         if lexer.eat_char(';') {
             continue;
         }
-        let from = lexer.expect_node_id()?;
+        let (from, quoted) = lexer.expect_statement_id()?;
         lexer.skip_ws_and_comments();
+        if is_default_attribute_statement(&from, quoted, lexer.peek_char()) {
+            lexer.skip_attr_list()?;
+            let _ = lexer.eat_char(';');
+            continue;
+        }
         // Optional attribute list after a lone node declaration.
         if lexer.peek_char() == Some('[') {
             lexer.skip_attr_list()?;
@@ -108,7 +121,8 @@ fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoEr
             let to = lexer.expect_node_id()?;
             lexer.skip_ws_and_comments();
             if lexer.peek_char() == Some('[') {
-                lexer.skip_attr_list()?;
+                let attrs = lexer.parse_attr_list()?;
+                refuse_unrepresentable_dag_edge_attrs(&attrs)?;
                 lexer.skip_ws_and_comments();
             }
             let _ = lexer.eat_char(';');
@@ -163,28 +177,44 @@ pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> String {
             out.push_str(&format!(" {from} -> {to};\n"));
         }
     }
-    // Ensure isolated nodes appear when names are provided.
-    if use_names {
-        let names = names.expect("checked");
-        let mut seen = vec![false; wire.node_count as usize];
-        for &(f, t) in &wire.edges {
-            seen[f as usize] = true;
-            seen[t as usize] = true;
+    // Isolated nodes must always appear so re-import keeps node_count / ids.
+    let mut seen = vec![false; wire.node_count as usize];
+    for &(f, t) in &wire.edges {
+        seen[f as usize] = true;
+        seen[t as usize] = true;
+    }
+    for (i, present) in seen.iter().enumerate() {
+        if *present {
+            continue;
         }
-        for (i, present) in seen.iter().enumerate() {
-            if !*present {
-                out.push(' ');
-                push_quoted(&mut out, &names[i]);
-                out.push_str(";\n");
-            }
-        }
-    } else if wire.edges.is_empty() {
-        for i in 0..wire.node_count {
+        if use_names {
+            let names = names.expect("checked");
+            out.push(' ');
+            push_quoted(&mut out, &names[i]);
+            out.push_str(";\n");
+        } else {
             out.push_str(&format!(" {i};\n"));
         }
     }
     out.push('}');
     out
+}
+
+/// Refuse edge attributes that would change DAG semantics if ignored.
+fn refuse_unrepresentable_dag_edge_attrs(attrs: &HashMap<String, String>) -> Result<(), IoError> {
+    if let Some(dir) = attrs.get("dir") {
+        if !dir.eq_ignore_ascii_case("forward") {
+            return Err(IoError::Convert(format!(
+                "DAG DOT cannot represent edge attribute dir={dir}; use admg_from_dot or pag_from_dot"
+            )));
+        }
+    }
+    if attrs.contains_key("mark_a") || attrs.contains_key("mark_b") {
+        return Err(IoError::Convert(
+            "DAG DOT cannot represent mark_a/mark_b edge attributes; use pag_from_dot".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn push_quoted(out: &mut String, s: &str) {
@@ -355,6 +385,14 @@ impl<'a> Lexer<'a> {
         Ok(&self.src[start..start + len])
     }
 
+    /// Start of a statement: the id plus whether it was a quoted string. A bare
+    /// `node` / `edge` / `graph` opens a default-attribute statement, not a variable.
+    pub(crate) fn expect_statement_id(&mut self) -> Result<(String, bool), IoError> {
+        self.skip_ws_and_comments();
+        let quoted = self.peek_char() == Some('"');
+        Ok((self.expect_node_id()?, quoted))
+    }
+
     pub(crate) fn expect_node_id(&mut self) -> Result<String, IoError> {
         self.skip_ws_and_comments();
         if self.eat_char('"') {
@@ -452,6 +490,19 @@ mod tests {
     }
 
     #[test]
+    fn default_attribute_statements_are_not_variables() {
+        let dot = "digraph G { graph [rankdir=LR]; node [shape=box]; edge [color=red]; \
+                   a -> b; }";
+        let (dag, names) = dag_with_names_from_dot(dot).unwrap();
+        assert_eq!(names, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(dag.node_count(), 2);
+        // A quoted id is a real variable even when it spells a keyword.
+        let (quoted, names) = dag_with_names_from_dot("digraph { \"node\" -> b; }").unwrap();
+        assert_eq!(names, vec!["node".to_string(), "b".to_string()]);
+        assert_eq!(quoted.node_count(), 2);
+    }
+
+    #[test]
     fn with_names_round_trip_preserves_labels() {
         let mut dag = Dag::with_variables(2);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -486,5 +537,23 @@ mod tests {
     fn rejects_undirected() {
         let err = dag_from_dot("digraph { a -- b; }").unwrap_err();
         assert!(err.to_string().contains("undirected"));
+    }
+
+    #[test]
+    fn refuses_dir_both_edge_attrs() {
+        let err = dag_from_dot("digraph { 0 -> 1 [dir=both]; }").unwrap_err();
+        assert!(matches!(err, IoError::Convert(_)));
+        assert!(err.to_string().contains("dir="));
+    }
+
+    #[test]
+    fn unnamed_export_keeps_isolated_nodes() {
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let s = dag_to_dot(&dag, None).unwrap();
+        assert!(s.contains(" 2;"), "isolated node must appear in DOT: {s}");
+        let back = dag_from_dot(&s).unwrap();
+        assert_eq!(back.node_count(), 3);
+        assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
     }
 }

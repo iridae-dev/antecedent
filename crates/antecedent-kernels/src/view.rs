@@ -158,6 +158,17 @@ impl<'a> F64MatrixView<'a> {
         Ok(Self { data, nrows, ncols, row_stride: 1, col_stride: nrows })
     }
 
+    /// Contiguous column-major storage when this view is packed that way.
+    #[must_use]
+    pub fn as_column_major_slice(self) -> Option<&'a [f64]> {
+        if self.row_stride == 1 && self.col_stride == self.nrows {
+            let need = self.nrows.saturating_mul(self.ncols);
+            Some(&self.data[..need])
+        } else {
+            None
+        }
+    }
+
     /// Number of rows.
     #[must_use]
     pub const fn nrows(self) -> usize {

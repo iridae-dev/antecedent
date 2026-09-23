@@ -45,6 +45,18 @@ if not m:
 elif m.group(1) != version:
     fail.append(f"CITATION.cff version {m.group(1)!r} != Cargo.toml {version!r}")
 
+# A version DOI in the citation metadata is valid only for the version it was
+# minted for; a stale one makes a citation of this release carry an older DOI.
+for stale in re.findall(r"Version DOI for (\d+\.\d+\.\d+)", citation):
+    if stale != version:
+        fail.append(f"CITATION.cff carries a version DOI for {stale!r}; canonical is {version!r}")
+
+# The supported-versions table must list the release line being shipped.
+security = Path("SECURITY.md").read_text()
+line = ".".join(version.split(".")[:2])
+if not re.search(rf"^\|\s*{re.escape(line)}\.x\s*\|\s*Yes", security, re.M):
+    fail.append(f"SECURITY.md supported-versions table has no supported {line}.x row")
+
 # .zenodo.json is what Zenodo actually ingests (it ignores CITATION.cff when
 # present); CITATION.cff carries the CFF-schema-valid license list for GitHub's
 # citation widget and cffconvert. Zenodo rejects both the list form and the
@@ -93,12 +105,23 @@ for doc in [
         if stale != version:
             fail.append(f"{doc} states package version {stale!r}; canonical is {version!r}")
 
-# Live generated licensed-cell markers belong only on the current cut.
+# Live generated licensed-cell markers belong only on the active documentation
+# cut.  A release-preparation target may be ahead of the package version.
 # Historical notes use frozen markers so a regen cannot overwrite a shipped
 # snapshot (v0.6.1 was rewritten that way while the workspace was still 0.6.1).
 rn_begin = "<!-- generated:support-matrix:licensed:begin -->"
 rn_end = "<!-- generated:support-matrix:licensed:end -->"
-current_notes = Path("docs/release-notes") / f"v{version}.md"
+preparation = Path("docs/release-notes/preparation.toml")
+if preparation.is_file():
+    target = tomllib.loads(preparation.read_text()).get("target_version")
+    if not isinstance(target, str) or not re.fullmatch(r"\d+\.\d+\.\d+", target):
+        fail.append("docs/release-notes/preparation.toml has no valid target_version")
+        target = version
+else:
+    target = version
+current_notes = Path("docs/release-notes") / f"v{target}.md"
+if not current_notes.is_file():
+    fail.append(f"{current_notes}: active documentation release notes missing")
 for path in sorted(Path("docs/release-notes").glob("v*.md")):
     if path.resolve() == current_notes.resolve():
         continue

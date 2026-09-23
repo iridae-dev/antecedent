@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
 # Parity manifest schema gate: every [[capabilities]] row carries its required keys.
 #
-# Why this exists: the feature gates parse manifests with a regex `caps()` helper
-# whose accessor takes an explicit default (`g("status", default=None)`). A row
-# missing `status` therefore reads as None, matches none of the honesty checks,
-# and passes every gate forever without ever being marked done/pending. Those
-# parsers cannot detect an absent key by construction -- this gate is the
-# schema-completeness check that closes that hole.
-#
-# It also pins the regex parser itself: the ids and statuses the gates' `caps()`
-# recovers must agree with a real TOML parse, so a manifest whose layout drifts
-# out from under the regex fails here instead of silently under-reporting.
+# Why this exists: a row missing `status` (or any required key) matches none of
+# the feature gates' honesty checks and would pass them forever without ever being
+# marked done/pending. The gates read rows through scripts/parity_rows.py
+# (tomllib), and this gate is the schema-completeness check on top of that.
 #
 # Run standalone, or via any feature gate / gate_release.sh, which all invoke it.
 set -euo pipefail
@@ -59,7 +53,18 @@ EVIDENCE_KINDS = {
     "behavioral_parity",
     # theorem-level / method-contract argument
     "contract_equivalence",
+    # frozen output of this library itself: a change detector, never truth (no
+    # known_truth_fixture; limitations name what is pinned)
+    "regression_pin",
+    # a release-process property enforced by a named gate or workflow, with no
+    # test that could execute it (release.toml only; see the done-row rule below)
+    "process_attested",
 }
+# An implementation_exists row that produces one of these is a statistical procedure
+# a reader would take as validated; it must say that no numerical truth backs it.
+STATISTICAL_QUANTITY = re.compile(
+    r"\b(interval|band|posterior|credible|p-value|EVPI|EVSI|decision|utility|coverage)", re.I
+)
 # Kinds that assert an upstream package produced the truth being matched.
 EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 
@@ -111,22 +116,6 @@ MANIFESTS = {
     "parity/response.toml": ((), True),
     "parity/compiler.toml": (("group", "description", "owner"), True),
 }
-
-# The parser every feature gate embeds. Reproduced verbatim so this gate checks
-# what those gates actually see, not an idealized reading of the file.
-def regex_caps(text: str):
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({"id": g("id"), "status": g("status")})
-    return out
-
 
 problems = []
 
@@ -194,6 +183,14 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 "an implied one is not)"
             )
 
+        if kind == "regression_pin":
+            if row.get("known_truth_fixture") is not None:
+                problems.append(
+                    f"{rel}: {label} is a regression_pin but names known_truth_fixture; a "
+                    "frozen output of this library is not truth"
+                )
+            if not str(row.get("limitations", "")).strip():
+                problems.append(f"{rel}: {label} is a regression_pin without limitations")
         if kind == "internal_cross_check":
             limitations = row.get("limitations")
             if not isinstance(limitations, str) or not limitations.strip():
@@ -205,6 +202,28 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
 
         oracle = row.get("external_oracle")
         fixture = row.get("known_truth_fixture")
+
+        if kind == "implementation_exists":
+            # A fixture that only checks finiteness is a smoke fixture, never known truth.
+            if fixture is not None:
+                problems.append(
+                    f"{rel}: {label} is implementation_exists but names known_truth_fixture; "
+                    "name it smoke_fixture (no numerical truth) or claim a stronger kind"
+                )
+            smoke = row.get("smoke_fixture")
+            if smoke is not None and (not isinstance(smoke, str) or not (root / smoke).exists()):
+                problems.append(f"{rel}: {label} smoke_fixture {smoke!r} does not exist")
+            described = " ".join(str(row.get(key, "")) for key in ("description", "notes"))
+            if status == "done" and STATISTICAL_QUANTITY.search(described) and not str(
+                row.get("limitations", "")
+            ).strip():
+                problems.append(
+                    f"{rel}: {label} is a done implementation_exists row naming an interval, "
+                    "test, posterior or decision quantity without limitations; state that no "
+                    "numerical truth backs it"
+                )
+        elif row.get("smoke_fixture") is not None:
+            problems.append(f"{rel}: {label} smoke_fixture is only legal on implementation_exists")
 
         if fixture is not None:
             if not isinstance(fixture, str) or not (root / fixture).exists():
@@ -282,6 +301,27 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
 
         test_rel = row.get("evidence_test")
         assertion = row.get("evidence_assertion")
+        # Every done row names the executing test that evidences it. The one exemption
+        # is a release-process fact no test can execute: it says so (`process_attested`)
+        # and names the gate or workflow that enforces it.
+        if kind == "process_attested":
+            if requires_evidence:
+                problems.append(
+                    f"{rel}: {label} process_attested is only for release-process rows "
+                    "(parity/release.toml); a capability names an executing test"
+                )
+            elif not isinstance(row.get("notes"), str) or not re.search(
+                r"(scripts/[\w./-]+|\.github/workflows/[\w./-]+)", row["notes"]
+            ):
+                problems.append(
+                    f"{rel}: {label} is process_attested but its notes name no "
+                    "scripts/... gate or .github/workflows/... file that enforces it"
+                )
+        elif status == "done" and (test_rel is None or assertion is None):
+            problems.append(
+                f"{rel}: {label} is done without evidence_test/evidence_assertion: name "
+                "the executing test that evidences it"
+            )
         if (test_rel is None) != (assertion is None):
             problems.append(
                 f"{rel}: {label} must set evidence_test and evidence_assertion together"
@@ -297,48 +337,22 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                     f"{rel}: {label} evidence_test must be Rust or Python test code"
                 )
             else:
-                text_src = test_path.read_text(errors="ignore")
+                # The one static resolver (comments/strings masked, #[ignore],
+                # cfg-disabled and uncompiled modules rejected).
                 if test_path.suffix == ".rs":
-                    test_pattern = re.compile(
-                        rf"#\[test\][^\n]*\n((?:\s*#\[[^\n]*\n)*)\s*fn\s+{re.escape(assertion)}\s*\(",
-                        re.M,
-                    )
+                    why = test_evidence.static_rust_test(test_path, assertion).problems
                 else:
-                    test_pattern = re.compile(
-                        rf"()^\s*def\s+{re.escape(assertion)}\s*\(", re.M
-                    )
-                match = test_pattern.search(text_src)
-                if not match:
+                    why = test_evidence.static_python_test(test_path, assertion)
+                for reason in why:
                     problems.append(
-                        f"{rel}: {label} evidence_assertion {assertion!r} is not "
-                        f"an executing test function in {test_rel}"
-                    )
-                elif re.search(r"#\[\s*ignore\b", match.group(1)):
-                    problems.append(
-                        f"{rel}: {label} evidence_assertion {assertion!r} is #[ignore]d"
+                        f"{rel}: {label} evidence_assertion {assertion!r} in "
+                        f"{test_rel} is not an executing test: {reason}"
                     )
 
         if isinstance(cid, str) and cid.strip():
             if cid in seen_ids:
                 problems.append(f"{rel}: duplicate id `{cid}`")
             seen_ids.add(cid)
-
-    # The gates' regex parser must recover the same rows the TOML parser sees.
-    header_count = len(re.findall(r"^\[\[capabilities\]\]", text, re.M))
-    scanned = regex_caps(text)
-    if not (len(rows) == header_count == len(scanned)):
-        problems.append(
-            f"{rel}: row-count disagreement -- toml={len(rows)} "
-            f"headers={header_count} gate-regex={len(scanned)}"
-        )
-    else:
-        for row, seen in zip(rows, scanned):
-            for key in ("id", "status"):
-                if row.get(key) != seen[key]:
-                    problems.append(
-                        f"{rel}: gate regex reads {key}={seen[key]!r} for "
-                        f"{row.get('id')!r} but TOML has {row.get(key)!r}"
-                    )
 
 if problems:
     print("parity manifest schema violations:")
@@ -421,12 +435,27 @@ for path in sorted(root.glob("parity/*.toml")):
 if print_counts:
     print("reason-code uses:")
     for cid, n in uses.items():
-        print(f"  {cid}: {n} (max_uses={codes[cid]['max_uses']})")
+        print(f"  {cid}: {n} (max_uses={codes[cid].get('max_uses')})")
 
 for cid, n in uses.items():
+    # A runtime-refusal-only code is spent in Rust, where this gate cannot count it,
+    # so a registry ratchet is meaningful only when the registries themselves cite it.
+    if "max_uses" not in codes[cid]:
+        if codes[cid].get("applies_to") != ["runtime_refusal"]:
+            problems.append(f"parity/reason_codes.toml: {cid} needs max_uses")
+        continue
     max_uses = int(codes[cid]["max_uses"])
     if n > max_uses:
         problems.append(f"parity/reason_codes.toml: {cid} uses={n} > max_uses={max_uses}")
+
+# Refusal codes a Rust `fn code(&self)` returns are stable machine-readable strings
+# callers switch on; each must be in the closed vocabulary.
+for src in sorted(root.glob("crates/*/src/**/*.rs")):
+    text = src.read_text(errors="ignore")
+    for fn_body in re.findall(r"fn code\(&self\) -> &'static str \{(.*?)\n    \}", text, re.S):
+        for literal in re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', fn_body):
+            if literal not in codes:
+                problems.append(f"{src}: fn code returns {literal!r}, absent from parity/reason_codes.toml")
 
 # --- python_products ---
 pp = root / "parity/python_products.toml"
@@ -520,10 +549,13 @@ def _resolves(spec: str) -> bool:
     return "macro_rules!" in text and bool(re.search(rf"\b{re.escape(fn)}\b", text))
 
 
-def _band(nominal: float, replicates: int) -> tuple[float, float, float | None]:
+def _band(
+    nominal: float, replicates: int
+) -> tuple[float, float, float | None, float | None]:
     mcse = (nominal * (1.0 - nominal) / max(replicates, 1)) ** 0.5
     floor = nominal - 2.0 * mcse if replicates >= 1000 else None
-    return (max(nominal - 3.0 * mcse, 0.0), min(nominal + 3.0 * mcse, 1.0), floor)
+    ceiling = nominal + 2.0 * mcse if replicates >= 1000 else None
+    return (max(nominal - 3.0 * mcse, 0.0), min(nominal + 3.0 * mcse, 1.0), floor, ceiling)
 
 
 cr = root / "parity/coverage_records.toml"
@@ -543,7 +575,14 @@ if cr.is_file():
         record_ids.add(rid)
         label = f"coverage_records.toml {rid}"
         test = str(rec.get("test", ""))
-        missing = [key for key in collector.FIELDS if key not in rec]
+        # `surface_list_blob` arrives with the next collection: a registry written by a
+        # collector that stores it names it in its header, and only then is it required.
+        stores_blob = "surface_list_blob" in cr.read_text().split("[[record]]", 1)[0]
+        missing = [
+            key
+            for key in collector.FIELDS
+            if key not in rec and (key != "surface_list_blob" or stores_blob)
+        ]
         if missing:
             problems.append(f"{label}: missing {', '.join(missing)}")
             continue
@@ -575,6 +614,18 @@ if cr.is_file():
             problems.append(f"{label}: calibration_sha must be 40 lowercase hex")
         elif set(sha) == {"0"}:
             problems.append(f"{label}: calibration_sha is the zero SHA; nothing was measured")
+        elif "surface_list_blob" in rec:
+            listed = subprocess.run(
+                ["git", "rev-parse", f"{sha}:scripts/calibration_surface.list"],
+                capture_output=True,
+                text=True,
+            )
+            # A commit missing from a clone is the attestation gate's finding, not this one's.
+            if listed.returncode == 0 and listed.stdout.strip() != rec["surface_list_blob"]:
+                problems.append(
+                    f"{label}: surface_list_blob {rec['surface_list_blob']} is not the surface "
+                    f"list at calibration_sha ({listed.stdout.strip()})"
+                )
         for field in ("observed", "mcse", "nominal", "unidentified_mass_max"):
             val = rec[field]
             if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
@@ -592,9 +643,22 @@ if cr.is_file():
         boundary = bool(rec["boundary"])
 
         def nominal_pass(point: dict) -> bool:
-            lo, hi, floor = _band(nominal, int(point["replicates"]))
+            lo, hi, floor, ceiling = _band(nominal, int(point["replicates"]))
             observed = float(point["observed"])
-            return lo <= observed <= hi and (floor is None or observed >= floor)
+            # The harness reruns a point that shortfalls the level by more than
+            # RECHECK_SHORTFALL at fewer than PRECISION_N_SIM replicates at
+            # RECHECK_N_SIM, where the precision floor applies. A short-run point
+            # that far under the level is unresolved for every role, not a pass.
+            if int(point["replicates"]) < 1000 and observed < nominal - 0.02:
+                return False
+            if floor is not None and observed < floor:
+                return False
+            # Symmetric counterpart of the floor: a conservative interval that
+            # over-covers must fail too, once measured precisely (see
+            # precision_ceiling in crates/antecedent/tests/common/calibration.rs).
+            if ceiling is not None and observed > ceiling:
+                return False
+            return lo <= observed <= hi
 
         # The measured range is the sample-size grid: every point present, in
         # order, strictly growing, and the row's summary exactly what
@@ -690,6 +754,30 @@ else:
 if len(record_ids) != len(records):
     problems.append("parity/coverage_records.toml: duplicate record ids")
 
+# --- record-less calibration groups: each ran, passed, at a commit in this clone ---
+gates_path = root / "parity/calibration_gates.toml"
+# The collector's registry header names the ledger; a registry written by it must
+# come with the ledger, so deleting the ledger cannot pass.
+ledger_owed = cr.is_file() and "calibration_gates.toml" in cr.read_text()
+if not gates_path.is_file():
+    if ledger_owed:
+        problems.append("parity/calibration_gates.toml missing")
+else:
+    gate_rows = tomllib.loads(gates_path.read_text()).get("gate", [])
+    if not gate_rows:
+        problems.append("parity/calibration_gates.toml: no record-less group is attested")
+    if len({g.get("group") for g in gate_rows}) != len(gate_rows):
+        problems.append("parity/calibration_gates.toml: duplicate groups")
+    for g in gate_rows:
+        label = f"calibration_gates.toml {g.get('group')}"
+        if not isinstance(g.get("group"), str) or not g["group"]:
+            problems.append(f"{label}: missing group")
+        if not isinstance(g.get("passed"), int) or g["passed"] < 1:
+            problems.append(f"{label}: no passed test recorded")
+        gate_sha = str(g.get("calibration_sha", ""))
+        if not re.fullmatch(r"[0-9a-f]{40}", gate_sha) or set(gate_sha) == {"0"}:
+            problems.append(f"{label}: calibration_sha must be a real 40 lowercase hex commit")
+
 by_id = {rec.get("id"): rec for rec in records}
 
 # --- licensed cell calibration obligation ---
@@ -702,8 +790,29 @@ for cell in lic:
     label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
     has_cal = "calibration" in cell
     has_reason = bool(cell.get("calibration_reason"))
-    if has_cal == has_reason:
+    reported_records = [
+        by_id[rid]
+        for rid in cell.get("calibration") or []
+        if rid in by_id and abs(float(by_id[rid]["nominal"]) - collector.REPORTED_LEVEL) < 1e-9
+    ]
+    # A record list says what was measured, not that it passed: a cell whose every
+    # reported-level record is a boundary states `boundary_record` beside the list.
+    boundary_only = bool(reported_records) and all(rec["boundary"] for rec in reported_records)
+    if has_cal and has_reason:
+        if cell.get("calibration_reason") != "boundary_record":
+            problems.append(
+                f"support_licensed.toml {label}: calibration and calibration_reason together "
+                "are only legal as calibration_reason = \"boundary_record\""
+            )
+    elif has_cal == has_reason:
         problems.append(f"support_licensed.toml {label}: exactly one of calibration / calibration_reason")
+    if has_cal and boundary_only != (cell.get("calibration_reason") == "boundary_record"):
+        problems.append(
+            f"support_licensed.toml {label}: calibration_reason = \"boundary_record\" must be "
+            "present exactly when every record at the reported level is a boundary"
+        )
+    if not has_cal and cell.get("calibration_reason") == "boundary_record":
+        problems.append(f"support_licensed.toml {label}: boundary_record without a record list")
     structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
     expected_ids = sorted(
         by_coordinate.get(
@@ -860,12 +969,11 @@ problems.extend(f"external evidence: {p}" for p in external_evidence.check())
 
 # ---- [gates] publishing requires calibration attestation ----
 # A tag must not ship calibration labels from a registry that no longer
-# matches the code: both publish workflows attest before any build or upload.
+# matches the code: the publish workflow attests before any build or upload.
 gating = subprocess.run(
     ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
      str((root / "scripts/ci_workflow.py").resolve()), "publish-gating",
-     str((root / ".github/workflows/publish-release.yml").resolve()),
-     str((root / ".github/workflows/publish-crates.yml").resolve())],
+     str((root / ".github/workflows/publish-release.yml").resolve())],
     cwd=root / "python", capture_output=True, text=True,
 )
 if gating.returncode != 0:

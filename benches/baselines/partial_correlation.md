@@ -1,5 +1,7 @@
 # Partial-correlation batch baseline
 
+Commit: a0512976 (the commit that added this file; the measured commit was not written down)
+
 Workload: `parcorr_batch64_n2k_p8` — 64 partial-correlation queries on
 `n=2000` rows with up to 3 conditioning columns drawn from 8 series columns,
 via the batch API with reusable [`ParCorrWorkspace`].

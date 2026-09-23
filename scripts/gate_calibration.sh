@@ -30,6 +30,12 @@ fi
 
 # Replicate count of the precision recheck (crates/antecedent/tests/common/calibration.rs).
 RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
+# Replicate count of a first run: the harness default (DEFAULT_N_SIM) unless
+# overridden. The recheck extends the first run from this index.
+FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
+if [ "$RECHECK_NSIM" -le "$FIRST_NSIM" ]; then
+  echo "ANTECEDENT_CALIBRATION_RECHECK_NSIM=$RECHECK_NSIM must exceed the first run's $FIRST_NSIM replicates" >&2; exit 2
+fi
 
 # Sample-size grid. Every coverage group that emits records (the
 # antecedent-estimate SE suite and the v19_* / v110_* suites) is measured once
@@ -49,19 +55,118 @@ done
 grid_group() {
   case "$1" in
     "antecedent-estimate: bayesian_"*) return 1 ;;
-    antecedent-estimate:*|v19_*|v110_*) return 0 ;;
+    antecedent-estimate:*|v19_*|v110_*|v20_*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# The commit every log below was measured at. Each group log ends with a
+# `calibration-measured-at <sha>` line, which scripts/collect_coverage_records.py
+# requires to equal the sha it stamps on the registry: logs collected after a
+# checkout, or copied from another machine, carry the sha they were measured at
+# instead of whatever HEAD is when the collector runs.
+MEASURED_SHA="$(git rev-parse HEAD)"
+# The harness prints it inside every `calibration-record` line (`measured_at`); the
+# collector refuses a record whose own sha is not the one it stamps.
+export ANTECEDENT_CALIBRATION_SHA="$MEASURED_SHA"
+
+stamp_log() {
+  printf 'calibration-measured-at %s\n' "$MEASURED_SHA" >>"$1"
+}
+
+# A group that matches no test exits 0 ("running 0 tests"), so a renamed test
+# would stop being measured with the gate still green. Every group's log must
+# show at least one passed test.
+ran_tests() {
+  awk '/^test result: ok\./ { n += $4 } END { exit !(n >= 1) }' "$1"
+}
+
+# Turn a zero status into a failure when the group's log shows no passed test.
+require_ran() {
+  local status="$1" log="$2"
+  if [ "$status" -eq 0 ] && ! ran_tests "$log"; then
+    echo "FAIL: no test ran for this group (renamed or filtered away): $log" >&2
+    return 1
+  fi
+  return "$status"
+}
+
+# Whether a group command can recheck one test at a time: a `cargo test`
+# invocation that does not already name one exact test. Everything after its
+# `--` goes to libtest, so `--exact <test>...` appended at the end selects
+# exactly the tests that asked for the recheck. A whole-script group (the
+# response gate) or an already exact group is re-run as a whole.
+per_test_recheck() {
+  case " $* " in
+    *" --exact "*) return 1 ;;
+    *" cargo test "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Run one first pass and, when it asks for one, its recheck. Arguments: the log
+# stem (`<dir>/<group>[.p<k>]`), the label to show, then the command. Leaves
+# the verdict in RUN_STATUS.
+#
+# The first pass writes every tally's raw state to `<stem>.tallies.jsonl`
+# (ANTECEDENT_CALIBRATION_TALLY_OUT). The recheck extends it: with
+# ANTECEDENT_CALIBRATION_REPLICATE_START=<first-run count> and
+# ANTECEDENT_CALIBRATION_PRIOR_TALLIES=<that file>, the harness computes only
+# the replicates the first pass did not and folds them onto the first pass's
+# counts, so its lines equal a fresh RECHECK_NSIM run's (a test that does not
+# draw its replicates through `map_replicates` recomputes them all instead;
+# see crates/antecedent/tests/common/calibration.rs). In a group that runs
+# several tests, only the tests named by `calibration-recheck-test` lines are
+# re-run, and the recheck log records them as `calibration-rechecked-test`
+# lines so scripts/collect_coverage_records.py replaces exactly their records.
+run_point() {
+  local stem="$1" shown="$2"
+  shift 2
+  local log="${stem}.log" tallies="${stem}.tallies.jsonl" status tests test
+  rm -f "$tallies" "${stem}.recheck.tallies.jsonl"
+  ANTECEDENT_CALIBRATION_TALLY_OUT="$tallies" "$@" 2>&1 | tee "$log"
+  status="${PIPESTATUS[0]}"
+  require_ran "$status" "$log" || status=1
+  stamp_log "$log"
+  if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
+    tests=""
+    if per_test_recheck "$@"; then
+      tests="$(grep '^calibration-recheck-test ' "$log" | awk '{ print $2 }' | sort -u | tr '\n' ' ')"
+    fi
+    if [ -n "$tests" ]; then
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown}: ${tests}=="
+    else
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown} =="
+    fi
+    RECHECKED="${RECHECKED}  ${shown}"$'\n'
+    # The recheck's verdict stands, so its `calibration-record` lines are the
+    # ones scripts/collect_coverage_records.py keeps for the rechecked tests.
+    # shellcheck disable=SC2086 # $tests is a space-separated list of test names.
+    ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
+      ANTECEDENT_CALIBRATION_REPLICATE_START="$FIRST_NSIM" \
+      ANTECEDENT_CALIBRATION_PRIOR_TALLIES="$tallies" \
+      ANTECEDENT_CALIBRATION_TALLY_OUT="${stem}.recheck.tallies.jsonl" \
+      "$@" ${tests:+--exact $tests} 2>&1 | tee "${stem}.recheck.log"
+    status="${PIPESTATUS[0]}"
+    require_ran "$status" "${stem}.recheck.log" || status=1
+    for test in $tests; do
+      printf 'calibration-rechecked-test %s\n' "$test" >>"${stem}.recheck.log"
+    done
+    stamp_log "${stem}.recheck.log"
+  fi
+  RUN_STATUS="$status"
 }
 
 # Run one gate group; record it as failed instead of aborting the gate.
 #
 # A coverage cell that passes its 400-replicate band but lands more than 2
-# points under its level prints a `calibration-recheck` line. The group is then
-# re-run at RECHECK_NSIM replicates, where the harness also enforces the
-# one-sided precision floor (level − 2·MCSE), and that run's verdict stands.
+# points away from its level (either side) prints a `calibration-recheck`
+# line — including `reported_level` (0.95) emits. The group is then re-run at
+# RECHECK_NSIM replicates (extending the first run, see run_point), where the
+# harness also enforces the precision floor and ceiling (level ± 2·MCSE), and
+# that run's verdict stands.
 # A grid group runs, logs and rechecks each grid point on its own
-# (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands low is
+# (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands off is
 # rechecked at that point, and its verdict never borrows another point's.
 check() {
   local label="$1"
@@ -74,44 +179,25 @@ check() {
     echo "group ${GROUP_INDEX}: ${label}"
     return 0
   fi
-  local log status safe point stem shown
+  local safe point shown
   mkdir -p "$ROOT/target/calibration-records"
   safe="$(echo "${label}" | tr ' /:' '___')"
   if grid_group "$label"; then
     for point in $GRID_POINTS; do
-      stem="$ROOT/target/calibration-records/${safe}.p${point}"
       shown="${label} [grid point ${point}]"
       echo "== grid point ${point}: ${label} =="
-      log="${stem}.log"
-      ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@" 2>&1 | tee "$log"
-      status="${PIPESTATUS[0]}"
-      if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
-        echo "== recheck at ${RECHECK_NSIM} replicates: ${shown} =="
-        RECHECKED="${RECHECKED}  ${shown}"$'\n'
-        # The recheck's verdict stands, so its `calibration-record` lines are the
-        # ones scripts/collect_coverage_records.py keeps for this grid point.
-        ANTECEDENT_CALIBRATION_GRID_POINT="$point" ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
-          "$@" 2>&1 | tee "${stem}.recheck.log"
-        status="${PIPESTATUS[0]}"
-      fi
-      if [ "$status" -ne 0 ]; then
+      run_point "$ROOT/target/calibration-records/${safe}.p${point}" "$shown" \
+        env ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@"
+      if [ "$RUN_STATUS" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
         FAILED_COUNT=$((FAILED_COUNT + 1))
       fi
     done
     return 0
   fi
-  log="$ROOT/target/calibration-records/${safe}.log"
-  env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@" 2>&1 | tee "$log"
-  status="${PIPESTATUS[0]}"
-  if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
-    echo "== recheck at ${RECHECK_NSIM} replicates: ${label} =="
-    RECHECKED="${RECHECKED}  ${label}"$'\n'
-    env -u ANTECEDENT_CALIBRATION_GRID_POINT ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
-      "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
-    status="${PIPESTATUS[0]}"
-  fi
-  if [ "$status" -ne 0 ]; then
+  run_point "$ROOT/target/calibration-records/${safe}" "$label" \
+    env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@"
+  if [ "$RUN_STATUS" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
     FAILED_COUNT=$((FAILED_COUNT + 1))
   fi
@@ -128,7 +214,9 @@ run_ignored() {
 }
 
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
-# Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), no floor or exemption.
+# Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), plus symmetric
+# recheck and precision floor/ceiling. Bootstrap-IPW uses the full replicate
+# count (skips count as misses, cap 1%); no halved-n band widening.
 run_ignored antecedent-estimate linear_adjustment_analytic_ci_coverage
 run_ignored antecedent-estimate linear_adjustment_hc1_ci_coverage
 run_ignored antecedent-estimate ipw_hajek_bootstrap_ci_coverage
@@ -148,15 +236,35 @@ run_ignored antecedent-estimate iv_2sls_analytic_ci_coverage
 run_ignored antecedent-estimate iv_2sls_hc1_heteroskedastic_ci_coverage
 run_ignored antecedent-estimate frontdoor_stacked_hc0_ci_coverage
 run_ignored antecedent-estimate frontdoor_stacked_hc1_ci_coverage
+run_ignored antecedent-estimate frontdoor_functional_saturated_ci_coverage
+run_ignored antecedent-estimate frontdoor_functional_arm_linear_ci_coverage
 run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
 run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage
+# Out-of-assumption probe (curvature + heterogeneity): coverage printed, not gated.
+run_ignored antecedent-estimate rd_sharp_hc1_curved_heterogeneous_probe
+# DML / DR-Learner / causal forest: reported_level (0.95) cells on confounded_scm.
+run_ignored antecedent-estimate dml_analytic_ci_coverage
+run_ignored antecedent-estimate dr_learner_analytic_ci_coverage
+run_ignored antecedent-estimate causal_forest_analytic_ci_coverage
+# Boundary cells (weak IV / weak overlap / curved RD / heteroskedastic and
+# heterogeneous-effect matching / curved front-door mediator): designs outside the
+# interval's stated assumptions, recorded as named boundaries and never gated
+# (fixtures in static_dgp.rs + tests in calibration_coverage.rs).
+run_ignored antecedent-estimate wald_iv_weak_first_stage_adversarial_ci_coverage
+run_ignored antecedent-estimate ipw_hajek_weak_overlap_adversarial_ci_coverage
+run_ignored antecedent-estimate rd_sharp_hc1_curved_adversarial_ci_coverage
+run_ignored antecedent-estimate matching_heteroskedastic_adversarial_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_att_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_atc_ci_coverage
+run_ignored antecedent-estimate matching_heterogeneous_ate_ci_coverage
+run_ignored antecedent-estimate frontdoor_stacked_hc1_curved_mediator_ci_coverage
 
 run_ignored antecedent-estimate bayesian_pulse_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
 
-echo "== 1.9 temporal / mixture interval coverage (antecedent) =="
+echo "== temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -193,7 +301,7 @@ run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
 run_ignored_test bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage
 run_ignored_test bayesian_temporal_dag_mediation_confounded_nominal_90_coverage
 
-echo "== 1.9 temporal class envelopes: multi-step, TemporalPag, identified-set intervals (antecedent) =="
+echo "== temporal class envelopes: multi-step, TemporalPag, identified-set intervals (antecedent) =="
 run_temporal_class() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -225,11 +333,15 @@ run_temporal_class frequentist_temporal_cpdag_identified_set_interval_nominal_90
 run_temporal_class frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage
 run_temporal_class bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage
 run_temporal_class bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage
+# One-sided (at least the band's lower edge): the per-completion construction is
+# conservative by design when one completion is much noisier than the other.
+run_temporal_class frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion
+run_temporal_class bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion
 
-echo "== 1.9 shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
+echo "== shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
 run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
 
-echo "== 1.9 static graph-posterior mixture coverage (antecedent) =="
+echo "== static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -242,7 +354,7 @@ run_static_mixture_test static_graph_posterior_frequentist_cate_joint_if_nominal
 run_static_mixture_test static_graph_posterior_bayesian_ate_bma_nominal_90_coverage
 run_static_mixture_test static_graph_posterior_bayesian_cate_bma_nominal_90_coverage
 
-echo "== 1.9 derivative-family interval coverage (antecedent) =="
+echo "== derivative-family interval coverage (antecedent) =="
 run_ignored_derivative() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -266,7 +378,7 @@ run_ignored_derivative elasticity_bayesian_nominal_90_coverage
 run_ignored_derivative response_jacobian_bayesian_boundary_within_band
 run_ignored_derivative directional_derivative_bayesian_nominal_90_coverage
 
-echo "== 1.9 Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
+echo "== Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
 run_ignored_bayes_temporal() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -323,7 +435,7 @@ run_ignored_bayes_temporal bayesian_temporal_mediation_arma11_n60_nominal_90_cov
 run_ignored_bayes_temporal bayesian_temporal_mediation_arma11_n160_nominal_90_coverage
 run_ignored_bayes_temporal bayesian_temporal_mediation_arma11_n400_nominal_90_coverage
 
-echo "== 1.9 dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
+echo "== dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
 run_temporal_frequentist() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -362,7 +474,7 @@ run_temporal_frequentist temporal_dag_pulse_ar1_treatment_rho09_n60_short_series
 run_temporal_frequentist temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary
 run_temporal_frequentist temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary
 
-echo "== 1.9 static envelope / tier coverage (antecedent, release) =="
+echo "== static envelope / tier coverage (antecedent, release) =="
 run_static_envelope() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -384,7 +496,7 @@ run_static_envelope conditional_effect_pag_bayesian_nominal_90_coverage
 run_static_envelope codetermined_aipw_closure_nominal_90_coverage
 run_static_envelope unknown_two_scenario_joint_band_nominal_95_coverage
 
-echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (antecedent) =="
+echo "== temporal response surfaces: pointwise + simultaneous bands (antecedent) =="
 # One invocation runs every ignored test in the file (Frequentist / Bayesian
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
 # TemporalCpdag / TemporalPag completion atoms, two-step Sequence overlays on
@@ -392,12 +504,12 @@ echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (anteced
 check "v19_temporal_response_calibration" \
   cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
 
-echo "== 1.10 panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
+echo "== panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
 # One invocation runs every ignored test in the file.
 check "v110_panel_calibration" \
   cargo test --release -p antecedent --test v110_panel_calibration -- --ignored --nocapture
 
-echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
+echo "== remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
@@ -450,13 +562,22 @@ run_ignored antecedent-stats multivariate_block_calibration_gate
 run_ignored antecedent-stats multivariate_block_shuffle_calibration_gate
 run_ignored antecedent-stats gpdc_block_shuffle_autocorrelated_type_i_gate
 run_ignored antecedent-stats knn_unconditional_block_shuffle_autocorrelated_type_i_gate
+run_ignored antecedent-stats parcorr_conditional_null_gate
+run_ignored antecedent-stats robust_parcorr_conditional_null_gate
+run_ignored antecedent-stats weighted_parcorr_conditional_null_gate
+run_ignored antecedent-stats gsquared_conditional_null_gate
+run_ignored antecedent-stats symbolic_cmi_conditional_null_gate
+run_ignored antecedent-stats knn_conditional_null_gate
+run_ignored antecedent-stats gpdc_conditional_null_gate
+run_ignored antecedent-stats parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
+run_ignored antecedent-stats weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
 
 echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
 
-echo "== 1.10 coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
+echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_v110() {
   local file="$1"
   local filter="$2"
@@ -512,8 +633,22 @@ run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_defaul
 run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
 run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
 run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
+run_v110 v110_class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
 
-echo "== 0.5.0 response/observation/transport/interference =="
+echo "== 2.0 statistical transport: empirical-table IID bootstrap (antecedent) =="
+run_v20() {
+  local filter="$1"
+  echo "== antecedent: v20_transport_statistical_calibration ${filter} =="
+  check "v20_transport_statistical_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v20_transport_statistical_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_v20 shared_factor_target_observational_nominal_coverage
+run_v20 source_target_imbalance_standardize_nominal_coverage
+run_v20 recursive_frontdoor_nominal_coverage
+run_v20 weak_overlap_near_empty_conditioner_boundary
+
+echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh
 
 if [ -n "$RECHECKED" ]; then

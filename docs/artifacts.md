@@ -141,7 +141,8 @@ circular-block replicates) it covers the true effect with asymptotic
 probability at least `level` whenever that effect is one retained identified
 completion's effect. With `product_posterior_envelope_quantile` (Bayesian;
 alias `imbens_manski_posterior_draws` on read) its endpoints are quantiles of
-the per-draw min / max of independently seeded completion posteriors, and every
+the per-draw min / max of completion posteriors drawn from distinct
+`StreamDomain` RNG streams, and every
 retained completion's posterior puts at most `1 − Φ(critical_value)` of its
 mass outside each endpoint. Fields: `level`, `lower`, `upper` (the interval),
 `bound_lower`, `bound_upper` (the estimated `min` / `max` over completions),

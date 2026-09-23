@@ -18,6 +18,9 @@ use crate::error::StatsError;
 /// [`MultivariatePartialCorrelation::test_blocks`].
 ///
 /// Empty [`Self::column_blocks`] ⇒ singleton `{x}` / `{y}` / unchanged `Z` (scalar `ParCorr`).
+///
+/// After expansion, conditioning columns that belong to the tested `X` or `Y` block are
+/// removed from `Z`, and a query whose `X` and `Y` blocks overlap is a shape error.
 #[derive(Clone, Debug)]
 pub struct PairwiseMultivariateCi {
     inner: MultivariatePartialCorrelation,
@@ -85,7 +88,19 @@ impl ConditionalIndependenceTest for PairwiseMultivariateCi {
             let z_raw = &request.z_flat[q.z_start..q.z_start + q.z_len];
             let x_cols = self.expand_endpoint(q.x);
             let y_cols = self.expand_endpoint(q.y);
-            let z = self.expand_z(z_raw);
+            // Blocks are the tested units: two endpoints in one block are not a test, and a
+            // conditioning column that expands into a tested block is the tested variable
+            // itself, so it drops out (conditioning a block on part of itself adds nothing).
+            if x_cols.iter().any(|c| y_cols.contains(c)) {
+                return Err(StatsError::Shape {
+                    message: "X and Y endpoints share a column block",
+                });
+            }
+            let z: Vec<usize> = self
+                .expand_z(z_raw)
+                .into_iter()
+                .filter(|c| !x_cols.contains(c) && !y_cols.contains(c))
+                .collect();
             let r = self.inner.test_blocks(
                 request.columns,
                 &x_cols,
@@ -98,6 +113,10 @@ impl ConditionalIndependenceTest for PairwiseMultivariateCi {
             results.push(r);
         }
         Ok(CiBatchResult { results })
+    }
+
+    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
+        super::parcorr::block_shuffle_min_p(significance)
     }
 }
 
@@ -205,5 +224,58 @@ mod tests {
             "expanded Z should screen x⊥y; p={}",
             out.results[0].p_value
         );
+    }
+
+    /// Conditioning on a column of the tested block is conditioning on the tested variable; the
+    /// expanded conditioning set used to contain X itself and Λ came from rounding residue.
+    #[test]
+    fn z_member_inside_tested_block_drops_out_and_overlapping_endpoints_fail() {
+        let n = 200usize;
+        let mut b0 = vec![0.0; n];
+        let mut b1 = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let s = (i as f64 * 0.041).sin();
+            b0[i] = s + 0.1 * ((i % 7) as f64);
+            b1[i] = 0.5 * s + 0.1 * ((i % 5) as f64);
+            y[i] = 0.9 * s + 0.1 * ((i % 11) as f64);
+        }
+        let cols: [&[f64]; 3] = [&b0, &b1, &y];
+        let blocks: Arc<[Arc<[usize]>]> = Arc::from([Arc::from([0usize, 1])]);
+        let ci = PairwiseMultivariateCi::with_column_blocks(blocks);
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(8);
+        let run = |z_len: usize, ws: &mut CiWorkspace| {
+            let queries = [CiQuery { x: 0, y: 2, z_start: 0, z_len }];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &[1],
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::None,
+            };
+            ci.test_batch_adhoc(&req, ws, &ctx).unwrap()
+        };
+        let conditioned = run(1, &mut ws);
+        let unconditioned = run(0, &mut ws);
+        assert_eq!(
+            conditioned.results[0].statistic.to_bits(),
+            unconditioned.results[0].statistic.to_bits()
+        );
+        assert_eq!(
+            conditioned.results[0].p_value.to_bits(),
+            unconditioned.results[0].p_value.to_bits()
+        );
+
+        // Both endpoints in the same block: not a test between two blocks.
+        let same = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &same,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::None,
+        };
+        assert!(ci.test_batch_adhoc(&req, &mut ws, &ctx).is_err());
     }
 }

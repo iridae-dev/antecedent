@@ -2,13 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::similar_names,
-    clippy::too_many_arguments
+#![allow(clippy::cast_possible_wrap, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -65,19 +66,27 @@ fn single_window_block_length(
     prep: &PreparedEstimationProblem,
     indexer: &TemporalIndexer,
     influence: Option<&[f64]>,
-) -> usize {
+) -> Result<usize, EstimationError> {
     let rows = prep.design.nrows;
     let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
+    // The same regression was just fitted for the point estimate, so a refusal here means
+    // the block length cannot be sized on the intercept's residual score; falling back to
+    // the rule length would understate the dependence without saying so.
     let normal_scores = crate::temporal_block::normal_equation_scores(
         &prep.design.matrix,
         rows,
         prep.design.ncols,
         &prep.design.outcome,
     )
-    .unwrap_or_default();
+    .ok_or_else(|| {
+        EstimationError::stats_msg(
+            "normal-equation scores of the temporal adjustment regression are unavailable, \
+             so the dependence-aware block length cannot be sized",
+        )
+    })?;
     let scores: Vec<&[f64]> =
         influence.into_iter().chain(normal_scores.iter().map(Vec::as_slice)).collect();
-    crate::temporal_block::dependence_block_length(structural_span, rows, &scores)
+    Ok(crate::temporal_block::dependence_block_length(structural_span, rows, &scores))
 }
 
 /// Temporal linear adjustment for unfolded backdoor estimands.
@@ -255,8 +264,11 @@ impl TemporalLinearAdjustment {
 
         let n = prep.n;
         let (row_start, row_end) = if let Some(s) = split {
-            // Map estimation time range into prepared sample rows (aligned at max_lag).
-            let est_start = s.estimation.start.saturating_sub(max_lag as usize);
+            // Prepared row `r` is the lag window `[r, r + max_lag]`. A row belongs to the
+            // estimation half only when its whole window does: `r >= estimation.start` (so
+            // no lagged regressor reads a discovery-half observation) and
+            // `r + max_lag < estimation.end`.
+            let est_start = s.estimation.start;
             let est_end = s.estimation.end.saturating_sub(max_lag as usize).min(n);
             if est_start >= est_end {
                 return Err(EstimationError::data_msg(
@@ -457,7 +469,7 @@ impl TemporalLinearAdjustment {
     ///   ([`crate::temporal_block::kernel_bias_scale`]).
     /// - `se_analytic` is NaN. No analytic SE is calibrated here: the iid OLS SE
     ///   ignores the dependence, and a Newey–West HAC SE at the same bandwidth
-    ///   under-covered in the 1.9 calibration (0.82–0.88 at nominal 0.90).
+    ///   under-covered in calibration (0.82–0.88 at nominal 0.90).
     ///
     /// `inner.se_kind` and the iid bootstrap of [`LinearAdjustmentAte`] are never used.
     ///
@@ -487,7 +499,7 @@ impl TemporalLinearAdjustment {
         // interval is published, so the rule length stands in (the diagnostic
         // says so through `replicates_attempted == 0`).
         let block_length = if replicates > 0 {
-            single_window_block_length(prep, indexer, point.influence.as_deref())
+            single_window_block_length(prep, indexer, point.influence.as_deref())?
         } else {
             let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
             antecedent_data::circular_block_length(structural_span, rows)
@@ -556,7 +568,7 @@ impl TemporalLinearAdjustment {
             &mut EstimationWorkspace::default(),
             AssumptionSet::default(),
         )?;
-        Ok(single_window_block_length(prep, indexer, point.influence.as_deref()))
+        single_window_block_length(prep, indexer, point.influence.as_deref())
     }
 
     /// The OLS point fitter of [`Self::fit_dependence_honest`] (no iid bootstrap or
@@ -818,6 +830,31 @@ mod tests {
         // The smooth residual is persistent, so its normal-equation score lengthens
         // the blocks past the n^(1/3) rule.
         assert!(block > antecedent_data::circular_block_length(2, info.rows), "block={block}");
+    }
+
+    #[test]
+    fn estimation_split_rows_read_no_discovery_observation() {
+        let (data, g) = series();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let est = TemporalLinearAdjustment::new();
+        let policy = &ExecutionContext::for_tests(1).kernel_policy;
+        // Discovery [0, 100), estimation [100, 240); the treatment sits one lag back, so
+        // max_lag = 1 and prepared row r spans series times [r, r + 1].
+        let split = DiscoveryEstimationSplit::from_sizes(240, 100, 0, 140).unwrap();
+        let (prep, aligned) = est
+            .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&split), policy)
+            .unwrap();
+        // First row's window is [100, 101] (lagged regressor at time 100, no discovery
+        // time), so it ends at 101; the last row's window ends at the series end (239).
+        assert_eq!(aligned.first_time, 101);
+        assert_eq!(aligned.rows, 139);
+        assert_eq!(aligned.first_time + aligned.rows, 240);
+        assert_eq!(prep.design.nrows, 139);
     }
 
     #[test]

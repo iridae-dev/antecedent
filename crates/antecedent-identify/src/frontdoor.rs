@@ -16,14 +16,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    VariableId,
-};
+use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId};
 
@@ -55,6 +52,11 @@ impl Default for FrontDoorSearchConfig {
         Self { max_results: 64, max_mediator_set_size: 4 }
     }
 }
+
+/// Diagnostic code of a front-door mediator search that was cut by `max_mediator_set_size`,
+/// the intermediate-pool bound, or `max_results`: a `NotIdentified` carrying it is a search
+/// bound, not a structural refusal.
+pub const FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.frontdoor.search_bounded";
 
 /// Front-door criterion identifier for static DAGs.
 #[derive(Clone, Debug, Default)]
@@ -214,10 +216,8 @@ impl FrontDoorIdentifier {
                 IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
             );
             if search_bounded {
-                result.diagnostics.push(Diagnostic::new(
-                    "identify.frontdoor.search_bounded",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
+                result.diagnostics.push(crate::result::search_bounded_diagnostic(
+                    FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
                     "front-door mediator search was truncated by max_mediator_set_size / \
                      max_results; NotIdentified may be a search bound, not structural non-ID",
                 ));
@@ -259,10 +259,8 @@ impl FrontDoorIdentifier {
             },
         );
         if search_bounded {
-            result.diagnostics.push(Diagnostic::new(
-                "identify.frontdoor.search_bounded",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
+            result.diagnostics.push(crate::result::search_bounded_diagnostic(
+                FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
                 "front-door mediator search was truncated by max_mediator_set_size / max_results; \
                  NotIdentified (or a missing set) may be a search bound, not structural non-ID",
             ));
@@ -345,7 +343,7 @@ fn combinations(items: &[DenseNodeId], k: usize) -> Vec<Vec<DenseNodeId>> {
 mod tests {
     use super::*;
     use crate::result::IdentificationStatus;
-    use antecedent_core::AverageEffectQuery;
+    use antecedent_core::{AverageEffectQuery, DiagnosticKind};
 
     #[test]
     fn classic_frontdoor_with_unmeasured_confounder() {
@@ -477,11 +475,12 @@ mod tests {
             .identify(&prepared, &query, &mut IdentificationWorkspace::default())
             .unwrap();
         assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "identify.frontdoor.search_bounded")
-        );
+        let bounded = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "identify.frontdoor.search_bounded")
+            .expect("bounded search is reported");
+        // How far the search ran is a fact about the run, not about the graph.
+        assert_eq!(bounded.kind, DiagnosticKind::Execution);
     }
 }

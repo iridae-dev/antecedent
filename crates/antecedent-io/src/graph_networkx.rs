@@ -46,7 +46,11 @@ pub struct NetworkXLink {
     pub target: JsonValue,
 }
 
-/// `NetworkX` `adjacency_data` subset.
+/// `NetworkX` `adjacency_data` document.
+///
+/// Real `NetworkX` documents keep a parallel top-level `adjacency` array: entry
+/// `i` lists the out-neighbors of `nodes[i]`, each neighbor carrying an `id`
+/// field (plus optional edge attributes).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct NetworkXAdjacency {
     /// Must be true.
@@ -57,18 +61,17 @@ pub struct NetworkXAdjacency {
     /// Graph attrs.
     #[serde(default)]
     pub graph: JsonValue,
-    /// Nodes with adjacency maps.
-    pub nodes: Vec<NetworkXAdjNode>,
+    /// Nodes (ids only; adjacency is parallel, not nested).
+    pub nodes: Vec<NetworkXNode>,
+    /// Parallel to `nodes`: each entry is that node's out-neighbor list.
+    pub adjacency: Vec<Vec<NetworkXAdjNeighbor>>,
 }
 
-/// Adjacency node.
+/// One out-neighbor entry in a `NetworkX` adjacency list.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct NetworkXAdjNode {
-    /// Id.
+pub struct NetworkXAdjNeighbor {
+    /// Neighbor id.
     pub id: JsonValue,
-    /// Out-neighbors → attr object (attrs ignored).
-    #[serde(default)]
-    pub adjacency: Vec<HashMap<String, JsonValue>>,
 }
 
 /// Parse `NetworkX` node-link JSON into a [`Dag`].
@@ -130,14 +133,15 @@ fn dag_wire_and_names_from_networkx_node_link(
     }
     let mut order = Vec::new();
     let mut index = HashMap::new();
+    let mut kinds = NodeIdKinds::default();
     for n in &doc.nodes {
-        let name = json_id_to_string(&n.id)?;
+        let name = kinds.name(&n.id)?;
         graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
     for link in &doc.links {
-        let s = json_id_to_string(&link.source)?;
-        let t = json_id_to_string(&link.target)?;
+        let s = kinds.name(&link.source)?;
+        let t = kinds.name(&link.target)?;
         let from = graph_dot::intern(&s, &mut order, &mut index)?;
         let to = graph_dot::intern(&t, &mut order, &mut index)?;
         edges.push((from, to));
@@ -202,30 +206,46 @@ pub fn dag_from_networkx_adjacency(json: &str) -> Result<Dag, IoError> {
 /// strings, since the document carries no distinct name information in
 /// that case.
 ///
+/// Expects `NetworkX` `adjacency_data` shape: top-level `adjacency` parallel
+/// to `nodes`. Documents without that field (or with length mismatch) are
+/// refused — never returned as an edgeless success.
+///
 /// # Errors
 ///
-/// Undirected / malformed / cycles.
+/// Undirected / malformed / cycles / unsupported adjacency shape.
 pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<String>), IoError> {
     let doc: NetworkXAdjacency =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
     if !doc.directed {
         return Err(IoError::Convert("NetworkX graph must be directed".into()));
     }
+    if doc.multigraph {
+        return Err(IoError::Convert("NetworkX multigraph not supported".into()));
+    }
+    if doc.adjacency.len() != doc.nodes.len() {
+        return Err(IoError::Convert(format!(
+            "NetworkX adjacency length {} must equal nodes length {}",
+            doc.adjacency.len(),
+            doc.nodes.len()
+        )));
+    }
     let mut order = Vec::new();
     let mut index = HashMap::new();
+    let mut kinds = NodeIdKinds::default();
     for n in &doc.nodes {
-        let name = json_id_to_string(&n.id)?;
+        let name = kinds.name(&n.id)?;
         graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut edges = Vec::new();
-    for n in &doc.nodes {
-        let from_name = json_id_to_string(&n.id)?;
-        let from = *index.get(&from_name).unwrap();
-        for adj in &n.adjacency {
-            for key in adj.keys() {
-                let to = graph_dot::intern(key, &mut order, &mut index)?;
-                edges.push((from, to));
-            }
+    for (i, nbrs) in doc.adjacency.iter().enumerate() {
+        let from_name = kinds.name(&doc.nodes[i].id)?;
+        let from = *index.get(&from_name).ok_or_else(|| {
+            IoError::Convert(format!("NetworkX adjacency missing node `{from_name}`"))
+        })?;
+        for nbr in nbrs {
+            let to_name = kinds.name(&nbr.id)?;
+            let to = graph_dot::intern(&to_name, &mut order, &mut index)?;
+            edges.push((from, to));
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
@@ -234,6 +254,9 @@ pub fn dag_with_names_from_networkx_adjacency(json: &str) -> Result<(Dag, Vec<St
 }
 
 /// Serialize a [`Dag`] to `NetworkX` adjacency JSON.
+///
+/// Emits `NetworkX` `adjacency_data` shape (top-level `adjacency` parallel to
+/// `nodes`).
 ///
 /// # Errors
 ///
@@ -251,21 +274,24 @@ pub fn dag_to_networkx_adjacency(dag: &Dag, names: Option<&[String]>) -> Result<
                 .cloned()
                 .map(JsonValue::String)
                 .unwrap_or(JsonValue::Number(i.into()));
-            let adjacency = children
+            NetworkXNode { id }
+        })
+        .collect();
+    let adjacency = (0..wire.node_count)
+        .map(|i| {
+            children
                 .get(&i)
                 .into_iter()
                 .flatten()
                 .map(|&t| {
-                    let key = names
+                    let id = names
                         .and_then(|n| n.get(t as usize))
                         .cloned()
-                        .unwrap_or_else(|| t.to_string());
-                    let mut m = HashMap::new();
-                    m.insert(key, JsonValue::Object(serde_json::Map::new()));
-                    m
+                        .map(JsonValue::String)
+                        .unwrap_or(JsonValue::Number(t.into()));
+                    NetworkXAdjNeighbor { id }
                 })
-                .collect();
-            NetworkXAdjNode { id, adjacency }
+                .collect()
         })
         .collect();
     let doc = NetworkXAdjacency {
@@ -273,11 +299,32 @@ pub fn dag_to_networkx_adjacency(dag: &Dag, names: Option<&[String]>) -> Result<
         multigraph: false,
         graph: JsonValue::Object(serde_json::Map::new()),
         nodes,
+        adjacency,
     };
     serde_json::to_string_pretty(&doc).map_err(|e| IoError::Convert(format!("json: {e}")))
 }
 
-pub(crate) fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
+/// Node-id spellings seen in one document. `NetworkX` keys nodes by Python value, so the
+/// integer `1` and the string `"1"` are different nodes; names here are strings, so a
+/// document that uses both spellings of one name cannot be represented faithfully.
+#[derive(Default)]
+pub(crate) struct NodeIdKinds(HashMap<String, bool>);
+
+impl NodeIdKinds {
+    pub(crate) fn name(&mut self, id: &JsonValue) -> Result<String, IoError> {
+        let name = json_id_to_string(id)?;
+        let numeric = id.is_number();
+        if *self.0.entry(name.clone()).or_insert(numeric) != numeric {
+            return Err(IoError::Convert(format!(
+                "NetworkX node id `{name}` appears both as a number and as a string; \
+                 these are distinct nodes and cannot share one variable name"
+            )));
+        }
+        Ok(name)
+    }
+}
+
+fn json_id_to_string(v: &JsonValue) -> Result<String, IoError> {
     match v {
         JsonValue::String(s) => Ok(s.clone()),
         JsonValue::Number(n) => Ok(n.to_string()),
@@ -290,6 +337,17 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     use super::*;
+
+    #[test]
+    fn integer_and_string_ids_of_one_spelling_are_refused_not_merged() {
+        let doc = r#"{"directed": true, "multigraph": false, "graph": {},
+            "nodes": [{"id": 1}, {"id": "1"}], "links": []}"#;
+        let error = dag_from_networkx_node_link(doc).unwrap_err().to_string();
+        assert!(error.contains("both as a number and as a string"), "{error}");
+        let same_kind = r#"{"directed": true, "multigraph": false, "graph": {},
+            "nodes": [{"id": "a"}, {"id": "b"}], "links": [{"source": "a", "target": "b"}]}"#;
+        assert_eq!(dag_from_networkx_node_link(same_kind).unwrap().node_count(), 2);
+    }
 
     #[test]
     fn node_link_round_trip() {
@@ -336,6 +394,40 @@ mod tests {
         let s = dag_to_networkx_adjacency(&dag, None).unwrap();
         let back = dag_from_networkx_adjacency(&s).unwrap();
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn genuine_networkx_adjacency_document_loads_edges() {
+        // NetworkX `adjacency_data` shape: parallel top-level `adjacency`.
+        let json = r#"{
+  "directed": true,
+  "multigraph": false,
+  "graph": [],
+  "nodes": [{"id": "Z"}, {"id": "X"}, {"id": "Y"}],
+  "adjacency": [
+    [{"id": "X"}],
+    [{"id": "Y"}],
+    []
+  ]
+}"#;
+        let (dag, names) = dag_with_names_from_networkx_adjacency(json).unwrap();
+        assert_eq!(names, vec!["Z".to_string(), "X".to_string(), "Y".to_string()]);
+        assert_eq!(dag.node_count(), 3);
+        assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+        assert!(dag.reaches(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn adjacency_without_parallel_array_is_refused() {
+        // Nested-in-node adjacency (non-NetworkX) must not load as edgeless success.
+        let json = r#"{
+  "directed": true,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [{"id": 0, "adjacency": [{"1": {}}]}, {"id": 1, "adjacency": []}]
+}"#;
+        let err = dag_from_networkx_adjacency(json).unwrap_err();
+        assert!(matches!(err, IoError::Convert(_)));
     }
 
     #[test]

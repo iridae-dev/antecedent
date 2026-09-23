@@ -4,16 +4,18 @@
 
 use std::sync::Arc;
 
+/// Largest Cholesky condition lower bound at which a Laplace covariance is
+/// still published. Beyond ~1/ε the inverse Hessian carries no correct digits.
+pub const MAX_HESSIAN_CONDITION: f64 = 1e14;
+
 /// Factorization used for the Laplace covariance / MCMC marker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum HessianFactorization {
     /// Cholesky of the negative Hessian.
     Cholesky,
-    /// Structured LDLT fallback.
-    Ldlt,
     /// Analytic conjugate (exact posterior; no Hessian).
     Analytic,
-    /// Multi-chain MCMC (HMC / SMC); curvature from sampling, not Hessian.
+    /// Multi-chain MCMC (HMC); curvature from sampling, not Hessian.
     Mcmc,
 }
 
@@ -100,22 +102,62 @@ impl InferenceDiagnostics {
         match self.factorization {
             HessianFactorization::Analytic => true,
             HessianFactorization::Mcmc => self.converged && self.mcmc_publication_ok(),
-            HessianFactorization::Cholesky | HessianFactorization::Ldlt => {
-                self.converged
-                    && !self.separation_warning
-                    && self.grad_inf_norm.is_finite()
-                    && self.hessian_condition.is_finite()
-                    && self.hessian_condition > 0.0
-            }
+            HessianFactorization::Cholesky => self.curvature_refusal().is_none(),
         }
+    }
+
+    /// Why a Laplace (Cholesky) posterior is refused, or `None` when its
+    /// convergence and curvature diagnostics allow publication.
+    ///
+    /// Names the actual cause so a separation refusal is not reported as
+    /// missing diagnostics. The condition ceiling applies to the Cholesky
+    /// lower bound on κ(−Hessian), so a factor at working-precision singularity
+    /// is refused rather than published with a finite-looking covariance.
+    #[must_use]
+    pub fn curvature_refusal(&self) -> Option<String> {
+        if !self.converged {
+            return Some("Laplace posterior refused: the mode search did not converge".into());
+        }
+        if self.separation_warning {
+            return Some(
+                "Laplace posterior refused: at least one observation is fitted within 1e-8 of \
+                 certainty at the mode (possible separation), so the Gaussian approximation is \
+                 not a publication-grade posterior"
+                    .into(),
+            );
+        }
+        if !self.grad_inf_norm.is_finite() {
+            return Some("Laplace posterior refused: non-finite gradient at the mode".into());
+        }
+        if !(self.hessian_condition > 0.0 && self.hessian_condition.is_finite()) {
+            return Some(
+                "Laplace posterior refused: the negative Hessian at the mode has no finite \
+                 condition estimate"
+                    .into(),
+            );
+        }
+        if self.hessian_condition > MAX_HESSIAN_CONDITION {
+            return Some(format!(
+                "Laplace posterior refused: negative Hessian condition lower bound {:.3e} exceeds \
+                 {MAX_HESSIAN_CONDITION:.0e} (numerically singular curvature)",
+                self.hessian_condition
+            ));
+        }
+        None
     }
 
     /// Full MATH-002 MCMC publication predicate (independent of `converged`).
     #[must_use]
     pub fn mcmc_publication_ok(&self) -> bool {
-        if self.factorization != HessianFactorization::Mcmc {
-            return false;
-        }
+        self.factorization == HessianFactorization::Mcmc
+            && self.mcmc_publication_failures().is_empty()
+    }
+
+    /// The clauses of the MCMC publication predicate that fail, in a fixed order; empty exactly
+    /// when [`Self::mcmc_publication_ok`] holds for an MCMC factorization. Lets a caller say
+    /// *which* criterion blocked publication instead of printing the summary numbers.
+    #[must_use]
+    pub fn mcmc_publication_failures(&self) -> Vec<&'static str> {
         // Stan/Vehtari (2021): rank-normalized / folded R̂ ≤ 1.01.
         let rhat_ok = self.rhat_max.is_some_and(|r| r.is_finite() && r <= 1.01);
         // Stan/ArviZ guidance is ~100 bulk- and tail-ESS **per chain**, not in total. A flat
@@ -132,15 +174,20 @@ impl InferenceDiagnostics {
         let delta_ok = self.max_abs_delta_h.is_some_and(f64::is_finite);
         let chains_ok = self.n_chains.is_some_and(|c| c >= 2);
         let warmup_ok = self.n_warmup.is_some();
-        rhat_ok
-            && ess_bulk_ok
-            && ess_tail_ok
-            && div_ok
-            && moved_ok
-            && accept_ok
-            && delta_ok
-            && chains_ok
-            && warmup_ok
+        [
+            (rhat_ok, "split-R̂ is missing, non-finite, or above 1.01"),
+            (ess_bulk_ok, "bulk ESS is missing, non-finite, or below 100 per chain"),
+            (ess_tail_ok, "tail ESS is missing, non-finite, or below 100 per chain"),
+            (div_ok, "post-warmup divergences are missing or nonzero"),
+            (moved_ok, "not every chain moved (or chain movement was not recorded)"),
+            (accept_ok, "mean acceptance probability is missing or non-finite"),
+            (delta_ok, "maximum Hamiltonian energy error is missing or non-finite"),
+            (chains_ok, "fewer than two chains (R̂ is undefined)"),
+            (warmup_ok, "warmup length was not recorded"),
+        ]
+        .into_iter()
+        .filter_map(|(ok, reason)| (!ok).then_some(reason))
+        .collect()
     }
 }
 
@@ -268,6 +315,51 @@ mod tests {
         assert!(d.allows_posterior());
         d.separation_warning = true;
         assert!(!d.allows_posterior());
+    }
+
+    #[test]
+    fn laplace_refusal_names_its_cause() {
+        let mut d = mcmc_ok_base();
+        d.factorization = HessianFactorization::Cholesky;
+        d.hessian_condition = 10.0;
+        assert!(d.curvature_refusal().is_none());
+        d.separation_warning = true;
+        assert!(d.curvature_refusal().unwrap().contains("separation"));
+        d.separation_warning = false;
+        d.hessian_condition = f64::NAN;
+        assert!(d.curvature_refusal().unwrap().contains("condition"));
+        assert!(!d.allows_posterior());
+        d.hessian_condition = 1e15;
+        assert!(d.curvature_refusal().unwrap().contains("exceeds"));
+        assert!(!d.allows_posterior());
+        d.hessian_condition = 1e13;
+        assert!(d.allows_posterior());
+        d.converged = false;
+        assert!(d.curvature_refusal().unwrap().contains("converge"));
+    }
+
+    #[test]
+    fn publication_failures_name_exactly_the_failing_clauses() {
+        let mut d = mcmc_ok_base();
+        assert!(d.mcmc_publication_failures().is_empty());
+        assert!(d.mcmc_publication_ok());
+        // Tail ESS alone and chain movement alone: the reason list names those, and only those.
+        d.ess_tail_min = Some(50.0);
+        d.all_chains_moved = Some(false);
+        let failures = d.mcmc_publication_failures();
+        assert_eq!(failures.len(), 2, "{failures:?}");
+        assert!(failures[0].contains("tail ESS"), "{failures:?}");
+        assert!(failures[1].contains("chain moved"), "{failures:?}");
+        assert!(!d.mcmc_publication_ok());
+        // Every clause missing: all nine are listed.
+        d.rhat_max = None;
+        d.ess_bulk_min = None;
+        d.n_postwarmup_divergences = None;
+        d.mean_accept_prob = None;
+        d.max_abs_delta_h = None;
+        d.n_chains = Some(1);
+        d.n_warmup = None;
+        assert_eq!(d.mcmc_publication_failures().len(), 9);
     }
 
     #[test]

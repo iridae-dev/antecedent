@@ -1,5 +1,9 @@
 # temporal response baselines
 
+Established: 2026-09-07 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: 87e9a12e (the commit that added this file; the measured commit was not written down)
+
 Criterion benches (run with `--test` in release / feature gates):
 
 - `antecedent-estimate` bench `temporal_response`:

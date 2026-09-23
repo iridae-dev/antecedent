@@ -12,16 +12,19 @@ mod gsquared;
 mod pairwise_mv;
 mod parcorr;
 mod parcorr_variants;
+mod residualize;
 mod types;
 
-pub use advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
+pub use advanced::{
+    GPDC_ROW_LIMIT, Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi,
+};
 pub use analytic::analytic_parcorr_ci;
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
 pub use calibration::{
     CalibrationReport, calibrate_gsquared, calibrate_multivariate_parcorr_block,
     calibrate_multivariate_parcorr_block_shuffle, calibrate_parcorr_like, chi2_crit_approx,
-    collect_null_pvalues_parcorr_like, type_i_within_three_se, type_i_within_two_se,
-    uniform_bin_chi2,
+    collect_null_pvalues_parcorr_like, type_i_within_binomial_region, type_i_within_three_se,
+    type_i_within_two_se, uniform_bin_chi2,
 };
 pub use factory::ci_from_name;
 pub use gsquared::{GSquared, RegressionCi};
@@ -33,7 +36,8 @@ pub use parcorr_variants::{
 pub use types::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnDependenceWorkspace,
-    PreparedCiTest, SignificanceMethod, analytic_confidence_level, nonparametric_permutation_count,
+    PreparedCiTest, SignificanceMethod, analytic_confidence_level, ensure_alpha_resolvable,
+    nonparametric_permutation_count, permutation_min_p,
 };
 
 #[cfg(test)]
@@ -41,7 +45,8 @@ pub use types::{
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::float_cmp,
-    clippy::similar_names
+    clippy::similar_names,
+    reason = "tests assert exact float values that are integer-valued or copied unchanged, and index small fixtures"
 )]
 mod tests {
     use antecedent_core::ExecutionContext;

@@ -1,41 +1,43 @@
 # Antecedent
 
-Antecedent helps you estimate causal effects in Python and Rust. Supply data,
-a causal question, and a graph or discovery method. It checks whether the
-question can be answered under the stated assumptions, then estimates the
-effect or explains why it cannot.
+Antecedent is a causal inference system for turning causal questions and
+evidence into checked, executable scientific claims. It preserves what an
+answer means—its assumptions, identification status, empirical support,
+uncertainty, provenance, and limits—when the analysis is estimated, reused,
+combined, saved, transported, or consumed by other software.
 
-Results keep the assumptions, uncertainty, and diagnostics alongside the answer.
-When several causal structures remain plausible, that uncertainty stays visible.
+> **Antecedent 2.0 is the stable release.** Install it with
+> `python -m pip install --upgrade antecedent` (Python 3.11+), then begin with
+> the [Python quickstart](python-workflow.md). Read the
+> [2.0.0 release notes](release-notes/v2.0.0.md) when upgrading from an earlier
+> release.
 
-## Start here
+Most causal failures in software are semantic failures at boundaries. Read
+[the system model](system-model.md) first: it explains how Antecedent compiles
+declared knowledge into a causal contract and why a result is more than a
+number.
 
-These docs describe **Antecedent 1.11**. The Python quickstart begins with
-installation from PyPI.
+## Start with the mental model
 
-| What you want to do | Start with |
-|---|---|
-| Run your first Python analysis | [Python quickstart](python-workflow.md) |
-| Use Rust | [Rust quickstart](rust-quickstart.md) |
-| Learn from a worked example | [Examples](examples.md) |
-| Check whether your analysis is supported | [Supported analyses](supported-analyses.md) |
-| Look up a Python method | [Python API](python-api.md) |
+| Question | Read |
+| --- | --- |
+| What is Antecedent trying to preserve? | [System model](system-model.md) |
+| What does an analysis contract contain? | [The causal contract](causal-contract.md) |
+| How should I read a result? | [A result is a claim](result-is-a-claim.md) |
+| Why does Antecedent refuse some requests? | [Refusal and partial knowledge](refusal-and-partial-knowledge.md) |
+| How do I read graph uncertainty and unidentified mass? | [Graph uncertainty](graph_uncertainty.md) |
+| What does “supported” mean? | [Guarantees and support](guarantees.md) |
 
-## Explore a question
+## Then use it
 
-- **How does an effect change with dose?** Read [causal responses](causal-responses.md).
-- **Does it differ across populations or outcomes?** Read [local, distributional, and joint effects](local-distributional-joint.md).
-- **Was the outcome censored or selected?** Read the [observation contract](observation-contract.md).
-- **Can evidence transfer, or do units affect each other?** Read [transport and interference](transport-interference.md).
-- **Can an earlier study inform a new one?** Read about the [prior bank](priors.md).
+Start an ordinary analysis with the [Python workflow](python-workflow.md) or
+[Rust quickstart](rust-quickstart.md). The same model extends to discovery and
+structural uncertainty, response and temporal questions, Bayesian inference,
+validation, counterfactuals, learner-backed estimation, and transport across
+populations. Those are different causal programs, not disconnected products.
 
-A supported analysis still depends on its assumptions and on adequate data.
-The [capabilities](capabilities.md) page describes the available methods;
-the [support matrix](support-matrix.md) records which combinations can run.
+For exact public boundaries, consult the [support matrix](support-matrix.md).
+An implemented capability is not automatically a licensed analysis, and a
+licensed analysis does not establish that a real-world causal model is true.
 
-## Go deeper
-
-Read the [architecture](architecture.md), [evidence and conformance](conformance/README.md),
-or [development guide](development.md). For changes in this version, see the
-[1.11.0 release notes](release-notes/v1.11.0.md) and the
-[1.11 finding closeout](reviews/v1.11-finding-closeout.md).
+Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [2.0 release notes](release-notes/v2.0.0.md).

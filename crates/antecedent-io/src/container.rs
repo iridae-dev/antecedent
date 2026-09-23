@@ -274,6 +274,12 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     r.read_exact(&mut manifest_buf)?;
     let manifest: ArtifactManifest =
         ciborium::from_reader(manifest_buf.as_slice()).map_err(|e| IoError::Cbor(e.to_string()))?;
+    // Lookups are by id, so a repeated id would let one payload be read while another
+    // is hashed, listed or skipped.
+    let mut ids = HashSet::with_capacity(manifest.sections.len());
+    if !manifest.sections.iter().all(|desc| ids.insert(desc.id.as_str())) {
+        return Err(IoError::ManifestMismatch { message: "duplicate section id" });
+    }
     Ok((manifest, r))
 }
 
@@ -294,18 +300,7 @@ fn read_section_logical<R: Read>(r: &mut R, desc: &SectionDescriptor) -> Result<
     if hash.as_bytes() != &desc.blake3 {
         return Err(IoError::ChecksumMismatch { section: desc.id.clone() });
     }
-    let logical = decode_on_wire(&on_wire, desc.compression.as_deref(), &desc.id)?;
-    let expected_uncomp = usize::try_from(desc.uncompressed_size).map_err(|_| IoError::TooLarge)?;
-    if logical.len() != expected_uncomp {
-        return Err(IoError::Decompress {
-            section: desc.id.clone(),
-            message: format!(
-                "logical size {} != uncompressed_size {expected_uncomp}",
-                logical.len()
-            ),
-        });
-    }
-    Ok(logical)
+    decode_on_wire(&on_wire, desc.compression.as_deref(), &desc.id, desc.uncompressed_size)
 }
 
 /// Consume an on-wire section, verifying BLAKE3, without retaining the payload.
@@ -458,15 +453,30 @@ fn encode_on_wire_owned(
     }
 }
 
+/// Decode on-wire bytes to logical bytes.
+///
+/// For zstd, `uncompressed_size` is a hard cap applied *during* streaming
+/// decompression (not after). Missing / unrepresentable sizes and frames that
+/// expand past the declared size are refused without allocating the expansion.
 pub(crate) fn decode_on_wire(
     on_wire: &[u8],
     compression: Option<&str>,
     section: &str,
+    uncompressed_size: u64,
 ) -> Result<Vec<u8>, IoError> {
     match compression {
         None => Ok(on_wire.to_vec()),
-        Some(COMPRESSION_ZSTD) => zstd::decode_all(on_wire)
-            .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() }),
+        Some(COMPRESSION_ZSTD) => {
+            let max = decode_size_cap(uncompressed_size)?;
+            let logical = decode_zstd_bounded(on_wire, max, section)?;
+            if logical.len() != max {
+                return Err(IoError::Decompress {
+                    section: section.into(),
+                    message: format!("logical size {} != uncompressed_size {max}", logical.len()),
+                });
+            }
+            Ok(logical)
+        }
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
     }
 }
@@ -477,14 +487,12 @@ pub(crate) fn decode_on_wire_arc(
     on_wire: &[u8],
     compression: Option<&str>,
     section: &str,
+    uncompressed_size: u64,
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
         None => Ok((Arc::from(on_wire.to_vec()), false)),
         Some(COMPRESSION_ZSTD) => {
-            let v = zstd::decode_all(on_wire).map_err(|e| IoError::Decompress {
-                section: section.into(),
-                message: e.to_string(),
-            })?;
+            let v = decode_on_wire(on_wire, compression, section, uncompressed_size)?;
             Ok((Arc::from(v), true))
         }
         Some(other) => Err(IoError::UnsupportedCompression { algo: other.into() }),
@@ -498,11 +506,49 @@ pub(crate) fn decode_on_wire_arc_owned(
     on_wire: Vec<u8>,
     compression: Option<&str>,
     section: &str,
+    uncompressed_size: u64,
 ) -> Result<(Arc<[u8]>, bool), IoError> {
     match compression {
         None => Ok((Arc::from(on_wire), false)),
-        _ => decode_on_wire_arc(&on_wire, compression, section),
+        _ => decode_on_wire_arc(&on_wire, compression, section, uncompressed_size),
     }
+}
+
+fn decode_size_cap(uncompressed_size: u64) -> Result<usize, IoError> {
+    let max = usize::try_from(uncompressed_size).map_err(|_| IoError::TooLarge)?;
+    if max > MAX_SECTION_BYTES {
+        return Err(IoError::TooLarge);
+    }
+    Ok(max)
+}
+
+/// Stream-decompress zstd, never retaining more than `max_uncompressed + 1` bytes
+/// so a hostile frame cannot expand past the declared size.
+fn decode_zstd_bounded(
+    on_wire: &[u8],
+    max_uncompressed: usize,
+    section: &str,
+) -> Result<Vec<u8>, IoError> {
+    let decoder = zstd::Decoder::new(on_wire)
+        .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() })?;
+    let read_cap = u64::try_from(max_uncompressed)
+        .ok()
+        .and_then(|n| n.checked_add(1))
+        .ok_or(IoError::TooLarge)?;
+    let mut limited = decoder.take(read_cap);
+    let mut out = Vec::new();
+    limited
+        .read_to_end(&mut out)
+        .map_err(|e| IoError::Decompress { section: section.into(), message: e.to_string() })?;
+    if out.len() > max_uncompressed {
+        return Err(IoError::Decompress {
+            section: section.into(),
+            message: format!(
+                "decompressed size exceeds declared uncompressed_size {max_uncompressed}"
+            ),
+        });
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -671,6 +717,29 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_section_ids_are_rejected_on_read() {
+        let (first, first_bytes) = pack_section(
+            "note",
+            "application/octet-stream",
+            b"one".to_vec(),
+            CompressPolicy::Never,
+        );
+        let (second, second_bytes) = pack_section(
+            "note",
+            "application/octet-stream",
+            b"two".to_vec(),
+            CompressPolicy::Never,
+        );
+        let art = tiny_artifact(vec![(first, first_bytes), (second, second_bytes)]);
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).unwrap();
+        let err = EncodedArtifact::read_from(buf.as_slice()).unwrap_err();
+        assert_eq!(err, IoError::ManifestMismatch { message: "duplicate section id" });
+        assert!(EncodedArtifact::read_selective(buf.as_slice(), &HashSet::from(["note"])).is_err());
+        assert!(crate::reader::ArtifactReader::open_seek(std::io::Cursor::new(buf)).is_err());
+    }
+
+    #[test]
     fn read_selective_skips_unread_payload() {
         let meta = b"meta".to_vec();
         let blob = vec![0xCDu8; 32 * 1024];
@@ -688,5 +757,37 @@ mod tests {
         assert_eq!(partial.sections[0].id, "meta");
         assert_eq!(&*partial.sections[0].data, meta.as_slice());
         assert_eq!(partial.manifest.sections.len(), 2);
+    }
+
+    /// Hostile zstd frame that expands far past a lying `uncompressed_size`
+    /// must fail during the capped stream decode (io-5), not after allocating.
+    #[test]
+    fn zstd_decode_refuses_oversize_or_lying_declared_size() {
+        let logical = vec![0xABu8; 64 * 1024];
+        let on_wire = zstd::encode_all(logical.as_slice(), ZSTD_LEVEL).unwrap();
+        let err = decode_on_wire(&on_wire, Some(COMPRESSION_ZSTD), "blob", 128).unwrap_err();
+        assert!(
+            matches!(err, IoError::Decompress { .. }),
+            "lying uncompressed_size must be Err, got {err:?}"
+        );
+        let err_huge = decode_on_wire(
+            &on_wire,
+            Some(COMPRESSION_ZSTD),
+            "blob",
+            (MAX_SECTION_BYTES as u64) + 1,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err_huge, IoError::TooLarge),
+            "missing usable size bound must be Err, got {err_huge:?}"
+        );
+        let ok = decode_on_wire(
+            &on_wire,
+            Some(COMPRESSION_ZSTD),
+            "blob",
+            u64::try_from(logical.len()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(ok, logical);
     }
 }

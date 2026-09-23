@@ -6,12 +6,28 @@
 //! bound (`max_completions` caps **valid** yields). Conflict (`x-x`) edges are
 //! refused at construction.
 //!
+//! Search orients one undirected edge at a time and rejects a partial assignment
+//! as soon as it creates a directed cycle or an unshielded collider absent from
+//! the CPDAG — so sparse classes (e.g. long undirected chains) finish by pruning
+//! instead of scanning `2^k` full masks. A hard ceiling
+//! ([`MAX_UNDIRECTED_EDGES`]) still refuses pathological unconstrained instances.
+//! The search itself is shared with the temporal sampler (`crate::mec_search`).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::cpdag::Cpdag;
 use crate::dag::Dag;
 use crate::error::GraphError;
+use crate::mec_search::{self, MecSearch};
+#[cfg(test)]
 use crate::types::DenseNodeId;
+
+/// Hard ceiling on undirected edges accepted by the completion search.
+///
+/// Partial-assignment pruning handles sparse classes (chains, trees) well above
+/// the ~25-edge hang of a blind mask scan. This ceiling only stops fully
+/// unconstrained `2^k` blow-ups; it sits above that practical hang threshold.
+pub const MAX_UNDIRECTED_EDGES: usize = 64;
 
 /// One DAG completion of a CPDAG (MEC member).
 #[derive(Clone, Debug)]
@@ -25,13 +41,7 @@ pub struct CpdagCompletion {
 /// Streams CPDAG → DAG completions with a hard cap (no unbounded retain).
 #[derive(Clone, Debug)]
 pub struct CpdagCompletionSampler {
-    base: Cpdag,
-    /// Undirected edges `(a, b)` with `a.raw() < b.raw()`.
-    undirected: Vec<(DenseNodeId, DenseNodeId)>,
-    max_completions: usize,
-    next_index: usize,
-    /// Bitmask: bit i = 0 → orient a→b, bit i = 1 → orient b→a.
-    assign: u64,
+    search: MecSearch<Cpdag>,
 }
 
 impl CpdagCompletionSampler {
@@ -39,66 +49,36 @@ impl CpdagCompletionSampler {
     ///
     /// # Errors
     ///
-    /// Conflict edges present, or more than 63 undirected edges (mask capacity).
+    /// Conflict edges present, or more than [`MAX_UNDIRECTED_EDGES`] undirected edges.
     pub fn new(cpdag: Cpdag, max_completions: usize) -> Result<Self, GraphError> {
-        if cpdag.conflict_edge_count() > 0 {
-            return Err(GraphError::InvalidEndpoints {
-                message: "CpdagCompletionSampler refuses conflict (x-x) edges",
-            });
-        }
-        let mut undirected = Vec::new();
-        for e in cpdag.edges() {
-            if e.is_undirected() {
-                let (a, b) = if e.a.raw() <= e.b.raw() { (e.a, e.b) } else { (e.b, e.a) };
-                undirected.push((a, b));
-            }
-        }
-        undirected.sort_by_key(|(a, b)| (a.raw(), b.raw()));
-        undirected.dedup();
-        if undirected.len() > 63 {
-            return Err(GraphError::InvalidEndpoints {
-                message: "too many undirected edges for CpdagCompletionSampler mask",
-            });
-        }
-        Ok(Self { base: cpdag, undirected, max_completions, next_index: 0, assign: 0 })
+        let search = MecSearch::new(
+            cpdag,
+            max_completions,
+            MAX_UNDIRECTED_EDGES,
+            "CpdagCompletionSampler refuses conflict (x-x) edges",
+            "CpdagCompletionSampler supports at most 64 undirected edges",
+        )?;
+        Ok(Self { search })
     }
 
     /// Hard cap on yielded valid completions.
     #[must_use]
     pub fn max_completions(&self) -> usize {
-        self.max_completions
+        self.search.max_completions
     }
 
     /// Number of undirected edges being oriented.
     #[must_use]
     pub fn n_undirected(&self) -> usize {
-        self.undirected.len()
+        self.search.n_undirected()
     }
 
-    /// Whether the retention cap stopped the stream before every orientation
-    /// mask was examined. Local validity still holds for yielded DAGs; the
-    /// unexamined suffix is not certified empty of further MEC members.
+    /// Whether the retention cap stopped the stream before the search finished.
+    /// Local validity still holds for yielded DAGs; the unexplored remainder is
+    /// not certified empty of further MEC members.
     #[must_use]
     pub fn hit_cap(&self) -> bool {
-        self.next_index >= self.max_completions && self.assign < self.total_masks()
-    }
-
-    fn total_masks(&self) -> u64 {
-        let n = self.undirected.len();
-        if n == 0 { 1 } else { 1u64 << n }
-    }
-
-    fn build_completion(&self, mask: u64) -> Option<Dag> {
-        let mut g = self.base.clone();
-        for (i, &(a, b)) in self.undirected.iter().enumerate() {
-            let reverse = ((mask >> i) & 1) == 1;
-            let (from, to) = if reverse { (b, a) } else { (a, b) };
-            if g.orient_undirected(from, to).is_err() {
-                return None;
-            }
-        }
-        let dag = g.try_into_dag().ok()?;
-        if is_mec_member(&self.base, &dag) { Some(dag) } else { None }
+        self.search.hit_cap()
     }
 }
 
@@ -106,118 +86,20 @@ impl CpdagCompletionSampler {
 /// unshielded colliders, all compelled directed edges of the CPDAG present).
 #[must_use]
 pub fn is_mec_member(cpdag: &Cpdag, dag: &Dag) -> bool {
-    if cpdag.node_count() != dag.node_count() {
-        return false;
-    }
-    // Compelled directed edges must appear.
-    for e in cpdag.edges() {
-        if let Some((from, to)) = e.parent_child() {
-            if !dag.children(from).contains(&to) {
-                return false;
-            }
-        } else if e.is_undirected() {
-            let a = e.a;
-            let b = e.b;
-            let ab = dag.children(a).contains(&b);
-            let ba = dag.children(b).contains(&a);
-            if ab == ba {
-                // missing or both — not a simple orientation
-                return false;
-            }
-        } else if e.is_conflict() {
-            return false;
-        }
-    }
-    // Skeleton: every DAG edge must exist in the CPDAG (any mark).
-    for e in dag.edges() {
-        if let Some((from, to)) = e.parent_child() {
-            if !cpdag.has_edge(from, to) {
-                return false;
-            }
-        }
-    }
-    // Unshielded colliders must match.
-    let cpdag_colliders = unshielded_colliders_cpdag(cpdag);
-    let dag_colliders = unshielded_colliders_dag(dag);
-    cpdag_colliders == dag_colliders
-}
-
-fn unshielded_colliders_cpdag(g: &Cpdag) -> Vec<(u32, u32, u32)> {
-    let n = g.node_count();
-    let mut out = Vec::new();
-    for center_idx in 0..n {
-        let Ok(center_raw) = u32::try_from(center_idx) else {
-            break;
-        };
-        let center = DenseNodeId::from_raw(center_raw);
-        let parents = g.parents(center);
-        for left_i in 0..parents.len() {
-            for right_i in (left_i + 1)..parents.len() {
-                let left_parent = parents[left_i];
-                let right_parent = parents[right_i];
-                if !g.has_edge(left_parent, right_parent) {
-                    let (lo, hi) = if left_parent.raw() <= right_parent.raw() {
-                        (left_parent.raw(), right_parent.raw())
-                    } else {
-                        (right_parent.raw(), left_parent.raw())
-                    };
-                    out.push((lo, center.raw(), hi));
-                }
-            }
-        }
-    }
-    out.sort_unstable();
-    out.dedup();
-    out
-}
-
-fn unshielded_colliders_dag(g: &Dag) -> Vec<(u32, u32, u32)> {
-    let n = g.node_count();
-    let mut out = Vec::new();
-    for center_idx in 0..n {
-        let Ok(center_raw) = u32::try_from(center_idx) else {
-            break;
-        };
-        let center = DenseNodeId::from_raw(center_raw);
-        let parents = g.parents(center);
-        for left_i in 0..parents.len() {
-            for right_i in (left_i + 1)..parents.len() {
-                let left_parent = parents[left_i];
-                let right_parent = parents[right_i];
-                let adjacent = g.children(left_parent).contains(&right_parent)
-                    || g.children(right_parent).contains(&left_parent);
-                if !adjacent {
-                    let (lo, hi) = if left_parent.raw() <= right_parent.raw() {
-                        (left_parent.raw(), right_parent.raw())
-                    } else {
-                        (right_parent.raw(), left_parent.raw())
-                    };
-                    out.push((lo, center.raw(), hi));
-                }
-            }
-        }
-    }
-    out.sort_unstable();
-    out.dedup();
-    out
+    mec_search::is_mec_member(cpdag, dag, cpdag.node_count() == dag.node_count())
 }
 
 impl Iterator for CpdagCompletionSampler {
     type Item = CpdagCompletion;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next_index >= self.max_completions {
-            return None;
-        }
-        let total = self.total_masks();
-        while self.assign < total {
-            let mask = self.assign;
-            self.assign += 1;
-            if let Some(graph) = self.build_completion(mask) {
-                let index = self.next_index;
-                self.next_index += 1;
-                return Some(CpdagCompletion { graph, index });
+        while let Some(oriented) = self.search.next_oriented() {
+            let dag = oriented.try_into_dag().ok()?;
+            if !is_mec_member(&self.search.base, &dag) {
+                continue;
             }
+            let index = self.search.record_yield();
+            return Some(CpdagCompletion { graph: dag, index });
         }
         None
     }
@@ -225,6 +107,8 @@ impl Iterator for CpdagCompletionSampler {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use super::*;
     use crate::cpdag::Cpdag;
 
@@ -290,5 +174,51 @@ mod tests {
         let collected: Vec<_> = CpdagCompletionSampler::new(g.clone(), 8).unwrap().collect();
         assert_eq!(collected.len(), 1);
         assert!(is_mec_member(&g, &collected[0].graph));
+    }
+
+    #[test]
+    fn long_undirected_chain_completes_by_pruning() {
+        // Path of 26 nodes / 25 undirected edges: MEC has 26 DAGs (one source each).
+        // Blind 2^25 would hang; collider pruning must finish promptly.
+        let n = 26u32;
+        let mut g = Cpdag::with_variables(n);
+        for i in 0..(n - 1) {
+            g.insert_undirected(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        assert_eq!(g.undirected_edge_count(), 25);
+        let start = Instant::now();
+        let collected: Vec<_> = CpdagCompletionSampler::new(g.clone(), 64).unwrap().collect();
+        assert!(
+            start.elapsed().as_secs_f64() < 1.0,
+            "25-edge chain must finish by pruning, took {:?}",
+            start.elapsed()
+        );
+        assert_eq!(collected.len(), 26);
+        for c in &collected {
+            assert!(is_mec_member(&g, &c.graph));
+        }
+    }
+
+    #[test]
+    fn small_completable_cpdag_still_completes() {
+        let mut g = Cpdag::with_variables(2);
+        g.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let collected: Vec<_> = CpdagCompletionSampler::new(g.clone(), 8).unwrap().collect();
+        assert_eq!(collected.len(), 2);
+        for c in &collected {
+            assert!(is_mec_member(&g, &c.graph));
+        }
+    }
+
+    #[test]
+    fn refuses_above_hard_undirected_ceiling() {
+        let n = u32::try_from(MAX_UNDIRECTED_EDGES + 2).unwrap();
+        let mut g = Cpdag::with_variables(n);
+        for i in 0..(n - 1) {
+            g.insert_undirected(DenseNodeId::from_raw(i), DenseNodeId::from_raw(i + 1)).unwrap();
+        }
+        assert_eq!(g.undirected_edge_count(), MAX_UNDIRECTED_EDGES + 1);
+        let err = CpdagCompletionSampler::new(g, 4).unwrap_err();
+        assert!(matches!(err, GraphError::InvalidEndpoints { .. }));
     }
 }

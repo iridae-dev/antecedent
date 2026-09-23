@@ -1,5 +1,4 @@
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::too_many_lines,
@@ -7,6 +6,10 @@
     clippy::match_wildcard_for_single_variants,
     clippy::doc_markdown,
     clippy::map_unwrap_or
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 //! `CausalState` as the primary online append path (ADR 0016).
 //!
@@ -25,7 +28,8 @@ use antecedent::state::{
 };
 use antecedent_core::{AverageEffectQuery, CacheBudget, CausalQuery};
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let mut rng_state = 1u64;
     let mut next_f64 = || {
         rng_state = rng_state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
@@ -70,6 +74,8 @@ fn main() -> Result<(), CausalError> {
         state.stale_queries().len(),
         state.data_catalog.batches.len()
     );
+    assert_eq!(state.stale_queries().len(), 0, "an explicit refresh clears staleness");
+    assert_eq!(state.data_catalog.batches.len(), 1);
 
     // Incremental OLS: append rows, then compare shape to a full design.
     let key: Arc<str> = Arc::from("m1");
@@ -79,12 +85,19 @@ fn main() -> Result<(), CausalError> {
     }
     let ols = &state.suff_stats.ols[&key];
     println!("ols n={} ncols={}", ols.n, ols.ncols);
+    assert_eq!((ols.n as usize, ols.ncols as usize), (n, 2), "every appended row is counted");
 
     // Replace data → registered query becomes stale until explicit refresh.
     let new_ver = state.data_catalog.version.next();
     apply_state_event(&mut state, StateEvent::ReplaceData(new_ver))?;
     println!("after replace stale={}", state.stale_queries().len());
+    assert_eq!(state.stale_queries().len(), 1, "replacing data stales the registered query");
     state.refresh_results(&[(qid, 1, 8)])?;
     println!("after refresh stale={} version={}", state.stale_queries().len(), state.version.raw());
+    assert_eq!(state.stale_queries().len(), 0);
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

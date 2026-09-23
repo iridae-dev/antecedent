@@ -1,0 +1,26 @@
+feature_id = "estimate.causal.forest"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimation and Inference of Heterogeneous Treatment Effects using Random Forests", doi = "10.1080/01621459.2017.1319839", sections = ["honest causal forest", "leaf treatment-effect estimation"] },
+]
+
+implementation_deviations = [
+ "restrained honest forest: squared CATE-gap splits, subsample honesty, marginal ATE and IID SE from cross-fitted ridge/logistic AIPW; not generalized random forests / full GRF inference",
+ "the forest publishes no pointwise CATE standard error: `cate_leaf_dispersion` is the root mean of the honest leaf variances over trees, a diagnostic that omits between-tree covariance and adaptive-neighbourhood variability (no infinitesimal-jackknife or little-bags construction), and `cate_se` stays empty",
+ "learners never choose the adjustment set; identification stays upstream",
+ "not a SmartCore random-forest stand-in and not an EconML CausalForestDML wrapper",
+]
+
+upstream_implementations_observed = [
+ { project = "grf", exposure = "black-box comparison only", notes = "native honest forest; no grf wrapper" },
+ { project = "econml", exposure = "black-box comparison only", notes = "native CATE path; no EconML wrapper" },
+]
+
+test_sources = [
+ "independently generated synthetic interaction SCM with monotone CATE",
+]

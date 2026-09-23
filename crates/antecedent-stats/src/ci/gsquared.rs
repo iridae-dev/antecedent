@@ -3,30 +3,33 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::cast_lossless,
     clippy::needless_range_loop,
     clippy::too_many_arguments,
-    clippy::similar_names,
-    clippy::many_single_char_names,
     clippy::doc_markdown,
     clippy::trivially_copy_pass_by_ref
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
 
-use antecedent_core::{ExecutionContext, KernelPolicy};
+use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::unbiased_index;
 
-use super::block_shuffle::block_permute_contiguous;
-use super::parcorr::PartialCorrelation;
+use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
+use super::parcorr::{PartialCorrelation, block_shuffle_min_p};
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    PreparedCiTest, analytic_confidence_level,
+    PreparedCiTest, reject_unsupported_block_size, requested_block_size,
 };
-use crate::special::{gamma_q, normal_ppf};
+use crate::special::gamma_q;
 
 #[cfg(test)]
 use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
@@ -58,38 +61,39 @@ impl ConditionalIndependenceTest for GSquared {
         if n == 0 {
             return Err(StatsError::Shape { message: "no columns" });
         }
-        let level = analytic_confidence_level(request.confidence);
         let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
-        for (qi, q) in request.queries.iter().enumerate() {
+        for q in request.queries {
             let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+            ensure_finite_categories(
+                request.columns,
+                std::iter::once(q.x).chain(std::iter::once(q.y)).chain(z.iter().copied()),
+            )?;
             let (g, df) = g_squared_statistic(request.columns, q.x, q.y, z, n, workspace, policy)?;
-            let (p, ci) = match request.significance {
-                super::types::SignificanceMethod::Analytic => {
-                    let p = chi2_sf(g, df);
-                    let ci = level.map(|lv| analytic_gsquared_ci(g, df, lv));
-                    (p, ci)
-                }
+            // No interval: G² is a test statistic, not an estimate of a parameter. `g ± z·sqrt(2·df)`
+            // is centred at `df + λ` with variance `2(df + 2λ)` under dependence, so it covers
+            // nothing; a noncentrality interval would need the noncentral χ² inverse.
+            let p = match request.significance {
+                super::types::SignificanceMethod::Analytic => chi2_sf(g, df),
                 super::types::SignificanceMethod::BlockShuffle { replicates, block_size } => {
-                    // Blocking is only implemented for the unconditional case; with a
+                    // Blocking is only well defined for the unconditional case; with a
                     // conditioning set the null is a within-stratum exchange that cannot
-                    // preserve serial structure. Silently falling back there returned an
-                    // anticonservative p-value for exactly the autocorrelated data the
-                    // parameter exists to protect.
-                    if block_size > 1 && !z.is_empty() {
-                        return Err(StatsError::Unsupported {
-                            message: "G² block-preserving permutation is only implemented for an                                       empty conditioning set; with conditioning variables the null                                       is a within-stratum exchange. Set block_size = 1 to accept                                       it explicitly.",
-                        });
+                    // preserve serial structure, so the request is refused rather than
+                    // silently downgraded to an anticonservative exchangeable null.
+                    if requested_block_size(request.significance) > 1 && !z.is_empty() {
+                        reject_unsupported_block_size(request.significance, "GSquared")?;
                     }
                     let n_perm = replicates.max(1) as usize;
-                    let strata = gsq_strata(request.columns, z, n);
+                    let strata = discrete_strata(request.columns, z, n)?;
                     let mut y_perm = request.columns[q.y].to_vec();
-                    let mut rng = ctx.rng.stream(0x65C0_u64.wrapping_add(qi as u64));
+                    let mut rng = ctx.rng.stream_for(
+                        StreamDomain::StatsCi,
+                        0x65C0_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
+                    );
                     let mut null_ge = 0u32;
                     // X codes and Z strata are invariant under a Y-only
                     // permutation; only the Y codes change per replicate.
-                    let xi: Vec<i32> =
-                        request.columns[q.x].iter().map(|v| v.round() as i32).collect();
+                    let xi = encode_categories(request.columns[q.x])?;
                     let mut yi_perm: Vec<i32> = vec![0; n];
                     for _ in 0..n_perm {
                         if block_size > 1 {
@@ -103,7 +107,7 @@ impl ConditionalIndependenceTest for GSquared {
                             }
                         }
                         for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
-                            *code = value.round() as i32;
+                            *code = category_code(*value)?;
                         }
                         let (g_null, _) =
                             g_squared_from_parts(&xi, &yi_perm, &strata, workspace, policy)?;
@@ -111,25 +115,94 @@ impl ConditionalIndependenceTest for GSquared {
                             null_ge = null_ge.saturating_add(1);
                         }
                     }
-                    let p = (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64);
-                    (p, None)
+                    (1.0 + f64::from(null_ge)) / (1.0 + n_perm as f64)
                 }
             };
-            results.push(CiResult { statistic: g, p_value: p, df, ci });
+            results.push(CiResult { statistic: g, p_value: p, df, ci: None });
         }
         Ok(CiBatchResult { results })
     }
+
+    fn min_attainable_p(&self, significance: super::types::SignificanceMethod) -> f64 {
+        block_shuffle_min_p(significance)
+    }
 }
 
-/// Asymptotic 100`level`% Wald interval for the G² statistic under a central-χ²
-/// variance proxy (`Var(G²) ≈ 2·df`). Lower bound is clipped at 0.
-fn analytic_gsquared_ci(g: f64, df: f64, level: f64) -> (f64, f64) {
-    let z = normal_ppf(0.5 + 0.5 * level.clamp(0.0, 1.0));
-    let se = (2.0 * df.max(1.0)).sqrt();
-    ((g - z * se).max(0.0), g + z * se)
+/// Reject a permutation null with no support.
+///
+/// Within-stratum permutations of Y leave the statistic unchanged unless some stratum has at
+/// least two distinct X values and two distinct Y values. If none does, every replicate
+/// reproduces the observed statistic and the add-one p-value is exactly 1: an "independent"
+/// verdict manufactured by the lack of information, not found in the data.
+///
+/// # Errors
+///
+/// [`StatsError::Unsupported`] when no stratum can vary in both variables.
+pub(super) fn ensure_permutation_support<T: PartialEq + Copy>(
+    strata: &[Vec<usize>],
+    x: &[T],
+    y: &[T],
+) -> Result<(), StatsError> {
+    let varies = |rows: &[usize], v: &[T]| {
+        rows.first().is_some_and(|&first| rows.iter().any(|&r| v[r] != v[first]))
+    };
+    if strata.iter().any(|rows| varies(rows, x) && varies(rows, y)) {
+        return Ok(());
+    }
+    Err(StatsError::Unsupported {
+        message: "no conditioning stratum has variation in both X and Y, so a permutation null \
+                  reproduces the observed statistic in every replicate (p = 1 by construction); \
+                  the data carry no information about this independence",
+    })
 }
 
-fn gsq_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
+/// Integer-code a discrete category. Non-finite values must not become a finite
+/// category (NaN/`±∞` as `i32` is a silent corruption that discovery would treat
+/// as a valid level).
+pub(super) fn category_code(v: f64) -> Result<i32, StatsError> {
+    if !v.is_finite() {
+        return Err(StatsError::Shape {
+            message: "G² category columns must be finite; non-finite values cannot be integer-coded",
+        });
+    }
+    let r = v.round();
+    if !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&r) {
+        return Err(StatsError::Shape {
+            message: "G² category columns must fit in a 32-bit integer code",
+        });
+    }
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "r is finite, integral and range-checked into i32 just above"
+    )]
+    Ok(r as i32)
+}
+
+pub(super) fn encode_categories(col: &[f64]) -> Result<Vec<i32>, StatsError> {
+    col.iter().copied().map(category_code).collect()
+}
+
+pub(super) fn ensure_finite_categories(
+    columns: &[&[f64]],
+    idxs: impl IntoIterator<Item = usize>,
+) -> Result<(), StatsError> {
+    for idx in idxs {
+        for &v in columns[idx] {
+            category_code(v)?;
+        }
+    }
+    Ok(())
+}
+
+const SPARSE_EXPECTED_MIN: f64 = 5.0;
+
+/// Rows grouped by exact integer-coded Z symbol key, in sorted-key order so seeded permutation
+/// nulls are reproducible. Shared by every test that stratifies on discrete Z.
+pub(super) fn discrete_strata(
+    columns: &[&[f64]],
+    z: &[usize],
+    n: usize,
+) -> Result<Vec<Vec<usize>>, StatsError> {
     let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
     for r in 0..n {
         let key = if z.is_empty() {
@@ -137,8 +210,8 @@ fn gsq_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
         } else {
             let mut h = 0xcbf2_9ce4_8422_2325_u64;
             for &zc in z {
-                let v = columns[zc][r].round() as i32;
-                h ^= u64::from(v as u32);
+                let v = category_code(columns[zc][r])?;
+                h ^= u64::from(u32::from_ne_bytes(v.to_ne_bytes()));
                 h = h.wrapping_mul(0x0100_0000_01b3);
             }
             h
@@ -147,7 +220,7 @@ fn gsq_strata(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<Vec<usize>> {
     }
     let mut keys: Vec<u64> = strata.keys().copied().collect();
     keys.sort_unstable();
-    keys.into_iter().filter_map(|k| strata.remove(&k)).collect()
+    Ok(keys.into_iter().filter_map(|k| strata.remove(&k)).collect())
 }
 
 fn g_squared_statistic(
@@ -159,15 +232,15 @@ fn g_squared_statistic(
     workspace: &mut CiWorkspace,
     policy: &KernelPolicy,
 ) -> Result<(f64, f64), StatsError> {
-    let xi: Vec<i32> = columns[x].iter().map(|v| v.round() as i32).collect();
-    let yi: Vec<i32> = columns[y].iter().map(|v| v.round() as i32).collect();
-    let strata = gsq_strata(columns, z, n);
+    let xi = encode_categories(columns[x])?;
+    let yi = encode_categories(columns[y])?;
+    let strata = discrete_strata(columns, z, n)?;
     g_squared_from_parts(&xi, &yi, &strata, workspace, policy)
 }
 
 /// G² over precomputed integer codes and Z strata.
 ///
-/// Strata are iterated in the given order; [`gsq_strata`] returns them in
+/// Strata are iterated in the given order; [`discrete_strata`] returns them in
 /// sorted-key order, so the per-stratum accumulation (and therefore the last
 /// bits of G²) is deterministic across runs — the previous `HashMap` iteration
 /// depended on the process hash seed. Permutation nulls hoist the code/strata
@@ -187,7 +260,7 @@ fn g_squared_from_parts(
         if rows.len() < 2 {
             continue;
         }
-        let (g, df) = g_squared_on_rows(xi, yi, rows, workspace, policy);
+        let (g, df) = g_squared_on_rows(xi, yi, rows, workspace, policy)?;
         g_total += g;
         df_total += df;
         any = true;
@@ -195,10 +268,15 @@ fn g_squared_from_parts(
     if !any {
         return Err(StatsError::Shape { message: "empty stratified contingency" });
     }
-    // Per-stratum dof sums (rows-1)(cols-1) over nonempty strata (pgmpy/pinned baseline-style);
-    // a stratum with constant X or Y contributes 0. Floor the TOTAL at 1 to avoid a
-    // df=0 chi-square.
-    Ok((g_total, df_total.max(1.0)))
+    // Per-stratum dof sums (rows-1)(cols-1) over nonempty strata (pgmpy/pinned baseline-style).
+    // A zero-df total (every stratum constant in X or Y) must not be floored to 1 and reported
+    // as p = 1 — that is a silent independence claim discovery would treat as a CI decision.
+    if df_total < 1.0 {
+        return Err(StatsError::Unsupported {
+            message: "G² refuses sparse contingency tables: no stratum has positive degrees of freedom for a chi-square reference",
+        });
+    }
+    Ok((g_total, df_total))
 }
 
 fn g_squared_on_rows(
@@ -207,7 +285,7 @@ fn g_squared_on_rows(
     rows: &[usize],
     workspace: &mut CiWorkspace,
     policy: &KernelPolicy,
-) -> (f64, f64) {
+) -> Result<(f64, f64), StatsError> {
     let mut levels_x: Vec<i32> = rows.iter().map(|&r| xi[r]).collect();
     levels_x.sort_unstable();
     levels_x.dedup();
@@ -231,8 +309,10 @@ fn g_squared_on_rows(
         workspace.contingency_y_codes.resize(n_rows, 0);
     }
     for (i, &r) in rows.iter().enumerate() {
-        workspace.contingency_x_codes[i] = levels_x.binary_search(&xi[r]).unwrap_or(0) as u32;
-        workspace.contingency_y_codes[i] = levels_y.binary_search(&yi[r]).unwrap_or(0) as u32;
+        workspace.contingency_x_codes[i] =
+            u32::try_from(levels_x.binary_search(&xi[r]).unwrap_or(0)).unwrap_or(u32::MAX);
+        workspace.contingency_y_codes[i] =
+            u32::try_from(levels_y.binary_search(&yi[r]).unwrap_or(0)).unwrap_or(u32::MAX);
     }
     antecedent_kernels::accumulate_contingency(
         policy,
@@ -253,7 +333,28 @@ fn g_squared_on_rows(
         }
     }
     if total < 1.0 {
-        return (0.0, 0.0);
+        return Ok((0.0, 0.0));
+    }
+    let df = ((lx - 1) * (ly - 1)) as f64;
+    // Cochran-style expected-count guard: the χ² reference is unreliable when any
+    // positive-margin cell has E < 5. Refuse rather than emit an anti-conservative p.
+    if df > 0.0 {
+        for i in 0..lx {
+            if row_sum[i] <= 0.0 {
+                continue;
+            }
+            for j in 0..ly {
+                if col_sum[j] <= 0.0 {
+                    continue;
+                }
+                let e = row_sum[i] * col_sum[j] / total;
+                if e < SPARSE_EXPECTED_MIN {
+                    return Err(StatsError::Unsupported {
+                        message: "G² refuses sparse contingency tables: an expected cell count is below 5, so the chi-square reference is not reliable",
+                    });
+                }
+            }
+        }
     }
     let mut g = 0.0;
     for i in 0..lx {
@@ -265,8 +366,7 @@ fn g_squared_on_rows(
             }
         }
     }
-    let df = ((lx - 1) * (ly - 1)) as f64;
-    (g, df)
+    Ok((g, df))
 }
 
 /// Exact chi-squared survival function via the regularized upper incomplete gamma
@@ -309,6 +409,10 @@ impl ConditionalIndependenceTest for RegressionCi {
         prepared.ensure_compatible(request)?;
         let request = &prepared.bind_request(request);
         self.inner.test_batch(prepared, request, workspace, ctx)
+    }
+
+    fn min_attainable_p(&self, significance: super::types::SignificanceMethod) -> f64 {
+        block_shuffle_min_p(significance)
     }
 }
 
@@ -354,9 +458,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(2);
         let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].p_value < 1e-6);
-        let ci = out.results[0].ci.expect("G² analytic CI");
-        assert!(ci.0 <= out.results[0].statistic && out.results[0].statistic <= ci.1);
-        assert!(ci.0 >= 0.0);
+        assert!(out.results[0].ci.is_none(), "G² has no parameter to put an interval on");
     }
 
     #[test]
@@ -368,8 +470,9 @@ mod tests {
 
     #[test]
     fn constant_strata_contribute_zero_dof() {
-        // Z has two strata; in each stratum X is constant, so per-stratum dof is 0 and
-        // the total floors at 1 (not the old per-stratum max which summed to 2).
+        // Z has two strata; in each stratum X is constant, so per-stratum dof is 0.
+        // Flooring that to df=1 and returning p=1 would be a silent independence claim;
+        // refuse with a sparse-table disclosure instead.
         let n = 80usize;
         let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
         let x = z.clone(); // constant within each Z stratum
@@ -386,9 +489,66 @@ mod tests {
         };
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(3);
-        let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
-        assert!((out.results[0].df - 1.0).abs() < 1e-12, "df={}", out.results[0].df);
-        assert!((out.results[0].p_value - 1.0).abs() < 1e-9);
+        let err = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("sparse") || msg.contains("degrees of freedom"),
+            "expected sparse/zero-df refusal, got {msg}"
+        );
+    }
+
+    #[test]
+    fn gsq_refuses_sparse_conditional_table() {
+        // Many conditioning levels, small n: each stratum is a tiny 2×2 with E ≪ 5.
+        // An unguarded χ² reference is anti-conservative under the null; the guarded
+        // path must refuse rather than accept or reject independence.
+        // Per Z-level: two rows with (X,Y) = (0,0) and (1,1) so both margins vary and E = 0.5.
+        let n = 40usize;
+        let z_levels = 20usize;
+        let x: Vec<f64> = (0..n).map(|i| if i < z_levels { 0.0 } else { 1.0 }).collect();
+        let y: Vec<f64> = (0..n).map(|i| if i < z_levels { 0.0 } else { 1.0 }).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i % z_levels) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(5);
+        let err = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("sparse") && msg.contains("expected"),
+            "expected sparse-table expected-count refusal, got {msg}"
+        );
+    }
+
+    #[test]
+    fn gsq_rejects_nan_category_input() {
+        let x = vec![0.0, 1.0, f64::NAN, 0.0];
+        let y = vec![1.0, 0.0, 1.0, 0.0];
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(6);
+        let err = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("finite") || msg.contains("non-finite"),
+            "expected non-finite refusal, got {msg}"
+        );
     }
 
     #[test]
@@ -417,5 +577,80 @@ mod tests {
         assert_eq!(ws.contingency_y_codes.as_ptr(), y_ptr);
         assert_eq!(ws.contingency_x_codes.capacity(), x_cap);
         assert_eq!(ws.contingency_y_codes.capacity(), y_cap);
+    }
+
+    /// G² is a test statistic; `g ± z·sqrt(2·df)` is not an interval for any parameter (under
+    /// dependence the centre is `df + λ` and the variance `2(df + 2λ)`), so none is reported.
+    #[test]
+    fn gsq_reports_no_interval_even_when_requested() {
+        let n = 400usize;
+        let x: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::Analytic { level: 0.95 },
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(8);
+        let out = GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        assert!(out.results[0].ci.is_none());
+    }
+
+    /// A block-preserving request with a conditioning set is refused through the shared
+    /// policy (its message names the tests that do honour it), and `block_size = 1` runs.
+    #[test]
+    fn gsq_block_request_with_conditioning_set_is_refused_by_shared_policy() {
+        let n = 240usize;
+        let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let x: Vec<f64> = (0..n).map(|i| ((i / 2) % 3) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i / 6) % 2) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req_for = |block_size: usize| CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::BlockShuffle { replicates: 19, block_size },
+            confidence: ConfidenceMethod::None,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(9);
+        let err = GSquared::new().test_batch_adhoc(&req_for(8), &mut ws, &ctx).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("block-preserving") && msg.contains("ParCorr"), "{msg}");
+        assert!(!msg.contains("  "), "message carries stray continuation whitespace: {msg}");
+        assert!(GSquared::new().test_batch_adhoc(&req_for(1), &mut ws, &ctx).is_ok());
+    }
+
+    #[test]
+    fn gsq_batch_position_does_not_change_permutation_p_value() {
+        let n = 200usize;
+        let x: Vec<f64> = (0..n).map(|i| ((i * 7 + 3) % 3) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i * 5 + 1) % 2) as f64 + ((i / 7) % 2) as f64).collect();
+        let w: Vec<f64> = (0..n).map(|i| ((i * 11 + 2) % 3) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &w];
+        let target = CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 };
+        let other = CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 };
+        let run = |queries: &[CiQuery]| {
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries,
+                z_flat: &[],
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(3);
+            GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap()
+        };
+        let alone = run(&[target]);
+        let second = run(&[other, target]);
+        assert_eq!(alone.results[0].p_value.to_bits(), second.results[1].p_value.to_bits());
     }
 }

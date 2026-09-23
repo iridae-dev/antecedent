@@ -9,11 +9,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::too_many_lines
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -101,6 +100,19 @@ fn frontdoor_data(seed: u64) -> TabularData {
     table(&[("t", &t), ("y", &y), ("m", &m)])
 }
 
+/// Binary treatment on the same graph; the mediator is binary (`discrete`) or continuous.
+fn frontdoor_functional_data(seed: u64, discrete: bool) -> TabularData {
+    let mut g = gaussian(seed);
+    let (mut t, mut y, mut m) = (vec![0.0; N], vec![0.0; N], vec![0.0; N]);
+    for i in 0..N {
+        let u = f64::from(g() > 0.25);
+        t[i] = f64::from(g() + 0.8 * u > 0.6);
+        m[i] = if discrete { f64::from(g() + t[i] > 0.5) } else { 1.0 + 0.4 * t[i] + g() };
+        y[i] = 2.0 * m[i] * (0.5 + u) + 0.5 * u + 0.6 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("m", &m)])
+}
+
 fn frontdoor_dag() -> Dag {
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(d(0), d(2)).unwrap();
@@ -116,7 +128,7 @@ fn rd_data(seed: u64) -> TabularData {
         let centered = -1.0 + 2.0 * (i as f64) / (N as f64);
         let treated = f64::from(centered >= 0.0);
         r[i] = centered;
-        t[i] = 0.0;
+        t[i] = treated;
         y[i] = 1.0 + 0.5 * centered + 2.0 * treated - 0.8 * treated * centered + 0.3 * g();
     }
     table(&[("t", &t), ("y", &y), ("r", &r)])
@@ -160,13 +172,12 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             PropensityWeighting { bootstrap_replicates: 60, ..PropensityWeighting::new() }.into(),
             ate_query(),
         ),
-        "ipw_hajek_analytic_ci_coverage" | "ipw_hajek_analytic_conformance_scm_ci_coverage" => {
-            builder(
-                PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() }
-                    .into(),
-                ate_query(),
-            )
-        }
+        "ipw_hajek_analytic_ci_coverage"
+        | "ipw_hajek_analytic_conformance_scm_ci_coverage"
+        | "ipw_hajek_weak_overlap_adversarial_ci_coverage" => builder(
+            PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() }.into(),
+            ate_query(),
+        ),
         "aipw_analytic_ci_coverage" => {
             builder(AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }.into(), ate_query())
         }
@@ -191,7 +202,9 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
-        "matching_homoskedastic_ci_coverage" => builder(
+        "matching_homoskedastic_ci_coverage"
+        | "matching_heteroskedastic_adversarial_ci_coverage"
+        | "matching_heterogeneous_att_ci_coverage" => builder(
             PropensityMatching {
                 bootstrap_replicates: 0,
                 se_kind: AnalyticSeKind::Homoskedastic,
@@ -200,7 +213,27 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
             .into(),
             ate_query().with_target_population(TargetPopulation::Treated),
         ),
-        "wald_iv_analytic_ci_coverage" | "wald_iv_hc1_ci_coverage" => {
+        "matching_heterogeneous_atc_ci_coverage" => builder(
+            PropensityMatching {
+                bootstrap_replicates: 0,
+                se_kind: AnalyticSeKind::Homoskedastic,
+                ..PropensityMatching::new()
+            }
+            .into(),
+            ate_query().with_target_population(TargetPopulation::Untreated),
+        ),
+        "matching_heterogeneous_ate_ci_coverage" => builder(
+            PropensityMatching {
+                bootstrap_replicates: 0,
+                se_kind: AnalyticSeKind::Homoskedastic,
+                ..PropensityMatching::new()
+            }
+            .into(),
+            ate_query(),
+        ),
+        "wald_iv_analytic_ci_coverage"
+        | "wald_iv_weak_first_stage_adversarial_ci_coverage"
+        | "wald_iv_hc1_ci_coverage" => {
             let se_kind = if test == "wald_iv_hc1_ci_coverage" {
                 AnalyticSeKind::Hc1
             } else {
@@ -230,11 +263,13 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 })
                 .refute(RefuteSuite::None)
         }
-        "frontdoor_stacked_hc0_ci_coverage" | "frontdoor_stacked_hc1_ci_coverage" => {
-            let se_kind = if test == "frontdoor_stacked_hc1_ci_coverage" {
-                AnalyticSeKind::Hc1
-            } else {
+        "frontdoor_stacked_hc0_ci_coverage"
+        | "frontdoor_stacked_hc1_ci_coverage"
+        | "frontdoor_stacked_hc1_curved_mediator_ci_coverage" => {
+            let se_kind = if test == "frontdoor_stacked_hc0_ci_coverage" {
                 AnalyticSeKind::Hc0
+            } else {
+                AnalyticSeKind::Hc1
             };
             Study::tabular(frontdoor_data(12))
                 .graph(frontdoor_dag())
@@ -247,14 +282,32 @@ fn facade_result(test: &str) -> (Study, StudyResult) {
                 })
                 .refute(RefuteSuite::None)
         }
-        "rd_sharp_analytic_ci_coverage" | "rd_sharp_hc1_heteroskedastic_ci_coverage" => {
-            let se_kind = if test == "rd_sharp_hc1_heteroskedastic_ci_coverage" {
+        "frontdoor_functional_saturated_ci_coverage"
+        | "frontdoor_functional_arm_linear_ci_coverage" => {
+            let discrete = test == "frontdoor_functional_saturated_ci_coverage";
+            Study::tabular(frontdoor_functional_data(14, discrete))
+                .graph(frontdoor_dag())
+                .query(continuous_query())
+                .identifier(IdentifierId::Frontdoor)
+                .estimator(EstimatorId::FrontDoorFunctional)
+                .bootstrap_replicates(0)
+                .refute(RefuteSuite::None)
+        }
+        "rd_sharp_analytic_ci_coverage"
+        | "rd_sharp_hc1_heteroskedastic_ci_coverage"
+        | "rd_sharp_hc1_curved_adversarial_ci_coverage" => {
+            let se_kind = if test.starts_with("rd_sharp_hc1_") {
                 AnalyticSeKind::Hc1
             } else {
                 AnalyticSeKind::Homoskedastic
             };
+            // The sharp design as a graph: r -> t -> y and r -> y.
+            let mut design = Dag::with_variables(3);
+            design.insert_directed(d(2), d(0)).unwrap();
+            design.insert_directed(d(0), d(1)).unwrap();
+            design.insert_directed(d(2), d(1)).unwrap();
             Study::tabular(rd_data(13))
-                .graph(Dag::with_variables(3))
+                .graph(design)
                 .query(ate_query())
                 .identifier(IdentifierId::RdSharp)
                 .estimator(EstimatorId::RdSharp)

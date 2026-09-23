@@ -42,7 +42,20 @@ def test_omitted_threads_use_the_machine():
 def test_table_is_the_builders_own():
     """The module constant is whatever the extension reports, with no second copy."""
     assert omitted_defaults() == OMITTED
-    assert set(OMITTED) == {"bootstrap", "refute", "latency", "n_draws", "n_draws_hmc"}
+    assert set(OMITTED) == {
+        "bootstrap",
+        "refute",
+        "latency",
+        "n_draws",
+        "n_draws_hmc",
+        "discovery_alpha",
+        "discovery_max_cond_size",
+        "prior_scale",
+        "overlap_clip",
+        "overlap_trim",
+        "transport_bootstrap",
+        "transport_coverage_level",
+    }
     assert OMITTED["latency"] is None
 
 
@@ -126,3 +139,44 @@ def test_a_tier_cuts_the_omitted_draw_budget(latency):
     assert result.performance.n_draws is not None
     if latency == "interactive":
         assert result.performance.n_draws < OMITTED["n_draws"]
+
+
+def _native_defaults(parameter: str):
+    """`(function, default)` for every native routine that exposes `parameter`."""
+    import inspect
+
+    from antecedent import _native
+
+    for name in sorted(dir(_native)):
+        obj = getattr(_native, name)
+        if not inspect.isroutine(obj):
+            continue
+        try:
+            sig = inspect.signature(obj)
+        except (TypeError, ValueError):
+            continue
+        if parameter in sig.parameters:
+            yield name, sig.parameters[parameter].default
+
+
+def test_native_signature_literals_equal_the_rust_constants():
+    """The `#[pyo3(signature)]` literals repeat facade constants; they must not drift."""
+    stale: list[str] = []
+    for name, default in _native_defaults("bootstrap"):
+        # 0 (no resampling) and None (route decides) are deliberate; a budget is the table's.
+        if isinstance(default, int) and default not in (0,) and default != OMITTED["bootstrap"]:
+            stale.append(f"{name}: bootstrap={default!r} != {OMITTED['bootstrap']}")
+    for name, default in _native_defaults("prior_scale"):
+        if default != OMITTED["prior_scale"]:
+            stale.append(f"{name}: prior_scale={default!r} != {OMITTED['prior_scale']}")
+    for name, default in _native_defaults("alpha"):
+        if name.startswith("discover_") and default != OMITTED["discovery_alpha"]:
+            stale.append(f"{name}: alpha={default!r} != {OMITTED['discovery_alpha']}")
+    for name, default in _native_defaults("max_cond_size"):
+        # LiNGAM / NOTEARS prune with their own conditioning bound.
+        if name.startswith("discover_") and default not in (
+            OMITTED["discovery_max_cond_size"],
+            8,
+        ):
+            stale.append(f"{name}: max_cond_size={default!r}")
+    assert not stale, "\n".join(stale)

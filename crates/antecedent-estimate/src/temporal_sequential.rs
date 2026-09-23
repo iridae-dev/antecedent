@@ -11,19 +11,22 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, ExecutionContext, IdentificationStatus, Lag, TargetPopulation,
-    TemporalEffectQuery, TemporalNodeKey, TemporalPolicy, VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalRng, ExecutionContext, IdentificationStatus, Lag, ParametricAssumption,
+    TargetPopulation, TemporalEffectQuery, TemporalNodeKey, TemporalPolicy, VariableId,
 };
 use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
@@ -36,6 +39,9 @@ use crate::{
     BayesianGCompWorkspace, BayesianGComputationAte, CausalPosterior, EffectEstimate,
     EstimationError, OverlapPolicy, PreparedBayesianProblem,
 };
+
+/// Stream salt of the root-mean shift draws, apart from every mechanism's own stream.
+const ROOT_MEAN_STREAM: u64 = 0x2007_3A11_C0DE_51DE;
 
 /// One intervened unfolded node and the licensed overlay applied there.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -110,6 +116,42 @@ impl SequentialMechanismOverlay {
         let value = self.node.level.unwrap_or(self.multiplier * mean + self.node.shift);
         self.bounds.map_or(value, |(lower, upper)| value.clamp(lower, upper))
     }
+}
+
+/// Natural mean of a fitted linear mechanism: `β₀ + Σ_k β_{k+1} · values[parent_k]`.
+pub(crate) fn linear_natural(coefficients: &[f64], parents: &[usize], values: &[f64]) -> f64 {
+    coefficients[0]
+        + parents
+            .iter()
+            .enumerate()
+            .map(|(k, &node)| coefficients[k + 1] * values[node])
+            .sum::<f64>()
+}
+
+/// The g-formula level of `outcome` on an unfolded linear SEM: walk `order` (a topological
+/// order of the needed nodes) and give each node the overlay-assigned value of its natural
+/// mean. A hard `Set` overwrites the node without reading its mechanism; every other node
+/// asks `natural(node, values_so_far)`. The one owner of overlay application for the
+/// propagated level, shared by the sequential engine, the response tuples and the
+/// observed-data posterior.
+pub(crate) fn propagate_linear_level(
+    order: &[usize],
+    node_count: usize,
+    outcome: usize,
+    overlay_at: impl Fn(usize) -> Option<SequentialMechanismOverlay>,
+    natural: impl Fn(usize, &[f64]) -> f64,
+) -> f64 {
+    let mut values = vec![0.0; node_count];
+    for &i in order {
+        let overlay = overlay_at(i);
+        if let Some(hard) = overlay.filter(|overlay| overlay.node.level.is_some()) {
+            values[i] = hard.assigned(0.0);
+            continue;
+        }
+        let mean = natural(i, &values);
+        values[i] = overlay.map_or(mean, |overlay| overlay.assigned(mean));
+    }
+    values[outcome]
 }
 
 /// What the sequential engine returns for one outcome node.
@@ -515,6 +557,10 @@ struct SequentialSetup {
 }
 
 impl SequentialSetup {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
     fn build(
         data: &TimeSeriesData,
         graph: &TemporalDag,
@@ -675,26 +721,19 @@ impl SequentialSetup {
                 }
                 differences[self.outcome]
             }
-            SequentialEval::Level => {
-                let mut values = vec![0.0; self.node_count];
-                for &i in &self.order {
-                    let natural = if coefficients[i].is_empty() {
+            SequentialEval::Level => propagate_linear_level(
+                &self.order,
+                self.node_count,
+                self.outcome,
+                |i| self.overlay_at.get(i).copied().flatten(),
+                |i, values| {
+                    if coefficients[i].is_empty() {
                         factual[i]
                     } else {
-                        coefficients[i][0]
-                            + self.parents[i]
-                                .iter()
-                                .enumerate()
-                                .map(|(p, &node)| coefficients[i][p + 1] * values[node])
-                                .sum::<f64>()
-                    };
-                    values[i] = match self.overlay_at.get(i).copied().flatten() {
-                        Some(overlay) => overlay.assigned(natural),
-                        None => natural,
-                    };
-                }
-                values[self.outcome]
-            }
+                        linear_natural(&coefficients[i], &self.parents[i], values)
+                    }
+                },
+            ),
         }
     }
 
@@ -792,28 +831,63 @@ impl SequentialSetup {
         gradient
     }
 
+    /// Gradient of a `Level` in the factual mean of every mechanism-free node, as
+    /// `(node, ∂level/∂mean)` for the nodes the level actually reads. The level is linear
+    /// in each mean up to a bounded overlay's clamp, so central differences are exact
+    /// away from the clamp. Empty for a `Contrast`, whose differences cancel every mean.
+    fn root_mean_gradient(&self, base: &[Vec<f64>]) -> Vec<(usize, f64)> {
+        if !matches!(self.eval, SequentialEval::Level) {
+            return Vec::new();
+        }
+        self.order
+            .iter()
+            .filter(|&&i| self.free_columns[i].is_some())
+            .filter_map(|&i| {
+                let h = 1e-6 * self.factual[i].abs().max(1.0);
+                let (mut up, mut down) = (self.factual.clone(), self.factual.clone());
+                up[i] += h;
+                down[i] -= h;
+                let slope = (self.propagate(base, &up) - self.propagate(base, &down)) / (2.0 * h);
+                (slope.is_finite() && slope != 0.0).then_some((i, slope))
+            })
+            .collect()
+    }
+
+    /// Per-row score of the root means the level reads: `Σ_r ∂level/∂x̄_r · (x_{r,t} − x̄_r)`,
+    /// the influence of the sample means inside the propagated level. A persistent
+    /// exogenous root carries its full long-run variance into the level even when every
+    /// regression score is white. `None` when the level reads no root mean.
+    fn root_mean_scores(&self, base: &[Vec<f64>]) -> Option<Vec<f64>> {
+        let gradient = self.root_mean_gradient(base);
+        if gradient.is_empty() {
+            return None;
+        }
+        let mut score = vec![0.0; self.n];
+        for (i, slope) in gradient {
+            let column = self.free_columns[i].as_ref()?;
+            for (s, x) in score.iter_mut().zip(column) {
+                *s += slope * (x - self.factual[i]);
+            }
+        }
+        Some(score)
+    }
+
     /// Per-row influence of the propagated value: `Σ_i n·x_{i,r}ᵀ (X_iᵀX_i)⁻¹ g_i · e_{i,r}`
-    /// over fitted mechanisms `i` with contrast gradient `g_i`. Used only for the
-    /// effective-row count of the estimating score, so its scale is immaterial.
+    /// over fitted mechanisms `i` with gradient `g_i`, plus, for a `Level`, the root-mean
+    /// scores ([`Self::root_mean_scores`]). Both terms are `O_p(1)`: the influence feeds the
+    /// block length and the kernel-bias factor as well as the effective-row count, so its
+    /// scale is not immaterial.
     fn influence(&self, ls_ws: &mut LeastSquaresWorkspace) -> Option<Vec<f64>> {
         let base = self.fit_ols(None, ls_ws, &mut Vec::new(), &mut Vec::new()).ok()?;
         let gradient = self.gradient(&base);
         let n = self.n;
-        let mut score = vec![0.0; n];
+        let mut score = self.root_mean_scores(&base).unwrap_or_else(|| vec![0.0; n]);
         for &i in &self.order {
             let Some(design) = &self.designs[i] else {
                 continue;
             };
             let p = design.ncols;
-            let column = |c: usize| &design.matrix[c * n..(c + 1) * n];
-            let mut xtx = vec![0.0; p * p];
-            for a in 0..p {
-                for b in 0..=a {
-                    let v: f64 = column(a).iter().zip(column(b)).map(|(x, y)| x * y).sum();
-                    xtx[a * p + b] = v;
-                    xtx[b * p + a] = v;
-                }
-            }
+            let xtx = crate::util::gram(&design.matrix[..n * p], n, p);
             let v = crate::util::solve_spd(&xtx, &gradient[i], p)?;
             for (r, slot) in score.iter_mut().enumerate() {
                 let (mut fitted, mut xv) = (0.0, 0.0);
@@ -857,6 +931,10 @@ impl SequentialSetup {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 fn estimate_sequential(
     data: &TimeSeriesData,
     graph: &TemporalDag,
@@ -880,34 +958,37 @@ fn estimate_sequential(
     let designs = &setup.designs;
     let mut ls_ws = LeastSquaresWorkspace::default();
     if let Some(estimator) = bayesian {
-        // Sustained contrasts temper each stationary mechanism by the long-run-variance
-        // ratio of the contrast's own linear combination of that mechanism's
-        // coefficients: the gradient of the composed contrast, summed over the
+        // Both the Sustained contrast and a Sequence level temper each stationary mechanism
+        // by the long-run-variance ratio of the target's own linear combination of that
+        // mechanism's coefficients: the gradient of the composed value, summed over the
         // mechanism's unfolded time copies (coefficient positions are stable across
-        // copies). The contrast is linear in each coefficient, so central differences
-        // at the OLS fit are exact up to rounding.
-        let contrast_gradient = match eval {
-            SequentialEval::Contrast { .. } => {
-                setup.fit_ols(None, &mut ls_ws, &mut Vec::new(), &mut Vec::new()).ok().map(|base| {
-                    let per_node = setup.gradient(&base);
-                    let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
-                        std::collections::HashMap::new();
-                    for &i in order {
-                        if base[i].is_empty() {
-                            continue;
-                        }
-                        let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
-                        let entry =
-                            gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
-                        for k in 0..base[i].len().min(entry.len()) {
-                            entry[k] += per_node[i][k];
-                        }
-                    }
-                    gradients
-                })
+        // copies). The value is linear in each coefficient, so central differences at the
+        // OLS fit are exact up to rounding.
+        let ols_base = setup.fit_ols(None, &mut ls_ws, &mut Vec::new(), &mut Vec::new()).ok();
+        let contrast_gradient = ols_base.as_ref().map(|base| {
+            let per_node = setup.gradient(base);
+            let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
+                std::collections::HashMap::new();
+            for &i in order {
+                if base[i].is_empty() {
+                    continue;
+                }
+                let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
+                let entry = gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
+                for k in 0..base[i].len().min(entry.len()) {
+                    entry[k] += per_node[i][k];
+                }
             }
-            SequentialEval::Level => None,
-        };
+            gradients
+        });
+        // A level also reads the sample means of its exogenous roots, held fixed in the
+        // g-formula. Their sampling error is a first-order (delta-method) shift of the
+        // level: the score of the root means combined by their gradient, whose long-run
+        // variance sets the shift's standard deviation.
+        let root_mean_se = ols_base
+            .as_ref()
+            .and_then(|base| setup.root_mean_scores(base))
+            .map_or(0.0, |scores| crate::serial_dependence::mean_standard_error(&scores));
         let mut mechanism_posts = vec![None; setup.node_count];
         let mut mechanism_of = vec![0; setup.node_count];
         let mut mechanisms: Vec<(VariableId, Vec<LaggedColumn>, usize)> = Vec::new();
@@ -968,26 +1049,28 @@ fn estimate_sequential(
                     overlap: OverlapPolicy::ExplicitOverride,
                     coef_names: None,
                     unit_ids: None,
-                    // Sustained contrasts are licensed cells whose stated model is the
-                    // serial-dependence-corrected generalized posterior; Sequence levels
-                    // keep the disclosed iid likelihood.
-                    serial_dependence: match eval {
-                        SequentialEval::Contrast { .. } => {
-                            // Without an OLS gradient (rank-deficient unfolded design) the
-                            // sum of slopes stands in for the contrast direction.
-                            let direction = contrast_gradient
-                                .as_ref()
-                                .and_then(|g| g.get(&child.variable).cloned())
-                                .unwrap_or_else(|| {
-                                    (0..=parent_columns.len())
-                                        .map(|k| if k == 0 { 0.0 } else { 1.0 })
-                                        .collect()
-                                });
-                            SerialDependence::LongRunTempering(DependenceScope::Direction(
-                                Arc::from(direction),
-                            ))
-                        }
-                        SequentialEval::Level => SerialDependence::Iid,
+                    // Rows are time-ordered, so the stated model is the serial-dependence-
+                    // corrected generalized posterior for the Sustained contrast and the
+                    // Sequence level alike, each tempered along its own gradient.
+                    serial_dependence: {
+                        // Without an OLS gradient (rank-deficient unfolded design) the
+                        // sum of slopes stands in for the direction; a level also reads
+                        // every intercept.
+                        let direction = contrast_gradient
+                            .as_ref()
+                            .and_then(|g| g.get(&child.variable).cloned())
+                            .unwrap_or_else(|| {
+                                let intercept = match eval {
+                                    SequentialEval::Contrast { .. } => 0.0,
+                                    SequentialEval::Level => 1.0,
+                                };
+                                (0..=parent_columns.len())
+                                    .map(|k| if k == 0 { intercept } else { 1.0 })
+                                    .collect()
+                            });
+                        SerialDependence::LongRunTempering(DependenceScope::Direction(Arc::from(
+                            direction,
+                        )))
                     },
                 };
                 let mut est = estimator.clone();
@@ -1034,6 +1117,7 @@ fn estimate_sequential(
                 .collect::<Result<Vec<_>, _>>()?;
             coefficients[i].resize(design.ncols, 0.0);
         }
+        let mut root_rng = CausalRng::from_seed(estimator.seed ^ ROOT_MEAN_STREAM);
         let mut values = Vec::with_capacity(count);
         for draw in 0..count {
             for &i in order {
@@ -1045,7 +1129,12 @@ fn estimate_sequential(
                     }
                 }
             }
-            values.push(setup.propagate(&coefficients, &setup.factual));
+            let level = setup.propagate(&coefficients, &setup.factual);
+            values.push(if root_mean_se > 0.0 {
+                level + root_mean_se * antecedent_kernels::standard_normal(&mut root_rng)
+            } else {
+                level
+            });
         }
         let draws = PosteriorDraws::from_column_major(
             PosteriorSchema {
@@ -1065,6 +1154,24 @@ fn estimate_sequential(
                     posterior.diagnostics.notes.push(Arc::clone(note));
                 }
             }
+        }
+        if matches!(eval, SequentialEval::Level) {
+            posterior.assumptions.entries.push(AssumptionRecord {
+                assumption: Assumption::ParametricRestriction(ParametricAssumption {
+                    id: "temporal.sequential.level_posterior".into(),
+                    description: "each stationary mechanism's likelihood is tempered by the \
+                        long-run-variance ratio of the level's own gradient (rows are \
+                        time-ordered), and the sample means of exogenous root nodes the level \
+                        reads enter as a first-order (delta-method) normal shift whose \
+                        variance is the long-run variance of their gradient-weighted scores"
+                        .into(),
+                }),
+                source: AssumptionSource::AlgorithmDefault {
+                    algorithm: "temporal.sequential.linear_sem".into(),
+                },
+                scope: AssumptionScope::Estimation,
+                status: AssumptionStatus::Declared,
+            });
         }
         posterior.assumptions.entries.extend(assumptions.entries);
         let effect = EffectEstimate::new(
@@ -1122,4 +1229,208 @@ fn estimate_sequential(
     effect.block_resampling =
         Some(crate::adjustment::BlockResampling { block_length, rows: setup.n, kernel_bias });
     Ok((effect, None))
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{StreamDomain, TargetPopulation};
+    use antecedent_graph::ensure_lagged;
+
+    use super::*;
+
+    /// `Z_s` exogenous, `T_s = 0.5 Z_s + u`, `Y_s = 1 + 2 T_{s-1} + 0.8 T_{s-2} + 0.5 Z_{s-1} + e`.
+    fn fixture() -> (TimeSeriesData, TemporalDag) {
+        let n = 240usize;
+        let ctx = ExecutionContext::for_tests(11);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 3);
+        let mut draw = || 2.0 * rng.next_f64() - 1.0;
+        let z: Vec<f64> = (0..n).map(|_| draw()).collect();
+        let t: Vec<f64> = z.iter().map(|z| 0.5 * z + draw()).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|s| {
+                let at = |v: &[f64], lag: usize| s.checked_sub(lag).map_or(0.0, |i| v[i]);
+                1.0 + 2.0 * at(&t, 1) + 0.8 * at(&t, 2) + 0.5 * at(&z, 1) + 0.3 * draw()
+            })
+            .collect();
+        let data = TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+            1,
+        )
+        .unwrap();
+        let mut graph = TemporalDag::empty();
+        let id = VariableId::from_raw;
+        let mut edge = |from: u32, from_lag: u32, to: u32, to_lag: u32| {
+            let src = ensure_lagged(&mut graph, id(from), Lag::from_raw(from_lag)).unwrap();
+            let dst = ensure_lagged(&mut graph, id(to), Lag::from_raw(to_lag)).unwrap();
+            graph.insert_directed(src, dst).unwrap();
+        };
+        edge(2, 0, 0, 0);
+        edge(0, 1, 1, 0);
+        edge(0, 2, 1, 0);
+        edge(2, 1, 1, 0);
+        (data, graph)
+    }
+
+    // Both offsets carry the same Set level (0.5): `resolve_schedule_active_level`
+    // refuses a joint schedule whose Set steps disagree (a genuine per-node dose
+    // schedule the single-literal contrast cannot certify), and these tests exercise
+    // a multi-offset hard-set schedule, not a per-node dose difference.
+    fn hard_overlays() -> Vec<SequentialMechanismOverlay> {
+        [(-2, 0.5), (-1, 0.5)]
+            .into_iter()
+            .map(|(offset, level)| {
+                SequentialNodeOverlay {
+                    variable: VariableId::from_raw(0),
+                    offset,
+                    level: Some(level),
+                    shift: 0.0,
+                }
+                .into()
+            })
+            .collect()
+    }
+
+    /// The propagated level is the g-formula of a chain: with `x0 = 1`, `x1 = 2 + 3 x0`,
+    /// `x2 = 1 + 0.5 x1 - x0`, the natural level is `1 + 0.5 * 5 - 1 = 2.5`; a hard set of
+    /// `x1` to 4 cuts its mechanism and gives `1 + 0.5 * 4 - 1 = 2`; a shift of 1 on `x1`
+    /// gives `1 + 0.5 * 6 - 1 = 3`.
+    #[test]
+    fn linear_level_walk_matches_the_hand_computed_g_formula() {
+        let coefficients = [vec![], vec![2.0, 3.0], vec![1.0, 0.5, -1.0]];
+        let parents = [vec![], vec![0], vec![1, 0]];
+        let run = |overlay_on_x1: Option<SequentialMechanismOverlay>| {
+            propagate_linear_level(
+                &[0, 1, 2],
+                3,
+                2,
+                |i| if i == 1 { overlay_on_x1 } else { None },
+                |i, values| {
+                    if coefficients[i].is_empty() {
+                        1.0
+                    } else {
+                        linear_natural(&coefficients[i], &parents[i], values)
+                    }
+                },
+            )
+        };
+        let node = |level, shift| {
+            SequentialMechanismOverlay::from(SequentialNodeOverlay {
+                variable: VariableId::from_raw(1),
+                offset: 0,
+                level,
+                shift,
+            })
+        };
+        assert!((run(None) - 2.5).abs() < 1e-12);
+        assert!((run(Some(node(Some(4.0), 0.0))) - 2.0).abs() < 1e-12);
+        assert!((run(Some(node(None, 1.0))) - 3.0).abs() < 1e-12);
+    }
+
+    /// A Bayesian Sequence level is tempered like a Sustained contrast (its mechanisms carry
+    /// the long-run tempering note and assumption, not the iid likelihood) and records the
+    /// root-mean shift it adds.
+    #[test]
+    fn bayesian_level_is_tempered_and_discloses_its_root_mean_shift() {
+        let (data, graph) = fixture();
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
+        let bayes = BayesianGComputationAte::new();
+        let (_, posterior) = estimate_sequence_mechanisms(
+            &data,
+            &graph,
+            &id_res.indexer,
+            &estimand,
+            VariableId::from_raw(1),
+            0,
+            &overlays,
+            IdentificationStatus::NonparametricallyIdentified,
+            AssumptionSet::new(),
+            0,
+            Some(&bayes),
+            &ExecutionContext::for_tests(5),
+        )
+        .unwrap();
+        let posterior = posterior.expect("Bayesian posterior");
+        let has = |id: &str| {
+            posterior.assumptions.entries.iter().any(|a| {
+                matches!(&a.assumption, Assumption::ParametricRestriction(p) if p.id.as_ref() == id)
+            })
+        };
+        assert!(has(crate::serial_dependence::DEPENDENCE_ASSUMPTION_ID), "tempering recorded");
+        assert!(has("temporal.sequential.level_posterior"), "root-mean shift recorded");
+        assert!(
+            crate::serial_dependence::tempering_kappa_from_notes(&posterior.diagnostics.notes)
+                .is_some_and(|kappa| kappa >= 1.0)
+        );
+    }
+
+    /// A level reads the sample mean of its exogenous root `Z_{s-1}` through the outcome
+    /// mechanism's `Z` coefficient, so `∂level/∂z̄` is that fitted coefficient and the
+    /// root-mean score of row `t` is `β_Z (z_t − z̄)`. A contrast cancels every mean.
+    #[test]
+    fn level_reads_the_root_mean_through_its_outcome_coefficient() {
+        let (data, graph) = fixture();
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(5);
+        let build = |eval| {
+            SequentialSetup::build(
+                &data,
+                &graph,
+                &id_res.indexer,
+                VariableId::from_raw(1),
+                0,
+                &overlays,
+                eval,
+                &ctx,
+            )
+            .unwrap()
+        };
+        let setup = build(SequentialEval::Level);
+        let mut ws = LeastSquaresWorkspace::default();
+        let base = setup.fit_ols(None, &mut ws, &mut Vec::new(), &mut Vec::new()).unwrap();
+        let gradient = setup.root_mean_gradient(&base);
+        assert_eq!(gradient.len(), 1, "only Z(-1) is an unintervened root: {gradient:?}");
+        let (root, slope) = gradient[0];
+        // Outcome parents sort as T(-1), T(-2), Z(-1): coefficients [1, T1, T2, Z1].
+        let beta_z = base[setup.outcome][3];
+        assert!((slope - beta_z).abs() < 1e-6, "slope {slope} vs beta_Z {beta_z}");
+        assert!((beta_z - 0.5).abs() < 0.1, "the fitted Z coefficient is near its truth");
+        let scores = setup.root_mean_scores(&base).unwrap();
+        let column = setup.free_columns[root].as_ref().unwrap();
+        let mean = column.iter().sum::<f64>() / column.len() as f64;
+        for (score, x) in scores.iter().zip(column) {
+            assert!((score - slope * (x - mean)).abs() < 1e-12);
+        }
+        assert!(scores.iter().sum::<f64>().abs() < 1e-9);
+        // The level's influence carries the root term on top of the regression scores.
+        let influence = setup.influence(&mut ws).unwrap();
+        assert_eq!(influence.len(), scores.len());
+        assert!(influence.iter().sum::<f64>().abs() < 1e-6, "influence is mean zero");
+        let contrast = build(SequentialEval::Contrast { delta: 1.0 });
+        assert!(contrast.root_mean_gradient(&base).is_empty());
+    }
 }

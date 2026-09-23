@@ -45,7 +45,13 @@ class MechanismWrapper(Protocol):
     """
 
     def sample_noise(self, n: int) -> NDArray[np.float64]:
-        """Draw structural noise of length ``n``."""
+        """Draw structural noise of length ``n``.
+
+        Declare a second parameter named ``rng`` (``def sample_noise(self, n, rng)``) to
+        receive a NumPy ``Generator`` seeded from the run's ``seed``; otherwise the draws
+        come from your own source and ``seed`` does not govern them. Every callback must
+        return exactly one value per row: a longer array is refused, not truncated.
+        """
 
     def evaluate(
         self,

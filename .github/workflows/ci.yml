@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same PR supersedes the one in flight; pushes to main are
+# never cancelled, so every main commit keeps the CI run a release verifies.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
@@ -23,7 +29,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
@@ -36,6 +42,8 @@ jobs:
 
       - name: DCO check
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           # pull_request checkout is the ephemeral merge commit into the base;
@@ -44,9 +52,9 @@ jobs:
           # a fixed deepen along the base ref can leave the checked-out merge
           # commit grafted parentless, and a parentless graft is not a merge
           # to --no-merges, so the ephemeral merge itself got DCO-checked.
-          git fetch --unshallow origin "${{ github.base_ref }}" 2>/dev/null \
-            || git fetch origin "${{ github.base_ref }}"
-          RANGE="origin/${{ github.base_ref }}..HEAD"
+          git fetch --unshallow origin "$BASE_REF" 2>/dev/null \
+            || git fetch origin "$BASE_REF"
+          RANGE="origin/${BASE_REF}..HEAD"
           while IFS= read -r commit; do
             if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
               echo "Missing DCO on $commit"
@@ -58,21 +66,146 @@ jobs:
       - name: Format
         run: bash scripts/gate_rustfmt.sh
 
+      - name: Lint allows carry reasons
+        run: bash scripts/gate_lint_allows.sh
+
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
         run: cargo test --workspace
 
+      - name: Test optional learner and Gaussian-process features
+        run: |
+          cargo test -p antecedent-learn --features ml-full,ml-neural
+          cargo test -p antecedent-model --features gaussian-process
+
       - name: crates.io publish dry-run
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
+          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
             bash scripts/publish_crates.sh --dry-run
           else
             echo "No crate manifest changes; skipping publish dry-run"
           fi
+
+  # `cargo test --workspace` unifies features through the `python` member
+  # (default = ml-full), so the Rust job never compiles the graph a crates.io
+  # user gets from `cargo add antecedent` (default features), nor any optional
+  # feature on its own. Each line below compiles one such combination; an item
+  # used unconditionally but defined under a feature breaks here, not for users.
+  features:
+    name: Feature combinations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Default features (what `cargo add antecedent` builds)
+        run: |
+          set -euo pipefail
+          cargo check -p antecedent
+          cargo check -p antecedent-estimate
+          cargo check -p antecedent-learn
+          cargo check -p antecedent-data
+          cargo check -p antecedent-model
+
+      - name: Each optional feature alone
+        run: |
+          set -euo pipefail
+          cargo check -p antecedent --features ml-gbdt
+          cargo check -p antecedent --features ml-forest
+          cargo check -p antecedent --features ml-full
+          cargo check -p antecedent-data --no-default-features
+          cargo check -p antecedent-learn --features ml-neural
+          cargo check -p antecedent-estimate --features ml-neural
+          cargo check -p antecedent-model --features gaussian-process
+
+      - name: Lint the feature-gated code
+        run: |
+          set -euo pipefail
+          cargo clippy -p antecedent-model --features gaussian-process --all-targets -- -D warnings
+          cargo clippy -p antecedent-learn --features ml-neural --all-targets -- -D warnings
+          cargo clippy -p antecedent-data --no-default-features --all-targets -- -D warnings
+
+  # Relative performance regression, on pull requests labelled `perf`. Base and
+  # head are benchmarked back to back on the same runner, so the absolute
+  # Apple-M1 numbers in benches/baselines/ never enter: only the change of the mean
+  # relative to the base, with its confidence interval (scripts/bench_regression.py).
+  bench-regression:
+    name: Bench regression
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Benchmark the base, then the head
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          BENCHES=(
+            "antecedent-kernels gather"
+            "antecedent-kernels reductions"
+            "antecedent-graph traversal"
+            "antecedent-graph dseparation"
+            "antecedent-identify adjustment"
+            "antecedent-discovery pcmci"
+          )
+          run_benches() {
+            local flag="$1"
+            local entry
+            for entry in "${BENCHES[@]}"; do
+              read -r package bench <<<"$entry"
+              cargo bench -p "$package" --bench "$bench" -- \
+                "$flag" base --warm-up-time 1 --measurement-time 3
+            done
+          }
+          git checkout --quiet "$BASE_SHA"
+          run_benches --save-baseline
+          git checkout --quiet "$HEAD_SHA"
+          run_benches --baseline
+          python3 scripts/bench_regression.py target/criterion
+
+  # Dependency policy (licenses, advisories, sources) from deny.toml.
+  deny:
+    name: Dependency policy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
 
   # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
   # schema check, the provenance schema check, and the ten feature gates
@@ -89,7 +222,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # The calibration attestation diffs against each record's
           # calibration_sha, which a shallow clone does not contain.
@@ -123,16 +256,16 @@ jobs:
       - name: Release gate
         run: bash scripts/gate_release.sh
 
-  # Python lint / type check. `scripts/gate_python_lint.sh` is the local
-  # equivalent but requires python/.venv, so CI invokes the same three checks
-  # directly through uv.
+  # Python lint / type check. `uv sync` creates python/.venv, which is what
+  # scripts/gate_python_lint.sh requires, so CI runs the very script the release
+  # candidate does and the two cannot drift.
   python-lint:
     name: Python lint and types
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
@@ -153,17 +286,8 @@ jobs:
         working-directory: python
         run: uv run maturin develop
 
-      - name: ruff check
-        working-directory: python
-        run: uv run ruff check antecedent tests ../examples/python
-
-      - name: ruff format --check
-        working-directory: python
-        run: uv run ruff format --check antecedent tests ../examples/python
-
-      - name: mypy
-        working-directory: python
-        run: uv run mypy
+      - name: ruff, ruff format, mypy
+        run: bash scripts/gate_python_lint.sh
 
       - name: pytest with coverage floor
         working-directory: python
@@ -250,14 +374,14 @@ jobs:
             target: x64
             manylinux: ""
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
         with:
           toolchain: "1.85"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python }}
 
@@ -289,7 +413,7 @@ jobs:
           pytest -q "$ROOT/python/tests"
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: wheel-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.target }}
           path: python/dist/*.whl

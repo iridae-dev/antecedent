@@ -7,8 +7,7 @@ import math
 import numbers
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from types import SimpleNamespace
-from typing import Any, Literal, cast
+from typing import Any, Generic, Literal, TypeVar, cast
 
 from ._api import describe_refusal
 from ._coerce import coerce_latency, coerce_query, coerce_refute
@@ -112,8 +111,26 @@ from .results import (
     TemporalMediationSliceView,
     ValidationView,
 )
-from .results.response import SupportStatus, UncertaintyKind
-from .transport import OverlapDiagnostic, TransportOverlapReport, TransportQuery
+from .results.response import IntervalInterpretation, SupportStatus, UncertaintyKind
+from .transport import (
+    Transport,
+    TransportControls,
+    TransportInference,
+)
+from .transport._impl import (
+    ExactTransportDistribution,
+    OverlapDiagnostic,
+    StatisticalTransportDistribution,
+    TransportOverlapReport,
+    TransportResponseGrid,
+    TransportStage,
+)
+from .transport.advanced import (
+    ExactTransportQuery,
+    StatisticalTransportQuery,
+    TransportQuery,
+    TransportResponseGridQuery,
+)
 
 # Preferred name for the native temporal DTO.
 NativeAnalysisResult = TemporalAnalysisResult
@@ -150,30 +167,6 @@ def _plan_from_raw(raw: Any) -> PlanView:
     )
 
 
-# --- Nested-section resolution, with a flat-field fallback ------------------------
-#
-# Every real native DTO now carries `identification`/`estimate`/`posterior`/
-# `validation`/`performance` (see `antecedent._native`), so `_wrap_ate` reads
-# those directly in the common case. The `_section_*` helpers below exist only
-# for test doubles that pre-date the nested sections (e.g. the `SimpleNamespace`
-# stand-in in `test_wrap_temporal_refutation.py`, which exercises the
-# ran-but-failing-refuter aggregation bug fix against a minimal object exposing
-# only the historical flat attributes): when a raw object has no `.identification`
-# etc., these reconstruct an equivalent section from the flat fields it does have,
-# so `_wrap_ate` never needs an `isinstance`/shape check of its own.
-def _section_identification(raw: Any) -> Any:
-    sec = getattr(raw, "identification", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        status=getattr(raw, "identification_status", "") or "",
-        method=getattr(raw, "method", "") or "",
-        adjustment_set=list(getattr(raw, "adjustment_set", None) or []),
-        assumption_count=int(getattr(raw, "assumption_count", 0) or 0),
-        derivation_step_count=int(getattr(raw, "derivation_step_count", 0) or 0),
-    )
-
-
 def _optional_finite_ate(value: Any) -> float | None:
     """Omit non-finite sentinels so function-valued results have no scalar ate."""
     if value is None:
@@ -183,93 +176,6 @@ def _optional_finite_ate(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return as_float if math.isfinite(as_float) else None
-
-
-def _section_estimate(raw: Any) -> Any:
-    sec = getattr(raw, "estimate", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        ate=_optional_finite_ate(getattr(raw, "ate", None)),
-        se_analytic=raw.se_analytic,
-        se_bootstrap=raw.se_bootstrap,
-        estimator_id=str(getattr(raw, "estimator_id", "") or ""),
-        method=getattr(raw, "method", "") or "",
-        overlap_ess=getattr(raw, "overlap_ess", None),
-        overlap_propensity_min=getattr(raw, "overlap_propensity_min", None),
-        functional_means=getattr(raw, "functional_means", None),
-        exceedance_cdf=getattr(raw, "exceedance_cdf", None),
-        monotone_rearranged=bool(getattr(raw, "monotone_rearranged", False)),
-        interaction_structurally_zero=getattr(raw, "interaction_structurally_zero", None),
-        unit_effects_homogeneous=getattr(raw, "unit_effects_homogeneous", None),
-        score_table=getattr(raw, "score_table", None),
-        simultaneous_interval=getattr(raw, "simultaneous_interval", None),
-        adjusted_p_values=getattr(raw, "adjusted_p_values", None),
-        family_contrast=getattr(raw, "family_contrast", None),
-        family_contrast_interval=getattr(raw, "family_contrast_interval", None),
-        candidate_selection=getattr(raw, "candidate_selection", None),
-        evalue=getattr(raw, "evalue", None),
-        evalue_threshold=getattr(raw, "evalue_threshold", None),
-        joint_covariance=getattr(raw, "joint_covariance", None),
-        score_inference=getattr(raw, "score_inference", None),
-        scenario_effects=getattr(raw, "scenario_effects", None),
-        scenario_intervals=getattr(raw, "scenario_intervals", None),
-    )
-
-
-def _section_posterior(raw: Any) -> Any:
-    sec = getattr(raw, "posterior", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        effect_mean=getattr(raw, "posterior_effect_mean", None),
-        effect_sd=getattr(raw, "posterior_effect_sd", None),
-        q025=getattr(raw, "posterior_q025", None),
-        q975=getattr(raw, "posterior_q975", None),
-        n_draws=getattr(raw, "posterior_n_draws", None),
-        p_below_zero=getattr(raw, "posterior_p_below_zero", None),
-        backend=getattr(raw, "posterior_backend", None),
-        artifact=getattr(raw, "posterior_artifact", None),
-        unidentified_mass=getattr(raw, "posterior_unidentified_mass", None),
-        subsampled_out_mass=getattr(raw, "posterior_subsampled_out_mass", None),
-    )
-
-
-def _section_validation(raw: Any) -> Any:
-    sec = getattr(raw, "validation", None)
-    if sec is not None:
-        return sec
-    # Mirror the shared Rust aggregate rule (see `ValidationSection::from_reports`
-    # in `python/src/lib.rs`): never claim pass when nothing ran.
-    reports = list(getattr(raw, "refutations", None) or ())
-    ran = len(reports) > 0
-    passed = ran and all(r.passed for r in reports)
-    return SimpleNamespace(
-        passed=passed,
-        ran=ran,
-        count=int(getattr(raw, "refutation_count", len(reports)) or 0),
-        reports=reports,
-    )
-
-
-def _section_performance(raw: Any) -> Any:
-    sec = getattr(raw, "performance", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        plan_id=getattr(raw, "plan_id", "") or "",
-        modality=getattr(raw, "modality", "") or "",
-        peak_memory_bytes=getattr(raw, "peak_memory_bytes", None),
-        latency_mode=getattr(raw, "latency_mode", None),
-        wall_time_ns=getattr(raw, "wall_time_ns", None),
-        bootstrap_replicates_requested=getattr(raw, "bootstrap_replicates_requested", None),
-        bootstrap_replicates_ok=getattr(raw, "bootstrap_replicates_ok", None),
-        n_draws=getattr(raw, "n_draws_effort", None),
-        cancelled=bool(getattr(raw, "cancelled", False)),
-        early_stopped=bool(getattr(raw, "early_stopped", False)),
-        stage_timings=getattr(raw, "stage_timings", None),
-        bytes_borrowed=getattr(raw, "bytes_borrowed", None),
-    )
 
 
 def _probability_interval_from_raw(raw: Any) -> ProbabilityIntervalView | None:
@@ -382,11 +288,11 @@ def _wrap_ate(
             alphas_applied=list(getattr(r, "conflict_alphas_applied", None) or []),
         )
 
-    sec_identification = _section_identification(raw)
-    sec_estimate = _section_estimate(raw)
-    sec_posterior = _section_posterior(raw)
-    sec_validation = _section_validation(raw)
-    sec_performance = _section_performance(raw)
+    sec_identification = raw.identification
+    sec_estimate = raw.estimate
+    sec_posterior = raw.posterior
+    sec_validation = raw.validation
+    sec_performance = raw.performance
 
     mediation = None
     if (
@@ -549,11 +455,11 @@ def _wrap_ate(
             overlap_ess=sec_estimate.overlap_ess,
             overlap_propensity_min=sec_estimate.overlap_propensity_min,
             mediation=mediation,
-            functional_means=tuple(sec_estimate.functional_means)
-            if getattr(sec_estimate, "functional_means", None) is not None
+            functional_means=tuple(functional_means)
+            if (functional_means := getattr(sec_estimate, "functional_means", None)) is not None
             else None,
-            exceedance_cdf=tuple(sec_estimate.exceedance_cdf)
-            if getattr(sec_estimate, "exceedance_cdf", None) is not None
+            exceedance_cdf=tuple(exceedance_cdf)
+            if (exceedance_cdf := getattr(sec_estimate, "exceedance_cdf", None)) is not None
             else None,
             monotone_rearranged=bool(getattr(sec_estimate, "monotone_rearranged", False)),
             interaction_structurally_zero=getattr(
@@ -576,6 +482,19 @@ def _wrap_ate(
             mean_interval=_probability_interval_from_raw(
                 getattr(sec_estimate, "mean_interval", None)
             ),
+            outcome_oof_r2=getattr(sec_estimate, "outcome_oof_r2", None),
+            treatment_oof_logloss=getattr(sec_estimate, "treatment_oof_logloss", None),
+            crossfit_folds=getattr(sec_estimate, "crossfit_folds", None),
+            crossfit_seed=getattr(sec_estimate, "crossfit_seed", None),
+            learner_provenance=tuple(getattr(sec_estimate, "learner_provenance", ())),
+            cate=tuple(cate) if (cate := getattr(sec_estimate, "cate", None)) is not None else None,
+            cate_se=tuple(cate_se)
+            if (cate_se := getattr(sec_estimate, "cate_se", None)) is not None
+            else None,
+            cate_leaf_dispersion=tuple(cate_leaf_dispersion)
+            if (cate_leaf_dispersion := getattr(sec_estimate, "cate_leaf_dispersion", None))
+            is not None
+            else None,
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),
@@ -1051,9 +970,9 @@ class PreparedBatch:
         queries: Sequence[AverageEffect],
         identifier: str | None = None,
         estimator: str | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
-        bootstrap: int | None = 0,
+        bootstrap: int | None = None,
         threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
@@ -1065,7 +984,7 @@ class PreparedBatch:
                 "PreparedBatch.prepare supports AverageEffect queries only; "
                 "use prepare_cells for joint InterventionResponse"
             )
-        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         from .query import coerce_outcome_functional
 
@@ -1085,7 +1004,7 @@ class PreparedBatch:
             estimator=estimator,
             refute=resolved_refute,
             seed=seed,
-            bootstrap=0 if bootstrap is None else bootstrap,
+            bootstrap=bootstrap,
             threads=threads,
         )
         if latency is not None:
@@ -1114,9 +1033,9 @@ class PreparedBatch:
         queries: Sequence[InterventionResponse],
         identifier: str | None = None,
         estimator: str | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
-        bootstrap: int | None = 0,
+        bootstrap: int | None = None,
         threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
@@ -1145,7 +1064,7 @@ class PreparedBatch:
                 )
             if estimator not in (None, "cell.aipw"):
                 raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
-        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         specs = _joint_cell_batch_specs(queries)
         kwargs: dict[str, Any] = dict(
@@ -1153,7 +1072,7 @@ class PreparedBatch:
             estimator=estimator,
             refute=resolved_refute,
             seed=seed,
-            bootstrap=0 if bootstrap is None else bootstrap,
+            bootstrap=bootstrap,
             threads=threads,
             family_contrast=family_contrast,
         )
@@ -1209,7 +1128,7 @@ def identify(
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
 
-    ``identify(TieredBackground)`` stays Rust-only in 1.5
+    ``identify(TieredBackground)`` stays Rust-only
     (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
     already returns the certificate; this entry does not accept a tier rule.
     Pair-family joint cells use :meth:`PreparedBatch.prepare_cells`.
@@ -1379,6 +1298,9 @@ def _wrap_prepared_response(
             standard_error=raw.standard_error,
             replicates=raw.replicates,
             artifact_id=raw.artifact_id,
+            interpretation=cast(
+                IntervalInterpretation | None, getattr(raw, "interval_interpretation", None)
+            ),
         ),
         support=SupportReport(
             status=cast(SupportStatus, raw.support_status),
@@ -1451,6 +1373,10 @@ _PreparedQuery = (
     | ResponseJacobian
     | TemporalMediationEffect
     | TransportQuery
+    | Transport
+    | ExactTransportQuery
+    | StatisticalTransportQuery
+    | TransportResponseGridQuery
     | InterferenceQuery
     | AnomalyAttribution
     | ChangeAttribution
@@ -2269,7 +2195,7 @@ class _PrepareRoute:
             )
 
     def _transport(self) -> tuple[Any, Any]:
-        from .transport import _response_args
+        from .transport._impl import _response_args
 
         query = cast(TransportQuery, self.query)
         self._refuse_design_options("TransportQuery", "transport.sid", "transport.trial_ipw")
@@ -2298,6 +2224,7 @@ class _PrepareRoute:
             columns[0],
             columns[1],
             columns[2],
+            catalog=query.catalog,
             grid=response["grid"],
             at=response["at"],
             direction=response["direction"],
@@ -2799,7 +2726,18 @@ def _check_response_observation(query: Any, inference: Any) -> None:
         )
 
 
-class PreparedAnalysis:
+_PreparedResult = (
+    AnalysisResult
+    | CausalResponseView
+    | ExactTransportDistribution
+    | StatisticalTransportDistribution
+    | TransportResponseGrid
+)
+
+ResultT = TypeVar("ResultT", covariant=True)
+
+
+class PreparedAnalysis(Generic[ResultT]):
     """Compile-once / re-estimate-many handle for licensed analysis cells.
 
     **Frozen at prepare:** schema (names, types, order); graph, accepted graph,
@@ -2831,7 +2769,15 @@ class PreparedAnalysis:
         self,
         native: Any,
         *,
-        kind: Literal["average", "response_curve", "intervention_response"] = "average",
+        kind: Literal[
+            "average",
+            "response_curve",
+            "intervention_response",
+            "exact_transport",
+            "statistical_transport",
+            "transport_grid",
+            "learned_trial",
+        ] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
         threads: int | None = None,
@@ -2841,6 +2787,9 @@ class PreparedAnalysis:
     ) -> None:
         self._native = native
         self._kind = kind
+        from ._transport_lifecycle import transport_lifecycle
+
+        self._transport = transport_lifecycle(kind)
         self._query = query
         # A scalar Dag InterventionResponse runs its refuter suite as the
         # second click of every estimate, so `refute=` is honoured on the
@@ -2851,8 +2800,13 @@ class PreparedAnalysis:
         self._threads = threads
         self._controls = controls or _Controls()
         self._cancelled = False
+        # Set by transport/_day1.py::prepare_transport when identification is
+        # deferred (no native execution yet): the frozen inputs needed to
+        # re-derive identification (inspect()) or re-bind data (refresh())
+        # without one. Absent for every non-transport study.
+        self._transport_stage: TransportStage | None = None
 
-    def _frozen(self, execution: Any) -> PreparedAnalysis:
+    def _frozen(self, execution: Any) -> PreparedAnalysis[ResultT]:
         """A handle over one retained execution with this study's seed and controls."""
         return PreparedAnalysis(
             execution,
@@ -2866,6 +2820,8 @@ class PreparedAnalysis:
     @property
     def validator_names(self) -> tuple[str, ...]:
         """Attested custom-validator names frozen at prepare (their claim identity)."""
+        if self._transport is not None:
+            return ()
         return tuple(self._native.validator_names())
 
     def rebind_validators(self, validators: Mapping[str, Any]) -> None:
@@ -2875,6 +2831,10 @@ class PreparedAnalysis:
         results, never the callables. The names must equal
         :attr:`validator_names`; otherwise the rebind is refused.
         """
+        if self._transport is not None:
+            if validators:
+                raise ValueError("Transport studies do not fit or invoke sampled-data validators")
+            return
         self._native.rebind_validators(dict(validators))
 
     @classmethod
@@ -2886,7 +2846,7 @@ class PreparedAnalysis:
         query: _PreparedQuery,
         graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
         discovery: Any | None = None,
-        inference: Frequentist | Bayesian | None = None,
+        inference: Frequentist | Bayesian | TransportInference | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | Any | None = None,
         estimator_config: Mapping[str, Any] | None = None,
@@ -2907,7 +2867,9 @@ class PreparedAnalysis:
         running_variable: str | None = None,
         cutoff: float | None = None,
         bandwidth: float | None = None,
-    ) -> PreparedAnalysis:
+        provider: Any | None = None,
+        controls: TransportControls | None = None,
+    ) -> PreparedAnalysis[_PreparedResult]:
         """Compile a durable plan for a licensed analysis cell.
 
         Every argument either reaches the compiled study or is refused with a
@@ -2965,6 +2927,220 @@ class PreparedAnalysis:
         routes that have them. The handle retains all three; a click may
         override them.
         """
+        from .transport import ExactTransportData, StatisticalTransportData
+        from .transport._day1 import prepare_transport, refuse_transport_only_kwargs
+        from .transport.advanced import (
+            ExactTransportQuery,
+            StatisticalTransportQuery,
+            TransportResponseGridQuery,
+            prepare_exact,
+            prepare_response_grid,
+            prepare_statistical,
+        )
+
+        refuse_transport_only_kwargs(
+            query, provider=provider, inference=inference, controls=controls
+        )
+        if isinstance(query, Transport):
+            if not isinstance(graph, Admg):
+                raise CausalTypeError("transport.Transport requires graph=Admg(...)")
+            if isinstance(inference, (Frequentist, Bayesian)):
+                raise CausalUnsupportedError(
+                    "transport.Transport uses inference=TransportInference(...); "
+                    "Frequentist/Bayesian do not apply",
+                    reason_code="option_not_applicable",
+                )
+            if identifier not in (None, "transport.sid"):
+                raise CausalUnsupportedError(
+                    "transport.Transport is identified by transport.sid; "
+                    "another identifier= does not apply",
+                    reason_code="option_not_applicable",
+                )
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        discovery,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        bootstrap,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or seed != 1
+                or not accept_discovered
+            ):
+                raise CausalUnsupportedError(
+                    "transport.Transport uses provider=, inference=TransportInference, "
+                    "and controls=; ordinary analyze knobs do not apply",
+                    reason_code="option_not_applicable",
+                )
+            return prepare_transport(
+                data,
+                query=query,
+                graph=graph,
+                provider=provider,
+                inference=inference,
+                controls=controls,
+                cancel=cancel,
+            )
+
+        if isinstance(query, TransportResponseGridQuery):
+            if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
+                raise ValueError("Transport grid requires explicit exact or statistical providers")
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        graph,
+                        discovery,
+                        inference,
+                        identifier,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        bootstrap,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or seed != 1
+                or not accept_discovered
+            ):
+                raise ValueError(
+                    "Transport grids use their retained graph, catalog, and inference settings"
+                )
+            return prepare_response_grid(
+                query.identification,
+                query.catalog,
+                data,
+                at=query.at,
+                bootstrap=query.bootstrap,
+                coverage_level=query.coverage_level,
+                seed=query.seed,
+                estimator=query.estimator,
+                cancel=cancel,
+            )
+        if isinstance(query, StatisticalTransportQuery) or isinstance(
+            data, StatisticalTransportData
+        ):
+            if not isinstance(query, StatisticalTransportQuery) or not isinstance(
+                data, StatisticalTransportData
+            ):
+                raise ValueError(
+                    "Statistical transport requires StatisticalTransportData and StatisticalTransportQuery"
+                )
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        graph,
+                        discovery,
+                        inference,
+                        identifier,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or not accept_discovered
+            ):
+                raise ValueError(
+                    "Statistical transport uses its retained graph, catalog, and inference settings"
+                )
+            statistical_prepared = prepare_statistical(
+                query.identification,
+                query.catalog,
+                data,
+                at=query.at,
+                cancel=cancel,
+                bootstrap=query.bootstrap,
+                coverage_level=query.coverage_level,
+                estimator=query.estimator,
+                seed=query.seed,
+            )
+            statistical_prepared._controls = _Controls(cancel=cancel)
+            return statistical_prepared
+
+        if isinstance(query, ExactTransportQuery) or isinstance(data, ExactTransportData):
+            if not isinstance(query, ExactTransportQuery) or not isinstance(
+                data, ExactTransportData
+            ):
+                raise ValueError(
+                    "Exact transport requires ExactTransportData and ExactTransportQuery"
+                )
+            if (
+                any(
+                    option is not None
+                    for option in (
+                        graph,
+                        discovery,
+                        inference,
+                        identifier,
+                        estimator,
+                        estimator_config,
+                        refute,
+                        bootstrap,
+                        threads,
+                        latency,
+                        class_prior,
+                        max_completions,
+                        population_registry,
+                        on_progress,
+                        on_stage,
+                        validators,
+                        regimes,
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                    )
+                )
+                or seed != 1
+                or not accept_discovered
+            ):
+                raise ValueError(
+                    "Exact transport uses its retained graph and evidence contract; sampled-data preparation options do not apply"
+                )
+            exact_prepared = prepare_exact(
+                query.identification, query.catalog, data, at=query.at, cancel=cancel
+            )
+            exact_prepared._controls = _Controls(cancel=cancel)
+            return exact_prepared
+
         from .population import registry_wire
 
         coerce_query(query)
@@ -2988,7 +3164,7 @@ class PreparedAnalysis:
         inference = inference or Frequentist()
         if not isinstance(inference, (Frequentist, Bayesian)):
             raise CausalTypeError("inference must be Frequentist or Bayesian")
-        controls = _Controls(cancel=cancel, on_progress=on_progress, on_stage=on_stage)
+        execution_controls = _Controls(cancel=cancel, on_progress=on_progress, on_stage=on_stage)
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             _check_response_observation(query, inference)
 
@@ -3024,7 +3200,7 @@ class PreparedAnalysis:
                 regimes=regimes,
                 seed=seed,
                 threads=threads,
-                controls=controls,
+                controls=execution_controls,
             )
             discovery = None
         structure_accepted = isinstance(graph, AcceptedGraph)
@@ -3088,7 +3264,7 @@ class PreparedAnalysis:
             query=query,
             seed=seed,
             threads=threads,
-            controls=controls,
+            controls=execution_controls,
             deferred_suite=route.deferred_suite,
             snapshot_data=data if route.deferred_suite else None,
         )
@@ -3100,7 +3276,7 @@ class PreparedAnalysis:
                 "several identifications, so it has no such stages (use on_progress)",
                 reason_code="stage_stream_unavailable",
             )
-        return prepared
+        return cast(PreparedAnalysis[_PreparedResult], prepared)
 
     def export_artifact(
         self,
@@ -3118,6 +3294,12 @@ class PreparedAnalysis:
         artifacts also retain support and assumptions; retain the analysis result
         separately for posterior assumptions and validation reports.
         """
+        if self._transport is not None:
+            if payload != "result":
+                raise ValueError(
+                    "Transport artifacts export a checked execution and its full proof"
+                )
+            return self._native.export()
         return self._native.export_artifact(artifact_id=artifact_id, payload=payload)
 
     def export(self, *, artifact_id: str = "analysis-result") -> bytes:
@@ -3128,6 +3310,8 @@ class PreparedAnalysis:
                 "Cancelled estimate produced no claim.",
                 reason_code="cancelled_no_claim",
             )
+        if self._transport is not None:
+            return self._native.export()
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
 
     @property
@@ -3159,6 +3343,25 @@ class PreparedAnalysis:
         its ``calibration`` is unavailable (``not_executed``) until an estimate
         runs. :meth:`preflight` is the cheap structural-only view.
         """
+        if self._transport is not None:
+            if getattr(self, "_native", None) is None:
+                from .transport._day1 import identification_from_transport
+
+                query = self._query
+                if not isinstance(query, Transport):
+                    raise CausalValueError("transport inspect requires a Transport query")
+                stage = getattr(self, "_transport_stage", None) or {}
+                graph = stage.get("graph")
+                if graph is None:
+                    raise CausalValueError("transport inspect requires a retained graph")
+                return identification_from_transport(
+                    graph,
+                    query,
+                    catalog=stage.get("catalog"),
+                    identified=stage.get("identified"),
+                ).inspect()
+            return InspectionReport(**json.loads(self._native.inspection_json()))
+
         from dataclasses import replace
 
         from .results._execution import Answer, CalibrationInfo
@@ -3176,6 +3379,8 @@ class PreparedAnalysis:
         """Cheap structural-only inspection; identification and fitting are not run."""
         from .results._report import as_inspection
 
+        if self._transport is not None:
+            return self.inspect()
         return as_inspection(ReasoningSlots.from_contract(self._native.inspect()))
 
     def preview_transform(self, intent: str) -> dict[str, str]:
@@ -3210,6 +3415,16 @@ class PreparedAnalysis:
             kernels=raw.get("kernels") or None,
         )
 
+    def replace_snapshot(self, data: Any, *, cancel: Any = _UNSET) -> None:
+        """Replace exact-law providers and invalidate execution claims atomically."""
+        if self._transport is not None:
+            self._native.replace_snapshot(
+                self._transport.payload(data),
+                cancel=self._controls.cancel if cancel is _UNSET else cancel,
+            )
+            return
+        raise ValueError("Use refresh for this sampled-data modality")
+
     def _click_controls(self, cancel: Any, on_progress: Any, on_stage: Any) -> dict[str, Any]:
         """The study's retained controls, with any per-click override applied."""
         controls = self._controls
@@ -3243,7 +3458,14 @@ class PreparedAnalysis:
                 return names, columns, None
         return _frame_payload(data)
 
-    def _wrap(self, raw: Any) -> AnalysisResult | CausalResponseView:
+    def _wrap(
+        self, raw: Any
+    ) -> (
+        AnalysisResult
+        | CausalResponseView
+        | StatisticalTransportDistribution
+        | TransportResponseGrid
+    ):
         if self._kind in ("response_curve", "intervention_response"):
             query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
@@ -3257,7 +3479,32 @@ class PreparedAnalysis:
         seed: int | None,
         threads: int | None,
         controls: dict[str, Any],
-    ) -> AnalysisResult | CausalResponseView:
+    ) -> (
+        AnalysisResult
+        | CausalResponseView
+        | StatisticalTransportDistribution
+        | TransportResponseGrid
+    ):
+        if self._transport is not None:
+            if getattr(self, "_native", None) is None:
+                from .transport._wrap import unavailable_from_stage
+
+                return unavailable_from_stage(self)
+            raw = self._run_click(
+                lambda: self._transport.execute(
+                    self._native,
+                    data,
+                    refresh=refresh,
+                    seed=seed,
+                    threads=threads,
+                    controls=controls,
+                )
+            )
+            if isinstance(self._query, Transport):
+                from .transport._wrap import wrap_transport_result
+
+                return wrap_transport_result(self, raw)
+            return raw
         seed = self._seed if seed is None else seed
         threads = self._threads if threads is None else threads
         response = self._kind in ("response_curve", "intervention_response")
@@ -3326,7 +3573,7 @@ class PreparedAnalysis:
         cancel: Any = _UNSET,
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
-    ) -> AnalysisResult | CausalResponseView:
+    ) -> ResultT:
         """Re-estimate without recompiling.
 
         With no ``data`` this re-executes the prepared program on the retained
@@ -3336,12 +3583,15 @@ class PreparedAnalysis:
         ``on_stage`` default to the study's retained controls and may be
         overridden (``None`` turns one off for this click).
         """
-        return self._click(
-            data,
-            refresh=False,
-            seed=seed,
-            threads=threads,
-            controls=self._click_controls(cancel, on_progress, on_stage),
+        return cast(
+            ResultT,
+            self._click(
+                data,
+                refresh=False,
+                seed=seed,
+                threads=threads,
+                controls=self._click_controls(cancel, on_progress, on_stage),
+            ),
         )
 
     @describe_refusal
@@ -3360,6 +3610,11 @@ class PreparedAnalysis:
         descendant closure can be checked. Nonconstant weights require a
         nonempty ``depends_on``.
         """
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not licensed on the prepared transport handle",
+                reason_code="option_not_applicable",
+            )
         import numpy as np
 
         raw = self._native.retarget(
@@ -3386,6 +3641,11 @@ class PreparedAnalysis:
         ``reason_code="row_weights_bound_to_snapshot"`` instead of silently
         reweighting other rows.
         """
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not licensed on the prepared transport handle",
+                reason_code="option_not_applicable",
+            )
         raw = self._native.reexecute_retarget(bytes(artifact), seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
@@ -3399,14 +3659,26 @@ class PreparedAnalysis:
         cancel: Any = _UNSET,
         on_progress: Any = _UNSET,
         on_stage: Any = _UNSET,
-    ) -> AnalysisResult | CausalResponseView:
+    ) -> ResultT:
         """Replace retained data and re-estimate (controls as in :meth:`estimate`)."""
-        return self._click(
-            data,
-            refresh=True,
-            seed=seed,
-            threads=threads,
-            controls=self._click_controls(cancel, on_progress, on_stage),
+        if isinstance(self._query, Transport):
+            from .transport._day1 import catalog_from_evidence
+
+            stage = getattr(self, "_transport_stage", None) or {}
+            _catalog, bound = catalog_from_evidence(self._query, data, graph=stage.get("graph"))
+            if bound is not None:
+                data = bound
+            if self._transport is not None and getattr(self, "_native", None) is not None:
+                self.replace_snapshot(data)
+        return cast(
+            ResultT,
+            self._click(
+                data,
+                refresh=True,
+                seed=seed,
+                threads=threads,
+                controls=self._click_controls(cancel, on_progress, on_stage),
+            ),
         )
 
     @describe_refusal
@@ -3425,6 +3697,11 @@ class PreparedAnalysis:
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         ``seed`` / ``threads`` / ``cancel`` default to the study's own.
         """
+        if self._transport is not None:
+            raise CausalUnsupportedError(
+                "This operation is not licensed on the prepared transport handle",
+                reason_code="option_not_applicable",
+            )
         if self._kind == "response_curve":
             raise CausalUnsupportedError(
                 "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "

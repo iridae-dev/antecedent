@@ -1,29 +1,39 @@
-//! Bayesian conditional independence diagnostics for conjugate Gaussian models
+//! Bayesian conditional independence diagnostics for Gaussian linear models
 //!
-//! - [`BayesFactorCi`]: log Bayes factor for dependence vs independence under a
-//!   Normal–Inv-Gamma conjugate model on full designs `y ~ [1,Z]` vs `y ~ [1,Z,x]`.
-//! - [`PosteriorDependenceCi`]: posterior probability of dependence under equal
-//!   prior odds (stable logistic of the log BF).
+//! - [`BayesFactorCi`]: log Bayes factor for dependence vs independence of `X` and `Y` given
+//!   `Z`, under a Zellner g-prior (unit-information, `g = n`) on the partial regression
+//!   coefficient and flat / scale-invariant priors on the nuisance parameters. The factor is a
+//!   function of the partial correlation `r_{xy·z}`, `n` and `|Z|` only, so it is symmetric in
+//!   `(x, y)`.
+//! - [`PosteriorDependenceCi`]: posterior probability of dependence under equal prior odds
+//!   (stable logistic of the log BF).
 //! - [`PosteriorPredictiveCi`]: posterior-predictive p-value for absolute
 //!   residual correlation under the independence null (full M0 refit each sim).
 //!
+//! The first two report `P(M₀ | data)` in [`CiResult::p_value`], which is a posterior
+//! probability, not a frequentist p-value: they answer
+//! [`ConditionalIndependenceTest::p_value_is_frequentist`] with `false`, and callers must not
+//! apply a multiplicity correction to them.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::similar_names, // xtx / xty, cxx / cxy conjugate notation
-    clippy::many_single_char_names // Marsaglia gamma / conjugate scalars
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
-use antecedent_core::{CausalRng, ExecutionContext};
-use antecedent_kernels::standard_normal;
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
+use antecedent_kernels::{sample_inv_gamma, standard_normal};
 
+use super::block_shuffle::query_stream_salt;
+use super::residualize::{ZDesign, residual_is_uninformative};
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    PreparedCiTest, SignificanceMethod,
+    PreparedCiTest, SignificanceMethod, permutation_min_p,
 };
 use crate::error::StatsError;
 use crate::gram::{chol_log_det, chol_solve, cholesky_spd, form_xtx};
@@ -49,8 +59,16 @@ struct NigPosterior {
 
 /// Bayes-factor CI: statistic = log BF₁₀ (dependence vs independence).
 ///
-/// `p_value` is the posterior probability of *independence* under equal prior
-/// odds. Analytic significance only; block-shuffle is refused.
+/// `log BF₁₀ = −½ ln(1+g) − ½ (n−1−|Z|) ln(1 − g r² / (1+g))` with `g = n` and `r` the partial
+/// correlation of `x` and `y` given `Z` (Zellner g-prior on the coefficient of `x` in
+/// `y ~ [1, Z, x]`, flat priors on the intercept, `Z` coefficients and `σ²`). It depends on the
+/// data only through `r`, so swapping `x` and `y` returns the same value. With `n` large the
+/// implied decision boundary at `P(independence) = α` is `|t| ≈ sqrt(ln n + 2 ln BF)`
+/// (Lindley's paradox): about `|t| > 3.5` at `n = 500`, `α = 0.05`.
+///
+/// `p_value` is the posterior probability of *independence* under equal prior odds, not a
+/// frequentist p-value ([`ConditionalIndependenceTest::p_value_is_frequentist`] is `false`).
+/// Analytic significance only; block-shuffle is refused.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BayesFactorCi;
 
@@ -78,7 +96,7 @@ impl ConditionalIndependenceTest for BayesFactorCi {
         let _ = (workspace, ctx);
         let mut results = Vec::with_capacity(nq);
         for q in request.queries {
-            let log_bf = log_bf10_full(request, *q)?;
+            let log_bf = log_bf10_partial_corr(request, *q)?;
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult {
                 statistic: log_bf,
@@ -89,11 +107,16 @@ impl ConditionalIndependenceTest for BayesFactorCi {
         }
         Ok(CiBatchResult { results })
     }
+
+    fn p_value_is_frequentist(&self) -> bool {
+        false
+    }
 }
 
 /// Posterior dependence probability under equal prior odds.
 ///
-/// Statistic = `P(M₁ | data)`; `p_value` = independence posterior mass.
+/// Statistic = `P(M₁ | data)` from the same symmetric g-prior Bayes factor as [`BayesFactorCi`];
+/// `p_value` = independence posterior mass (not a frequentist p-value).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PosteriorDependenceCi;
 
@@ -121,7 +144,7 @@ impl ConditionalIndependenceTest for PosteriorDependenceCi {
         let _ = (workspace, ctx);
         let mut results = Vec::with_capacity(nq);
         for q in request.queries {
-            let log_bf = log_bf10_full(request, *q)?;
+            let log_bf = log_bf10_partial_corr(request, *q)?;
             let p_dep = logistic_from_log_bf(log_bf);
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult {
@@ -133,6 +156,10 @@ impl ConditionalIndependenceTest for PosteriorDependenceCi {
         }
         Ok(CiBatchResult { results })
     }
+
+    fn p_value_is_frequentist(&self) -> bool {
+        false
+    }
 }
 
 /// Posterior-predictive CI under the conjugate independence null.
@@ -141,11 +168,15 @@ impl ConditionalIndependenceTest for PosteriorDependenceCi {
 /// of null predictive replicates with `|r| ≥ |r_obs|` (plus one continuity
 /// correction). Each replicate draws `(σ², β)` under `M₀`, regenerates `y`, and
 /// refits the same residual-correlation pipeline.
+///
+/// Replicate draws come from the run's RNG (`ctx.rng`, stream keyed by the query), so the
+/// analysis seed governs them and a query's p-value does not depend on its batch position.
+/// [`Self::seed`] is an extra salt folded into that stream.
 #[derive(Clone, Copy, Debug)]
 pub struct PosteriorPredictiveCi {
     /// Null predictive replicates.
     pub n_sims: u32,
-    /// Base RNG seed (XOR'd with query index).
+    /// Salt XOR'd into the run's stream identifier (`0` by default).
     pub seed: u64,
 }
 
@@ -162,7 +193,7 @@ impl PosteriorPredictiveCi {
         Self { n_sims: n_sims.max(1), seed: 0 }
     }
 
-    /// Set RNG seed.
+    /// Set the stream salt.
     #[must_use]
     pub const fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
@@ -190,29 +221,30 @@ impl ConditionalIndependenceTest for PosteriorPredictiveCi {
             workspace.shuffled.resize(n, 0.0);
         }
 
-        let _ = ctx;
         let mut results = Vec::with_capacity(nq);
-        for (i, q) in request.queries.iter().enumerate() {
+        for q in request.queries {
             let prepared_cols = prepare_standardized(request, *q)?;
             // Observed statistic on the same standardized/refit pipeline as replicates.
-            let abs_obs = abs_residual_corr_owned(
-                &prepared_cols.x,
-                &prepared_cols.y,
-                &prepared_cols.z_cols,
-                n,
-            )?;
+            let ry_obs = prepared_cols.design.residuals(&prepared_cols.y)?;
+            let abs_obs = pearson_abs(&prepared_cols.rx, &ry_obs)
+                .ok_or(StatsError::Shape { message: "pearson failed in PPC" })?;
             let (_, nig0) =
                 log_marginal_nig(&prepared_cols.x0, n, prepared_cols.p0, &prepared_cols.y)?;
 
-            let mut rng = CausalRng::from_seed(self.seed ^ (i as u64).wrapping_mul(0x9E37_79B9));
+            let z = &request.z_flat[q.z_start..q.z_start + q.z_len];
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::StatsCi,
+                0x99C1_u64 ^ self.seed ^ query_stream_salt(&[q.x], &[q.y], z),
+            );
             let mut extreme = 1u32; // +1 continuity
             let y_rep = &mut workspace.shuffled[..n];
             for _ in 0..self.n_sims {
                 draw_m0_replicate(&nig0, &prepared_cols.x0, n, &mut rng, y_rep);
                 // Full pipeline: re-standardize y_rep, keep x/Z standardization fixed.
                 standardize_inplace(y_rep)?;
-                let r_rep =
-                    abs_residual_corr_owned(&prepared_cols.x, y_rep, &prepared_cols.z_cols, n)?;
+                let ry_rep = prepared_cols.design.residuals(y_rep)?;
+                let r_rep = pearson_abs(&prepared_cols.rx, &ry_rep)
+                    .ok_or(StatsError::Shape { message: "pearson failed in PPC" })?;
                 if r_rep >= abs_obs {
                     extreme += 1;
                 }
@@ -222,6 +254,10 @@ impl ConditionalIndependenceTest for PosteriorPredictiveCi {
             results.push(CiResult { statistic: abs_obs, p_value: p.clamp(0.0, 1.0), df, ci: None });
         }
         Ok(CiBatchResult { results })
+    }
+
+    fn min_attainable_p(&self, _significance: SignificanceMethod) -> f64 {
+        permutation_min_p(self.n_sims as usize)
     }
 }
 
@@ -245,15 +281,15 @@ fn logistic_from_log_bf(log_bf: f64) -> f64 {
 }
 
 struct PreparedQuery {
-    x: Vec<f64>,
+    /// Standardised `x`, `y`.
     y: Vec<f64>,
-    z_cols: Vec<Vec<f64>>,
-    /// Column-major `X₀ = [1, Z]`.
+    /// `x` residualised on `[1, Z]`; invariant across replicates.
+    rx: Vec<f64>,
+    /// The fitted `[1, Z]` design, shared by every residualisation of this query.
+    design: ZDesign,
+    /// Column-major `X₀ = [1, Z]` (standardised Z) for the NIG posterior of the null model.
     x0: Vec<f64>,
-    /// Column-major `X₁ = [1, Z, x]`.
-    x1: Vec<f64>,
     p0: usize,
-    p1: usize,
 }
 
 fn prepare_standardized(
@@ -278,25 +314,25 @@ fn prepare_standardized(
         z_cols.push(standardize_col(request.columns[zi])?);
     }
     let p0 = 1 + q.z_len;
-    let p1 = p0 + 1;
-    if n <= p1 {
+    if n <= p0 + 1 {
         return Err(StatsError::Shape {
             message: "need n > columns(X1) for full NIG Bayes factor",
         });
     }
     let x0 = design_intercept_z(n, &z_cols);
-    let mut x1 = x0.clone();
-    x1.extend_from_slice(&x);
-    // Full-rank check via Cholesky of Λₙ for X1.
-    let mut xtx = vec![0.0; p1 * p1];
-    form_xtx(&x1, n, p1, &mut xtx);
-    for i in 0..p1 {
-        xtx[i * p1 + i] += COEF_PRIOR_PREC;
+    let z_refs: Vec<&[f64]> = z_cols.iter().map(Vec::as_slice).collect();
+    let z_idx: Vec<usize> = (0..z_refs.len()).collect();
+    let design = ZDesign::fit(&z_refs, &z_idx, None, n)?;
+    let rx = design.residuals(&x)?;
+    // The prior ridge makes `Λₙ` positive definite for any design, so collinearity of `x`
+    // with `Z` cannot show up there. Test it on the un-ridged residual instead: an `x` the
+    // conditioning set determines leaves rounding residue, whose correlation with `y` is noise.
+    if residual_is_uninformative(&x, &rx) {
+        return Err(StatsError::Shape {
+            message: "conditioned variable is collinear with the conditioning set",
+        });
     }
-    if cholesky_spd(&xtx, p1).is_none() {
-        return Err(StatsError::Backend("singular design after standardization".into()));
-    }
-    Ok(PreparedQuery { x, y, z_cols, x0, x1, p0, p1 })
+    Ok(PreparedQuery { y, rx, design, x0, p0 })
 }
 
 fn design_intercept_z(n: usize, z_cols: &[Vec<f64>]) -> Vec<f64> {
@@ -313,27 +349,9 @@ fn design_intercept_z(n: usize, z_cols: &[Vec<f64>]) -> Vec<f64> {
 }
 
 fn standardize_col(col: &[f64]) -> Result<Vec<f64>, StatsError> {
-    let n = col.len();
-    if n < 2 {
-        return Err(StatsError::Shape { message: "need n >= 2 to standardize" });
-    }
-    let nf = n as f64;
-    let mut mean = 0.0;
-    for &v in col {
-        mean += v;
-    }
-    mean /= nf;
-    let mut var = 0.0;
-    for &v in col {
-        let d = v - mean;
-        var += d * d;
-    }
-    var /= nf; // sample variance with /n (matches unit-variance standardization)
-    if var.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-        return Err(StatsError::Shape { message: "zero-variance column in Bayesian CI" });
-    }
-    let s = var.sqrt();
-    Ok(col.iter().map(|&v| (v - mean) / s).collect())
+    let mut out = col.to_vec();
+    standardize_inplace(&mut out)?;
+    Ok(out)
 }
 
 fn standardize_inplace(col: &mut [f64]) -> Result<(), StatsError> {
@@ -352,7 +370,7 @@ fn standardize_inplace(col: &mut [f64]) -> Result<(), StatsError> {
         let d = v - mean;
         var += d * d;
     }
-    var /= nf;
+    var /= nf; // sample variance with /n (matches unit-variance standardization)
     if var.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
         return Err(StatsError::Shape { message: "zero-variance column in Bayesian CI" });
     }
@@ -363,12 +381,48 @@ fn standardize_inplace(col: &mut [f64]) -> Result<(), StatsError> {
     Ok(())
 }
 
-fn log_bf10_full(request: &CiBatchRequest<'_>, q: CiQuery) -> Result<f64, StatsError> {
-    let prep = prepare_standardized(request, q)?;
-    let n = prep.y.len();
-    let (log_m0, _) = log_marginal_nig(&prep.x0, n, prep.p0, &prep.y)?;
-    let (log_m1, _) = log_marginal_nig(&prep.x1, n, prep.p1, &prep.y)?;
-    let log_bf = log_m1 - log_m0;
+/// Unit-information Zellner g-prior.
+fn g_prior_g(n: usize) -> f64 {
+    n as f64
+}
+
+/// `log BF₁₀` as a function of the partial correlation `r`, sample size and `|Z|`.
+///
+/// `−½ ln(1+g) − ½ d ln(1 − g r²/(1+g))`, `d = n − 1 − |Z|` the residual dimension of the
+/// null model after the intercept and `Z` are projected out.
+fn log_bf10_from_partial_corr(r: f64, n: usize, nz: usize) -> f64 {
+    let g = g_prior_g(n);
+    let d = n as f64 - 1.0 - nz as f64;
+    let r2 = (r * r).min(1.0);
+    -0.5 * (1.0 + g).ln() - 0.5 * d * (1.0 - g / (1.0 + g) * r2).ln()
+}
+
+fn log_bf10_partial_corr(request: &CiBatchRequest<'_>, q: CiQuery) -> Result<f64, StatsError> {
+    let n = request.nrows()?;
+    if q.x >= request.columns.len() || q.y >= request.columns.len() {
+        return Err(StatsError::Shape { message: "CI query column out of range" });
+    }
+    let z_end = q.z_start.saturating_add(q.z_len);
+    if z_end > request.z_flat.len() {
+        return Err(StatsError::Shape { message: "z_flat shorter than query span" });
+    }
+    if n <= q.z_len + 2 {
+        return Err(StatsError::Shape { message: "need n > |Z| + 2 for the g-prior Bayes factor" });
+    }
+    let z = &request.z_flat[q.z_start..z_end];
+    let design = ZDesign::fit(request.columns, z, None, n)?;
+    let rx = design.residuals(request.columns[q.x])?;
+    let ry = design.residuals(request.columns[q.y])?;
+    if residual_is_uninformative(request.columns[q.x], &rx)
+        || residual_is_uninformative(request.columns[q.y], &ry)
+    {
+        return Err(StatsError::Shape {
+            message: "a conditioned variable is constant or collinear with the conditioning set",
+        });
+    }
+    let r = pearson_abs(&rx, &ry)
+        .ok_or(StatsError::Shape { message: "degenerate partial correlation" })?;
+    let log_bf = log_bf10_from_partial_corr(r, n, q.z_len);
     if !log_bf.is_finite() {
         return Err(StatsError::Backend("non-finite Bayes factor".into()));
     }
@@ -468,51 +522,8 @@ fn draw_m0_replicate(
     }
 }
 
-fn abs_residual_corr_owned(
-    x: &[f64],
-    y: &[f64],
-    z_cols: &[Vec<f64>],
-    n: usize,
-) -> Result<f64, StatsError> {
-    // OLS residualize x,y on [1,Z] then Pearson |r|.
-    let p0 = 1 + z_cols.len();
-    let x0 = design_intercept_z(n, z_cols);
-    let rx = ols_residuals(&x0, n, p0, x)?;
-    let ry = ols_residuals(&x0, n, p0, y)?;
-    pearson_abs(&rx, &ry).ok_or(StatsError::Shape { message: "pearson failed in PPC" })
-}
-
-fn ols_residuals(x_cm: &[f64], n: usize, p: usize, y: &[f64]) -> Result<Vec<f64>, StatsError> {
-    let mut xtx = vec![0.0; p * p];
-    form_xtx(x_cm, n, p, &mut xtx);
-    // Tiny ridge for numerical stability when Z empty (intercept-only is fine).
-    for i in 0..p {
-        xtx[i * p + i] += 1e-12;
-    }
-    let chol = cholesky_spd(&xtx, p)
-        .ok_or_else(|| StatsError::Backend("OLS residual Cholesky failed".into()))?;
-    let mut xty = vec![0.0; p];
-    for j in 0..p {
-        let col = &x_cm[j * n..(j + 1) * n];
-        let mut acc = 0.0;
-        for i in 0..n {
-            acc += col[i] * y[i];
-        }
-        xty[j] = acc;
-    }
-    let beta = chol_solve(&chol, p, &xty)
-        .ok_or_else(|| StatsError::Backend("OLS residual solve failed".into()))?;
-    let mut resid = vec![0.0; n];
-    for i in 0..n {
-        let mut pred = 0.0;
-        for j in 0..p {
-            pred += x_cm[j * n + i] * beta[j];
-        }
-        resid[i] = y[i] - pred;
-    }
-    Ok(resid)
-}
-
+/// `|Pearson r|`, or `None` when either series has no variance (a correlation of nothing is
+/// undefined, not zero).
 fn pearson_abs(x: &[f64], y: &[f64]) -> Option<f64> {
     let n = x.len();
     if y.len() != n || n < 2 {
@@ -538,130 +549,13 @@ fn pearson_abs(x: &[f64], y: &[f64]) -> Option<f64> {
         cxy += dx * dy;
     }
     if !(cxx > 0.0 && cyy > 0.0) {
-        return Some(0.0);
+        return None;
     }
     let denom = (cxx * cyy).sqrt();
     if !denom.is_finite() || denom == 0.0 {
-        return Some(0.0);
+        return None;
     }
-    Some((cxy / denom).abs())
-}
-
-fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
-    let g = sample_gamma(shape, scale, rng);
-    1.0 / g.max(f64::MIN_POSITIVE)
-}
-
-fn sample_gamma(shape: f64, rate: f64, rng: &mut CausalRng) -> f64 {
-    if shape < 1.0 {
-        let u = rng.next_f64().max(f64::EPSILON);
-        return sample_gamma(shape + 1.0, rate, rng) * u.powf(1.0 / shape);
-    }
-    let d = shape - 1.0 / 3.0;
-    let c = 1.0 / (9.0 * d).sqrt();
-    loop {
-        let mut x;
-        let mut v;
-        loop {
-            x = standard_normal(rng);
-            v = 1.0 + c * x;
-            if v > 0.0 {
-                break;
-            }
-        }
-        v = v * v * v;
-        let u = rng.next_f64();
-        if u < 1.0 - 0.0331 * (x * x) * (x * x) {
-            return d * v / rate;
-        }
-        if u.ln() < 0.5 * x * x + d * (1.0 - v + v.ln()) {
-            return d * v / rate;
-        }
-    }
-}
-
-/// Independent empty-Z NIG reference via explicit 1×1 / 2×2 algebra (no Cholesky).
-#[cfg(test)]
-fn log_bf_empty_z_direct(x: &[f64], y: &[f64]) -> f64 {
-    let n = x.len();
-    let xs = standardize_col(x).unwrap();
-    let ys = standardize_col(y).unwrap();
-    let nf = n as f64;
-    let yty: f64 = ys.iter().map(|v| v * v).sum();
-    // X0 = ones; X'y = 0 after centering; Λn = λ + n
-    let lam0 = COEF_PRIOR_PREC;
-    let lam_n0 = lam0 + nf;
-    let alpha_n = ALPHA0 + 0.5 * nf;
-    let beta_n0 = BETA0 + 0.5 * yty;
-    let log_m0 = -0.5 * nf * (2.0 * std::f64::consts::PI).ln()
-        + 0.5 * (lam0.ln() - lam_n0.ln())
-        + ALPHA0 * BETA0.ln()
-        - alpha_n * beta_n0.ln()
-        + ln_gamma(alpha_n)
-        - ln_gamma(ALPHA0);
-    // X1 = [1, x]; orthogonal after centering ⇒ Λn = diag(λ+n, λ+||x||²)
-    let xtx: f64 = xs.iter().map(|v| v * v).sum();
-    let xty: f64 = xs.iter().zip(ys.iter()).map(|(a, b)| a * b).sum();
-    let lam_xx = lam0 + xtx;
-    let mn_x = xty / lam_xx;
-    let m_lam_m = mn_x * lam_xx * mn_x; // intercept mean 0
-    let beta_n1 = BETA0 + 0.5 * (yty - m_lam_m);
-    let log_det_l0 = 2.0 * lam0.ln();
-    let log_det_ln = lam_n0.ln() + lam_xx.ln();
-    let log_m1 = -0.5 * nf * (2.0 * std::f64::consts::PI).ln()
-        + 0.5 * (log_det_l0 - log_det_ln)
-        + ALPHA0 * BETA0.ln()
-        - alpha_n * beta_n1.ln()
-        + ln_gamma(alpha_n)
-        - ln_gamma(ALPHA0);
-    log_m1 - log_m0
-}
-
-/// Reference simple-regression log BF (centered, no intercept) — retained for docs.
-#[cfg(test)]
-#[allow(dead_code)]
-fn log_bf_simple_regression_reference(rx: &[f64], ry: &[f64]) -> f64 {
-    let n = rx.len();
-    let (mut xc, mut yc) = (vec![0.0; n], vec![0.0; n]);
-    let mut mx = 0.0;
-    let mut my = 0.0;
-    for i in 0..n {
-        mx += rx[i];
-        my += ry[i];
-    }
-    mx /= n as f64;
-    my /= n as f64;
-    for i in 0..n {
-        xc[i] = rx[i] - mx;
-        yc[i] = ry[i] - my;
-    }
-    let mut yty = 0.0;
-    for i in 0..n {
-        yty += yc[i] * yc[i];
-    }
-    let alpha_n = ALPHA0 + 0.5 * (n as f64);
-    let beta_n0 = BETA0 + 0.5 * yty;
-    let nf = n as f64;
-    let log_m0 = -0.5 * nf * (2.0 * std::f64::consts::PI).ln() + ALPHA0 * BETA0.ln()
-        - alpha_n * beta_n0.ln()
-        + ln_gamma(alpha_n)
-        - ln_gamma(ALPHA0);
-    let mut xtx = 0.0;
-    let mut xty = 0.0;
-    for i in 0..n {
-        xtx += xc[i] * xc[i];
-        xty += xc[i] * yc[i];
-    }
-    let vn_inv = COEF_PRIOR_PREC + xtx;
-    let mn = xty / vn_inv;
-    let beta_n1 = BETA0 + 0.5 * (yty - mn * vn_inv * mn);
-    let log_m1 = -0.5 * nf * (2.0 * std::f64::consts::PI).ln()
-        + 0.5 * (COEF_PRIOR_PREC.ln() - vn_inv.ln())
-        + ALPHA0 * BETA0.ln()
-        - alpha_n * beta_n1.ln()
-        + ln_gamma(alpha_n)
-        - ln_gamma(ALPHA0);
-    log_m1 - log_m0
+    Some((cxy / denom).abs().min(1.0))
 }
 
 #[cfg(test)]
@@ -812,10 +706,15 @@ mod tests {
         assert_eq!(out.results.len(), 1);
     }
 
+    /// Independent evaluation of the g-prior Bayes factor through sums of squares: with the
+    /// intercept projected out, `BF₁₀ = (1+g)^{-1/2} · (RSS₀ / RSS_g)^{d/2}` with
+    /// `RSS_g = RSS₀ − g/(1+g) · SSR_x`, `SSR_x = Sxy²/Sxx`, `RSS₀ = Syy`, `d = n − 1`, `g = n`.
     #[test]
-    fn empty_z_bf_matches_direct_nig() {
+    fn empty_z_bf_matches_sum_of_squares_form() {
         let n = 100usize;
         let (x, y) = cols_dep(n);
+        let y: Vec<f64> =
+            y.iter().enumerate().map(|(i, v)| v + 3.0 * ((i as f64) * 0.9).sin()).collect();
         let cols: [&[f64]; 2] = [&x, &y];
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let req = CiBatchRequest {
@@ -828,13 +727,167 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(6);
         let out = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
-        let xref = log_bf_empty_z_direct(&x, &y);
+        let nf = n as f64;
+        let (mx, my) = (x.iter().sum::<f64>() / nf, y.iter().sum::<f64>() / nf);
+        let sxx: f64 = x.iter().map(|v| (v - mx) * (v - mx)).sum();
+        let syy: f64 = y.iter().map(|v| (v - my) * (v - my)).sum();
+        let sxy: f64 = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum();
+        let g = nf;
+        let ssr = sxy * sxy / sxx;
+        let rss_g = syy - g / (1.0 + g) * ssr;
+        let want = -0.5 * (1.0 + g).ln() + 0.5 * (nf - 1.0) * (syy / rss_g).ln();
         let got = out.results[0].statistic;
-        assert!((got - xref).abs() < 1e-8, "full={got} direct={xref}");
-        // Also: intercept-free simple regression agrees in sign / magnitude order.
-        let simple = log_bf_simple_regression_reference(&x, &y);
-        assert!(got > 0.0 && simple > 0.0);
-        assert!((got / simple - 1.0).abs() < 0.5, "full={got} simple={simple}");
+        assert!((got - want).abs() < 1e-9, "got={got} want={want}");
+    }
+
+    /// With one conditioner the partial correlation has the textbook closed form
+    /// `(rxy − rxz·ryz) / sqrt((1−rxz²)(1−ryz²))`; the Bayes factor is that value pushed through
+    /// the g-prior formula with `d = n − 2`.
+    #[test]
+    fn bf_with_conditioner_matches_closed_form_partial_correlation() {
+        let n = 150usize;
+        let z: Vec<f64> =
+            (0..n).map(|i| ((i as f64) * 0.37).sin() + 0.2 * ((i * 7 % 5) as f64)).collect();
+        let x: Vec<f64> = (0..n).map(|i| z[i] + 0.4 * ((i as f64) * 1.3).cos()).collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| 0.8 * z[i] + 0.3 * x[i] + 0.5 * ((i as f64) * 2.1).sin()).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::None,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(6);
+        let got = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+            .statistic;
+        let nf = n as f64;
+        let corr = |a: &[f64], b: &[f64]| {
+            let (ma, mb) = (a.iter().sum::<f64>() / nf, b.iter().sum::<f64>() / nf);
+            let sab: f64 = a.iter().zip(b).map(|(p, q)| (p - ma) * (q - mb)).sum();
+            let saa: f64 = a.iter().map(|p| (p - ma) * (p - ma)).sum();
+            let sbb: f64 = b.iter().map(|q| (q - mb) * (q - mb)).sum();
+            sab / (saa * sbb).sqrt()
+        };
+        let (rxy, rxz, ryz) = (corr(&x, &y), corr(&x, &z), corr(&y, &z));
+        let r = (rxy - rxz * ryz) / ((1.0 - rxz * rxz) * (1.0 - ryz * ryz)).sqrt();
+        let g = nf;
+        let d = nf - 2.0;
+        let want = -0.5 * (1.0 + g).ln() - 0.5 * d * (1.0 - g / (1.0 + g) * r * r).ln();
+        assert!((got - want).abs() < 1e-9, "got={got} want={want} r={r}");
+    }
+
+    /// `x` is nearly collinear with `z`, `y` depends weakly on `x`'s residual: the earlier
+    /// `y ~ [1,Z,x]` vs `y ~ [1,Z]` comparison priced the Occam factor with `x'M_Z x` and gave
+    /// different answers for `(x, y)` and `(y, x)` (0.22 vs −2.15 in log BF). The g-prior
+    /// factor depends on the partial correlation only, so the two orders agree exactly.
+    #[test]
+    fn bayes_factor_is_symmetric_in_x_and_y() {
+        let n = 500usize;
+        let z: Vec<f64> =
+            (0..n).map(|i| ((i as f64) * 0.71).sin() + ((i * 13 % 17) as f64) * 0.05).collect();
+        let e1: Vec<f64> = (0..n).map(|i| ((i as f64) * 1.9 + 0.4).cos()).collect();
+        let e2: Vec<f64> = (0..n).map(|i| ((i as f64) * 2.7 + 1.1).sin()).collect();
+        let x: Vec<f64> = (0..n).map(|i| z[i] + 0.1 * e1[i]).collect();
+        let y: Vec<f64> = (0..n).map(|i| 0.5 * z[i] + 0.15 * (x[i] - z[i]) + 0.4 * e2[i]).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let z_flat = [2usize];
+        let run = |qx: usize, qy: usize, ci: &dyn ConditionalIndependenceTest| {
+            let queries = [CiQuery { x: qx, y: qy, z_start: 0, z_len: 1 }];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+        };
+        for ci in [
+            &BayesFactorCi::new() as &dyn ConditionalIndependenceTest,
+            &PosteriorDependenceCi::new(),
+        ] {
+            let a = run(0, 1, ci);
+            let b = run(1, 0, ci);
+            assert!(
+                (a.statistic - b.statistic).abs() < 1e-10,
+                "{} vs {}",
+                a.statistic,
+                b.statistic
+            );
+            assert!((a.p_value - b.p_value).abs() < 1e-10, "{} vs {}", a.p_value, b.p_value);
+        }
+    }
+
+    #[test]
+    fn bayesian_p_values_are_flagged_as_posterior_probabilities() {
+        assert!(!BayesFactorCi::new().p_value_is_frequentist());
+        assert!(!PosteriorDependenceCi::new().p_value_is_frequentist());
+        assert!(PosteriorPredictiveCi::new(9).p_value_is_frequentist());
+    }
+
+    /// The old full-rank check added the prior ridge before factoring, so it could never fail,
+    /// and the PPC then correlated ~1e-12 rounding residue. `x` fully determined by `z` is
+    /// refused by both paths.
+    #[test]
+    fn collinear_x_with_conditioner_is_refused() {
+        let n = 60usize;
+        let z: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.37).sin()).collect();
+        let x: Vec<f64> = z.iter().map(|v| 3.0 * v + 2.0).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i as f64) * 1.1).cos() + z[i]).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance: SignificanceMethod::Analytic,
+            confidence: ConfidenceMethod::None,
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(2);
+        assert!(BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err());
+        assert!(PosteriorPredictiveCi::new(19).test_batch_adhoc(&req, &mut ws, &ctx).is_err());
+    }
+
+    /// The replicate stream follows the run's RNG: different analysis seeds give different
+    /// Monte Carlo draws, the same seed reproduces them, and a query's p-value does not depend
+    /// on its position in the batch.
+    #[test]
+    fn ppc_uses_the_run_rng_and_is_batch_position_invariant() {
+        let n = 60usize;
+        let (x, y) = cols_indep(n);
+        let w: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.29 + 0.7).sin()).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &w];
+        let target = CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 };
+        let other = CiQuery { x: 0, y: 2, z_start: 0, z_len: 0 };
+        let run = |queries: &[CiQuery], seed: u64| {
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries,
+                z_flat: &[],
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(seed);
+            PosteriorPredictiveCi::new(199).test_batch_adhoc(&req, &mut ws, &ctx).unwrap()
+        };
+        let alone = run(&[target], 5);
+        let second = run(&[other, target], 5);
+        assert_eq!(alone.results[0].p_value.to_bits(), second.results[1].p_value.to_bits());
+        let again = run(&[target], 5);
+        assert_eq!(alone.results[0].p_value.to_bits(), again.results[0].p_value.to_bits());
+        let distinct: std::collections::BTreeSet<u64> =
+            (1..=8).map(|seed| run(&[target], seed).results[0].p_value.to_bits()).collect();
+        assert!(distinct.len() > 1, "PPC p-value ignores the analysis seed");
     }
 
     #[test]

@@ -66,6 +66,15 @@ A response result deliberately keeps four judgments separate:
    interval. Temporal dose × horizon surfaces keep the pointwise band in
    `uncertainty` and publish a simultaneous band next to it (see
    [Temporal simultaneous bands](#temporal-simultaneous-bands)).
+   `uncertainty.interpretation` says what the level means: `"confidence"` is
+   repeated-sampling coverage, `"credible"` is posterior probability under the
+   model and prior (a credible interval's `standard_error` is a posterior
+   standard deviation, and it makes no frequentist coverage claim). Bayesian
+   inference publishes credible intervals; an interval built from influence
+   scores or a bootstrap is a confidence interval even inside a Bayesian
+   study. Coverage records in `parity/coverage_records.toml` key on
+   `inference`, so a `Bayesian` record measures a credible interval's
+   frequentist coverage and a `Frequentist` record a confidence interval's.
 4. `assumptions` and `provenance` record the claims and algorithm used. Do not
    infer an observation assumption merely from an observation-mechanism column.
 
@@ -133,16 +142,24 @@ When the accepted graph is a DAG, this is the same response identification and
 estimation path as a hand-authored DAG. The artifact version does not change on
 an estimate click.
 
-`Cpdag` and `Pag` response queries are licensed through the same
-generalized-adjustment envelope as ATE: `analyze()` and `PreparedAnalysis`
-mass-weight identified completions and keep the runtime class. Influence
+`Cpdag` and `Pag` response queries are licensed through the same completion
+envelope as ATE: `analyze()` and `PreparedAnalysis` mass-weight identified
+completions and keep the runtime class. Each completion is identified by
+(generalized) adjustment first. A single-treatment response on a completion
+with no adjustment set then falls back to Shpitser–Pearl ID: on a `Cpdag`
+completion, which is a DAG; on a `Pag` completion, on the MAG with every
+invisible directed edge also read as latent-confounded, so an edge such as a
+lone `T -> Y` that a latent common cause could explain is refused rather than
+read as `P(y | t)`. That fallback is sound, not complete (the complete PAG
+algorithm, IDP, is not implemented), and a completion it refuses keeps its mass
+as unidentified, which makes the class answer graph-dependent. Influence
 is mixed only when every completion is identified and every contributing
 atom supplies an aligned IF; unidentified mass NaNs the envelope SE
 rather than publishing a primary-atom interval. That is not
-MAG/PAG response identification. `Admg` response, TemporalCpdag/Pag response,
-and mixtures over graph posteriors remain refused by the
-[support matrix](support-matrix.md). See the
-[1.4 evidence ledger](v1.4-evidence.md).
+PAG-native response identification. `Admg` response, `TemporalCpdag`/`TemporalPag` response, and mixtures over
+graph posteriors are licensed on the cells the
+[support matrix](support-matrix.md) lists, each with its own evidence row;
+everything not listed there is refused.
 
 ## Validation on a function-valued response
 
@@ -249,7 +266,9 @@ uses one construction:
    residual, plus the centered design columns whose sample means the level reads
    (every column but the treatment for a dose; the treatment too for a shift),
    each weighted by its coefficient. A Sequence level, which composes several
-   mechanisms, takes the largest factor over its estimating scores. A fit with no
+   mechanisms, adds the sample means of the exogenous root nodes it reads to its
+   influence (`Σ_r ∂level/∂x̄_r · (x_r − x̄_r)`) and takes the largest factor over
+   its estimating scores. A fit with no
    positive long-run excess keeps the factor at 1; on iid and AR(1) `ρ = 0.5`
    cells it stays within 1% of 1;
 5. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
@@ -285,7 +304,7 @@ Each band also reads every cell's influence for the family's short-series
 statistic (`response.temporal.effective_rows`: the smaller of the lag-1 AR(1)
 reading `n(1 − r₁)/(1 + r₁)` and the block-length Bartlett reading, the readings
 of the scalar temporal effects) and warns `response.temporal.block.short_series`
-when any cell reads fewer than 30 effective rows.
+when any cell reads fewer than 15 effective rows.
 
 - **Frequentist complete data.** Curves and single Set/Shift/Soft responses refit
   every horizon and recompute the covariate (and, for shifts, treatment) averages
@@ -375,9 +394,9 @@ Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses are described under
 [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
-Graph-posterior response mixtures (licensed for static DAG atoms in the Rust
-Study API only) and multi-step temporal response policies are refused here. See the [1.3 evidence ledger](v1.3-evidence.md) and
-[1.4 evidence ledger](v1.4-evidence.md).
+Graph-posterior response mixtures are licensed only on the cells listed in the
+[support matrix](support-matrix.md); multi-step temporal response policies are
+refused here.
 
 ## Row-diagnostic export contract
 
@@ -467,7 +486,7 @@ at export rather than published.
 
 The six derivative query types are licensed on explicit or accepted DAGs at
 validation `none`, under Frequentist and Bayesian inference; see the
-[support matrix](support-matrix.md) and [1.3 evidence ledger](v1.3-evidence.md).
+[support matrix](support-matrix.md), which carries each cell's evidence.
 PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
 cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
 separate 1.4 cell, not a derivative license. The definitions below are the
@@ -571,8 +590,11 @@ result = antecedent.analyze(data, graph=dag, query=query)
 Under Frequentist inference, `Set`, `Shift`, `Bernoulli`, `Gaussian`, and
 `Categorical` evaluate plug-in mean responses. A sequence of specifications requests a joint intervention. The
 estimator fits an additive outcome model and averages predictions under the
-requested policy; stochastic laws use fixed-seed independent-coordinate
-inverse-CDF Monte Carlo integration. Its canonical strategy is
+requested policy. `Bernoulli` and `Categorical` laws are summed exactly over
+their support; a `Gaussian` law is integrated by 48-node Gauss-Hermite
+quadrature per policy (deterministic, exact for polynomial dose effects of
+degree up to 95), which is valid because the outcome model is additive, so each
+policy enters only through its own marginal law. Its canonical strategy is
 `response.intervention_gcomp`, distinct from the Kennedy curve estimator. The result is deliberately
 marked extrapolative: observed marginal bounds are reported, but joint policy
 support and statistical uncertainty are not certified. Soft mechanism

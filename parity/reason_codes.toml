@@ -15,14 +15,14 @@ queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]
 [[code]]
 id = "boundary_record"
 applies_to = ["calibration"]
-meaning = "The matching coverage record is a named boundary, or missed its nominal band at one of its sample-size grid points; it is not a nominal pass anywhere in its measured range."
-max_uses = 0
+meaning = "The cell lists the coverage records that measured it, but every record at the reported level is a named boundary or missed its nominal band at one of its sample-size grid points; none is a nominal pass anywhere in its measured range. Stated beside the calibration list, and only then."
+max_uses = 31
 
 [[code]]
 id = "estimator_grid_not_measured"
 applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
-max_uses = 168
+max_uses = 173
 
 [[code]]
 id = "interval_level_not_measured"
@@ -70,13 +70,13 @@ max_uses = 0
 id = "data_modality_not_licensed"
 applies_to = ["python_product", "runtime_refusal"]
 meaning = "The query is not licensed on this data modality (tabular, series, event, panel, multi-environment)."
-max_uses = 8
+max_uses = 7
 
 [[code]]
 id = "option_not_applicable"
 applies_to = ["python_product", "runtime_refusal"]
 meaning = "The option has no meaning for the selected route, so it is refused rather than ignored."
-max_uses = 2
+max_uses = 1
 
 [[code]]
 id = "construction_not_licensed"
@@ -88,37 +88,36 @@ max_uses = 0
 id = "validators_not_applicable"
 applies_to = ["runtime_refusal"]
 meaning = "Custom validators refute one scalar average effect; this estimand has no such refutation problem."
-max_uses = 0
 
 [[code]]
 id = "population_not_estimable"
 applies_to = ["runtime_refusal"]
 meaning = "The query has no target population to redeclare, or this route estimates the all-observed population only."
-max_uses = 0
 
 [[code]]
 id = "prior_transfer_not_hydrated"
 applies_to = ["runtime_refusal"]
 meaning = "This route fits under the isotropic prior scale and does not hydrate a transferred prior."
-max_uses = 0
+
+[[code]]
+id = "prior_dimension_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A banked posterior's coefficient count does not match the target design's, so its coefficients cannot be mapped one-to-one onto a prior."
 
 [[code]]
 id = "likelihood_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "The Bayesian route fits a Gaussian identity-link model only, or cannot carry a transferred prior onto a non-Gaussian link; a Bernoulli or Poisson likelihood is refused rather than fitted as Gaussian."
-max_uses = 0
 
 [[code]]
 id = "stage_stream_unavailable"
 applies_to = ["runtime_refusal"]
 meaning = "The route fits its point and uncertainty together, or mixes identifications, so it has no progressive stages."
-max_uses = 0
 
 [[code]]
 id = "cancelled_no_claim"
 applies_to = ["runtime_refusal"]
 meaning = "Estimation was cancelled before a claim existed; export is refused."
-max_uses = 0
 
 [[code]]
 id = "not_executed"
@@ -130,13 +129,11 @@ max_uses = 0
 id = "row_weights_bound_to_snapshot"
 applies_to = ["runtime_refusal"]
 meaning = "A RowWeights population may re-execute only on its own data snapshot."
-max_uses = 0
 
 [[code]]
 id = "mechanism_fit_not_converged"
 applies_to = ["runtime_refusal"]
 meaning = "A parent-conditional categorical mechanism did not converge even on standardized parent columns; the remaining causes are near-separation or collinear parents, which the caller resolves by dropping or coarsening them."
-max_uses = 0
 
 [[code]]
 id = "attested_not_reverifiable"
@@ -148,88 +145,145 @@ max_uses = 0
 id = "treatment_support_too_discrete"
 applies_to = ["runtime_refusal"]
 meaning = "A local-polynomial response in the treatment needs more distinct treatment values carrying kernel weight at an evaluation point than the treatment has there; a binary or few-level treatment is answered by AverageEffect or InterventionResponse instead."
-max_uses = 0
+
+[[code]]
+id = "rd_assignment_not_sharp"
+applies_to = ["runtime_refusal"]
+meaning = "A sharp regression-discontinuity design declares treatment = 1{running variable >= cutoff}; the treatment column breaks that rule (or is not 0/1), so the outcome jump is not the effect of the treatment and is not reported as one."
 
 [[code]]
 id = "estimator_inference_mismatch"
 applies_to = ["runtime_refusal"]
 meaning = "The selected estimator does not implement the requested inference mode on this query, so it is refused rather than run under the other mode."
-max_uses = 0
 
 [[code]]
 id = "effect_not_identified"
 applies_to = ["runtime_refusal"]
 meaning = "The question has no identified estimand under the declared structure; the refusal carries the identification status and whether the search was complete or capped."
-max_uses = 0
 
 [[code]]
 id = "score_table_unavailable"
 applies_to = ["runtime_refusal"]
 meaning = "Retargeting reweights a prepared score table, and this study prepared none."
-max_uses = 0
 
 [[code]]
 id = "refutation_not_applicable"
 applies_to = ["runtime_refusal"]
 meaning = "The requested refutation suite has no state to refute for this estimand."
-max_uses = 0
 
 [[code]]
 id = "cell_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "The support-matrix cell is refused: it is neither licensed nor not-applicable."
-max_uses = 0
 
 [[code]]
 id = "cell_not_applicable"
 applies_to = ["runtime_refusal"]
 meaning = "The support-matrix cell does not denote for this query, structure, inference and validation."
-max_uses = 0
 
 [[code]]
 id = "route_not_supported"
 applies_to = ["runtime_refusal"]
 meaning = "No execution route implements this combination of query, structure, data and options."
-max_uses = 0
 
 [[code]]
 id = "unknown_strategy"
 applies_to = ["runtime_refusal"]
 meaning = "The estimator or identifier id is not in the closed strategy table."
-max_uses = 0
 
 [[code]]
 id = "strategy_incompatible"
 applies_to = ["runtime_refusal"]
 meaning = "The identifier and estimator (or query and estimator) do not form a compatible pair."
-max_uses = 0
 
 [[code]]
 id = "required_option_missing"
 applies_to = ["runtime_refusal"]
 meaning = "The selected route needs a companion option the call did not supply."
-max_uses = 0
 
 [[code]]
 id = "unknown_variable"
 applies_to = ["runtime_refusal"]
 meaning = "A named variable is not in the data schema."
-max_uses = 0
 
 [[code]]
 id = "graph_invalid"
 applies_to = ["runtime_refusal"]
 meaning = "The supplied structure is not a valid graph of its class (for example a directed cycle)."
-max_uses = 0
 
 [[code]]
 id = "schema_mismatch"
 applies_to = ["runtime_refusal"]
 meaning = "The data do not have the schema the structure or prepared study was built on."
-max_uses = 0
 
 [[code]]
 id = "invalid_argument"
 applies_to = ["runtime_refusal"]
 meaning = "An argument has the wrong type, shape or value for this entry point."
-max_uses = 0
+
+[[code]]
+id = "transport_missing_evidence"
+applies_to = ["runtime_refusal"]
+meaning = "A required available transport regime or provider input is absent. Distinct from not_certified and from a verified impossibility witness."
+
+[[code]]
+id = "transport_not_certified"
+applies_to = ["runtime_refusal"]
+meaning = "No implemented sound transport rule applies. Historical NotCertified meaning; not a proof of non-transportability. The outcome kind of the same state is spelled `not_certified` (TransportOutcomeKind::NotCertified, the one owner of that literal); this code is the refusal-reason spelling and the two vocabularies never mix."
+max_uses = 1
+
+[[code]]
+id = "transport_proven_non_transportable"
+applies_to = ["runtime_refusal"]
+meaning = "A checked impossibility witness for the named transport theorem family."
+
+[[code]]
+id = "transport_missing_provider"
+applies_to = ["runtime_refusal"]
+meaning = "A statistical provider required by a certified transport factor is absent."
+
+[[code]]
+id = "transport_unsupported_evaluator"
+applies_to = ["runtime_refusal"]
+meaning = "The transport formula is identified but this evaluator does not run it."
+max_uses = 3
+
+[[code]]
+id = "transport_support_failure"
+applies_to = ["runtime_refusal"]
+meaning = "A stage-specific transport support coordinate failed."
+
+[[code]]
+id = "transport_numerical_failure"
+applies_to = ["runtime_refusal"]
+meaning = "Transport evaluation failed numerically after a certified formula."
+
+[[code]]
+id = "transport_budget_cancel"
+applies_to = ["runtime_refusal"]
+meaning = "A transport identify or evaluate budget was exhausted; this is not an impossibility claim."
+
+[[code]]
+id = "transport_policy_required"
+applies_to = ["runtime_refusal"]
+meaning = "A prior transport was requested for differing source and target populations without a TransportPolicy; the library will not assume the populations are exchangeable."
+
+[[code]]
+id = "transport_source_count_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The number of transported source priors does not match the number of source populations supplied."
+
+[[code]]
+id = "transport_invalid_weights"
+applies_to = ["runtime_refusal"]
+meaning = "Transport weights are not finite, non-negative and normalisable."
+
+[[code]]
+id = "transport_unknown_policy"
+applies_to = ["runtime_refusal"]
+meaning = "A TransportPolicy wire name is not one the library defines."
+
+[[code]]
+id = "transport_coef_index_out_of_range"
+applies_to = ["runtime_refusal"]
+meaning = "A coefficient index passed to a transport reweighting is outside the prior's dimension."

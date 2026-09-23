@@ -25,11 +25,8 @@ from __future__ import annotations
 import math
 import random
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 
 
 def _mirrors(section, flat) -> bool:

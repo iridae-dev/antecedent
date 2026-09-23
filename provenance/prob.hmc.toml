@@ -6,9 +6,8 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Uses fixed-length leapfrog trajectories with one scalar mass for every dimension; NUTS trajectory construction and mass-matrix adaptation are not implemented.",
- "Dual averaging differs from NUTS Algorithms 5 and 6: mu is log(initial_step_size) rather than log(10 * initial_step_size), and step size is hard-clamped to [1e-6, 0.5].",
- "The first retained transition is generated with the final unsmoothed warmup step size; the averaged step size is finalized only after that transition.",
+ "Uses fixed-length leapfrog trajectories; NUTS trajectory construction is not implemented. A diagonal mass matrix is adapted per chain from the variance of the chain's own warmup states over Stan-style doubling slow windows (regularised toward 1e-3), restarting step-size adaptation after each window; warmups shorter than 100 iterations keep the initial scalar mass.",
+ "Dual averaging follows NUTS Algorithm 5 (shrinkage target log(10 * step size at the restart), averaged step finalised before the first retained transition), with the step hard-clamped to [1e-6, 0.5] before it enters the average.",
  "Divergence detection uses a fixed absolute Hamiltonian-error threshold of 1000 and publication requires zero post-warmup divergences.",
 ]
 

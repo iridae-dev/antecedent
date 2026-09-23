@@ -2,14 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent::{BatchStudy, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    SmallRoleSet, StreamDomain, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -18,7 +16,7 @@ use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 
 fn two_treatment_scm(n: usize, seed: u64) -> (TabularData, Dag) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xB07C_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xB07C_u64);
     let mut z = vec![0.0; n];
     let mut t1 = vec![0.0; n];
     let mut t2 = vec![0.0; n];

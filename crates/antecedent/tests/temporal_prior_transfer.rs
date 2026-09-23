@@ -1,15 +1,15 @@
 //! Fail-closed prior transfer onto licensed Bayesian temporal cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
-    ResponseFunctional, ResponseQuery, SequencedIntervention, TemporalEffectQuery, TemporalPolicy,
-    TemporalResponseSpec, Value, VariableId,
+    ResponseFunctional, ResponseQuery, SequencedIntervention, StreamDomain, TemporalEffectQuery,
+    TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -27,7 +27,7 @@ fn fixture() -> serde_json::Value {
 
 fn series_xy(n: usize, noise: f64, seed: u64) -> TimeSeriesData {
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(1);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 1);
     let mut x = vec![0.0; n];
     let mut y = vec![0.0; n];
     for t in 0..n {
@@ -42,7 +42,7 @@ fn series_xy(n: usize, noise: f64, seed: u64) -> TimeSeriesData {
 
 fn series_xyw(n: usize, seed: u64) -> TimeSeriesData {
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(2);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 2);
     let mut x = vec![0.0; n];
     let mut w = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -495,7 +495,7 @@ fn lag_one_source_refuses_lag_two_target_without_a_named_mapping() {
     // Same-lag transfer still binds.
     assert!(run_transfer(graph_xy(), pulse_query(), bytes, None).is_ok());
 
-    // A temporal artifact without lag-aware names (pre-1.9) fails closed even at the
+    // A temporal artifact without lag-aware names fails closed even at the
     // same lag: its lag structure cannot be checked.
     let mut legacy = source.posterior.clone().unwrap();
     let stripped: Vec<_> = legacy

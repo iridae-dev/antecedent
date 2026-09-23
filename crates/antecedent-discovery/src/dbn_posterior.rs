@@ -12,29 +12,35 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
     clippy::needless_range_loop,
     clippy::neg_cmp_op_on_partial_ord,
-    clippy::similar_names,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::unused_self
 )]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Lag, NodeRef, VariableId};
+use antecedent_core::{ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag};
+use antecedent_prob::kish_ess;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, has_edge, kish_ess, lagged_edge_forbidden, lagged_edge_required,
-    log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights, parents_of, set_edge,
+    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
+    lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights,
+    parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -108,6 +114,36 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        self.run_units(std::slice::from_ref(data), variables, prior, score_family, ctx)
+    }
+
+    /// Infer the DBN template posterior from the units of a panel: every unit's lag windows are
+    /// built inside that unit and the rows are pooled into one score data set, so the template is
+    /// the one structure the exchangeable units share and no unit boundary supplies a lagged
+    /// parent.
+    ///
+    /// # Errors
+    ///
+    /// No usable rows, unsupported size, score, or empty support.
+    pub fn run_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        prior: &GraphPrior,
+        score_family: GraphScoreFamily,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphPosterior, DiscoveryError> {
+        self.run_units(units, variables, prior, score_family, ctx)
+    }
+
+    fn run_units(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        prior: &GraphPrior,
+        score_family: GraphScoreFamily,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphPosterior, DiscoveryError> {
         let _ = ctx;
         prior.constraints.validate()?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
@@ -134,7 +170,7 @@ impl DbnPosterior {
             ));
         }
 
-        let (score_data, _) = build_lagged_score_data(data, variables, max_lag)?;
+        let (score_data, _) = build_lagged_score_data(units, variables, max_lag)?;
         let use_exact = !self.force_mcmc
             && p <= DBN_EXACT_MAX_VARS
             && max_lag <= DBN_EXACT_MAX_LAG
@@ -228,23 +264,49 @@ impl DbnPosterior {
         let mut samples: Vec<Vec<(u64, u64)>> = vec![Vec::new(); n_chains];
         let mut rejected = 0u64;
 
+        // Start inside the constrained support: every required contemporaneous and lagged
+        // edge present. From the empty template a run with two or more required edges could
+        // never take a single-bit step into support, and with one it would record the
+        // invalid empty template as a posterior sample until the right bit was proposed.
+        let (init_cmask, init_lmask, init_score) =
+            initial_dbn_state(p, max_lag, score_data, score_family, prior, variables)?;
+
         for chain in 0..n_chains {
-            let mut rng = ctx.rng.stream(3000 + chain as u64);
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            let mut rng = ctx.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
             let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
                 data_version: 1,
                 family: score_family,
                 var_fingerprint: score_data.n_vars as u64,
                 penalty_fingerprint: score_data.n_rows as u64,
             });
-            let mut cmask = 0u64;
-            let mut lmask = 0u64;
-            let mut cur = score_dbn_template(
-                cmask, lmask, p, max_lag, score_data, &mut cache, prior, variables,
-            )
-            .unwrap_or(f64::NEG_INFINITY);
+            let mut cmask = init_cmask;
+            let mut lmask = init_lmask;
+            let mut cur = init_score;
+            // Overdisperse the starts (chain 0 stays at the required-edge template): identical
+            // starts make R-hat blind to a chain that has not left its initial mode.
+            if chain > 0 {
+                for _ in 0..(4 * n_params).min(400) {
+                    let (pc, pl, _) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
+                    if let Some(ps) = score_dbn_template(
+                        pc, pl, p, max_lag, score_data, &mut cache, prior, variables,
+                    )
+                    .filter(|s| s.is_finite())
+                    {
+                        cmask = pc;
+                        lmask = pl;
+                        cur = ps;
+                    }
+                }
+            }
             let total = n_warmup + n_draws;
             let mut kept = 0usize;
             for step in 0..total {
+                if step % 64 == 0 && ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
                 let (pc, pl, rej) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
                 rejected += rej;
                 let prop = score_dbn_template(
@@ -292,13 +354,25 @@ impl DbnPosterior {
             }
         }
 
-        let diagnostics = diagnostics_from_traces(
+        let (diagnostics, param_mcse) = diagnostics_from_traces(
             &schedule,
             &traces,
             n_params,
             true,
             "DBN MCMC diagnostics gate refused posterior",
         )?;
+        // Trace parameters: contemporaneous edges (i != j, row-major), then lag bits.
+        let mut edge_mcse = vec![0.0; p * p];
+        let mut idx = 0;
+        for i in 0..p {
+            for j in 0..p {
+                if i != j {
+                    edge_mcse[i * p + j] = param_mcse[idx];
+                    idx += 1;
+                }
+            }
+        }
+        let lagged_mcse = param_mcse[idx..].to_vec();
 
         let mut counts: HashMap<(u64, u64), u64> = HashMap::new();
         for chain in &samples {
@@ -323,36 +397,88 @@ impl DbnPosterior {
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &lags);
         GraphPosterior::new(p, weights, masks, edge, orient, ess, diagnostics, rejected)?
             .with_lagged_marginals(max_lag, lagged)?
-            .with_lag_masks(lags)
+            .with_lag_masks(lags)?
+            .with_edge_mcse(edge_mcse)?
+            .with_lagged_edge_mcse(lagged_mcse)
     }
 }
 
+/// Template with every required contemporaneous and lagged edge present, and its score.
+///
+/// # Errors
+///
+/// The required-edge template is cyclic, violates a constraint, or has no finite score.
+fn initial_dbn_state(
+    p: usize,
+    max_lag: u32,
+    data: &GraphScoreData,
+    family: GraphScoreFamily,
+    prior: &GraphPrior,
+    variables: &[VariableId],
+) -> Result<(u64, u64, f64), DiscoveryError> {
+    let mut cmask = 0u64;
+    let mut lmask = 0u64;
+    for i in 0..p {
+        for j in 0..p {
+            if i != j && edge_required(&prior.constraints, variables, i, j) {
+                cmask = set_edge(cmask, p, i, j, true);
+            }
+            for lag in 1..=max_lag {
+                if lagged_edge_required(&prior.constraints, variables, i, lag, j) {
+                    lmask |= 1u64 << lag_bit(p, max_lag, lag, i, j);
+                }
+            }
+        }
+    }
+    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+        data_version: 1,
+        family,
+        var_fingerprint: data.n_vars as u64,
+        penalty_fingerprint: data.n_rows as u64,
+    });
+    let score = score_dbn_template(cmask, lmask, p, max_lag, data, &mut cache, prior, variables)
+        .filter(|s| s.is_finite())
+        .ok_or_else(|| {
+            DiscoveryError::unsupported(
+                "required-edge template is cyclic, violates constraints, or has no finite score",
+            )
+        })?;
+    Ok((cmask, lmask, score))
+}
+
+/// Lagged score rows of every unit, stacked: each unit's `(x_t, x_{t-1}, ..., x_{t-L})` rows are
+/// built inside that unit, so a row never takes a lagged value from another unit.
 fn build_lagged_score_data(
-    data: &TimeSeriesData,
+    units: &[TimeSeriesData],
     variables: &[VariableId],
     max_lag: u32,
 ) -> Result<(GraphScoreData, usize), DiscoveryError> {
     let p = variables.len();
-    let t_len = data.row_count();
     let l = max_lag as usize;
-    if t_len <= l + 1 {
+    let n_cols = p * (l + 1);
+    let n_rows: usize = units.iter().map(|unit| unit.row_count().saturating_sub(l)).sum();
+    if n_rows < 2 {
         return Err(DiscoveryError::stats_msg("insufficient time points for DBN lag window"));
     }
-    let n_rows = t_len - l;
-    let n_cols = p * (l + 1);
     let mut flat = vec![0.0; n_cols * n_rows];
-    for (vi, &vid) in variables.iter().enumerate() {
-        let series = data.float64_values(vid).map_err(DiscoveryError::from)?;
-        if series.len() != t_len {
-            return Err(DiscoveryError::data_msg("series length mismatch"));
-        }
-        for lag in 0..=l {
-            let col = lag * p + vi;
-            for r in 0..n_rows {
-                let t = r + l;
-                flat[col * n_rows + r] = series[t - lag];
+    let mut offset = 0;
+    for data in units {
+        let t_len = data.row_count();
+        let unit_rows = t_len.saturating_sub(l);
+        for (vi, &vid) in variables.iter().enumerate() {
+            let series = data.float64_values(vid).map_err(DiscoveryError::from)?;
+            if series.len() != t_len {
+                return Err(DiscoveryError::data_msg("series length mismatch"));
+            }
+            for lag in 0..=l {
+                let col = lag * p + vi;
+                for r in 0..unit_rows {
+                    let t = r + l;
+                    flat[col * n_rows + offset + r] = series[t - lag];
+                }
             }
         }
+        offset += unit_rows;
     }
     Ok((GraphScoreData::new(n_rows, n_cols, Arc::from(flat))?, n_rows))
 }
@@ -360,7 +486,7 @@ fn build_lagged_score_data(
 fn lag_bit(p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> u32 {
     debug_assert!(lag >= 1 && lag <= max_lag);
     let block = (lag as usize - 1) * p * p;
-    (block + from * p + to) as u32
+    crate::indexing::dense_u32(block + from * p + to)
 }
 
 fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: usize) -> bool {
@@ -636,7 +762,7 @@ fn score_dbn_template(
                 }
                 if present {
                     // Column index for (i, lag) in lagged design.
-                    pa.push((lag as usize * p + i) as u32);
+                    pa.push(crate::indexing::dense_u32(lag as usize * p + i));
                 }
             }
         }
@@ -645,7 +771,7 @@ fn score_dbn_template(
         }
         pa.sort_unstable();
         pa.dedup();
-        let s = cache.local_score(data, j as u32, &Arc::from(pa)).ok()?;
+        let s = cache.local_score(data, crate::indexing::dense_u32(j), &Arc::from(pa)).ok()?;
         if !s.is_finite() {
             return None;
         }
@@ -691,8 +817,8 @@ fn propose_dbn(
     let mut rejected = 0u64;
     if rng.next_f64() < 0.5 {
         // Flip a contemporaneous directed edge.
-        let i = (rng.next_u64() as usize) % p;
-        let j = (rng.next_u64() as usize) % p;
+        let i = crate::indexing::bounded_index(rng.next_u64(), p);
+        let j = crate::indexing::bounded_index(rng.next_u64(), p);
         if i == j {
             return (cmask, lmask, 0);
         }
@@ -707,7 +833,7 @@ fn propose_dbn(
     } else {
         // Flip a lag edge.
         let n_lag_bits = (max_lag as usize) * p * p;
-        let b = (rng.next_u64() as usize) % n_lag_bits.max(1);
+        let b = crate::indexing::bounded_index(rng.next_u64(), n_lag_bits.max(1));
         let prop = lmask ^ (1u64 << b);
         (cmask, prop, 0)
     }
@@ -1029,5 +1155,59 @@ mod tests {
             "P(z_{{t-1}}→y_t)={} should be unaffected",
             lagged[idx_z_to_y]
         );
+    }
+
+    /// With two required lagged edges no single-bit flip from the empty template reaches the
+    /// constrained support, so a sampler that starts empty never moves. Starting on the
+    /// required-edge template, every draw contains both edges, and the reported Monte-Carlo
+    /// error of an indicator that never varies is exactly zero.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an indicator that never varies has an MCSE of exactly zero by construction"
+    )]
+    fn dbn_mcmc_starts_inside_required_edge_support() {
+        let (data, vars) = multi_parent_lag_series(260);
+        let eng = DbnPosterior::new(1).with_force_mcmc(true).with_mcmc_schedule(2, 300, 4000);
+        let mut constraints = crate::constraints::DiscoveryConstraints {
+            temporal: crate::constraints::TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::from_raw(1),
+            },
+            ..Default::default()
+        };
+        constraints.required = Arc::from([
+            crate::result::LaggedLink {
+                source: vars[0],
+                source_lag: Lag::from_raw(1),
+                target: vars[1],
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            crate::result::LaggedLink {
+                source: vars[2],
+                source_lag: Lag::from_raw(1),
+                target: vars[1],
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+        ]);
+        let prior = GraphPrior::uniform().with_constraints(constraints);
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &ExecutionContext::for_tests(3),
+            )
+            .unwrap();
+        let p = 3usize;
+        let lagged = post.lagged_edge_marginals.as_ref().unwrap();
+        let mcse = post.lagged_edge_mcse.as_ref().expect("MCMC posterior reports edge MCSE");
+        for from in [0usize, 2] {
+            let b = lag_bit(p, 1, 1, from, 1) as usize;
+            assert!((lagged[b] - 1.0).abs() < 1e-12, "required edge marginal {}", lagged[b]);
+            assert_eq!(mcse[b], 0.0);
+        }
     }
 }

@@ -1,7 +1,7 @@
 //! Numerical evidence for temporal latent-confounded MAG adjustment.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
@@ -96,21 +96,6 @@ fn fixture() -> (TimeSeriesData, TemporalPag, serde_json::Value) {
 #[test]
 fn latent_temporal_effect_preserves_query_and_prepared_estimation() {
     let (data, graph, pin) = fixture();
-    // E-value standardization must use Y[1..n], the aligned outcome rows.
-    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
-    let outcomes: Vec<_> = (0..n - 1)
-        .map(|i| {
-            let z = (i % 2) as f64;
-            let t = 0.3 + 0.4 * z + 0.05 * (i as f64 * 0.017).sin();
-            1.0 + 2.0 * t + 0.5 * z
-        })
-        .collect();
-    let mean = outcomes.iter().sum::<f64>() / outcomes.len() as f64;
-    let sd = (outcomes.iter().map(|y| (y - mean).powi(2)).sum::<f64>()
-        / (outcomes.len() - 1) as f64)
-        .sqrt();
-    let rr = (0.91 * 2.0 / sd).exp();
-    let expected_evalue = rr + (rr * (rr - 1.0)).sqrt();
     for accepted in [false, true] {
         for sustained in [false, true] {
             for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -138,7 +123,7 @@ fn latent_temporal_effect_preserves_query_and_prepared_estimation() {
                 });
                 let prepared = study.prepare(&ctx).unwrap();
                 let click = prepared.estimate_series(&data, &ctx).unwrap();
-                for result in [fresh, click] {
+                for result in vec![fresh, click] {
                     let certificate = result.certificate.as_ref().expect("execution certificate");
                     let antecedent::Identification::TemporalEnvelope { envelope, .. } =
                         &certificate.identification
@@ -159,7 +144,17 @@ fn latent_temporal_effect_preserves_query_and_prepared_estimation() {
                             .iter()
                             .find(|report| report.refuter.as_ref() == "sensitivity.evalue")
                             .expect("E-value ran on aligned rows");
-                        assert!((evalue.comparison - expected_evalue).abs() < 1e-6);
+                        // The E-value's risk-ratio conversion uses the *residual* SD of the
+                        // outcome regression on treatment and the adjustment set (see
+                        // `EValue`'s doc comment), not the marginal SD of Y. This fixture's law
+                        // (`y_i = 1 + 2*t_(i-1) + 0.5*z_(i-1)`) has no noise term, and the
+                        // correctly identified adjustment set is exactly `{z[-1]}` (asserted
+                        // above), so Y is an exact linear function of the regression's own
+                        // covariates: the residual SD is 0 and the E-value is infinite.
+                        // Previously pinned to a finite value (~31.81) computed from the
+                        // *marginal* SD of Y instead, which was never a value this refuter
+                        // could produce once identification carried the correct adjustment set.
+                        assert!(evalue.comparison.is_infinite());
                     }
                 }
             }

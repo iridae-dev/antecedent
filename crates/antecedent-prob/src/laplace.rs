@@ -1,21 +1,22 @@
 //! Native Laplace approximation for Bayesian GLMs (ADR 0006).
 //!
-//! MAP via damped Newton → Cholesky of −Hessian (LDLT fallback) → MVN draws.
+//! MAP via damped Newton → Cholesky of −Hessian → MVN draws.
 //! Refuses to publish a posterior without convergence and curvature diagnostics.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_core::ExecutionContext;
 use antecedent_kernels::standard_normal;
 
 use crate::backend::{
@@ -24,14 +25,10 @@ use crate::backend::{
 };
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
-use crate::gaussian_target::{
-    PosteriorTarget, gaussian_target_from_model, prior_quadratic, rss_and_xtwr,
-};
+use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model};
 use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
-use crate::linalg::{
-    cholesky_spd, condition_from_chol, invert_spd, ldlt_decompose, solve_spd_into,
-};
-use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
+use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, solve_spd_into};
+use crate::posterior::{PosteriorDraws, PosteriorSchema};
 use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
 
 /// Native Laplace Bayesian GLM backend.
@@ -82,7 +79,8 @@ pub fn fit_laplace_glm(
         return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
     }
     coef_prior.validate()?;
-    let prec = coef_prior.precision();
+    // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
+    let prec = coef_prior.absolute_precision(1.0)?;
 
     // Initialize at prior mean (often 0).
     for i in 0..ncols {
@@ -225,58 +223,17 @@ pub fn fit_laplace_glm(
     }
 
     let hess = workspace.neg_hessian[..ncols * ncols].to_vec();
-    let (factorization, cov, condition) = match cholesky_spd(&hess, ncols) {
-        Ok(chol) => {
-            let cond = condition_from_chol(&chol, ncols);
-            workspace.factor[..ncols * ncols].copy_from_slice(&chol);
-            // Reuse the factor just computed instead of refactorizing inside
-            // invert_spd (two O(p³/3) Choleskys of the same matrix).
-            let cov = crate::linalg::invert_spd_from_chol(&chol, ncols);
-            (HessianFactorization::Cholesky, cov, cond)
-        }
-        Err(_) => {
-            let (d, l) = ldlt_decompose(&hess, ncols)?;
-            // Build approximate covariance via LDLT solve of identity.
-            let mut cov = vec![0.0; ncols * ncols];
-            let mut rhs = vec![0.0; ncols];
-            let mut x = vec![0.0; ncols];
-            for col in 0..ncols {
-                rhs.fill(0.0);
-                rhs[col] = 1.0;
-                // Solve L D L' x = e
-                // forward L y = e
-                let mut y = vec![0.0; ncols];
-                for i in 0..ncols {
-                    let mut acc = rhs[i];
-                    for j in 0..i {
-                        acc -= l[i * ncols + j] * y[j];
-                    }
-                    y[i] = acc;
-                }
-                for i in 0..ncols {
-                    y[i] /= d[i];
-                }
-                for i in (0..ncols).rev() {
-                    let mut acc = y[i];
-                    for j in (i + 1)..ncols {
-                        acc -= l[j * ncols + i] * x[j];
-                    }
-                    x[i] = acc;
-                }
-                for i in 0..ncols {
-                    cov[i * ncols + col] = x[i];
-                }
-            }
-            let mut min_d = f64::INFINITY;
-            let mut max_d: f64 = 0.0;
-            for &di in &d {
-                min_d = min_d.min(di.abs());
-                max_d = max_d.max(di.abs());
-            }
-            let cond = if min_d > 0.0 { max_d / min_d } else { f64::INFINITY };
-            (HessianFactorization::Ldlt, cov, cond)
-        }
-    };
+    // A Hessian that is not positive definite at the reported mode is not a
+    // Laplace posterior: an indefinite "covariance" has no Gaussian to draw from.
+    let chol = cholesky_spd(&hess, ncols).map_err(|_| ProbError::MissingDiagnostics {
+        message: "negative Hessian not positive definite at mode".into(),
+    })?;
+    let condition = condition_from_chol(&chol, ncols);
+    workspace.factor[..ncols * ncols].copy_from_slice(&chol);
+    // Reuse the factor just computed instead of refactorizing inside
+    // invert_spd (two O(p³/3) Choleskys of the same matrix).
+    let cov = crate::linalg::invert_spd_from_chol(&chol, ncols);
+    let factorization = HessianFactorization::Cholesky;
 
     let mut notes = Vec::new();
     if sep_map {
@@ -305,11 +262,8 @@ pub fn fit_laplace_glm(
         all_chains_moved: None,
     };
 
-    if !diagnostics.allows_posterior() {
-        return Err(ProbError::MissingDiagnostics {
-            message: "Laplace posterior refused without convergence and curvature diagnostics"
-                .into(),
-        });
+    if let Some(message) = diagnostics.curvature_refusal() {
+        return Err(ProbError::MissingDiagnostics { message });
     }
 
     let map = workspace.beta[..ncols].to_vec();
@@ -460,11 +414,8 @@ fn fit_gaussian_laplace_known(
         max_abs_delta_h: None,
         all_chains_moved: None,
     };
-    if !diagnostics.allows_posterior() {
-        return Err(ProbError::MissingDiagnostics {
-            message: "Laplace posterior refused without convergence and curvature diagnostics"
-                .into(),
-        });
+    if let Some(message) = diagnostics.curvature_refusal() {
+        return Err(ProbError::MissingDiagnostics { message });
     }
     let draws_vals = sample_gaussian_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
     let draws = PosteriorDraws::from_column_major(
@@ -473,129 +424,6 @@ fn fit_gaussian_laplace_known(
         draws_vals,
     )?;
     Ok(BayesFitResult { draws, map, diagnostics, cov: Some(cov) })
-}
-
-#[allow(dead_code)]
-fn fit_gaussian_laplace_inv_gamma(
-    design: BayesDesignRef<'_>,
-    coef_prior: &GaussianCoefficientPrior,
-    shape: f64,
-    scale: f64,
-    options: &BayesFitOptions,
-    workspace: &mut LaplaceWorkspace,
-) -> Result<BayesFitResult, ProbError> {
-    let nrows = design.nrows;
-    let ncols = design.ncols;
-    let dim = ncols + 1;
-    workspace.prepare(nrows, dim.max(ncols), options.n_draws.max(dim));
-
-    let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior)?;
-    let beta_map = solve_map_from_normal_eq(&a_beta, &b_beta, ncols)?;
-
-    let mut xtwr = vec![0.0; ncols];
-    let mut p_diff = vec![0.0; ncols];
-    let rss = rss_and_xtwr(design, &beta_map, &mut xtwr)?;
-    let prec = coef_prior.precision();
-    let quad = prior_quadratic(coef_prior, &prec, &beta_map, &mut p_diff)?;
-    let mut n_eff = 0.0;
-    for r in 0..nrows {
-        n_eff += design.weights.map_or(1.0, |w| w[r]);
-    }
-    let a_const = shape + 0.5 * (n_eff + ncols as f64);
-    let b_at_map = scale + 0.5 * (rss + quad);
-    if !(a_const > 0.0) || !(b_at_map > 0.0) || !b_at_map.is_finite() {
-        return Err(ProbError::Numerical {
-            message: format!("invalid InvGamma Laplace mode: A={a_const} B={b_at_map}"),
-        });
-    }
-    let lambda_map = (b_at_map / a_const).ln();
-    let exp_neg_l = (-lambda_map).exp();
-    let exp_l = lambda_map.exp();
-
-    let a_inv = invert_spd(&a_beta, ncols)?;
-    let mut cov_beta = vec![0.0; ncols * ncols];
-    for i in 0..ncols * ncols {
-        cov_beta[i] = exp_l * a_inv[i];
-    }
-    let var_lambda = 1.0 / a_const;
-
-    let mut joint_mean = beta_map.clone();
-    joint_mean.push(lambda_map);
-    let mut joint_cov = vec![0.0; dim * dim];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            joint_cov[i * dim + j] = cov_beta[i * ncols + j];
-        }
-    }
-    joint_cov[ncols * dim + ncols] = var_lambda;
-
-    let mut target = gaussian_target_from_model(
-        design,
-        coef_prior.clone(),
-        GaussianVarianceModel::InvGamma { shape, scale },
-    )?;
-    let mut grad = vec![0.0; dim];
-    let _lp = target.logp_and_grad(&joint_mean, &mut grad)?;
-    // β-block of ∇logπ is scaled by e^{-λ}; normalize so tiny σ² MAP modes (near-perfect
-    // fits) do not refuse publication on amplified floating-point score residuals.
-    let mut grad_inf = 0.0_f64;
-    for &g in &grad[..ncols] {
-        grad_inf = grad_inf.max(g.abs() / exp_neg_l.max(1e-300));
-    }
-    grad_inf = grad_inf.max(grad[ncols].abs());
-
-    let mut h_bb = vec![0.0; ncols * ncols];
-    for i in 0..ncols * ncols {
-        h_bb[i] = exp_neg_l * a_beta[i];
-    }
-    let chol = cholesky_spd(&h_bb, ncols)?;
-    let condition = condition_from_chol(&chol, ncols);
-
-    let diagnostics = InferenceDiagnostics {
-        converged: grad_inf < options.grad_tol.max(1e-8),
-        iterations: 1,
-        grad_inf_norm: grad_inf,
-        hessian_condition: condition,
-        factorization: HessianFactorization::Cholesky,
-        separation_warning: false,
-        notes: vec![Arc::from("gaussian_laplace_inv_gamma")],
-        backend_id: Arc::from("laplace"),
-        n_chains: None,
-        n_warmup: None,
-        ess_bulk_min: None,
-        ess_tail_min: None,
-        rhat_max: None,
-        n_divergences: None,
-        mean_accept_prob: None,
-        n_warmup_divergences: None,
-        n_postwarmup_divergences: None,
-        max_abs_delta_h: None,
-        all_chains_moved: None,
-    };
-    if !diagnostics.allows_posterior() {
-        return Err(ProbError::MissingDiagnostics {
-            message: "Laplace posterior refused without convergence and curvature diagnostics"
-                .into(),
-        });
-    }
-
-    let joint_draws =
-        sample_gaussian_mvn(&joint_mean, &joint_cov, options.n_draws, options.seed, workspace)?;
-    let mut values = vec![0.0; options.n_draws * (ncols + 1)];
-    for d in 0..options.n_draws {
-        for i in 0..ncols {
-            values[i * options.n_draws + d] = joint_draws[i * options.n_draws + d];
-        }
-        let lambda = joint_draws[ncols * options.n_draws + d];
-        values[ncols * options.n_draws + d] = lambda.exp();
-    }
-    let mut quantities: Vec<_> =
-        (0..ncols).map(|i| PosteriorQuantityKind::Coefficient { index: i, name: None }).collect();
-    quantities.push(PosteriorQuantityKind::ResidualVariance);
-    let schema = PosteriorSchema { quantities: Arc::from(quantities) };
-    let draws = PosteriorDraws::from_column_major(schema, options.n_draws, values)?;
-
-    Ok(BayesFitResult { draws, map: beta_map, diagnostics, cov: Some(cov_beta) })
 }
 
 /// Draw `n_draws` samples from `N(mean, cov)` (Cholesky).
@@ -618,7 +446,7 @@ pub fn sample_gaussian_mvn(
         workspace.draw_scratch.resize(ncols, 0.0);
     }
     let chol = cholesky_spd(cov, ncols)?;
-    let mut rng = CausalRng::from_seed(seed);
+    let mut rng = crate::streams::direct_draw_rng(seed);
     let mut values = vec![0.0; n_draws * ncols];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
@@ -639,6 +467,7 @@ pub fn sample_gaussian_mvn(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gaussian_target::{prior_quadratic, rss_and_xtwr};
     use crate::prior::PriorSpec;
 
     fn deterministic_unit(i: usize) -> f64 {

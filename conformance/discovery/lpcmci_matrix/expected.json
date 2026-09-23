@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "Tigramite",
     "api": "tigramite.lpcmci.LPCMCI.run_lpcmci",
     "packages": {
@@ -19,7 +20,7 @@
     },
     "python": "3.10.17",
     "seed": 20260726,
-    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_lpcmci_matrix.py",
+    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_lpcmci_matrix.py", "generator_retained": false,
     "generation_location": "temporary external harness; not retained"
   },
   "canonicalization": {

@@ -2,20 +2,21 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::manual_map,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_arguments
+#![allow(clippy::manual_map, clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, bartlett_weight, coefficient_covariance,
-    combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples, multiway_subset_masks,
-    panel_hac_meat_scalar,
+    MAX_CLUSTER_DIMENSIONS, SandwichKind, bartlett_weight, cluster_meat_scalar,
+    coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
+    multiway_subset_masks, newey_west_meat_scalar, panel_hac_meat_scalar,
+    score_coefficient_covariance,
 };
 
 use crate::error::EstimationError;
@@ -175,18 +176,94 @@ pub(crate) fn residual_sandwich_coef_se(
     multiway_ids: Option<&[Vec<u32>]>,
     panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
+    sandwich_coef_se(
+        kind,
+        x,
+        nrows,
+        ncols,
+        residuals,
+        None,
+        t_col,
+        cluster_ids,
+        multiway_ids,
+        panel_times,
+    )
+}
+
+/// Treatment-coefficient SE of an M-estimator: the sandwich `A⁻¹ (Σ s_i² x_i x_iᵀ) A⁻¹` with
+/// score multipliers `s_i` and bread `A = Σ d_i x_i x_iᵀ` (`d_i` the score's derivative in the
+/// linear predictor). `Ok(None)` for [`AnalyticSeKind::Homoskedastic`], which the caller
+/// prices with its estimator's own asymptotic factor.
+///
+/// # Errors
+///
+/// Missing cluster / multiway / panel labels when required.
+pub(crate) fn score_sandwich_coef_se(
+    kind: AnalyticSeKind,
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    scores: &[f64],
+    curvature: &[f64],
+    t_col: usize,
+    cluster_ids: Option<&[u32]>,
+    multiway_ids: Option<&[Vec<u32>]>,
+    panel_times: Option<&[i64]>,
+) -> Result<Option<f64>, EstimationError> {
+    sandwich_coef_se(
+        kind,
+        x,
+        nrows,
+        ncols,
+        scores,
+        Some(curvature),
+        t_col,
+        cluster_ids,
+        multiway_ids,
+        panel_times,
+    )
+}
+
+fn sandwich_coef_se(
+    kind: AnalyticSeKind,
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    residuals: &[f64],
+    fisher_weights: Option<&[f64]>,
+    t_col: usize,
+    cluster_ids: Option<&[u32]>,
+    multiway_ids: Option<&[Vec<u32>]>,
+    panel_times: Option<&[i64]>,
+) -> Result<Option<f64>, EstimationError> {
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
     }
     let se = match kind {
         AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc0, t_col)?,
-        AnalyticSeKind::Hc1 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc1, t_col)?,
-        AnalyticSeKind::Hc2 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc2, t_col)?,
-        AnalyticSeKind::Hc3 => sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Hc3, t_col)?,
+        AnalyticSeKind::Hc0 => {
+            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc0, t_col)?
+        }
+        AnalyticSeKind::Hc1 => {
+            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc1, t_col)?
+        }
+        AnalyticSeKind::Hc2 => {
+            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc2, t_col)?
+        }
+        AnalyticSeKind::Hc3 => {
+            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc3, t_col)?
+        }
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            sandwich_diag(x, nrows, ncols, residuals, SandwichKind::Cluster { groups }, t_col)?
+            sandwich_diag(
+                x,
+                nrows,
+                ncols,
+                residuals,
+                fisher_weights,
+                SandwichKind::Cluster { groups },
+                t_col,
+            )?
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
@@ -196,13 +273,20 @@ pub(crate) fn residual_sandwich_coef_se(
                 nrows,
                 ncols,
                 residuals,
+                fisher_weights,
                 SandwichKind::Multiway { dimensions: &refs },
                 t_col,
             )?
         }
-        AnalyticSeKind::NeweyWest { lag } => {
-            sandwich_diag(x, nrows, ncols, residuals, SandwichKind::NeweyWest { lag }, t_col)?
-        }
+        AnalyticSeKind::NeweyWest { lag } => sandwich_diag(
+            x,
+            nrows,
+            ncols,
+            residuals,
+            fisher_weights,
+            SandwichKind::NeweyWest { lag },
+            t_col,
+        )?,
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
             let time = require_panel_times(panel_times, nrows)?;
@@ -211,6 +295,7 @@ pub(crate) fn residual_sandwich_coef_se(
                 nrows,
                 ncols,
                 residuals,
+                fisher_weights,
                 SandwichKind::PanelClusterHac { groups, time, lag },
                 t_col,
             )?
@@ -224,11 +309,72 @@ fn sandwich_diag(
     nrows: usize,
     ncols: usize,
     residuals: &[f64],
+    fisher_weights: Option<&[f64]>,
     kind: SandwichKind<'_>,
     t_col: usize,
 ) -> Result<f64, EstimationError> {
-    let cov = coefficient_covariance(x, nrows, ncols, residuals, kind)?;
+    let cov = match fisher_weights {
+        None => coefficient_covariance(x, nrows, ncols, residuals, kind)?,
+        Some(w) => score_coefficient_covariance(x, nrows, ncols, residuals, w, kind)?,
+    };
     Ok(cov[t_col * ncols + t_col].max(0.0).sqrt())
+}
+
+/// First-order influence term for one M-estimated nuisance block in a stacked estimating
+/// system: `ψ_i += (Bᵀ I⁻¹ s_i)`, where the nuisance θ̂ solves `Σ s_i = 0` with
+/// `s_i = x_i · score_mult_i`, `I = mean(information_weight · x xᵀ)` is minus the mean score
+/// Jacobian, and `B = mean(derivative_weight · x)` is the mean derivative of the estimator's
+/// own score ψ in θ. This is the exact linearisation for any nuisance model, correct or
+/// misspecified; the projection of ψ on `s` equals it only under the information equality.
+///
+/// # Errors
+///
+/// Singular information matrix (reported as `singular`), or length mismatches.
+pub(crate) fn add_nuisance_correction(
+    psi: &mut [f64],
+    design_colmajor: &[f64],
+    ncols: usize,
+    score_mult: &[f64],
+    information_weight: &[f64],
+    derivative_weight: &[f64],
+    singular: &'static str,
+) -> Result<(), EstimationError> {
+    let n = psi.len();
+    if ncols == 0 {
+        return Ok(());
+    }
+    if design_colmajor.len() != n * ncols
+        || score_mult.len() != n
+        || information_weight.len() != n
+        || derivative_weight.len() != n
+    {
+        return Err(EstimationError::data_msg("nuisance correction length mismatch"));
+    }
+    let nf = n as f64;
+    let mut information = vec![0.0; ncols * ncols];
+    let mut derivative = vec![0.0; ncols];
+    for i in 0..n {
+        for c in 0..ncols {
+            let xc = design_colmajor[c * n + i];
+            derivative[c] += derivative_weight[i] * xc / nf;
+            for d in 0..ncols {
+                information[c * ncols + d] +=
+                    information_weight[i] * xc * design_colmajor[d * n + i] / nf;
+            }
+        }
+    }
+    let Some(alpha) = crate::propensity::weighting::solve_symmetric_posdef(
+        &mut information,
+        &mut derivative,
+        ncols,
+    ) else {
+        return Err(EstimationError::stats_msg(singular));
+    };
+    for i in 0..n {
+        let adjustment: f64 = (0..ncols).map(|c| design_colmajor[c * n + i] * alpha[c]).sum();
+        psi[i] += adjustment * score_mult[i];
+    }
+    Ok(())
 }
 
 /// Cluster-robust SE for a scalar influence/score sequence (Arellano DF).
@@ -246,41 +392,15 @@ pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> Result<f64, E
         ));
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
-    match cluster_meat_scalar(psi, groups, mean) {
-        Some((sum_s2, g_count)) if g_count > 1 => {
-            let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
-            Ok((scale * sum_s2).max(0.0).sqrt())
-        }
-        Some((_, g_count)) if g_count < 2 => {
-            Err(EstimationError::stats_msg("cluster-robust variance requires at least 2 clusters"))
-        }
-        _ => Err(EstimationError::data_msg("cluster influence SE failed to form meat")),
+    let (sum_s2, g_count) = cluster_meat_scalar(psi, groups, mean)
+        .map_err(|_| EstimationError::data_msg("cluster influence SE failed to form meat"))?;
+    if g_count < 2 {
+        return Err(EstimationError::stats_msg(
+            "cluster-robust variance requires at least 2 clusters",
+        ));
     }
-}
-
-/// One-way cluster meat `M = Σ_g s_g²` and `G`, with demeaning at `mean`.
-fn cluster_meat_scalar(psi: &[f64], groups: &[u32], mean: f64) -> Option<(f64, usize)> {
-    let n = psi.len();
-    if groups.len() != n {
-        return None;
-    }
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&i| groups[i]);
-    let mut sum_s2 = 0.0;
-    let mut g_count = 0usize;
-    let mut idx = 0usize;
-    while idx < n {
-        let g = groups[order[idx]];
-        let mut s = 0.0;
-        while idx < n && groups[order[idx]] == g {
-            let i = order[idx];
-            s += psi[i] - mean;
-            idx += 1;
-        }
-        sum_s2 += s * s;
-        g_count += 1;
-    }
-    Some((sum_s2, g_count))
+    let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
+    Ok((scale * sum_s2).max(0.0).sqrt())
 }
 
 /// Heteroskedastic (HC1-style) SE for a scalar influence sequence:
@@ -345,9 +465,8 @@ pub(crate) fn multiway_influence_se(
     for (mask, sign) in multiway_subset_masks(d) {
         let _g = intern_cluster_tuples(&refs, mask, &mut combined)
             .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
-        let Some((m_s, g_s)) = cluster_meat_scalar(psi, &combined, mean) else {
-            return Err(EstimationError::data_msg("multiway influence SE failed to form meat"));
-        };
+        let (m_s, g_s) = cluster_meat_scalar(psi, &combined, mean)
+            .map_err(|_| EstimationError::data_msg("multiway influence SE failed to form meat"))?;
         if g_s < 2 {
             return Err(EstimationError::stats_msg(
                 "cluster-robust variance requires at least 2 clusters",
@@ -373,21 +492,7 @@ pub(crate) fn newey_west_influence_se(psi: &[f64], lag: usize) -> f64 {
     }
     let mean = psi.iter().sum::<f64>() / n as f64;
     let d: Vec<f64> = psi.iter().map(|v| v - mean).collect();
-    let mut gamma0 = 0.0;
-    for &x in &d {
-        gamma0 += x * x;
-    }
-    gamma0 /= n as f64;
-    let mut hac = gamma0;
-    let l_eff = effective_nw_lag(lag, n.saturating_sub(1));
-    for k in 1..=l_eff {
-        let mut g = 0.0;
-        for i in k..n {
-            g += d[i] * d[i - k];
-        }
-        g /= n as f64;
-        hac += 2.0 * bartlett_weight(k, l_eff) * g;
-    }
+    let hac = newey_west_meat_scalar(&d, lag) / n as f64;
     (hac.max(0.0) / n as f64).sqrt()
 }
 

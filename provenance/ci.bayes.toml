@@ -10,8 +10,9 @@ papers = [
 ]
 
 implementation_deviations = [
- "Bayes-factor branches compare standardized Gaussian regressions y ~ [1, Z] and y ~ [1, Z, x] under fixed shared Normal-Inverse-Gamma hyperparameters and equal prior model odds; these are library-specific choices rather than a procedure specified by the cited textbook.",
- "PosteriorPredictiveCi uses a custom absolute residual-correlation discrepancy, repeated posterior refits, and an add-one Monte Carlo p-value rather than a cited conditional-independence procedure.",
+ "Bayes-factor branches compare y ~ [1, Z] with y ~ [1, Z, x] under a unit-information Zellner g-prior (g = n) on the partial regression coefficient, flat priors on the nuisance parameters and equal prior model odds, which makes the factor a symmetric function of the partial correlation, n and |Z|; these are library-specific choices rather than a procedure specified by the cited textbook.",
+ "The Bayes-factor tests report the posterior probability of independence in the p_value field; it is not a frequentist p-value and the tests refuse multiplicity adjustment.",
+ "PosteriorPredictiveCi refits a standardized conjugate Normal-Inverse-Gamma null model, draws replicates from the run RNG, and uses a custom absolute residual-correlation discrepancy, repeated posterior refits, and an add-one Monte Carlo p-value rather than a cited conditional-independence procedure.",
 ]
 
 upstream_implementations_observed = []

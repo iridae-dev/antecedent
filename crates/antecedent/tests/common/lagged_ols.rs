@@ -7,7 +7,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+#![allow(dead_code)]
+#![allow(
+    clippy::cast_sign_loss,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 /// What one response cell evaluates.
 #[derive(Clone, Copy, Debug)]

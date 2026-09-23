@@ -3,14 +3,16 @@
 use std::time::Instant;
 
 use antecedent_core::{
-    CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
+    CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StreamDomain,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::{
     EffectEstimate, OverlapPolicy, estimate_interference, trial_to_target_effect,
     trial_to_target_ipw_se,
 };
-use antecedent_identify::{TransportIdentification, TransportIdentifier};
+use antecedent_identify::{
+    TransportIdentification, TransportIdentifier, bind_transport_derivation, lower_transport_mean,
+};
 
 use super::*;
 use crate::error::CausalError;
@@ -88,12 +90,26 @@ impl super::Study {
             transported.ipw,
         )
         .map_err(CausalError::from)?;
-        let estimate = EffectEstimate::new(
-            transported.ipw,
-            se,
-            identification.required_assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
+        // The SE conditions on the supplied probability columns; a fitted participation
+        // or treatment model's estimation error is not in it.
+        let mut assumptions = identification.required_assumptions.clone();
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::ParametricRestriction(
+                antecedent_core::ParametricAssumption {
+                    id: Arc::from("transport.known_selection_probabilities"),
+                    description: Arc::from(
+                        "selection and treatment probabilities are treated as known: the reported SE conditions on the supplied probability columns and excludes the estimation error of any fitted participation or propensity model, so it is design-based only when those probabilities are known or fixed by design and is not guaranteed conservative for fitted ones",
+                    ),
+                },
+            ),
+            source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("estimate.transport.trial_ipw"),
+            },
+            scope: antecedent_core::AssumptionScope::Estimation,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+        let estimate =
+            EffectEstimate::new(transported.ipw, se, assumptions, OverlapPolicy::ExplicitOverride);
         let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -142,7 +158,7 @@ impl super::Study {
             .bound_to(data)?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
-        let seed = ctx.rng.stream(0x1F7E).next_u64();
+        let seed = ctx.rng.stream_for(StreamDomain::Transport, 0x1F7E).next_u64();
         let estimated = estimate_interference(query, &spec.network, &spec.assignment, seed)
             .map_err(CausalError::from)?;
         let (identification, estimand) =
@@ -207,18 +223,10 @@ fn inspectable_do_expectation(
     let y = arena.intern_var_set([outcome]);
     let do_t = arena.intern_intervention_set([treatment]);
     let empty = arena.empty_var_set();
-    let distribution = arena.intern(ExprNode::Distribution {
-        variables: y,
-        conditioned_on: empty,
-        intervention: do_t,
-        domain: DomainRef::Interventional,
-    });
+    let distribution = arena.intern_distribution(y, empty, do_t, DomainRef::Interventional);
     let functional = arena
         .intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution });
-    arena.set_derivation(
-        functional,
-        DerivationMeta { rule: Arc::from(rule), note: Some(Arc::from(note)) },
-    );
+    arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from(note))));
     let estimand = IdentifiedEstimand::new(
         rule,
         Arc::from([]),
@@ -236,15 +244,25 @@ fn transport_sid_identification(
     outcome: VariableId,
     identified: &TransportIdentification,
 ) -> (IdentificationResult, IdentifiedEstimand) {
-    let TransportIdentification::Transportable { certificate, .. } = identified else {
+    let TransportIdentification::Transportable { certificate, formula } = identified else {
         unreachable!("execute already refused an uncertified transport formula");
     };
     let premises = certificate.premises.iter().map(AsRef::as_ref).collect::<Vec<_>>().join("; ");
-    let (arena, estimand) = inspectable_do_expectation(
-        treatment,
-        outcome,
+    let mut arena = CausalExprArena::new();
+    let functional = lower_transport_mean(&mut arena, formula, outcome);
+    bind_transport_derivation(
+        &mut arena,
+        functional,
+        certificate,
+        format!("sID: treatment={treatment:?} outcome={outcome:?}; {premises}"),
+    );
+    let estimand = IdentifiedEstimand::new(
         certificate.rule.as_ref(),
-        &format!("sID: treatment={treatment:?} outcome={outcome:?}; {premises}"),
+        Arc::from([]),
+        Arc::from([]),
+        Arc::from([]),
+        functional,
+        None,
     );
     let mut assumptions = antecedent_core::AssumptionSet::default();
     assumptions.push(antecedent_core::AssumptionRecord {
@@ -321,6 +339,12 @@ fn refuse_unestimable_transport(identified: &TransportIdentification) -> Result<
         TransportIdentification::NotCertified(certificate) => Err(CausalError::Compile {
             message: format!(
                 "transport not certified: {} ({})",
+                certificate.reason, certificate.message
+            ),
+        }),
+        TransportIdentification::MissingEvidence(certificate) => Err(CausalError::Compile {
+            message: format!(
+                "transport missing evidence: {} ({})",
                 certificate.reason, certificate.message
             ),
         }),

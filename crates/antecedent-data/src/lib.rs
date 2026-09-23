@@ -30,6 +30,7 @@ pub mod categorical;
 pub mod column;
 mod content_identity;
 pub mod dataset;
+pub mod discrete;
 pub mod error;
 pub mod event;
 pub mod lagged_frame;
@@ -73,6 +74,7 @@ pub use column::{
     TimestampColumn, ValidityBitmap,
 };
 pub use dataset::{TabularData, TimeSeriesData};
+pub use discrete::DiscreteColumn;
 pub use error::DataError;
 pub use event::EventData;
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
@@ -92,7 +94,7 @@ pub use resample::{
     fill_circular_block_indexes, fill_resample_index_batch, fill_resample_indexes,
     fill_resample_indexes_grouped, fill_resample_weight_batch, fill_resample_weights,
     integer_cube_root_ceil, resample_index_batch_ragged, resample_timeseries,
-    resample_timeseries_grouped,
+    resample_timeseries_grouped, resample_timeseries_with_policy,
 };
 pub use sample::{
     DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,

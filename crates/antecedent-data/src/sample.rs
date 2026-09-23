@@ -6,7 +6,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -75,6 +81,13 @@ impl LagMap {
         self.n_effective
     }
 
+    /// Raw row read by sample 0 at lag 0 (`series_len - n_effective`); sample `i` at lag
+    /// `l` reads `base_row() + i - l`.
+    #[must_use]
+    pub(crate) const fn base_row(&self) -> usize {
+        self.base_t
+    }
+
     /// Reference-point policy used to build this map.
     #[must_use]
     pub const fn reference(&self) -> ReferencePointPolicy {
@@ -85,11 +98,12 @@ impl LagMap {
     ///
     /// # Panics
     ///
-    /// Panics if `i >= n_effective` or `lag.raw() > max_lag`.
+    /// Panics if `i >= n_effective` or `lag.raw() > max_lag` (checked in release builds too:
+    /// an out-of-range lag would otherwise silently read a different row).
     #[must_use]
     pub fn row_index(&self, lag: Lag, sample_i: usize) -> usize {
-        debug_assert!(sample_i < self.n_effective);
-        debug_assert!(lag.raw() <= self.max_lag);
+        assert!(sample_i < self.n_effective, "sample index out of range");
+        assert!(lag.raw() <= self.max_lag, "lag exceeds max_lag");
         self.base_t + sample_i - lag.raw() as usize
     }
 
@@ -109,8 +123,9 @@ impl LagMap {
         if lag.raw() > self.max_lag {
             return Err(DataError::InvalidArgument { message: "lag exceeds max_lag".into() });
         }
+        // `lag <= max_lag <= base_t` and `i < n_effective`, checked above.
         for (i, slot) in out.iter_mut().enumerate() {
-            *slot = self.row_index(lag, i);
+            *slot = self.base_t + i - lag.raw() as usize;
         }
         Ok(())
     }
@@ -397,6 +412,20 @@ mod tests {
 
     use super::*;
     use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
+
+    #[test]
+    #[should_panic(expected = "lag exceeds max_lag")]
+    fn row_index_rejects_out_of_range_lag_in_release_builds_too() {
+        let map = LagMap::new(20, 2).unwrap();
+        let _ = map.row_index(Lag::from_raw(3), 0);
+    }
+
+    #[test]
+    fn row_index_reads_base_minus_lag() {
+        let map = LagMap::new(20, 2).unwrap();
+        assert_eq!(map.row_index(Lag::from_raw(2), 0), 0);
+        assert_eq!(map.row_index(Lag::CONTEMPORANEOUS, 17), 19);
+    }
 
     #[test]
     fn prepare_rejects_missing_values() {

@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 1.10.x   | Yes — fixes land on `main` and ship in the next release |
-| < 1.10   | No — upgrade to the latest release |
+| 2.0.x   | Yes — fixes land on `main` and ship in the next release |
+| < 2.0   | No — upgrade to the latest release |
 
 Security fixes are made on `main` and released from there. Fixes are not backported to
 earlier minor versions; the supported upgrade path is to the latest release.

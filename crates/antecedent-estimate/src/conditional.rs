@@ -6,18 +6,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::similar_names
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ConditionalEffectQuery, ExecutionContext, TargetPopulation,
-    VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, AverageEffectQuery, ConditionalEffectQuery, ExecutionContext,
+    TargetPopulation, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
@@ -58,6 +60,8 @@ pub struct ConditionalLinearAdjustment {
     pub overlap: OverlapPolicy,
     /// Backend.
     pub backend: FaerBackend,
+    /// Master seed of the cross-fit fold plan used by the binary AIPW arm scores.
+    pub fold_seed: u64,
 }
 
 impl Default for ConditionalLinearAdjustment {
@@ -70,7 +74,14 @@ impl ConditionalLinearAdjustment {
     /// Defaults.
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend }
+        Self { overlap: OverlapPolicy::ExplicitOverride, backend: FaerBackend, fold_seed: 0 }
+    }
+
+    /// Seed the cross-fit fold plan of the binary AIPW arm scores (the run's master seed).
+    #[must_use]
+    pub const fn with_fold_seed(mut self, fold_seed: u64) -> Self {
+        self.fold_seed = fold_seed;
+        self
     }
 
     /// Set the overlap policy. Must remain [`OverlapPolicy::ExplicitOverride`].
@@ -130,8 +141,10 @@ impl ConditionalLinearAdjustment {
     /// Estimate the contrast, arm means, and per-arm influence functions.
     ///
     /// Binary 0/1 treatments use cross-fitted AIPW scores (nonparametric EIF
-    /// under back-door, positivity, and nuisance rates). Non-binary levels keep
-    /// the linear plugin IF and are labeled as such.
+    /// under back-door, positivity, and nuisance rates): the interaction model is not
+    /// fitted, the result carries the propensity policy and overlap report actually applied
+    /// and a declared `conditional.crossfit_aipw_substitution` assumption. Non-binary levels
+    /// keep the linear plugin IF under the explicit override.
     ///
     /// # Errors
     ///
@@ -160,18 +173,26 @@ impl ConditionalLinearAdjustment {
             ));
         }
         if binary_zero_one(&query.inner)? {
-            let scores = aipw_conditional_arm_scores(data, estimand, &query.inner)?;
+            let (scores, overlap, overlap_report) =
+                aipw_conditional_arm_scores(data, estimand, &query.inner, self.fold_seed)?;
             let n = scores.influence[0].len() as f64;
             let contrast: Vec<f64> =
                 scores.influence[1].iter().zip(&scores.influence[0]).map(|(a, b)| a - b).collect();
             let mean = contrast.iter().sum::<f64>() / n;
             let var = contrast.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+            // The caller asked for the regression path (explicit override); for a 0/1 treatment
+            // the number below is the cross-fitted AIPW contrast instead, built under a
+            // clipped propensity model. Report the policy that actually ran, its overlap
+            // report, and name the substitution.
+            let mut assumptions = AssumptionSet::default();
+            assumptions.push(crossfit_substitution_record());
             let estimate = EffectEstimate::new(
                 scores.means[1] - scores.means[0],
                 (var / n).sqrt(),
-                AssumptionSet::default(),
-                OverlapPolicy::ExplicitOverride,
+                assumptions,
+                overlap,
             )
+            .with_overlap_report(overlap_report)
             .with_influence(Some(Arc::from(contrast)));
             return Ok((estimate, scores));
         }
@@ -340,7 +361,9 @@ impl ConditionalLinearAdjustment {
         let mut row_index = Vec::with_capacity(n);
         for (i, &keep) in row_mask.iter().enumerate() {
             if keep {
-                row_index.push(u32::try_from(i).unwrap_or(u32::MAX));
+                row_index.push(u32::try_from(i).map_err(|_| {
+                    EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                })?);
             }
         }
         let scores = ConditionalArmScores {
@@ -413,11 +436,33 @@ fn binary_zero_one(query: &AverageEffectQuery) -> Result<bool, EstimationError> 
     Ok((active - 1.0).abs() <= 1e-12 && control.abs() <= 1e-12)
 }
 
+/// Declared record that a binary-treatment conditional fit ran the cross-fitted AIPW estimator
+/// rather than the linear interaction model.
+fn crossfit_substitution_record() -> AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::Custom {
+            id: Arc::from("conditional.crossfit_aipw_substitution"),
+            description: Arc::from(
+                "For a 0/1 treatment the conditional arm means and contrast are the cross-fitted AIPW scores (five folds, logistic propensity clipped at the reported bound, per-arm OLS outcome models), not the linear interaction model. Consistency needs a correct propensity or outcome model and positivity; the reported overlap describes the propensity clipping applied.",
+            ),
+        },
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.conditional.aipw"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
 fn aipw_conditional_arm_scores(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
     query: &AverageEffectQuery,
-) -> Result<ConditionalArmScores, EstimationError> {
+    fold_seed: u64,
+) -> Result<
+    (ConditionalArmScores, OverlapPolicy, Option<crate::overlap::OverlapReport>),
+    EstimationError,
+> {
     if query.effect_modifiers.is_empty() {
         return Err(EstimationError::unsupported(
             "AIPW conditional scores require an effect modifier",
@@ -442,13 +487,15 @@ fn aipw_conditional_arm_scores(
     let aipw_query =
         AverageEffectQuery::with_levels(query.treatment, query.outcome, control, active)
             .with_outcome_functional(query.outcome_functional.clone());
-    let problem = crate::propensity::prepare_propensity_problem_with_registry(
+    let overlap = crate::propensity::default_propensity_overlap();
+    let mut problem = crate::propensity::prepare_propensity_problem_with_registry(
         data,
         &aipw_estimand,
         &aipw_query,
-        crate::propensity::default_propensity_overlap(),
+        overlap,
         None,
     )?;
+    problem.fold_seed = fold_seed;
     let table = crate::crossfit_aipw::build_binary_scores(
         &problem,
         query.treatment,
@@ -467,12 +514,29 @@ fn aipw_conditional_arm_scores(
     let n = table.n_rows as f64;
     let mu0 = c0.iter().sum::<f64>() / n;
     let mu1 = c1.iter().sum::<f64>() / n;
-    Ok(ConditionalArmScores {
-        means: [mu0, mu1],
-        influence: [c0.to_vec(), c1.to_vec()],
-        row_index: table.row_index.to_vec(),
-        treatment: table.observed_arm.iter().map(|&a| f64::from(a)).collect(),
-    })
+    let e_hat = table
+        .columns
+        .iter()
+        .position(|c| c.arm == 1 && c.threshold.is_none())
+        .and_then(|col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows));
+    let report = e_hat.map(|scores| {
+        crate::propensity::propensity_overlap_report(
+            &problem,
+            scores,
+            None,
+            Some(crate::overlap::IpwTarget::Ate),
+        )
+    });
+    Ok((
+        ConditionalArmScores {
+            means: [mu0, mu1],
+            influence: [c0.to_vec(), c1.to_vec()],
+            row_index: table.row_index.to_vec(),
+            treatment: table.observed_arm.iter().map(|&a| f64::from(a)).collect(),
+        },
+        overlap,
+        report,
+    ))
 }
 
 #[cfg(test)]
@@ -776,10 +840,14 @@ mod tests {
             Arc::from([]),
             antecedent_expr::ExprId::from_raw(0),
         );
-        let (_, scores) = ConditionalLinearAdjustment::new()
+        let (estimate, scores) = ConditionalLinearAdjustment::new()
             .estimate_with_arm_scores(&data, &estimand, &cq)
             .unwrap();
         assert_eq!(scores.influence[0].len(), n);
+        assert!(estimate.overlap_report.is_some(), "overlap report missing");
+        assert_eq!(estimate.overlap, crate::propensity::default_propensity_overlap());
+        let substituted = crossfit_substitution_record();
+        assert!(estimate.assumptions.entries.iter().any(|r| *r == substituted));
         assert!(scores.influence[0].iter().all(|v| v.is_finite()));
         assert!(scores.influence[1].iter().all(|v| v.is_finite()));
         let contrast: Vec<f64> =

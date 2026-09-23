@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names, clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::redundant_closure_for_method_calls)]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -30,6 +30,11 @@ pub trait CpdagOps {
     fn has_edge(&self, a: DenseNodeId, b: DenseNodeId) -> bool;
     /// Marked edge if present.
     fn edge_between(&self, a: DenseNodeId, b: DenseNodeId) -> Option<MarkedEdge>;
+    /// Whether `a → b` is a directed edge (allocation-free; the rules ask this inside their
+    /// innermost loops, where collecting `children`/`parents` into a `Vec` per query dominates).
+    fn is_parent(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
+        self.edge_between(a, b).and_then(MarkedEdge::parent_child) == Some((a, b))
+    }
     /// Orient undirected `from → to`.
     ///
     /// # Errors
@@ -305,6 +310,27 @@ pub struct OrientationState {
     ///
     /// Matching edges are also marked Conflict–Conflict (`x-x`) in the graph when present.
     pub conflict_edges: HashSet<(u32, u32)>,
+    /// Unshielded triples whose collider/non-collider status is unknown.
+    ///
+    /// Canonical key `(lo, mid, hi)` for the triple `lo — mid — hi` (equivalently
+    /// `hi — mid — lo`). Meek R1 must not treat these as definite non-colliders.
+    /// A [`Self::record_conflict`] on a non-edge is *not* this state.
+    pub ambiguous_triples: HashSet<(u32, u32, u32)>,
+    /// Per-edge bounds for the discriminating-path (R4) search.
+    pub discriminating_budget: crate::discriminating_paths::DiscriminatingPathBudget,
+    /// Edges `(c, b)` whose discriminating-path search exhausted its budget and were left
+    /// unresolved (circle kept at `c`) rather than failing the run.
+    pub discriminating_skipped: HashSet<(u32, u32)>,
+}
+
+/// Canonical key for unshielded triple `a — b — c` (same as `c — b — a`).
+#[must_use]
+pub(crate) fn ambiguous_triple_key(
+    a: DenseNodeId,
+    b: DenseNodeId,
+    c: DenseNodeId,
+) -> (u32, u32, u32) {
+    if a.raw() <= c.raw() { (a.raw(), b.raw(), c.raw()) } else { (c.raw(), b.raw(), a.raw()) }
 }
 
 impl OrientationState {
@@ -332,6 +358,17 @@ impl OrientationState {
     pub fn is_weakly_minimal(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
         let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
         self.weakly_minimal.contains(&key)
+    }
+
+    /// Mark unshielded triple `a — b — c` as having unknown collider status.
+    pub fn mark_ambiguous_triple(&mut self, a: DenseNodeId, b: DenseNodeId, c: DenseNodeId) {
+        self.ambiguous_triples.insert(ambiguous_triple_key(a, b, c));
+    }
+
+    /// Whether unshielded triple `a — b — c` is marked ambiguous (not a known non-collider).
+    #[must_use]
+    pub fn is_ambiguous_triple(&self, a: DenseNodeId, b: DenseNodeId, c: DenseNodeId) -> bool {
+        self.ambiguous_triples.contains(&ambiguous_triple_key(a, b, c))
     }
 
     /// Record an orientation conflict on `{a,b}` (cycle or opposite direction).
@@ -467,10 +504,10 @@ fn enqueue_neighbors<G: CpdagOps>(graph: &G, id: DenseNodeId, queue: &mut Orient
 }
 
 /// Drain the orientation queue into a focus set, or scan all nodes when empty.
-fn focus_nodes<G: CpdagOps>(graph: &G, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
+pub(crate) fn focus_nodes(node_count: usize, queue: &mut OrientationQueue) -> Vec<DenseNodeId> {
     if queue.is_empty() {
-        (0..graph.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+        (0..node_count)
+            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32")))
             .collect()
     } else {
         let mut v = Vec::new();
@@ -491,11 +528,14 @@ fn apply_meek_r1<G: CpdagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     let mut changed_nodes = Vec::new();
     for b in focus {
         for a in graph.parents(b) {
             for c in graph.undirected_neighbors(b) {
+                if state.is_ambiguous_triple(a, b, c) {
+                    continue;
+                }
                 if !graph.has_edge(a, c) {
                     let premise = format!(
                         "meek.r1: {}→{}—{} and {} not adj {}",
@@ -544,7 +584,7 @@ fn apply_meek_r2<G: CpdagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     let mut changed = Vec::new();
     for a in &focus {
         for b in graph.children(*a) {
@@ -597,7 +637,7 @@ fn apply_meek_r3<G: CpdagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     let mut changed = Vec::new();
     for a in &focus {
         let und_a: Vec<DenseNodeId> = graph.undirected_neighbors(*a);
@@ -607,7 +647,7 @@ fn apply_meek_r3<G: CpdagOps>(
                 if c == b {
                     continue;
                 }
-                if graph.children(c).contains(&b) {
+                if graph.is_parent(c, b) {
                     mediators.push(c);
                 }
             }
@@ -660,7 +700,7 @@ fn apply_meek_r4<G: CpdagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     let mut changed = Vec::new();
     for a in &focus {
         for b in graph.undirected_neighbors(*a) {
@@ -670,7 +710,7 @@ fn apply_meek_r4<G: CpdagOps>(
                     continue;
                 }
                 for d in graph.children(c) {
-                    if !graph.children(d).contains(&b) {
+                    if !graph.is_parent(d, b) {
                         continue;
                     }
                     if !graph.has_edge(*a, d) {
@@ -739,12 +779,15 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR1 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
+        let focus = focus_nodes(graph.node_count(), queue);
         let mut changed_nodes = Vec::new();
         for b in focus {
             for a in graph.parents(b) {
                 for c in graph.undirected_neighbors(b) {
                     if !is_contemporaneous_node(graph, b) || !is_contemporaneous_node(graph, c) {
+                        continue;
+                    }
+                    if state.is_ambiguous_triple(a, b, c) {
                         continue;
                     }
                     if !graph.has_edge(a, c) {
@@ -787,7 +830,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR2 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
+        let focus = focus_nodes(graph.node_count(), queue);
         let mut changed = Vec::new();
         for a in &focus {
             for b in graph.children(*a) {
@@ -835,7 +878,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
+        let focus = focus_nodes(graph.node_count(), queue);
         let mut changed = Vec::new();
         for a in &focus {
             if !is_contemporaneous_node(graph, *a) {
@@ -852,7 +895,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
                     if c == b {
                         continue;
                     }
-                    if graph.children(c).contains(&b) {
+                    if graph.is_parent(c, b) {
                         mediators.push(c);
                     }
                 }
@@ -901,7 +944,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR4 {
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
         let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-        let focus = focus_nodes(graph, queue);
+        let focus = focus_nodes(graph.node_count(), queue);
         let mut changed = Vec::new();
         for a in &focus {
             if !is_contemporaneous_node(graph, *a) {
@@ -920,7 +963,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR4 {
                         if !is_contemporaneous_node(graph, d) {
                             continue;
                         }
-                        if !graph.children(d).contains(&b) {
+                        if !graph.is_parent(d, b) {
                             continue;
                         }
                         if !graph.has_edge(*a, d) {
@@ -970,7 +1013,7 @@ fn apply_orient_collider<G: CpdagOps>(
     queue: &mut OrientationQueue,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
-    let focus = focus_nodes(graph, queue);
+    let focus = focus_nodes(graph.node_count(), queue);
     let mut changed = Vec::new();
     for c in &focus {
         let mut legs: Vec<(DenseNodeId, LegKind)> =
@@ -988,6 +1031,9 @@ fn apply_orient_collider<G: CpdagOps>(
                     continue;
                 }
                 let Some(sep) = state.sepset(a, b) else {
+                    // No sepset (forbidden outer edge, FDR-dropped edge, never tested):
+                    // collider status is unknown — do not let Meek R1 treat as non-collider.
+                    state.mark_ambiguous_triple(a, *c, b);
                     continue;
                 };
                 if sep.iter().any(|x| *x == *c) {
@@ -1086,6 +1132,56 @@ enum LegKind {
     OutOfC,
 }
 
+/// Round budget of [`drive_to_fixed_point`].
+const MAX_ORIENTATION_ROUNDS: u32 = 10_000;
+
+/// Drive `round` (one pass applying every rule in order) to a fixed point.
+///
+/// The queue starts with every node. Each rule drains the shared queue as its focus and
+/// enqueues what it changes, so rule *k* only sees what rule *k−1* enqueued: a pass that
+/// changes nothing has therefore not necessarily examined every rule against the whole graph
+/// (the first rule in particular sees only the previous pass's leftovers). Termination is
+/// thus declared only after a quiet pass with an *empty* queue, on which every rule scans
+/// the full graph.
+///
+/// # Errors
+///
+/// Rule failures, or no fixed point within the round budget (same failure for every
+/// scheduler: a non-converged orientation must not be returned as if it were final).
+pub(crate) fn drive_to_fixed_point(
+    node_count: usize,
+    mut round: impl FnMut(&mut OrientationQueue) -> Result<RuleDelta, OrientationError>,
+) -> Result<RuleDelta, OrientationError> {
+    let mut queue = OrientationQueue::new();
+    for i in 0..node_count {
+        queue.push(DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32")));
+    }
+    let mut total = RuleDelta::default();
+    let mut verifying = false;
+    for _ in 0..MAX_ORIENTATION_ROUNDS {
+        let d = round(&mut queue)?;
+        let changed = d.edges_changed > 0;
+        total.edges_changed += d.edges_changed;
+        total.conflicts += d.conflicts;
+        total.enqueued += d.enqueued;
+        total.premises.extend(d.premises);
+        if changed {
+            verifying = false;
+            continue;
+        }
+        if verifying {
+            total.fixed_point = true;
+            return Ok(total);
+        }
+        // Quiescent under the delta queue: confirm with a full-scan pass.
+        verifying = true;
+        while queue.pop().is_some() {}
+    }
+    Err(OrientationError::Precondition {
+        message: "orientation did not reach fixed point within iteration budget",
+    })
+}
+
 /// Run rules to a fixed point, seeding the queue with all nodes once.
 ///
 /// # Errors
@@ -1096,42 +1192,18 @@ pub fn run_orientation_to_fixed_point<G: CpdagOps>(
     rules: &[&dyn OrientationRule<G>],
     state: &mut OrientationState,
 ) -> Result<RuleDelta, OrientationError> {
-    let mut queue = OrientationQueue::new();
-    for i in 0..graph.node_count() {
-        queue.push(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
-    }
-    let mut total = RuleDelta::default();
-    let mut guard = 0u32;
-    loop {
-        guard += 1;
-        if guard > 10_000 {
-            return Err(OrientationError::Precondition {
-                message: "orientation did not reach fixed point within iteration budget",
-            });
-        }
-        let mut any = false;
+    let n = graph.node_count();
+    drive_to_fixed_point(n, |queue| {
+        let mut pass = RuleDelta::default();
         for rule in rules {
-            let d = rule.apply(graph, state, &mut queue)?;
-            total.edges_changed += d.edges_changed;
-            total.conflicts += d.conflicts;
-            total.enqueued += d.enqueued;
-            total.premises.extend(d.premises);
-            if d.edges_changed > 0 {
-                any = true;
-            }
+            let d = rule.apply(graph, state, queue)?;
+            pass.edges_changed += d.edges_changed;
+            pass.conflicts += d.conflicts;
+            pass.enqueued += d.enqueued;
+            pass.premises.extend(d.premises);
         }
-        if !any && queue.is_empty() {
-            total.fixed_point = true;
-            break;
-        }
-        if !any {
-            // drain idle queue
-            while queue.pop().is_some() {}
-            total.fixed_point = true;
-            break;
-        }
-    }
-    Ok(total)
+        Ok(pass)
+    })
 }
 
 /// Run static CPDAG orientation rules to a fixed point.

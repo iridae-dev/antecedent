@@ -1,8 +1,6 @@
-//! Licensed 1.9.0 attribution / transport / interference staged cells.
+//! Licensed attribution / transport / interference staged cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::cast_precision_loss)]
 
 use std::sync::Arc;
 

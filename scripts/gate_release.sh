@@ -14,9 +14,12 @@
 # at (gate_calibration_attestation.sh, a git comparison that runs in seconds).
 #   CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh
 #
-# Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
-# Optional: cargo deny check when cargo-deny is on PATH.
-# Composition Python smoke requires `uv` (fail, do not skip).
+# Invokes prior feature gates unless SKIP_PRIOR_GATES=1 (a local shortcut; the
+# release-candidate gate refuses it).
+# cargo deny check runs when cargo-deny is on PATH and is mandatory with
+# REQUIRE_CARGO_DENY=1 (set by the release-candidate gate; CI has its own job).
+# Every Python smoke requires `uv` and fails rather than skips, unless
+# ALLOW_SKIP_PYTHON_SMOKE=1 is given for a local run.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -27,20 +30,9 @@ cd "$ROOT"
 echo "== parity manifest schema =="
 bash scripts/gate_parity_schema.sh
 
-# ---- gate self-tests -------------------------------------------------------
-# Unconditional: each gate that decides a release must fail on deliberately
-# broken input, or its green result proves nothing.
-echo "== gate self-tests (broken inputs must fail) =="
-bash scripts/gate_parity_schema.sh --self-test
-bash scripts/gate_docs_support_matrix.sh --self-test
-bash scripts/gate_composition.sh --self-test
-bash scripts/gate_release_candidate.sh --self-test
-bash scripts/gate_calibration_attestation.sh --self-test
-bash scripts/gate_coverage_citations.sh --self-test
-bash scripts/gate_evidence_reachability.sh --self-test
-bash scripts/gate_metadata_consistency.sh --self-test
-bash scripts/gate_support_matrix.sh --self-test
-# ---- end gate self-tests ---------------------------------------------------
+# The gates' self-tests (each gate must fail on deliberately broken input) are not
+# run here: every case rebuilds a repo overlay and runs a whole gate, which roughly
+# doubled this script's runtime. They run on demand: scripts/gate_selftests.sh.
 
 echo "== algorithm provenance schema and paths =="
 bash scripts/gate_provenance_schema.sh
@@ -58,6 +50,12 @@ bash scripts/gate_support_matrix.sh
 
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
+
+echo "== published docs links resolve =="
+python3 scripts/check_doc_links.py
+
+echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
+bash scripts/gate_lint_allows.sh
 
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
@@ -82,32 +80,21 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_causal_artifacts.sh
   bash scripts/gate_estimate_reuse.sh
   bash scripts/gate_composition.sh
+  bash scripts/gate_transport.sh
 fi
 
 python3 - <<'PY'
 from pathlib import Path
-import re
 import sys
 
+sys.path.insert(0, "scripts")
+import parity_rows as pr
+
 root = Path(".")
-
-def caps(path: Path):
-    text = path.read_text()
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({"id": g("id"), "status": g("status")})
-    return out
-
 missing = []
 
-# Inventories: allow pending/in_progress; forbid retired waiver status.
+# Inventories: allow pending/in_progress; forbid the retired waiver status and
+# rows that never closed.
 for manifest in [
     "parity/estimate.toml",
     "parity/discovery.toml",
@@ -120,11 +107,11 @@ for manifest in [
     "parity/response.toml",
     "parity/compiler.toml",
 ]:
-    for c in caps(Path(manifest)):
-        if c["status"] == "intentional_deviation":
-            missing.append(f"{manifest}: {c['id']} still intentional_deviation (retired)")
-        if c["status"] in ("planned", "blocked"):
-            missing.append(f"{manifest}: {c['id']} still {c['status']}")
+    for c in pr.rows(manifest):
+        if c.get("status") == "intentional_deviation":
+            missing.append(f"{manifest}: {c.get('id')} still intentional_deviation (retired)")
+        if c.get("status") in ("planned", "blocked"):
+            missing.append(f"{manifest}: {c.get('id')} still {c.get('status')}")
 
 EVIDENCE = {
     "release.parity_closure": "parity/README.md",
@@ -138,15 +125,7 @@ EVIDENCE = {
     "release.ci_required_jobs": ".github/workflows/ci.yml",
 }
 
-for c in caps(Path("parity/release.toml")):
-    if c["status"] != "done":
-        missing.append(f"release.toml {c['id']} status={c['status']}")
-        continue
-    ev = EVIDENCE.get(c["id"])
-    if not ev:
-        missing.append(f"{c['id']} has no evidence mapping")
-    elif not (root / ev).exists():
-        missing.append(f"{c['id']} evidence missing: {ev}")
+missing += pr.honesty_problems("parity/release.toml", EVIDENCE, all_done=True)
 
 for path in [
     "adr/0017-release-prep.md",
@@ -220,13 +199,8 @@ for crate, allow_mods in deny_escape_crates.items():
         if not (root / crate / "src" / mod_name).exists():
             missing.append(f"{crate} expected unsafe escape module missing: {mod_name}")
 
-# Baseline files referenced by hot_paths index.
+# Baselines the release requires, and that docs/hot_paths.md must reference.
 hot = (root / "docs/hot_paths.md").read_text()
-for base in (root / "benches/baselines").glob("*.md"):
-    if base.name not in hot and "baselines/" + base.name not in hot:
-        # Allow baselines not linked if mentioned via relative link path
-        if f"baselines/{base.name}" not in hot and base.name.replace(".md", "") not in hot:
-            pass  # soft: index is curated; require at least the release-listed set below
 
 required_baselines = [
     "gather.md",
@@ -276,7 +250,7 @@ fi
 
 echo "== regenerate support-matrix docs (must be clean) =="
 python3 scripts/generate_support_matrix_docs.py
-VERSION="$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version'])")"
+VERSION="$(python3 -c "import tomllib; from pathlib import Path; p=Path('docs/release-notes/preparation.toml'); d=tomllib.load(open(p,'rb')) if p.is_file() else tomllib.load(open('Cargo.toml','rb'))['workspace']['package']; print(d.get('target_version', d.get('version')))" )"
 if ! git diff --exit-code -- docs/support-matrix.md \
     crates/antecedent/src/support_matrix_data.rs \
     crates/antecedent-io/src/coverage_records_data.rs \
@@ -295,30 +269,24 @@ if ! git diff --exit-code -- docs/release-notes/ \
 fi
 
 echo "== cargo test release surfaces =="
-cargo test -p antecedent-io --lib
-cargo test -p antecedent --test graph_interchange
-cargo test -p antecedent --test artifact_migrate
+bash scripts/counted_cargo.sh test -p antecedent-io --lib
+bash scripts/counted_cargo.sh test -p antecedent --test graph_interchange
+bash scripts/counted_cargo.sh test -p antecedent --test artifact_migrate
 
-echo "== criterion smoke (designated hot paths) =="
-cargo bench -p antecedent-kernels --bench gather -- --test
-cargo bench -p antecedent-kernels --bench reductions -- --test
-cargo bench -p antecedent-graph --bench traversal -- --test
-cargo bench -p antecedent-graph --bench dseparation -- --test
-cargo bench -p antecedent-identify --bench adjustment -- --test
-cargo bench -p antecedent-kernels --bench partial_correlation -- --test
-cargo bench -p antecedent-discovery --bench pcmci -- --test
-cargo bench -p antecedent-design --bench design_rank -- --test
-cargo bench -p antecedent-state --bench state_append -- --test
-cargo bench -p antecedent-estimate --bench response_interference -- --test
-cargo bench -p antecedent-estimate --bench temporal_response -- --test
-cargo bench -p antecedent --bench staged_handle -- --test
-cargo bench -p antecedent --bench temporal_zero_replicates -- --test
+echo "== criterion smoke (every bench target of the workspace) =="
+# From `cargo metadata`, so a bench added to a manifest cannot be left unexecuted.
+while read -r package bench; do
+  cargo bench -p "$package" --bench "$bench" -- --test
+done < <(python3 scripts/bench_targets.py)
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="
   cargo deny check
+elif [[ "${REQUIRE_CARGO_DENY:-0}" == "1" ]]; then
+  echo "FAIL: cargo-deny is required (REQUIRE_CARGO_DENY=1) and is not installed" >&2
+  exit 1
 else
-  echo "WARN: cargo-deny not installed; skipping deny check (optional local tool)."
+  echo "WARN: cargo-deny not installed; skipping deny check (the CI deny job and the RC gate enforce it)."
 fi
 
 echo "PR inventory / composition gate PASSED (not an RC)."

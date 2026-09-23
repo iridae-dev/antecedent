@@ -1,4 +1,4 @@
-//! 1.9 coverage of licensed temporal / mixture intervals.
+//! Coverage of licensed temporal / mixture intervals.
 //!
 //! Every coverage test scores the interval the result actually reports over
 //! `n_sim()` datasets (default 400) with a two-sided `level ± 3·MCSE` band
@@ -24,13 +24,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
     clippy::float_cmp,
-    clippy::too_many_lines,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -52,8 +51,8 @@ use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
-    quantile_interval, unit_uniform,
+    CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n,
+    map_replicates, n_sim, normal_interval, quantile_interval, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
@@ -344,6 +343,10 @@ impl BmaTally {
             weighted_mean(&self.weights, &self.truths),
             self.mean.rate()
         );
+        // Never gated, but still recorded every replicate: persist its state so a
+        // recheck extension of this test (see CoverageTally::persist) has a prior
+        // tally to seed from, exactly as the gated tallies below get from assert/emit.
+        self.mean.persist();
         self.structural.assert();
         self.structural_reported.emit();
     }
@@ -414,10 +417,11 @@ impl FreqTally {
         self.reported.emit();
     }
 
-    /// Named boundary cell: assert the band around its measured coverage.
-    fn assert_boundary(&self, measured: f64) {
+    /// Named boundary cell: assert the band around its measured coverage at each
+    /// grid point (index 1 is the base point).
+    fn assert_boundary(&self, measured: [f64; GRID_POINTS]) {
         self.report();
-        self.tally.assert_boundary(measured);
+        self.tally.assert_boundary_at(measured.map(Some));
         self.reported.emit();
     }
 }
@@ -445,11 +449,12 @@ fn frequentist_dbn_tally(
     seed_base: u64,
 ) -> FreqTally {
     let mut tally = FreqTally::new(test, CONFOUNDED_SERIES, name, truth);
-    for s in 0..n_sim() {
-        let data = confounded_series(grid_n(n), B2, rho, seed_base + u64::from(s));
-        let (study, result) =
-            run_freq_dbn_study(data, query.clone(), heterogeneous_dbn(), BOOT, u64::from(s));
-        tally.record(&study, &result);
+    let runs = map_replicates(n_sim(), |s| {
+        let data = confounded_series(grid_n(n), B2, rho, seed_base + s);
+        run_freq_dbn_study(data, query.clone(), heterogeneous_dbn(), BOOT, s)
+    });
+    for (study, result) in &runs {
+        tally.record(study, result);
     }
     tally
 }
@@ -551,16 +556,12 @@ fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
         "frequentist DBN Pulse single-atom baseline",
         B1,
     );
-    for s in 0..n_sim() {
-        let data = confounded_series(grid_n(N), B2, 0.0, 12_000 + u64::from(s));
-        let (study, result) = run_freq_dbn_study(
-            data,
-            pulse_query(),
-            fixtures::dbn_atom_a_only(),
-            BOOT,
-            u64::from(s),
-        );
-        tally.record(&study, &result);
+    let runs = map_replicates(n_sim(), |s| {
+        let data = confounded_series(grid_n(N), B2, 0.0, 12_000 + s);
+        run_freq_dbn_study(data, pulse_query(), fixtures::dbn_atom_a_only(), BOOT, s)
+    });
+    for (study, result) in &runs {
+        tally.record(study, result);
     }
     tally.assert();
 }
@@ -613,7 +614,7 @@ fn frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band() {
         400,
         31_000,
     )
-    .assert_boundary(0.879);
+    .assert_boundary([0.863, 0.879, 0.913]);
 }
 frequentist_dbn_ar1!(
     frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage,
@@ -677,15 +678,17 @@ fn frequentist_cpdag_tally(
 ) -> FreqTally {
     let truth = fixtures::cpdag_completion_truths(rho).iter().sum::<f64>() / 2.0;
     let mut tally = FreqTally::new(test, CONFOUNDED_SERIES, name, truth);
-    for s in 0..n_sim() {
-        let data = confounded_series(grid_n(n), 0.0, rho, seed + u64::from(s));
-        let (study, result) = run_freq_class_study(
+    let runs = map_replicates(n_sim(), |s| {
+        let data = confounded_series(grid_n(n), 0.0, rho, seed + s);
+        run_freq_class_study(
             data,
             confounded_cpdag(),
             CausalQuery::TemporalEffect(query.clone()),
             BOOT,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (study, result) in &runs {
         assert!(
             result
                 .diagnostics
@@ -693,7 +696,7 @@ fn frequentist_cpdag_tally(
                 .any(|d| d.code.as_ref() == "estimate.temporal_class.frequentist.shared_block"),
             "class envelope must publish shared-block SE"
         );
-        tally.record(&study, &result);
+        tally.record(study, result);
     }
     tally
 }
@@ -738,7 +741,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 }
 
 /// Boundary cell, not a nominal one. The two-completion `TemporalCpdag` Pulse
-/// at ρ = 0.9, n = 400 measures `CPDAG_RHO09_MEASURED` over 2000 replicates on
+/// at ρ = 0.9, n = 400 measures `CPDAG_RHO09_MEASURED[1]` over 2000 replicates on
 /// this seed stream (0.890 and 0.905 on two other streams,
 /// `docs/short-series-thresholds.md`), at or below the gate's precision
 /// floor: the non-causal completion omits a persistent confounder, and its
@@ -748,7 +751,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 /// on about three quarters of its replicates. The assertion is the band around
 /// the measured coverage: it guards against a regression below (or a silent
 /// change above) that level; a pass does not show nominal coverage.
-const CPDAG_RHO09_MEASURED: f64 = 0.885;
+const CPDAG_RHO09_MEASURED: [f64; GRID_POINTS] = [0.875, 0.885, 0.910];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -790,17 +793,19 @@ fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
         "frequentist TemporalPag Pulse",
         truth,
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_freq_class_study(
-            pag_series(grid_n(N), 15_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_freq_class_study(
+            pag_series(grid_n(N), 15_000 + s),
             circle_pag(),
             CausalQuery::TemporalEffect(pulse_query()),
             BOOT,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (study, result) in &runs {
         let structural = result.structural_response.as_ref().expect("class mixture");
         assert_eq!(structural.unidentified_mass, PAG_UNIDENTIFIED_MASS);
-        tally.record(&study, &result);
+        tally.record(study, result);
     }
     tally.assert();
 }
@@ -821,16 +826,18 @@ fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
     };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for s in 0..n_sim() {
-        let (study, result) = run_bayes_study(
-            noisy_xy(grid_n(N), 16_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_bayes_study(
+            noisy_xy(grid_n(N), 16_000 + s),
             xy_dag(),
             CausalQuery::TemporalEffect(pulse_query()),
             None,
             RefuteSuite::None,
-            u64::from(s),
-        );
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+            s,
+        )
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(posterior_interval(result.posterior.as_ref()), XY_TRUTH);
         reported.record(posterior_interval_at(result.posterior.as_ref(), REPORTED_LEVEL), XY_TRUTH);
     }
@@ -850,16 +857,18 @@ fn bayesian_temporal_dag_multistep_sustained_nominal_90_coverage() {
     };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for s in 0..n_sim() {
-        let (study, result) = run_bayes_study(
-            two_lag_series(grid_n(N), 17_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_bayes_study(
+            two_lag_series(grid_n(N), 17_000 + s),
             two_lag_dag(),
             CausalQuery::TemporalEffect(multi_sustained()),
             None,
             RefuteSuite::None,
-            u64::from(s),
-        );
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+            s,
+        )
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(posterior_interval(result.posterior.as_ref()), B1 + B2);
         reported.record(posterior_interval_at(result.posterior.as_ref(), REPORTED_LEVEL), B1 + B2);
     }
@@ -894,17 +903,19 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
         interval: "posterior_quantile",
     };
     let mut tally: Option<CoverageTally> = None;
-    for s in 0..n_sim() {
-        let (study, result) = run_bayes_study(
-            noisy_xy(grid_n(N), 18_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_bayes_study(
+            noisy_xy(grid_n(N), 18_000 + s),
             xy_dag(),
             query.clone(),
             None,
             RefuteSuite::None,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (study, result) in &runs {
         let response = result.response.as_ref().expect("curve");
-        let ResponseUncertainty::PointwiseBand { level, lower, upper } = &response.uncertainty
+        let ResponseUncertainty::PointwiseBand { level, lower, upper, .. } = &response.uncertainty
         else {
             panic!("temporal MeanCurve must publish a pointwise band");
         };
@@ -912,7 +923,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
             tally.get_or_insert_with(|| CoverageTally::for_record(key, *level).labelled("x=1"));
         // The DGP has no intercept, so the mean curve at x = 1 is the effect.
         let interval = (lower.len() >= 2 && upper.len() >= 2).then(|| (lower[1], upper[1]));
-        bind(tally, &study, &result);
+        bind(tally, study, result);
         tally.record(interval, XY_TRUTH);
     }
     tally.expect("replicates").assert();
@@ -938,19 +949,21 @@ fn bayesian_cpdag_class_prior_case(
         &fixtures::cpdag_completion_truths(0.0),
         seed,
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_bayes_study(
-            confounded_series(grid_n(N), 0.0, 0.0, seed + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_bayes_study(
+            confounded_series(grid_n(N), 0.0, 0.0, seed + s),
             confounded_cpdag(),
             CausalQuery::TemporalEffect(query.clone()),
             Some(prior.clone()),
             RefuteSuite::None,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (s, (study, result)) in runs.iter().enumerate() {
         let structural = result.structural_response.as_ref().expect("class mixture");
         assert_eq!(structural.weight_basis, StructuralWeightBasis::CallerSuppliedClassPrior);
         assert_eq!(structural.unidentified_mass, 0.0, "both completions identify");
-        tally.record(s, &study, &result);
+        tally.record(u32::try_from(s).unwrap(), study, result);
     }
     tally.assert();
 }
@@ -1007,18 +1020,20 @@ fn bayesian_temporal_pag_pulse_nominal_90_coverage() {
     };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for s in 0..n_sim() {
-        let (study, result) = run_bayes_study(
-            pag_series(grid_n(N), 23_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_bayes_study(
+            pag_series(grid_n(N), 23_000 + s),
             circle_pag(),
             CausalQuery::TemporalEffect(pulse_query()),
             Some(prior.clone()),
             RefuteSuite::None,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (study, result) in &runs {
         let post = result.posterior.as_ref().expect("PAG class-prior posterior");
         assert!((post.unidentified_mass - 0.4).abs() < 1e-12, "got {}", post.unidentified_mass);
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(posterior_interval(Some(post)), truth);
         reported.record(posterior_interval_at(Some(post), REPORTED_LEVEL), truth);
     }
@@ -1038,22 +1053,24 @@ fn bayesian_dbn_posterior_pulse_nominal_90_coverage() {
         &truths,
         24_000,
     );
-    for s in 0..n_sim() {
-        let (study, result) = run_dbn_study(
-            confounded_series(grid_n(N), B2, 0.0, 24_000 + u64::from(s)),
+    let runs = map_replicates(n_sim(), |s| {
+        run_dbn_study(
+            confounded_series(grid_n(N), B2, 0.0, 24_000 + s),
             pulse_query(),
             heterogeneous_dbn(),
             bayes(),
             0,
-            u64::from(s),
-        );
+            s,
+        )
+    });
+    for (s, (study, result)) in runs.iter().enumerate() {
         let post = result.posterior.as_ref().expect("DBN BMA posterior");
         assert!(
             (post.unidentified_mass - DBN_UNIDENTIFIED_MASS).abs() < 1e-12,
             "unidentified DBN mass must stay a separate axis, got {}",
             post.unidentified_mass
         );
-        tally.record(s, &study, &result);
+        tally.record(u32::try_from(s).unwrap(), study, result);
     }
     tally.assert();
 }
@@ -1074,16 +1091,29 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         .map(|(i, t)| CoverageTally::new(format!("{name} completion {i} (θ={t:.3})"), LEVEL))
         .collect();
     let mut mean = [0.0; 2];
-    for s in 0..n_sim() {
-        let result = run_bayes(
-            mediation_series(grid_n(N), kappa, seed + u64::from(s)),
+    let mut mean_ate = 0.0;
+    let runs = map_replicates(n_sim(), |s| {
+        run_bayes(
+            mediation_series(grid_n(N), kappa, seed + s),
             mediation_cpdag_two(),
             mediated_query(),
             None,
             RefuteSuite::None,
-            u64::from(s),
+            s,
+        )
+    });
+    for result in &runs {
+        // The two completions share the same mediation design here (both against the
+        // same truth above), so the class collapses to one canonical shared-design
+        // contrast instead of the cross-design NaN sentinel (see 9d45ee10's fix of
+        // the sibling fixture sanity test), a real per-replicate estimate rather than
+        // NaN; its replicate-mean is checked against the analytic truth below, the
+        // same bias check `mean` already runs per completion.
+        assert!(
+            result.estimate.ate.is_finite(),
+            "class mediation with agreeing completions must publish a shared-design effect"
         );
-        assert!(result.estimate.ate.is_nan(), "class mediation must not publish a blended effect");
+        mean_ate += result.estimate.ate / f64::from(n_sim());
         let atoms = &result.structural_response.as_ref().expect("atoms").atoms;
         assert_eq!(atoms.len(), truths.len());
         for (i, ((atom, truth), tally)) in atoms.iter().zip(&truths).zip(&mut tallies).enumerate() {
@@ -1099,6 +1129,7 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         fixtures::mediation_truth(),
         fixtures::mediation_backdoor_only_plim(kappa)
     );
+    close(&format!("{name} shared-design ate"), mean_ate, fixtures::mediation_truth(), 0.02);
     for tally in &tallies {
         tally.assert();
     }
@@ -1156,20 +1187,22 @@ fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
         .collect();
     let mut reported =
         CoverageTally::for_record(key, REPORTED_LEVEL).labelled("mediated").unasserted();
-    for s in 0..n_sim() {
-        let (study, result) = run_confounded_mediation_study(
+    let runs = map_replicates(n_sim(), |s| {
+        run_confounded_mediation_study(
             grid_n(N),
             MediationContrast::Mediated,
             bayes(),
             0,
-            27_000 + u64::from(s),
-            u64::from(s),
-        );
+            27_000 + s,
+            s,
+        )
+    });
+    for (study, result) in &runs {
         let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
         for ((name, column, truth), tally) in targets.iter().zip(&mut tallies) {
             let draws = post.draws.column(*column).expect("decomposition draws");
             if *name == "Mediated" {
-                bind_all(&mut [&mut *tally, &mut reported], &study, &result);
+                bind_all(&mut [&mut *tally, &mut reported], study, result);
                 reported.record(quantile_interval(draws, REPORTED_LEVEL), *truth);
             }
             tally.record(quantile_interval(draws, LEVEL), *truth);
@@ -1278,7 +1311,7 @@ fn dbn_mixture_functional_retains_unidentified_mass() {
 /// (sampling correlation ≈ 0.17 between the adjusted and unadjusted slopes), so
 /// the shared SE sits a few percent above the independent combination. The
 /// 1.1× margin the CPDAG pin uses was only reachable while the raw-row resample
-/// inflated every mixture SE (1.9, F1); the strict inequality is what the
+/// inflated every mixture SE (F1); the strict inequality is what the
 /// positive cross-atom covariance implies.
 #[test]
 fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
@@ -1388,7 +1421,16 @@ fn mediation_cpdag_fixture_has_two_completions_with_own_posteriors() {
         let data = mediation_series(SANITY_N, kappa, 13);
         let result =
             run_bayes(data, mediation_cpdag_two(), mediated_query(), None, RefuteSuite::None, 41);
-        assert!(result.estimate.ate.is_nan());
+        // The two completions share the same mediation design (per this fixture's own
+        // docstring), so the class collapses to one canonical shared-design contrast
+        // instead of the cross-design NaN sentinel; it must land at the same analytic
+        // truth each completion's own posterior already does below.
+        close(
+            &format!("shared-design mediation ate (kappa={kappa})"),
+            result.estimate.ate,
+            fixtures::mediation_truth(),
+            0.02,
+        );
         let atoms = &result.structural_response.as_ref().expect("atoms").atoms;
         assert_eq!(atoms.len(), 2, "two completions");
         let values: Vec<f64> = atoms

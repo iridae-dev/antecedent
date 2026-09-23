@@ -53,6 +53,27 @@ def allowed(path: Path) -> bool:
     # Positioning / comparison docs intentionally name upstream libraries.
     if s in {"README.md", "docs/README.md", "docs/comparison.md", "docs/index.md"}:
         return True
+    # Interop pages and their example scripts/tests exist specifically to name the
+    # upstream tool they hand off to or benchmark against (black-box only; see the
+    # scripts' own "do not vendor" wording).
+    if s in {"docs/examples.md", "docs/interop_dowhy.md"}:
+        return True
+    if s.startswith("examples/python/") and s.endswith(".py") and (
+        "dowhy" in s.lower() or "pcmci" in s.lower()
+    ):
+        return True
+    # Python tests naming their upstream baseline, same reason as the Rust oracle-test rule.
+    if s.startswith("python/tests/") and "dowhy" in s.lower():
+        return True
+    # Conformance READMEs and their generated docs mirror /expected.json's oracle citation.
+    if s.startswith("conformance/") and Path(s).name == "README.md":
+        return True
+    if s.startswith("docs/conformance/") and s.endswith(".md"):
+        return True
+    # The pre-calibration audit ledger is an internal working document (excluded from
+    # published docs by mkdocs.yml) whose findings discuss named external oracles.
+    if s == "docs/audits/2.0-pre-calibration-findings.md":
+        return True
     # The changelog records which external baseline a release was validated
     # against ("LPCMCI aligned to the pinned Tigramite reference behavior"),
     # which is provenance in the same category as the parity inventories --

@@ -82,11 +82,14 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
-    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, InterferenceSpec,
-    LatencyMode, LicensedNeighbor, NextAction, OperationKind, OperationReadiness, OperationReport,
-    PremiseChange, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SemanticApplicability,
-    SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study, StudyBuilder,
-    TransportTrialSpec,
+    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, ExactFactorRequirement,
+    ExactPreparedState, ExactStudyIdentities, ExactStudyInspection, ExactStudyResult,
+    InterferenceSpec, LatencyMode, LearnedTrialResult, LearnedTrialState, LicensedNeighbor,
+    NextAction, OperationKind, OperationReadiness, OperationReport, PremiseChange, PreparedBatch,
+    PreparedStudy, RdConfig, RefuteSuite, SemanticApplicability, SharedBatchDesign,
+    SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
+    StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
+    StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
@@ -98,7 +101,8 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
 pub use result::{
-    AnalysisIdentification, ExecutedContract, RowWeightsBinding, StructuralAggregationPolicy,
+    AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES,
+    PublishedScalarUncertainty, RowWeightsBinding, StructuralAggregationPolicy,
     StructuralWeightBasis, StudyResult,
 };
 pub use support::{
@@ -119,7 +123,7 @@ mod tests {
     use antecedent_core::{
         AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ExecutionContext, Intervention,
         InterventionalDistributionQuery, MeasurementSpec, PathSpecificEffectQuery, RoleHint,
-        SmallRoleSet, Value, ValueType, VariableId,
+        SmallRoleSet, StreamDomain, Value, ValueType, VariableId,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
@@ -640,7 +644,8 @@ mod tests {
     /// True ATE = 2; OLS-on-observables is biased here unless `Z` is adjusted for, so this
     /// exercises the propensity path independent of the linear-adjustment default.
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Execute, 0x1234_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -748,7 +753,8 @@ mod tests {
     /// `Z ∈ {0,1} → T → Y` with `U` confounding `T`–`Y` (unobserved, not in the graph).
     /// True structural effect = 2.0.
     fn iv_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E71_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Execute, 0x1E71_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];

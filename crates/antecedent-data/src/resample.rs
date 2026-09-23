@@ -2,21 +2,25 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::neg_cmp_op_on_partial_ord
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_kernels::unbiased_index;
 
 use crate::buffer::F64Buffer;
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
+use crate::split::TemporalRandomPolicy;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
@@ -48,6 +52,11 @@ pub enum ResamplingPlan {
     },
     /// Cluster bootstrap: draw G whole clusters with replacement from G observed clusters.
     /// Replicate row counts vary when cluster sizes differ (ids via grouped fill).
+    ///
+    /// A cluster drawn `k` times contributes its rows `k` times under one original
+    /// label: the replicate is a row-index list, so a cluster-aware estimator (cluster-robust
+    /// variance, cluster fixed effects) must treat the repeats as distinct clusters
+    /// rather than merge them by label.
     ///
     /// `cluster` names the variable whose labels are supplied as `cluster_ids`
     /// to the fill helpers (labels remain caller-resolved).
@@ -134,6 +143,17 @@ pub fn fill_resample_indexes_grouped(
     rng: &mut CausalRng,
     out: &mut Vec<u32>,
 ) -> Result<(), DataError> {
+    let clusters = prepare_clusters(plan, n, cluster_ids)?;
+    fill_indexes_prepared(plan, n, clusters.as_ref(), rng, out)
+}
+
+/// Validate the plan / shape and, for clustered plans, build the replicate-invariant
+/// cluster index once.
+fn prepare_clusters(
+    plan: ResamplingPlan,
+    n: usize,
+    cluster_ids: Option<&[u32]>,
+) -> Result<Option<ClusterIndex>, DataError> {
     if n == 0 {
         return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
     }
@@ -142,20 +162,70 @@ pub fn fill_resample_indexes_grouped(
             message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
         });
     }
-    if plan.needs_clusters() {
-        let Some(ids) = cluster_ids else {
-            return Err(DataError::InvalidArgument {
-                message: "clustered resampling requires cluster_ids".into(),
-            });
-        };
-        if ids.len() != n {
-            return Err(DataError::LengthMismatch {
-                expected: n,
-                actual: ids.len(),
-                context: "cluster_ids",
-            });
-        }
+    if !plan.needs_clusters() {
+        return Ok(None);
     }
+    let Some(ids) = cluster_ids else {
+        return Err(DataError::InvalidArgument {
+            message: "clustered resampling requires cluster_ids".into(),
+        });
+    };
+    if ids.len() != n {
+        return Err(DataError::LengthMismatch {
+            expected: n,
+            actual: ids.len(),
+            context: "cluster_ids",
+        });
+    }
+    Ok(Some(ClusterIndex::build(ids)))
+}
+
+/// Cluster membership in CSR form: rows sorted (stably) by cluster label, with
+/// `offsets[c]..offsets[c + 1]` delimiting cluster `c` (labels ascending).
+struct ClusterIndex {
+    members: Vec<u32>,
+    offsets: Vec<usize>,
+}
+
+impl ClusterIndex {
+    fn build(cluster_ids: &[u32]) -> Self {
+        let n = cluster_ids.len();
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+        )]
+        let mut members: Vec<u32> = (0..n as u32).collect();
+        members.sort_by_key(|&i| cluster_ids[i as usize]);
+        let mut offsets = vec![0usize];
+        for k in 1..n {
+            if cluster_ids[members[k] as usize] != cluster_ids[members[k - 1] as usize] {
+                offsets.push(k);
+            }
+        }
+        offsets.push(n);
+        Self { members, offsets }
+    }
+
+    fn n_clusters(&self) -> usize {
+        self.offsets.len() - 1
+    }
+
+    fn cluster(&self, c: usize) -> &[u32] {
+        &self.members[self.offsets[c]..self.offsets[c + 1]]
+    }
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
+fn fill_indexes_prepared(
+    plan: ResamplingPlan,
+    n: usize,
+    clusters: Option<&ClusterIndex>,
+    rng: &mut CausalRng,
+    out: &mut Vec<u32>,
+) -> Result<(), DataError> {
     out.clear();
     out.reserve(n);
     match plan {
@@ -180,7 +250,7 @@ pub fn fill_resample_indexes_grouped(
             fill_stationary(n, expected_length, rng, out)?;
         }
         ResamplingPlan::ClusterBootstrap { .. } => {
-            fill_cluster_bootstrap(n, cluster_ids.unwrap(), rng, out)?;
+            fill_cluster_bootstrap(clusters.expect("clustered plan prepared"), rng, out)?;
         }
         ResamplingPlan::Permutation(PermutationScheme::Full) => {
             out.extend(0..n as u32);
@@ -191,7 +261,12 @@ pub fn fill_resample_indexes_grouped(
             }
         }
         ResamplingPlan::Permutation(PermutationScheme::WithinCluster) => {
-            fill_within_cluster_permutation(n, cluster_ids.unwrap(), rng, out);
+            fill_within_cluster_permutation(
+                n,
+                clusters.expect("clustered plan prepared"),
+                rng,
+                out,
+            );
         }
     }
     Ok(())
@@ -254,6 +329,10 @@ fn fill_block_slice<T: Copy>(
     Ok(())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn fill_stationary(
     n: usize,
     expected_length: f64,
@@ -289,63 +368,46 @@ fn fill_stationary(
 }
 
 fn fill_cluster_bootstrap(
-    n: usize,
-    cluster_ids: &[u32],
+    clusters: &ClusterIndex,
     rng: &mut CausalRng,
     out: &mut Vec<u32>,
 ) -> Result<(), DataError> {
-    // Build cluster → row list.
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&i| cluster_ids[i]);
-    let mut clusters: Vec<Vec<u32>> = Vec::new();
-    let mut idx = 0usize;
-    while idx < n {
-        let g = cluster_ids[order[idx]];
-        let mut members = Vec::new();
-        while idx < n && cluster_ids[order[idx]] == g {
-            members.push(order[idx] as u32);
-            idx += 1;
-        }
-        clusters.push(members);
-    }
-    if clusters.is_empty() {
+    let g = clusters.n_clusters();
+    if g == 0 {
         return Err(DataError::InvalidArgument { message: "no clusters".into() });
     }
     // G IID draws from the empirical cluster distribution. Conditioning on
     // exactly n rows changes that distribution when clusters have unequal sizes.
-    for _ in 0..clusters.len() {
-        let c = unbiased_index(rng, clusters.len());
-        out.extend_from_slice(&clusters[c]);
+    for _ in 0..g {
+        let c = unbiased_index(rng, g);
+        out.extend_from_slice(clusters.cluster(c));
     }
     Ok(())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn fill_within_cluster_permutation(
     n: usize,
-    cluster_ids: &[u32],
+    clusters: &ClusterIndex,
     rng: &mut CausalRng,
     out: &mut Vec<u32>,
 ) {
     out.extend(0..n as u32);
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&i| cluster_ids[i]);
-    let mut idx = 0usize;
-    while idx < n {
-        let g = cluster_ids[order[idx]];
-        let start = idx;
-        while idx < n && cluster_ids[order[idx]] == g {
-            idx += 1;
-        }
-        // Fisher–Yates on out[order[start..idx]] positions — shuffle the member rows
-        // among the slots that belong to this cluster in the original order.
-        let members: Vec<usize> = order[start..idx].to_vec();
-        let mut vals: Vec<u32> = members.iter().map(|&i| i as u32).collect();
+    // Shuffle each cluster's member rows among the slots that cluster occupies.
+    let mut vals: Vec<u32> = Vec::new();
+    for c in 0..clusters.n_clusters() {
+        let members = clusters.cluster(c);
+        vals.clear();
+        vals.extend_from_slice(members);
         for i in (1..vals.len()).rev() {
             let j = unbiased_index(rng, i + 1);
             vals.swap(i, j);
         }
         for (k, &pos) in members.iter().enumerate() {
-            out[pos] = vals[k];
+            out[pos as usize] = vals[k];
         }
     }
 }
@@ -407,7 +469,7 @@ fn checked_batch_len(n: usize, n_replicates: usize) -> Result<usize, DataError> 
 
 fn check_resampling_cancelled(ctx: &ExecutionContext) -> Result<(), DataError> {
     if ctx.cancellation.is_cancelled() {
-        return Err(DataError::InvalidArgument { message: "resampling cancelled".into() });
+        return Err(DataError::Cancelled);
     }
     Ok(())
 }
@@ -433,7 +495,7 @@ pub struct RaggedResampleIndexBatch {
 
 /// Generate index replicates, including unequal-sized whole-cluster bootstrap draws.
 ///
-/// Uses the same independent replicate RNG streams as [`fill_resample_index_batch`].
+/// Uses the same domain-separated replicate RNG streams as [`fill_resample_index_batch`].
 /// This allocation-returning interface retains variable row counts without padding,
 /// truncation, or conditioning the bootstrap on a fixed total number of rows.
 ///
@@ -456,6 +518,7 @@ pub fn resample_index_batch_ragged(
         message: "ragged resample offset count overflows usize".into(),
     })?;
     check_allocation_len::<usize>(offset_len)?;
+    let clusters = prepare_clusters(plan, n, cluster_ids)?;
     let mut indexes = Vec::new();
     let mut offsets = vec![0];
     let mut scratch = Vec::new();
@@ -464,8 +527,8 @@ pub fn resample_index_batch_ragged(
     })?;
     for replicate in 0..n_replicates {
         check_resampling_cancelled(ctx)?;
-        let mut rng = ctx.rng.stream(stream_base ^ replicate as u64);
-        fill_resample_indexes_grouped(plan, n, cluster_ids, &mut rng, &mut scratch)?;
+        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate as u64);
+        fill_indexes_prepared(plan, n, clusters.as_ref(), &mut rng, &mut scratch)?;
         indexes.try_reserve(scratch.len()).map_err(|error| DataError::InvalidArgument {
             message: format!("ragged resampling allocation failed: {error}"),
         })?;
@@ -481,8 +544,8 @@ pub fn resample_index_batch_ragged(
 /// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
 /// [`ExecutionContext`].
 ///
-/// Each replicate uses `ctx.rng.stream(stream_base ^ replicate_id)` so results are
-/// independent of scheduling order under [`antecedent_core::Determinism::Strict`].
+/// Each replicate uses `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate_id)`
+/// so results are independent of scheduling order under [`antecedent_core::Determinism::Strict`].
 /// When `max_threads > 1` and `n_replicates ≥ 2`, fills run in a bounded
 /// `std::thread::scope` pool.
 ///
@@ -538,53 +601,11 @@ pub fn fill_resample_index_batch(
             });
         }
     }
-    let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-    if threads == 1 || n_replicates < 2 {
-        let mut scratch = Vec::with_capacity(n);
-        for r in 0..n_replicates {
-            let mut rng = ctx.rng.stream(stream_base ^ r as u64);
-            fill_resample_indexes_grouped(plan, n, cluster_ids, &mut rng, &mut scratch)?;
-            out[r * n..(r + 1) * n].copy_from_slice(&scratch);
-        }
-        return Ok(());
-    }
-    let chunk = n_replicates.div_ceil(threads);
-    let cluster_owned: Option<Vec<u32>> = cluster_ids.map(<[u32]>::to_vec);
-    let err = std::sync::Mutex::new(None::<DataError>);
-    std::thread::scope(|scope| {
-        let mut rest = out;
-        let mut start = 0usize;
-        while start < n_replicates {
-            let end = (start + chunk).min(n_replicates);
-            let (this, next) = rest.split_at_mut((end - start) * n);
-            rest = next;
-            let cluster_ref = cluster_owned.as_deref();
-            let err_slot = &err;
-            let rng_factory = &ctx.rng;
-            scope.spawn(move || {
-                let mut scratch = Vec::with_capacity(n);
-                for (local, r) in (start..end).enumerate() {
-                    let mut rng = rng_factory.stream(stream_base ^ r as u64);
-                    if let Err(e) =
-                        fill_resample_indexes_grouped(plan, n, cluster_ref, &mut rng, &mut scratch)
-                    {
-                        let mut guard =
-                            err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                        if guard.is_none() {
-                            *guard = Some(e);
-                        }
-                        return;
-                    }
-                    this[local * n..(local + 1) * n].copy_from_slice(&scratch);
-                }
-            });
-            start = end;
-        }
-    });
-    if let Some(e) = err.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
-        return Err(e);
-    }
-    Ok(())
+    let clusters = prepare_clusters(plan, n, cluster_ids)?;
+    fill_replicate_rows(ctx, n, n_replicates, out, |r, scratch| {
+        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
+        fill_indexes_prepared(plan, n, clusters.as_ref(), &mut rng, scratch)
+    })
 }
 
 /// Batch Bayesian-bootstrap weights under one [`ExecutionContext`] (replicate-major).
@@ -614,12 +635,27 @@ pub fn fill_resample_weight_batch(
             message: "fill_resample_weight_batch requires BayesianBootstrap".into(),
         });
     }
+    fill_replicate_rows(ctx, n, n_replicates, out, |r, scratch| {
+        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
+        fill_resample_weights(plan, n, &mut rng, scratch)
+    })
+}
+
+/// Run `fill` for every replicate `r` and copy its length-`n` result into row `r` of the
+/// replicate-major `out`. Replicates are independent (each derives its own RNG stream), so
+/// the output does not depend on the thread count; the first error wins.
+fn fill_replicate_rows<T: Copy + Send>(
+    ctx: &ExecutionContext,
+    n: usize,
+    n_replicates: usize,
+    out: &mut [T],
+    fill: impl Fn(usize, &mut Vec<T>) -> Result<(), DataError> + Sync,
+) -> Result<(), DataError> {
     let threads = ctx.parallelism.max_threads.get().max(1) as usize;
     if threads == 1 || n_replicates < 2 {
         let mut scratch = Vec::with_capacity(n);
         for r in 0..n_replicates {
-            let mut rng = ctx.rng.stream(stream_base ^ r as u64);
-            fill_resample_weights(plan, n, &mut rng, &mut scratch)?;
+            fill(r, &mut scratch)?;
             out[r * n..(r + 1) * n].copy_from_slice(&scratch);
         }
         return Ok(());
@@ -634,12 +670,11 @@ pub fn fill_resample_weight_batch(
             let (this, next) = rest.split_at_mut((end - start) * n);
             rest = next;
             let err_slot = &err;
-            let rng_factory = &ctx.rng;
+            let fill = &fill;
             scope.spawn(move || {
                 let mut scratch = Vec::with_capacity(n);
                 for (local, r) in (start..end).enumerate() {
-                    let mut rng = rng_factory.stream(stream_base ^ r as u64);
-                    if let Err(e) = fill_resample_weights(plan, n, &mut rng, &mut scratch) {
+                    if let Err(e) = fill(r, &mut scratch) {
                         let mut guard =
                             err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                         if guard.is_none() {
@@ -697,9 +732,14 @@ pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
 /// order and replaces storage weights with a fresh weight plan (multiplied by
 /// any existing weights). Clustered plans require [`resample_timeseries_grouped`].
 ///
+/// Serially dependent data must use a block plan: the IID row bootstrap and the
+/// Bayesian bootstrap (IID Dirichlet weights) ignore autocorrelation and understate
+/// uncertainty, so they are refused here. [`resample_timeseries_with_policy`] is the
+/// explicit opt-in.
+///
 /// # Errors
 ///
-/// Non-float columns or construction failures.
+/// Non-float columns, an IID plan on time-series data, or construction failures.
 pub fn resample_timeseries(
     data: &TimeSeriesData,
     plan: ResamplingPlan,
@@ -726,6 +766,39 @@ pub fn resample_timeseries_grouped(
     rng: &mut CausalRng,
     index_scratch: &mut Vec<u32>,
 ) -> Result<TimeSeriesData, DataError> {
+    resample_timeseries_with_policy(
+        data,
+        plan,
+        cluster_ids,
+        rng,
+        index_scratch,
+        TemporalRandomPolicy::Refuse,
+    )
+}
+
+/// [`resample_timeseries_grouped`] with an explicit [`TemporalRandomPolicy`].
+///
+/// [`TemporalRandomPolicy::Allow`] admits [`ResamplingPlan::IidBootstrap`] and
+/// [`ResamplingPlan::BayesianBootstrap`], whose replicates carry no serial dependence.
+///
+/// # Errors
+///
+/// As [`resample_timeseries_grouped`]; an IID plan under [`TemporalRandomPolicy::Refuse`].
+pub fn resample_timeseries_with_policy(
+    data: &TimeSeriesData,
+    plan: ResamplingPlan,
+    cluster_ids: Option<&[u32]>,
+    rng: &mut CausalRng,
+    index_scratch: &mut Vec<u32>,
+    policy: TemporalRandomPolicy,
+) -> Result<TimeSeriesData, DataError> {
+    if matches!(plan, ResamplingPlan::IidBootstrap | ResamplingPlan::BayesianBootstrap) {
+        crate::split::ensure_random_allowed_on_temporal(policy).map_err(|_| {
+            DataError::InvalidArgument {
+                message: "IID bootstrap refused on time-series data (ignores serial dependence); use a block plan or pass TemporalRandomPolicy::Allow".into(),
+            }
+        })?;
+    }
     let n = data.row_count();
     if plan.is_weight_plan() {
         let mut weights = Vec::new();
@@ -899,6 +972,55 @@ mod tests {
     }
 
     #[test]
+    fn iid_plans_are_refused_on_time_series_without_opt_in() {
+        let data = float_series(30, 1);
+        let mut idx = Vec::new();
+        for plan in [ResamplingPlan::IidBootstrap, ResamplingPlan::BayesianBootstrap] {
+            let mut rng = CausalRng::from_seed(3);
+            assert!(resample_timeseries(&data, plan, &mut rng, &mut idx).is_err());
+            let out = resample_timeseries_with_policy(
+                &data,
+                plan,
+                None,
+                &mut rng,
+                &mut idx,
+                TemporalRandomPolicy::Allow,
+            )
+            .unwrap();
+            assert_eq!(out.row_count(), 30);
+        }
+    }
+
+    #[test]
+    fn cluster_index_bootstrap_emits_whole_clusters_and_permutation_stays_within() {
+        // label 0 -> rows {1,4}, label 1 -> {3}, label 2 -> {0,2}.
+        let ids = [2u32, 0, 2, 1, 0];
+        let mut rng = CausalRng::from_seed(5);
+        let mut out = Vec::new();
+        let allowed: [&[u32]; 3] = [&[1, 4], &[3], &[0, 2]];
+        for _ in 0..50 {
+            let plan = ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) };
+            fill_resample_indexes_grouped(plan, 5, Some(&ids), &mut rng, &mut out).unwrap();
+            let mut rest = out.as_slice();
+            let mut clusters = 0;
+            while !rest.is_empty() {
+                let hit = allowed.iter().find(|c| rest.starts_with(c)).expect("whole cluster");
+                rest = &rest[hit.len()..];
+                clusters += 1;
+            }
+            assert_eq!(clusters, 3);
+            let plan = ResamplingPlan::Permutation(PermutationScheme::WithinCluster);
+            fill_resample_indexes_grouped(plan, 5, Some(&ids), &mut rng, &mut out).unwrap();
+            for (pos, &row) in out.iter().enumerate() {
+                assert_eq!(ids[pos], ids[row as usize]);
+            }
+            let mut sorted = out.clone();
+            sorted.sort_unstable();
+            assert_eq!(sorted, [0, 1, 2, 3, 4]);
+        }
+    }
+
+    #[test]
     fn moving_block_preserves_length() {
         let data = float_series(100, 1);
         let mut rng = CausalRng::from_seed(1);
@@ -912,6 +1034,35 @@ mod tests {
         .unwrap();
         assert_eq!(out.row_count(), 100);
         assert_eq!(idx.len(), 100);
+    }
+
+    /// A moving-block bootstrap of 100 rows in blocks of 10 must be ten runs of ten
+    /// consecutive source rows (serial dependence kept inside each block), and the
+    /// same seed must replay the same indexes.
+    #[test]
+    fn moving_block_indexes_are_consecutive_runs_and_replay() {
+        let data = float_series(100, 1);
+        let draw = |seed: u64| {
+            let mut rng = CausalRng::from_seed(seed);
+            let mut idx = Vec::new();
+            resample_timeseries(
+                &data,
+                ResamplingPlan::MovingBlock { length: 10 },
+                &mut rng,
+                &mut idx,
+            )
+            .unwrap();
+            idx
+        };
+        let idx = draw(5);
+        assert_eq!(idx.len(), 100);
+        assert!(idx.iter().all(|&i| i < 100));
+        for block in idx.chunks(10) {
+            for w in block.windows(2) {
+                assert_eq!(w[1], w[0] + 1, "block is not a consecutive run: {block:?}");
+            }
+        }
+        assert_eq!(idx, draw(5));
     }
 
     #[test]
@@ -1210,8 +1361,7 @@ mod tests {
                 &mut indexes,
             )
             .unwrap_err()
-            .to_string()
-            .contains("cancelled")
+                == DataError::Cancelled
         );
         assert!(
             fill_resample_weight_batch(
@@ -1223,8 +1373,7 @@ mod tests {
                 &mut weights,
             )
             .unwrap_err()
-            .to_string()
-            .contains("cancelled")
+                == DataError::Cancelled
         );
         assert!(
             resample_index_batch_ragged(
@@ -1236,8 +1385,7 @@ mod tests {
                 0,
             )
             .unwrap_err()
-            .to_string()
-            .contains("cancelled")
+                == DataError::Cancelled
         );
         assert_eq!(indexes, [7]);
         assert!((weights[0] - 0.7).abs() < 1e-12);

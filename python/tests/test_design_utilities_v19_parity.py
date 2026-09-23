@@ -1,11 +1,11 @@
-"""1.9.0 parity of the unlicensed design utilities.
+"""Parity of the unlicensed design utilities.
 
-``transport.estimate_trial_effect`` and ``interference.estimate`` are released
-1.9.0 API: augmented IPW, every assignment design and exposure mapping, and
-``seed`` as the exposure-probability Monte Carlo seed. They keep that
-capability and those numbers. The expected values in
+``transport.estimate_trial_effect`` and ``interference.estimate`` are the
+unlicensed utilities: augmented IPW, every assignment design and exposure
+mapping, and ``seed`` as the exposure-probability Monte Carlo seed. They keep
+that capability and those numbers. The expected values in
 ``fixtures/design_utilities_v1_9_0.json`` were recorded by running these exact
-closed-form calls against a v1.9.0 build.
+closed-form calls against a recorded build.
 """
 
 from __future__ import annotations
@@ -16,7 +16,8 @@ from pathlib import Path
 
 import antecedent
 import pytest
-from antecedent import interference, transport
+from antecedent import interference
+from antecedent.transport import advanced as transport
 
 from _repo_text import read_text
 

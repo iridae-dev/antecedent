@@ -181,22 +181,28 @@ impl PosteriorDraws {
     #[must_use]
     pub fn summarize(&self) -> PosteriorSummary {
         use antecedent_core::KernelPolicy;
-        use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws};
+        use antecedent_kernels::{
+            PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws,
+        };
 
         let n_q = self.n_quantities();
-        let mut mean = vec![0.0; n_q];
-        let mut sd = vec![0.0; n_q];
-        let mut q025 = vec![0.0; n_q];
-        let mut q975 = vec![0.0; n_q];
+        let mut mean = vec![f64::NAN; n_q];
+        let mut sd = vec![f64::NAN; n_q];
+        let mut q025 = vec![f64::NAN; n_q];
+        let mut q975 = vec![f64::NAN; n_q];
         let policy = KernelPolicy::default_policy();
         for q in 0..n_q {
             let col = &self.values[q * self.n_draws..(q + 1) * self.n_draws];
-            mean[q] = reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(0.0);
-            sd[q] = reduce_posterior_draws(col, PosteriorReduceOp::Std, &policy).unwrap_or(0.0);
+            // No draws carry no location information either: NaN, never a zero mean.
+            mean[q] =
+                reduce_posterior_draws(col, PosteriorReduceOp::Mean, &policy).unwrap_or(f64::NAN);
+            // Fewer than two draws carry no spread information: NaN, never a zero sd.
+            sd[q] =
+                reduce_posterior_draws(col, PosteriorReduceOp::Std, &policy).unwrap_or(f64::NAN);
             let mut sorted = col.to_vec();
-            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            q025[q] = quantile_sorted(&sorted, 0.025);
-            q975[q] = quantile_sorted(&sorted, 0.975);
+            sorted.sort_by(f64::total_cmp);
+            q025[q] = quantile_type7_sorted(&sorted, 0.025);
+            q975[q] = quantile_type7_sorted(&sorted, 0.975);
         }
         PosteriorSummary {
             schema: self.schema.clone(),
@@ -261,15 +267,6 @@ pub struct PosteriorSummary {
     pub q025: Arc<[f64]>,
     /// 97.5% quantile.
     pub q975: Arc<[f64]>,
-}
-
-fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return f64::NAN;
-    }
-    let n = sorted.len();
-    let idx = ((n as f64 - 1.0) * p).round() as usize;
-    sorted[idx.min(n - 1)]
 }
 
 /// Scratch for batched posterior functional evaluation.
@@ -343,5 +340,47 @@ mod tests {
         let s = draws.summarize();
         assert!((s.mean[0] - 0.5).abs() < 1e-12);
         assert!((draws.probability_below(0, 0.0).unwrap() - 0.25).abs() < 1e-12);
+        // sd of {-1,0,1,2}: sqrt(5/3). Type-7: h = 3*0.025 = 0.075 -> -1 + 0.075;
+        // h = 3*0.975 = 2.925 -> 1 + 0.925.
+        assert!((s.sd[0] - (5.0_f64 / 3.0).sqrt()).abs() < 1e-12);
+        assert!((s.q025[0] - (-0.925)).abs() < 1e-12);
+        assert!((s.q975[0] - 1.925).abs() < 1e-12);
+    }
+
+    #[test]
+    fn summarize_reports_undefined_not_zero() {
+        let empty = PosteriorDraws::from_column_major(
+            PosteriorSchema::coefficients(1),
+            0,
+            Arc::from(Vec::<f64>::new()),
+        )
+        .unwrap()
+        .summarize();
+        assert!(empty.mean[0].is_nan() && empty.sd[0].is_nan());
+        assert!(empty.q025[0].is_nan() && empty.q975[0].is_nan());
+
+        let one = PosteriorDraws::from_column_major(
+            PosteriorSchema::coefficients(1),
+            1,
+            Arc::from(vec![3.0]),
+        )
+        .unwrap()
+        .summarize();
+        assert_eq!(one.mean[0], 3.0);
+        assert!(one.sd[0].is_nan());
+        assert_eq!(one.q025[0], 3.0);
+    }
+
+    #[test]
+    fn summarize_propagates_nan_draws() {
+        let d = PosteriorDraws::from_column_major(
+            PosteriorSchema::coefficients(1),
+            4,
+            Arc::from(vec![1.0, f64::NAN, 3.0, 2.0]),
+        )
+        .unwrap()
+        .summarize();
+        assert!(d.mean[0].is_nan());
+        assert!(d.q025[0].is_nan() && d.q975[0].is_nan());
     }
 }

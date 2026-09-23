@@ -9,39 +9,44 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::zero_sized_map_values
+#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::zero_sized_map_values)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag, PagReview};
 use antecedent_stats::{
-    CiBatchRequest, CiPreparationPlan, CiQuery, ConditionalIndependence, ConfidenceMethod,
-    FdrAdjustment, PartialCorrelation, PreparedCiTest,
+    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
+    PartialCorrelation, PreparedCiTest,
 };
 
 use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
+use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{OrientationError, OrientationState};
-use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pairs};
+use crate::pc::{collect_float_columns, edge_key, sorted_edge_pairs};
 use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    EvidenceSource, GraphEvidence, PcSepsets, discovery_assumptions,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
+};
+use crate::static_skeleton::{
+    StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton, skeleton_scored_links,
+    static_ci_test, static_edge_evidence,
 };
 
 /// Static FCI discovery result (`Pag` evidence + review).
@@ -62,6 +67,8 @@ pub struct Fci {
     pub fdr: Option<FdrAdjustment>,
     /// Possible-D-Sep BFS expansion budget.
     pub pds_max_nodes: usize,
+    /// Per-edge bounds of the discriminating-path (R4) search.
+    pub discriminating_path_budget: DiscriminatingPathBudget,
 }
 
 impl std::fmt::Debug for Fci {
@@ -71,6 +78,7 @@ impl std::fmt::Debug for Fci {
             .field("ci", &"<dyn ConditionalIndependence>")
             .field("fdr", &self.fdr)
             .field("pds_max_nodes", &self.pds_max_nodes)
+            .field("discriminating_path_budget", &self.discriminating_path_budget)
             .finish()
     }
 }
@@ -96,7 +104,16 @@ impl Fci {
             ci: Arc::new(PartialCorrelation),
             fdr: None,
             pds_max_nodes: DEFAULT_PDS_MAX_NODES,
+            discriminating_path_budget: DiscriminatingPathBudget::default(),
         }
+    }
+
+    /// Per-edge bounds of the discriminating-path search. An edge that exhausts its budget
+    /// keeps its circle mark and is reported in a diagnostic; the run does not fail.
+    #[must_use]
+    pub fn with_discriminating_path_budget(mut self, budget: DiscriminatingPathBudget) -> Self {
+        self.discriminating_path_budget = budget;
+        self
     }
 
     /// Configure constraints.
@@ -156,6 +173,12 @@ impl Fci {
                 "FCI FDR is refused until adjustment covers both adjacency and Possible-D-Sep CI tests",
             ));
         }
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.ci,
+            self.constraints.significance,
+            self.constraints.alpha,
+            false,
+        )?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "FCI requires at least one variable",
@@ -187,159 +210,21 @@ impl Fci {
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
-        let mut adj: HashMap<(u32, u32), ()> = HashMap::new();
-        let mut edge_scores: HashMap<(u32, u32), ScoredLink> = HashMap::new();
-        let mut sepsets: PcSepsets = PcSepsets::default();
-        let mut ci_tests: u64 = 0;
-        let mut iterations = Vec::new();
-
-        // --- Phase 1: PC-style adjacency ---
-        for i in 0..variables.len() {
-            for j in (i + 1)..variables.len() {
-                let a = variables[i];
-                let b = variables[j];
-                if self.static_forbidden(a, b) {
-                    continue;
-                }
-                adj.insert(edge_key(a, b), ());
-            }
-        }
-
+        let skel = run_static_skeleton(
+            &StaticSkeletonInput {
+                ci: &*self.ci,
+                constraints: &self.constraints,
+                cols: &cols,
+                var_index: &var_index,
+                variables,
+                label: "fci.pc.depth",
+            },
+            workspace,
+            ctx,
+        )?;
+        let mut scored = skeleton_scored_links(&skel);
+        let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
         let mut combo_scratch = Vec::new();
-        let mut depth = 0usize;
-        loop {
-            let mut depth_tests = 0u64;
-            // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
-            // so traversal order must be deterministic for the skeleton to be reproducible.
-            let edges = sorted_edge_pairs(&adj);
-
-            for &(x, y) in &edges {
-                if !adj.contains_key(&edge_key(x, y)) {
-                    continue;
-                }
-                if self.static_required(x, y) {
-                    continue;
-                }
-                let neighbors_x = adjacent_vars(x, &adj, variables);
-                let neighbors_y = adjacent_vars(y, &adj, variables);
-                let mut cand_sets: Vec<Vec<VariableId>> = Vec::new();
-                let nx: Vec<VariableId> = neighbors_x.into_iter().filter(|&v| v != y).collect();
-                let ny: Vec<VariableId> = neighbors_y.into_iter().filter(|&v| v != x).collect();
-                if nx.len() >= depth {
-                    for_each_combination_vars(&nx, depth, &mut combo_scratch, |c| {
-                        cand_sets.push(c.to_vec());
-                        true
-                    });
-                }
-                if ny.len() >= depth {
-                    for_each_combination_vars(&ny, depth, &mut combo_scratch, |c| {
-                        cand_sets.push(c.to_vec());
-                        true
-                    });
-                }
-                cand_sets.sort_unstable();
-                cand_sets.dedup();
-
-                let mut independent = false;
-                // `weakest_dep_stat`/`weakest_dep_p` summarize a *retained* edge (no
-                // conditioning set separated x and y): they hold the statistic/p-value of
-                // whichever tested z gave the weakest evidence of dependence (max p), not
-                // whichever z happened to be tested last. That's the conservative summary
-                // to retain as edge evidence. If the loop instead finds a separating set, we
-                // report that test's own (stat, p) — the value that actually establishes
-                // independence — not the running max.
-                let mut weakest_dep_stat = f64::NAN;
-                let mut weakest_dep_p = f64::NAN;
-                let mut best_sep: Arc<[VariableId]> = Arc::from([]);
-
-                for z in &cand_sets {
-                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
-                    ci_tests += 1;
-                    depth_tests += 1;
-                    if p > alpha {
-                        independent = true;
-                        weakest_dep_stat = stat;
-                        weakest_dep_p = p;
-                        best_sep = Arc::from(z.as_slice());
-                        break;
-                    }
-                    if weakest_dep_p.is_nan() || p > weakest_dep_p {
-                        weakest_dep_stat = stat;
-                        weakest_dep_p = p;
-                    }
-                }
-
-                let key = edge_key(x, y);
-                if independent {
-                    adj.remove(&key);
-                    record_sepset(&mut sepsets, x, y, &best_sep);
-                } else if weakest_dep_p.is_finite() {
-                    let link = ScoredLink {
-                        link: LaggedLink {
-                            source: x,
-                            source_lag: Lag::CONTEMPORANEOUS,
-                            target: y,
-                            target_lag: Lag::CONTEMPORANEOUS,
-                        },
-                        statistic: weakest_dep_stat,
-                        p_value: weakest_dep_p,
-                        adjusted_p_value: None,
-                    };
-                    edge_scores
-                        .entry(key)
-                        .and_modify(|s| {
-                            if weakest_dep_p < s.p_value {
-                                *s = link;
-                            }
-                        })
-                        .or_insert(link);
-                }
-            }
-
-            iterations.push(DiscoveryIteration {
-                label: Arc::from(format!("fci.pc.depth.{depth}")),
-                ci_tests: depth_tests,
-            });
-
-            depth += 1;
-            if depth > max_cond {
-                break;
-            }
-            let max_deg = adj
-                .keys()
-                .map(|&(lo, hi)| {
-                    let a = VariableId::from_raw(lo);
-                    let b = VariableId::from_raw(hi);
-                    let da = adjacent_vars(a, &adj, variables).len().saturating_sub(1);
-                    let db = adjacent_vars(b, &adj, variables).len().saturating_sub(1);
-                    da.max(db)
-                })
-                .max()
-                .unwrap_or(0);
-            if max_deg < depth {
-                break;
-            }
-        }
-
-        // Evidence summaries for the surviving unadjusted skeleton edges.
-        let mut scored: Vec<ScoredLink> = adj
-            .keys()
-            .map(|&(lo, hi)| {
-                let x = VariableId::from_raw(lo);
-                let y = VariableId::from_raw(hi);
-                edge_scores.get(&(lo, hi)).copied().unwrap_or(ScoredLink {
-                    link: LaggedLink {
-                        source: x,
-                        source_lag: Lag::CONTEMPORANEOUS,
-                        target: y,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    statistic: 0.0,
-                    p_value: 0.0,
-                    adjusted_p_value: None,
-                })
-            })
-            .collect();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
@@ -361,10 +246,13 @@ impl Fci {
         // first affects the result.
         let edges_pds = sorted_edge_pairs(&adj);
         for &(x, y) in &edges_pds {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             if !adj.contains_key(&edge_key(x, y)) {
                 continue;
             }
-            if self.static_required(x, y) {
+            if self.constraints.static_required(x, y) {
                 continue;
             }
             let xd = dense_of(x)?;
@@ -392,7 +280,17 @@ impl Fci {
                     true
                 });
                 for z in &depth_sets {
-                    let (_stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
+                    let (_stat, p) = static_ci_test(
+                        &*self.ci,
+                        &self.constraints,
+                        &cols,
+                        &var_index,
+                        x,
+                        y,
+                        z,
+                        workspace,
+                        ctx,
+                    )?;
                     pds_tests += 1;
                     ci_tests += 1;
                     if p > alpha {
@@ -420,7 +318,10 @@ impl Fci {
 
         // --- Phase 4: reset remaining edges to o–o ---
         pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
-        state = OrientationState::default();
+        state = OrientationState {
+            discriminating_budget: self.discriminating_path_budget,
+            ..OrientationState::default()
+        };
         load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
 
         // --- Phase 5: full Zhang FCI orientation ---
@@ -428,6 +329,16 @@ impl Fci {
         let orient_delta = run_fci_orientation_to_fixed_point(&mut pag, &rules, &mut state)?;
 
         let mut diagnostics = Vec::new();
+        if !state.discriminating_skipped.is_empty() {
+            diagnostics.push(DiscoveryDiagnostic {
+                code: Arc::from("fci.discriminating_path_budget"),
+                message: Arc::from(format!(
+                    "discriminating-path search exhausted its budget on {} edge(s); their circle \
+                     marks were left unresolved (sound, possibly incomplete)",
+                    state.discriminating_skipped.len()
+                )),
+            });
+        }
         if state.conflicts > 0 || orient_delta.conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.orientation_conflict"),
@@ -441,28 +352,7 @@ impl Fci {
         // Refresh scored links to surviving edges.
         scored.retain(|s| adj.contains_key(&edge_key(s.link.source, s.link.target)));
 
-        let edge_evidence: Vec<EdgeEvidence> = scored
-            .iter()
-            .map(|s| {
-                let sepset = sepsets
-                    .get(&(
-                        s.link.source,
-                        Lag::CONTEMPORANEOUS,
-                        s.link.target,
-                        Lag::CONTEMPORANEOUS,
-                    ))
-                    .cloned();
-                EdgeEvidence {
-                    link: s.link,
-                    statistic: Some(s.statistic),
-                    p_value: Some(s.p_value),
-                    adjusted_p_value: s.adjusted_p_value,
-                    interval: None,
-                    separating_set: sepset,
-                    provenance: Arc::from([Arc::from("fci")]),
-                }
-            })
-            .collect();
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, "fci");
 
         let evidence = GraphEvidence {
             graph: pag.clone(),
@@ -485,7 +375,7 @@ impl Fci {
                     self.pds_max_nodes
                 ),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("fci", false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
@@ -498,82 +388,6 @@ impl Fci {
             sepsets,
         })
     }
-
-    fn static_forbidden(&self, a: VariableId, b: VariableId) -> bool {
-        let link_ab = LaggedLink {
-            source: a,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: b,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        let link_ba = LaggedLink {
-            source: b,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: a,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        self.constraints.is_forbidden(link_ab) && self.constraints.is_forbidden(link_ba)
-    }
-
-    fn static_required(&self, a: VariableId, b: VariableId) -> bool {
-        let link_ab = LaggedLink {
-            source: a,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: b,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        let link_ba = LaggedLink {
-            source: b,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: a,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        self.constraints.is_required(link_ab) || self.constraints.is_required(link_ba)
-    }
-
-    fn ci_test(
-        &self,
-        cols: &[&[f64]],
-        var_index: &HashMap<VariableId, usize>,
-        x: VariableId,
-        y: VariableId,
-        z: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<(f64, f64), DiscoveryError> {
-        let xi = *var_index.get(&x).ok_or_else(|| DiscoveryError::data_msg("missing x"))?;
-        let yi = *var_index.get(&y).ok_or_else(|| DiscoveryError::data_msg("missing y"))?;
-        workspace.z_flat.clear();
-        for &v in z {
-            let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
-            workspace.z_flat.push(zi);
-        }
-        let prepared = workspace
-            .prepared_ci
-            .as_ref()
-            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
-        let req = CiBatchRequest {
-            columns: cols,
-            queries: &queries,
-            z_flat: &workspace.z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
-        let result = out
-            .results
-            .into_iter()
-            .next()
-            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-        if !result.statistic.is_finite() || !result.p_value.is_finite() {
-            return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-        }
-        Ok((result.statistic, result.p_value))
-    }
 }
 
 fn pds_budget_err(b: PossibleDSepBudget) -> DiscoveryError {
@@ -582,18 +396,6 @@ fn pds_budget_err(b: PossibleDSepBudget) -> DiscoveryError {
         max_paths: b.max_nodes,
         max_len: 0,
     })
-}
-
-pub(crate) fn record_sepset(
-    sepsets: &mut PcSepsets,
-    x: VariableId,
-    y: VariableId,
-    best_sep: &[VariableId],
-) {
-    let sep_lagged: Arc<[(VariableId, Lag)]> =
-        Arc::from(best_sep.iter().map(|&v| (v, Lag::CONTEMPORANEOUS)).collect::<Vec<_>>());
-    sepsets.insert((x, Lag::CONTEMPORANEOUS, y, Lag::CONTEMPORANEOUS), Arc::clone(&sep_lagged));
-    sepsets.insert((y, Lag::CONTEMPORANEOUS, x, Lag::CONTEMPORANEOUS), sep_lagged);
 }
 
 pub(crate) fn load_sepsets_into_state(

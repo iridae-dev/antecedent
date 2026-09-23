@@ -1,7 +1,7 @@
 //! Temporal observation pairs on `ResponseCurve` / `InterventionResponse`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SequencedIntervention, StreamDomain,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
@@ -55,7 +55,7 @@ fn generate(pin: &serde_json::Value) -> GeneratedObservationData {
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(stream);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, stream);
     let mut t = Vec::with_capacity(n);
     let mut latent = Vec::with_capacity(n);
     let mut selected = Vec::with_capacity(n);
@@ -410,7 +410,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
     assert!(error.to_string().contains("output bytes"), "{error}");
 }
 
-/// 1.9: observation-adjusted Sequence overlays resample lag-aligned outcome-time tuples,
+/// Observation-adjusted Sequence overlays resample lag-aligned outcome-time tuples,
 /// refit the observation nuisance and every unfolded sequential mechanism on them, and
 /// publish pointwise and simultaneous bands. (The earlier raw-series replicate measured
 /// 31-81% coverage and was withheld; its replacement is calibrated in
@@ -461,7 +461,8 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
         .run(&ctx)
         .unwrap();
     let response = result.response.as_ref().unwrap();
-    let ResponseUncertainty::PointwiseBand { lower, upper, level } = &response.uncertainty else {
+    let ResponseUncertainty::PointwiseBand { lower, upper, level, .. } = &response.uncertainty
+    else {
         panic!("observation-adjusted Sequence must publish a pointwise band");
     };
     let mean = surface_of(&result);

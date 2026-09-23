@@ -1,8 +1,12 @@
-//! 1.4 numeric pins for licensed `Cpdag`/`Pag` `ConditionalEffect` cells.
+//! Numeric pins for licensed `Cpdag`/`Pag` `ConditionalEffect` cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 

@@ -1,38 +1,7 @@
-# Documentation
+# Documentation sources
 
-Start with the [documentation home](index.md).
+These Markdown sources build the Antecedent 2.0 documentation site with MkDocs.
 
-- [Python quickstart](python-workflow.md): install, estimate, and read an answer.
-- [Rust quickstart](rust-quickstart.md): run an example and build the API reference.
-- [Examples](examples.md): choose a workflow by the question you want to answer.
-- [Supported analyses](supported-analyses.md): check support and understand refusals.
-- [Python workflow reference](python-options.md): configure or integrate an analysis.
-- [1.11.0 release notes](release-notes/v1.11.0.md): changes in this version.
-- [1.11 finding closeout](reviews/v1.11-finding-closeout.md): review repairs on this tree.
-
-## How docs are published
-
-| Surface | Host | Builder |
-|---------|------|---------|
-| Narrative (`docs/`) | [Read the Docs](https://antecedent.readthedocs.io/) | MkDocs — `mkdocs.yml`, `.readthedocs.yaml` |
-| Python API | [RTD `/python/`](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) | published wheel + `pdoc` in RTD `post_build` (compile the checkout only if that version is not on PyPI) |
-| Rust API | [docs.rs/antecedent](https://docs.rs/antecedent) | `cargo doc` on crates.io publish |
-
-Release `docs.tar.gz` still bundles markdown + rustdoc + pdoc for offline use; the
-live Python API is on Read the Docs, not behind a download.
-
-Local narrative preview:
-
-```bash
-pip install -r requirements-docs.txt
-mkdocs serve
-```
-
-Regenerate conformance docs:
-
-```bash
-python3 scripts/generate_conformance_docs.py
-```
-
-Python stubs live next to the package (`python/antecedent/*.pyi`).
-Rust ↔ Python names: [api_naming.md](api_naming.md).
+Generated pages are `support-matrix.md` and `conformance/`; regenerate them
+from their source registries before committing documentation changes. The
+active 2.0 release-note source is `release-notes/v2.0.0.md`.

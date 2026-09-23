@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pyarrow")
-pytest.importorskip("antecedent")
 
 import antecedent
 import pyarrow as pa

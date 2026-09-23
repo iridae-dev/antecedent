@@ -856,12 +856,16 @@ impl super::Study {
         }) {
             *g = antecedent_prob::GaussianCoefficientPrior::isotropic(1, scale);
         }
+        // The single coefficient of `prior` is the effect: N(0, scale²).
         let posterior = nonidentified_with_prior(
             &prior,
+            0.0,
+            scale,
             InferenceDiagnostics::analytic(format!("{class_tag}_nonidentified_prior")),
             cfg.n_draws.max(1),
             ctx.rng.master_seed(),
-        );
+        )
+        .map_err(CausalError::from)?;
         let estimate = effect_from_posterior(&posterior)?;
         let estimand = envelope.invariant.clone().unwrap_or_else(|| {
             IdentifiedEstimand::backdoor(

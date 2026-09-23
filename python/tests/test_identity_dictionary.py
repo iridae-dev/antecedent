@@ -36,6 +36,8 @@ def test_identity_domains_match_native_order():
         "claim",
         "score_reuse",
         "target_weights",
+        "learned_trial",
+        "transport_certificate",
     ]
 
 
@@ -80,6 +82,11 @@ def test_prepared_and_loaded_availability():
     loaded_slots = ant.load(exported).inspect()
     section = ant.artifacts.loads(exported).contract
     for row in IDENTITY["identity"]:
+        if not row["python"].startswith("inspect()."):
+            # Artifact-manifest-only identities (learned_trial, transport_certificate)
+            # have no inspect() slot: they identify a whole exported artifact, not a
+            # prepared/loaded study, so there is no contract key to cross-check here.
+            continue
         attr = row["python"].removeprefix("inspect().")
         prepared_value = getattr(slots, attr)
         loaded_value = getattr(loaded_slots, attr)

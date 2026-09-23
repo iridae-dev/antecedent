@@ -2,11 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_lossless,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::implicit_hasher
+#![allow(clippy::cast_lossless, clippy::implicit_hasher)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::VecDeque;
@@ -48,8 +50,11 @@ pub struct RollingMechanismDiagnostics {
     pub mean_abs_residual: f64,
     /// Max-|CUSUM| of window residuals (None if window shorter than 4).
     pub max_abs_cusum: Option<f64>,
-    /// Approximate retained bytes.
+    /// Approximate retained bytes right now.
     pub bytes: u64,
+    /// Bytes charged to the cache budget by [`insert_mechanism_diag`]: the slot's
+    /// full-window worst case, so growth after insertion cannot exceed what was reserved.
+    charged_bytes: u64,
     ols: LinearOlsSuffStats,
     ring: VecDeque<(Vec<f64>, f64)>,
     appends_since_rebuild: u64,
@@ -80,6 +85,7 @@ impl RollingMechanismDiagnostics {
             mean_abs_residual: 0.0,
             max_abs_cusum: None,
             bytes: 0,
+            charged_bytes: 0,
             ols: LinearOlsSuffStats::new(ncols),
             ring: VecDeque::with_capacity(window),
             appends_since_rebuild: 0,
@@ -96,7 +102,7 @@ impl RollingMechanismDiagnostics {
     ///
     /// # Errors
     ///
-    /// Row length mismatch.
+    /// Row length mismatch, or a non-finite entry (checked before the window is touched).
     pub fn append_row(&mut self, row: &[f64], y: f64) -> Result<(), StateError> {
         if row.len() != self.ols.ncols {
             return Err(StateError::Shape(format!(
@@ -104,6 +110,9 @@ impl RollingMechanismDiagnostics {
                 row.len(),
                 self.ols.ncols
             )));
+        }
+        if !y.is_finite() || row.iter().any(|v| !v.is_finite()) {
+            return Err(StateError::Numerical("design row and response must be finite".into()));
         }
         while self.ring.len() >= self.window {
             self.evict_oldest()?;
@@ -113,7 +122,7 @@ impl RollingMechanismDiagnostics {
         self.n = self.ring.len() as u64;
         self.appends_since_rebuild = self.appends_since_rebuild.saturating_add(1);
         if self.appends_since_rebuild >= REBUILD_EVERY {
-            self.rebuild_ols_from_ring();
+            self.rebuild_ols_from_ring()?;
         }
         self.bytes = self.bytes_estimate();
         Ok(())
@@ -179,10 +188,21 @@ impl RollingMechanismDiagnostics {
     /// Approximate bytes retained by this slot.
     #[must_use]
     pub fn bytes_estimate(&self) -> u64 {
+        self.bytes_for(self.ring.len(), self.beta.len())
+    }
+
+    /// Bytes the slot occupies once its window is full and `β` is populated: the most it can
+    /// ever hold, and what [`insert_mechanism_diag`] reserves.
+    #[must_use]
+    pub fn worst_case_bytes(&self) -> u64 {
+        self.bytes_for(self.window, self.ols.ncols)
+    }
+
+    fn bytes_for(&self, ring_rows: usize, beta_len: usize) -> u64 {
         let p = self.ols.ncols;
-        let ring_bytes = self.ring.len() * (p * 8 + 8);
+        let ring_bytes = ring_rows * (p * 8 + 8);
         let ols_bytes = p * p * 8 + p * 8 + 64;
-        let beta_bytes = self.beta.len() * 8;
+        let beta_bytes = beta_len * 8;
         (ring_bytes + ols_bytes + beta_bytes) as u64
     }
 
@@ -195,14 +215,15 @@ impl RollingMechanismDiagnostics {
         Ok(())
     }
 
-    fn rebuild_ols_from_ring(&mut self) {
+    fn rebuild_ols_from_ring(&mut self) -> Result<(), StateError> {
         let mut ols = LinearOlsSuffStats::new(self.ols.ncols);
         ols.retention = RetentionPolicy::BoundedWindow { max_rows: self.window as u64 };
         for (row, y) in &self.ring {
-            let _ = ols.append_row(row, *y);
+            ols.append_row(row, *y)?;
         }
         self.ols = ols;
         self.appends_since_rebuild = 0;
+        Ok(())
     }
 }
 
@@ -226,33 +247,39 @@ fn subtract_row(ols: &mut LinearOlsSuffStats, row: &[f64], y: f64) -> Result<(),
 
 /// Insert a diagnostics slot into a map while respecting [`CacheBudget`].
 ///
+/// The slot is charged its full-window worst case ([`RollingMechanismDiagnostics::worst_case_bytes`]),
+/// not its current size: the ring keeps growing after insertion, and what is refunded on
+/// eviction must be exactly what was charged.
+///
 /// # Errors
 ///
 /// Budget exceeded (same refuse policy as [`crate::store::ResultStore`]).
 pub fn insert_mechanism_diag(
     map: &mut std::collections::HashMap<std::sync::Arc<str>, RollingMechanismDiagnostics>,
     key: std::sync::Arc<str>,
-    diag: RollingMechanismDiagnostics,
+    mut diag: RollingMechanismDiagnostics,
     budget: &mut CacheBudget,
 ) -> Result<(), StateError> {
-    let old_bytes = map.get(&key).map_or(0, |d| d.bytes);
-    let net = diag.bytes.saturating_sub(old_bytes);
+    let old_charged = map.get(&key).map_or(0, |d| d.charged_bytes);
+    let charge = diag.worst_case_bytes();
+    let net = charge.saturating_sub(old_charged);
     if !budget.can_admit(net) {
         return Err(StateError::CacheBudget { need: net, remaining: budget.remaining() });
     }
-    budget.used_bytes = budget.used_bytes.saturating_sub(old_bytes).saturating_add(diag.bytes);
+    budget.used_bytes = budget.used_bytes.saturating_sub(old_charged).saturating_add(charge);
+    diag.charged_bytes = charge;
     map.insert(key, diag);
     Ok(())
 }
 
-/// Remove a diagnostics slot and free its budget.
+/// Remove a diagnostics slot and free exactly the budget it was charged.
 pub fn evict_mechanism_diag(
     map: &mut std::collections::HashMap<std::sync::Arc<str>, RollingMechanismDiagnostics>,
     key: &str,
     budget: &mut CacheBudget,
 ) -> Option<RollingMechanismDiagnostics> {
     let removed = map.remove(key)?;
-    budget.used_bytes = budget.used_bytes.saturating_sub(removed.bytes);
+    budget.used_bytes = budget.used_bytes.saturating_sub(removed.charged_bytes);
     Some(removed)
 }
 
@@ -296,6 +323,52 @@ mod tests {
         assert!((roll.residual_sse - sse_b).abs() < 1e-8);
         let var = roll.residual_var.expect("residual variance after eviction");
         assert!((var - sse_b / (w as f64 - p as f64)).abs() < 1e-8);
+    }
+
+    /// A slot is charged its full-window worst case at insert, keeps fitting under that
+    /// charge as its ring fills, and gives back exactly what it took on eviction — the budget
+    /// returns to zero instead of leaking or draining someone else's share.
+    #[test]
+    fn budget_charge_covers_growth_and_is_refunded_exactly() {
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        let (p, w) = (2usize, 8usize);
+        let mut diag = RollingMechanismDiagnostics::new(p, w).unwrap();
+        let mut map: HashMap<Arc<str>, RollingMechanismDiagnostics> = HashMap::new();
+        let mut budget = CacheBudget::unlimited();
+        let key: Arc<str> = Arc::from("m");
+        insert_mechanism_diag(&mut map, Arc::clone(&key), diag.clone(), &mut budget).unwrap();
+        // window·(p·8 + 8) ring + (p²·8 + p·8 + 64) Gram + p·8 beta.
+        let worst = (w * (p * 8 + 8) + (p * p * 8 + p * 8 + 64) + p * 8) as u64;
+        assert_eq!(budget.used_bytes, worst);
+        assert_eq!(diag.worst_case_bytes(), worst);
+
+        for i in 0..20 {
+            diag.append_row(&[1.0, f64::from(i)], 2.0 + 3.0 * f64::from(i)).unwrap();
+        }
+        diag.refresh_summaries().unwrap();
+        assert!(diag.bytes <= worst, "grown slot {} exceeds its charge {worst}", diag.bytes);
+        // Re-inserting the grown slot charges the same amount (no double count).
+        insert_mechanism_diag(&mut map, Arc::clone(&key), diag, &mut budget).unwrap();
+        assert_eq!(budget.used_bytes, worst);
+
+        assert!(evict_mechanism_diag(&mut map, "m", &mut budget).is_some());
+        assert_eq!(budget.used_bytes, 0);
+    }
+
+    /// A non-finite row is refused before the window is evicted or the fit is touched.
+    #[test]
+    fn nonfinite_row_leaves_window_untouched() {
+        let mut roll = RollingMechanismDiagnostics::new(2, 3).unwrap();
+        for i in 0..3 {
+            roll.append_row(&[1.0, f64::from(i)], f64::from(i)).unwrap();
+        }
+        let before_n = roll.n;
+        assert!(roll.append_row(&[1.0, f64::NAN], 1.0).is_err());
+        assert_eq!(roll.n, before_n, "the oldest row must not be evicted for a rejected row");
+        roll.refresh_summaries().unwrap();
+        assert!((roll.beta[1] - 1.0).abs() < 1e-10, "β={:?}", roll.beta);
     }
 
     #[test]

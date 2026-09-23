@@ -1,8 +1,12 @@
-//! 1.1 numeric pins for licensed PAG and ADMG ATE cells.
+//! Numeric pins for licensed PAG and ADMG ATE cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -267,28 +271,26 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
     }
 }
 
+/// The point-identified response value; any other response shape is a failure, not a value
+/// to be replaced by the scalar `estimate.ate` (which would compare the wrong quantity).
 fn response_mean(result: &antecedent::StudyResult) -> f64 {
-    match result.response.as_ref().and_then(|r| match &r.estimate {
-        ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => Some(*v),
-        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
-            mean.first().copied()
-        }
-        _ => None,
-    }) {
-        Some(v) if v.is_finite() => v,
-        _ => result.estimate.ate,
-    }
+    let response = result.response.as_ref().expect("response payload");
+    let value = match &response.estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => *v,
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean[0],
+        other => panic!("expected a point-identified response, got {other:?}"),
+    };
+    assert!(value.is_finite(), "response mean {value} is not finite");
+    value
 }
 
 fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
-    match result.response.as_ref().and_then(|r| match &r.estimate {
+    let response = result.response.as_ref().expect("response payload");
+    match &response.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
-            Some(mean.to_vec())
+            mean.to_vec()
         }
-        _ => None,
-    }) {
-        Some(v) => v,
-        None => vec![result.estimate.ate],
+        other => panic!("expected a point-identified surface, got {other:?}"),
     }
 }
 
@@ -414,4 +416,140 @@ fn admg_frontdoor_response_pins_against_distribution() {
     assert_eq!(means.len(), 2);
     assert!((means[0] - dist_means[0]).abs() < 1e-9);
     assert!((means[1] - dist_means[1]).abs() < 1e-9);
+}
+
+/// Exact 2048-row population table of the napkin SCM `W -> Z -> X -> Y`, `W <-> X` (latent
+/// `U1`), `W <-> Y` (latent `U2`) with `P(U1=1) = 1/2`, `P(U2=1) = 1/4`,
+/// `P(W=1|u1,u2) = (1 + u1 + u2)/4`, `P(Z=1|w) = (1 + 2w)/4`, `P(X=1|z,u1) = (1 + z + u1)/4`,
+/// `P(Y=1|x,u2) = (1 + x + x·u2)/4`. Every joint mass is a multiple of `1/2048`, so the table
+/// is the law itself. Returns the data (columns `w, z, x, y`) and `E[Y | do(X=x)]` for
+/// `x = 0, 1`, enumerated from the mechanisms: `1/4` and `1/2 + P(U2=1)/4 = 9/16`.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the rounded value is a non-negative integer-valued row count from the pinned mechanism, far below usize::MAX"
+)]
+fn napkin_population() -> (TabularData, [f64; 2]) {
+    let p = |one: bool, p1: f64| if one { p1 } else { 1.0 - p1 };
+    let mut cols: [Vec<f64>; 4] = Default::default();
+    let mut do_mean = [0.0_f64; 2];
+    for bits in 0..64_u32 {
+        let b = |k: u32| (bits >> k) & 1 == 1;
+        let (u1, u2, w, z, x, y) = (b(0), b(1), b(2), b(3), b(4), b(5));
+        let f = |v: bool| f64::from(u8::from(v));
+        let latent = p(u1, 0.5) * p(u2, 0.25);
+        let mass = latent
+            * p(w, (1.0 + f(u1) + f(u2)) / 4.0)
+            * p(z, (1.0 + 2.0 * f(w)) / 4.0)
+            * p(x, (1.0 + f(z) + f(u1)) / 4.0)
+            * p(y, (1.0 + f(x) + f(x) * f(u2)) / 4.0);
+        let count = mass * 2048.0;
+        assert!((count - count.round()).abs() < 1e-9, "mass {mass} is not a multiple of 1/2048");
+        for (col, value) in cols.iter_mut().zip([w, z, x, y]) {
+            col.extend(std::iter::repeat_n(f(value), count.round() as usize));
+        }
+    }
+    // do(X = x) cuts X's mechanism: E[Y | do(x)] = sum_u2 P(u2) P(Y=1 | x, u2).
+    for (x, slot) in do_mean.iter_mut().enumerate() {
+        for u2 in [0.0, 1.0] {
+            let pu2 = if u2 == 1.0 { 0.25 } else { 0.75 };
+            *slot += pu2 * (1.0 + x as f64 + x as f64 * u2) / 4.0;
+        }
+    }
+    assert_eq!(cols[0].len(), 2048);
+    let pairs: Vec<(&str, &[f64])> =
+        ["w", "z", "x", "y"].into_iter().zip(cols.iter().map(Vec::as_slice)).collect();
+    (TabularData::from_f64_columns(pairs).unwrap(), do_mean)
+}
+
+fn napkin_admg() -> Admg {
+    let mut admg = Admg::with_variables(4);
+    for (a, b) in [(0, 1), (1, 2), (2, 3)] {
+        admg.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    for (a, b) in [(0, 2), (0, 3)] {
+        admg.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    admg
+}
+
+fn free_variable_diagnostic(result: &antecedent::StudyResult) -> &antecedent_core::Diagnostic {
+    result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.functional.free_variables_averaged")
+        .expect("the result must say how the functional's free variable was resolved")
+}
+
+/// The napkin functional `sum_w P(x,y|z,w)P(w) / sum_w P(x|z,w)P(w)` keeps `z` free: it
+/// equals `P(y | do(x))` at every supported `z`. An evaluator that sums over `z` returns
+/// twice the effect here.
+#[test]
+fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
+    let (data, do_mean) = napkin_population();
+    let truth = do_mean[1] - do_mean[0];
+    assert!((truth - 0.3125).abs() < 1e-15);
+    let x = VariableId::from_raw(2);
+    let y = VariableId::from_raw(3);
+    let ctx = ExecutionContext::for_tests(3);
+    for bayesian in [false, true] {
+        let mut builder = Study::tabular(data.clone())
+            .graph(napkin_admg())
+            .query(AverageEffectQuery::with_levels(x, y, 0.0, 1.0))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalEffect)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0);
+        if bayesian {
+            builder = builder.inference(InferenceMode::Bayesian(
+                antecedent::BayesianConfig::conjugate().n_draws(256),
+            ));
+        }
+        let result = builder.build().unwrap().run(&ctx).unwrap();
+        if bayesian {
+            // Posterior mean of a Bayesian bootstrap over 2048 rows.
+            assert!((result.estimate.ate - truth).abs() < 0.05, "ate={}", result.estimate.ate);
+        } else {
+            assert!((result.estimate.ate - truth).abs() < 1e-12, "ate={}", result.estimate.ate);
+        }
+        let diagnostic = free_variable_diagnostic(&result);
+        assert!(diagnostic.message.contains("variable 1"), "{}", diagnostic.message);
+    }
+
+    for (level, expected) in [(0.0, do_mean[0]), (1.0, do_mean[1])] {
+        let query =
+            InterventionalDistributionQuery::new(y, [Intervention::set(x, Value::f64(level))]);
+        let result = Study::tabular(data.clone())
+            .graph(napkin_admg())
+            .query(CausalQuery::Distribution(query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let distribution = result.distribution.as_ref().expect("distribution");
+        assert!((distribution.mean - expected).abs() < 1e-12, "mean={}", distribution.mean);
+        let total: f64 = distribution.atoms.iter().map(|a| a.probability).sum();
+        assert!((total - 1.0).abs() < 1e-12, "atoms sum to {total}");
+        free_variable_diagnostic(&result);
+
+        let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(x, Value::f64(level))]),
+        });
+        let result = Study::tabular(data.clone())
+            .graph(napkin_admg())
+            .query(CausalQuery::Response(response))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!((response_mean(&result) - expected).abs() < 1e-12, "{}", response_mean(&result));
+    }
 }

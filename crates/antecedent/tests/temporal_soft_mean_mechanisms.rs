@@ -1,5 +1,4 @@
 //! Known-truth mean-dynamics pins: clipping applies to propagated means, not draws.
-#![allow(clippy::cast_precision_loss)]
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, InterventionSequence, Lag, MechanismOverride,
@@ -114,7 +113,7 @@ fn extra_soft_mean_families_pin_single_joint_and_multistep_in_both_inferences() 
                 .build()
                 .unwrap();
             let context = ExecutionContext::for_tests(17);
-            for result in [
+            for result in vec![
                 study.run(&context).unwrap(),
                 study.prepare(&context).unwrap().estimate_series(&data, &context).unwrap(),
             ] {

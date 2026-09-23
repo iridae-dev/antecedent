@@ -3,10 +3,10 @@
 
 Idempotent: re-running with no matrix changes must leave a clean git tree.
 
-The licensed-cell block is rewritten only in the current workspace version's
-release notes (`docs/release-notes/vX.Y.Z.md`). Historical notes use frozen
-markers so a later regen cannot overwrite a shipped cut. `set_version.sh`
-freezes the previous notes when the version bumps.
+The licensed-cell block is rewritten only in the active documentation release
+notes (`docs/release-notes/vX.Y.Z.md`). During release preparation this can be
+ahead of the workspace package version; `docs/release-notes/preparation.toml`
+is the explicit, reviewed source for that temporary target.
 """
 
 from __future__ import annotations
@@ -48,7 +48,17 @@ def release_notes_path(version: str) -> Path:
     return NOTES_DIR / f"v{version}.md"
 
 
-RELEASE_NOTES = release_notes_path(workspace_version())
+def documentation_release_version() -> str:
+    preparation = NOTES_DIR / "preparation.toml"
+    if preparation.is_file():
+        target = tomllib.loads(preparation.read_text()).get("target_version")
+        if isinstance(target, str) and re.fullmatch(r"\d+\.\d+\.\d+", target):
+            return target
+        raise SystemExit(f"{preparation}: target_version must be X.Y.Z")
+    return workspace_version()
+
+
+RELEASE_NOTES = release_notes_path(documentation_release_version())
 
 
 def git_tag_exists(version: str) -> bool:
@@ -232,6 +242,8 @@ def main() -> int:
         "on internal evidence only."
     )
 
+    calibration_md = calibration_summary(cells)
+
     text = f"""# Support matrix
 
 Want to check a particular analysis? Start with [supported analyses](supported-analyses.md).
@@ -258,7 +270,7 @@ result), **n/a** (the coordinate does not denote — a typed impossibility),
 or **refused** (`SupportRefusal::Refused`). Refusal is the *default*: any
 cell that is not licensed and not n/a is refused. `support_closed.toml`
 does not close anything — it is the **reason table** for refused cells,
-not a fourth state. 1.10 requires every refused cell to have a named
+not a fourth state. Every refused cell has a named
 reason; a missing rule still refuses at runtime with the shared default
 message. `allowed_unlicensed` is retained as a compatibility wire value,
 but the current matrix has no active allowlist entries.
@@ -276,6 +288,8 @@ but the current matrix has no active allowlist entries.
 Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
+
+{calibration_md}
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
@@ -382,6 +396,36 @@ that class came from that discovery strategy.
     return 0
 
 
+def calibration_summary(cells: list[dict]) -> str:
+    """One sentence saying how many licensed cells carry interval-coverage records.
+
+    A licensed cell is not necessarily a cell whose interval was ever measured;
+    the split by `calibration_reason` keeps that visible.
+    """
+    total = len(cells)
+    recorded = sum(1 for c in cells if c.get("calibration"))
+    not_measured = sum(
+        1 for c in cells if c.get("calibration_reason") == "estimator_grid_not_measured"
+    )
+    no_interval = sum(
+        1 for c in cells if c.get("calibration_reason") == "no_interval_reported"
+    )
+    other = total - recorded - not_measured - no_interval
+    if other:
+        raise AssertionError(
+            f"{other} licensed cells have neither calibration records nor a known "
+            "calibration_reason"
+        )
+    return (
+        f"Interval calibration of the {total} licensed cells: {recorded} cite coverage "
+        f"records; {not_measured} have no coverage measurement for their estimator "
+        f"(`estimator_grid_not_measured`); {no_interval} report no interval "
+        "(`no_interval_reported`). A licensed cell therefore does not imply that its "
+        "interval coverage was measured, and cited records do not by themselves make "
+        "a result `calibrated` (see `result.calibration`)."
+    )
+
+
 def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
     """Compact only graph classes with identical rectangular cell products."""
     from itertools import product as iproduct
@@ -449,7 +493,7 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     has live markers, or if this workspace version is already a git tag —
     bump the version and put live markers on the new notes file first.
     """
-    version = workspace_version()
+    version = documentation_release_version()
     assert_historical_notes_are_frozen(version)
     if git_tag_exists(version):
         raise SystemExit(
@@ -468,6 +512,8 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
         f"{counts['reason_backed_refused']} refused with a reason on file; "
         f"{counts['unreasoned_refused']} refused without a reason; "
         f"{counts['allowed']} active `allowed_unlicensed` compatibility entries.",
+        "",
+        calibration_summary(cells),
         "",
     ] + render_release_licensed(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END
@@ -497,6 +543,32 @@ COVERAGE_TAIL_STR_FIELDS = ("dgp", "test", "calibration_sha")
 def rust_f64(value: float) -> str:
     text = repr(float(value))
     return text if ("." in text or "e" in text or "inf" in text or "nan" in text) else text + ".0"
+
+
+def attesting_record_ids() -> list[str]:
+    """Ids of the coverage records that attest the tree this is generated from.
+
+    The same assessment as `scripts/gate_calibration_attestation.sh` and
+    `collect_coverage_records.py --keep-attested`: a record attests while none of
+    its facets differs between its `calibration_sha` and the tree, or a valid
+    replay waiver covers the change. The runtime reads this list to decide whether
+    a matching record may report `calibrated`. It fails closed: a commit this clone
+    cannot resolve, or no git at all, leaves a record out.
+    """
+    import calibration_facets as facets
+
+    try:
+        registry = facets.load_records(COVERAGE_OUT.parents[3] / "parity/coverage_records.toml")
+        surface = facets.load_surface()
+        ids: set[str] = set()
+        for assessment in facets.assess(surface, registry, registry=registry):
+            stale = {rec["id"] for rec in assessment.stale}
+            if assessment.resolved:
+                ids |= {rec["id"] for rec in assessment.records if rec["id"] not in stale}
+        return sorted(ids)
+    except (OSError, subprocess.SubprocessError, SystemExit) as exc:
+        print(f"warning: no record is marked attesting ({exc})", file=sys.stderr)
+        return []
 
 
 def render_coverage_records() -> str:
@@ -553,6 +625,7 @@ def render_coverage_records() -> str:
         ("IdentifiedSet", "identified_set"),
         ("CircularBlockSe", "circular_block_se"),
         ("SimultaneousBand", "simultaneous_band"),
+        ("AndersonRubin", "anderson_rubin"),
         ("None", "none"),
     ]
     reason_items = ",\n".join(
@@ -565,6 +638,7 @@ def render_coverage_records() -> str:
         for variant, name in methods
     )
     block = ",\n".join(items) if items else ""
+    attesting = "".join(f'    "{rust_escape(rid)}",\n' for rid in attesting_record_ids())
     return f"""//! Generated from `parity/coverage_records.toml` by
 //! `scripts/generate_support_matrix_docs.py`. Do not edit.
 //!
@@ -626,6 +700,13 @@ pub struct CoverageGridPoint {{
 pub static RECORDS: &[CoverageRecord] = &[
 {block}
 ];
+
+/// Ids of the records in [`RECORDS`] that attest the tree this file was generated
+/// from (`scripts/calibration_facets.py`: no facet drifted since the record's
+/// `calibration_sha`, or a valid replay waiver covers it). Regenerated with the
+/// registry; a `calibrated` slot requires its governing record to be listed.
+pub static ATTESTING_RECORD_IDS: &[&str] = &[
+{attesting}];
 
 pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&'static str>)] = &[
 {reason_items}
@@ -702,6 +783,94 @@ def render_allowed_rules(rules: list[dict]) -> str:
     return ",\n".join(items) if items else ""
 
 
+# Unambiguous substrings of calibration record ids → EstimatorId::as_str().
+# Longer tokens first so e.g. cell_aipw wins over aipw. Only map tokens that
+# name one closed-set estimator; do not invent from limitations prose.
+CALIBRATION_ESTIMATOR_TOKENS: list[tuple[str, str]] = [
+    ("matching_homoskedastic", "propensity.matching"),
+    ("frontdoor_stacked", "frontdoor.linear_two_stage"),
+    ("codetermined_aipw", "cell.aipw"),
+    ("cell_aipw", "cell.aipw"),
+    ("ipw_hajek", "propensity.weighting"),
+    ("glm_adjustment", "glm.adjustment"),
+    ("linear_adjustment", "linear.adjustment.ate"),
+    ("wald_iv", "iv.wald"),
+    ("iv_2sls", "iv.2sls"),
+    ("rd_sharp", "rd.sharp"),
+    ("distance_matching", "distance.matching"),
+    ("causal_forest", "causal.forest"),
+    ("propensity_stratification", "propensity.stratification"),
+    ("propensity_weighting", "propensity.weighting"),
+    ("propensity_matching", "propensity.matching"),
+    ("aipw", "aipw"),
+]
+
+
+def estimators_from_calibration(record_ids: list[str]) -> list[str]:
+    """Wire-ids implied by unambiguous tokens in calibration record ids.
+
+    Only gated and named-boundary records are licensing evidence. A
+    `reported_level` record is an unasserted diagnostic that a cell may cite,
+    but it never licenses the estimator it measures.
+    """
+    roles = {r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []}
+    found: set[str] = set()
+    for cid in record_ids:
+        if not isinstance(cid, str) or roles.get(cid) == "reported_level":
+            continue
+        for token, wire in CALIBRATION_ESTIMATOR_TOKENS:
+            if token in cid:
+                found.add(wire)
+                break
+    return sorted(found)
+
+
+def cell_route_estimator(row: dict, routes: dict[str, dict]) -> str | None:
+    route = routes.get(external_evidence.coordinate(row))
+    if route is None:
+        return None
+    est = route.get("estimator")
+    if isinstance(est, str) and est.strip():
+        return est
+    return None
+
+
+def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
+    """Estimator wire-ids whose evidence ran for this geometric cell.
+
+    Union of the licensed_routes compiler-plan estimator (when present) and
+    estimators implied by unambiguous tokens in this row's calibration record
+    ids. Never invent an estimator from limitations prose alone.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(wire: str) -> None:
+        if wire and wire not in seen:
+            seen.add(wire)
+            out.append(wire)
+
+    route = cell_route_estimator(row, routes)
+    if route is not None:
+        add(route)
+    for wire in estimators_from_calibration(list(row.get("calibration") or [])):
+        add(wire)
+    return out
+
+
+def rust_opt_str(value: str | None) -> str:
+    if value is None:
+        return "None"
+    return f'Some("{rust_escape(value)}")'
+
+
+def rust_str_list(values: list[str]) -> str:
+    if not values:
+        return "&[]"
+    inner = ", ".join(f'"{rust_escape(v)}"' for v in values)
+    return f"&[{inner}]"
+
+
 def render_rust(
     na_rules: list[dict],
     closed_rules: list[dict],
@@ -711,8 +880,11 @@ def render_rust(
     na_block = render_rules(na_rules)
     closed_block = render_rules(closed_rules)
     allowed_block = render_allowed_rules(allowed_rules)
+    routes = external_evidence.routes()
     lic_items = []
     for row in cells:
+        estimators = cell_estimators(row, routes)
+        route = cell_route_estimator(row, routes)
         lic_items.append(
             "    LicensedCell {\n"
             f'        query: "{rust_escape(row["query"])}",\n'
@@ -720,6 +892,8 @@ def render_rust(
             f'        structure: "{rust_escape(row["structure"])}",\n'
             f'        inference: "{rust_escape(row["inference"])}",\n'
             f'        validation: "{rust_escape(row["validation"])}",\n'
+            f"        route_estimator: {rust_opt_str(route)},\n"
+            f"        estimators: {rust_str_list(estimators)},\n"
             "    }"
         )
     lic_block = ",\n".join(lic_items) if lic_items else ""
@@ -756,6 +930,10 @@ pub struct LicensedCell {{
     pub structure: &'static str,
     pub inference: &'static str,
     pub validation: &'static str,
+    /// Compiler-plan estimator from `parity/licensed_routes.toml`, when present.
+    pub route_estimator: Option<&'static str>,
+    /// Union of the route estimator and calibration-token estimators for this cell.
+    pub estimators: &'static [&'static str],
 }}
 
 pub static NA_RULES: &[NaRule] = &[

@@ -6,13 +6,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use super::acyclicity::{AcyclicityWorkspace, grad_h, h_of_w};

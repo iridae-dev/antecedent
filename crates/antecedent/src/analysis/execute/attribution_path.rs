@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use antecedent_core::StreamDomain;
 
 impl super::Study {
     pub(super) fn execute_counterfactual(
@@ -47,7 +48,7 @@ impl super::Study {
             // Column-major `units × draws`: one posterior column per unit, read by
             // the same summary that publishes the mean-ITE interval.
             let mut unit_draws = vec![0.0; n_units * n_draws];
-            let mut rng = ctx.rng.stream(0x0CF0);
+            let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
             let n = data.row_count();
             for draw in 0..n_draws {
                 if ctx.cancellation.is_cancelled() {
@@ -265,11 +266,12 @@ impl super::Study {
                 ))
             })?;
         let fitted = fit_gcm(graph.clone(), data)?;
-        let scores = anomaly_attribution(
+        let scores = anomaly_attribution_with(
             &fitted.model,
             data,
             query.targets.iter().copied(),
             query.max_units,
+            ctx,
         )?;
         Ok(self.finish_gcm(
             physical,
@@ -613,7 +615,7 @@ impl UnitSupport {
             if pooled || any > 0 { DiagnosticSeverity::Warning } else { DiagnosticSeverity::Info };
         Diagnostic::new(
             "gcm.counterfactual.support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             severity,
             format!(
                 "observed treatment range=[{min},{max}]; extrapolative={pooled}; \
@@ -797,6 +799,7 @@ fn counterfactual_posterior(
         diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gcm.fit.bayesian"),
         assumptions,
         unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
     })

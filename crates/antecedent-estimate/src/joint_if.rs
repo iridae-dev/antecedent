@@ -8,15 +8,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-#![allow(
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
+
+use antecedent_core::CausalRng;
 
 use crate::error::EstimationError;
 
@@ -121,7 +125,7 @@ fn positive_weight_scale(weights: &[f64]) -> Result<f64, EstimationError> {
 /// mean is `ψ_i = (n w_i / W) (φ_i − θ)` when weights are present, else
 /// `φ_i − θ`. Homoskedastic SE is `sqrt(Σ ψ² / n²)` via the sample SD of `ψ`
 /// over `sqrt(n)` with the same `n/(n-1)` correction for weighted and
-/// unweighted calls, matching [`crate::se::influence_se_kind`] for one column.
+/// unweighted calls, matching `crate::se::influence_se_kind` for one column.
 ///
 /// # Errors
 ///
@@ -322,12 +326,12 @@ pub fn max_t_critical(
         }
     }
     let chol = cholesky_corr(&corr, k)?;
-    let mut rng = SplitMix64 { state: seed | 1 };
+    let mut rng = CausalRng::from_seed(seed);
     let mut maxima = Vec::with_capacity(replicates as usize);
     let mut z = vec![0.0; k];
     for _ in 0..replicates {
         for zi in &mut z {
-            *zi = standard_normal(&mut rng);
+            *zi = antecedent_kernels::standard_normal(&mut rng);
         }
         let mut max_abs: f64 = 0.0;
         for i in 0..k {
@@ -365,6 +369,14 @@ pub fn monotone_increasing(values: &[f64]) -> Vec<f64> {
     y
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "weights are non-negative integer replication counts far below usize::MAX"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "weights are non-negative integer replication counts; a negative value would saturate to zero replications"
+)]
 fn pava_increasing(y: &mut [f64]) {
     let n = y.len();
     if n < 2 {
@@ -398,27 +410,6 @@ fn pava_increasing(y: &mut [f64]) {
             }
         }
     }
-}
-
-struct SplitMix64 {
-    state: u64,
-}
-
-impl SplitMix64 {
-    fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-}
-
-fn standard_normal(rng: &mut SplitMix64) -> f64 {
-    let u = (rng.next_u64() >> 11) as f64 / ((1u64 << 53) as f64);
-    let v = (rng.next_u64() >> 11) as f64 / ((1u64 << 53) as f64);
-    let u = u.clamp(f64::EPSILON, 1.0 - f64::EPSILON);
-    (-2.0 * u.ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
 }
 
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
@@ -492,6 +483,20 @@ mod tests {
         let bad = JointCovariance { dim: 2, values: Arc::from([1.0, 2.0, 2.0, 1.0]) };
         assert!(max_t_critical(&bad, 0.95, 100, 1).is_err());
         assert!(max_t_critical(&plain, 0.0, 100, 1).is_err());
+    }
+
+    #[test]
+    fn max_t_seeds_are_distinct_and_the_scalar_case_is_the_normal_quantile() {
+        let cov = JointCovariance { dim: 1, values: Arc::from([1.0]) };
+        // Adjacent seeds 2k and 2k+1 used to collapse to one stream (`seed | 1`).
+        let even = max_t_critical(&cov, 0.95, 2_000, 6).unwrap();
+        let odd = max_t_critical(&cov, 0.95, 2_000, 7).unwrap();
+        assert_ne!(even.to_bits(), odd.to_bits());
+        assert_eq!(even.to_bits(), max_t_critical(&cov, 0.95, 2_000, 6).unwrap().to_bits());
+        // One coordinate: the 0.95 max-|t| critical value is the two-sided normal quantile.
+        for crit in [even, odd] {
+            assert!((crit - 1.959_963_984_5).abs() < 0.15, "crit {crit}");
+        }
     }
 
     #[test]

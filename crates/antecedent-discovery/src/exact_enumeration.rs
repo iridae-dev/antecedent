@@ -4,22 +4,36 @@
 //! (Gaussian BIC). Larger graphs must use order / structure / CI-screened MCMC
 //! (`OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior`).
 //!
+//! "Exact" means every DAG is enumerated, not that the weights are exact posterior
+//! probabilities: each graph's weight is `exp(BIC + log prior)`, the BIC approximation to the
+//! marginal likelihood. Graphs with no finite score — constraint-violating ones, and ones
+//! containing a deterministic relation (zero residual variance), which BIC cannot score — are
+//! excluded from the support; their count is `rejected_invalid` and is stated in the
+//! diagnostics notes.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::HashSet;
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
+use antecedent_prob::kish_ess;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, kish_ess, mask_is_dag, n_directed_edges, normalize_log_weights,
-    set_edge,
+    analytic_graph_diagnostics, mask_is_dag, n_directed_edges, normalize_log_weights, set_edge,
 };
 use crate::graph_score::{score_dag_mask, tabular_score_data};
 
@@ -105,6 +119,7 @@ impl ExactDagPosterior {
         let chunk = masks.len().div_ceil(threads).max(1);
         let mut log_w = vec![f64::NEG_INFINITY; masks.len()];
         let mut rejected = 0u64;
+        let mut worker_panicked = false;
 
         std::thread::scope(|scope| {
             let mut handles = Vec::new();
@@ -123,6 +138,9 @@ impl ExactDagPosterior {
                     let mut local_log = vec![f64::NEG_INFINITY; end - start];
                     let mut local_rej = 0u64;
                     for (k, &mask) in masks_ref[start..end].iter().enumerate() {
+                        if ctx.cancellation.is_cancelled() {
+                            break;
+                        }
                         match score_dag_mask(mask, n, score_ref, &mut cache, prior, vars_ref) {
                             Some(lw) => local_log[k] = lw,
                             None => local_rej += 1,
@@ -132,7 +150,10 @@ impl ExactDagPosterior {
                 }));
             }
             for h in handles {
-                let (_id, start, local_log, local_rej) = h.join().expect("exact enum worker");
+                let Ok((_id, start, local_log, local_rej)) = h.join() else {
+                    worker_panicked = true;
+                    continue;
+                };
                 rejected += local_rej;
                 for (i, lw) in local_log.into_iter().enumerate() {
                     log_w[start + i] = lw;
@@ -140,6 +161,14 @@ impl ExactDagPosterior {
             }
         });
 
+        if worker_panicked {
+            return Err(DiscoveryError::Unsupported {
+                message: "exact enumeration worker panicked",
+            });
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
         // Keep only finite-weight graphs.
         let mut kept_masks = Vec::new();
         let mut kept_log = Vec::new();
@@ -156,7 +185,13 @@ impl ExactDagPosterior {
         let weights = normalize_log_weights(&kept_log)?;
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(n, &weights, &kept_masks);
-        let diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
+        let mut diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
+        if rejected > 0 {
+            diagnostics.notes.push(std::sync::Arc::from(format!(
+                "{rejected} graph(s) excluded: constraint-violating or no finite BIC score \
+                 (e.g. a deterministic relation)"
+            )));
+        }
         GraphPosterior::new(n, weights, kept_masks, edge, orient, ess, diagnostics, rejected)
     }
 }

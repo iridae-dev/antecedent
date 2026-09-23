@@ -11,31 +11,34 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
 
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, CausalRng, DerivativeScale, DerivativeWeighting, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, IdentificationStatus, Intervention,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, VariableId,
+    AssumptionStatus, CausalResponse, CausalRng, CredibleDraws, DerivativeScale,
+    DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticSeverity, IdentificationStatus,
+    Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    StochasticPolicy, StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
+    TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, LeastSquaresWorkspace,
-    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, fit_gam_weighted, gaussian_density,
-    gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
+    AdditiveDesign, DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace,
+    GaussianMixtureDensity, LeastSquaresWorkspace, LocalQuadraticWorkspace, QuantileRule,
+    SmoothSpec, StatsError, equal_tail_interval_sorted, fit_gam, fit_gam_weighted_design,
+    gauss_hermite_standard_normal, gaussian_density, gaussian_local_quadratic_influence_prechecked,
+    mad_sigma, median_sorted, normal_ppf, quantile_sorted, silverman_bandwidth,
 };
 
 use crate::EstimationError;
@@ -84,9 +87,6 @@ fn local_design_refusal(
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
 /// surfaced as a positivity diagnostic rather than absorbed silently.
 const CONDITIONAL_DENSITY_FLOOR: f64 = 1e-8;
-
-/// Gaussian-consistency constant converting MAD to a scale: 1 / Φ^{-1}(3/4).
-const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// `max |Y − median| / (1.4826 MAD)` above which least-squares Kennedy nuisances
 /// are outside their regularity. Gaussian samples stay near sqrt(2 log n)
@@ -458,18 +458,23 @@ impl ContinuousResponseEstimator {
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let mut ess = Vec::new();
         let mut density = Vec::new();
+        // The draw vector each grid point's interval is the quantiles of is
+        // retained on the published uncertainty (`CredibleDraws`).
+        let mut retained: Vec<Vec<f64>> = Vec::with_capacity(grid.len());
         for &dose in &grid {
             weights[1] = dose;
-            let (mean, lo, hi, sd) = crate::bayesian::linear_response_summary(
-                &posterior,
-                &weights,
+            let values = crate::bayesian::linear_response_draws(&posterior, &weights)?;
+            let (mean, lo, hi, sd) = crate::bayesian::summarize_linear_response_draws(
+                values.clone(),
                 self.options.confidence_level,
             )?;
+            retained.push(values);
             means.push(mean);
             lower.push(lo);
             upper.push(hi);
             sds.push(sd);
         }
+        let draws = Some(CredibleDraws::columns(posterior.draws.n_draws, &retained));
         let support_points = support_grid.as_deref().unwrap_or(&grid);
         for &dose in support_points {
             let kernels: Vec<_> = sample
@@ -497,7 +502,7 @@ impl ContinuousResponseEstimator {
                 maxima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).1).collect(),
             };
             support.warnings.push(Diagnostic::new(
-                "response.joint_support_unverified", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+                "response.joint_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
                 "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the Gaussian additive model and empirical covariate distribution",
             ));
         }
@@ -505,7 +510,7 @@ impl ContinuousResponseEstimator {
             support.status = SupportStatus::Extrapolative;
             support.point_status = None;
             support.warnings.push(Diagnostic::new(
-                "response.stochastic_policy_support_unverified", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+                "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
                 "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
             ));
         }
@@ -528,12 +533,16 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: lower[0],
                 upper: upper[0],
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws,
             }
         } else {
             ResponseUncertainty::PointwiseBand {
                 level: self.options.confidence_level,
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws,
             }
         };
         Ok(CausalResponse {
@@ -593,22 +602,28 @@ impl ContinuousResponseEstimator {
                     CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
                 let (_, _, support) =
                     self.average_derivative(data, *outcome, *treatment, weighting)?;
-                let mut rng = ctx.rng.stream(0xADEB_0001);
-                let mut values = Vec::with_capacity(draws_n);
-                for _ in 0..draws_n {
+                // Folds, their training designs and knots are fixed across draws:
+                // expanded once here, refit under each draw's weights.
+                let folds = self.cross_fit_folds(&sample)?;
+                // One RNG stream per draw: draws are independent, so they run across
+                // the context's thread budget and return in draw order.
+                let values = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
                     }
+                    let mut rng = ctx
+                        .rng
+                        .stream_for(StreamDomain::Bayesian, (0xADEB_0001_u64 << 32) | draw as u64);
                     let weights = bootstrap_weights(sample.len(), &mut rng);
-                    values.push(self.weighted_plugin_ade(&sample, &weights)?);
-                }
+                    self.weighted_cross_fitted_ade(&sample, &folds, &weights)
+                })?;
                 let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
                 (
                     ResponseValue::Scalar(mean),
-                    scalar_uncertainty(sd, level, lo, hi),
+                    credible_scalar_uncertainty(sd, level, lo, hi, values),
                     support,
-                    "bayesian.derivative.riesz_weighted_plugin",
-                    "Each Rubin Bayesian-bootstrap draw refits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights, then evaluates the weighted Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w). This is not a frozen-score reweight of the first-fit φ_i. Estimator identity stays response.riesz_ade",
+                    "bayesian.derivative.riesz_weighted_cross_fit",
+                    "Each Rubin Bayesian-bootstrap draw cross-fits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights: every fold refits both nuisances on its weighted training rows and scores its held-out rows with the Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w), and the draw is the weighted mean of the held-out scores. This is not a frozen-score reweight of the first-fit φ_i. Held fixed: fold assignment, spline knots, and penalty. Estimator identity stays response.riesz_ade",
                     "estimate.response.riesz_ade",
                 )
             }
@@ -657,7 +672,6 @@ impl ContinuousResponseEstimator {
                 });
                 let point_derivative =
                     matches!(query.functional, ResponseFunctional::PointDerivative { .. });
-                let mut rng = ctx.rng.stream(0xADEB_0002);
                 // Every draw refits its nuisances: point draws rebuild the
                 // cross-fitted Kennedy pseudo-outcome under the draw's row weights
                 // (the bandwidth is the caller's fixed value, never data-selected);
@@ -689,22 +703,46 @@ impl ContinuousResponseEstimator {
                     _ => unreachable!(),
                 };
                 let n = samples[0].len();
-                // Point draws: (local-quadratic coordinate, bias-corrected coordinate).
-                let mut scalars = Vec::with_capacity(draws_n);
-                let mut corrected_scalars = Vec::with_capacity(draws_n);
-                let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(draws_n);
-                // Per-sample effective degrees of freedom of the GAM draws, for
-                // the HC1-type spread correction (`inflate_draws_by_edf`).
-                let mut edf_sum = vec![0.0; samples.len()];
-                for _ in 0..draws_n {
+                // Fold assignment, knots and bases are fixed across draws: the point
+                // route's cross-fitting folds and the GAM routes' plug-in target
+                // designs are expanded once here and refit under each draw's weights.
+                let folds =
+                    if point_derivative { self.cross_fit_folds(&samples[0])? } else { vec![] };
+                let target_designs: Vec<AdditiveDesign> = if point_derivative {
+                    vec![]
+                } else {
+                    samples
+                        .iter()
+                        .map(|sample| self.outcome_target_design(sample))
+                        .collect::<Result<_, _>>()?
+                };
+                // One RNG stream per draw: draws are independent, so they run across the
+                // context's thread budget and return in draw order. Each draw yields its
+                // point coordinates (local-quadratic, bias-corrected) or its GAM vector,
+                // plus the GAM fits' effective degrees of freedom for the HC1-type spread
+                // correction (`inflate_draws_by_edf`).
+                let draws = ctx.map_indexed::<_, EstimationError, _>(draws_n, |draw, ctx| {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
                     }
+                    let mut rng = ctx
+                        .rng
+                        .stream_for(StreamDomain::Bayesian, (0xADEB_0002_u64 << 32) | draw as u64);
                     let weights = bootstrap_weights(n, &mut rng);
+                    let mut out = DerivativeDraw {
+                        scalar: 0.0,
+                        corrected: 0.0,
+                        vector: Vec::new(),
+                        edf: vec![0.0; samples.len()],
+                    };
                     match &query.functional {
                         ResponseFunctional::PointDerivative { at, order, scale, .. } => {
                             let pseudo = self
-                                .cross_fitted_pseudo_outcome_weighted(&samples[0], Some(&weights))?
+                                .cross_fitted_pseudo_outcome_weighted(
+                                    &samples[0],
+                                    &folds,
+                                    Some(&weights),
+                                )?
                                 .values;
                             let p = antecedent_stats::gaussian_local_quadratic_weighted(
                                 &samples[0].treatments,
@@ -716,14 +754,14 @@ impl ContinuousResponseEstimator {
                             .map_err(|err| {
                                 local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
                             })?;
-                            scalars.push(transform_point_derivative(
+                            out.scalar = transform_point_derivative(
                                 p.value,
                                 p.first_derivative,
                                 p.second_derivative,
                                 *at,
                                 *order,
                                 *scale,
-                            )?);
+                            )?;
                             let c = antecedent_stats::gaussian_local_quadratic_bias_corrected(
                                 &samples[0].treatments,
                                 &pseudo,
@@ -734,46 +772,59 @@ impl ContinuousResponseEstimator {
                             .map_err(|err| {
                                 local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
                             })?;
-                            corrected_scalars.push(transform_point_derivative(
+                            out.corrected = transform_point_derivative(
                                 c.value,
                                 c.first_derivative,
                                 c.second_derivative,
                                 *at,
                                 *order,
                                 *scale,
-                            )?);
+                            )?;
                         }
                         ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
-                            let mut values = Vec::with_capacity(samples.len());
                             for (s, sample) in samples.iter().enumerate() {
-                                let fit =
-                                    self.fit_outcome_target_weighted(sample, Some(&weights))?;
-                                edf_sum[s] += fit.edf_approx;
+                                let fit = Self::fit_outcome_target_weighted(
+                                    sample,
+                                    &target_designs[s],
+                                    Some(&weights),
+                                )?;
+                                out.edf[s] += fit.edf_approx;
                                 let (_, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
-                                values.push(
+                                out.vector.push(
                                     gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
                                 );
                             }
-                            vectors.push(values);
                         }
-                        ResponseFunctional::Jacobian { at, scale, treatments, outcomes } => {
-                            let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
+                        ResponseFunctional::Jacobian { at, scale, .. } => {
                             for (s, sample) in samples.iter().enumerate() {
-                                let fit =
-                                    self.fit_outcome_target_weighted(sample, Some(&weights))?;
-                                edf_sum[s] += fit.edf_approx;
+                                let fit = Self::fit_outcome_target_weighted(
+                                    sample,
+                                    &target_designs[s],
+                                    Some(&weights),
+                                )?;
+                                out.edf[s] += fit.edf_approx;
                                 let (level, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
                                 for (j, raw) in gradient.into_iter().enumerate() {
-                                    values.push(transform_derivative(raw, at[j], level, *scale)?);
+                                    out.vector
+                                        .push(transform_derivative(raw, at[j], level, *scale)?);
                                 }
                             }
-                            vectors.push(values);
                         }
                         _ => unreachable!(),
                     }
+                    Ok(out)
+                })?;
+                let scalars: Vec<f64> = draws.iter().map(|d| d.scalar).collect();
+                let corrected_scalars: Vec<f64> = draws.iter().map(|d| d.corrected).collect();
+                let mut edf_sum = vec![0.0; samples.len()];
+                for draw in &draws {
+                    for (total, edf) in edf_sum.iter_mut().zip(&draw.edf) {
+                        *total += edf;
+                    }
                 }
+                let vectors: Vec<Vec<f64>> = draws.into_iter().map(|d| d.vector).collect();
                 let (value, uncertainty) = if point_derivative {
                     // Reported value: posterior mean of the local-quadratic estimator.
                     // Interval and SD: the bias-corrected draws on the same weights.
@@ -781,12 +832,19 @@ impl ContinuousResponseEstimator {
                     let (corrected_mean, lo, hi, sd) =
                         summarize_scalar_draws(&corrected_scalars, level)?;
                     support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
-                    (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
+                    // The retained draws are the bias-corrected ones: the interval's.
+                    (
+                        ResponseValue::Scalar(mean),
+                        credible_scalar_uncertainty(sd, level, lo, hi, corrected_scalars),
+                    )
                 } else {
                     let dim = vectors.first().map_or(0, Vec::len);
                     let mut means = vec![0.0; dim];
                     let mut lower = vec![0.0; dim];
                     let mut upper = vec![0.0; dim];
+                    // Retained per coordinate *after* the edf inflation: the
+                    // vector the band's quantiles were taken from.
+                    let mut columns: Vec<Vec<f64>> = Vec::with_capacity(dim);
                     for j in 0..dim {
                         let mut col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
                         // Columns are outcome-major (Jacobian) or one per outcome
@@ -797,7 +855,9 @@ impl ContinuousResponseEstimator {
                         means[j] = mean;
                         lower[j] = lo;
                         upper[j] = hi;
+                        columns.push(col);
                     }
+                    let draws = Some(CredibleDraws::columns(draws_n, &columns));
                     let value = match &point {
                         ResponseValue::Jacobian { outcomes, treatments, .. } => {
                             ResponseValue::Jacobian {
@@ -814,6 +874,8 @@ impl ContinuousResponseEstimator {
                             level,
                             lower: Arc::from(lower),
                             upper: Arc::from(upper),
+                            interpretation: antecedent_core::IntervalInterpretation::Credible,
+                            draws,
                         },
                     )
                 };
@@ -1020,7 +1082,7 @@ impl ContinuousResponseEstimator {
             // With an additive μ̂ that bracket is the constant `ĥ(X_i) − mean ĥ`
             // and `P_n[g K] = D e₀`, so the term is exactly `covariate_term[i]`,
             // the same at every grid point. Treating the pseudo-outcomes as fixed
-            // data drops it; the 1.9 calibration measured 0.80–0.86 pointwise
+            // data drops it; without it, calibration measured 0.80–0.86 pointwise
             // coverage at nominal 0.90 without it.
             let row = &mut influences[g_idx * n..(g_idx + 1) * n];
             for (slot, (local_if, centered)) in
@@ -1112,6 +1174,8 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         };
         let row_index: Arc<[u32]> =
@@ -1168,25 +1232,11 @@ impl ContinuousResponseEstimator {
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
-        let row_means = if interventions.iter().any(intervention_needs_monte_carlo) {
-            let draws = 256;
-            let mut means = vec![0.0; sample.len()];
-            let mut factual = vec![0.0; sample.raw_cols];
-            let mut row = vec![0.0; sample.raw_cols];
-            for (row_index, mean) in means.iter_mut().enumerate() {
-                sample.write_raw_row(row_index, &mut factual);
-                let mut total = 0.0;
-                for draw in 0..draws {
-                    row.copy_from_slice(&factual);
-                    for (column, intervention) in interventions.iter().enumerate() {
-                        row[column] =
-                            intervention_level(intervention, factual[column], draw, column)?;
-                    }
-                    total += predict_one(&fit, &row)?;
-                }
-                *mean = total / draws as f64;
-            }
-            means
+        // Gaussian policies are integrated by Gauss–Hermite quadrature: the outcome
+        // model is additive, so E[μ(A_1, …, A_k, X)] depends only on each policy's own
+        // marginal law and the same rule serves every row, with no sampling error.
+        let row_means = if interventions.iter().any(intervention_needs_quadrature) {
+            additive_policy_rows(&fit, &sample, interventions)?
         } else {
             exact_discrete_intervention_rows(&fit, &sample, interventions)?
         };
@@ -1215,6 +1265,8 @@ impl ContinuousResponseEstimator {
                 level,
                 lower: estimate - z * se,
                 upper: estimate + z * se,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             },
             SupportReport {
                 status: SupportStatus::Extrapolative,
@@ -1334,6 +1386,8 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: corrected_estimate - z * standard_error,
                 upper: corrected_estimate + z * standard_error,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         } else {
             ResponseUncertainty::None
@@ -1386,7 +1440,7 @@ impl ContinuousResponseEstimator {
             warnings: if weak {
                 vec![Diagnostic::new(
                     "response.weak_riesz_overlap",
-                    DiagnosticKind::Scientific,
+                    DiagnosticKind::Support,
                     DiagnosticSeverity::Warning,
                     "the average-derivative Riesz representer concentrates on few rows; the estimate is driven by the treatment tail",
                 )]
@@ -1403,6 +1457,8 @@ impl ContinuousResponseEstimator {
                 level: self.options.confidence_level,
                 lower: estimate - z * se,
                 upper: estimate + z * se,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             },
             support,
         ))
@@ -1477,7 +1533,62 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
     ) -> Result<PseudoOutcome, EstimationError> {
-        self.cross_fitted_pseudo_outcome_weighted(sample, None)
+        let folds = self.cross_fit_folds(sample)?;
+        self.cross_fitted_pseudo_outcome_weighted(sample, &folds, None)
+    }
+
+    /// The cross-fitting folds of `sample`, with each fold's training designs
+    /// expanded once (see [`CrossFitFold`]).
+    ///
+    /// # Errors
+    ///
+    /// Too few rows for the folds and basis, or a basis expansion failure.
+    fn cross_fit_folds(
+        &self,
+        sample: &CompleteSample,
+    ) -> Result<Vec<CrossFitFold>, EstimationError> {
+        let n = sample.len();
+        ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
+        (0..self.options.folds)
+            .map(|fold| {
+                let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
+                let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
+                let outcome_design = AdditiveDesign::expand(
+                    &sample.raw_subset(&train),
+                    train.len(),
+                    sample.raw_cols,
+                    &self.nuisance_specs(sample.raw_cols),
+                )?;
+                let treatment_design = if sample.adjustment_cols == 0 {
+                    None
+                } else {
+                    Some(AdditiveDesign::expand(
+                        &sample.adjustment_subset(&train),
+                        train.len(),
+                        sample.adjustment_cols,
+                        &self.nuisance_specs(sample.adjustment_cols),
+                    )?)
+                };
+                Ok(CrossFitFold {
+                    outcome: train.iter().map(|&i| sample.outcome[i]).collect(),
+                    treatment: train.iter().map(|&i| sample.treatments[i]).collect(),
+                    train,
+                    valid,
+                    outcome_design,
+                    treatment_design,
+                })
+            })
+            .collect()
+    }
+
+    /// Penalized nuisance smooths over `ncols` raw columns, knots at the sample
+    /// quantiles of the rows they are expanded over.
+    fn nuisance_specs(&self, ncols: usize) -> Vec<SmoothSpec> {
+        (0..ncols)
+            .map(|col| {
+                SmoothSpec::new(col, self.options.nuisance_basis, self.options.nuisance_lambda)
+            })
+            .collect()
     }
 
     /// Cross-fitted Kennedy pseudo-outcome, optionally under row weights.
@@ -1487,10 +1598,12 @@ impl ContinuousResponseEstimator {
     /// covariate offset become weighted training-row averages. This is one
     /// Bayesian-bootstrap draw of the whole nuisance stage, not a reweight of the
     /// first-fit pseudo-outcome. `None` is the unweighted estimator (weights of
-    /// one, bit-identical).
+    /// one, bit-identical). `folds` is [`Self::cross_fit_folds`] of `sample`,
+    /// built once by a draw loop and shared by every draw.
     fn cross_fitted_pseudo_outcome_weighted(
         &self,
         sample: &CompleteSample,
+        folds: &[CrossFitFold],
         weights: Option<&[f64]>,
     ) -> Result<PseudoOutcome, EstimationError> {
         let n = sample.len();
@@ -1505,61 +1618,27 @@ impl ContinuousResponseEstimator {
         let mut gam_ws = GamWorkspace::default();
         let mut adj_row = vec![0.0; sample.adjustment_cols];
         let mut raw_row = vec![0.0; sample.raw_cols];
-        for fold in 0..self.options.folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
-            let train_weights: Option<Vec<f64>> =
-                weights.map(|_| train.iter().map(|&i| row_weight(i)).collect());
-            let train_weight_sum = match &train_weights {
+        let mut train_weights_buf: Vec<f64> = Vec::new();
+        for fold in folds {
+            let (train, valid) = (fold.train.as_slice(), fold.valid.as_slice());
+            let train_weights: Option<&[f64]> = weights.map(|_| {
+                train_weights_buf.clear();
+                train_weights_buf.extend(train.iter().map(|&i| row_weight(i)));
+                train_weights_buf.as_slice()
+            });
+            let train_weight_sum = match train_weights {
                 Some(w) => w.iter().sum::<f64>(),
                 None => train.len() as f64,
             };
             if !train_weight_sum.is_finite() || train_weight_sum <= 0.0 {
                 return Err(EstimationError::stats_msg("fold training weights are degenerate"));
             }
-            let (outcome_fit, treatment_fit, sigma) = match &train_weights {
-                None => {
-                    let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
-                    let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
-                    let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
-                    (outcome_fit, treatment_fit, sigma)
-                }
-                Some(w) => {
-                    let y: Vec<f64> = train.iter().map(|&i| sample.outcome[i]).collect();
-                    let outcome_fit = fit_additive_weighted(
-                        &sample.raw_subset(&train),
-                        train.len(),
-                        sample.raw_cols,
-                        &y,
-                        w,
-                        self.options.nuisance_basis,
-                        self.options.nuisance_lambda,
-                        &mut gam_ws,
-                    )?;
-                    let treatment_fit = if sample.adjustment_cols == 0 {
-                        None
-                    } else {
-                        let a: Vec<f64> = train.iter().map(|&i| sample.treatments[i]).collect();
-                        Some(fit_additive_weighted(
-                            &sample.adjustment_subset(&train),
-                            train.len(),
-                            sample.adjustment_cols,
-                            &a,
-                            w,
-                            self.options.nuisance_basis,
-                            self.options.nuisance_lambda,
-                            &mut gam_ws,
-                        )?)
-                    };
-                    let sigma =
-                        treatment_sigma_train_weighted(sample, &train, w, treatment_fit.as_ref())?;
-                    (outcome_fit, treatment_fit, sigma)
-                }
-            };
+            let (outcome_fit, treatment_fit, sigma) =
+                Self::fit_train_nuisances(sample, fold, train_weights, &mut gam_ws)?;
             // The training-row treatment means do not depend on the validation row;
             // computing them once per fold avoids |valid| x |train| spline expansions.
-            let constant_treatment_mean = match &train_weights {
-                None => sample.train_treatment_mean(&train),
+            let constant_treatment_mean = match train_weights {
+                None => sample.train_treatment_mean(train),
                 Some(w) => {
                     train.iter().zip(w).map(|(&i, wi)| wi * sample.treatments[i]).sum::<f64>()
                         / train_weight_sum
@@ -1568,7 +1647,7 @@ impl ContinuousResponseEstimator {
             let train_treatment_means: Vec<f64> = match treatment_fit.as_ref() {
                 Some(fit) => {
                     let mut means = Vec::with_capacity(train.len());
-                    for &j in &train {
+                    for &j in train {
                         sample.write_adjustment_row(j, &mut adj_row);
                         means.push(predict_one(fit, &adj_row)?);
                     }
@@ -1578,25 +1657,58 @@ impl ContinuousResponseEstimator {
             };
             // The outcome nuisance is additive, so a counterfactual prediction
             // decomposes exactly: μ̂(a, X_j) = μ̂(A_j, X_j) − f_T(A_j) + f_T(a),
-            // where f_T is the centered treatment smooth. Averaging over the
-            // training rows therefore needs one covariate offset per fold plus a
-            // single smooth evaluation per validation row — O(n) per fold instead
-            // of the |valid|×|train| full-prediction double loop.
+            // where f_T is the centered treatment smooth, giving one smooth
+            // evaluation per row instead of a |valid|×|train| full-prediction
+            // double loop.
             let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
                 EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
             })?;
-            // Unit weights multiply exactly, so the unweighted path is unchanged.
-            let train_weight =
-                |position: usize| train_weights.as_ref().map_or(1.0, |w| w[position]);
+            // Kennedy et al. (2017, Thm. 3): the marginalization `∫μ̂(a, x) dP_n(x)`
+            // is the empirical mean over the *full* sample `P_n`, not the training
+            // fold alone — μ̂ is trained out-of-fold, but every row's covariates
+            // still contribute to the average that estimates the population
+            // marginal (see the identical claim in `mean_curve`'s covariate-term
+            // comment). Averaging only the training rows makes the offset the
+            // training fold's own covariate mean rather than the population's:
+            // unbiased when the held-out rows are an unbiased subsample of every
+            // raw column's marginal, which a representative hold-out normally is,
+            // but is not guaranteed in general — a fold that happens to omit a
+            // covariate's extreme rows shifts its empirical mean away from the
+            // population's, biasing every pseudo-outcome the fold produces, and
+            // cross-fitting `μ̂` out-of-fold does not fix that shift because the
+            // shift is in which rows are averaged, not in which rows trained the
+            // model.
             let mut covariate_offset = 0.0;
+            let mut covariate_weight_sum = 0.0;
             for (position, &j) in train.iter().enumerate() {
                 let treat_partial =
                     outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
-                covariate_offset +=
-                    train_weight(position) * (outcome_fit.fitted[position] - treat_partial);
+                let w = train_weights.map_or(1.0, |tw| tw[position]);
+                covariate_offset += w * (outcome_fit.fitted[position] - treat_partial);
+                covariate_weight_sum += w;
             }
-            covariate_offset /= train_weight_sum;
-            for &i in &valid {
+            for &j in valid {
+                sample.write_raw_row(j, &mut raw_row);
+                let mu_j = predict_one(&outcome_fit, &raw_row)?;
+                let treat_partial =
+                    outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
+                let w = row_weight(j);
+                covariate_offset += w * (mu_j - treat_partial);
+                covariate_weight_sum += w;
+            }
+            if !covariate_weight_sum.is_finite() || covariate_weight_sum <= 0.0 {
+                return Err(EstimationError::stats_msg("row weights are degenerate"));
+            }
+            covariate_offset /= covariate_weight_sum;
+            // The marginal treatment density is the (weighted) Gaussian mixture of the
+            // training-row means at bandwidth σ; without a treatment model every
+            // mean is the same constant and the mixture is one Gaussian.
+            let marginal_mixture = if treatment_fit.is_none() {
+                GaussianMixtureDensity::new(&[constant_treatment_mean], None, sigma)?
+            } else {
+                GaussianMixtureDensity::new(&train_treatment_means, train_weights, sigma)?
+            };
+            for &i in valid {
                 sample.write_raw_row(i, &mut raw_row);
                 let mu_observed = predict_one(&outcome_fit, &raw_row)?;
                 let treatment_mean = match treatment_fit.as_ref() {
@@ -1612,21 +1724,7 @@ impl ContinuousResponseEstimator {
                     density_floor_rows += 1;
                 }
                 let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
-                let mut marginal_density = 0.0;
-                if treatment_fit.is_none() {
-                    // Every training mean is the same constant; the mixture is one Gaussian.
-                    marginal_density = gaussian_density(
-                        sample.treatment_matrix[i],
-                        constant_treatment_mean,
-                        sigma,
-                    );
-                } else {
-                    for (position, &train_mean) in train_treatment_means.iter().enumerate() {
-                        marginal_density += train_weight(position)
-                            * gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
-                    }
-                    marginal_density /= train_weight_sum;
-                }
+                let marginal_density = marginal_mixture.density(sample.treatment_matrix[i]);
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
                 pseudo[i] = marginal_mu
@@ -1681,91 +1779,92 @@ impl ContinuousResponseEstimator {
         Ok(AverageDerivativeScores { scores, riesz_weights })
     }
 
-    /// Weighted-plugin ADE: refit outcome and treatment nuisances under
-    /// Dirichlet/Exp(1) row weights, then evaluate the weighted Riesz score
-    /// mean (derivative plus score times residual).
-    fn weighted_plugin_ade(
+    /// Outcome GAM, treatment GAM (absent without adjusters) and treatment scale
+    /// fitted on the fold's training rows, under their row weights `w` when given.
+    fn fit_train_nuisances(
+        sample: &CompleteSample,
+        fold: &CrossFitFold,
+        w: Option<&[f64]>,
+        gam_ws: &mut GamWorkspace,
+    ) -> Result<(antecedent_stats::GamFit, Option<antecedent_stats::GamFit>, f64), EstimationError>
+    {
+        let outcome_fit = fit_additive_design(&fold.outcome_design, &fold.outcome, w, gam_ws)?;
+        let treatment_fit = match &fold.treatment_design {
+            None => None,
+            Some(design) => Some(fit_additive_design(design, &fold.treatment, w, gam_ws)?),
+        };
+        let sigma = match w {
+            None => treatment_sigma(sample, &fold.train, treatment_fit.as_ref())?,
+            Some(w) => {
+                treatment_sigma_train_weighted(sample, &fold.train, w, treatment_fit.as_ref())?
+            }
+        };
+        Ok((outcome_fit, treatment_fit, sigma))
+    }
+
+    /// One Bayesian-bootstrap draw of the cross-fitted Riesz ADE: every fold refits
+    /// the outcome and treatment nuisances on its training rows under the draw's row
+    /// weights and scores only its held-out rows, then the weighted mean of the
+    /// held-out scores `∂_a μ̂ + α̂ (Y − μ̂)` is returned. Held-out scoring keeps the
+    /// draws on the same footing as the cross-fitted point estimate, without the
+    /// leverage shrinkage of in-sample residuals.
+    fn weighted_cross_fitted_ade(
         &self,
         sample: &CompleteSample,
+        folds: &[CrossFitFold],
         weights: &[f64],
     ) -> Result<f64, EstimationError> {
-        if weights.len() != sample.len() {
+        let n = sample.len();
+        if weights.len() != n {
             return Err(EstimationError::stats_msg("ADE weights length must match complete rows"));
         }
+        ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
         let mut gam_ws = GamWorkspace::default();
-        let outcome_fit = self.fit_outcome_weighted(sample, weights, &mut gam_ws)?;
-        let treatment_fit = self.fit_treatment_weighted(sample, weights, &mut gam_ws)?;
-        let sigma = treatment_sigma_weighted(sample, weights, treatment_fit.as_ref())?;
-        let treatment_mean_constant = weighted_mean(&sample.treatments, weights)?;
-        let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
-            EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
-        })?;
         let mut row = vec![0.0; sample.raw_cols];
         let mut adj_row = vec![0.0; sample.adjustment_cols];
+        let mut train_weights: Vec<f64> = Vec::new();
         let mut num = 0.0;
         let mut den = 0.0;
-        for (i, &weight) in weights.iter().enumerate() {
-            sample.write_raw_row(i, &mut row);
-            let mu = predict_one(&outcome_fit, &row)?;
-            let derivative = outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
-            let treatment_mean = match treatment_fit.as_ref() {
-                Some(fit) => {
-                    sample.write_adjustment_row(i, &mut adj_row);
-                    predict_one(fit, &adj_row)?
-                }
-                None => treatment_mean_constant,
-            };
-            let alpha = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
-            let phi = derivative + alpha * (sample.outcome[i] - mu);
-            num += weight * phi;
-            den += weight;
+        for fold in folds {
+            let train = fold.train.as_slice();
+            train_weights.clear();
+            train_weights.extend(train.iter().map(|&i| weights[i]));
+            let train_weight_sum: f64 = train_weights.iter().sum();
+            if !train_weight_sum.is_finite() || train_weight_sum <= 0.0 {
+                return Err(EstimationError::stats_msg("fold training weights are degenerate"));
+            }
+            let (outcome_fit, treatment_fit, sigma) =
+                Self::fit_train_nuisances(sample, fold, Some(&train_weights), &mut gam_ws)?;
+            let treatment_mean_constant = train
+                .iter()
+                .zip(&train_weights)
+                .map(|(&i, w)| w * sample.treatments[i])
+                .sum::<f64>()
+                / train_weight_sum;
+            let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+                EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+            })?;
+            for &i in &fold.valid {
+                sample.write_raw_row(i, &mut row);
+                let mu = predict_one(&outcome_fit, &row)?;
+                let derivative =
+                    outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
+                let treatment_mean = match treatment_fit.as_ref() {
+                    Some(fit) => {
+                        sample.write_adjustment_row(i, &mut adj_row);
+                        predict_one(fit, &adj_row)?
+                    }
+                    None => treatment_mean_constant,
+                };
+                let alpha = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
+                num += weights[i] * (derivative + alpha * (sample.outcome[i] - mu));
+                den += weights[i];
+            }
         }
         if !den.is_finite() || den <= 0.0 || !num.is_finite() {
-            return Err(EstimationError::stats_msg("weighted ADE plugin was non-finite"));
+            return Err(EstimationError::stats_msg("weighted ADE draw was non-finite"));
         }
         Ok(num / den)
-    }
-
-    fn fit_outcome_weighted(
-        &self,
-        sample: &CompleteSample,
-        weights: &[f64],
-        workspace: &mut GamWorkspace,
-    ) -> Result<antecedent_stats::GamFit, EstimationError> {
-        let x = sample.raw_all();
-        fit_additive_weighted(
-            &x,
-            sample.len(),
-            sample.raw_cols,
-            &sample.outcome,
-            weights,
-            self.options.nuisance_basis,
-            self.options.nuisance_lambda,
-            workspace,
-        )
-    }
-
-    fn fit_treatment_weighted(
-        &self,
-        sample: &CompleteSample,
-        weights: &[f64],
-        workspace: &mut GamWorkspace,
-    ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
-        if sample.adjustment_cols == 0 {
-            return Ok(None);
-        }
-        let x = sample.adjustment_all();
-        fit_additive_weighted(
-            &x,
-            sample.len(),
-            sample.adjustment_cols,
-            &sample.treatments,
-            weights,
-            self.options.nuisance_basis,
-            self.options.nuisance_lambda,
-            workspace,
-        )
-        .map(Some)
     }
 
     fn plugin_gradient(
@@ -1779,7 +1878,8 @@ impl ContinuousResponseEstimator {
     /// Unpenalized treatment / penalized adjustment specs for the plug-in target.
     ///
     /// Shared by [`Self::fit_outcome_target`] and the weighted Jacobian path so
-    /// a 1.9 special-case cannot drift between the two (ENG-009).
+    /// the unpenalized-treatment / penalized-adjustment split cannot drift
+    /// between the two (ENG-009).
     fn outcome_target_specs(&self, sample: &CompleteSample) -> Vec<SmoothSpec> {
         (0..sample.raw_cols)
             .map(|col| {
@@ -1798,7 +1898,7 @@ impl ContinuousResponseEstimator {
     /// Same split as [`Self::plugin_gradient_weighted`]: treatment smooths are
     /// unpenalized cubic regression splines (a roughness penalty with quantile
     /// knots shrinks even a linear dose effect, which biased the g-computation
-    /// level by about half its SE at every n in the 1.9 calibration), and
+    /// level by about half its SE at every n in calibration), and
     /// adjustment smooths keep `nuisance_lambda`.
     ///
     /// When the unpenalized target fit fails (a binary or low-cardinality
@@ -1829,8 +1929,8 @@ impl ContinuousResponseEstimator {
                 "additive GAM target did not converge; refuse rather than publish an unfinished fit",
             )),
             // A binary or low-cardinality treatment cannot support an unpenalized
-            // cubic basis (singular Gram); keep the penalized nuisance fit there,
-            // exactly as before 1.9, and report why.
+            // cubic basis (singular Gram); keep the penalized nuisance fit there
+            // and report why.
             Err(error) => {
                 let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
                 Ok((fit, Some(error.to_string())))
@@ -1838,25 +1938,34 @@ impl ContinuousResponseEstimator {
         }
     }
 
-    /// Fit the treatment-target outcome GAM once for this weight vector.
-    fn fit_outcome_target_weighted(
+    /// The plug-in target design of [`Self::outcome_target_specs`] expanded once
+    /// over every complete row, for the weighted refits of a draw loop.
+    fn outcome_target_design(
         &self,
         sample: &CompleteSample,
-        weights: Option<&[f64]>,
-    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+    ) -> Result<AdditiveDesign, EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
-        let x = sample.raw_subset(&rows);
-        let specs = self.outcome_target_specs(sample);
-        let mut gam_ws = GamWorkspace::default();
-        let fit = antecedent_stats::fit_gam_weighted(
-            &x,
+        Ok(AdditiveDesign::expand(
+            &sample.raw_subset(&rows),
             sample.len(),
             sample.raw_cols,
+            &self.outcome_target_specs(sample),
+        )?)
+    }
+
+    /// Fit the treatment-target outcome GAM of `design`
+    /// ([`Self::outcome_target_design`]) once for this weight vector.
+    fn fit_outcome_target_weighted(
+        sample: &CompleteSample,
+        design: &AdditiveDesign,
+        weights: Option<&[f64]>,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        let mut gam_ws = GamWorkspace::default();
+        let fit = fit_gam_weighted_design(
+            design,
             &sample.outcome,
-            &specs,
             &GamOptions { max_iter: 500, tol: 1e-6 },
             weights,
-            &FaerBackend,
             &mut gam_ws,
         )?;
         if !fit.converged {
@@ -1913,7 +2022,8 @@ impl ContinuousResponseEstimator {
         at: &[f64],
         weights: Option<&[f64]>,
     ) -> Result<(f64, Vec<f64>), EstimationError> {
-        let fit = self.fit_outcome_target_weighted(sample, weights)?;
+        let design = self.outcome_target_design(sample)?;
+        let fit = Self::fit_outcome_target_weighted(sample, &design, weights)?;
         Self::plugin_gradient_at_fit(&fit, sample, at, weights)
     }
 
@@ -2044,19 +2154,8 @@ fn summarize_scalar_draws(
         (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let quantile = |p: f64| exchangeable_rank_quantile(&sorted, p);
-    Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
-}
-
-/// Type-6 quantile of `sorted` (see [`summarize_scalar_draws`]): linear
-/// interpolation at one-based rank `p·(D + 1)`, clamped to `[1, D]`.
-fn exchangeable_rank_quantile(sorted: &[f64], p: f64) -> f64 {
-    let d = sorted.len();
-    let rank = (p * (d + 1) as f64).clamp(1.0, d as f64);
-    let lo = rank.floor() as usize;
-    let hi = rank.ceil() as usize;
-    let frac = rank - lo as f64;
-    sorted[lo - 1] + (sorted[hi - 1] - sorted[lo - 1]) * frac
+    let (lower, upper) = equal_tail_interval_sorted(&sorted, level, QuantileRule::ExchangeableRank);
+    Ok((mean, lower, upper, sd))
 }
 
 /// Inflate `draws` around their mean by `sqrt(n / (n − edf))`, the
@@ -2092,8 +2191,25 @@ fn inflate_draws_by_edf(draws: &mut [f64], n: usize, edf: f64) {
     }
 }
 
-fn scalar_uncertainty(sd: f64, level: f64, lo: f64, hi: f64) -> ResponseUncertainty {
-    ResponseUncertainty::Scalar { standard_error: sd, level, lower: lo, upper: hi }
+/// A posterior summary published as scalar uncertainty: `sd` is the posterior standard
+/// deviation and `[lo, hi]` the `level` credible interval, tagged so a consumer cannot
+/// read either as a frequentist standard error or confidence interval. `draws` is the
+/// vector `[lo, hi]` are the quantiles of, retained for re-summarization.
+fn credible_scalar_uncertainty(
+    sd: f64,
+    level: f64,
+    lo: f64,
+    hi: f64,
+    draws: Vec<f64>,
+) -> ResponseUncertainty {
+    ResponseUncertainty::Scalar {
+        standard_error: sd,
+        level,
+        lower: lo,
+        upper: hi,
+        interpretation: antecedent_core::IntervalInterpretation::Credible,
+        draws: Some(CredibleDraws::scalar(draws)),
+    }
 }
 
 struct CompleteSample {
@@ -2252,17 +2368,6 @@ impl CompleteSample {
     fn treatment_column_range(&self, col: usize) -> (f64, f64) {
         range(&self.treatment_matrix[col * self.len()..(col + 1) * self.len()])
     }
-
-    fn raw_all(&self) -> Vec<f64> {
-        let mut out = Vec::with_capacity(self.len() * self.raw_cols);
-        out.extend_from_slice(&self.treatment_matrix);
-        out.extend_from_slice(&self.adjustment);
-        out
-    }
-
-    fn adjustment_all(&self) -> Vec<f64> {
-        self.adjustment.clone()
-    }
 }
 
 fn fit_additive(
@@ -2299,55 +2404,71 @@ fn fit_additive(
     Ok(fit)
 }
 
-fn fit_additive_weighted(
-    x: &[f64],
-    nrows: usize,
-    ncols: usize,
+/// [`fit_additive`] on a design expanded once ([`AdditiveDesign`]), under
+/// optional row weights: the same backfitting budget and the same refusal of
+/// an unfinished fit.
+fn fit_additive_design(
+    design: &AdditiveDesign,
     y: &[f64],
-    weights: &[f64],
-    basis: usize,
-    lambda: f64,
+    weights: Option<&[f64]>,
     workspace: &mut GamWorkspace,
 ) -> Result<antecedent_stats::GamFit, EstimationError> {
-    let specs: Vec<SmoothSpec> =
-        (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
-    let fit = fit_gam_weighted(
-        x,
-        nrows,
-        ncols,
+    let fit = fit_gam_weighted_design(
+        design,
         y,
-        &specs,
         &GamOptions { max_iter: 500, tol: 1e-6 },
-        Some(weights),
-        &FaerBackend,
+        weights,
         workspace,
     )?;
     if !fit.converged {
-        return Err(EstimationError::unsupported(
-            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit",
-        ));
+        return Err(EstimationError::unsupported(if weights.is_some() {
+            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit"
+        } else {
+            "additive GAM nuisance did not converge; refuse rather than publish an unfinished fit"
+        }));
     }
     Ok(fit)
 }
 
-fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, EstimationError> {
-    if values.len() != weights.len() || values.is_empty() {
-        return Err(EstimationError::stats_msg("weighted mean requires matching nonempty slices"));
-    }
-    let mut num = 0.0;
-    let mut den = 0.0;
-    for (value, weight) in values.iter().zip(weights) {
-        num += *weight * *value;
-        den += *weight;
-    }
-    if !den.is_finite() || den <= 0.0 || !num.is_finite() {
-        return Err(EstimationError::stats_msg("weighted mean was non-finite"));
-    }
-    Ok(num / den)
+/// One cross-fitting fold of a [`CompleteSample`], prepared once per
+/// execution: its row split, the training rows' outcome and treatment
+/// vectors, and the training nuisance designs with their quantile knots and
+/// B-spline bases already expanded ([`AdditiveDesign`]).
+///
+/// A Bayesian-bootstrap draw loop refits the fold's nuisances once per draw
+/// under new row weights; the rows, knots and bases are the same for every
+/// draw, so re-expanding them per fit (a sort of every training column and a
+/// full basis evaluation, twice per fold per draw) was pure repetition. The
+/// refit on a prepared fold is bit-identical to the per-fit expansion.
+struct CrossFitFold {
+    /// Training rows (indices into the sample), ascending.
+    train: Vec<usize>,
+    /// Held-out rows, ascending.
+    valid: Vec<usize>,
+    /// Outcome on the training rows.
+    outcome: Vec<f64>,
+    /// Primary treatment on the training rows.
+    treatment: Vec<f64>,
+    /// Outcome nuisance over the training rows' raw predictors.
+    outcome_design: AdditiveDesign,
+    /// Treatment nuisance over the training rows' adjusters; absent without adjusters.
+    treatment_design: Option<AdditiveDesign>,
 }
 
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
     Ok(fit.predict_row(raw_row)?)
+}
+
+/// One Bayesian-bootstrap draw of a derivative functional.
+struct DerivativeDraw {
+    /// Local-quadratic point coordinate (point derivatives).
+    scalar: f64,
+    /// Robust bias-corrected point coordinate (point derivatives).
+    corrected: f64,
+    /// Plug-in gradient coordinates (directional derivative / Jacobian).
+    vector: Vec<f64>,
+    /// Effective degrees of freedom of each sample's GAM fit.
+    edf: Vec<f64>,
 }
 
 fn treatment_sigma(
@@ -2372,39 +2493,6 @@ fn treatment_sigma(
     if !sigma.is_finite() || sigma <= f64::EPSILON {
         return Err(EstimationError::unsupported(
             "Gaussian treatment nuisance has degenerate residual variance",
-        ));
-    }
-    Ok(sigma)
-}
-
-fn treatment_sigma_weighted(
-    sample: &CompleteSample,
-    weights: &[f64],
-    fit: Option<&antecedent_stats::GamFit>,
-) -> Result<f64, EstimationError> {
-    let n_eff: f64 = weights.iter().sum();
-    let (rss, denominator) = if let Some(fit) = fit {
-        let rss = fit
-            .residuals
-            .iter()
-            .zip(weights)
-            .map(|(residual, weight)| weight * residual * residual)
-            .sum::<f64>();
-        (rss, (n_eff - fit.edf_approx).max(1.0))
-    } else {
-        let mean = weighted_mean(&sample.treatments, weights)?;
-        let rss = sample
-            .treatments
-            .iter()
-            .zip(weights)
-            .map(|(treatment, weight)| weight * (treatment - mean).powi(2))
-            .sum::<f64>();
-        (rss, (n_eff - 1.0).max(1.0))
-    };
-    let sigma = (rss / denominator).sqrt();
-    if !sigma.is_finite() || sigma <= f64::EPSILON {
-        return Err(EstimationError::unsupported(
-            "weighted Gaussian treatment nuisance has degenerate residual variance",
         ));
     }
     Ok(sigma)
@@ -2468,19 +2556,75 @@ fn ensure_crossfit_size(n: usize, folds: usize, basis: usize) -> Result<(), Esti
     Ok(())
 }
 
-pub(super) fn splitmix64(mut state: u64) -> u64 {
-    state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let mut value = state;
-    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    value ^ (value >> 31)
-}
+/// Nodes of the Gauss–Hermite rule applied to a Gaussian intervention policy. The
+/// dose-response smooths are cubic B-splines, so the integrand is piecewise cubic;
+/// 48 nodes resolve every knot interval a policy spans to well below the SE.
+const POLICY_QUADRATURE_NODES: usize = 48;
 
-fn intervention_needs_monte_carlo(intervention: &Intervention) -> bool {
+fn intervention_needs_quadrature(intervention: &Intervention) -> bool {
     matches!(
         intervention,
         Intervention::Stochastic { policy: StochasticPolicy::Gaussian { .. }, .. }
     )
+}
+
+/// Atoms of an intervention's law: the exact support for discrete policies and a
+/// Gauss–Hermite rule for a Gaussian policy.
+fn policy_support(intervention: &Intervention) -> Result<Vec<DiscreteAtom>, EstimationError> {
+    if let Intervention::Stochastic {
+        policy: StochasticPolicy::Gaussian { mean, variance }, ..
+    } = intervention
+    {
+        if !mean.is_finite() || !variance.is_finite() || *variance < 0.0 {
+            return Err(EstimationError::unsupported(
+                "Gaussian intervention needs a finite mean and a finite non-negative variance",
+            ));
+        }
+        let (nodes, weights) = gauss_hermite_standard_normal(POLICY_QUADRATURE_NODES);
+        let sd = variance.sqrt();
+        return Ok(nodes
+            .into_iter()
+            .zip(weights)
+            .map(|(node, weight)| DiscreteAtom::Level { value: mean + sd * node, weight })
+            .collect());
+    }
+    discrete_intervention_support(intervention)
+}
+
+/// Policy expectation of the additive outcome model for every row.
+///
+/// With `μ(a, x) = α + Σ_k f_k(a_k) + g(x)`, `E[μ] = Σ_k E[μ(A_k, others factual)]
+/// − (k − 1)·μ(factual)`: each policy is integrated over its own support and the
+/// joint support is never formed, so cost is `n · Σ_k |support_k|`.
+fn additive_policy_rows(
+    fit: &antecedent_stats::GamFit,
+    sample: &CompleteSample,
+    interventions: &[Intervention],
+) -> Result<Vec<f64>, EstimationError> {
+    let supports: Vec<Vec<DiscreteAtom>> =
+        interventions.iter().map(policy_support).collect::<Result<_, _>>()?;
+    let extra_terms = supports.len().saturating_sub(1) as f64;
+    let mut factual = vec![0.0; sample.raw_cols];
+    let mut row = vec![0.0; sample.raw_cols];
+    let mut out = Vec::with_capacity(sample.len());
+    for row_index in 0..sample.len() {
+        sample.write_raw_row(row_index, &mut factual);
+        row.copy_from_slice(&factual);
+        let mut total = -extra_terms * predict_one(fit, &factual)?;
+        for (column, support) in supports.iter().enumerate() {
+            for atom in support {
+                let (level, weight) = match *atom {
+                    DiscreteAtom::Level { value, weight } => (value, weight),
+                    DiscreteAtom::Shift { delta } => (factual[column] + delta, 1.0),
+                };
+                row[column] = level;
+                total += weight * predict_one(fit, &row)?;
+            }
+            row[column] = factual[column];
+        }
+        out.push(total);
+    }
+    Ok(out)
 }
 
 /// One atom of a discrete intervention law: absolute level, or additive shift of the factual.
@@ -2542,7 +2686,6 @@ fn intervention_plugin_influence(
     let mut design = vec![1.0; n];
     let mut gradient = vec![1.0];
     let mut penalty = vec![0.0; p * p];
-    let monte_carlo = interventions.iter().any(intervention_needs_monte_carlo);
     let mut offset = 1;
     for raw_col in 0..sample.raw_cols {
         let smooth = &fit.smooths[fit.smooth_for_raw_col(raw_col).ok_or_else(|| {
@@ -2561,23 +2704,15 @@ fn intervention_plugin_influence(
             antecedent_stats::expand_bspline(&observed, smooth.n_basis, Some(&smooth.knots))?;
         design.extend_from_slice(&basis[..n * (smooth.n_basis - 1)]);
         let (points, weights): (Vec<f64>, Vec<f64>) = if let Some(iv) = interventions.get(raw_col) {
-            if let Intervention::Shift { .. } = iv {
-                (
-                    observed
-                        .iter()
-                        .map(|&v| intervention_level(iv, v, 0, raw_col))
-                        .collect::<Result<Vec<_>, _>>()?,
-                    vec![1.0 / nf; n],
-                )
-            } else if monte_carlo {
-                (
-                    (0..256)
-                        .map(|draw| intervention_level(iv, 0.0, draw, raw_col))
-                        .collect::<Result<Vec<_>, _>>()?,
-                    vec![1.0 / 256.0; 256],
-                )
+            if let Intervention::Shift { delta, .. } = iv {
+                let delta = delta.as_f64().filter(|d| d.is_finite()).ok_or_else(|| {
+                    EstimationError::unsupported(
+                        "intervention response requires finite numeric values",
+                    )
+                })?;
+                (observed.iter().map(|&v| v + delta).collect(), vec![1.0 / nf; n])
             } else {
-                discrete_intervention_support(iv)?
+                policy_support(iv)?
                     .into_iter()
                     .map(|atom| match atom {
                         DiscreteAtom::Level { value, weight } => (value, weight),
@@ -2789,84 +2924,6 @@ fn static_bayesian_policy(
     Ok((target, level, shift))
 }
 
-fn intervention_level(
-    intervention: &Intervention,
-    factual: f64,
-    draw: usize,
-    policy_index: usize,
-) -> Result<f64, EstimationError> {
-    let numeric = |value: &antecedent_core::Value| {
-        value.as_f64().filter(|number| number.is_finite()).ok_or_else(|| {
-            EstimationError::unsupported("intervention response requires finite numeric values")
-        })
-    };
-    let value = match intervention {
-        Intervention::Set { value, .. } => numeric(value)?,
-        Intervention::Shift { delta, .. } => factual + numeric(delta)?,
-        Intervention::Stochastic { policy, .. } => {
-            // A distinct deterministic SplitMix64 stream coordinate for every
-            // (Monte Carlo draw, policy) pair avoids silently imposing a shared
-            // rank/comonotone coupling across joint stochastic interventions.
-            let state = (draw as u64)
-                .wrapping_mul(0xD2B7_4407_B1CE_6E93)
-                .wrapping_add((policy_index as u64).wrapping_mul(0xCA5A_8263_9512_1157))
-                .wrapping_add(0xA17E_CEDE_0500_0001);
-            let random = splitmix64(state);
-            let quantile = ((random >> 11) as f64 + 0.5) * (1.0 / 9_007_199_254_740_992.0);
-            match policy {
-                StochasticPolicy::Bernoulli { p } => {
-                    if quantile < *p {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                }
-                StochasticPolicy::Gaussian { mean, variance } => {
-                    if !mean.is_finite() {
-                        return Err(EstimationError::unsupported(
-                            "Gaussian intervention mean must be finite",
-                        ));
-                    }
-                    mean + variance.sqrt() * normal_ppf(quantile)
-                }
-                StochasticPolicy::Categorical { probs } => {
-                    let total: f64 = probs.iter().sum();
-                    let threshold = quantile * total;
-                    let mut cumulative = 0.0;
-                    let mut category = probs.len() - 1;
-                    for (index, probability) in probs.iter().enumerate() {
-                        cumulative += probability;
-                        if threshold < cumulative {
-                            category = index;
-                            break;
-                        }
-                    }
-                    category as f64
-                }
-                _ => {
-                    return Err(EstimationError::unsupported(
-                        "unsupported stochastic intervention policy",
-                    ));
-                }
-            }
-        }
-        Intervention::Soft { .. } | Intervention::Sequence(_) => {
-            return Err(EstimationError::unsupported(
-                "soft and sequenced intervention responses require a structural model",
-            ));
-        }
-        _ => {
-            return Err(EstimationError::unsupported("unsupported intervention-response policy"));
-        }
-    };
-    if !value.is_finite() {
-        return Err(EstimationError::unsupported(
-            "intervention response produced a non-finite treatment value",
-        ));
-    }
-    Ok(value)
-}
-
 fn transform_derivative(
     derivative: f64,
     treatment: f64,
@@ -2982,57 +3039,8 @@ fn sort_finite(values: &[f64]) -> Vec<f64> {
     sorted
 }
 
-fn median_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return 0.0;
-    }
-    let mid = n / 2;
-    if n % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] }
-}
-
-/// Linear interpolation on the sorted sample: `p` in [0, 1] indexes `0 .. n-1`.
-fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let max_idx = sorted.len() - 1;
-    if max_idx == 0 {
-        return sorted[0];
-    }
-    let rank = max_idx as f64 * p.clamp(0.0, 1.0);
-    let lo_rank = rank.floor();
-    let hi_rank = rank.ceil();
-    let lo = (0..=max_idx)
-        .min_by(|&a, &b| {
-            (a as f64 - lo_rank)
-                .abs()
-                .partial_cmp(&(b as f64 - lo_rank).abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(0);
-    let hi = (0..=max_idx)
-        .min_by(|&a, &b| {
-            (a as f64 - hi_rank)
-                .abs()
-                .partial_cmp(&(b as f64 - hi_rank).abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(max_idx);
-    let w = rank - lo_rank;
-    sorted[lo].mul_add(1.0 - w, sorted[hi] * w)
-}
-
 fn mad_scale(values: &[f64]) -> f64 {
-    if values.is_empty() {
-        return 0.0;
-    }
-    let sorted = sort_finite(values);
-    let center = median_sorted(&sorted);
-    let abs_dev: Vec<f64> = values.iter().map(|v| (v - center).abs()).collect();
-    let mut abs_sorted = abs_dev;
-    abs_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    MAD_TO_SIGMA * median_sorted(&abs_sorted)
+    mad_sigma(values).unwrap_or(0.0)
 }
 
 fn outcome_tail_ratio(values: &[f64]) -> f64 {
@@ -3052,8 +3060,12 @@ fn outcome_tail_ratio(values: &[f64]) -> f64 {
 
 fn winsorize(values: &[f64], p: f64) -> Vec<f64> {
     let sorted = sort_finite(values);
-    let lo = quantile_sorted(&sorted, p);
-    let hi = quantile_sorted(&sorted, 1.0 - p);
+    // An empty sample has no tail quantiles to clamp to; leave the values as they are.
+    if sorted.is_empty() {
+        return values.to_vec();
+    }
+    let lo = quantile_sorted(&sorted, p, QuantileRule::Interpolated);
+    let hi = quantile_sorted(&sorted, 1.0 - p, QuantileRule::Interpolated);
     let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
     values.iter().map(|&v| v.clamp(lo, hi)).collect()
 }
@@ -3158,14 +3170,14 @@ fn support_report(
     if outside {
         warnings.push(Diagnostic::new(
             "response.outside_empirical_support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "at least one requested response coordinate is outside observed treatment support",
         ));
     } else if weak {
         warnings.push(Diagnostic::new(
             "response.weak_local_overlap",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "at least one requested response coordinate has low local effective sample size",
         ));
@@ -3271,6 +3283,74 @@ mod tests {
 
     use super::*;
 
+    /// The draws a Bayesian response retains on its credible uncertainty are
+    /// exactly the vector its endpoints are the quantiles of: re-summarizing
+    /// every coordinate at the published level under the estimator's own rule
+    /// reproduces `[lower, upper]` bit for bit.
+    fn assert_retained_draws_publish(uncertainty: &ResponseUncertainty, n_draws: usize) {
+        let (level, published): (f64, Vec<(f64, f64)>) = match uncertainty {
+            ResponseUncertainty::Scalar { level, lower, upper, .. } => {
+                (*level, vec![(*lower, *upper)])
+            }
+            ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
+                (*level, lower.iter().copied().zip(upper.iter().copied()).collect())
+            }
+            other => panic!("expected a credible interval or band, got {other:?}"),
+        };
+        let draws = uncertainty.credible_draws().expect("credible uncertainty retains its draws");
+        assert_eq!(draws.n_draws, n_draws);
+        assert_eq!(draws.n_coordinates(), published.len());
+        for (j, (lo, hi)) in published.into_iter().enumerate() {
+            let (_, rebuilt_lo, rebuilt_hi, _) =
+                summarize_scalar_draws(draws.column(j).unwrap(), level).unwrap();
+            assert!(
+                rebuilt_lo.to_bits() == lo.to_bits() && rebuilt_hi.to_bits() == hi.to_bits(),
+                "coordinate {j}: [{lo}, {hi}] != retained-draw quantiles [{rebuilt_lo}, {rebuilt_hi}]"
+            );
+        }
+    }
+
+    #[test]
+    fn bayesian_responses_retain_the_draws_their_bands_summarize() {
+        let (data, a, y, x) = confounded_curve(240);
+        let estimator = ContinuousResponseEstimator::new([x]);
+        let bayes = crate::BayesianGComputationAte::new().with_n_draws(8);
+        let ctx = antecedent_core::ExecutionContext::for_tests(18);
+        let run = |functional| {
+            estimator
+                .estimate_bayesian(
+                    &data,
+                    &ResponseQuery::new(functional),
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &bayes,
+                    &ctx,
+                )
+                .unwrap()
+        };
+        // Linear route: one column per grid point of the curve.
+        let curve = run(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.5, 0.0, 0.5]))),
+        });
+        assert_retained_draws_publish(&curve.uncertainty, bayes.n_draws);
+        assert_eq!(curve.uncertainty.credible_draws().unwrap().n_coordinates(), 3);
+        // Linear route, scalar.
+        let level = run(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(a, Value::f64(0.25))]),
+        });
+        assert_retained_draws_publish(&level.uncertainty, bayes.n_draws);
+        // Additive-GAM plug-in band: retained *after* the edf spread inflation.
+        let jacobian = run(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([y]),
+            treatments: Arc::from([a]),
+            at: Arc::from([0.2]),
+            scale: DerivativeScale::Identity,
+        });
+        assert_retained_draws_publish(&jacobian.uncertainty, bayes.n_draws);
+    }
+
     /// Minimal deterministic uniform stream (`SplitMix64`) for exchangeability checks.
     fn uniform_stream(mut state: u64) -> impl FnMut() -> f64 {
         move || {
@@ -3281,23 +3361,6 @@ mod tests {
             z ^= z >> 31;
             (z >> 11) as f64 / 9_007_199_254_740_992.0
         }
-    }
-
-    #[test]
-    #[allow(clippy::float_cmp)] // Exact ranks land on exact draws.
-    fn exchangeable_rank_quantile_sits_at_p_times_d_plus_one() {
-        let sorted: Vec<f64> = (1..=9).map(f64::from).collect();
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.5), 5.0);
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.1), 1.0);
-        assert!((exchangeable_rank_quantile(&sorted, 0.25) - 2.5).abs() < 1e-12);
-        // Ranks outside [1, D] clamp to the extreme draws.
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.01), 1.0);
-        assert_eq!(exchangeable_rank_quantile(&sorted, 0.99), 9.0);
-        // Wider than the sample-quantile (type 7) rule on both sides.
-        let ramp: Vec<f64> = (0..200).map(f64::from).collect();
-        let type7 = |p: f64| p * 199.0;
-        assert!(exchangeable_rank_quantile(&ramp, 0.05) < type7(0.05));
-        assert!(exchangeable_rank_quantile(&ramp, 0.95) > type7(0.95));
     }
 
     #[test]
@@ -3357,15 +3420,18 @@ mod tests {
         estimator.options.bandwidth = Some(0.35);
         let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
         let frozen = estimator.cross_fitted_pseudo_outcome(&sample).unwrap().values;
+        let folds = estimator.cross_fit_folds(&sample).unwrap();
         let ones = vec![1.0; sample.len()];
-        let unit = estimator.cross_fitted_pseudo_outcome_weighted(&sample, Some(&ones)).unwrap();
+        let unit =
+            estimator.cross_fitted_pseudo_outcome_weighted(&sample, &folds, Some(&ones)).unwrap();
         let unit_gap =
             frozen.iter().zip(&unit.values).map(|(f, u)| (f - u).abs()).fold(0.0, f64::max);
         assert!(unit_gap < 1e-9, "unit weights must reproduce the unweighted pseudo-outcome");
         let weights: Vec<f64> =
             (0..sample.len()).map(|i| if i % 3 == 0 { 2.2 } else { 0.4 }).collect();
-        let refit =
-            estimator.cross_fitted_pseudo_outcome_weighted(&sample, Some(&weights)).unwrap();
+        let refit = estimator
+            .cross_fitted_pseudo_outcome_weighted(&sample, &folds, Some(&weights))
+            .unwrap();
         let refit_gap =
             frozen.iter().zip(&refit.values).map(|(f, r)| (f - r).abs()).fold(0.0, f64::max);
         assert!(refit_gap > 1e-6, "weighted draws must refit the nuisance stage, not reuse φ");
@@ -3390,7 +3456,17 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.point_derivative");
-            assert!(matches!(response.uncertainty, ResponseUncertainty::Scalar { .. }));
+            // Posterior draws: the "standard error" is a posterior SD and the interval is
+            // credible, and the tag says so.
+            assert!(matches!(
+                response.uncertainty,
+                ResponseUncertainty::Scalar {
+                    interpretation: antecedent_core::IntervalInterpretation::Credible,
+                    ..
+                }
+            ));
+            // The retained draws are the bias-corrected ones the interval is read from.
+            assert_retained_draws_publish(&response.uncertainty, 8);
             assert!(response.assumptions.entries.iter().any(|record| match &record.assumption {
                 Assumption::ParametricRestriction(restriction) =>
                     restriction.description.contains("Not a frozen-pseudo-outcome reweight"),
@@ -3646,56 +3722,72 @@ mod tests {
     #[test]
     fn pseudo_outcome_additive_hoist_matches_brute_force_double_loop() {
         // The O(n) covariate-offset form must agree with the definitional
-        // |valid|×|train| double loop (full counterfactual prediction per pair)
-        // up to floating-point re-association.
-        let (data, a, y, x) = confounded_curve(160);
-        let estimator = ContinuousResponseEstimator::new([x]);
-        let sample = CompleteSample::read(&data, y, &[a], &estimator.adjustment_set).unwrap();
-        let fast = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
+        // |valid|×n double loop (full counterfactual prediction per pair)
+        // up to floating-point re-association. 160 rows sums the marginal density
+        // term by term; 900 rows (720 training rows per fold) takes the binned
+        // Gauss-transform path, which must agree with the same definitional sum.
+        //
+        // The covariate marginalization `∫μ̂(a, x) dP_n(x)` (Kennedy et al. 2017,
+        // Thm. 3) is the empirical mean over the *full* sample, so `marginal_mu`
+        // below averages the counterfactual prediction over every row `j` in
+        // `0..n`, not only the fold's training rows — matching
+        // `cross_fitted_pseudo_outcome_weighted`'s `covariate_offset`. The
+        // marginal *density* mixture stays a training-row-only estimate, matching
+        // the production `marginal_mixture`, which this test does not change.
+        for rows in [160, 900] {
+            let (data, a, y, x) = confounded_curve(rows);
+            let estimator = ContinuousResponseEstimator::new([x]);
+            let sample = CompleteSample::read(&data, y, &[a], &estimator.adjustment_set).unwrap();
+            let fast = estimator.cross_fitted_pseudo_outcome(&sample).unwrap();
 
-        let n = sample.len();
-        let folds = estimator.options.folds;
-        let mut brute = vec![0.0; n];
-        for fold in 0..folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
-            let mut gam_ws = GamWorkspace::default();
-            let outcome_fit = estimator.fit_outcome(&sample, &train, &mut gam_ws).unwrap();
-            let treatment_fit = estimator.fit_treatment(&sample, &train, &mut gam_ws).unwrap();
-            let sigma = treatment_sigma(&sample, &train, treatment_fit.as_ref()).unwrap();
-            let constant_mean = sample.train_treatment_mean(&train);
-            for &i in &valid {
-                let mu_observed = predict_one(&outcome_fit, &sample.raw_row(i)).unwrap();
-                let treatment_mean = match treatment_fit.as_ref() {
-                    Some(fit) => predict_one(fit, &sample.adjustment_row(i)).unwrap(),
-                    None => constant_mean,
-                };
-                let raw_density =
-                    gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
-                let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
-                let mut marginal_density = 0.0;
-                let mut marginal_mu = 0.0;
-                for &j in &train {
-                    let mean_j = match treatment_fit.as_ref() {
-                        Some(fit) => predict_one(fit, &sample.adjustment_row(j)).unwrap(),
+            let n = sample.len();
+            let folds = estimator.options.folds;
+            let mut brute = vec![0.0; n];
+            for fold in 0..folds {
+                let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
+                let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
+                let mut gam_ws = GamWorkspace::default();
+                let outcome_fit = estimator.fit_outcome(&sample, &train, &mut gam_ws).unwrap();
+                let treatment_fit = estimator.fit_treatment(&sample, &train, &mut gam_ws).unwrap();
+                let sigma = treatment_sigma(&sample, &train, treatment_fit.as_ref()).unwrap();
+                let constant_mean = sample.train_treatment_mean(&train);
+                for &i in &valid {
+                    let mu_observed = predict_one(&outcome_fit, &sample.raw_row(i)).unwrap();
+                    let treatment_mean = match treatment_fit.as_ref() {
+                        Some(fit) => predict_one(fit, &sample.adjustment_row(i)).unwrap(),
                         None => constant_mean,
                     };
-                    marginal_density += gaussian_density(sample.treatment_matrix[i], mean_j, sigma);
-                    let mut row = sample.raw_row(j);
-                    row[0] = sample.treatment_matrix[i];
-                    marginal_mu += predict_one(&outcome_fit, &row).unwrap();
+                    let raw_density =
+                        gaussian_density(sample.treatment_matrix[i], treatment_mean, sigma);
+                    let conditional_density = raw_density.max(CONDITIONAL_DENSITY_FLOOR);
+                    let mut marginal_density = 0.0;
+                    for &j in &train {
+                        let mean_j = match treatment_fit.as_ref() {
+                            Some(fit) => predict_one(fit, &sample.adjustment_row(j)).unwrap(),
+                            None => constant_mean,
+                        };
+                        marginal_density +=
+                            gaussian_density(sample.treatment_matrix[i], mean_j, sigma);
+                    }
+                    marginal_density /= train.len() as f64;
+                    let mut marginal_mu = 0.0;
+                    for j in 0..n {
+                        let mut row = sample.raw_row(j);
+                        row[0] = sample.treatment_matrix[i];
+                        marginal_mu += predict_one(&outcome_fit, &row).unwrap();
+                    }
+                    marginal_mu /= n as f64;
+                    brute[i] = marginal_mu
+                        + (sample.outcome[i] - mu_observed) * marginal_density
+                            / conditional_density;
                 }
-                marginal_density /= train.len() as f64;
-                marginal_mu /= train.len() as f64;
-                brute[i] = marginal_mu
-                    + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
             }
-        }
-        for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {
-            assert!(
-                (fast_i - brute_i).abs() <= 1e-9 * brute_i.abs().max(1.0),
-                "row {i}: fast={fast_i} brute={brute_i}"
-            );
+            for (i, (&fast_i, &brute_i)) in fast.values.iter().zip(&brute).enumerate() {
+                assert!(
+                    (fast_i - brute_i).abs() <= 1e-9 * brute_i.abs().max(1.0),
+                    "row {i}: fast={fast_i} brute={brute_i}"
+                );
+            }
         }
     }
 
@@ -3816,6 +3908,64 @@ mod tests {
         let codes: Vec<_> = set.support.warnings.iter().map(|w| w.code.as_ref()).collect();
         assert!(codes.contains(&"response.intervention_plugin_model_dependent"));
         assert!(!codes.contains(&"response.intervention_target_penalized_fallback"));
+    }
+
+    #[test]
+    fn gaussian_policy_expectation_is_exact_for_a_quadratic_dose_effect() {
+        // y = 1 + 2a + a² + 0.8z is a quadratic in the treatment, which the
+        // unpenalized cubic treatment smooth reproduces exactly, and z is centred.
+        // Under A ~ N(0.25, 0.05²): E[y] = 1 + 2(0.25) + (0.25² + 0.05²) = 1.565 —
+        // no sampling error and no fixed policy-integration bias, PROVIDED the
+        // treatment and the adjustment covariate are not concurved: `a` is a
+        // permutation of the same grid as `z` (decorrelated by a coprime stride),
+        // not `0.7*z + small noise` (|corr| < 0.98). With the near-collinear
+        // original fixture, the additive GAM cannot uniquely identify the
+        // quadratic-in-`a` term from the linear-in-`z` term off the observed
+        // (a, z) manifold, and the estimate was biased to ~1.589 regardless of
+        // how faithfully the policy integration itself was implemented.
+        let n = 500;
+        let mut a = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut x = Vec::with_capacity(n);
+        for i in 0..n {
+            let z = -1.0 + 2.0 * i as f64 / (n - 1) as f64;
+            let treatment = -1.0 + 2.0 * ((i * 173 + 37) % n) as f64 / (n - 1) as f64;
+            x.push(z);
+            a.push(treatment);
+            y.push(1.0 + 2.0 * treatment + treatment * treatment + 0.8 * z);
+        }
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let (a, y, x) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::stochastic(
+                a,
+                StochasticPolicy::gaussian(0.25, 0.0025),
+            )]),
+        });
+        let response = ContinuousResponseEstimator::new([x])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            &response.estimate
+        else {
+            panic!("expected scalar");
+        };
+        // Finite spline-basis / solver tolerance (GamOptions::tol = 1e-6) leaves a residual
+        // ~1.5e-5 even once concurvity is removed; 2e-5 keeps the assertion meaningful
+        // (two orders of magnitude tighter than the old 0.024 concurvity bias) without
+        // chasing solver-noise digits.
+        assert!((value - 1.565).abs() < 2e-5, "value={value}");
     }
 
     #[test]
@@ -4100,7 +4250,8 @@ mod tests {
         for (i, weight) in weights.iter_mut().enumerate() {
             *weight = if i < sample.len() / 5 { 8.0 } else { 0.2 };
         }
-        let plugin = estimator.weighted_plugin_ade(&sample, &weights).unwrap();
+        let folds = estimator.cross_fit_folds(&sample).unwrap();
+        let plugin = estimator.weighted_cross_fitted_ade(&sample, &folds, &weights).unwrap();
         let frozen_mean =
             frozen.scores.iter().zip(&weights).map(|(score, weight)| score * weight).sum::<f64>()
                 / weights.iter().sum::<f64>();
@@ -4126,6 +4277,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
+        assert_retained_draws_publish(&response.uncertainty, 8);
         assert!(
             response.assumptions.entries.iter().any(|record| match &record.assumption {
                 Assumption::ParametricRestriction(restriction) =>
@@ -4324,11 +4476,13 @@ mod tests {
         assert!((value - local.point.first_derivative).abs() < 1e-12);
         // The interval is the RBC interval: the bias-corrected coordinate ± z·its
         // own robust SE, not the conventional local-quadratic interval.
-        let ResponseUncertainty::Scalar { standard_error, lower, upper, level } =
-            response.uncertainty
+        let ResponseUncertainty::Scalar {
+            standard_error, lower, upper, level, interpretation, ..
+        } = response.uncertainty
         else {
             panic!("expected scalar uncertainty");
         };
+        assert_eq!(interpretation, antecedent_core::IntervalInterpretation::Confidence);
         let z = normal_ppf(0.5 + level / 2.0);
         assert!((standard_error - corrected.robust_first_derivative_standard_error).abs() < 1e-12);
         assert!((0.5 * (lower + upper) - corrected.first_derivative).abs() < 1e-10);

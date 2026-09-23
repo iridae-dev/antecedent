@@ -17,13 +17,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import antecedent
 import numpy as np
-import pytest
 
 from _repo_text import load_toml
-
-pytest.importorskip("antecedent")
-import antecedent
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SUPPORT_CLOSED_TOML = _REPO_ROOT / "parity" / "support_closed.toml"

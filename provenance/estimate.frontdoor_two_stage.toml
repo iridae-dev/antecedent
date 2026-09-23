@@ -12,7 +12,8 @@ papers = [
 
 implementation_deviations = [
  "Implements the front-door effect as a product of coefficients from linear mediator and outcome regressions rather than evaluating Pearl's nonparametric front-door functional.",
- "The causal interpretation therefore requires a linear, additive, no-interaction structural model in addition to the graphical front-door conditions; nonlinear mediator or outcome relations and treatment-mediator interactions are unsupported.",
+ "The causal interpretation therefore requires a linear, additive, no-interaction structural model in addition to the graphical front-door conditions; nonlinear mediator or outcome relations and treatment-mediator interactions are unsupported. Every result records this as the estimation-scope parametric restriction frontdoor.linear_path_product, and the estimator id is frontdoor.linear_two_stage; frontdoor.functional estimates the functional itself.",
+ "HC1 and cluster small-sample factors are applied per stacked equation (n/(n-2) for each mediator regression, n/(n-2-k) for the outcome regression), not with the total stacked parameter count.",
  "Multiple mediators are handled as an additive sum of separate linear path products, not as a general joint-mediator front-door functional.",
  "The cited mediation paper does not specify this implementation's complete-case policy or stacked analytic uncertainty calculation.",
 ]
@@ -23,5 +24,6 @@ upstream_implementations_observed = [
 
 test_sources = [
  "independently generated synthetic SCM with U->T, U->Y unmeasured confounding and T->M->Y mediation (no direct T->Y edge), mirroring antecedent-identify's front-door criterion test fixture, with known structural effect through the mediator path",
- "conformance/estimate/frontdoor (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
+ "conformance/estimate/frontdoor (known-truth recovery fixture with unequal path coefficients 0.4 and 5 and an uncentred treatment; SE checked against the closed-form delta-method SE; carries an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
+ "conformance/estimate/frontdoor_functional (exact binary table on which the product of coefficients converges to 0.3631 against an enumerated 0.315)",
 ]

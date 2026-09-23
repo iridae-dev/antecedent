@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def test_unknown_ci_raises_compile_error():

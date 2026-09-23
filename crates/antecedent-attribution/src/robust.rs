@@ -3,8 +3,17 @@
 //!
 //! Uses fitted mechanism hybrids (same topology as
 //! [`distribution_change`](crate::distribution_change::distribution_change)) with a
-//! structural-mean payoff. Linear-family mechanisms use a fast OLS path; nonlinear
-//! slots evaluate at zero noise.
+//! structural-mean payoff `v(S) = E[f(X) | S]`: the expectation is taken over the actual
+//! fitted distribution of every node, not a single point. Linear-family mechanisms compose
+//! the registry-selected fit directly (whatever family the registry picked — plain
+//! `LinearGaussian`, `HierarchicalLinear` shrinkage, `Bvar`, or `Constant` — arithmetic
+//! composition of linear coefficients is exact regardless of family, so nothing is refit).
+//! Nonlinear slots integrate `E[f(X)]` by Monte Carlo: ancestral sampling with real draws
+//! from each node's structural noise, topologically composed exactly as
+//! [`distribution_change`](crate::distribution_change::distribution_change) samples, using
+//! common random numbers across coalitions (the RNG is reseeded to the same stream on every
+//! call to [`CoalitionPayoff::value`]) so that only the swapped mechanisms differ between
+//! masks, keeping the Shapley differences numerically stable at a practical sample count.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -15,9 +24,8 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
-    MechanismWorkspace, ParentBatch, SelectionPolicy, evaluate_column,
+    MechanismWorkspace, ParentBatch, SelectionPolicy, evaluate_column, sample_noise_column,
 };
-use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::mechanism_players;
@@ -34,11 +42,17 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 pub struct RobustChangeOptions {
     /// Cap on units used for regression / evaluation.
     pub max_rows: usize,
+    /// Monte Carlo draws used by the nonlinear path to integrate `E[f(X)]` per
+    /// coalition. Ignored when every player's mechanism is linear-family (that
+    /// path composes fitted coefficients exactly, with no sampling error).
+    pub n_samples: usize,
+    /// RNG seed for the nonlinear path's Monte Carlo integration.
+    pub seed: u64,
 }
 
 impl Default for RobustChangeOptions {
     fn default() -> Self {
-        Self { max_rows: 10_000 }
+        Self { max_rows: 10_000, n_samples: 4_000, seed: 0 }
     }
 }
 
@@ -100,7 +114,6 @@ pub fn distribution_change_robust(
         let mut payoff = RobustLinearPayoff {
             model: graph_model,
             baseline: &baseline_data,
-            comparison: &comparison_data,
             players: players.clone(),
             outcome: query.outcome,
             fitted: Vec::new(),
@@ -109,7 +122,7 @@ pub fn distribution_change_robust(
             outcome_idx: None,
             n_rows: 0,
         };
-        payoff.fit()?;
+        payoff.fit(&baseline_mechs, &comparison_mechs)?;
         let v0 = payoff.value(0)?;
         let full = full_coalition_mask(players.len())?;
         let v_full = payoff.value(full)?;
@@ -120,10 +133,12 @@ pub fn distribution_change_robust(
             graph_model.clone(),
             baseline_mechs,
             comparison_mechs,
-            &baseline_data,
             &players,
             outcome_dense,
-        )?;
+            options.n_samples,
+            options.seed,
+            ctx,
+        );
         let v0 = payoff.value(0)?;
         let full = full_coalition_mask(players.len())?;
         let v_full = payoff.value(full)?;
@@ -180,7 +195,6 @@ struct NodeRegression {
 struct RobustLinearPayoff<'a> {
     model: &'a CompiledCausalModel,
     baseline: &'a TabularData,
-    comparison: &'a TabularData,
     players: Vec<ComponentId>,
     outcome: VariableId,
     fitted: Vec<NodeRegression>,
@@ -194,9 +208,18 @@ struct RobustLinearPayoff<'a> {
 }
 
 impl RobustLinearPayoff<'_> {
-    fn fit(&mut self) -> Result<(), AttributionError> {
-        let backend = FaerBackend;
-        let mut ws = LeastSquaresWorkspace::default();
+    /// Compose `baseline_beta`/`comparison_beta` from the registry-selected fits
+    /// (`baseline_mechs`/`comparison_mechs`) instead of refitting by OLS: whichever
+    /// linear family the registry picked for a node (plain `LinearGaussian`,
+    /// `HierarchicalLinear` shrinkage, `Bvar`, or `Constant`) already has an
+    /// intercept + parent coefficients suitable for this composition, and
+    /// `all_linear` (the caller's guard before constructing this payoff) has
+    /// already confirmed every player is one of those four families.
+    fn fit(
+        &mut self,
+        baseline_mechs: &CompiledMechanismStore,
+        comparison_mechs: &CompiledMechanismStore,
+    ) -> Result<(), AttributionError> {
         self.fitted.clear();
         self.columns.clear();
         self.n_rows = self.baseline.row_count();
@@ -235,14 +258,44 @@ impl RobustLinearPayoff<'_> {
                 }
             }
             let baseline_beta =
-                fit_linear(self.baseline, comp.variable(), &parents, backend, &mut ws)?;
+                linear_beta(&baseline_mechs.slots[dense.as_usize()], parents.len())?;
             let comparison_beta =
-                fit_linear(self.comparison, comp.variable(), &parents, backend, &mut ws)?;
+                linear_beta(&comparison_mechs.slots[dense.as_usize()], parents.len())?;
             self.fitted.push(NodeRegression { baseline_beta, comparison_beta, sources });
         }
         self.node_pred = vec![0.0; self.players.len() * self.n_rows];
         Ok(())
     }
+}
+
+/// Extract `[intercept, coeffs...]` from a linear-family fitted slot.
+///
+/// # Errors
+///
+/// The slot is not one of the linear families this payoff supports, or the
+/// fitted coefficient count does not match the gather's parent count (a fit /
+/// topology mismatch, not something to silently zero-fill).
+fn linear_beta(slot: &MechanismSlot, n_parents: usize) -> Result<Vec<f64>, AttributionError> {
+    let (intercept, coeffs): (f64, &[f64]) = match slot {
+        MechanismSlot::LinearGaussian { intercept, coeffs, .. }
+        | MechanismSlot::HierarchicalLinear { intercept, coeffs, .. }
+        | MechanismSlot::Bvar { intercept, coeffs, .. } => (*intercept, coeffs.as_ref()),
+        MechanismSlot::Constant { value } => (*value, &[]),
+        _ => {
+            return Err(AttributionError::unsupported(
+                "robust linear payoff: non-linear-family slot",
+            ));
+        }
+    };
+    if coeffs.len() != n_parents {
+        return Err(AttributionError::unsupported(
+            "robust linear payoff: fitted coefficient count does not match parent count",
+        ));
+    }
+    let mut beta = Vec::with_capacity(n_parents + 1);
+    beta.push(intercept);
+    beta.extend_from_slice(coeffs);
+    Ok(beta)
 }
 
 impl CoalitionPayoff for RobustLinearPayoff<'_> {
@@ -277,18 +330,33 @@ impl CoalitionPayoff for RobustLinearPayoff<'_> {
     }
 }
 
-/// Nonlinear robust payoff: hybrid mechanisms, evaluate at ε=0 on baseline parents.
+/// Nonlinear robust payoff: hybrid mechanisms, Monte Carlo integration of `E[f(X)]`.
 ///
-/// All per-coalition allocations are hoisted to construction: the baseline data
-/// columns (`base_values`), the working value matrix, the gathered-parent scratch
-/// (disjoint from the mechanism workspace, so no per-node `to_vec` copy is needed
-/// to satisfy the borrow checker — same layout as `sample_with_overlay`'s hoisted
-/// `parent_buf` in `antecedent-model/src/sample.rs`), the zero-noise column, and
-/// the dense-node → player map (was an O(n) `dense_of` scan per player). Instead
-/// of cloning the full model with a rebuilt hybrid store per coalition, each
-/// node's slot is chosen directly from the baseline/comparison store — the same
-/// slot the hybrid store would have held (players here are all mechanism-kind).
-struct RobustMechanismPayoff {
+/// Every node — root or not — is *sampled*, not plugged in at a point: for each of
+/// `n_samples` draws, every node in topological order draws real structural noise from
+/// its fitted mechanism (`sample_noise_column`) and is evaluated on that noise plus its
+/// already-sampled parents (`evaluate_column`), exactly the ancestral walk
+/// `sample_with_overlay_into` performs in `antecedent-model`. A root's fitted mechanism
+/// *is* its marginal, so this integrates over the root's actual location *and* spread —
+/// unlike a single ε=0 evaluation, a variance or shape change with an unchanged mean
+/// moves the outcome here, because it moves the sampled column.
+///
+/// All per-coalition allocations are hoisted to construction: the working value matrix
+/// (`n_samples * n_nodes`), the gathered-parent scratch (disjoint from the mechanism
+/// workspace, so no per-node `to_vec` copy is needed to satisfy the borrow checker — same
+/// layout as `sample_with_overlay`'s hoisted `parent_buf` in
+/// `antecedent-model/src/sample.rs`), the sampled-noise scratch, and the dense-node →
+/// player map (was an O(n) `dense_of` scan per player). Instead of cloning the full model
+/// with a rebuilt hybrid store per coalition, each node's slot is chosen directly from the
+/// baseline/comparison store — the same slot the hybrid store would have held (players
+/// here are all mechanism-kind).
+///
+/// The RNG is reseeded to the *same* stream at the start of every [`CoalitionPayoff::value`]
+/// call (common random numbers), so two coalitions differ only in which mechanisms were
+/// swapped, not in which random draws were used — this is what keeps the Shapley
+/// differences of two Monte Carlo estimates numerically usable at a practical sample count,
+/// the same technique `distribution_change`'s `MechanismSwapPayoff` uses.
+struct RobustMechanismPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
@@ -296,62 +364,62 @@ struct RobustMechanismPayoff {
     ws: MechanismWorkspace,
     /// Player index per dense node (aligned with the player bit order).
     node_player: Vec<Option<usize>>,
-    /// Baseline data columns in dense-node order, fetched once.
-    base_values: Vec<f64>,
-    /// Working value matrix reused across coalitions.
+    /// Working value matrix (`n_samples * n_nodes`), overwritten every coalition.
     values: Vec<f64>,
     /// Gathered-parent scratch reused across nodes and coalitions.
     parent_scratch: Vec<f64>,
-    /// Zero-noise column reused across nodes and coalitions.
-    zeros: Vec<f64>,
-    n_rows: usize,
+    /// Sampled structural-noise scratch reused across nodes and coalitions.
+    noise_scratch: Vec<f64>,
+    n_samples: usize,
+    seed: u64,
+    ctx: &'a ExecutionContext,
 }
 
-impl RobustMechanismPayoff {
+impl<'a> RobustMechanismPayoff<'a> {
     fn new(
         template: CompiledCausalModel,
         baseline: CompiledMechanismStore,
         comparison: CompiledMechanismStore,
-        baseline_data: &TabularData,
         players: &[ComponentId],
         outcome: DenseNodeId,
-    ) -> Result<Self, AttributionError> {
-        let n = baseline_data.row_count();
+        n_samples: usize,
+        seed: u64,
+        ctx: &'a ExecutionContext,
+    ) -> Self {
         let n_nodes = template.n_nodes();
+        let n_samples = n_samples.max(1);
         let mut node_player = vec![None; n_nodes];
         for (i, comp) in players.iter().enumerate() {
             if let Some(dense) = template.dense_of(comp.variable()) {
                 node_player[dense.as_usize()] = Some(i);
             }
         }
-        let mut base_values = vec![0.0; n * n_nodes];
-        for (i, &var) in template.output_layout.variables.iter().enumerate() {
-            let col = baseline_data.float64_values(var)?;
-            base_values[i * n..(i + 1) * n].copy_from_slice(&col[..n]);
-        }
-        Ok(Self {
+        Self {
             template,
             baseline,
             comparison,
             outcome,
             ws: MechanismWorkspace::default(),
             node_player,
-            values: base_values.clone(),
-            base_values,
+            values: vec![0.0; n_samples * n_nodes],
             parent_scratch: Vec::new(),
-            zeros: vec![0.0; n],
-            n_rows: n,
-        })
+            noise_scratch: vec![0.0; n_samples],
+            n_samples,
+            seed,
+            ctx,
+        }
     }
 }
 
-impl CoalitionPayoff for RobustMechanismPayoff {
+impl CoalitionPayoff for RobustMechanismPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        let n = self.n_rows;
-        self.values.copy_from_slice(&self.base_values);
-        // Topo re-evaluate each node at zero noise under hybrid mechanisms
-        // (`parent_gathers` is aligned with `node_order`, so this iteration is the
-        // former `node_order` + `gather_for` walk without the O(n) lookups).
+        let n = self.n_samples;
+        // Common random numbers: fresh stream from the same seed every call, so
+        // only the swapped mechanisms (via `mask`) differ between coalitions.
+        let mut rng = self.ctx.rng.stream(0x526F_6275_7374_4D43_u64.wrapping_add(self.seed));
+        // Ancestral Monte Carlo walk (`parent_gathers` is aligned with `node_order`,
+        // so this iteration is the `node_order` + `gather_for` walk without the O(n)
+        // lookups): every node, root or not, draws real noise and is evaluated on it.
         for gather in self.template.parent_gathers.iter() {
             let node = gather.child;
             let n_parents = gather.n_parents();
@@ -369,37 +437,13 @@ impl CoalitionPayoff for RobustMechanismPayoff {
                 matches!(self.node_player[node.as_usize()], Some(i) if mask & (1u64 << i) != 0);
             let slot =
                 if use_comparison { self.comparison.get(node) } else { self.baseline.get(node) };
+            sample_noise_column(slot, n, &mut rng, &mut self.noise_scratch)?;
             let out = &mut self.values[node.as_usize() * n..(node.as_usize() + 1) * n];
-            evaluate_column(slot, parents, &self.zeros, out, &mut self.ws)?;
+            evaluate_column(slot, parents, &self.noise_scratch[..n], out, &mut self.ws)?;
         }
         let col = &self.values[self.outcome.as_usize() * n..(self.outcome.as_usize() + 1) * n];
-        Ok(col.iter().sum::<f64>() / n.max(1) as f64)
+        Ok(col.iter().sum::<f64>() / n as f64)
     }
-}
-
-fn fit_linear(
-    data: &TabularData,
-    y_id: VariableId,
-    parents: &[VariableId],
-    backend: FaerBackend,
-    ws: &mut LeastSquaresWorkspace,
-) -> Result<Vec<f64>, AttributionError> {
-    use antecedent_stats::DenseLinearAlgebra;
-    let n = data.row_count();
-    let p = parents.len() + 1;
-    let y = data.float64_values(y_id)?;
-    let mut x = vec![0.0; n * p];
-    for r in 0..n {
-        x[r] = 1.0;
-    }
-    for (pi, &pid) in parents.iter().enumerate() {
-        let col = data.float64_values(pid)?;
-        for r in 0..n {
-            x[(pi + 1) * n + r] = col[r];
-        }
-    }
-    let fit = backend.least_squares(&x, n, p, &y, ws)?;
-    Ok(fit.coefficients.clone())
 }
 
 #[cfg(test)]
@@ -598,5 +642,75 @@ mod tests {
         )
         .unwrap();
         assert!(result.total_change.abs() > 0.5);
+    }
+
+    /// `X -> Y`, `Y = X²` exactly (zero-noise quadratic mechanism), `X`'s mean held
+    /// fixed at 0 while its standard deviation moves 1 → 2 between baseline and
+    /// comparison. Independent truth: `f(x) = x²` is exactly quadratic, so for *any*
+    /// distribution shape `E[f(X)] = Var(X) + E[X]²` — a closed form that needs no
+    /// simulation and holds regardless of what family fits `X`'s marginal. With
+    /// `E[X] = 0` unchanged, the true swap-X-only payoff moves `Var(X): 1 → 4`, i.e.
+    /// `Δ = 3` exactly.
+    ///
+    /// `RobustMechanismPayoff::value` is exercised directly (bypassing
+    /// `distribution_change_robust`'s hardcoded `MechanismRegistry::standard()`,
+    /// which has no basis/GP family and so can never select a genuinely nonlinear
+    /// slot) with a hand-built mechanism store: `X` is `LinearGaussian` (its fitted
+    /// marginal), `Y` is `LinearBasis` with a single `Power{degree: 2}` term, i.e.
+    /// the mechanism is literally `Y = X²` with `sigma = 0`.
+    #[test]
+    fn nonlinear_payoff_attributes_ancestor_variance_change() {
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let template = CompiledCausalModel::compile(g).unwrap();
+
+        // φ(x) = x² (standardized with center 0, scale 1, so φ(x) = x²  exactly).
+        let quadratic_basis = antecedent_model::ParentBasis::new(
+            1,
+            Arc::from([0.0]),
+            Arc::from([1.0]),
+            Arc::from([Arc::from([]) as Arc<[f64]>]),
+            Arc::from([antecedent_model::BasisTerm::Power { parent: 0, degree: 2 }]),
+        )
+        .unwrap();
+        let y_slot = MechanismSlot::LinearBasis {
+            intercept: 0.0,
+            basis: quadratic_basis,
+            coeffs: Arc::from([1.0]),
+            sigma: 0.0,
+        };
+        let x_slot = |sigma: f64| MechanismSlot::LinearGaussian {
+            intercept: 0.0,
+            coeffs: Arc::from([]),
+            sigma,
+        };
+
+        let baseline = CompiledMechanismStore { slots: Arc::from([x_slot(1.0), y_slot.clone()]) };
+        // Only X's marginal changes (σ: 1 → 2); Y's mechanism (Y = X²) is untouched,
+        // isolating the effect to X's variance with its mean held at 0 in both.
+        let comparison = CompiledMechanismStore { slots: Arc::from([x_slot(2.0), y_slot]) };
+
+        let players = vec![
+            ComponentId::from_variable(VariableId::from_raw(0)),
+            ComponentId::from_variable(VariableId::from_raw(1)),
+        ];
+        let outcome = DenseNodeId::from_raw(1);
+        let ctx = ExecutionContext::for_tests(7);
+        let mut payoff = RobustMechanismPayoff::new(
+            template, baseline, comparison, &players, outcome, 20_000, 11, &ctx,
+        );
+
+        let v_baseline = payoff.value(0).unwrap();
+        // Swap only X (player index 0) to its comparison (higher-variance) marginal;
+        // Y stays at its baseline (identical, here) mechanism.
+        let v_x_swapped = payoff.value(1).unwrap();
+        let observed = v_x_swapped - v_baseline;
+        let true_delta = 3.0; // Var(X): 4 - 1, means both 0.
+
+        assert!(
+            (observed - true_delta).abs() < 0.2,
+            "nonlinear payoff should integrate E[f(X)] over X's actual (changed) \
+             variance, not plug in a single point: observed Δ={observed}, true Δ={true_delta}"
+        );
     }
 }

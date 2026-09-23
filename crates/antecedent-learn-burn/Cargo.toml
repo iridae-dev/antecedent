@@ -1,0 +1,14 @@
+[package]
+name = "antecedent-learn-burn"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Optional Burn neural-net provider for antecedent-learn; emits Vec<f64> predictions"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+burn = { version = "0.16", default-features = false, features = ["std", "autodiff", "ndarray"] }

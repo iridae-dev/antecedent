@@ -13,14 +13,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp)]
-#![allow(clippy::many_single_char_names)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
 use antecedent::{EstimatorId, RefuteSuite, Study};
-use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
+use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
 use antecedent_estimate::retarget;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -77,7 +79,7 @@ const N_LEVERS: u64 = 500;
 #[test]
 fn retarget_10k_by_500_stays_within_allocation_budget() {
     let n = N_ROWS;
-    let mut rng = ExecutionContext::for_tests(26).rng.stream(0x15);
+    let mut rng = ExecutionContext::for_tests(26).rng.stream_for(StreamDomain::Test, 0x15);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];

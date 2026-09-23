@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "oracle": {"project": "edge-g formula and canonical mediation examples", "generator": "temporary clean-room harness (deleted after artifact import); witness cases added by hand from the Avin-Shpitser-Pearl recanting-witness definition (a node W reached from T along a prefix q with continuations s1, s2 to Y such that q.s1 is selected and q.s2 is not)"},
+  "oracle": {"kind": "independent_reimplementation", "project": "edge-g formula and canonical mediation examples", "generator": "temporary clean-room harness (deleted after artifact import); witness cases added by hand from the Avin-Shpitser-Pearl recanting-witness definition (a node W reached from T along a prefix q with continuations s1, s2 to Y such that q.s1 is selected and q.s2 is not)"},
   "cases": [
     {"id": "mediated_only", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": ["M"], "status": "identified", "method": "path_specific.natural"},
     {"id": "all_paths", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": [], "status": "identified"},

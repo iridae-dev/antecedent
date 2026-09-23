@@ -1,7 +1,15 @@
 # Public support-matrix axes. The gate diffs these against the live surface.
 # Cartesian product minus support_n_a.toml is refused unless listed in
 # support_licensed.toml. See adr/0020-support-matrix-and-prepared-workflow.md.
+#
+# Estimators are not a SupportCell cartesian axis. Each licensed geometric cell
+# names the estimator wire-ids whose evidence ran for that cell (`estimators`
+# on the row in support_licensed.toml, joined from licensed_routes.toml).
+# Runtime licensing for a concrete estimator is `classify_estimator(cell, id)`.
 
+# Query kinds intentionally off these axes (`MechanismChange`, `UnitChange`) are the closed
+# allow-list `support::is_declared_off_axis`; any other kind without a name here is refused at
+# build, and a study result reports the unlicensed kinds as `evidence_status = "off_axis"`.
 queries = [
   "AnomalyAttribution",
   "AverageDerivative",

@@ -1,12 +1,11 @@
-//! 1.7 Sequence / Soft pins on two-completion temporal classes.
+//! Sequence / Soft pins on two-completion temporal classes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::float_cmp,
-    clippy::too_many_lines,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;
@@ -263,7 +262,7 @@ fn two_completion_dose_horizon_sequence_matches_fixture() {
             pag.certificate.as_ref().expect("certificate").graph_class,
             antecedent::GraphClass::TemporalPag
         );
-        for result in [cpdag, pag] {
+        for result in vec![cpdag, pag] {
             let got = class_surface(&result);
             assert_eq!(got.len(), expected.len());
             for (actual, truth) in got.iter().zip(&expected) {
@@ -321,7 +320,7 @@ fn two_completion_soft_mean_mechanisms_match_fixture() {
         for inference in inferences() {
             let cpdag = run_class(data.clone(), soft_cpdag(), query.clone(), inference.clone());
             let pag = run_class(data.clone(), soft_pag(), query.clone(), inference);
-            for result in [cpdag, pag] {
+            for result in vec![cpdag, pag] {
                 let got = class_surface(&result);
                 assert!((got[0] - expected).abs() < atol, "case {index}: {} vs {expected}", got[0]);
             }

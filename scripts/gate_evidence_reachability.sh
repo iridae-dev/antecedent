@@ -195,6 +195,127 @@ if licensed_obs:
             "both loads that fixture and constructs ObservationSpec != Complete"
         )
 
+# ------------------------------------------------ oracle audit trail
+# A frozen fixture's `command` is its audit trail. It must name a generator that is
+# in the repository; a command that runs a script from /tmp is only legal when the
+# block says so (`generator_retained = false`), so a reader can tell a frozen value
+# that cannot be regenerated from one that can. An external-oracle block with no
+# command at all has no audit trail.
+import json
+
+
+def command_blocks(obj):
+    if isinstance(obj, dict):
+        if isinstance(obj.get("command"), str):
+            yield obj
+        for value in obj.values():
+            yield from command_blocks(value)
+    elif isinstance(obj, list):
+        for value in obj:
+            yield from command_blocks(value)
+
+
+ORACLE_KINDS = {
+    "external_package",  # a frozen run of a pinned upstream package or tool
+    "closed_form",  # analytic / hand-derived truth
+    "enumeration",  # exhaustive or exact enumeration
+    "independent_reimplementation",  # a clean-room reimplementation of the method
+    "regression_pin",  # frozen output of this library: a change detector, not truth
+}
+for expected in sorted((root / "conformance").glob("**/expected.json")):
+    try:
+        document = json.loads(expected.read_text())
+    except json.JSONDecodeError:
+        continue
+    for block in command_blocks(document):
+        command = block["command"]
+        if "/tmp/" in command:
+            if block.get("generator_retained") is not False:
+                fail.append(
+                    f"{expected}: command runs a /tmp script but the block does not state "
+                    "generator_retained = false; commit the generator or say it is gone"
+                )
+            continue
+        for script in re.findall(r"(?:conformance|scripts)/[\w./-]+\.(?:py|R)", command):
+            if not (root / script).is_file():
+                fail.append(f"{expected}: command names {script}, which is not in the repository")
+    if isinstance(document, dict) and isinstance(document.get("oracle"), str):
+        if "command" not in document and "reference" not in document:
+            fail.append(f"{expected}: names an external oracle but records no command")
+    # Every `oracle` block says what kind of truth it is, from one closed vocabulary; a
+    # frozen output of this library is a regression_pin, never truth.
+    if isinstance(document, dict) and "oracle" in document:
+        oracle = document["oracle"]
+        if not isinstance(oracle, dict) or oracle.get("kind") not in ORACLE_KINDS:
+            fail.append(
+                f"{expected}: `oracle` must be an object with `kind` in {sorted(ORACLE_KINDS)}"
+            )
+        elif oracle["kind"] == "regression_pin":
+            if not str(oracle.get("note", "")).strip():
+                fail.append(f"{expected}: a regression_pin oracle must say what is pinned (`note`)")
+        elif "independent_inferences" in oracle:
+            fail.append(
+                f"{expected}: independent_inferences belongs on a regression_pin oracle only"
+            )
+
+# ------------------------------------ 6. calibration tests are run by the gate
+# A test whose `#[ignore]` reason says it runs via scripts/gate_calibration.sh must
+# be selected by a group of that gate (its dry-run list): a whole-file group of
+# its suite, or a cargo filter contained in its name. An orphan is silently never
+# measured while the diagnostics and registries describe the coverage in the
+# present tense.
+import os
+import subprocess
+
+_gate_env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
+_gate_env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
+_dry = subprocess.run(
+    ["bash", "scripts/gate_calibration.sh"], env=_gate_env, capture_output=True, text=True
+)
+_groups = []
+for _line in _dry.stdout.splitlines():
+    _m = re.fullmatch(r"group \d+: (.+)", _line)
+    if _m:
+        _head, _, _filt = _m.group(1).partition(": ")
+        _groups.append((_head, _filt))
+if _dry.returncode != 0 or not _groups:
+    fail.append("scripts/gate_calibration.sh dry run listed no groups")
+CLAIM = re.compile(r'#\[ignore\s*=\s*"calibration: run via scripts/gate_calibration\.sh"\]')
+FN = re.compile(r"\s*(?:pub\s+)?fn\s+([A-Za-z_]\w*)")
+n_claimed = 0
+for p in sorted(root.glob("crates/**/*.rs")):
+    if "target" in p.parts:
+        continue
+    lines = p.read_text(errors="ignore").splitlines()
+    for i, line in enumerate(lines):
+        if not CLAIM.search(line):
+            continue
+        fn = next(
+            (m.group(1) for m in (FN.match(x) for x in lines[i + 1 : i + 6]) if m), None
+        )
+        if fn is None:
+            continue  # macro-generated test name: covered by its macro's group
+        n_claimed += 1
+        parts = p.parts
+        owner = parts[1] if parts[0] == "crates" else ""
+        in_src = "src" in parts
+        covered = False
+        for head, filt in _groups:
+            same_file = head == p.stem or (in_src and head == owner)
+            if not same_file:
+                continue
+            # No filter: the group runs the whole file. A filter matches by
+            # substring (module path included), or exactly under --exact.
+            if not filt or filt.rsplit("::", 1)[-1] in fn:
+                covered = True
+                break
+        if not covered:
+            fail.append(
+                f"{p}:{i + 1} `{fn}` claims to run via scripts/gate_calibration.sh but "
+                "no group of that gate selects it — add it to the gate, or change its "
+                "#[ignore] reason to say what it really is"
+            )
+
 if fail:
     print("Evidence reachability gate FAILED:")
     for f in fail:

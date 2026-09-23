@@ -472,6 +472,10 @@ fn validate_environment_holdout(
             ))
             .with_ci(ci_impl);
         let checker = EnvironmentHoldout::new(jpcmci, split);
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the variable count is the number of series columns, far below 2^32"
+        )]
         let variables: Vec<VariableId> =
             (0..names.len() as u32).map(VariableId::from_raw).collect();
         let mut ws = DiscoveryWorkspace::default();

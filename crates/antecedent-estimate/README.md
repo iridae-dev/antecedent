@@ -6,7 +6,8 @@ identifiability.
 
 Frequentist surface: linear and GLM adjustment, g-computation, propensity
 methods (IPW, matching, AIPW), instrumental variables (Wald, 2SLS),
-front-door two-stage, sharp regression discontinuity, and temporal
+the front-door functional plug-in and its linear two-stage shortcut, sharp
+regression discontinuity, and temporal
 adjustment, mediation, and prediction. Continuous causal responses
 (Kennedy-style doubly robust curves, derivatives, elasticities) live in
 `response`. Bayesian estimation covers g-computation, HMC GLMs, prior

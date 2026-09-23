@@ -8,12 +8,16 @@
     clippy::module_name_repetitions,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::similar_names,
     clippy::type_complexity,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::unnecessary_literal_bound
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 pub mod candidate;

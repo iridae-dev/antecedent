@@ -38,22 +38,39 @@ pub mod rd;
 pub mod response;
 pub(crate) mod response_id;
 pub mod result;
+pub(crate) mod selection_separation;
+pub mod sid;
 pub mod temporal_backdoor;
 pub mod temporal_generalized;
 mod temporal_mag;
 pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
+pub use sid::{
+    BoundTransportFunctional, CatalogTransportResult, CheckedTransportDerivation,
+    ClassicalTransportDerivation, ClassicalTransportQuery, ClassicalTransportResult, MetaSource,
+    MetaTransportQuery, SidLimits, identify_catalog_transport, identify_classical_transport,
+    identify_meta_catalog, identify_meta_transport, verify_classical_transport,
+    verify_meta_s_hedge, verify_meta_transport,
+};
+mod transport_lower;
 
 #[cfg(test)]
 mod id_scm_property;
+#[cfg(test)]
+mod mag_id_bruteforce;
 /// Hidden parser for the frozen external `graph_dot` oracles used by tests.
+///
+/// Compiled only for this crate's tests and under the `test-util` feature: it panics on
+/// malformed input, which is fine for frozen fixtures and wrong for a library API.
+#[cfg(any(test, feature = "test-util"))]
 #[doc(hidden)]
 pub mod oracle_dot;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{
-    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, RankedAdjustmentSet,
+    AdjustmentSearchConfig, BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, BackdoorIdentifier,
+    PreparedIdentificationGraph, RankedAdjustmentSet,
 };
 pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use efficient::EfficientBackdoorIdentifier;
@@ -62,23 +79,28 @@ pub use envelope::{
     carries_identified_mass, search_truncated,
 };
 pub use error::IdentificationError;
-pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};
-pub use generalized::{
-    CAPPED_COMPLETION_DIAGNOSTIC_CODE, GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+pub use frontdoor::{
+    FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, FrontDoorIdentifier, FrontDoorSearchConfig,
 };
-pub use hedge::HedgeCertificate;
+pub use generalized::{
+    CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+};
+pub use hedge::{HedgeCertificate, HedgeProblem};
 pub use id::IdIdentifier;
 pub use idc::IdcIdentifier;
 pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
+pub use joint_response::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE;
 pub use path_specific::PathSpecificIdentifier;
 pub use prepared::{PreparedAdmg, dag_to_admg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
 pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
 pub use result::{
-    DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
-    IdentificationStatus, IdentifiedEstimand,
+    DerivationStep, DerivationTrace, EstimandClaim, IdentificationPerformanceRecord,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{
     PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,
@@ -91,8 +113,11 @@ pub use tiered::{
     identify_tiered_on,
 };
 pub use transport::{
-    NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
-    TransportIdentification, TransportIdentifier,
+    MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
+    TransportFormula, TransportIdentification, TransportIdentifier,
+};
+pub use transport_lower::{
+    bind_transport_derivation, lower_transport_formula, lower_transport_mean,
 };
 
 mod joint_response;

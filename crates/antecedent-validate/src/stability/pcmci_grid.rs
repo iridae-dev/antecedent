@@ -2,16 +2,23 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_data::{ResamplingPlan, TableView, TimeSeriesData, resample_timeseries};
+use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, Pcmci, ci_from_name};
 
 use crate::error::ValidationError;
+use crate::stability::gapped_block_bootstrap;
 
 /// Stability frequency for one lagged link.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -39,6 +46,12 @@ pub struct DiscoveryStabilityReport {
 }
 
 /// Block-bootstrap stability around a [`Pcmci`] configuration.
+///
+/// Blocks of `block_size` consecutive rows are resampled with replacement and joined; each
+/// junction is followed by missing rows so that no lag window mixes two blocks (rebuilding lags on
+/// the bare concatenation would pair outcomes with regressors from unrelated blocks and bias link
+/// frequencies toward independence). The complete windows PCMCI keeps are therefore genuine
+/// within-block windows, and the effective sample shrinks by the separators.
 #[derive(Clone, Debug)]
 pub struct BlockBootstrapStability {
     /// PCMCI configuration to re-run.
@@ -87,16 +100,16 @@ impl BlockBootstrapStability {
         let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
         let mut rng = ctx.rng.stream(0x57AB_u64);
         let mut index_scratch = Vec::new();
+        // PCMCI materializes lags up to twice its maximum lag; that is the separator width that
+        // keeps every lag window inside one block (see `gapped_block_bootstrap`).
+        let gap = 2 * self.pcmci.engine().constraints.temporal.max_lag.raw() as usize;
         for _ in 0..self.replicates {
-            let boot = resample_timeseries(
-                data,
-                ResamplingPlan::MovingBlock { length: self.block_size },
-                &mut rng,
-                &mut index_scratch,
-            )
-            .map_err(ValidationError::from)?;
-            let result =
-                self.pcmci.run(&boot, variables, workspace, ctx).map_err(ValidationError::from)?;
+            let boot =
+                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
+            let result = self
+                .pcmci
+                .run(&boot.series, variables, workspace, ctx)
+                .map_err(ValidationError::from)?;
             for s in result.evidence.links.iter() {
                 *counts.entry(s.link).or_insert(0) += 1;
             }

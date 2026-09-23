@@ -15,11 +15,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::float_cmp
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -42,7 +44,8 @@ pub struct RieszSensitivity {
     /// Ascending grid of residual confounding strengths `δ`, in units of `sd(Y)` so the
     /// verdict is invariant to outcome units.
     pub delta_grid: Vec<f64>,
-    /// Pass if the robustness `δ` exceeds this threshold.
+    /// Pass if the robustness `δ` *strictly exceeds* this threshold.
+    /// Equality fails: a residual shift at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Propensity clip for numerical stability.
     pub clip: f64,
@@ -88,6 +91,10 @@ impl RieszSensitivity {
     /// # Errors
     ///
     /// Empty grid, data/GLM failures, or non-binary treatment.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a delta grid is far below 2^32 points"
+    )]
     pub fn refute_with_propensity(
         &self,
         problem: &RefutationProblem<'_>,
@@ -98,7 +105,33 @@ impl RieszSensitivity {
                 message: "Riesz sensitivity requires a non-empty delta_grid",
             });
         }
-        let (alpha, y, ipw_ate) = self.representer_and_ipw(problem, propensity)?;
+        let representer = self.representer_and_ipw(problem, propensity)?;
+        if let Some(defect) = representer.defect {
+            // Separation makes the representer unbounded: no finite δ certifies robustness.
+            return Ok(RefutationReport {
+                refuter: Arc::from("sensitivity.riesz"),
+                original_ate: problem.original.ate,
+                refuted_ate: problem.original.ate,
+                comparison: 0.0,
+                informative: true,
+                passed: false,
+                failure_condition: Some(Arc::from(defect)),
+                replicates: 0,
+            });
+        }
+        let Representer { alpha, y, ipw_ate, .. } = representer;
+        // The bound is computed around the clipped inverse-probability-weighted ATE, not around
+        // the published estimate; a bound for an effect of the opposite sign does not describe
+        // the published one.
+        if ipw_ate != 0.0
+            && problem.original.ate != 0.0
+            && ipw_ate.signum() != problem.original.ate.signum()
+        {
+            return Err(ValidationError::NotApplicable {
+                message: "the inverse-probability-weighted ATE has the opposite sign of the \
+                          published estimate, so the Riesz bound around it does not describe it",
+            });
+        }
         let sd_y = crate::common::sample_sd(&y).max(1e-12);
         let n = alpha.len() as f64;
         let alpha_l2 = (alpha.iter().map(|a| a * a).sum::<f64>() / n.max(1.0)).sqrt();
@@ -112,24 +145,27 @@ impl RieszSensitivity {
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let original_sign = ipw_ate.signum();
         let mut last_bound_ate = ipw_ate;
-        let mut robustness = sorted.last().copied().unwrap_or(1.0);
+        let mut explained_away_at = None;
         for &delta in &sorted {
             // Worst-case shift: |bias| ≤ δ·sd(Y) · ||α||_2 (population L2 product bound;
             // δ expressed in sd(Y) units keeps the grid scale-free).
             let bias = delta * sd_y * alpha_l2;
             let lower = ipw_ate - bias;
             let upper = ipw_ate + bias;
-            // "Explained away" if the interval covers 0 or the nearer endpoint flips sign.
+            // "Explained away" once the interval [ate − bias, ate + bias] covers 0. The bias is
+            // non-negative, so the interval always contains `ipw_ate` and covering zero is
+            // exactly the nearer endpoint reaching or crossing it.
             let covers_zero = lower <= 0.0 && upper >= 0.0;
-            let flipped = if original_sign >= 0.0 { upper < 0.0 } else { lower > 0.0 };
             last_bound_ate = if original_sign >= 0.0 { lower } else { upper };
-            if covers_zero || flipped {
-                robustness = delta;
+            if covers_zero {
+                explained_away_at = Some(delta);
                 break;
             }
             let _ = &y; // y retained for future DR extensions
         }
-        let passed = robustness >= self.pass_threshold;
+        // Smallest grid δ that tips the estimate; +∞ if the bound never covers zero.
+        let robustness = explained_away_at.unwrap_or(f64::INFINITY);
+        let passed = robustness > self.pass_threshold;
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.riesz"),
             original_ate: problem.original.ate,
@@ -142,7 +178,7 @@ impl RieszSensitivity {
             } else {
                 Some(Arc::from(format!(
                     "Riesz bound explains away effect at δ={robustness} (||α||₂={alpha_l2}), \
-                     below threshold {}",
+                     not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -154,10 +190,15 @@ impl RieszSensitivity {
         &self,
         problem: &RefutationProblem<'_>,
         propensity: &mut antecedent_stats::PropensityWorkspace,
-    ) -> Result<(Vec<f64>, Vec<f64>, f64), ValidationError> {
+    ) -> Result<Representer, ValidationError> {
         let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, propensity)?;
+        let defect = cols.defect;
         let y = cols.outcome.expect("outcome requested");
         let nrows = cols.treatment.len();
+        #[allow(
+            clippy::float_cmp,
+            reason = "binary treatment is coded exactly 0/1, so exact equality is the membership test"
+        )]
         for &ti in &cols.treatment {
             if !(ti == 0.0 || ti == 1.0) {
                 return Err(ValidationError::NotApplicable {
@@ -176,8 +217,17 @@ impl RieszSensitivity {
             weighted += a * yi;
         }
         let ipw_ate = weighted / nrows as f64;
-        Ok((alpha, y, ipw_ate))
+        Ok(Representer { alpha, y, ipw_ate, defect })
     }
+}
+
+/// Riesz representer values, outcome and IPW ATE of the diagnostic propensity fit.
+struct Representer {
+    alpha: Vec<f64>,
+    y: Vec<f64>,
+    ipw_ate: f64,
+    /// Separation / non-convergence of the diagnostic fit (a positivity failure).
+    defect: Option<&'static str>,
 }
 
 #[cfg(test)]
@@ -292,12 +342,61 @@ mod tests {
         assert_eq!(report.refuter.as_ref(), "sensitivity.riesz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);
         assert!(
-            fixture["delta_grid"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|delta| delta.as_f64() == Some(report.comparison))
+            report.comparison.is_infinite()
+                || fixture["delta_grid"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|delta| delta.as_f64() == Some(report.comparison)),
+            "comparison={} must be a grid δ or +∞ when never explained away",
+            report.comparison
         );
         assert!(report.informative);
+    }
+
+    #[test]
+    fn riesz_equality_at_threshold_fails_strict_above_passes() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let probe = RieszSensitivity { pass_threshold: 0.0, ..RieszSensitivity::new() };
+        let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(
+            tipped.comparison.is_finite() && tipped.comparison > 0.0,
+            "expected a finite tipping δ, got {}",
+            tipped.comparison
+        );
+        let rv = tipped.comparison;
+
+        let at_bar = RieszSensitivity {
+            pass_threshold: rv,
+            delta_grid: probe.delta_grid.clone(),
+            ..RieszSensitivity::new()
+        };
+        let equal = at_bar.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(equal.comparison, rv);
+        assert!(!equal.passed, "RV == threshold must fail");
+
+        let below_bar = RieszSensitivity {
+            pass_threshold: rv * 0.5,
+            delta_grid: probe.delta_grid.clone(),
+            ..RieszSensitivity::new()
+        };
+        let past = below_bar.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(past.comparison, rv);
+        assert!(past.passed, "RV > threshold must pass");
     }
 }

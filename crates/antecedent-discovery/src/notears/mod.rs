@@ -18,12 +18,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::similar_names,
-    clippy::too_many_lines
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 mod acyclicity;
@@ -31,7 +33,7 @@ mod solver;
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
@@ -44,6 +46,7 @@ use crate::pc::collect_float_columns;
 use crate::result::{
     AlgorithmRecord, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
     DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    discovery_assumptions,
 };
 
 use solver::{NotearsWorkspace, SolverConfig, solve_notears};
@@ -276,8 +279,8 @@ impl Notears {
         }
         let mut kept: Vec<(usize, usize, f64)> = Vec::new();
         for &(par, child, w) in &edge_coefs {
-            let from = DenseNodeId::from_raw(par as u32);
-            let to = DenseNodeId::from_raw(child as u32);
+            let from = DenseNodeId::from_raw(crate::indexing::dense_u32(par));
+            let to = DenseNodeId::from_raw(crate::indexing::dense_u32(child));
             if dag.children(from).contains(&to) {
                 continue;
             }
@@ -339,7 +342,7 @@ impl Notears {
                     self.lambda, self.threshold, self.standardize, self.max_iter, self.h_tol
                 )),
             },
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("notears", true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: vec![DiscoveryDiagnostic {
                 code: Arc::from("notears.hard_threshold"),

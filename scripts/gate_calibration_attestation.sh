@@ -42,5 +42,11 @@ fi
 echo "== calibration surface: completeness and facet boundaries =="
 python3 scripts/calibration_facets.py check
 
+# A pull request may only widen the surface list (see `widening_problems`).
+if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+  echo "== calibration surface list: no narrowing relative to origin/${GITHUB_BASE_REF} =="
+  python3 scripts/calibration_facets.py widening "origin/${GITHUB_BASE_REF}"
+fi
+
 echo "== calibration attestation: every coverage record matches the code =="
 python3 scripts/calibration_facets.py status --require

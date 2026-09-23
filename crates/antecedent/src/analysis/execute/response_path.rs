@@ -179,6 +179,8 @@ impl super::Study {
                 level,
                 lower: value - z * se,
                 upper: value + z * se,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         } else {
             ResponseUncertainty::None
@@ -759,9 +761,16 @@ impl super::Study {
                 message: "cell.aipw requires at least two binary Set interventions",
             });
         }
-        let est = antecedent_estimate::CellSaturatedAipw::new();
+        let est =
+            antecedent_estimate::CellSaturatedAipw::new().with_fold_seed(ctx.rng.master_seed());
         let continuous = None;
-        let (fold_ids, design) = match self.shared_batch_design.as_ref() {
+        // Folds are deliberately not shared here: `fit_scores_with_assignment` leaves
+        // them unset so the cell path draws its own cell-stratified
+        // `crossfit_fold_plan` (keyed by `est.fold_seed`), reproducing the solo fold
+        // plan for this query's own cells bit-for-bit instead of a private,
+        // unstratified batch shuffle. See `SharedBatchDesign` docs.
+        let fold_ids: Option<Vec<u32>> = None;
+        let design = match self.shared_batch_design.as_ref() {
             Some(shared) => {
                 let ids: Vec<_> = treatments
                     .iter()
@@ -779,16 +788,13 @@ impl super::Study {
                         .collect::<Vec<_>>(),
                     Err(_) => Vec::new(),
                 };
-                let folds =
-                    if row_index.is_empty() { None } else { Some(shared.folds_for(&row_index)?) };
-                let design = if row_index.is_empty() {
+                if row_index.is_empty() {
                     None
                 } else {
                     shared.design_for(&estimand.adjustment_set, &row_index)?
-                };
-                (folds, design)
+                }
             }
-            None => (None, None),
+            None => None,
         };
         let table = est
             .fit_scores_with_assignment(
@@ -859,6 +865,8 @@ impl super::Study {
                 lower: scalar - crate::result::reported_se_interval_z() * se,
                 upper: scalar + crate::result::reported_se_interval_z() * se,
                 level: 0.95,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             },
             support: antecedent_core::SupportReport {
                 status: antecedent_core::SupportStatus::Supported,
@@ -1398,6 +1406,8 @@ impl super::Study {
                             level,
                             lower: v - z * se,
                             upper: v + z * se,
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            draws: None,
                         };
                     }
                     Some(ResponseValue::Surface { mean, .. }) if mean.len() == cov.dim => {
@@ -1426,8 +1436,15 @@ impl super::Study {
                                 lower,
                                 upper,
                                 replicates,
+                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
                             },
-                            None => ResponseUncertainty::PointwiseBand { level, lower, upper },
+                            None => ResponseUncertainty::PointwiseBand {
+                                level,
+                                lower,
+                                upper,
+                                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                                draws: None,
+                            },
                         };
                     }
                     _ => {}
@@ -1444,7 +1461,7 @@ impl super::Study {
         // Completions that disagree publish the completion identified set, not a
         // mass-weighted summary, so the frozen-weight joint-IF SE has no reported
         // point to attach to. Attaching it anyway left `se_analytic` describing a
-        // mixture the result never states (1.9 calibration finding).
+        // mixture the result never states.
         let reports_mixed_point = matches!(
             &mixed.estimate,
             ResponseIdentification::PointIdentified(
@@ -1928,7 +1945,10 @@ fn attach_response_influence(
     let cols: Vec<&[f64]> = scores.columns.iter().map(Vec::as_slice).collect();
     match antecedent_estimate::joint_influence_covariance(&cols, None) {
         Ok(cov) => {
-            if estimate.se_analytic.is_nan() {
+            // Column 0's SE describes the reported scalar only. A surface response publishes no
+            // scalar (`ate` is NaN), so a standard error here would sit beside no estimate and
+            // describe one unnamed grid cell; the joint covariance below carries every cell.
+            if estimate.se_analytic.is_nan() && estimate.ate.is_finite() {
                 estimate.se_analytic = cov.se(0);
             }
             estimate.joint_covariance = Some(cov);
@@ -2038,12 +2058,16 @@ mod uncertainty_tests {
             lower: -0.2,
             upper: 0.2,
             level: 0.95,
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         };
         let b = ResponseUncertainty::Scalar {
             standard_error: 0.1,
             lower: 9.8,
             upper: 10.2,
             level: 0.95,
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         };
         assert!(matches!(
             mix_response_uncertainty(&[(0.5, &a), (0.5, &b)]),
@@ -2098,8 +2122,7 @@ pub(super) fn estimate_general_id_response(
         )
         .map_err(CausalError::from)?;
     let _ = ctx;
-    let eval =
-        prepared.compiled.evaluate(&prepared.arena, &prepared.provider, &EvalContext::default());
+    let eval = prepared.evaluate(&prepared.provider);
     let map_eval = |e: EvalError| {
         CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
     };
@@ -2152,6 +2175,43 @@ pub(super) fn estimate_general_id_response(
 #[cfg(test)]
 mod influence_review_tests {
     use super::*;
+
+    fn influence(columns: Vec<Vec<f64>>) -> antecedent_estimate::ResponseInfluence {
+        antecedent_estimate::ResponseInfluence { columns, row_index: Arc::from([0, 1, 2, 3]) }
+    }
+
+    #[test]
+    fn surface_response_influence_attaches_no_scalar_standard_error() {
+        let scores = influence(vec![vec![1.0, -1.0, 2.0, -2.0], vec![0.5, 0.5, -0.5, -0.5]]);
+        let mut surface = EffectEstimate::new(
+            f64::NAN,
+            f64::NAN,
+            antecedent_core::AssumptionSet::new(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        attach_response_influence(&mut surface, Some(&scores)).unwrap();
+        assert!(surface.se_analytic.is_nan(), "se {}", surface.se_analytic);
+        assert!(surface.joint_covariance.is_some());
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the scalar standard error is copied from the same joint-covariance entry, so it must match bit for bit"
+    )]
+    fn scalar_response_influence_still_attaches_its_standard_error() {
+        let scores = influence(vec![vec![1.0, -1.0, 2.0, -2.0]]);
+        let mut scalar = EffectEstimate::new(
+            0.3,
+            f64::NAN,
+            antecedent_core::AssumptionSet::new(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        attach_response_influence(&mut scalar, Some(&scores)).unwrap();
+        let expected = scalar.joint_covariance.as_ref().unwrap().se(0);
+        assert!(expected.is_finite() && expected > 0.0, "se {expected}");
+        assert_eq!(scalar.se_analytic, expected);
+    }
 
     #[test]
     fn response_mixture_aligns_original_row_ids() {

@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
-
-from _repo_text import load_json
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set
+
+from _repo_text import load_json
 
 _ROOT = Path(__file__).resolve().parents[2]
 _PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_prior_transfer" / "expected.json")

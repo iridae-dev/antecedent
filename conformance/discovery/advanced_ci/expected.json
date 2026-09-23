@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "Tigramite",
     "packages": {
       "tigramite": {
@@ -26,7 +27,7 @@
     },
     "python": "3.10.17",
     "seed": 20260725,
-    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with scikit-learn==1.3.2 --with dcor==0.6 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_advanced_ci.py",
+    "command": "uv run --python 3.10 --with numpy==1.23.5 --with scipy==1.10.1 --with scikit-learn==1.3.2 --with dcor==0.6 --with tigramite==5.2.1.30 python /tmp/antecedent_tigramite_advanced_ci.py", "generator_retained": false,
     "generation_location": "temporary external harness; not retained"
   },
   "normalization": {

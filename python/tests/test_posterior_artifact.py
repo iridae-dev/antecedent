@@ -5,11 +5,8 @@ from __future__ import annotations
 import math
 import random
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 
 
 def _confounded_scm(n: int = 400, seed: int = 11):
@@ -71,7 +68,7 @@ def test_posterior_artifact_round_trip_opt_in():
     again = antecedent.inference.encode_posterior_artifact(art)
     art2 = antecedent.inference.decode_posterior_artifact(again)
     assert art2.n_draws == art.n_draws
-    assert art2.draws == art.draws
+    assert np.array_equal(art2.draws, art.draws)
     assert art2.mean == art.mean
     assert abs(art2.mean[effect_idx] - 2.0) < 0.5
 
@@ -101,3 +98,24 @@ def test_posterior_artifact_payload_size_vs_summaries():
     assert len(art.draws) == art.n_draws * len(art.quantity_names)
     assert len(art.draws) > 0
     assert len(full.posterior.artifact) > len(art.mean) * 8
+
+
+def test_posterior_artifact_draws_are_a_float64_array_matching_the_buffer_view():
+    """`draws` is a NumPy array, not a boxed-float list rebuilt on every access."""
+    art = antecedent.inference.PosteriorArtifact(
+        3,
+        [0.5],
+        [0.25],
+        [0.2625],
+        [0.7375],
+        [0.25, 0.5, 0.75],
+        "test",
+        "identified",
+        ["ate"],
+    )
+    draws = art.draws
+    assert isinstance(draws, np.ndarray)
+    assert draws.dtype == np.float64
+    np.testing.assert_array_equal(draws, [0.25, 0.5, 0.75])
+    # The zero-copy buffer view and the attribute agree element for element.
+    np.testing.assert_array_equal(np.asarray(art), draws)

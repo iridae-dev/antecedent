@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "closed_form",
     "project": "analytic linear-Gaussian SCM intervention",
     "pin": "fixture-algorithm-v1",
     "generation_location": "analytical artifact; no generator retained"

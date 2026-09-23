@@ -40,4 +40,4 @@ adjustment set was correlated with the treatment. Run
 
 ## Expected summary
 
-Top-level keys: `bayesian, case, columns, conditional, contingency_table, frequentist, graph, identification, query, schema_version` (10 fields).
+Top-level keys: `bayesian, case, columns, conditional, contingency_table, frequentist, graph, identification, oracle, query, schema_version` (11 fields).

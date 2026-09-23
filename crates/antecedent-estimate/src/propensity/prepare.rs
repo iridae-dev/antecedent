@@ -24,6 +24,9 @@ use crate::util::stats_err;
 /// Built once from `(data, estimand, query)`; reused across point estimate and bootstrap.
 #[derive(Clone, Debug)]
 pub struct PreparedPropensityProblem {
+    /// Shared learner nuisance cache; changing any fit input invalidates reuse.
+    pub(crate) learner_cache:
+        Arc<std::sync::Mutex<Vec<Arc<crate::learn_nuisance::AipwCacheEntry>>>>,
     /// Column-major `[1 | Z…]` design used to fit the propensity model.
     pub design_matrix: Arc<[f64]>,
     /// Number of design columns (`1 + adjustment_set.len()`).
@@ -52,8 +55,20 @@ pub struct PreparedPropensityProblem {
     pub row_index: Arc<[u32]>,
     /// Treatment variable id (for score-table provenance).
     pub treatment_id: VariableId,
-    /// Optional complete-case fold ids. `None` uses `row_index % n_folds`.
+    /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
+    /// plan from [`Self::fold_seed`] (see `learn_nuisance::crossfit_fold_plan`).
     pub fold_assignment: Option<Arc<[u32]>>,
+    /// Seed of the cross-fit fold plan used when [`Self::fold_assignment`] is `None`.
+    /// Callers holding an execution context set it to the master seed so the recorded
+    /// cross-fit seed controls the folds as well as the learners.
+    pub fold_seed: u64,
+    /// Set when a batch's shared `[1 | Z…]` covariate design was gathered into
+    /// [`Self::design_matrix`] in place of a freshly compiled one (see
+    /// `SharedBatchDesign::apply_to_propensity`). Recorded on the score table's
+    /// `nuisance_provenance` for reuse-identity purposes; folds are never shared this way
+    /// (every query draws its own `crossfit_fold_plan`), so this reflects covariate sharing
+    /// only.
+    pub shared_design: bool,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -102,6 +117,44 @@ impl PropensityModel {
         }
         Ok(Self { fit, clip, clipped_scores })
     }
+
+    /// `logit(ê)` per row computed from the fitted linear predictor `η̂ = Xγ̂`, so it stays
+    /// finite when `ê` rounds to 0 or 1 (`|η̂| ≳ 37`). Under a clip the predictor is clamped
+    /// to `±logit(1 − clip)`, which is exactly the logit of the clipped score.
+    pub(crate) fn logit_scores(&self, problem: &PreparedPropensityProblem) -> Vec<f64> {
+        let n = problem.nrows;
+        let mut eta = vec![0.0; n];
+        for (c, &coef) in self.fit.coefficients.iter().enumerate().take(problem.design_ncols) {
+            let column = &problem.design_matrix[c * n..(c + 1) * n];
+            for (slot, &x) in eta.iter_mut().zip(column) {
+                *slot += coef * x;
+            }
+        }
+        eta.into_iter().map(|e| clamp_linear_predictor(e, self.clip)).collect()
+    }
+}
+
+/// Clamp a logistic linear predictor to the band whose logit-inverse is `[clip, 1 − clip]`.
+pub(crate) fn clamp_linear_predictor(eta: f64, clip: Option<f64>) -> f64 {
+    match clip {
+        Some(c) => {
+            let bound = ((1.0 - c) / c).ln();
+            eta.clamp(-bound, bound)
+        }
+        None => eta,
+    }
+}
+
+/// Refuse propensities that are exactly 0 or 1 (or not finite): they carry an infinite
+/// inverse-probability weight. With a clip they cannot occur; without one the user asked for
+/// no floor, so the fit is refused instead of silently flooring at a hidden constant.
+pub(crate) fn require_interior_propensities(scores: &[f64]) -> Result<(), EstimationError> {
+    if scores.iter().any(|&e| !(e > 0.0 && e < 1.0)) {
+        return Err(EstimationError::Overlap {
+            message: "a fitted propensity is 0 or 1 (or not finite) and no clip is set;                       the inverse-probability weight is infinite — set an overlap clip",
+        });
+    }
+    Ok(())
 }
 
 /// Geometry key for a cached [`MatchingIndex`] (rebuild when this changes).
@@ -199,7 +252,10 @@ pub(crate) fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
 /// propensities clipped into `[0.01, 0.99]`, no trimming.
 #[must_use]
 pub const fn default_propensity_overlap() -> OverlapPolicy {
-    OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None }
+    OverlapPolicy::RequireDiagnostics {
+        clip: Some(crate::overlap::DEFAULT_PROPENSITY_CLIP),
+        trim: None,
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -218,6 +274,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         overlap,
         "propensity estimators require RequireDiagnostics overlap policy; positivity is mandatory",
     )?;
+    overlap.validate()?;
     if !estimand.is_adjustment_shaped() {
         return Err(EstimationError::IncompatibleEstimand {
             message: "propensity estimators expect an adjustment-shaped estimand",
@@ -320,6 +377,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     }
 
     Ok(PreparedPropensityProblem {
+        learner_cache: Arc::default(),
         design_matrix: Arc::from(design),
         design_ncols: ncols,
         nrows,
@@ -335,13 +393,17 @@ pub(crate) fn prepare_propensity_problem_with_registry(
             let mut idx = Vec::with_capacity(nrows);
             for (i, &keep) in row_mask.iter().enumerate() {
                 if keep {
-                    idx.push(u32::try_from(i).unwrap_or(u32::MAX));
+                    idx.push(u32::try_from(i).map_err(|_| {
+                        EstimationError::data_msg("row index exceeds the u32 row-id capacity")
+                    })?);
                 }
             }
             Arc::from(idx)
         },
         treatment_id: treatment,
         fold_assignment: None,
+        fold_seed: 0,
+        shared_design: false,
     })
 }
 
@@ -495,4 +557,36 @@ pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<
         out.extend_from_slice(&matrix[i * dim..(i + 1) * dim]);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the test asserts that the clamp returns its input bit-for-bit and that the logistic saturates to exactly 1.0 in f64"
+    )]
+    fn logit_from_the_linear_predictor_stays_finite_where_the_score_rounds_to_one() {
+        // At η = 40 the fitted probability is exactly 1.0 in f64, so ln(e/(1−e)) is +∞.
+        let e = 1.0 / (1.0 + (-40.0_f64).exp());
+        assert!(e == 1.0);
+        assert!(((e / (1.0 - e)).ln()).is_infinite());
+        assert_eq!(clamp_linear_predictor(40.0, None), 40.0);
+        assert_eq!(clamp_linear_predictor(-40.0, None), -40.0);
+        // Under a clip the predictor is clamped to logit(1 − clip), the logit of the clipped score.
+        let bound = (0.99_f64 / 0.01).ln();
+        assert!((clamp_linear_predictor(40.0, Some(0.01)) - bound).abs() < 1e-12);
+        assert!((clamp_linear_predictor(-40.0, Some(0.01)) + bound).abs() < 1e-12);
+        assert_eq!(clamp_linear_predictor(0.3, Some(0.01)), 0.3);
+    }
+
+    #[test]
+    fn exact_zero_or_one_propensities_are_refused_not_floored() {
+        assert!(require_interior_propensities(&[0.2, 1e-12, 1.0 - 1e-12]).is_ok());
+        for bad in [0.0, 1.0, f64::NAN] {
+            assert!(require_interior_propensities(&[0.5, bad]).is_err(), "{bad}");
+        }
+    }
 }

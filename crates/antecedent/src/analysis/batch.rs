@@ -1,18 +1,18 @@
 //! Batch multi-query: one table, N average-effect estimates.
 //!
 //! [`BatchStudy::prepare`] and [`BatchStudy::prepare_cells`] freeze a
-//! [`SharedBatchDesign`]: one fold-assignment object and, when every query
-//! shares a certified adjustment set, one compiled `[1 | Z…]` covariate
-//! design. Propensity and outcome residualization are still fit per query on
-//! that shared design. See [`SharedBatchDesign`].
+//! [`SharedBatchDesign`]: one fold seed/count every query cross-fits with and, when
+//! every query shares a certified adjustment set, one compiled `[1 | Z…]` covariate
+//! design. Propensity and outcome residualization are still fit per query, each
+//! drawing its own `crossfit_fold_plan` from that shared seed. See
+//! [`SharedBatchDesign`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseFunctional,
-    ResponseQuery, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, ResponseQuery, VariableId,
 };
 
 /// Query frozen on a [`PreparedBatch`] handle.
@@ -146,27 +146,40 @@ pub struct SharedCovariateDesign {
     pub row_index: Arc<[u32]>,
 }
 
-/// Shared fold assignment and optional shared covariate design for a batch.
+/// Shared fold seed/count and optional shared covariate design for a batch.
 ///
 /// What is shared
 ///
-/// - **Folds:** one original-row assignment (`row % n_folds`). Every query
-///   restricts this object to its complete-case rows; it does not draw a
-///   private `i % 5` assignment.
+/// - **Fold count and seed:** every query in the batch cross-fits with the same
+///   `n_folds` and the same `fold_seed` (the run's master seed). That is enough for a
+///   batch query and the identical query run solo to draw the *same* fold plan,
+///   because both call the same `crossfit_fold_plan` with the same rows, the same
+///   stratification (treatment arm for AIPW, joint cell for cell.aipw) and the same
+///   seed — see [`Self::apply_to_propensity`]. [`Self::fold_ids`] is a seeded balanced
+///   shuffle used only as an opaque identity fingerprint (batch-share digests,
+///   introspection); it does not drive any query's actual cross-fit, precisely because
+///   different queries in one batch can stratify differently (different treatments,
+///   different cells) and no single row-level assignment could match all of them.
 /// - **Covariates:** when every query's certified adjustment set is the same,
 ///   `[1 | Z…]` is compiled once and gathered into each propensity/cell design.
 ///
 /// What is not shared
 ///
-/// - **Propensity:** still fit per query (and per treatment / cell coding) on
-///   the shared folds and design.
+/// - **Folds actually used for cross-fitting:** each query draws its own plan (see
+///   above); queries that share the same stratification (same treatment / same joint
+///   cells) end up with the identical plan as a consequence, not because one is copied
+///   into the other.
+/// - **Propensity:** still fit per query (and per treatment / cell coding).
 /// - **Outcome residualization:** still fit per outcome / threshold / cell.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SharedBatchDesign {
-    /// Fold id for every original row of the prepared table.
+    /// Opaque per-row identity fingerprint (not the fold plan any query actually
+    /// cross-fits with; see the struct docs).
     pub fold_ids: Arc<[u32]>,
-    /// Fold count used to build [`Self::fold_ids`].
+    /// Fold count every query in the batch cross-fits with.
     pub n_folds: u32,
+    /// Master seed every query in the batch cross-fits with.
+    pub fold_seed: u64,
     /// Shared covariate design, when adjustment sets agree.
     pub covariate: Option<SharedCovariateDesign>,
 }
@@ -181,6 +194,7 @@ impl SharedBatchDesign {
         data: &TabularData,
         adjustment_sets: &[Arc<[VariableId]>],
         n_folds: u32,
+        fold_seed: u64,
     ) -> Result<Self, CausalError> {
         if n_folds < 2 {
             return Err(CausalError::Compile {
@@ -189,13 +203,20 @@ impl SharedBatchDesign {
         }
         let n = data.row_count();
         let folds = usize::try_from(n_folds).unwrap_or(usize::MAX);
+        // A seeded balanced shuffle: fold membership does not follow the file order (a
+        // periodic `row % k` assignment aliases with any periodic structure in the data).
+        let mut rng = antecedent_core::CausalRng::from_seed(fold_seed ^ 0xF01D_5EED_BA7C_4001);
         let fold_ids: Arc<[u32]> =
-            (0..n).map(|i| u32::try_from(i % folds).unwrap_or(u32::MAX)).collect::<Vec<_>>().into();
+            antecedent_kernels::shuffled_fold_assignment(&mut rng, n, folds, None)
+                .into_iter()
+                .map(|f| u32::try_from(f).unwrap_or(u32::MAX))
+                .collect::<Vec<_>>()
+                .into();
         let covariate = match common_adjustment(adjustment_sets) {
             Some(set) if !set.is_empty() => Some(compile_shared_covariates(data, set)?),
             Some(_) | None => None,
         };
-        Ok(Self { fold_ids, n_folds, covariate })
+        Ok(Self { fold_ids, n_folds, fold_seed, covariate })
     }
 
     /// Rebuild data-dependent covariates and row folds on a new estimate table.
@@ -205,7 +226,7 @@ impl SharedBatchDesign {
             .as_ref()
             .map(|c| vec![Arc::clone(&c.adjustment_set)])
             .unwrap_or_default();
-        Self::compile(data, &sets, self.n_folds)
+        Self::compile(data, &sets, self.n_folds, self.fold_seed)
     }
 
     /// Restrict [`Self::fold_ids`] to complete-case rows.
@@ -265,7 +286,15 @@ impl SharedBatchDesign {
         Ok(Some(out))
     }
 
-    /// Apply shared folds and, when the set matches, the shared design matrix.
+    /// Apply the shared design matrix, when the query's adjustment set matches it.
+    ///
+    /// Folds are deliberately *not* overridden here: `problem.fold_assignment` stays
+    /// `None` so the propensity/outcome cross-fit falls back to its own
+    /// `crossfit_fold_plan` call, stratified by this query's treatment arm and keyed by
+    /// `problem.fold_seed` (the batch's master seed). That is the same call a solo
+    /// analysis makes for the same query, seed, and rows, so it reproduces the solo
+    /// fold plan bit-for-bit instead of drawing a private, unstratified shuffle that a
+    /// solo run would never draw. See [`crate::analysis::batch`] module docs.
     ///
     /// # Errors
     ///
@@ -274,7 +303,6 @@ impl SharedBatchDesign {
         &self,
         problem: &mut PreparedPropensityProblem,
     ) -> Result<bool, CausalError> {
-        problem.fold_assignment = Some(self.folds_for(&problem.row_index)?.into());
         if let Some(design) = self.design_for(&problem.adjustment_set, &problem.row_index)? {
             if design.len() != problem.design_matrix.len() {
                 return Err(CausalError::Compile {
@@ -283,6 +311,7 @@ impl SharedBatchDesign {
                 });
             }
             problem.design_matrix = design.into();
+            problem.shared_design = true;
             return Ok(true);
         }
         Ok(false)
@@ -468,7 +497,7 @@ impl BatchStudy {
             });
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries)?;
+        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
         let mut out = Vec::with_capacity(queries.len());
         for chunk in queries.chunks(threads) {
@@ -516,7 +545,7 @@ impl BatchStudy {
             });
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries)?;
+        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
@@ -560,7 +589,7 @@ impl BatchStudy {
             });
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_cells(&data, queries)?;
+        let shared = self.compile_shared_cells(&data, queries, ctx.rng.master_seed())?;
         let mut plans = Vec::with_capacity(queries.len());
         let mut frozen = Vec::with_capacity(queries.len());
         for query in queries {
@@ -604,6 +633,7 @@ impl BatchStudy {
         &self,
         data: &TabularData,
         queries: &[AverageEffectQuery],
+        fold_seed: u64,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
@@ -613,6 +643,7 @@ impl BatchStudy {
             data,
             &sets,
             u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
+            fold_seed,
         )?)))
     }
 
@@ -620,6 +651,7 @@ impl BatchStudy {
         &self,
         data: &TabularData,
         queries: &[ResponseQuery],
+        fold_seed: u64,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
@@ -629,6 +661,7 @@ impl BatchStudy {
             data,
             &sets,
             u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
+            fold_seed,
         )?)))
     }
 
@@ -836,7 +869,7 @@ fn attach_shared_design_diagnostics(
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
             format!(
-                "shared fold assignment (n_folds={}); covariates={}; propensity and outcome residualization remain per-query fits on that design",
+                "shared fold seed/count (n_folds={}); covariates={}; each query draws its own matching fold plan, and propensity/outcome residualization remain per-query fits",
                 shared.n_folds,
                 if shares_covariates { "shared" } else { "per-query" }
             ),
@@ -926,7 +959,7 @@ fn attach_batch_family_joint_inference(
         );
         return;
     };
-    let crit = antecedent_estimate::max_t_critical(&level_cov, 0.95, 4096, 1).ok();
+    let crit = resolve_max_t_critical(results, &level_cov, "simultaneous interval");
     for (i, result) in results.iter_mut().enumerate() {
         result.estimate.joint_covariance = Some(level_cov.clone());
         if let Some(c) = crit {
@@ -1010,7 +1043,7 @@ fn attach_batch_family_joint_inference(
                     return;
                 };
                 let contrast_crit =
-                    antecedent_estimate::max_t_critical(&contrast_cov, 0.95, 4096, 1).ok();
+                    resolve_max_t_critical(results, &contrast_cov, "family-contrast interval");
                 attach_family_p_values(
                     results,
                     &contrast_values,
@@ -1058,35 +1091,24 @@ fn align_influence_to_rows(
     Ok((embed_centered_influence(inf, &rows, data.row_count()), rows))
 }
 
+/// Place a claim's influence values on the full row universe so claims with different
+/// complete cases share one covariance. The joint covariance divides by `N(N-1)` where the
+/// claim's own standard error divides by `n(n-1)`, so the centred values are scaled by
+/// `sqrt(N(N-1)/(n(n-1)))`: the embedded column then has exactly the claim's variance.
 fn embed_centered_influence(inf: &[f64], rows: &[usize], full_n: usize) -> Vec<f64> {
-    let mean = inf.iter().sum::<f64>() / inf.len() as f64;
+    let n = inf.len() as f64;
+    let big_n = full_n as f64;
+    let scale = (big_n * (big_n - 1.0) / (n * (n - 1.0))).sqrt();
+    let mean = inf.iter().sum::<f64>() / n;
     let mut col = vec![0.0; full_n];
     for (&r, &v) in rows.iter().zip(inf) {
-        col[r] = (v - mean) * full_n as f64 / inf.len() as f64;
+        col[r] = (v - mean) * scale;
     }
     col
 }
 
-#[allow(clippy::float_cmp)] // discrete Set levels are exact 0/1, not estimated floats
 fn response_requested_arm(query: &ResponseQuery) -> Option<u32> {
-    let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional else {
-        return None;
-    };
-    let mut arm = 0u32;
-    for (j, iv) in interventions.iter().enumerate() {
-        let Intervention::Set { value, .. } = iv else {
-            return None;
-        };
-        let level = value.as_f64()?;
-        if level != 0.0 && level != 1.0 {
-            return None;
-        }
-        if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY {
-            return None;
-        }
-        arm |= u32::from(level == 1.0) << j;
-    }
-    Some(arm)
+    super::helpers::requested_joint_arm(query).ok()
 }
 
 fn cell_family_contrast_claim(
@@ -1101,10 +1123,7 @@ fn cell_family_contrast_claim(
         return None;
     }
     let table = result.estimate.score_table.as_ref()?;
-    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    thresholds.dedup_by(|a, b| (*a - *b).abs() <= f64::EPSILON);
-    if thresholds.len() > 1 {
+    if table.distinct_threshold_count() > 1 {
         return None;
     }
     let arm = response_requested_arm(query)?;
@@ -1113,14 +1132,18 @@ fn cell_family_contrast_claim(
     Some((contrast.value, scores))
 }
 
+/// Two-sided p-value for a Wald statistic `value / se`.
+///
+/// A non-finite or non-positive SE describes a degenerate or broken estimate
+/// (a constant influence column, a negative-variance covariance entry), not
+/// infinite precision. Returning `NaN` in that case — rather than folding it
+/// into `z = +inf`, `p = 0` — keeps the test out of BH/BY ranking instead of
+/// handing it the family's strongest "discovery".
 fn two_sided_p(value: f64, se: f64) -> f64 {
-    let z = if se > 0.0 {
-        value.abs() / se
-    } else if value == 0.0 {
-        0.0
-    } else {
-        f64::INFINITY
-    };
+    if !se.is_finite() || se <= 0.0 {
+        return f64::NAN;
+    }
+    let z = value.abs() / se;
     2.0 * antecedent_stats::student_t_sf(z, 1.0e8)
 }
 
@@ -1238,6 +1261,34 @@ fn subset_estimate_rows(
     }
     let mask = ValidityBitmap::from_bytes(bytes, n).map_err(CausalError::from)?;
     data.with_analysis_mask(mask).map_err(CausalError::from)
+}
+
+/// Resolve the max-t critical value for a joint covariance, attaching a
+/// diagnostic to every result when the band cannot be formed.
+///
+/// `max_t_critical` refuses on a non-PSD correlation matrix, a non-finite or
+/// non-positive SE, or an asymmetric covariance. Unlike `.ok()`, this makes
+/// that refusal visible: "not claimed" (no family declared) and "computation
+/// failed" must read differently on the result.
+fn resolve_max_t_critical(
+    results: &mut [StudyResult],
+    cov: &antecedent_estimate::JointCovariance,
+    what: &str,
+) -> Option<f64> {
+    match antecedent_estimate::max_t_critical(cov, 0.95, 4096, 1) {
+        Ok(c) => Some(c),
+        Err(err) => {
+            for result in results.iter_mut() {
+                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                    "batch.joint_if.max_t_unavailable",
+                    antecedent_core::DiagnosticKind::Scientific,
+                    antecedent_core::DiagnosticSeverity::Warning,
+                    format!("max-t band unavailable for the {what}: {err}"),
+                ));
+            }
+            None
+        }
+    }
 }
 
 fn attach_batch_inference_unavailable(
@@ -1408,7 +1459,7 @@ fn attach_candidate_selection(
             if !selection.disjoint {
                 result.diagnostics.push(antecedent_core::Diagnostic::new(
                     "batch.candidate_selection.overlap",
-                    antecedent_core::DiagnosticKind::Scientific,
+                    antecedent_core::DiagnosticKind::Support,
                     antecedent_core::DiagnosticSeverity::Warning,
                     "screen and estimate row sets are not disjoint",
                 ));
@@ -1433,8 +1484,164 @@ fn attach_candidate_selection(
 }
 
 #[cfg(test)]
+mod fail_open_regression_tests {
+    use super::*;
+
+    #[test]
+    fn degenerate_se_is_undefined_not_a_discovery() {
+        // `se == 0` with a nonzero point estimate is a broken/degenerate estimate
+        // (e.g. a constant influence column), not infinite precision.
+        assert!(two_sided_p(5.0, 0.0).is_nan());
+        // `se == NaN` (e.g. `sqrt` of a negative covariance entry) is likewise undefined.
+        assert!(two_sided_p(5.0, f64::NAN).is_nan());
+        // a genuinely testable claim is unaffected.
+        let p = two_sided_p(3.0, 1.0);
+        assert!(p.is_finite() && p > 0.0 && p < 1.0);
+    }
+
+    #[test]
+    fn degenerate_se_is_excluded_from_bh_by_instead_of_ranked_first() {
+        // One degenerate claim (se=0, nonzero point estimate) next to one ordinary
+        // claim (se=1). Before the fix `two_sided_p(5.0, 0.0) == 0.0`, which BH/BY
+        // treat as the strongest possible discovery (adjusted p = q = 0).
+        let degenerate_p = two_sided_p(5.0, 0.0);
+        let ordinary_p = two_sided_p(3.0, 1.0);
+        let p_values = [degenerate_p, ordinary_p];
+        let bh = antecedent_stats::benjamini_hochberg(&p_values);
+        let by = antecedent_stats::benjamini_yekutieli(&p_values);
+        assert!(
+            bh[0].is_nan(),
+            "degenerate claim must not receive an adjusted p-value, got {}",
+            bh[0]
+        );
+        assert!(
+            by[0].is_nan(),
+            "degenerate claim must not receive an adjusted q-value, got {}",
+            by[0]
+        );
+        // the ordinary claim's family size stays 2 (conservative fill of the
+        // invalid test as p=1), it is not silently shrunk to 1.
+        let expected_bh = (2.0 * ordinary_p).min(1.0);
+        let expected_by = (3.0 * ordinary_p).min(1.0); // m=2 harmonic factor H_2 = 1.5
+        assert!((bh[1] - expected_bh).abs() < 1e-12, "bh={} expected={}", bh[1], expected_bh);
+        assert!((by[1] - expected_by).abs() < 1e-12, "by={} expected={}", by[1], expected_by);
+    }
+}
+
+#[cfg(test)]
+mod max_t_diagnostic_tests {
+    use super::*;
+    use antecedent_core::{
+        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
+    use antecedent_graph::DenseNodeId;
+
+    fn one_result() -> StudyResult {
+        let n = 20;
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let ti = f64::from(u32::try_from(i % 2).unwrap());
+            t[i] = ti;
+            y[i] = 2.0 * ti;
+        }
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, role) in [("t", RoleHint::TreatmentCandidate), ("y", RoleHint::OutcomeCandidate)]
+        {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(role),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let cols: Vec<OwnedColumn> = [t, y]
+            .into_iter()
+            .enumerate()
+            .map(|(i, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let ctx = ExecutionContext::for_tests(1);
+        Study::tabular(data)
+            .graph(dag)
+            .query(query)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    }
+
+    #[test]
+    fn max_t_failure_leaves_a_diagnostic_instead_of_silent_none() {
+        let base = one_result();
+        let mut results = vec![base.clone(), base];
+        // A zero-variance claim next to a real one: `max_t_critical` refuses
+        // ("max-t requires positive finite SEs") on the degenerate diagonal entry.
+        let cov = antecedent_estimate::JointCovariance {
+            dim: 2,
+            values: Arc::from([0.0, 0.0, 0.0, 4.0]),
+        };
+        assert!(antecedent_estimate::max_t_critical(&cov, 0.95, 4096, 1).is_err());
+
+        let crit = resolve_max_t_critical(&mut results, &cov, "test interval");
+        assert!(crit.is_none());
+        for result in &results {
+            assert!(
+                result.diagnostics.iter().any(|d| &*d.code == "batch.joint_if.max_t_unavailable"
+                    && d.severity == antecedent_core::DiagnosticSeverity::Warning),
+                "expected a max_t_unavailable warning, got {:?}",
+                result.diagnostics
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod selection_review_tests {
     use super::*;
+
+    #[test]
+    fn embedded_influence_keeps_the_claims_own_variance() {
+        // Six complete cases out of ten table rows. The claim's own variance is
+        // S / (n (n - 1)) with S the centred sum of squares; the joint covariance of the
+        // embedded column must reproduce it exactly.
+        let inf = [1.0, -2.0, 0.5, 3.0, -1.5, 4.0];
+        let rows = [0usize, 2, 3, 5, 6, 9];
+        let n = inf.len() as f64;
+        let mean = inf.iter().sum::<f64>() / n;
+        let s: f64 = inf.iter().map(|v| (v - mean).powi(2)).sum();
+        let own_variance = s / (n * (n - 1.0));
+        let col = embed_centered_influence(&inf, &rows, 10);
+        let cov = antecedent_estimate::joint_influence_covariance(&[col.as_slice()], None).unwrap();
+        assert!(
+            (cov.get(0, 0) - own_variance).abs() < 1e-12 * own_variance,
+            "joint variance {} vs own {own_variance}",
+            cov.get(0, 0)
+        );
+    }
+
     #[test]
     fn recorded_splits_reject_empty_duplicate_and_out_of_range_rows() {
         let values = [0.0, 1.0, 2.0];
@@ -1455,5 +1662,36 @@ mod selection_review_tests {
             };
             assert!(subset_estimate_rows(&data, Some(&screen)).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_fold_tests {
+    use super::*;
+
+    /// The shared assignment is a balanced shuffle keyed by the master seed: fold sizes
+    /// differ by at most one, the same seed reproduces it, another seed changes it, and
+    /// it is not the periodic `row % k` pattern that aliases with alternating designs.
+    #[test]
+    fn shared_folds_are_a_seeded_balanced_shuffle_not_row_modulo() {
+        let n = 103usize;
+        let values: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let data = TabularData::from_f64_columns([("x", values.as_slice())]).unwrap();
+        let compile = |seed: u64| SharedBatchDesign::compile(&data, &[], 5, seed).unwrap();
+        let a = compile(7);
+        let mut counts = [0usize; 5];
+        for &fold in a.fold_ids.iter() {
+            counts[fold as usize] += 1;
+        }
+        // 103 rows dealt round-robin over 5 folds: sizes 21, 21, 21, 20, 20.
+        counts.sort_unstable();
+        assert_eq!(counts, [20, 20, 21, 21, 21]);
+        assert_eq!(a.fold_ids, compile(7).fold_ids);
+        assert_ne!(a.fold_ids, compile(8).fold_ids);
+        let modulo: Vec<u32> = (0..n).map(|i| u32::try_from(i % 5).unwrap()).collect();
+        assert_ne!(a.fold_ids.to_vec(), modulo);
+        assert_eq!(a.fold_seed, 7);
+        // Rebinding to a same-size table keeps the seed, hence the assignment.
+        assert_eq!(a.rebind(&data).unwrap().fold_ids, a.fold_ids);
     }
 }

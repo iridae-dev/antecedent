@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -552,4 +550,126 @@ fn pc1_ranks_required_independent_edge_by_statistic_not_infinity() {
         i_strong < i_forced,
         "strong parent must rank before required-independent edge: parents={parents:?}"
     );
+}
+
+/// Four-variable series `[a, b, x, y]` where only `x_{t-1}` drives `y`; `a`, `b` are unrelated
+/// oscillations at incommensurate frequencies.
+fn four_var_series() -> (TimeSeriesData, Vec<VariableId>) {
+    let n = 500usize;
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["a", "b", "x", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let mut cols_v = vec![vec![0.0; n]; 4];
+    for t in 1..n {
+        let tf = t as f64;
+        cols_v[0][t] = (tf * 0.113).cos();
+        cols_v[1][t] = (tf * 0.291).sin();
+        cols_v[2][t] = (tf * 0.017).sin() + 0.3 * (tf * 0.71).cos();
+        cols_v[3][t] = 0.9 * cols_v[2][t - 1] + 0.01 * (tf * 0.03).cos();
+    }
+    let cols: Vec<OwnedColumn> = cols_v
+        .into_iter()
+        .enumerate()
+        .map(|(i, v)| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(i as u32),
+                    Arc::from(v),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    (data, (0..4).map(VariableId::from_raw).collect())
+}
+
+/// `max_parents` truncates the surviving, strength-ranked parents, not the candidate list.
+/// Candidates are enumerated by variable order, so a candidate cut would only ever test
+/// `a` and `b` and could never find the true parent `x_{t-1}` of `y`.
+#[test]
+fn max_parents_caps_survivors_not_candidates() {
+    let (data, vars) = four_var_series();
+    let y_id = VariableId::from_raw(3);
+    let constraints = DiscoveryConstraints {
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+        alpha: 0.05,
+        max_cond_size: 2,
+        max_parents: Some(2),
+        ..DiscoveryConstraints::default()
+    };
+    let engine = PcmciEngine::new().with_constraints(constraints.clone());
+    let compiled = constraints.compile(&vars).unwrap();
+    let frame =
+        LaggedFrame::from_series(&data, &vars, 1, &antecedent_core::KernelPolicy::default_policy())
+            .unwrap();
+    let mut ws = DiscoveryWorkspace::default();
+    let ctx = ExecutionContext::for_tests(5);
+    let (parents, _) =
+        engine.select_parents(&frame, y_id, &vars, &compiled, &mut ws, &ctx).unwrap();
+    assert!(parents.contains(&(VariableId::from_raw(2), Lag::from_raw(1))), "parents={parents:?}");
+    assert!(parents.len() <= 2, "parents={parents:?}");
+}
+
+/// A cancelled run must fail with `Cancelled`, never return parents that were only partly
+/// pruned (MCI would then condition on the unpruned sets and look like a real result).
+#[test]
+fn cancelled_parent_selection_is_an_error() {
+    let (data, vars) = four_var_series();
+    let constraints = DiscoveryConstraints {
+        temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+        max_cond_size: 2,
+        ..DiscoveryConstraints::default()
+    };
+    let engine = PcmciEngine::new().with_constraints(constraints.clone());
+    let compiled = constraints.compile(&vars).unwrap();
+    let frame =
+        LaggedFrame::from_series(&data, &vars, 1, &antecedent_core::KernelPolicy::default_policy())
+            .unwrap();
+    let ctx = ExecutionContext::for_tests(5);
+    ctx.cancellation.cancel();
+    let mut ws = DiscoveryWorkspace::default();
+    let serial =
+        engine.select_parents(&frame, VariableId::from_raw(3), &vars, &compiled, &mut ws, &ctx);
+    assert!(matches!(serial, Err(DiscoveryError::Cancelled)), "{serial:?}");
+    let all = engine.select_parents_all(&frame, &vars, &compiled, &mut ws, &ctx, 2);
+    assert!(matches!(all, Err(DiscoveryError::Cancelled)), "parallel path must not return Ok");
+}
+
+/// A lagged target's parents are shifted by the target lag, exactly as the source's are:
+/// for `a_t ⊥ b_{t-2}` the conditioning set is `pa(a_t) ∪ pa(b_{t-2})`, not `pa(b_t)`.
+#[test]
+fn mci_conditioning_shifts_target_parents_by_target_lag() {
+    let a = VariableId::from_raw(0);
+    let b = VariableId::from_raw(1);
+    let z = VariableId::from_raw(2);
+    let w = VariableId::from_raw(3);
+    let link = LaggedLink {
+        source: a,
+        source_lag: Lag::CONTEMPORANEOUS,
+        target: b,
+        target_lag: Lag::from_raw(2),
+    };
+    let parents_target = [(z, Lag::from_raw(1))];
+    let parents_source = [(w, Lag::from_raw(1))];
+    let mut out = Vec::new();
+    let dropped = mci_conditioning(link, &parents_target, &parents_source, &mut out);
+    assert_eq!(dropped, 0);
+    assert_eq!(out, vec![(z, Lag::from_raw(3)), (w, Lag::from_raw(1))]);
 }

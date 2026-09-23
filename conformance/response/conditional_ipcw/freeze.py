@@ -10,6 +10,7 @@ columns = {key: [float(row[key]) for row in rows] for key in rows[0]}
 expected = {
     'fixture_id': 'response.conditional_ipcw',
     'oracle': 'R survival 3.8.6 coxph Breslow and basehaz left limits',
+    'command': 'Rscript conformance/response/conditional_ipcw/generate.R && python3 conformance/response/conditional_ipcw/freeze.py',
     'coefficients': [float(x) for x in (root / 'coefficients.txt').read_text().split()],
     'data': columns,
     'atol': 1e-8,

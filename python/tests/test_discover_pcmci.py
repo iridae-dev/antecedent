@@ -8,11 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 
 SCHEMA_FIELDS = {
     "links",
@@ -27,6 +24,7 @@ SCHEMA_FIELDS = {
     "cpdag_nodes",
     "cpdag_directed_edges",
     "cpdag_undirected_edges",
+    "variable_names",
 }
 
 LINK_FIELDS = {
@@ -46,8 +44,15 @@ _TRUE_LAG1_PARENTS = {("x", 1, "y", 0)}
 
 
 def _lag1_series(n: int = 400):
+    # A purely deterministic sin(0.01t) barely moves between consecutive steps
+    # (cos(0.01) ~ 0.99995), so x[t-1] and x[t-2] are nearly collinear and PCMCI's
+    # conditional-independence tests cannot cleanly separate which lag drives y;
+    # `0.05 * rng.normal(...)` on x breaks that collinearity (the same fix already
+    # used by the sibling `_lag1_series` in test_accepted_graph.py) so the lag-1
+    # parent is the one, well-identified link CI testing can recover.
+    rng = np.random.default_rng(9)
     t = np.arange(n, dtype=np.float64)
-    x = np.sin(t * 0.01)
+    x = np.sin(t * 0.01) + 0.05 * rng.normal(size=n)
     y = np.zeros(n, dtype=np.float64)
     y[1:] = 0.8 * x[:-1] + 0.01 * np.cos(t[1:] * 0.03)
     return ["x", "y"], [x, y]
@@ -67,6 +72,7 @@ def test_discover_pcmci_schema_fields():
     for name in SCHEMA_FIELDS:
         assert hasattr(result, name), name
     assert result.algorithm_id == "pcmci"
+    assert list(result.variable_names) == names
     assert "fdr=" in result.algorithm_config
     assert "fdr=BH" not in result.algorithm_config  # fdr=False → no BH adjustment
     assert result.ci_tests > 0

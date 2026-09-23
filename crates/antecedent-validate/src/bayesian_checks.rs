@@ -2,12 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::needless_range_loop,
-    clippy::too_many_lines,
-    clippy::many_single_char_names
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -18,11 +19,13 @@ use antecedent_estimate::{
     SerialDependence, tempering_kappa_from_notes,
 };
 use antecedent_identify::IdentificationStatus;
-use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws, standard_normal};
+use antecedent_kernels::{
+    PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws, standard_normal,
+};
 use antecedent_prob::{
-    ExternalPriorSource, GaussianVarianceModel, HessianFactorization, PriorSensitivityFamily,
-    PriorSensitivitySummary, PriorSet, PriorSpec, compose_external_priors_with_alphas,
-    sample_gamma, sample_inv_gamma,
+    ExternalPriorSource, GaussianCoefficientPrior, GaussianVarianceModel, HessianFactorization,
+    InferenceDiagnostics, PriorSensitivityFamily, PriorSensitivitySummary, PriorSet, PriorSpec,
+    compose_external_priors_with_alphas, sample_gamma, sample_inv_gamma,
 };
 use antecedent_stats::GlmFamily;
 
@@ -31,12 +34,20 @@ use crate::error::ValidationError;
 
 /// Result of a prior or posterior predictive check.
 ///
-/// Carries **two** discriminating axes so a model cannot pass merely by getting
-/// the predictive mean right: (1) location, via the mean of `mean_y` over
+/// Carries location and dispersion axes: (1) location, via the mean of `mean_y` over
 /// simulations, and (2) dispersion, via the mean of the per-simulation
 /// cross-observation SD of replicated outcomes. A model whose predictive mean is
 /// unbiased but whose predictive spread is badly wrong (e.g. off by 5×) fails
 /// on the dispersion axis even though the location axis looks fine.
+///
+/// On a *posterior* check those two axes have power only against a badly wrong prior or a
+/// wrong noise level, not against misspecification: a regression with an intercept
+/// reproduces the outcome mean by the normal equations, the Gaussian replicate SD is drawn
+/// so as to match the observed residual SD, and a Bernoulli SD is a function of its mean.
+/// The `residual` axes therefore add realized discrepancies the fit does not optimize
+/// (residual skewness, excess kurtosis, curvature against the fitted mean, and a variance
+/// trend against it; Gelman, Meng and Stern 1996), which respond to nonlinearity,
+/// heteroskedasticity and heavy tails.
 ///
 /// Replicates are draws from the observation model, `y_rep = g⁻¹(Xβ) + noise`
 /// (Gaussian noise at a residual-variance draw, a Bernoulli draw for binary
@@ -74,8 +85,69 @@ pub struct PredictiveCheckReport {
     /// Temporal discrepancy axis (lag-1 residual autocorrelation) on time-ordered
     /// designs; `None` for exchangeable rows and for prior checks.
     pub serial: Option<SerialDiscrepancy>,
+    /// Realized residual-shape discrepancies of a posterior check (see the type docs), each
+    /// with its own tails for information; the verdict uses [`Self::residual_p_value`]. Empty
+    /// for prior checks, for families without a residual variance function (negative
+    /// binomial), and for fewer than [`MIN_RESIDUAL_ROWS`] rows.
+    pub residual: Vec<ResidualDiscrepancy>,
+    /// Omnibus upper-tail p-value of the residual axes (`1` when there are none): at each draw
+    /// the largest standardized departure of the four statistics from their replicate
+    /// distribution, observed against replicated. One p-value for the whole family, so the
+    /// verdict needs no multiplicity correction and keeps its Monte Carlo resolution `1/(n+1)`.
+    pub residual_p_value: f64,
     /// How the replicates carry observation noise.
     pub noise: PredictiveNoise,
+}
+
+/// Fewest design rows for which the residual-shape axes are computed.
+pub const MIN_RESIDUAL_ROWS: usize = 8;
+
+/// A realized residual-shape statistic of a posterior predictive check.
+///
+/// Each statistic is computed on Pearson residuals `(y − μ) / sqrt(V(μ))` at a posterior draw,
+/// once for the observed outcome and once for a replicate drawn at the same parameters.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ResidualStatistic {
+    /// Third standardized moment of the residuals (asymmetry / skewed noise).
+    Skewness,
+    /// Fourth standardized moment minus three (heavy tails).
+    ExcessKurtosis,
+    /// Correlation of the residuals with `(μ − mean μ)²`: neglected curvature in the mean.
+    Curvature,
+    /// Correlation of the squared residuals with `μ`: variance that changes with the mean.
+    VarianceTrend,
+}
+
+impl ResidualStatistic {
+    /// Every statistic, in report order.
+    pub const ALL: [Self; 4] =
+        [Self::Skewness, Self::ExcessKurtosis, Self::Curvature, Self::VarianceTrend];
+
+    /// Stable name for messages.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Skewness => "residual skewness",
+            Self::ExcessKurtosis => "residual excess kurtosis",
+            Self::Curvature => "curvature against the fitted mean",
+            Self::VarianceTrend => "variance trend against the fitted mean",
+        }
+    }
+}
+
+/// One residual-shape axis of a [`PredictiveCheckReport`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResidualDiscrepancy {
+    /// Statistic.
+    pub statistic: ResidualStatistic,
+    /// Mean, over posterior draws, of the statistic on the observed outcome.
+    pub observed: f64,
+    /// Mean, over posterior draws, of the statistic on the replicates.
+    pub predictive_mean: f64,
+    /// Two-sided posterior predictive p-value.
+    pub p_value: f64,
+    /// Lower / upper inclusive Monte Carlo tails `P(T_rep ≤ T_obs)`, `P(T_rep ≥ T_obs)`.
+    pub tails: [f64; 2],
 }
 
 /// How predictive replicates carry the likelihood's observation noise.
@@ -141,10 +213,15 @@ impl PredictiveCheckReport {
         let mean_ok = self.p_value.is_finite() && self.p_value >= alpha;
         let dispersion_ok = self.dispersion_p_value.is_finite() && self.dispersion_p_value >= alpha;
         let serial_ok = self.serial.is_none_or(|s| s.p_value.is_finite() && s.p_value >= alpha);
-        let passed = mean_ok && dispersion_ok && serial_ok;
-        let comparison = self.serial.map_or(self.p_value.min(self.dispersion_p_value), |serial| {
-            self.p_value.min(self.dispersion_p_value).min(serial.p_value)
-        });
+        // One omnibus p-value covers the whole residual family (see `residual_p_value`).
+        let residual_ok = self.residual_p_value.is_finite() && self.residual_p_value >= alpha;
+        let passed = mean_ok && dispersion_ok && serial_ok && residual_ok;
+        let comparison = self
+            .serial
+            .map(|serial| serial.p_value)
+            .into_iter()
+            .chain((!self.residual.is_empty()).then_some(self.residual_p_value))
+            .fold(self.p_value.min(self.dispersion_p_value), f64::min);
         RefutationReport {
             refuter: Arc::from(name),
             original_ate,
@@ -203,7 +280,30 @@ impl PredictiveCheckReport {
                         serial.lag, serial.observed, serial.predictive_mean, serial.p_value
                     )
                 });
-                Some(Arc::from(base.into_iter().chain(serial).collect::<Vec<_>>().join("; ")))
+                let residual = (!residual_ok).then(|| {
+                    let axes = self
+                        .residual
+                        .iter()
+                        .map(|r| {
+                            format!(
+                                "{} (observed {:.4} vs replicated {:.4})",
+                                r.statistic.name(),
+                                r.observed,
+                                r.predictive_mean,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!(
+                        "posterior predictive residual-shape check failed (omnibus p={} < \
+                         alpha={alpha}): {axes}; the fitted model does not reproduce the shape \
+                         of its own residuals (nonlinearity, heteroskedasticity or heavy tails)",
+                        self.residual_p_value
+                    )
+                });
+                Some(Arc::from(
+                    base.into_iter().chain(serial).chain(residual).collect::<Vec<_>>().join("; "),
+                ))
             },
             replicates: self.n_sims,
         }
@@ -228,7 +328,9 @@ impl PredictiveCheckReport {
         if items.iter().any(|(weight, _)| !weight.is_finite()) {
             return None;
         }
-        let kind = items.iter().find(|(w, _)| *w > 0.0)?.1.kind;
+        let first = items.iter().find(|(w, _)| *w > 0.0)?.1;
+        let kind = first.kind;
+        let first_residual = first.residual.as_slice();
         let atoms: Vec<_> =
             items.iter().filter(|(w, report)| *w > 0.0 && report.kind == kind).collect();
         let max_weight = atoms.iter().map(|(w, _)| *w).fold(0.0_f64, f64::max);
@@ -295,6 +397,50 @@ impl PredictiveCheckReport {
         } else {
             None
         };
+        // Residual axes mix only when every atom carries the same statistics in the same order.
+        let residual = if atoms.iter().all(|(_, report)| {
+            report.residual.len() == first_residual.len()
+                && report
+                    .residual
+                    .iter()
+                    .zip(first_residual)
+                    .all(|(a, b)| a.statistic == b.statistic)
+        }) {
+            let mut mixed: Vec<ResidualDiscrepancy> = first_residual
+                .iter()
+                .map(|r| ResidualDiscrepancy {
+                    statistic: r.statistic,
+                    observed: 0.0,
+                    predictive_mean: 0.0,
+                    p_value: 1.0,
+                    tails: [0.0; 2],
+                })
+                .collect();
+            for &&(w, report) in &atoms {
+                let weight = (w / max_weight) / total;
+                for (out, r) in mixed.iter_mut().zip(&report.residual) {
+                    out.observed += weight * r.observed;
+                    out.predictive_mean += weight * r.predictive_mean;
+                    for tail in 0..2 {
+                        out.tails[tail] += weight * r.tails[tail];
+                    }
+                }
+            }
+            for out in &mut mixed {
+                out.p_value = (2.0 * out.tails[0].min(out.tails[1])).min(1.0);
+            }
+            mixed
+        } else {
+            Vec::new()
+        };
+        let residual_p_value = if residual.is_empty() {
+            1.0
+        } else {
+            atoms
+                .iter()
+                .map(|&&(w, report)| ((w / max_weight) / total) * report.residual_p_value)
+                .sum::<f64>()
+        };
         // Centered total variance retains small spread around large locations.
         // Hypot also avoids squaring away representable tiny/large SDs.
         let mut predictive_sd = 0.0_f64;
@@ -317,6 +463,8 @@ impl PredictiveCheckReport {
             dispersion_tails,
             n_sims,
             serial,
+            residual,
+            residual_p_value,
             noise: if atoms.iter().any(|(_, r)| r.noise == PredictiveNoise::MeanOnlyImproperScale) {
                 PredictiveNoise::MeanOnlyImproperScale
             } else {
@@ -624,6 +772,10 @@ impl PosteriorPredictiveCheck {
     /// # Errors
     ///
     /// Missing coefficients / empty draws.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the draw count is the number of posterior draws simulated, far below 2^32"
+    )]
     pub fn check(
         &self,
         problem: &PreparedBayesianProblem,
@@ -631,7 +783,8 @@ impl PosteriorPredictiveCheck {
     ) -> Result<PredictiveCheckReport, ValidationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let n_draws = posterior.draws.n_draws.min(self.n_sims as usize);
+        let total = posterior.draws.n_draws;
+        let n_draws = total.min(self.n_sims as usize);
         if n_draws == 0 {
             return Err(ValidationError::estimation_msg("no posterior draws for PPC"));
         }
@@ -641,13 +794,20 @@ impl PosteriorPredictiveCheck {
         let mut disp_summaries = Vec::with_capacity(n_draws);
         let mut y_pred = vec![0.0; n];
         let mut beta = vec![0.0; p];
-        for d in 0..n_draws {
+        let mut residual = ResidualTracker::new(self.family, n);
+        for k in 0..n_draws {
+            // Spread the used draws over the whole store: chain-concatenated MCMC draws would
+            // otherwise contribute only the start of the first chain.
+            let d = strided_draw_index(k, n_draws, total);
             // Coefficients depend only on (d, c); hoist the fallible draw
             // accessor out of the row loop (n×p calls per draw → p).
             for (c, slot) in beta.iter_mut().enumerate() {
                 *slot = posterior.draws.get(d, c).map_err(ValidationError::from)?;
             }
             fitted_means(problem, &beta, self.family, &mut y_pred);
+            if let Some(tracker) = residual.as_mut() {
+                tracker.set_means(&y_pred);
+            }
             let sigma = if self.family == GlmFamily::GaussianIdentity {
                 let ssr: f64 =
                     problem.design.outcome.iter().zip(&y_pred).map(|(y, m)| (y - m).powi(2)).sum();
@@ -658,9 +818,12 @@ impl PosteriorPredictiveCheck {
                 0.0
             };
             add_observation_noise(self.family, sigma, &mut y_pred, &mut rng);
+            if let Some(tracker) = residual.as_mut() {
+                tracker.push(&problem.design.outcome, &y_pred);
+            }
             push_mean_and_dispersion(&y_pred, policy, &mut mean_summaries, &mut disp_summaries);
         }
-        Ok(summarize_predictive_check(
+        let mut report = summarize_predictive_check(
             PredictiveCheckKind::Posterior,
             &problem.design.outcome,
             policy,
@@ -668,7 +831,12 @@ impl PosteriorPredictiveCheck {
             &disp_summaries,
             n_draws as u32,
             PredictiveNoise::Likelihood,
-        ))
+        );
+        if let Some((axes, omnibus)) = residual.map(ResidualTracker::finish) {
+            report.residual = axes;
+            report.residual_p_value = omnibus;
+        }
+        Ok(report)
     }
 
     /// [`Self::check`] plus the temporal [`SerialDiscrepancy`] axis.
@@ -693,6 +861,170 @@ impl PosteriorPredictiveCheck {
     }
 }
 
+/// Index of the `k`-th of `take` draws spread evenly over `total` stored draws
+/// (`k · total / take`); the identity when `take == total`.
+fn strided_draw_index(k: usize, take: usize, total: usize) -> usize {
+    k * total / take
+}
+
+/// Standard deviation of the Pearson-residual scale `sqrt(V(μ))` for `family`, or `None` when the
+/// family's variance function is not carried here (negative binomial).
+fn pearson_scale(family: GlmFamily, mu: f64) -> Option<f64> {
+    const FLOOR: f64 = 1e-12;
+    match family {
+        GlmFamily::GaussianIdentity => Some(1.0),
+        GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
+            Some((mu * (1.0 - mu)).max(FLOOR).sqrt())
+        }
+        GlmFamily::PoissonLog => Some(mu.max(FLOOR).sqrt()),
+        GlmFamily::NegativeBinomial => None,
+    }
+}
+
+/// Sample correlation of two equally long slices (0 when either is constant).
+fn correlation(a: &[f64], b: &[f64]) -> f64 {
+    let n = a.len() as f64;
+    let (ma, mb) = (a.iter().sum::<f64>() / n, b.iter().sum::<f64>() / n);
+    let (mut sab, mut saa, mut sbb) = (0.0, 0.0, 0.0);
+    for (x, y) in a.iter().zip(b) {
+        let (dx, dy) = (x - ma, y - mb);
+        sab += dx * dy;
+        saa += dx * dx;
+        sbb += dy * dy;
+    }
+    if saa > 0.0 && sbb > 0.0 { sab / (saa * sbb).sqrt() } else { 0.0 }
+}
+
+/// The four [`ResidualStatistic`]s of Pearson residuals `r`, given the fitted means' curvature
+/// basis `curvature = (μ − mean μ)²` and the fitted means `mu`. Scale-free, so the residual
+/// scale (`σ` of a Gaussian) cancels.
+fn residual_statistics(r: &[f64], curvature: &[f64], mu: &[f64], squared: &mut [f64]) -> [f64; 4] {
+    let n = r.len() as f64;
+    let mean = r.iter().sum::<f64>() / n;
+    let (mut m2, mut m3, mut m4) = (0.0, 0.0, 0.0);
+    for (slot, v) in squared.iter_mut().zip(r) {
+        let d = v - mean;
+        m2 += d * d;
+        m3 += d * d * d;
+        m4 += d * d * d * d;
+        *slot = v * v;
+    }
+    let (m2, m3, m4) = (m2 / n, m3 / n, m4 / n);
+    let (skewness, kurtosis) =
+        if m2 > 0.0 { (m3 / m2.powf(1.5), m4 / (m2 * m2) - 3.0) } else { (0.0, 0.0) };
+    [skewness, kurtosis, correlation(r, curvature), correlation(squared, mu)]
+}
+
+/// Accumulates the realized-discrepancy comparison of [`PosteriorPredictiveCheck`]: at every
+/// posterior draw the statistics of the observed outcome against those of a replicate drawn at
+/// the same parameters (Gelman, Meng and Stern 1996).
+struct ResidualTracker {
+    family: GlmFamily,
+    mu: Vec<f64>,
+    scale: Vec<f64>,
+    curvature: Vec<f64>,
+    residual: Vec<f64>,
+    squared: Vec<f64>,
+    /// Per-draw statistics of the observed outcome and of the replicate.
+    observed: Vec<[f64; 4]>,
+    replicate: Vec<[f64; 4]>,
+}
+
+impl ResidualTracker {
+    /// `None` when the family has no residual variance function or the design is too small.
+    fn new(family: GlmFamily, n: usize) -> Option<Self> {
+        if n < MIN_RESIDUAL_ROWS || pearson_scale(family, 0.5).is_none() {
+            return None;
+        }
+        Some(Self {
+            family,
+            mu: vec![0.0; n],
+            scale: vec![1.0; n],
+            curvature: vec![0.0; n],
+            residual: vec![0.0; n],
+            squared: vec![0.0; n],
+            observed: Vec::new(),
+            replicate: Vec::new(),
+        })
+    }
+
+    /// Record the fitted means of the current draw (before observation noise is added).
+    fn set_means(&mut self, fitted: &[f64]) {
+        self.mu.copy_from_slice(fitted);
+        let mean = fitted.iter().sum::<f64>() / fitted.len() as f64;
+        for i in 0..fitted.len() {
+            // `new` verified the family has a variance function.
+            self.scale[i] = pearson_scale(self.family, fitted[i]).unwrap_or(1.0);
+            self.curvature[i] = (fitted[i] - mean) * (fitted[i] - mean);
+        }
+    }
+
+    fn statistics(&mut self, y: &[f64]) -> [f64; 4] {
+        for i in 0..y.len() {
+            self.residual[i] = (y[i] - self.mu[i]) / self.scale[i];
+        }
+        residual_statistics(&self.residual, &self.curvature, &self.mu, &mut self.squared)
+    }
+
+    /// Compare the observed outcome with the replicate at the current draw.
+    fn push(&mut self, observed: &[f64], replicate: &[f64]) {
+        let obs = self.statistics(observed);
+        let rep = self.statistics(replicate);
+        self.observed.push(obs);
+        self.replicate.push(rep);
+    }
+
+    /// Per-statistic discrepancies and the omnibus upper-tail p-value.
+    fn finish(self) -> (Vec<ResidualDiscrepancy>, f64) {
+        let draws = self.observed.len() as f64;
+        let mean = |rows: &[[f64; 4]], k: usize| rows.iter().map(|row| row[k]).sum::<f64>() / draws;
+        // Replicate mean and SD of each statistic define the scale on which a departure is
+        // compared; a statistic with no replicate spread cannot depart and is skipped.
+        let centre: Vec<f64> = (0..4).map(|k| mean(&self.replicate, k)).collect();
+        let spread: Vec<f64> = (0..4)
+            .map(|k| {
+                let var =
+                    self.replicate.iter().map(|row| (row[k] - centre[k]).powi(2)).sum::<f64>()
+                        / (draws - 1.0).max(1.0);
+                var.sqrt()
+            })
+            .collect();
+        let departure = |row: &[f64; 4]| {
+            (0..4)
+                .filter(|&k| spread[k] > 0.0)
+                .map(|k| (row[k] - centre[k]).abs() / spread[k])
+                .fold(0.0_f64, f64::max)
+        };
+        let exceed = self
+            .observed
+            .iter()
+            .zip(&self.replicate)
+            .filter(|(obs, rep)| departure(rep) >= departure(obs))
+            .count() as f64;
+        let omnibus = (1.0 + exceed) / (1.0 + draws);
+        let axes = ResidualStatistic::ALL
+            .iter()
+            .enumerate()
+            .map(|(k, &statistic)| {
+                let below =
+                    self.observed.iter().zip(&self.replicate).filter(|(o, r)| r[k] <= o[k]).count();
+                let above =
+                    self.observed.iter().zip(&self.replicate).filter(|(o, r)| r[k] >= o[k]).count();
+                let tails =
+                    [(1.0 + below as f64) / (1.0 + draws), (1.0 + above as f64) / (1.0 + draws)];
+                ResidualDiscrepancy {
+                    statistic,
+                    observed: mean(&self.observed, k),
+                    predictive_mean: centre[k],
+                    p_value: (2.0 * tails[0].min(tails[1])).min(1.0),
+                    tails,
+                }
+            })
+            .collect();
+        (axes, omnibus)
+    }
+}
+
 /// Lag-1 autocorrelation `Σ r_t r_{t-1} / Σ r_t²` (0 for a zero vector).
 fn lag1_autocorrelation(r: &[f64]) -> f64 {
     let den: f64 = r.iter().map(|v| v * v).sum();
@@ -713,7 +1045,8 @@ fn serial_discrepancy(
     if n < 3 {
         return Err(ValidationError::estimation_msg("serial PPC needs at least three rows"));
     }
-    let n_draws = posterior.draws.n_draws.min(n_sims as usize);
+    let total = posterior.draws.n_draws;
+    let n_draws = total.min(n_sims as usize);
     if n_draws == 0 {
         return Err(ValidationError::estimation_msg("no posterior draws for serial PPC"));
     }
@@ -723,7 +1056,8 @@ fn serial_discrepancy(
     let mut replicate = vec![0.0; n];
     let (mut observed_sum, mut predictive_sum) = (0.0, 0.0);
     let (mut below, mut above) = (0usize, 0usize);
-    for d in 0..n_draws {
+    for k in 0..n_draws {
+        let d = strided_draw_index(k, n_draws, total);
         for (c, slot) in beta.iter_mut().enumerate() {
             *slot = posterior.draws.get(d, c).map_err(ValidationError::from)?;
         }
@@ -833,6 +1167,47 @@ impl PriorSensitivity {
         }
     }
 
+    /// The grid that perturbs the prior the estimator actually fits with: variance
+    /// multipliers around a resolved prior when `estimator.prior` is set (an explicit or
+    /// transferred prior), the isotropic scale grid otherwise (the isotropic prior *is* the prior
+    /// in force). A prior-bank compose needs [`Self::standard_alpha_grid`] with
+    /// [`Self::evaluate_external_alpha`] and the bank's sources instead.
+    #[must_use]
+    pub fn for_estimator(estimator: &BayesianGComputationAte) -> Self {
+        if estimator.prior.is_some() {
+            Self::standard_resolved_grid()
+        } else {
+            Self::standard_grid()
+        }
+    }
+
+    /// Refit around the prior the estimator fits with, using whichever grid this value holds:
+    /// [`Self::evaluate_resolved_prior`] for a variance-multiplier grid, [`Self::evaluate`] for a
+    /// scale grid. Pair with [`Self::for_estimator`].
+    ///
+    /// # Errors
+    ///
+    /// An α-multiplier grid (it needs the prior bank's sources, see
+    /// [`Self::evaluate_external_alpha`]), plus the errors of the dispatched evaluation.
+    pub fn evaluate_in_force(
+        &self,
+        estimator: &BayesianGComputationAte,
+        problem: &PreparedBayesianProblem,
+        identification: IdentificationStatus,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<(PriorSensitivitySummary, Vec<CausalPosterior>), ValidationError> {
+        if !self.variance_multipliers.is_empty() {
+            self.evaluate_resolved_prior(estimator, problem, identification, workspace, ctx)
+        } else if !self.alphas.is_empty() {
+            Err(ValidationError::estimation_msg(
+                "an α-multiplier grid needs the prior bank's sources: use evaluate_external_alpha",
+            ))
+        } else {
+            self.evaluate(estimator, problem, identification, workspace, ctx)
+        }
+    }
+
     fn grid_len(&self) -> usize {
         if !self.variance_multipliers.is_empty() {
             self.variance_multipliers.len()
@@ -923,6 +1298,14 @@ impl PriorSensitivity {
         if self.scales.is_empty() {
             return Err(ValidationError::estimation_msg(
                 "prior sensitivity scale grid is empty (use evaluate_external_alpha for α mode)",
+            ));
+        }
+        // Every refit below replaces the prior with an isotropic one; against a supplied prior
+        // that would report the sensitivity of a prior the analysis did not use.
+        if estimator.prior.is_some() {
+            return Err(ValidationError::estimation_msg(
+                "the estimator fits with a supplied prior: use evaluate_resolved_prior (or \
+                 evaluate_in_force), not the isotropic scale grid",
             ));
         }
         let mut means = Vec::with_capacity(self.scales.len());
@@ -1136,6 +1519,8 @@ fn summarize_check(
         dispersion_tails: [1.0, 1.0],
         n_sims,
         serial: None,
+        residual: Vec::new(),
+        residual_p_value: 1.0,
         noise: PredictiveNoise::Likelihood,
     }
 }
@@ -1200,6 +1585,8 @@ fn summarize_predictive_check(
         dispersion_tails,
         n_sims,
         serial: None,
+        residual: Vec::new(),
+        residual_p_value: 1.0,
         noise,
     }
 }
@@ -1276,6 +1663,8 @@ mod tests {
             dispersion_tails: [0.2, 0.8],
             n_sims: 200,
             serial: None,
+            residual: Vec::new(),
+            residual_p_value: 1.0,
             noise: PredictiveNoise::Likelihood,
         }
     }
@@ -1736,18 +2125,33 @@ mod tests {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn sbc_conjugate_gaussian_ranks_are_uniform() {
+            use antecedent_prob::InvGammaPrior;
             let (data, estimand, query) = toy();
+            // SBC needs a residual-variance prior with a finite mean to simulate from
+            // (an inverse-gamma shape > 1, or a known variance): the weakly informative
+            // default (InvGamma(1e-3, 1e-3)) has neither, so this test supplies one
+            // explicitly instead of the isotropic prior_scale shorthand.
+            let mut prior = PriorSet {
+                specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                    3, 5.0,
+                ))],
+                contrast: None,
+                categorical: Vec::new(),
+                restrictions: Vec::new(),
+            };
+            prior.push(PriorSpec::ResidualInvGamma(InvGammaPrior { shape: 3.0, scale: 2.0 }));
             let bayes = BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 300,
                 seed: 11,
-                prior_scale: 5.0,
+                prior: Some(prior),
                 ..BayesianGComputationAte::new()
             };
             let prep = bayes.prepare(&data, &estimand, &query).unwrap();
             let mut ws = BayesianGCompWorkspace::default();
             let ctx = ExecutionContext::for_tests(1);
-            let sbc = SimulationBasedCalibration { n_reps: 200, n_draws: 300, seed: 42 };
+            // n_draws + 1 must be a multiple of the 10 rank bins (SimulationBasedCalibration::check).
+            let sbc = SimulationBasedCalibration { n_reps: 200, n_draws: 299, seed: 42 };
             let report = sbc
                 .check(
                     &bayes,
@@ -2045,34 +2449,334 @@ mod tests {
             .unwrap();
             assert_eq!(untempered.serial.unwrap().tempering_kappa, None);
         }
+
+        /// A linear Gaussian model fitted to `y = 1 + 0.5 t + 0.8 x + 1.5 x² + noise`: the mean
+        /// and dispersion axes are matched by construction (the normal equations reproduce the
+        /// mean, the replicate SD is drawn to match the residual SD), so only the residual-shape
+        /// axes can see the neglected curvature.
+        #[test]
+        fn posterior_predictive_flags_a_nonlinear_mean() {
+            let mut rng = CausalRng::from_seed(0xBEEF);
+            let (t, x) = covariates(150, &mut rng);
+            let y: Vec<f64> = t
+                .iter()
+                .zip(&x)
+                .map(|(t, x)| {
+                    1.0 + 0.5 * t + 0.8 * x + 1.5 * x * x + 0.3 * standard_normal(&mut rng)
+                })
+                .collect();
+            let prep = problem(&t, &x, &y);
+            let estimator = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 200,
+                seed: 3,
+                ..BayesianGComputationAte::new()
+            };
+            let ctx = ExecutionContext::for_tests(1);
+            let post = estimator
+                .fit(
+                    &prep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut BayesianGCompWorkspace::default(),
+                    &ctx,
+                )
+                .unwrap();
+            let report = PosteriorPredictiveCheck {
+                n_sims: 200,
+                ..PosteriorPredictiveCheck::for_estimator(&estimator, &ctx)
+            }
+            .check(&prep, &post)
+            .unwrap();
+            assert_eq!(report.residual.len(), 4);
+            assert!(report.residual_p_value < ALPHA, "{report:?}");
+            let verdict = report.to_refutation_report(0.0, ALPHA);
+            assert!(!verdict.passed, "{verdict:?}");
+            let message = verdict.failure_condition.unwrap();
+            assert!(message.contains("residual-shape"), "{message}");
+            // The curvature is what the statistics see: observed residuals correlate positively
+            // with the squared fitted-mean deviation, the replicates do not.
+            let curvature = report
+                .residual
+                .iter()
+                .find(|r| r.statistic == ResidualStatistic::Curvature)
+                .unwrap();
+            assert!(curvature.observed > 0.3, "{curvature:?}");
+            assert!(curvature.predictive_mean.abs() < 0.1, "{curvature:?}");
+        }
+
+        #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
+        fn prior_predictive_check_has_no_residual_axes() {
+            let mut rng = CausalRng::from_seed(23);
+            let (t, x) = covariates(60, &mut rng);
+            let y: Vec<f64> = t.iter().map(|_| standard_normal(&mut rng)).collect();
+            let report = PriorPredictiveCheck::new()
+                .check(&problem(&t, &x, &y), &ExecutionContext::for_tests(1))
+                .unwrap();
+            assert!(report.residual.is_empty());
+            assert_eq!(report.residual_p_value, 1.0);
+        }
+
+        #[test]
+        fn strided_draw_selection_spreads_over_the_whole_store() {
+            // Identity when every draw is used.
+            assert_eq!(
+                (0..5).map(|k| strided_draw_index(k, 5, 5)).collect::<Vec<_>>(),
+                [0, 1, 2, 3, 4]
+            );
+            // 4 of 10 draws: k * 10 / 4 = 0, 2, 5, 7; 200 of 400 chain-concatenated draws reach
+            // the last chain instead of stopping at the 200th draw.
+            assert_eq!(
+                (0..4).map(|k| strided_draw_index(k, 4, 10)).collect::<Vec<_>>(),
+                [0, 2, 5, 7]
+            );
+            assert_eq!(strided_draw_index(199, 200, 400), 398);
+        }
+
+        #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
+        fn mixture_averages_residual_tails_and_omnibus_p_over_atoms() {
+            let axis = |tails: [f64; 2]| ResidualDiscrepancy {
+                statistic: ResidualStatistic::Skewness,
+                observed: 1.0,
+                predictive_mean: 0.0,
+                p_value: (2.0 * tails[0].min(tails[1])).min(1.0),
+                tails,
+            };
+            let mut a = report(PredictiveCheckKind::Posterior, 0.0, 1.0);
+            a.residual = vec![axis([0.1, 0.9])];
+            a.residual_p_value = 0.2;
+            let mut b = report(PredictiveCheckKind::Posterior, 0.0, 1.0);
+            b.residual = vec![axis([0.3, 0.7])];
+            b.residual_p_value = 0.6;
+            let mixed = PredictiveCheckReport::mixture_weighted(&[(1.0, &a), (1.0, &b)]).unwrap();
+            assert_eq!(mixed.residual.len(), 1);
+            assert!((mixed.residual[0].tails[0] - 0.2).abs() < 1e-12);
+            assert!((mixed.residual[0].tails[1] - 0.8).abs() < 1e-12);
+            assert!((mixed.residual[0].p_value - 0.4).abs() < 1e-12);
+            assert!((mixed.residual_p_value - 0.4).abs() < 1e-12);
+            // An atom without the axis drops it from the mixture.
+            let bare = report(PredictiveCheckKind::Posterior, 0.0, 1.0);
+            let dropped =
+                PredictiveCheckReport::mixture_weighted(&[(1.0, &a), (1.0, &bare)]).unwrap();
+            assert!(dropped.residual.is_empty());
+            assert_eq!(dropped.residual_p_value, 1.0);
+        }
+
+        #[test]
+        fn sbc_refuses_configurations_the_rank_theorem_cannot_support() {
+            let (data, estimand, query) = toy();
+            let bayes = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 50,
+                seed: 1,
+                ..BayesianGComputationAte::new()
+            };
+            let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = BayesianGCompWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            let mut run = |sbc: SimulationBasedCalibration| {
+                sbc.check(
+                    &bayes,
+                    &prep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ctx,
+                )
+            };
+            // 101 ranks do not divide into 10 equal-mass bins.
+            assert!(matches!(
+                run(SimulationBasedCalibration { n_reps: 50, n_draws: 100, seed: 0 }),
+                Err(ValidationError::NotApplicable { .. })
+            ));
+            // Fewer than five expected replicates per bin.
+            assert!(matches!(
+                run(SimulationBasedCalibration { n_reps: 49, n_draws: 99, seed: 0 }),
+                Err(ValidationError::NotApplicable { .. })
+            ));
+            assert!(matches!(
+                run(SimulationBasedCalibration::new(1)),
+                Err(ValidationError::NotApplicable { .. })
+            ));
+            // The weakly informative default residual prior (InvGamma(1e-3, 1e-3)) has no finite
+            // mean: it cannot generate data, so the check does not pretend to certify it.
+            let refused = run(SimulationBasedCalibration { n_reps: 50, n_draws: 99, seed: 0 });
+            assert!(
+                matches!(refused, Err(ValidationError::NotApplicable { message }) if message.contains("finite mean")),
+                "{refused:?}"
+            );
+        }
+
+        #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
+        fn sbc_generating_parameters_follow_the_fitted_prior() {
+            // beta_c | sigma^2 ~ N(mu_c, sigma^2 V0_c): known sigma^2 = 4, V0 = (0.25, 4), so
+            // beta_0 ~ N(2, 1) and beta_1 ~ N(-1, 16).
+            let coefficients = GaussianCoefficientPrior {
+                mean: Arc::from(vec![2.0, -1.0]),
+                variance: Arc::from(vec![0.25, 4.0]),
+            };
+            let mut rng = CausalRng::from_seed(5);
+            let draws = 20_000_usize;
+            let (mut b0, mut b1) = (Vec::new(), Vec::new());
+            for _ in 0..draws {
+                let (sigma2, beta) = draw_generating_parameters(
+                    &coefficients,
+                    GeneratingVariance::Known(4.0),
+                    &mut rng,
+                );
+                assert_eq!(sigma2, 4.0);
+                b0.push(beta[0]);
+                b1.push(beta[1]);
+            }
+            let stats = |v: &[f64]| {
+                let m = v.iter().sum::<f64>() / v.len() as f64;
+                (m, v.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / (v.len() - 1) as f64)
+            };
+            let ((m0, v0), (m1, v1)) = (stats(&b0), stats(&b1));
+            assert!((m0 - 2.0).abs() < 0.05 && (v0 - 1.0).abs() < 0.1, "beta_0: {m0}, {v0}");
+            assert!((m1 + 1.0).abs() < 0.25 && (v1 - 16.0).abs() < 1.5, "beta_1: {m1}, {v1}");
+            // InvGamma(5, 4) has mean 1: the drawn sigma^2 average to it.
+            let sigma2_mean = (0..draws)
+                .map(|_| {
+                    draw_generating_parameters(
+                        &coefficients,
+                        GeneratingVariance::InvGamma { shape: 5.0, scale: 4.0 },
+                        &mut rng,
+                    )
+                    .0
+                })
+                .sum::<f64>()
+                / draws as f64;
+            assert!((sigma2_mean - 1.0).abs() < 0.03, "sigma2 mean {sigma2_mean}");
+        }
+
+        #[test]
+        fn sbc_bins_have_equal_prior_mass_when_the_ranks_divide_evenly() {
+            // 99 draws -> ranks 0..=99 (100 of them): every one of the 10 bins holds exactly 10.
+            let mut counts = [0usize; SBC_BINS];
+            for rank in 0..=99_u32 {
+                counts[sbc_bin(rank, 99)] += 1;
+            }
+            assert_eq!(counts, [10; SBC_BINS]);
+        }
+
+        #[test]
+        #[allow(
+            clippy::float_cmp,
+            reason = "the asserted values are exact by construction of the fixture (zeros, ones, small dyadic rationals), so exact equality is intended"
+        )]
+        fn quantile_interpolates_linearly_between_order_statistics() {
+            let odd = [0.0, 1.0, 2.0, 3.0, 4.0];
+            assert_eq!(quantile_type7_sorted(&odd, 0.5), 2.0);
+            assert!((quantile_type7_sorted(&odd, 0.9) - 3.6).abs() < 1e-12);
+            assert_eq!(quantile_type7_sorted(&odd, 0.0), 0.0);
+            assert_eq!(quantile_type7_sorted(&odd, 1.0), 4.0);
+            // The median of an even count is the midpoint, not an order statistic.
+            assert_eq!(quantile_type7_sorted(&[1.0, 2.0, 3.0, 4.0], 0.5), 2.5);
+            assert!(quantile_type7_sorted(&[], 0.5).is_nan());
+        }
+
+        #[test]
+        fn mcmc_failure_text_names_the_failing_clause() {
+            let mut d = InferenceDiagnostics::analytic("hmc");
+            assert!(mcmc_report(&d, 1.0).is_none(), "non-MCMC diagnostics are not applicable");
+            d.factorization = HessianFactorization::Mcmc;
+            d.converged = true;
+            d.n_chains = Some(4);
+            d.n_warmup = Some(100);
+            d.ess_bulk_min = Some(900.0);
+            d.ess_tail_min = Some(900.0);
+            d.rhat_max = Some(1.004);
+            d.n_postwarmup_divergences = Some(0);
+            d.mean_accept_prob = Some(0.8);
+            d.max_abs_delta_h = Some(0.1);
+            d.all_chains_moved = Some(true);
+            let healthy = mcmc_report(&d, 1.0).unwrap();
+            assert!(healthy.passed && healthy.failure_condition.is_none());
+            // Tail ESS and chain movement fail; bulk ESS, R-hat and divergences are fine, so the
+            // old text (rhat, bulk ESS, divergences) would have named nothing wrong.
+            d.ess_tail_min = Some(50.0);
+            d.all_chains_moved = Some(false);
+            let sick = mcmc_report(&d, 1.0).unwrap();
+            assert!(!sick.passed);
+            let message = sick.failure_condition.unwrap();
+            assert!(message.contains("tail ESS") && message.contains("chain moved"), "{message}");
+            assert!(!message.contains("split-R̂"), "{message}");
+        }
+
+        #[test]
+        fn prior_sensitivity_grid_follows_the_prior_in_force() {
+            let (data, estimand, query) = toy();
+            let plain = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 40,
+                seed: 4,
+                ..BayesianGComputationAte::new()
+            };
+            let prep = plain.prepare(&data, &estimand, &query).unwrap();
+            let isotropic = PriorSensitivity::for_estimator(&plain);
+            assert!(!isotropic.scales.is_empty() && isotropic.variance_multipliers.is_empty());
+            let supplied = BayesianGComputationAte {
+                prior: Some(PriorSet::weakly_informative(prep.design.ncols)),
+                ..plain.clone()
+            };
+            let resolved = PriorSensitivity::for_estimator(&supplied);
+            assert!(resolved.scales.is_empty() && !resolved.variance_multipliers.is_empty());
+            let mut ws = BayesianGCompWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            // Dispatch reaches the resolved-prior family for a supplied prior...
+            let (summary, _) = resolved
+                .evaluate_in_force(
+                    &supplied,
+                    &prep,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut ws,
+                    &ctx,
+                )
+                .unwrap();
+            assert_eq!(summary.family, PriorSensitivityFamily::ResolvedPriorVariance);
+            // ...and the isotropic grid refuses to replace it.
+            assert!(
+                PriorSensitivity::standard_grid()
+                    .evaluate(
+                        &supplied,
+                        &prep,
+                        IdentificationStatus::NonparametricallyIdentified,
+                        &mut ws,
+                        &ctx,
+                    )
+                    .is_err()
+            );
+        }
     }
 }
 
 /// MCMC chain diagnostics gate (ESS / R-hat / divergences).
 ///
 /// Applicable only when the posterior was produced by an MCMC backend
-/// (`InferenceDiagnostics::factorization == Mcmc`).
-#[derive(Clone, Copy, Debug)]
-pub struct McmcDiagnosticsCheck {
-    /// Maximum acceptable split-Ř.
-    pub max_rhat: f64,
-    /// Minimum acceptable bulk ESS.
-    pub min_ess: f64,
-    /// Maximum acceptable divergence count.
-    pub max_divergences: u32,
-}
-
-impl Default for McmcDiagnosticsCheck {
-    fn default() -> Self {
-        Self { max_rhat: 1.05, min_ess: 10.0, max_divergences: u32::MAX / 4 }
-    }
-}
+/// (`InferenceDiagnostics::factorization == Mcmc`). The verdict is the library's own
+/// publication predicate ([`antecedent_prob::InferenceDiagnostics::allows_posterior`]: split-Ř at
+/// most 1.01, bulk and tail ESS of at least 100 per chain, no post-warmup divergences, movement
+/// on every chain), so there are no thresholds to loosen here; a failure names each clause
+/// that failed.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct McmcDiagnosticsCheck;
 
 impl McmcDiagnosticsCheck {
-    /// Construct with defaults.
+    /// Construct.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 
     /// Evaluate against a fitted posterior's diagnostics.
@@ -2080,50 +2784,69 @@ impl McmcDiagnosticsCheck {
     /// Returns `None` when the posterior is not MCMC (caller should emit `NotApplicable`).
     #[must_use]
     pub fn check(&self, posterior: &CausalPosterior) -> Option<RefutationReport> {
-        let d = &posterior.diagnostics;
-        if d.factorization != HessianFactorization::Mcmc {
-            return None;
-        }
-        let rhat = d.rhat_max.unwrap_or(f64::INFINITY);
-        let ess = d.ess_bulk_min.unwrap_or(0.0);
-        let divs = d.n_divergences.unwrap_or(u32::MAX);
-        let passed = rhat.is_finite()
-            && rhat <= self.max_rhat
-            && ess >= self.min_ess
-            && divs <= self.max_divergences
-            && d.allows_posterior();
         let ate = posterior
             .effect_column()
             .and_then(|c| posterior.summaries.mean.get(c).copied())
             .unwrap_or(f64::NAN);
-        Some(RefutationReport {
-            refuter: Arc::from("mcmc_diagnostics"),
-            original_ate: ate,
-            refuted_ate: ate,
-            comparison: rhat,
-            informative: true,
-            passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(format!(
-                    "MCMC diagnostics failed: rhat={rhat:.4} ess={ess:.1} divergences={divs}"
-                )))
-            },
-            replicates: d.n_chains.unwrap_or(0),
-        })
+        mcmc_report(&posterior.diagnostics, ate)
     }
+}
+
+/// Publication verdict of `d` as a report; `None` unless `d` is an MCMC diagnostic set.
+fn mcmc_report(d: &InferenceDiagnostics, ate: f64) -> Option<RefutationReport> {
+    if d.factorization != HessianFactorization::Mcmc {
+        return None;
+    }
+    let mut reasons: Vec<&'static str> = Vec::new();
+    if !d.converged {
+        reasons.push("the sampler did not report convergence");
+    }
+    reasons.extend(d.mcmc_publication_failures());
+    let passed = reasons.is_empty();
+    let rhat = d.rhat_max.unwrap_or(f64::INFINITY);
+    Some(RefutationReport {
+        refuter: Arc::from("mcmc_diagnostics"),
+        original_ate: ate,
+        refuted_ate: ate,
+        comparison: rhat,
+        informative: true,
+        passed,
+        failure_condition: if passed {
+            None
+        } else {
+            Some(Arc::from(format!(
+                "MCMC diagnostics failed: {} (rhat={rhat:.4} ess={:.1} tail_ess={:.1} \
+                 divergences={})",
+                reasons.join("; "),
+                d.ess_bulk_min.unwrap_or(0.0),
+                d.ess_tail_min.unwrap_or(0.0),
+                d.n_postwarmup_divergences.map_or_else(|| "unknown".to_owned(), |n| n.to_string())
+            )))
+        },
+        replicates: d.n_chains.unwrap_or(0),
+    })
 }
 
 /// Simulation-based calibration ranks for a scalar posterior functional.
 ///
-/// For each replicate: draw θ* from the prior predictive, simulate data, refit, and
-/// record the rank of θ* among posterior draws of the primary effect.
+/// For each replicate: draw `(σ², β)` from the prior the estimator fits with, simulate data, refit,
+/// and record the rank of the true effect among posterior draws of the primary effect. The rank
+/// theorem (Talts et al. 2018) needs the generating prior to be *exactly* the fitted prior and the
+/// posterior draws to be independent, so:
+///
+/// - `σ²` is drawn from the estimator's residual-variance prior (fixed when known; a proper
+///   inverse-gamma with finite mean otherwise) and `β | σ² ~ N(μ, σ² · diag(V0))` from its
+///   coefficient prior, the conjugate convention of [`GaussianCoefficientPrior`]. A prior without
+///   a finite-mean residual model (the weakly informative default) cannot be a generating prior
+///   and is refused.
+/// - `n_draws + 1` must be a multiple of the 10 rank bins (e.g. 99), so every bin has equal prior
+///   mass; at least 50 replicates are required so every bin expects at least five.
+/// - Backends whose draws are autocorrelated (a bulk ESS below the draw count) are refused.
 #[derive(Clone, Debug)]
 pub struct SimulationBasedCalibration {
-    /// Number of SBC replicates.
+    /// Number of SBC replicates (at least `5 ×` the rank bins, i.e. 50).
     pub n_reps: u32,
-    /// Draws per refit.
+    /// Draws per refit (`n_draws + 1` a multiple of the 10 rank bins).
     pub n_draws: usize,
     /// RNG seed.
     pub seed: u64,
@@ -2131,14 +2854,49 @@ pub struct SimulationBasedCalibration {
 
 impl Default for SimulationBasedCalibration {
     fn default() -> Self {
-        Self { n_reps: 50, n_draws: 100, seed: 0 }
+        Self { n_reps: 50, n_draws: 99, seed: 0 }
     }
+}
+
+/// Rank-histogram bins of [`SimulationBasedCalibration`].
+const SBC_BINS: usize = 10;
+
+/// Bin of `rank ∈ 0..=n_draws`; every bin holds `(n_draws + 1) / SBC_BINS` ranks when that divides.
+fn sbc_bin(rank: u32, n_draws: usize) -> usize {
+    ((rank as usize) * SBC_BINS / (n_draws + 1)).min(SBC_BINS - 1)
+}
+
+/// Residual-variance prior a generating draw can sample from.
+#[derive(Clone, Copy, Debug)]
+enum GeneratingVariance {
+    Known(f64),
+    InvGamma { shape: f64, scale: f64 },
+}
+
+/// Draw `(σ², β)` from the fitted prior: `σ²` from its residual model, then
+/// `β_c = μ_c + σ √V0_c · z` (the conjugate `β | σ² ~ N(μ, σ² · diag V0)`).
+fn draw_generating_parameters(
+    coefficients: &GaussianCoefficientPrior,
+    variance: GeneratingVariance,
+    rng: &mut CausalRng,
+) -> (f64, Vec<f64>) {
+    let sigma2 = match variance {
+        GeneratingVariance::Known(sigma2) => sigma2,
+        GeneratingVariance::InvGamma { shape, scale } => sample_inv_gamma(shape, scale, rng),
+    };
+    let sigma = sigma2.sqrt();
+    let beta = (0..coefficients.mean.len())
+        .map(|c| {
+            coefficients.mean[c] + sigma * coefficients.variance[c].sqrt() * standard_normal(rng)
+        })
+        .collect();
+    (sigma2, beta)
 }
 
 /// SBC report.
 #[derive(Clone, Debug)]
 pub struct SbcReport {
-    /// Rank of the prior draw in each replicate (`0..=n_draws`).
+    /// Rank of the generating draw in each replicate (`0..=n_draws`).
     pub ranks: Arc<[u32]>,
     /// Mean rank / `n_draws` (≈ 0.5 when calibrated).
     pub mean_rank_frac: f64,
@@ -2153,13 +2911,14 @@ impl SimulationBasedCalibration {
         Self { n_reps: n_reps.max(1), ..Self::default() }
     }
 
-    /// Run SBC: draw θ from the prior, simulate `y` from the prior predictive under
-    /// the fixed design matrix, refit the Bayesian g-computation estimator, and
+    /// Run SBC: draw `(σ², β)` from the prior the estimator fits with, simulate `y` from the
+    /// model under the fixed design matrix, refit the Bayesian g-computation estimator, and
     /// rank the true ATE among posterior effect draws.
     ///
     /// # Errors
     ///
-    /// Fit failures.
+    /// Fit failures; [`ValidationError::NotApplicable`] when the configuration or estimator
+    /// cannot satisfy the rank theorem (see the type docs).
     pub fn check(
         &self,
         estimator: &BayesianGComputationAte,
@@ -2168,23 +2927,62 @@ impl SimulationBasedCalibration {
         workspace: &mut BayesianGCompWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<SbcReport, ValidationError> {
-        let mut rng = CausalRng::from_seed(self.seed);
+        if (self.n_draws + 1) % SBC_BINS != 0 {
+            return Err(ValidationError::NotApplicable {
+                message: "SBC requires n_draws + 1 to be a multiple of the 10 rank bins \
+                          (e.g. 99), so every bin has equal prior mass",
+            });
+        }
+        if (self.n_reps as usize) < 5 * SBC_BINS {
+            return Err(ValidationError::NotApplicable {
+                message: "SBC requires at least 50 replicates (five expected per rank bin)",
+            });
+        }
+        if estimator.glm_family() != GlmFamily::GaussianIdentity {
+            return Err(ValidationError::NotApplicable {
+                message: "SBC simulates Gaussian outcomes and applies to the Gaussian likelihood only",
+            });
+        }
         let n = problem.design.nrows;
         let p = problem.design.ncols;
         let t_col = problem
             .design
             .treatment_column()
             .ok_or_else(|| ValidationError::estimation_msg("SBC: missing treatment column"))?;
+        let prior = estimator.prior_in_force(p);
+        let coefficients = prior.gaussian_coefficients().ok_or_else(|| {
+            ValidationError::estimation_msg("SBC: the prior in force has no Gaussian coefficients")
+        })?;
+        if coefficients.mean.len() != p || coefficients.variance.len() != p {
+            return Err(ValidationError::estimation_msg(
+                "SBC: prior coefficient dimension mismatch",
+            ));
+        }
+        let variance = match GaussianVarianceModel::from_prior_set(&prior)
+            .map_err(|e| ValidationError::estimation_msg(e.to_string()))?
+        {
+            GaussianVarianceModel::Known { sigma2 } => GeneratingVariance::Known(sigma2),
+            // InvGamma(a, b) has a finite mean only for a > 1; without one no simulated
+            // dataset is a sensible draw from the prior.
+            GaussianVarianceModel::InvGamma { shape, scale } if shape > 1.0 => {
+                GeneratingVariance::InvGamma { shape, scale }
+            }
+            GaussianVarianceModel::InvGamma { .. } => {
+                return Err(ValidationError::NotApplicable {
+                    message: "SBC needs a residual-variance prior with a finite mean (inverse-gamma \
+                              shape > 1) or a known residual variance to simulate from; the weakly \
+                              informative default has neither",
+                });
+            }
+        };
+        let mut rng = CausalRng::from_seed(self.seed);
         let mut ranks = Vec::with_capacity(self.n_reps as usize);
         let mut est = estimator.clone();
         est.n_draws = self.n_draws;
-        let scale = estimator.prior_scale.max(1e-6);
 
         for rep in 0..self.n_reps {
-            let mut beta = vec![0.0; p];
-            for c in 0..p {
-                beta[c] = scale * standard_normal(&mut rng);
-            }
+            let (sigma2, beta) = draw_generating_parameters(coefficients, variance, &mut rng);
+            let sigma = sigma2.sqrt();
             let true_effect = (problem.active - problem.control) * beta[t_col];
             let mut y_rep = vec![0.0; n];
             for r in 0..n {
@@ -2192,7 +2990,7 @@ impl SimulationBasedCalibration {
                 for c in 0..p {
                     eta += problem.design.matrix[c * n + r] * beta[c];
                 }
-                y_rep[r] = eta + standard_normal(&mut rng);
+                y_rep[r] = eta + sigma * standard_normal(&mut rng);
             }
             let mut sim_problem = problem.clone();
             let mut design = sim_problem.design.clone();
@@ -2209,6 +3007,17 @@ impl SimulationBasedCalibration {
                 .draws
                 .column(col)
                 .map_err(|e| ValidationError::estimation_msg(format!("SBC draws: {e}")))?;
+            // The rank theorem needs independent posterior draws; an autocorrelated sampler
+            // makes the ranks non-uniform even when it is correct.
+            if let Some(ess) = post.diagnostics.ess_bulk_min {
+                if !ess.is_finite() || ess < draws.len() as f64 {
+                    return Err(ValidationError::estimation_msg(format!(
+                        "SBC requires independent posterior draws; the backend reports a bulk \
+                         ESS of {ess} for {} draws",
+                        draws.len()
+                    )));
+                }
+            }
             let mut rank = 0u32;
             for &d in draws {
                 if d < true_effect {
@@ -2223,19 +3032,16 @@ impl SimulationBasedCalibration {
         let mean_rank_frac =
             reduce_posterior_draws(&fracs, PosteriorReduceOp::Mean, &ctx.kernel_policy)
                 .unwrap_or(0.5);
-        let bins = 10usize;
-        let mut counts = vec![0.0; bins];
-        let n_draws_u = u64::try_from(self.n_draws.max(1)).unwrap_or(1);
-        let bins_u = u64::try_from(bins).unwrap_or(1);
+        let mut counts = vec![0.0; SBC_BINS];
         for &r in &ranks {
-            let b = usize::try_from(u64::from(r) * bins_u / n_draws_u).unwrap_or(0).min(bins - 1);
-            counts[b] += 1.0;
+            counts[sbc_bin(r, self.n_draws)] += 1.0;
         }
-        let expected = f64::from(self.n_reps) / bins as f64;
+        // At least 5 expected per bin (enforced above), so no floor on the denominator.
+        let expected = f64::from(self.n_reps) / SBC_BINS as f64;
         let mut chi2 = 0.0;
         for c in counts {
             let d = c - expected;
-            chi2 += d * d / expected.max(1.0);
+            chi2 += d * d / expected;
         }
         Ok(SbcReport { ranks: Arc::from(ranks), mean_rank_frac, uniformity_stat: chi2 })
     }
@@ -2382,9 +3188,9 @@ impl PosteriorCalibrationOnSyntheticScm {
                 .effect_column()
                 .ok_or_else(|| ValidationError::estimation_msg("calibration: no effect"))?;
             let mut draws = post.draws.column(col).map_err(ValidationError::from)?.to_vec();
-            draws.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let lo = quantile_sorted(&draws, alpha);
-            let hi = quantile_sorted(&draws, 1.0 - alpha);
+            draws.sort_by(f64::total_cmp);
+            let lo = quantile_type7_sorted(&draws, alpha);
+            let hi = quantile_type7_sorted(&draws, 1.0 - alpha);
             let mean = reduce_posterior_draws(&draws, PosteriorReduceOp::Mean, &ctx.kernel_policy)
                 .unwrap_or(0.0);
             abs_err += (mean - true_ate).abs();
@@ -2398,21 +3204,4 @@ impl PosteriorCalibrationOnSyntheticScm {
             n_reps: self.n_reps,
         })
     }
-}
-
-fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let max_idx = sorted.len() - 1;
-    let rank = (max_idx as f64 * q.clamp(0.0, 1.0)).round();
-    let idx = (0..=max_idx)
-        .min_by(|&a, &b| {
-            (a as f64 - rank)
-                .abs()
-                .partial_cmp(&(b as f64 - rank).abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(0);
-    sorted[idx]
 }

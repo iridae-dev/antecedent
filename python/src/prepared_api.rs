@@ -3011,7 +3011,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, graph, selections, source_population, target_population,
         source_experiments, kind, treatments, outcomes, trial, selection_probability,
         treatment_probability, *, grid=None, at=None, direction=None, order=1, scale="identity",
-        weighting="observed", accepted=false, seed=1, threads=None, options=None))]
+        weighting="observed", accepted=false, seed=1, threads=None, options=None, catalog=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_transport(
         py: Python<'_>,
@@ -3038,6 +3038,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
+        catalog: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("a transport query")?;
@@ -3045,13 +3046,16 @@ impl PyPreparedAnalysis {
             .extract::<graphs::Admg>()
             .map_err(|_| PyValueError::new_err("TransportQuery requires graph=Admg(...)"))?;
         require_named_graph_order(&admg.names, &names, "Admg")?;
+        let catalog = catalog
+            .map(|c| crate::transport_interference_api::parse_catalog(c, &admg))
+            .transpose()?;
         let admg = admg.aligned_to_names(&names)?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
         detach_catch(py, move || {
             use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
             let schema = data.schema().clone();
-            let query = transport_query(
+            let mut query = transport_query(
                 ResponseArgs {
                     kind,
                     treatments,
@@ -3068,6 +3072,11 @@ impl PyPreparedAnalysis {
                 &source_experiments,
                 |names| schema_ids(&schema, names),
             )?;
+            if let Some(catalog) = catalog {
+                query = query
+                    .with_catalog(catalog)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            }
             let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
             let trial_spec = antecedent::TransportTrialSpec {
                 trial: column(&trial)?,
@@ -3248,6 +3257,10 @@ impl PyPreparedAnalysis {
 
     /// Weighted-mean retarget from the frozen score table. Does not refit.
     #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None))]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
+    )]
     fn retarget(
         &mut self,
         py: Python<'_>,
@@ -3449,13 +3462,13 @@ impl PyPreparedAnalysis {
             || result.structural_response.is_some()
             || (result.posterior.is_some() && result.response.is_some())
         {
-            let wire = composite_result_wire(
-                result,
-                self.inner.query(),
-                self.inner.population_registry(),
-                self.inner.temporal_identification(),
-                artifact_id,
-            )?;
+            let wire = result
+                .analysis_result_wire_with_context(
+                    self.inner.query(),
+                    self.inner.population_registry(),
+                    self.inner.temporal_identification().as_deref(),
+                )
+                .map_err(py_err)?;
             let artifact = antecedent_io::encode_analysis_result_artifact(
                 &wire,
                 self.names.clone(),
@@ -3488,6 +3501,7 @@ impl PyPreparedAnalysis {
                 }
                 _ => unreachable!(),
             };
+            let published = antecedent::PublishedScalarUncertainty::select(&result.estimate);
             let wire = antecedent_io::StaticResultWire {
                 identification: antecedent_io::identification_to_wire_with_registry(
                     &result.identification,
@@ -3495,14 +3509,12 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?,
                 estimate: result.estimate.ate,
-                standard_error: result.estimate.se_bootstrap.or_else(|| {
-                    result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
-                }),
+                standard_error: published.standard_error,
+                interval_lower: published.lower,
+                interval_upper: published.upper,
                 assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
                 support: result
-                    .diagnostics
-                    .iter()
-                    .filter(|d| d.code.contains("support") || d.code.contains("overlap"))
+                    .support_diagnostics()
                     .map(antecedent_io::diagnostic_to_wire)
                     .collect(),
                 diagnostics: result
@@ -3696,39 +3708,9 @@ impl PyPreparedAnalysis {
         &self,
         intent: String,
     ) -> PyResult<std::collections::HashMap<String, String>> {
-        let intent = match intent.as_str() {
-            "display_precision" => antecedent_core::TransformIntent::DisplayPrecision,
-            "compatible_data_replace" => antecedent_core::TransformIntent::CompatibleDataReplace,
-            "retarget" => antecedent_core::TransformIntent::Retarget,
-            "filter_display" => antecedent_core::TransformIntent::FilterDisplay,
-            "filter_population" => antecedent_core::TransformIntent::FilterPopulation,
-            "new_conditional_query" => antecedent_core::TransformIntent::NewConditionalQuery,
-            "change_graph" => antecedent_core::TransformIntent::ChangeGraph,
-            "change_prior" => antecedent_core::TransformIntent::ChangePrior,
-            "change_physical_policy" => antecedent_core::TransformIntent::ChangePhysicalPolicy,
-            "average_unweighted_class" => antecedent_core::TransformIntent::AverageUnweightedClass,
-            other => {
-                return Err(PyValueError::new_err(format!("unknown transform intent {other:?}")));
-            }
-        };
+        let intent = parse_transform_intent(&intent)?;
         let report = self.inner.preview_transform(intent).map_err(py_err)?;
-        let mut out = std::collections::HashMap::new();
-        out.insert("intent".into(), report.intent.as_str().to_string());
-        for identity in report.input_identities.iter() {
-            out.insert(format!("input_{}", identity.domain.as_str()), identity.digest.to_hex());
-        }
-        out.insert("refused".into(), report.refused.to_string());
-        if let Some(refusal) = &report.refusal {
-            if let Some((code, _)) = antecedent_core::reason_code::split_prefix(refusal) {
-                out.insert("refusal_code".into(), code.to_string());
-            }
-            out.insert("refusal".into(), refusal.to_string());
-        }
-        out.insert(
-            "obligations".into(),
-            report.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(","),
-        );
-        Ok(out)
+        Ok(transform_report_map(&report))
     }
 }
 
@@ -3830,99 +3812,42 @@ fn hard_value(intervention: &Intervention) -> Option<f64> {
     }
 }
 
-fn composite_result_wire(
-    result: &antecedent::StudyResult,
-    query: &CausalQuery,
-    registry: Option<&antecedent_core::PopulationRegistry>,
-    temporal: Option<&antecedent::analysis::CachedTemporalIdentification>,
-    artifact_id: &str,
-) -> PyResult<antecedent_io::AnalysisResultWire> {
-    let identification =
-        antecedent_io::identification_to_wire_with_registry(&result.identification, registry)
-            .map_err(py_err)?;
-    let temporal_identification = temporal
-        .into_iter()
-        .flat_map(|cache| cache.by_horizon.iter())
-        .map(|entry| {
-            let variables = (0..entry.indexer.dense_len())
-                .map(|dense| {
-                    let key = entry
-                        .indexer
-                        .key_of(
-                            u32::try_from(dense)
-                                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-                        )
-                        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                    Ok(antecedent_io::HorizonAdjustmentNodeWire {
-                        variable: key.variable.raw(),
-                        offset: key.offset,
-                    })
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            Ok(antecedent_io::TemporalIdentificationWire {
-                horizon: entry.horizon,
-                variables,
-                identification: antecedent_io::identification_to_wire_with_registry(
-                    &entry.identification,
-                    registry,
-                )
-                .map_err(py_err)?,
-            })
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    let mut identification_variables = temporal_identification
-        .iter()
-        .find(|entry| entry.identification.query == identification.query)
-        .map(|entry| entry.variables.clone());
-    if identification_variables.is_none() {
-        if let Some(antecedent::AnalysisIdentification {
-            identification: antecedent::Identification::TemporalEnvelope { envelope, .. },
-            ..
-        }) = result.certificate.as_ref()
-        {
-            if let Some((_, indexer)) =
-                envelope.envelope.cases.iter().zip(&envelope.indexers).find(|(case, _)| {
-                    case.result.estimands.iter().any(|estimand| {
-                        estimand.method == result.estimand.method
-                            && estimand.adjustment_set == result.estimand.adjustment_set
-                    })
-                })
-            {
-                identification_variables = Some(
-                    (0..indexer.dense_len())
-                        .map(|dense| {
-                            let key = indexer
-                                .key_of(u32::try_from(dense).map_err(py_msg)?)
-                                .map_err(py_msg)?;
-                            Ok(antecedent_io::HorizonAdjustmentNodeWire {
-                                variable: key.variable.raw(),
-                                offset: key.offset,
-                            })
-                        })
-                        .collect::<PyResult<Vec<_>>>()?,
-                );
-            }
+pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_core::TransformIntent> {
+    let intent = match intent {
+        "display_precision" => antecedent_core::TransformIntent::DisplayPrecision,
+        "compatible_data_replace" => antecedent_core::TransformIntent::CompatibleDataReplace,
+        "retarget" => antecedent_core::TransformIntent::Retarget,
+        "filter_display" => antecedent_core::TransformIntent::FilterDisplay,
+        "filter_population" => antecedent_core::TransformIntent::FilterPopulation,
+        "new_conditional_query" => antecedent_core::TransformIntent::NewConditionalQuery,
+        "change_graph" => antecedent_core::TransformIntent::ChangeGraph,
+        "change_prior" => antecedent_core::TransformIntent::ChangePrior,
+        "change_physical_policy" => antecedent_core::TransformIntent::ChangePhysicalPolicy,
+        "average_unweighted_class" => antecedent_core::TransformIntent::AverageUnweightedClass,
+        other => {
+            return Err(PyValueError::new_err(format!("unknown transform intent {other:?}")));
         }
-    }
-    let mut wire = antecedent_io::AnalysisResultWire {
-        query: antecedent_io::causal_query_to_wire_with_registry(query, registry)
-            .map_err(py_err)?,
-        identification,
-        identification_variables,
-        temporal_identification,
-        estimate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        standard_error: result.estimate.se_bootstrap.or_else(|| {
-            result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
-        }),
-        assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
-        diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
-        refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
-        response: None,
-        posterior_artifact: None,
-        mediation_grid: None,
-        structural_response: None,
-        unit_effects: None,
     };
-    result.fill_analysis_result_payloads(&mut wire, artifact_id).map_err(py_err)?;
-    Ok(wire)
+    Ok(intent)
+}
+pub(crate) fn transform_report_map(
+    report: &antecedent_core::TransformationReport,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    out.insert("intent".into(), report.intent.as_str().to_string());
+    for identity in report.input_identities.iter() {
+        out.insert(format!("input_{}", identity.domain.as_str()), identity.digest.to_hex());
+    }
+    out.insert("refused".into(), report.refused.to_string());
+    if let Some(refusal) = &report.refusal {
+        if let Some((code, _)) = antecedent_core::reason_code::split_prefix(refusal) {
+            out.insert("refusal_code".into(), code.to_string());
+        }
+        out.insert("refusal".into(), refusal.to_string());
+    }
+    out.insert(
+        "obligations".into(),
+        report.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(","),
+    );
+    out
 }

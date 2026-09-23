@@ -3,32 +3,15 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+source scripts/python_smoke.sh
 
 bash scripts/gate_parity_schema.sh
 
 python3 - <<'PY'
-from pathlib import Path
-import re
 import sys
 
-root = Path(".")
-text = (root / "parity/bayesian.toml").read_text()
-
-def caps(text: str):
-    blocks = re.split(r"\n\[\[capabilities\]\]\n", text)[1:]
-    out = []
-    for b in blocks:
-        def g(k, default=None):
-            m = re.search(rf'^{k}\s*=\s*"([^"]*)"', b, re.M)
-            if m:
-                return m.group(1)
-            m = re.search(rf'^{k}\s*=\s*(\d+)', b, re.M)
-            return m.group(1) if m else default
-        out.append({
-            "id": g("id"),
-            "status": g("status"),
-        })
-    return out
+sys.path.insert(0, "scripts")
+import parity_rows as pr
 
 EVIDENCE = {
     "estimate.bayesian_conditional": "crates/antecedent/tests/prepared_analysis.rs",
@@ -55,6 +38,8 @@ EVIDENCE = {
     "bayes.ci.tests": "crates/antecedent-stats/src/ci/bayes.rs",
     "bayes.prior_bank.temporal_transfer": "crates/antecedent/tests/temporal_prior_transfer.rs",
     "bayes.prior_bank.catalog": "crates/antecedent-io/src/prior_bank.rs",
+    "bayes.panel.random_intercept_non_gaussian": "crates/antecedent-estimate/src/bayesian.rs",
+    "bayes.gcomp.negative_binomial_se": "crates/antecedent-estimate/src/glm_adjustment.rs",
     "bayes.prior_bank.effect_map": "crates/antecedent-estimate/src/bayesian.rs",
     "bayes.prior_bank.power_mixture": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conflict": "crates/antecedent-validate/src/conflict.rs",
@@ -63,23 +48,7 @@ EVIDENCE = {
     "bayes.prior_bank.conjugate_moment_match": "crates/antecedent-prob/src/conjugate_moment_match.rs",
 }
 
-missing = []
-for c in caps(text):
-    if c["status"] == "intentional_deviation":
-        missing.append(f"{c['id']}: intentional_deviation is retired; use pending or done")
-        continue
-    if c["status"] != "done":
-        continue
-    ev = EVIDENCE.get(c["id"])
-    if not ev:
-        missing.append(f"{c['id']} (status={c['status']}) has no evidence mapping")
-        continue
-    p = root / ev
-    if not p.exists():
-        missing.append(f"{c['id']} evidence missing: {ev}")
-
-# Exit-criterion fixtures
-for path in [
+EXIT_ARTIFACTS = [
     "conformance/bayesian/shared_functional_ate/expected.json",
     "conformance/bayesian/nonidentified_prior/expected.json",
     "conformance/bayesian/laplace_glm/expected.json",
@@ -99,39 +68,33 @@ for path in [
     "crates/antecedent-prob/benches/hmc.rs",
     "crates/antecedent-prob/benches/mcmc_stats.rs",
     "crates/antecedent-estimate/benches/posterior_functional.rs",
-]:
-    if not (root / path).exists():
-        missing.append(f"required exit artifact missing: {path}")
+]
 
-if missing:
-    print("Bayesian gate FAILED:")
-    for m in missing:
-        print(" -", m)
-    sys.exit(1)
-
-print("Bayesian inventory evidence map OK")
+problems = pr.honesty_problems("parity/bayesian.toml", EVIDENCE)
+problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
+pr.finish("Bayesian", problems, "Bayesian inventory evidence map OK")
 PY
 
 echo "== cargo test antecedent-prob / estimate bayesian / io posterior / bayesian conformance =="
-cargo test -p antecedent-prob --lib
-cargo test -p antecedent-prob --test prior_support_oracle
-cargo test -p antecedent-discovery --lib graph_posterior::
-cargo test -p antecedent-discovery --lib exact_enumeration::
-cargo test -p antecedent-discovery --lib structure_mcmc::
-cargo test -p antecedent-discovery --lib order_mcmc::
-cargo test -p antecedent-discovery --lib ci_screened_posterior::
-cargo test -p antecedent-discovery --lib dbn_posterior::
-cargo test -p antecedent-discovery --test graph_mcmc_oracle
-cargo test -p antecedent-estimate --lib bayesian
-cargo test -p antecedent-estimate --lib envelope
-cargo test -p antecedent-validate --lib bayesian_checks
-cargo test -p antecedent-io --lib posterior
-cargo test -p antecedent-io --lib prior_bank
-cargo test -p antecedent-data --lib resample
-cargo test -p antecedent --test prepared_analysis
-cargo test -p antecedent --test bayesian
-cargo test -p antecedent --test temporal_prior_transfer
-cargo test -p antecedent --test manufacturing_temporal
+bash scripts/counted_cargo.sh test -p antecedent-prob --lib
+bash scripts/counted_cargo.sh test -p antecedent-prob --test prior_support_oracle
+bash scripts/counted_cargo.sh test -p antecedent-discovery --lib graph_posterior::
+bash scripts/counted_cargo.sh test -p antecedent-discovery --lib exact_enumeration::
+bash scripts/counted_cargo.sh test -p antecedent-discovery --lib structure_mcmc::
+bash scripts/counted_cargo.sh test -p antecedent-discovery --lib order_mcmc::
+bash scripts/counted_cargo.sh test -p antecedent-discovery --lib ci_screened_posterior::
+bash scripts/counted_cargo.sh test -p antecedent-discovery --lib dbn_posterior::
+bash scripts/counted_cargo.sh test -p antecedent-discovery --test graph_mcmc_oracle
+bash scripts/counted_cargo.sh test -p antecedent-estimate --lib bayesian
+bash scripts/counted_cargo.sh test -p antecedent-estimate --lib envelope
+bash scripts/counted_cargo.sh test -p antecedent-validate --lib bayesian_checks
+bash scripts/counted_cargo.sh test -p antecedent-io --lib posterior
+bash scripts/counted_cargo.sh test -p antecedent-io --lib prior_bank
+bash scripts/counted_cargo.sh test -p antecedent-data --lib resample
+bash scripts/counted_cargo.sh test -p antecedent --test prepared_analysis
+bash scripts/counted_cargo.sh test -p antecedent --test bayesian
+bash scripts/counted_cargo.sh test -p antecedent --test temporal_prior_transfer
+bash scripts/counted_cargo.sh test -p antecedent --test manufacturing_temporal
 
 echo "== criterion smoke (reuse gates) =="
 cargo bench -p antecedent-prob --bench laplace_glm -- --test
@@ -140,16 +103,6 @@ cargo bench -p antecedent-prob --bench mcmc_stats -- --test
 cargo bench -p antecedent-estimate --bench posterior_functional -- --test
 
 echo "== Python panel Bayesian facade smoke =="
-if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
-  echo "SKIP_PYTHON_SMOKE=1; skipping (covered by python-wheels CI)"
-elif ! command -v uv >/dev/null 2>&1; then
-  echo "WARN: uv not on PATH; skipping Python facade smoke (covered by python-wheels CI)"
-else
-  (
-    cd python
-    unset CONDA_PREFIX || true
-    uv run pytest tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py tests/test_temporal_prior_transfer.py -q
-  )
-fi
+python_smoke tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py tests/test_temporal_prior_transfer.py
 
 echo "Bayesian gate PASSED"

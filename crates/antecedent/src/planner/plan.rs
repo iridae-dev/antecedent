@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::large_enum_variant)]
+#![allow(clippy::large_enum_variant)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -37,18 +44,16 @@ impl LogicalAnalysisPlan {
     ///
     /// Invalid combinations.
     pub fn validate(&self) -> Result<(), CausalError> {
-        match (&self.query, self.record.data_classification) {
-            (CausalQuery::TemporalEffect(_), DataClassification::Tabular) => {
-                return Err(CausalError::Compile {
-                    message: "temporal effect query requires temporal data".into(),
-                });
-            }
-            (CausalQuery::AverageEffect(_), DataClassification::Temporal)
-                if self.record.discovery_algorithm.is_some() =>
-            {
-                // Static ATE on temporal rows is allowed only without temporal discovery.
-            }
-            _ => {}
+        // A static average effect never carries a temporal classification (it compiles as
+        // tabular), and a temporal graph under `AverageEffect` is an n/a support cell, so no
+        // modality rule for it belongs here.
+        if matches!(
+            (&self.query, self.record.data_classification),
+            (CausalQuery::TemporalEffect(_), DataClassification::Tabular)
+        ) {
+            return Err(CausalError::Compile {
+                message: "temporal effect query requires temporal data".into(),
+            });
         }
         if matches!(
             self.record.discovery_algorithm.as_deref(),
@@ -184,7 +189,7 @@ impl LogicalAnalysisPlan {
                 BufferMaterialization::CopiedContiguous,
             )]),
             kernels: Arc::from([(Arc::from(kernel_label), KernelSelection::DenseBackend)]),
-            batch_size: Some(n_rows as usize),
+            batch_size: Some(usize::try_from(n_rows).unwrap_or(usize::MAX)),
             workspace_bytes: Some(workspace),
             estimated_peak_memory_bytes: Some(peak),
             estimated_copy_bytes: Some(copy_bytes),

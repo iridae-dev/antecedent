@@ -6,7 +6,8 @@
 use antecedent::RefuteSuite;
 use antecedent::prelude::*;
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let schema = CausalSchemaBuilder::new()
         .continuous("t")
         .treatment()
@@ -35,5 +36,12 @@ fn main() -> Result<(), CausalError> {
 
     println!("status = {:?}", id.status);
     println!("estimands = {}", id.estimands.len());
+    // z is a measured common cause of t and y, so the effect is identified by adjusting for z.
+    assert_eq!(format!("{:?}", id.status), "NonparametricallyIdentified");
+    assert!(!id.estimands.is_empty(), "an identified effect carries an estimand");
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

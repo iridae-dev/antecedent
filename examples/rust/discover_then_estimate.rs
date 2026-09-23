@@ -1,5 +1,4 @@
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::too_many_lines,
@@ -7,6 +6,10 @@
     clippy::match_wildcard_for_single_variants,
     clippy::doc_markdown,
     clippy::map_unwrap_or
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 //! Discover-once → many interactive estimates.
 //!
@@ -97,7 +100,8 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     (TabularData::new(storage), dag, query)
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let (data, accepted_dag, query) = confounded_scm(500, 7);
     let ctx = ExecutionContext::for_tests(1);
 
@@ -150,4 +154,8 @@ fn main() -> Result<(), CausalError> {
         first.performance.latency_mode.as_deref(),
     );
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

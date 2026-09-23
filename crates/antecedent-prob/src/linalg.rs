@@ -4,38 +4,27 @@
 
 #![allow(clippy::needless_range_loop)]
 
+use antecedent_kernels::CholeskyError;
+
 use crate::error::ProbError;
 
 /// Lower-triangular Cholesky of an SPD matrix (row-major `n×n`).
 ///
+/// Delegates to [`antecedent_kernels::cholesky_spd_into`], which refuses NaN and
+/// numerically singular pivots.
+///
 /// # Errors
 ///
-/// Non-positive pivot, or `l` shorter than `n²`.
+/// NaN, non-positive, or numerically singular pivot, or a buffer shorter than `n²`.
 pub fn cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> Result<(), ProbError> {
-    let nn = n.saturating_mul(n);
-    if a.len() < nn || l.len() < nn {
-        return Err(ProbError::Numerical { message: "Cholesky buffer shorter than n²".into() });
-    }
-    l[..nn].fill(0.0);
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = a[i * n + j];
-            for k in 0..j {
-                sum -= l[i * n + k] * l[j * n + k];
-            }
-            if i == j {
-                if sum <= 0.0 {
-                    return Err(ProbError::Numerical {
-                        message: format!("Cholesky failed at diagonal {i}"),
-                    });
-                }
-                l[i * n + j] = sum.sqrt();
-            } else {
-                l[i * n + j] = sum / l[j * n + j];
-            }
+    antecedent_kernels::cholesky_spd_into(a, n, l).map_err(|e| match e {
+        CholeskyError::BufferTooShort => {
+            ProbError::Numerical { message: "Cholesky buffer shorter than n²".into() }
         }
-    }
-    Ok(())
+        CholeskyError::NotPositiveDefinite { index } => {
+            ProbError::Numerical { message: format!("Cholesky failed at diagonal {index}") }
+        }
+    })
 }
 
 /// Lower-triangular Cholesky of an SPD matrix (row-major `n×n`).
@@ -140,51 +129,12 @@ pub fn solve_spd(a: &[f64], n: usize, b: &[f64], x: &mut [f64]) -> Result<(), Pr
     solve_spd_into(a, n, b, x, &mut factor, &mut y)
 }
 
-/// LDLT factorization fallback for indefinite / poorly conditioned matrices.
-/// Returns `(diag, lower)` where `A ≈ L diag L'` with unit lower `L`.
-///
-/// # Errors
-///
-/// Zero pivot.
-pub fn ldlt_decompose(a: &[f64], n: usize) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
-    let mut l = vec![0.0; n * n];
-    let mut d = vec![0.0; n];
-    for i in 0..n {
-        l[i * n + i] = 1.0;
-        let mut di = a[i * n + i];
-        for k in 0..i {
-            di -= l[i * n + k] * l[i * n + k] * d[k];
-        }
-        if di.abs() < 1e-14 {
-            return Err(ProbError::Numerical { message: format!("LDLT zero pivot at {i}") });
-        }
-        d[i] = di;
-        for j in (i + 1)..n {
-            let mut lij = a[j * n + i];
-            for k in 0..i {
-                lij -= l[j * n + k] * l[i * n + k] * d[k];
-            }
-            l[j * n + i] = lij / di;
-        }
-    }
-    Ok((d, l))
-}
-
-/// Approximate condition number from Cholesky diagonals (κ ≈ (max/min)²).
+/// Lower bound on the Hessian condition number from its Cholesky diagonal;
+/// `+∞` for a NaN or non-positive diagonal. See
+/// [`antecedent_kernels::cholesky_condition_lower_bound`].
 #[must_use]
 pub fn condition_from_chol(chol: &[f64], n: usize) -> f64 {
-    let mut min_d = f64::INFINITY;
-    let mut max_d: f64 = 0.0;
-    for i in 0..n {
-        let d = chol[i * n + i].abs();
-        min_d = min_d.min(d);
-        max_d = max_d.max(d);
-    }
-    if min_d <= 0.0 {
-        return f64::INFINITY;
-    }
-    let ratio = max_d / min_d;
-    ratio * ratio
+    antecedent_kernels::cholesky_condition_lower_bound(chol, n)
 }
 
 #[cfg(test)]
@@ -205,5 +155,17 @@ mod tests {
         for i in 0..2 {
             assert!((x_alloc[i] - x_into[i]).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn cholesky_refuses_nan_hessian() {
+        let mut l = [0.0; 4];
+        assert!(cholesky_spd_into(&[f64::NAN, 0.0, 0.0, 1.0], 2, &mut l).is_err());
+        assert!(cholesky_spd(&[1.0, f64::NAN, f64::NAN, 1.0], 2).is_err());
+    }
+
+    #[test]
+    fn condition_is_infinite_for_nan_factor() {
+        assert!(condition_from_chol(&[f64::NAN, 0.0, 0.0, 1.0], 2).is_infinite());
     }
 }

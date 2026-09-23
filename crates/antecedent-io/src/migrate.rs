@@ -218,13 +218,12 @@ mod tests {
 
     #[test]
     fn migrate_0_2_preserves_transport_not_certified_section() {
-        let wire = crate::TransportIdentificationWire::NotCertified(
-            crate::NonTransportableCertificateWire {
+        let wire =
+            crate::TransportIdentificationWire::NotCertified(crate::NotCertifiedCertificateWire {
                 reason: "transport.sid.multinode_c_component_not_implemented".into(),
                 witness: vec![2],
                 message: "no non-transportability claim is made".into(),
-            },
-        );
+            });
         let payload = to_cbor(&wire).unwrap();
         let mut artifact = tiny_artifact(FormatVersion { major: 0, minor: 2 });
         artifact.manifest.sections =
@@ -258,7 +257,38 @@ mod tests {
         assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
         let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
         assert_eq!(schema.variable_names(), vec!["x".to_string(), "y".to_string()]);
-        assert!(matches!(schema.variables[0].value_type, crate::wire::ValueTypeWire::Continuous));
+        // Nothing was stored, so nothing is claimed: every type is unspecified, not continuous.
+        assert!(
+            schema
+                .variables
+                .iter()
+                .all(|v| matches!(v.value_type, crate::wire::ValueTypeWire::Unspecified))
+        );
+        assert!(schema.has_unspecified_value_types());
+        assert_eq!(migrated.manifest.provenance.note, "t");
+    }
+
+    #[test]
+    fn migrated_schema_that_already_carries_types_keeps_them() {
+        let types = SchemaWire { variables: vec![] };
+        let payload = to_cbor(&types).unwrap();
+        let desc = section_descriptor("schema", "application/cbor", &payload);
+        let art = EncodedArtifact {
+            manifest: ArtifactManifest {
+                format_version: FormatVersion { major: 0, minor: 1 },
+                minimum_reader_version: FormatVersion { major: 0, minor: 1 },
+                artifact_kind: ArtifactKind::SchemaGraph,
+                library_version: SemanticVersion::from_crate_version(VERSION).unwrap(),
+                artifact_id: "typed-schema".into(),
+                sections: vec![desc],
+                provenance: ProvenanceWire { note: "t".into() },
+            },
+            sections: vec![SectionBytes::new("schema", payload)],
+        };
+        let migrated = migrate_artifact(art).unwrap();
+        let schema: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+        assert!(!schema.has_unspecified_value_types());
+        assert_eq!(migrated.manifest.provenance.note, "t");
     }
 
     #[test]

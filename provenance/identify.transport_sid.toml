@@ -6,18 +6,24 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Implements only a conservative subset of sID: direct transport and standardization over selected covariates for singleton target C-components.",
- "Refuses target C-components with more than one node and does not implement recursive source-experiment and target-factor decomposition for general selection diagrams.",
- "Standardization-subset search is bounded to at most 20 candidate covariates, and response queries are reduced to componentwise response factors rather than differentiated response functionals.",
+ "Classical sID is complete only in the paper experimental-information family (arXiv:1312.7485v1). Finite-catalog search is a separate sound-incomplete contract.",
+ "Target-only ordinary ID is attempted before source experimental factors. Completeness does not extend to arbitrary supplied catalogs or limited-experiment settings.",
+ "Standardization-subset search is bounded to at most 20 candidate covariates. Response queries reduce to componentwise response factors, not differentiated functionals.",
+ "Budget exhaustion and catalog gaps are inconclusive; they are never s-hedge witnesses.",
+ "sID line 3 (intervention enlargement over the non-ancestors W of the outcome) is implemented as a weighted average: the enlarged query is multiplied by the marginal of the input kernel over V minus W and summed over W. The evaluated formula therefore needs the observational law to be defined on every W cell it weights (a positivity/support requirement) that the published line 3 does not state. The completeness claim is evidenced only by exhaustive enumeration over <=4-node ordered ADMGs with X a root and a single treatment and outcome, where identified formulas are not evaluated; numeric truth on line 3 is pinned by a single hand-built graph.",
 ]
 
 papers = [
- { title = "A General Algorithm for Deciding Transportability of Experimental Results", doi = "10.1515/jci-2012-0004", sections = ["Section 3: direct transportability", "Section 5, Figure 5 lines 5-8: c-component decomposition and source/target factor selection; Antecedent implements only a conservative singleton-component subset, not general sID"] },
+ { title = "A General Algorithm for Deciding Transportability of Experimental Results", doi = "10.1515/jci-2012-0004", sections = ["Section 3: direct transportability", "Section 5, Figure 5: c-component decomposition and source/target factor selection"] },
  { title = "External Validity: From Do-Calculus to Transportability Across Populations", doi = "10.1214/14-STS486", sections = ["Section 3, Definition 5: S-admissibility", "Section 3, Theorem 2 and equation (3.5): covariate-specific transportability and standardization"] },
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
+ "crates/antecedent-identify/src/sid.rs",
  "crates/antecedent-identify/src/transport.rs",
+ "crates/antecedent-identify/tests/transport_exact_scm.rs",
+ "crates/antecedent-identify/tests/causaleffect_transport_subset.rs",
+ "python/tests/test_transport_exact.py",
 ]

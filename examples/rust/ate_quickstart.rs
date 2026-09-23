@@ -6,8 +6,9 @@
 use antecedent::RefuteSuite;
 use antecedent::prelude::*;
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+#[allow(clippy::cast_precision_loss)]
+pub fn run() -> Result<(), CausalError> {
     let n = 200usize;
     let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
     let t: Vec<f64> = z.iter().map(|&zi| if zi > 0.5 { 1.0 } else { 0.0 }).collect();
@@ -38,5 +39,13 @@ fn main() -> Result<(), CausalError> {
 
     println!("effect = {:.4}", result.effect());
     println!("status = {:?}", result.identification.status);
+    // y = 1 + 2t + 3z with no noise and z confounding t: adjusting for z recovers exactly 2.
+    // The crude contrast of y on t is far from it (the z-gap between arms adds 1.5).
+    assert!((result.effect() - 2.0).abs() < 1e-6, "adjusted effect {}", result.effect());
+    assert_eq!(format!("{:?}", result.identification.status), "NonparametricallyIdentified");
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

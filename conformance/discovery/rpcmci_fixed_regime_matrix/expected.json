@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "Tigramite",
     "api": "tigramite.pcmci.PCMCI.run_pcmciplus independently per fixed regime",
     "scope": "caller-supplied contiguous regime labels; no regime inference",
@@ -20,7 +21,7 @@
     },
     "python": "3.11.5",
     "seed": 20260728,
-    "command": "uv run --python 3.11 --with numpy==2.1.3 --with scipy==1.14.1 --with tigramite==5.2.9.7 python /tmp/antecedent_tigramite_regime_pcmci_matrix.py",
+    "command": "uv run --python 3.11 --with numpy==2.1.3 --with scipy==1.14.1 --with tigramite==5.2.9.7 python /tmp/antecedent_tigramite_regime_pcmci_matrix.py", "generator_retained": false,
     "generation_location": "temporary external harness; not retained"
   },
   "canonicalization": {

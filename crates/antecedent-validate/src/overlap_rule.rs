@@ -8,14 +8,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
-use antecedent_estimate::{OverlapPolicy, OverlapReport};
+use antecedent_estimate::OverlapPolicy;
 use antecedent_stats::GlmOptions;
 
-use crate::common::{RefutationProblem, RefutationReport, diagnostic_overlap_report_with};
+use crate::common::{
+    DiagnosticOverlap, RefutationProblem, RefutationReport, diagnostic_overlap_report_with,
+};
 use crate::error::ValidationError;
 
 /// Common-support / trimming-rule assessment.
@@ -75,9 +75,14 @@ impl OverlapRuleRefuter {
             report.refuter = Arc::from("overlap.continuous_rule");
             return Ok(report);
         }
-        let report = match &problem.original.overlap_report {
-            Some(r) => r.clone(),
-            None => self.diagnostic_report(problem, eps, propensity)?,
+        let report = if let Some(r) = &problem.original.overlap_report {
+            r.clone()
+        } else {
+            let fit = self.diagnostic_report(problem, eps, propensity)?;
+            if let Some(defect) = fit.defect {
+                return Ok(Self::separated_report(problem, defect));
+            }
+            fit.report
         };
         // Prefer the §14.3 support field when the report's band matches the declared rule;
         // if the observed range sits fully inside the band, retention is exactly 1. A reused
@@ -90,7 +95,11 @@ impl OverlapRuleRefuter {
         } else if report.propensity_min >= eps && report.propensity_max <= 1.0 - eps {
             1.0
         } else {
-            self.diagnostic_report(problem, eps, propensity)?.target_population_support
+            let fit = self.diagnostic_report(problem, eps, propensity)?;
+            if let Some(defect) = fit.defect {
+                return Ok(Self::separated_report(problem, defect));
+            }
+            fit.report.target_population_support
         };
         let passed = retained >= self.min_retained_fraction;
         Ok(RefutationReport {
@@ -112,12 +121,26 @@ impl OverlapRuleRefuter {
         })
     }
 
+    /// The rule failure a separated / non-converged diagnostic propensity fit stands for.
+    fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
+        RefutationReport {
+            refuter: Arc::from("overlap.rule"),
+            original_ate: problem.original.ate,
+            refuted_ate: problem.original.ate,
+            comparison: 1.0,
+            informative: true,
+            passed: false,
+            failure_condition: Some(Arc::from(defect)),
+            replicates: 0,
+        }
+    }
+
     fn diagnostic_report(
         &self,
         problem: &RefutationProblem<'_>,
         eps: f64,
         propensity: &mut antecedent_stats::PropensityWorkspace,
-    ) -> Result<OverlapReport, ValidationError> {
+    ) -> Result<DiagnosticOverlap, ValidationError> {
         diagnostic_overlap_report_with(
             problem,
             &self.glm_options,

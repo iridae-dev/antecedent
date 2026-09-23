@@ -2,9 +2,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::float_cmp, clippy::needless_pass_by_value)]
+#![allow(clippy::needless_pass_by_value)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use antecedent_core::{Lag, VariableId};
@@ -57,13 +65,17 @@ pub fn threshold_scored_links(
     scored
 }
 
-/// FDR over the **full CI-test family**, then drop any surviving edge that has a
-/// test with adjusted p > `alpha`.
+/// FDR over **edges**, then drop any surviving edge whose adjusted p exceeds `alpha`.
 ///
-/// PC runs many tests per edge. Adjusting only the last surviving-edge p-value
-/// understates multiplicity. `family_p` / `family_edge` must contain every test
-/// the algorithm actually ran. Multi-phase algorithms must refuse this helper
-/// unless they can supply their complete adaptive test family.
+/// PC tests each edge many times (once per conditioning set) but an edge is one hypothesis:
+/// "some conditioning set separates the pair". It is rejected only if *every* set is
+/// rejected, so its p-value under that intersection null is the **maximum** p over its
+/// tests. Counting each test as its own discovery would inflate BH ranks with duplicates of
+/// strongly dependent edges and loosen the threshold for borderline ones.
+///
+/// `family_p` / `family_edge` must contain every test the algorithm actually ran, including
+/// those of edges since removed (they are hypotheses in the family). Multi-phase algorithms
+/// must refuse this helper unless they can supply their complete adaptive test family.
 #[must_use]
 pub fn retain_after_family_fdr(
     mut surviving: Vec<ScoredLink>,
@@ -78,34 +90,29 @@ pub fn retain_after_family_fdr(
     if family_p.is_empty() || family_p.len() != family_edge.len() {
         return threshold_scored_links(surviving, Some(cfg), alpha);
     }
-    let adj = adjust_pvalues(family_p, cfg.method);
-    let mut drop: HashSet<(u32, u32)> = HashSet::new();
-    let mut max_adj: HashMap<(u32, u32), f64> = HashMap::new();
-    for (i, &p_adj) in adj.iter().enumerate() {
-        let key = family_edge[i];
-        if p_adj > alpha {
-            drop.insert(key);
-        }
-        max_adj.entry(key).and_modify(|m| *m = m.max(p_adj)).or_insert(p_adj);
+    // One p per edge: the largest over its tests. Sorted keys keep the family order
+    // deterministic.
+    let mut edge_p: BTreeMap<(u32, u32), f64> = BTreeMap::new();
+    for (&p, &key) in family_p.iter().zip(family_edge) {
+        edge_p.entry(key).and_modify(|m| *m = m.max(p)).or_insert(p);
     }
-    for s in &mut surviving {
-        let key = if s.link.source.raw() <= s.link.target.raw() {
+    let keys: Vec<(u32, u32)> = edge_p.keys().copied().collect();
+    let ps: Vec<f64> = edge_p.values().copied().collect();
+    let adjusted: HashMap<(u32, u32), f64> =
+        keys.into_iter().zip(adjust_pvalues(&ps, cfg.method)).collect();
+    let key_of = |s: &ScoredLink| {
+        if s.link.source.raw() <= s.link.target.raw() {
             (s.link.source.raw(), s.link.target.raw())
         } else {
             (s.link.target.raw(), s.link.source.raw())
-        };
-        if let Some(&p_adj) = max_adj.get(&key) {
+        }
+    };
+    for s in &mut surviving {
+        if let Some(&p_adj) = adjusted.get(&key_of(s)) {
             s.adjusted_p_value = Some(p_adj);
         }
     }
-    surviving.retain(|s| {
-        let key = if s.link.source.raw() <= s.link.target.raw() {
-            (s.link.source.raw(), s.link.target.raw())
-        } else {
-            (s.link.target.raw(), s.link.source.raw())
-        };
-        !drop.contains(&key)
-    });
+    surviving.retain(|s| adjusted.get(&key_of(s)).is_none_or(|&p_adj| p_adj <= alpha));
     surviving
 }
 
@@ -604,5 +611,75 @@ mod tests {
         assert_eq!(evidence.len(), 2);
         assert_eq!(evidence[0].separating_set.as_deref(), Some(&*sep));
         assert_eq!(evidence[1].separating_set, None);
+    }
+
+    fn edge_link(lo: u32, hi: u32, p: f64) -> ScoredLink {
+        ScoredLink {
+            link: LaggedLink {
+                source: VariableId::from_raw(lo),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(hi),
+                target_lag: Lag::CONTEMPORANEOUS,
+            },
+            statistic: 0.0,
+            p_value: p,
+            adjusted_p_value: None,
+        }
+    }
+
+    /// BH runs over one hypothesis per edge. Ten strong edges tested 50 times each must not
+    /// inflate the rank of a borderline null edge: with m = 110 edges the null edge (p = 0.04,
+    /// rank 11) has adjusted p = 0.04 * 110 / 11 = 0.4, whereas counting every test (m = 600,
+    /// rank 501) would give 0.0479 and keep it.
+    #[test]
+    fn family_fdr_counts_edges_not_tests() {
+        let mut family_p = Vec::new();
+        let mut family_edge = Vec::new();
+        let mut surviving = Vec::new();
+        for e in 0..10u32 {
+            for _ in 0..50 {
+                family_p.push(1e-12);
+                family_edge.push((0, e + 1));
+            }
+            surviving.push(edge_link(0, e + 1, 1e-12));
+        }
+        // Borderline edge, kept by the skeleton (alpha = 0.05).
+        family_p.push(0.04);
+        family_edge.push((1, 20));
+        surviving.push(edge_link(1, 20, 0.04));
+        // 99 removed edges, each separated at p = 0.9.
+        for e in 0..99u32 {
+            family_p.push(0.9);
+            family_edge.push((2, 100 + e));
+        }
+        let kept = retain_after_family_fdr(
+            surviving,
+            &family_p,
+            &family_edge,
+            Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            0.05,
+        );
+        assert_eq!(kept.len(), 10, "the borderline edge must be dropped");
+        assert!(kept.iter().all(|s| s.link.source.raw() == 0));
+        // Rank-10 strong edge: 1e-12 * 110 / 10.
+        for s in &kept {
+            assert!(s.adjusted_p_value.unwrap() <= 1.1e-10);
+        }
+    }
+
+    /// An edge's p is the max over its tests (intersection null), not the min.
+    #[test]
+    fn family_fdr_uses_max_p_per_edge() {
+        // Edge (0,1): tests p = 1e-9 and p = 0.03 -> edge p = 0.03; single-edge family so
+        // adjusted p = 0.03 exactly (BH with m = 1).
+        let kept = retain_after_family_fdr(
+            vec![edge_link(0, 1, 0.03)],
+            &[1e-9, 0.03],
+            &[(0, 1), (0, 1)],
+            Some(FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            0.05,
+        );
+        assert_eq!(kept.len(), 1);
+        assert!((kept[0].adjusted_p_value.unwrap() - 0.03).abs() < 1e-15);
     }
 }

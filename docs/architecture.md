@@ -1,7 +1,23 @@
-# Architecture
+# System model and architecture
 
-Library for causal discovery, identification, estimation, SCMs, counterfactuals,
-attribution, and validation. Rust owns computation; Python is a thin binding layer.
+Antecedent is organized around meaning preservation, not around a collection
+of estimators. Scientific semantics flow into causal compilation, statistical
+realization, physical execution, and then a claim or artifact. A later layer
+may add information or perform work, but must not silently strengthen what an
+earlier layer established.
+
+```mermaid
+flowchart TD
+    S["Scientific semantics<br/>question • structure • evidence • assumptions"]
+    C["Causal compilation<br/>identification • obligations • support requirements"]
+    R["Statistical realization<br/>estimators • posteriors • learners • resampling"]
+    E["Physical execution<br/>layouts • kernels • budgets • cancellation"]
+    A["Claim and artifact<br/>answer • uncertainty • provenance • identity • limits"]
+    S --> C --> R --> E --> A
+```
+
+The [system model](system-model.md) is the product introduction. This page
+records the corresponding engineering rules; crate-level detail follows it.
 
 ## Invariants
 
@@ -20,7 +36,7 @@ attribution, and validation. Rust owns computation; Python is a thin binding lay
     implementations; they do not license a cell. `analyze` is sugar over the
     staged path.
 
-## Crates
+## Implementation architecture
 
 ```text
 antecedent-core          ids, schemas, queries, interventions, provenance, plans, errors
@@ -29,6 +45,7 @@ antecedent-data          tabular / temporal / panel / multi-env views, sample pl
 antecedent-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfold
 antecedent-expr          arena-backed causal-functional IR
 antecedent-stats         regression, covariance, resampling, CI tests, faer LA backend
+antecedent-learn         prediction contract: DesignView, LearnerFactory, FittedPredictor
 antecedent-prob          posteriors, priors, graph samples, inference backends
 antecedent-discovery     PC/FCI/GES/LiNGAM/NOTEARS, PCMCI family, Bayesian DAG engines
 antecedent-identify      adjustment, IV, front-door, mediation, ID/IDC, envelopes
@@ -40,10 +57,13 @@ antecedent-validate      refuters, sensitivity, discovery stability, Bayesian ch
 antecedent-design        EIG / VoI / experiment ranking (computation only)
 antecedent-state         incremental caches, invalidation, sufficient statistics
 antecedent-io            CBOR+Arrow artifacts, graph interchange, migration
-causal               facade: Study planner + re-exports
+antecedent               facade: Study planner + re-exports
 ```
 
-Dependency edges point downward (no cycles). Facade (`causal`) sits on top.
+Dependency edges point downward (no cycles). Facade (`antecedent`) sits on top.
+`antecedent-estimate` depends on `antecedent-learn` for nuisance
+prediction and never names Forust, SmartCore, or other ML
+providers (ADR 0023).
 Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 
 ## Analysis pipeline
@@ -98,3 +118,7 @@ separate top-level modules.
 | ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
 | Conformance fixtures | [conformance/](conformance/README.md) |
 | Security / unsafe / license review | [security_review.md](security_review.md) |
+
+The [multi-source transport and retained-grid architecture](architecture/transport-meta-grid.md)
+describes the μsID theorem scope, provider aliases, common prepared lifecycle,
+pointwise inference, and independent durable-claim verification.

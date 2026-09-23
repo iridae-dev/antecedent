@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the ADMG front-door coordinates at the
+//! Repeated-sampling coverage of the ADMG front-door coordinates at the
 //! facade level: the Frequentist and Bayesian `functional.effect` average
 //! effect and the Bayesian `functional.distribution` interventional
 //! distribution, on explicit and accepted structure.
@@ -26,12 +26,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::doc_markdown, clippy::too_many_arguments)]
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::doc_markdown,
     clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::too_many_arguments
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -43,7 +41,9 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, SampleGrid, n_sim, stream_seed};
+use common::calibration::{
+    CoverageTally, RecordKey, SampleGrid, map_replicates, n_sim, stream_seed,
+};
 use common::calibration_bind::bind_all;
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, posterior_pair, record_pair, scalar_normal_pair,
@@ -165,15 +165,10 @@ fn coverage(
     family: u64,
 ) -> [CoverageTally; 2] {
     let mut tallies = keyed_pair(test, cell);
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(family, rep);
         let data = frontdoor_data(SampleGrid::HEAVY.n(N), seed);
-        let Some((study, result)) =
-            run(&data, query(), inference(), false, RefuteSuite::None, seed)
-        else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run(&data, query(), inference(), false, RefuteSuite::None, seed)?;
         let pair = extract(&result);
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(cell.estimator));
@@ -186,9 +181,16 @@ fn coverage(
                 assert_eq!(extract(&other), pair, "accepted={accepted} {suite:?}");
             }
         }
+        Some((study, result, pair))
+    });
+    for scored in &runs {
+        let Some((study, result, pair)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
         let [reported, gated] = &mut tallies;
-        bind_all(&mut [reported, gated], &study, &result);
-        record_pair(&mut tallies, pair, truth);
+        bind_all(&mut [reported, gated], study, result);
+        record_pair(&mut tallies, *pair, truth);
     }
     tallies
 }

@@ -1,5 +1,9 @@
 //! Adjustment-set enumeration benchmark .
-#![allow(missing_docs, clippy::cast_possible_truncation)]
+#![allow(missing_docs)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};

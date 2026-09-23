@@ -15,10 +15,13 @@ import numpy as np
 import pytest
 from antecedent._native import analyze_ate
 from antecedent.estimators import (
+    DML,
     UNSET,
     Aipw,
+    CausalForest,
     DistanceMatching,
-    FrontdoorTwoStage,
+    DRLearner,
+    FrontdoorLinearTwoStage,
     GlmAdjustment,
     GlmOptions,
     Iv2Sls,
@@ -54,6 +57,10 @@ def _public_scm(seed: int = 9, n: int = 400):
     return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
+# A sharp design as a graph: the running variable is the treatment's only cause.
+_RD_GRAPH = [("r", "t"), ("t", "y"), ("r", "y")]
+
+
 def _rd_data(seed: int = 25, n: int = 1500):
     """Sharp RD fixture: running variable `r`, cutoff at 0."""
     rng = np.random.default_rng(seed)
@@ -74,8 +81,11 @@ _DEFAULT_INSTANCE_CASES = [
     (PropensityStratification(), Estimator.PROPENSITY_STRATIFICATION),
     (DistanceMatching(), Estimator.DISTANCE_MATCHING),
     (Aipw(), Estimator.AIPW),
+    (DML(), Estimator.DML),
+    (DRLearner(), Estimator.DR_LEARNER),
+    (CausalForest(), Estimator.CAUSAL_FOREST),
     (GlmAdjustment(), Estimator.GLM_ADJUSTMENT),
-    (FrontdoorTwoStage(), Estimator.FRONTDOOR_TWO_STAGE),
+    (FrontdoorLinearTwoStage(), Estimator.FRONTDOOR_LINEAR_TWO_STAGE),
     (IvWald(), Estimator.IV_WALD),
     (Iv2Sls(), Estimator.IV_2SLS),
 ]
@@ -125,7 +135,7 @@ def test_sharp_rd_se_reaches_the_estimator_through_public_analyze():
     def fit(se):
         cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se=se)
         return antecedent.analyze(
-            data, graph=[], query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
+            data, graph=_RD_GRAPH, query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
         ).estimate
 
     default, hc1, homoskedastic = fit(None), fit("hc1"), fit("homoskedastic")
@@ -176,7 +186,7 @@ def test_sharp_rd_wire_round_trips_through_native_analyze_ate():
     via_dataclass = analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator=cfg.estimator_id,
@@ -189,7 +199,7 @@ def test_sharp_rd_wire_round_trips_through_native_analyze_ate():
     via_hand_dict = analyze_ate(
         names,
         columns,
-        [],
+        _RD_GRAPH,
         "t",
         "y",
         estimator="rd.sharp",
@@ -221,7 +231,7 @@ def test_sharp_rd_wire_alone_is_sufficient_through_public_analyze():
 
     config_only = antecedent.analyze(
         data,
-        graph=[],
+        graph=_RD_GRAPH,
         query=query,
         seed=26,
         bootstrap=0,
@@ -231,7 +241,7 @@ def test_sharp_rd_wire_alone_is_sufficient_through_public_analyze():
     )
     loose_too = antecedent.analyze(
         data,
-        graph=[],
+        graph=_RD_GRAPH,
         query=query,
         seed=26,
         bootstrap=0,
@@ -255,11 +265,11 @@ def test_typed_estimator_instance_is_accepted_directly():
     cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
 
     direct = antecedent.analyze(
-        data, graph=[], query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
+        data, graph=_RD_GRAPH, query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
     )
     spelled_out = antecedent.analyze(
         data,
-        graph=[],
+        graph=_RD_GRAPH,
         query=query,
         seed=26,
         bootstrap=0,
@@ -272,7 +282,7 @@ def test_typed_estimator_instance_is_accepted_directly():
     with pytest.raises(ValueError, match="already carries its configuration"):
         antecedent.analyze(
             data,
-            graph=[],
+            graph=_RD_GRAPH,
             query=query,
             seed=26,
             estimator=cfg,
@@ -351,14 +361,14 @@ def test_se_validation_shared_by_every_se_bearing_estimator(cls):
 
 
 def test_frontdoor_two_stage_has_no_multiway_or_panel_fields():
-    # frontdoor.two_stage's Rust struct only carries cluster_ids (no multiway/panel_times
+    # frontdoor.linear_two_stage's Rust struct only carries cluster_ids (no multiway/panel_times
     # SE machinery); passing those as kwargs must be a plain TypeError (unknown field),
     # not a silently-accepted-then-ignored value.
-    with pytest.raises(TypeError):
-        FrontdoorTwoStage(multiway_ids=[[0, 1]])  # type: ignore[call-arg]
-    with pytest.raises(TypeError):
-        FrontdoorTwoStage(panel_times=[0, 1])  # type: ignore[call-arg]
-    cfg = FrontdoorTwoStage(se="cluster", cluster_ids=[0, 1, 2])
+    with pytest.raises(TypeError, match="unexpected keyword argument .multiway_ids."):
+        FrontdoorLinearTwoStage(multiway_ids=[[0, 1]])  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="unexpected keyword argument .panel_times."):
+        FrontdoorLinearTwoStage(panel_times=[0, 1])  # type: ignore[call-arg]
+    cfg = FrontdoorLinearTwoStage(se="cluster", cluster_ids=[0, 1, 2])
     assert cfg._wire() == {"se_kind": "cluster", "cluster_ids": [0, 1, 2]}
 
 
@@ -434,7 +444,7 @@ def test_ridge_and_huber_do_not_carry_the_lasso_se_restriction():
 
 
 def test_lasso_with_se_raises_and_explains_why():
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(ValueError, match="permanently omitted") as exc:
         LinearAdjustment(fit="lasso", fit_lambda=0.1, se="hc0")
     message = str(exc.value)
     # Names the offending field...
@@ -530,7 +540,7 @@ def test_glm_options_full_wire_and_nesting_in_glm_adjustment():
 def test_propensity_weighting_only_exposes_bootstrap_and_glm_options():
     cfg = PropensityWeighting(bootstrap=10, glm_options=GlmOptions(max_iter=5))
     assert cfg._wire() == {"bootstrap_replicates": 10, "glm_options": {"max_iter": 5}}
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument .se."):
         PropensityWeighting(se="cluster")  # type: ignore[call-arg]
 
 

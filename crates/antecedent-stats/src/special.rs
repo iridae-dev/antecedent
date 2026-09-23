@@ -2,13 +2,63 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_lossless,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names
+#![allow(clippy::cast_lossless)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
+
+/// Gauss–Hermite rule for the standard normal: `(nodes, weights)` with
+/// `E[g(Z)] ≈ Σ w_i g(z_i)`, exact for polynomials of degree up to `2n − 1`.
+///
+/// Nodes are the roots of the physicists' Hermite polynomial `H_n`, found by Newton
+/// iteration on the orthonormal three-term recurrence (asymptotic starting values),
+/// rescaled by `√2` and the weights by `1/√π`. Nodes are returned in descending order.
+/// `n = 0` returns empty vectors.
+#[must_use]
+pub fn gauss_hermite_standard_normal(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut nodes = vec![0.0; n];
+    let mut weights = vec![0.0; n];
+    let nf = n as f64;
+    let mut z = 0.0_f64;
+    for i in 0..n.div_ceil(2) {
+        z = match i {
+            0 => (2.0 * nf + 1.0).sqrt() - 1.855_75 * (2.0 * nf + 1.0).powf(-1.0 / 6.0),
+            1 => z - 1.14 * nf.powf(0.426) / z,
+            2 => 1.86 * z - 0.86 * nodes[0] / std::f64::consts::SQRT_2,
+            3 => 1.91 * z - 0.91 * nodes[1] / std::f64::consts::SQRT_2,
+            _ => 2.0 * z - nodes[i - 2] / std::f64::consts::SQRT_2,
+        };
+        let mut derivative = 1.0;
+        for _ in 0..100 {
+            let mut p1 = std::f64::consts::PI.powf(-0.25);
+            let mut p2 = 0.0;
+            for j in 0..n {
+                let p3 = p2;
+                p2 = p1;
+                let jf = j as f64;
+                p1 = z * (2.0 / (jf + 1.0)).sqrt() * p2 - (jf / (jf + 1.0)).sqrt() * p3;
+            }
+            derivative = (2.0 * nf).sqrt() * p2;
+            let step = p1 / derivative;
+            z -= step;
+            if step.abs() < 1e-15 * z.abs().max(1.0) {
+                break;
+            }
+        }
+        nodes[i] = z * std::f64::consts::SQRT_2;
+        weights[i] = 2.0 / (derivative * derivative * std::f64::consts::PI.sqrt());
+        if n - 1 - i != i {
+            nodes[n - 1 - i] = -nodes[i];
+            weights[n - 1 - i] = weights[i];
+        }
+    }
+    (nodes, weights)
+}
 
 /// Standard-normal PPF: Acklam's rational approximation refined by one Halley step.
 ///
@@ -156,22 +206,62 @@ pub fn ln_gamma(z: f64) -> f64 {
     (2.0 * std::f64::consts::PI).sqrt().ln() + (z + 0.5) * t.ln() - t + x.ln()
 }
 
+/// `ln B(a, b) = ln Γ(a) + ln Γ(b) − ln Γ(a + b)`.
+///
+/// Below the threshold this is the direct sum; above it, `ln Γ(a)` and `ln Γ(a+b)` are each
+/// `O(a ln a)` while their difference is `O(ln a)`, so subtracting them directly cancels to
+/// rounding noise (at `a = 5·10⁶` that noise is `~10⁻⁸`, moving `ln B` — and anything computed
+/// from it, such as the Student-t quantile at large df — by more than double precision should
+/// allow). Above the threshold, expand `ln Γ(big + small) − ln Γ(big)` with Stirling's series,
+/// combining the leading `(z − ½) ln z − z` terms algebraically (via `ln1p(small / big)`)
+/// instead of forming their numerically cancelling difference; the next Stirling correction
+/// (`1/(12z)`) is included in the same cancellation-free form, and the one after that
+/// (`O(1/z³)`) is below `1e-12` at the threshold and omitted.
+fn ln_beta(a: f64, b: f64) -> f64 {
+    let (big, small) = if a >= b { (a, b) } else { (b, a) };
+    if big >= 1.0e3 {
+        let sum = big + small;
+        let diff = (big - 0.5) * (small / big).ln_1p() + small * sum.ln()
+            - small
+            - small / (12.0 * big * sum);
+        ln_gamma(small) - diff
+    } else {
+        ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b)
+    }
+}
+
 /// Regularized incomplete beta `I_x(a, b)`.
 #[must_use]
 pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
+    regularized_incomplete_beta_with_complement(x, 1.0 - x, a, b)
+}
+
+/// `I_x(a, b)` given both `x` and its complement `y = 1 − x`.
+///
+/// Callers that can form `y` directly (the Student-t survival function has
+/// `y = t²/(df + t²)`) pass it so that `x` near 1 does not lose `y`'s leading digits to the
+/// subtraction `1 − x`, which otherwise limits accuracy near the median.
+fn regularized_incomplete_beta_with_complement(x: f64, y: f64, a: f64, b: f64) -> f64 {
     if x <= 0.0 {
         return 0.0;
     }
-    if x >= 1.0 {
+    if x >= 1.0 || y <= 0.0 {
         return 1.0;
     }
     // Use the symmetry I_x(a,b) = 1 - I_{1-x}(b,a) where the continued fraction
     // converges fastest (Numerical Recipes criterion).
     if x > (a + 1.0) / (a + b + 2.0) {
-        return 1.0 - regularized_incomplete_beta(1.0 - x, b, a);
+        return 1.0 - regularized_incomplete_beta_with_complement(y, x, b, a);
     }
-    let ln_beta = ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b);
-    let front = (x.ln() * a + (1.0 - x).ln() * b - ln_beta).exp() / a;
+    let lnb = ln_beta(a, b);
+    // ln(x): when x is within a few ulp of 1 (y small), x's own rounding has already discarded
+    // y's leading digits, and a*ln(x) amplifies that lost precision by a — enough to move the
+    // Student-t quantile by ~1e-9 at df ~ 1e7. ln1p(-y) keeps the precision of the accurately
+    // computed small y instead. When y is not small (x itself is the accurately-resolved small
+    // operand, as after the symmetry swap above), ln1p(-y) would instead force the cancellation
+    // 1 - y and must be avoided; x.ln() is exact there.
+    let lnx = if y < 0.5 { (-y).ln_1p() } else { x.ln() };
+    let front = (lnx * a + y.ln() * b - lnb).exp() / a;
     let mut c = 1.0;
     let mut d = 1.0 - (a + b) * x / (a + 1.0);
     if d.abs() < 1e-30 {
@@ -187,6 +277,11 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     // a/b. Scale the cap with sqrt(max(a,b)) the same way `gamma_p_series` does for an
     // identical convergence-rate issue, so the tolerance break — not the cap — ends the
     // loop across the practically reachable range.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the sqrt is of a value >= 1 and capped at 1e9, so it is positive and fits usize"
+    )]
     let max_iter = 500 + 10 * (a.max(b).max(1.0).sqrt().min(1.0e9) as usize);
     for m in 1..max_iter {
         let m_f = m as f64;
@@ -213,7 +308,7 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
         d = 1.0 / d;
         let delta = d * c;
         f *= delta;
-        if (delta - 1.0).abs() < 1e-10 {
+        if (delta - 1.0).abs() < 1e-15 {
             break;
         }
     }
@@ -232,12 +327,18 @@ pub fn student_t_sf(t: f64, df: f64) -> f64 {
     if t == f64::NEG_INFINITY {
         return 1.0;
     }
-    let x = df / (df + t * t);
-    let half_tail = 0.5 * regularized_incomplete_beta(x, 0.5 * df, 0.5);
+    let denom = df + t * t;
+    let half_tail =
+        0.5 * regularized_incomplete_beta_with_complement(df / denom, t * t / denom, 0.5 * df, 0.5);
     if t >= 0.0 { half_tail } else { 1.0 - half_tail }
 }
 
-/// Inverse Student-t CDF (quantile function) via bisection on [`student_t_sf`].
+/// Degrees of freedom above which [`student_t_ppf`] uses the Cornish–Fisher expansion about
+/// the normal quantile.
+const STUDENT_T_NORMAL_SERIES_FROM_DF: f64 = 1.0e7;
+
+/// Inverse Student-t CDF (quantile function) via bisection on [`student_t_sf`]
+/// (Cornish–Fisher expansion about the normal quantile above `1e7` degrees of freedom).
 ///
 /// Returns `t` such that `P(T <= t) = p` for `T ~ Student-t(df)`. `p` must lie strictly
 /// inside `(0, 1)`; returns `NaN` otherwise.
@@ -256,6 +357,18 @@ pub fn student_t_ppf(p: f64, df: f64) -> f64 {
     }
     if (p - 0.5).abs() < 1e-15 {
         return 0.0;
+    }
+    // For very large df the quantile is the normal one plus a Cornish–Fisher series in 1/df
+    // whose truncation error (`O(df⁻⁴)`, below 1e-28 here) is far under double precision;
+    // bisecting the survival function instead loses digits to the incomplete-beta
+    // cancellation as `x = df/(df+t²) → 1`.
+    if df > STUDENT_T_NORMAL_SERIES_FROM_DF {
+        let z = normal_ppf(p);
+        let z2 = z * z;
+        let g1 = z * (z2 + 1.0) / 4.0;
+        let g2 = z * (5.0 * z2 * z2 + 16.0 * z2 + 3.0) / 96.0;
+        let g3 = z * (3.0 * z2 * z2 * z2 + 19.0 * z2 * z2 + 17.0 * z2 - 15.0) / 384.0;
+        return z + g1 / df + g2 / (df * df) + g3 / (df * df * df);
     }
     // student_t_sf(t, df) is strictly decreasing in t, from 1 (t -> -inf) to 0 (t -> +inf).
     // Solve for the non-negative root and mirror by symmetry for p < 0.5.
@@ -299,6 +412,11 @@ fn gamma_p_series(a: f64, x: f64) -> f64 {
     // silently returns a partial sum once `a` grows. Scale the cap with sqrt(a) so the
     // tolerance break, not the cap, ends the loop (mirrored in
     // `regularized_incomplete_beta`'s continued fraction below, an identical issue).
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the sqrt is of a value >= 1 and capped at 1e9, so it is positive and fits usize"
+    )]
     let max_iter = 500 + 10 * (a.max(1.0).sqrt().min(1.0e9) as usize);
     for _ in 0..max_iter {
         ap += 1.0;
@@ -342,6 +460,72 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gauss_hermite_reproduces_normal_moments_exactly() {
+        // E[Z^{2k}] = (2k − 1)!!, odd moments vanish; an n-point rule is exact to degree 2n − 1.
+        for n in [1_usize, 2, 5, 8, 31, 32] {
+            let (nodes, weights) = gauss_hermite_standard_normal(n);
+            assert_eq!(nodes.len(), n);
+            assert!((weights.iter().sum::<f64>() - 1.0).abs() < 1e-12, "n={n}");
+            let mut double_factorial = 1.0;
+            for k in 0..=6_usize {
+                if k > 0 {
+                    double_factorial *= (2 * k - 1) as f64;
+                }
+                if 2 * k > 2 * n - 1 {
+                    break;
+                }
+                let even: f64 = nodes
+                    .iter()
+                    .zip(&weights)
+                    .map(|(z, w)| w * z.powi(i32::try_from(2 * k).unwrap()))
+                    .sum();
+                assert!(
+                    (even - double_factorial).abs() <= 1e-10 * double_factorial,
+                    "n={n} k={k}: {even} vs {double_factorial}"
+                );
+            }
+            let odd: f64 = nodes.iter().zip(&weights).map(|(z, w)| w * z.powi(3)).sum();
+            assert!(odd.abs() < 1e-10, "n={n}");
+        }
+        assert!(gauss_hermite_standard_normal(0).0.is_empty());
+    }
+
+    #[test]
+    fn gauss_hermite_two_point_rule_is_plus_minus_one() {
+        let (nodes, weights) = gauss_hermite_standard_normal(2);
+        assert!((nodes[0] - 1.0).abs() < 1e-13 && (nodes[1] + 1.0).abs() < 1e-13);
+        assert!((weights[0] - 0.5).abs() < 1e-13 && (weights[1] - 0.5).abs() < 1e-13);
+    }
+
+    #[test]
+    fn student_t_ppf_is_accurate_next_to_the_median() {
+        // df = 1 is Cauchy: t = tan(π (p − ½)). df = 2: t = (2p − 1) / √(2p(1 − p)).
+        // The continued fraction stopped at relative 1e-10, which left 1.4e-5 (df = 1) and
+        // 9.9e-4 (df = 2) relative error in the quantile at p = ½ + 1e-7.
+        let p = 0.5 + 1e-7;
+        let cauchy = (std::f64::consts::PI * (p - 0.5)).tan();
+        assert!((student_t_ppf(p, 1.0) / cauchy - 1.0).abs() < 1e-6, "{}", student_t_ppf(p, 1.0));
+        let df2 = (2.0 * p - 1.0) / (2.0 * p * (1.0 - p)).sqrt();
+        assert!((student_t_ppf(p, 2.0) / df2 - 1.0).abs() < 1e-6, "{}", student_t_ppf(p, 2.0));
+        // Mirror image.
+        assert!((student_t_ppf(1.0 - p, 2.0) + df2).abs() < 1e-6 * df2);
+    }
+
+    #[test]
+    fn student_t_ppf_is_smooth_across_the_large_df_series_switch() {
+        // Two independent methods (bisection on the survival function below 1e7 df,
+        // Cornish–Fisher above) must agree on either side of the switch, and at huge df
+        // the quantile is the normal one plus g₁/df with g₁ = z(z² + 1)/4.
+        let below = student_t_ppf(0.975, 1.0e7 * (1.0 - 1e-9));
+        let above = student_t_ppf(0.975, 1.0e7 * (1.0 + 1e-9));
+        assert!((below - above).abs() < 1e-9, "below={below} above={above}");
+        let z = normal_ppf(0.975);
+        let huge = student_t_ppf(0.975, 1.0e10);
+        assert!((huge - (z + z * (z * z + 1.0) / 4.0 / 1.0e10)).abs() < 1e-14, "{huge}");
+        assert!((student_t_ppf(0.025, 1.0e10) + huge).abs() < 1e-14);
+    }
 
     #[test]
     fn normal_ppf_pins_common_quantiles() {

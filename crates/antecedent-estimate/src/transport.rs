@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::sync::Arc;
 
 use antecedent_identify::{TransportFormula, TransportIdentification};
@@ -20,6 +18,9 @@ fn require_dahabreh_compatible_formula(
 ) -> Result<(), EstimationError> {
     match identification {
         TransportIdentification::NotCertified(certificate) => {
+            Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
+        }
+        TransportIdentification::MissingEvidence(certificate) => {
             Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
         }
         TransportIdentification::Transportable {
@@ -42,7 +43,7 @@ fn require_dahabreh_compatible_formula(
 }
 
 /// Overlap diagnostics for one transport nuisance mechanism.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TransportOverlapDiagnostic {
     /// Minimum probability.
     pub probability_min: f64,
@@ -56,7 +57,7 @@ pub struct TransportOverlapDiagnostic {
 }
 
 /// Separate overlap reports for trial selection and randomized treatment.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TransportOverlapReport {
     /// Trial participation / selection overlap.
     pub selection: TransportOverlapDiagnostic,
@@ -243,25 +244,18 @@ pub fn trial_to_target_effect(
 ) -> Result<TransportEffectEstimate, EstimationError> {
     require_dahabreh_compatible_formula(identification, "trial-to-target effect")?;
     let n = outcome.len();
-    if n == 0
-        || treatment.len() != n
-        || trial.len() != n
-        || selection_probability.len() != n
-        || treatment_probability.len() != n
-    {
-        return Err(EstimationError::data_msg("transport input length mismatch"));
-    }
     if let Some((mu0, mu1)) = outcome_regressions {
         if mu0.len() != n || mu1.len() != n {
             return Err(EstimationError::data_msg("transport outcome-regression length mismatch"));
         }
     }
-    let target_n = trial.iter().filter(|&&source| !source).count();
-    if target_n == 0 || !trial.iter().any(|&source| source) {
-        return Err(EstimationError::data_msg(
-            "transport requires source-trial and target-population rows",
-        ));
-    }
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
     let mut ipw_sum = 0.0;
     let mut augmentation_sum = 0.0;
     let mut selection_weights = Vec::new();
@@ -271,19 +265,9 @@ pub fn trial_to_target_effect(
     for i in 0..n {
         let s = selection_probability[i];
         let e = treatment_probability[i];
-        // `e` is P(A=1|X,S=1): it is only defined on trial rows, so it is only range-checked
-        // there. Target rows carry no realized treatment and their `e` value is never read.
-        let treatment_probability_out_of_range =
-            trial[i] && (!e.is_finite() || e <= 0.0 || e >= 1.0);
-        if !s.is_finite() || s <= 0.0 || s >= 1.0 || treatment_probability_out_of_range {
-            return Err(EstimationError::data_msg(
-                "selection and treatment probabilities must lie strictly inside (0,1)",
-            ));
-        }
+        // Ranges and finiteness were checked by `validate_trial_to_target_inputs`; `e` is
+        // P(A=1|X,S=1), defined and read only on trial rows.
         if trial[i] {
-            if !outcome[i].is_finite() {
-                return Err(EstimationError::data_msg("trial outcomes must be finite"));
-            }
             let selection_odds = (1.0 - s) / s;
             let arm = if treatment[i] { e } else { 1.0 - e };
             let sign = if treatment[i] { 1.0 } else { -1.0 };
@@ -318,6 +302,48 @@ pub fn trial_to_target_effect(
     })
 }
 
+/// Checks shared by [`trial_to_target_effect`] and [`trial_to_target_ipw_se`]: equal
+/// non-empty lengths, both source and target rows, finite trial outcomes, and
+/// probabilities strictly inside (0, 1) (the treatment probability only on trial rows,
+/// where it is defined). Returns the number of target rows.
+fn validate_trial_to_target_inputs(
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+) -> Result<usize, EstimationError> {
+    let n = outcome.len();
+    if n == 0
+        || treatment.len() != n
+        || trial.len() != n
+        || selection_probability.len() != n
+        || treatment_probability.len() != n
+    {
+        return Err(EstimationError::data_msg("transport input length mismatch"));
+    }
+    let target_n = trial.iter().filter(|&&source| !source).count();
+    if target_n == 0 || !trial.iter().any(|&source| source) {
+        return Err(EstimationError::data_msg(
+            "transport requires source-trial and target-population rows",
+        ));
+    }
+    for i in 0..n {
+        let (s, e) = (selection_probability[i], treatment_probability[i]);
+        let treatment_probability_out_of_range =
+            trial[i] && (!e.is_finite() || e <= 0.0 || e >= 1.0);
+        if !s.is_finite() || s <= 0.0 || s >= 1.0 || treatment_probability_out_of_range {
+            return Err(EstimationError::data_msg(
+                "selection and treatment probabilities must lie strictly inside (0,1)",
+            ));
+        }
+        if trial[i] && !outcome[i].is_finite() {
+            return Err(EstimationError::data_msg("trial outcomes must be finite"));
+        }
+    }
+    Ok(target_n)
+}
+
 /// Standard error of the trial-to-target IPW contrast of [`trial_to_target_effect`].
 ///
 /// The IPW contrast is a ratio of two sample means over all `n` rows,
@@ -328,12 +354,16 @@ pub fn trial_to_target_effect(
 /// mean(1 − S)` and the delta-method SE is
 /// `sqrt(Σ_i (ψ_i − ipw·(1 − S_i))²) / n_target`.
 ///
-/// Inputs are those passed to [`trial_to_target_effect`]; `ipw` is its
-/// [`TransportEffectEstimate::ipw`].
+/// The SE conditions on the probabilities as given: it carries no term for their
+/// estimation, so it is design-based only when they are known (or fixed by design) and
+/// is not guaranteed conservative for fitted probabilities. Inputs are those passed to
+/// [`trial_to_target_effect`]; `ipw` is its [`TransportEffectEstimate::ipw`].
 ///
 /// # Errors
 ///
-/// Returns [`EstimationError`] for mismatched lengths or when no target row exists.
+/// Returns [`EstimationError`] under the same input conditions as
+/// [`trial_to_target_effect`] (lengths, source and target rows, finite trial outcomes,
+/// probabilities strictly inside (0, 1)) or for a non-finite `ipw`.
 pub fn trial_to_target_ipw_se(
     outcome: &[f64],
     treatment: &[bool],
@@ -343,16 +373,15 @@ pub fn trial_to_target_ipw_se(
     ipw: f64,
 ) -> Result<f64, EstimationError> {
     let n = outcome.len();
-    if treatment.len() != n
-        || trial.len() != n
-        || selection_probability.len() != n
-        || treatment_probability.len() != n
-    {
-        return Err(EstimationError::data_msg("transport input length mismatch"));
-    }
-    let target_n = trial.iter().filter(|&&source| !source).count();
-    if target_n == 0 {
-        return Err(EstimationError::data_msg("transport requires target-population rows"));
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    if !ipw.is_finite() {
+        return Err(EstimationError::data_msg("transport IPW estimate must be finite"));
     }
     let mut sum_sq = 0.0;
     for i in 0..n {
@@ -402,10 +431,123 @@ fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
     if sum_sq > 0.0 { absolute_sum * absolute_sum / sum_sq } else { 0.0 }
 }
 
+/// Evaluate a checked, catalog-bound transport functional against supplied exact laws.
+/// The returned distribution carries no sampling standard errors or intervals.
+///
+/// # Errors
+/// Inconsistent evidence/provider metadata, missing support, invalid mass, or budgets.
+pub fn evaluate_exact_transport(
+    functional: &antecedent_identify::BoundTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
+    prepare_exact_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Validate exact providers and compile without evaluating any probabilities.
+///
+/// # Errors
+/// Provider contract, coverage, or resource limit violation.
+pub fn prepare_exact_transport(
+    functional: &antecedent_identify::BoundTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    use antecedent_core::{DistributionAvailability, VariableDomain};
+    use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
+    let treatments = &functional.derivation().query().treatments;
+    if request.entries().len() != treatments.len()
+        || treatments.iter().any(|v| request.get(*v).is_none())
+    {
+        return Err(EvalError::ProviderKind(
+            "exact request must bind precisely the certified treatment coordinates",
+        ));
+    }
+    let catalog = functional.catalog();
+    for law in data.laws() {
+        let regime = catalog
+            .regimes
+            .iter()
+            .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
+            .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
+        if !regime.evidence_kind.can_satisfy_factor()
+            || !matches!(regime.distribution, DistributionAvailability::Joint)
+            || !regime.conditioned_on.is_empty()
+            || law.interventions().len() != regime.interventions.len()
+            || !law.interventions().iter().all(|a| regime.interventions.contains(&a.variable))
+            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
+            || regime.intervention_values.iter().any(|required| {
+                !law.interventions()
+                    .iter()
+                    .any(|a| a.variable == required.variable && a.value == required.value)
+            })
+        {
+            return Err(EvalError::ProviderKind(
+                "exact provider disagrees with its evidence regime",
+            ));
+        }
+        for binding in catalog.bindings.iter().filter(|b| b.regime == regime.id) {
+            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
+                return Err(EvalError::ProviderKind(
+                    "exact provider snapshot does not match catalog binding",
+                ));
+            }
+        }
+        for axis in law.axes() {
+            for coordinate in catalog
+                .environments
+                .iter()
+                .flat_map(|env| env.variables.iter())
+                .filter(|c| c.variable == axis.variable)
+            {
+                let valid = match coordinate.domain {
+                    VariableDomain::Unspecified => true,
+                    VariableDomain::Continuous => false,
+                    VariableDomain::Binary => {
+                        axis.values.len() == 2
+                            && [0.0, 1.0]
+                                .iter()
+                                .all(|level| axis.values.iter().any(|v| v.as_f64() == Some(*level)))
+                    }
+                    VariableDomain::Categorical { cardinality } => {
+                        usize::try_from(cardinality).ok() == Some(axis.values.len())
+                            && (0..cardinality).all(|level| {
+                                axis.values.iter().any(|v| v.as_f64() == Some(f64::from(level)))
+                            })
+                    }
+                    VariableDomain::Count => axis
+                        .values
+                        .iter()
+                        .all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)),
+                };
+                if !valid {
+                    return Err(EvalError::ProviderKind(
+                        "exact provider domain disagrees with evidence coordinates",
+                    ));
+                }
+            }
+        }
+    }
+    ExactEvaluationPlan::compile(
+        functional.arena(),
+        functional.root(),
+        data,
+        functional.derivation().query().outcomes.clone(),
+        request,
+        limits,
+        LawTolerance::default(),
+        ctx,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_identify::{
-        NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
+        NotCertifiedCertificate, PopulationFactor, TransportCertificate, TransportFormula,
     };
 
     use super::*;
@@ -417,6 +559,7 @@ mod tests {
     fn certified_identification() -> TransportIdentification {
         TransportIdentification::Transportable {
             formula: TransportFormula::Direct(PopulationFactor {
+                regime: None,
                 population: Arc::from("source"),
                 variables: Arc::from([]),
                 conditioned_on: Arc::from([]),
@@ -433,7 +576,7 @@ mod tests {
     /// A refusal certificate carrying a distinctive reason/message so tests can assert both
     /// are surfaced in the returned error rather than swallowed.
     fn not_certified_identification() -> TransportIdentification {
-        TransportIdentification::NotCertified(NonTransportableCertificate {
+        TransportIdentification::NotCertified(NotCertifiedCertificate {
             reason: Arc::from("transport.test.refused"),
             witness: Arc::from([]),
             message: Arc::from("test-fixture refusal explaining why identification failed"),
@@ -483,6 +626,22 @@ mod tests {
             trial_to_target_ipw_se(&outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn trial_to_target_ipw_se_shares_the_effect_input_validation() {
+        let (outcome, treatment, trial) =
+            ([3.0, 1.0, 0.0, 0.0], [true, false, false, false], [true, true, false, false]);
+        let se = |outcome: &[f64], selection: &[f64], ipw: f64| {
+            trial_to_target_ipw_se(outcome, &treatment, &trial, selection, &[0.5; 4], ipw)
+        };
+        assert!(se(&outcome, &[0.5; 4], 2.0).is_ok());
+        // Out-of-range or non-finite selection probabilities would give inf/NaN silently.
+        assert!(se(&outcome, &[0.5, 0.0, 0.5, 0.5], 2.0).is_err());
+        assert!(se(&outcome, &[0.5, 0.5, 1.0, 0.5], 2.0).is_err());
+        assert!(se(&outcome, &[0.5, f64::NAN, 0.5, 0.5], 2.0).is_err());
+        assert!(se(&[f64::NAN, 1.0, 0.0, 0.0], &[0.5; 4], 2.0).is_err());
+        assert!(se(&outcome, &[0.5; 4], f64::NAN).is_err());
     }
 
     #[test]
@@ -580,6 +739,7 @@ mod tests {
             formula: TransportFormula::RecursiveFactorization {
                 sum_out: Arc::from([]),
                 factors: Arc::from([PopulationFactor {
+                    regime: None,
                     population: Arc::from("target"),
                     variables: Arc::from([]),
                     conditioned_on: Arc::from([]),

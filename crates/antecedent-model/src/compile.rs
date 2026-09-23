@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -107,6 +113,18 @@ pub trait DynamicMechanism: Send + Sync {
             output[i] = value[i] - mean[i];
         }
         Ok(())
+    }
+
+    /// How [`Self::infer_noise_column`] recovers noise.
+    ///
+    /// The default is [`crate::NoiseInferenceMode::Invertible`], matching the
+    /// default additive inversion. A mechanism that overrides
+    /// `infer_noise_column` with a many-to-one map (posterior draws, not exact
+    /// inversion) must override this to
+    /// [`crate::NoiseInferenceMode::Posterior`], so results are labelled with the
+    /// assumption they rest on.
+    fn noise_inference_mode(&self) -> crate::mechanism::NoiseInferenceMode {
+        crate::mechanism::NoiseInferenceMode::Invertible
     }
 
     /// Log-density of observed values under additive `N(0,1)` residual noise.
@@ -268,13 +286,16 @@ pub enum MechanismSlot {
         variance: f64,
         /// Observation noise std.
         noise_std: f64,
+        /// Prior mean the surface reverts to away from the training rows (the
+        /// outcome's sample mean for a fitted mechanism).
+        mean: f64,
         /// Training parent rows, row-major `[n_train * n_parents]`.
         x_train: Arc<[f64]>,
         /// Training rows.
         n_train: usize,
         /// Parent arity.
         n_parents: usize,
-        /// Dual coefficients `α = (K + σ²I)^{-1} y`.
+        /// Dual coefficients `α = (K + σ²I)^{-1} (y − mean)`.
         alpha: Arc<[f64]>,
     },
     /// Explicit slow-path dynamic / user mechanism (not serializable).
@@ -399,12 +420,19 @@ impl std::fmt::Debug for MechanismSlot {
                 .field("initial_mean", initial_mean)
                 .finish(),
             Self::GaussianProcess {
-                length_scale, variance, noise_std, n_train, n_parents, ..
+                length_scale,
+                variance,
+                noise_std,
+                mean,
+                n_train,
+                n_parents,
+                ..
             } => f
                 .debug_struct("GaussianProcess")
                 .field("length_scale", length_scale)
                 .field("variance", variance)
                 .field("noise_std", noise_std)
+                .field("mean", mean)
                 .field("n_train", n_train)
                 .field("n_parents", n_parents)
                 .finish(),
@@ -482,6 +510,10 @@ impl CompiledCausalModel {
     /// # Errors
     ///
     /// Cyclic graph or non-static nodes.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "node ids are u32 by construction (DenseNodeId), so every node position fits u32"
+    )]
     pub fn compile(graph: Dag) -> Result<Self, ModelError> {
         let order = graph.topological_order().ok_or_else(|| ModelError::NotDag {
             message: "graph has no topological order".into(),

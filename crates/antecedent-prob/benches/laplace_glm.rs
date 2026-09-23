@@ -1,9 +1,8 @@
 //! Laplace GLM workspace-reuse benchmark .
+#![allow(missing_docs)]
 #![allow(
-    missing_docs,
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use antecedent_prob::{

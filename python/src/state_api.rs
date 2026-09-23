@@ -325,10 +325,17 @@ impl PyCausalState {
 
     /// Mark queries fresh at fingerprints: list of `(query_id, fingerprint, bytes)`.
     fn refresh_results(&mut self, entries: Vec<(u64, u64, u64)>) -> PyResult<()> {
-        let mapped: Vec<_> = entries
+        let mapped = entries
             .into_iter()
-            .map(|(q, fp, bytes)| (QueryId::from_raw(q as u32), fp, bytes))
-            .collect();
+            .map(|(q, fp, bytes)| {
+                let id = u32::try_from(q).map_err(|_| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "query id {q} does not fit in 32 bits"
+                    ))
+                })?;
+                Ok((QueryId::from_raw(id), fp, bytes))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
         self.inner.refresh_results(&mapped).map_err(py_err)?;
         Ok(())
     }

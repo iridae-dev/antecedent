@@ -1,4 +1,4 @@
-//! 1.9 coverage of static graph-posterior mixture intervals (R-19, R-11 / C-1).
+//! Coverage of static graph-posterior mixture intervals (R-19, R-11 / C-1).
 //!
 //! A hand-built `GraphPosterior` has two identified DAG atoms whose effects
 //! differ plus one unidentified atom:
@@ -30,7 +30,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 mod common;
 
@@ -43,8 +47,8 @@ use antecedent_data::TabularData;
 use antecedent_discovery::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
-    quantile_interval, stream_seed,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, map_replicates, n_sim,
+    normal_interval, quantile_interval, stream_seed,
 };
 use common::calibration_bind::bind_all;
 
@@ -224,8 +228,8 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut points = Vec::with_capacity(n_sim() as usize);
     let mut se_sum = 0.0;
-    for r in 0..n_sim() {
-        let seed = FREQUENTIST_SEED_BASE + u64::from(r) * SEED_STRIDE;
+    let runs = map_replicates(n_sim(), |r| {
+        let seed = FREQUENTIST_SEED_BASE + r * SEED_STRIDE;
         let (study, result) = run_with_posterior(
             conditional,
             InferenceMode::Frequentist,
@@ -246,9 +250,12 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
                 "{name}: multi-atom SE must come from the joint IF combiner"
             );
         }
+        (study, result)
+    });
+    for (study, result) in &runs {
         points.push(result.estimate.ate);
         se_sum += result.estimate.se_analytic;
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90),
             TRUTH_SAME_ESTIMAND,
@@ -278,8 +285,8 @@ fn bayesian_coverage(conditional: bool, test: &'static str) {
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut graph_draw = uniform(0xB5A7_0019);
     let identified_mass = WEIGHTS[0] + WEIGHTS[1];
-    for r in 0..n_sim() {
-        let seed = BAYESIAN_SEED_BASE + u64::from(r) * SEED_STRIDE;
+    let runs = map_replicates(n_sim(), |r| {
+        let seed = BAYESIAN_SEED_BASE + r * SEED_STRIDE;
         let (study, result) = run(
             conditional,
             InferenceMode::Bayesian(
@@ -290,6 +297,11 @@ fn bayesian_coverage(conditional: bool, test: &'static str) {
         if r == 0 {
             assert_mixture_shape(&result);
         }
+        (study, result)
+    });
+    // The graph-draw stream is consumed once per replicate in replicate order,
+    // exactly as the serial loop drew it.
+    for (study, result) in &runs {
         let truth = if graph_draw() < WEIGHTS[0] / identified_mass { THETA[0] } else { THETA[1] };
         let interval_at = |level: f64| {
             result.posterior.as_ref().and_then(|post| {
@@ -298,7 +310,7 @@ fn bayesian_coverage(conditional: bool, test: &'static str) {
                 quantile_interval(draws, level)
             })
         };
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(interval_at(LEVEL), truth);
         reported.record(interval_at(REPORTED_LEVEL), truth);
     }

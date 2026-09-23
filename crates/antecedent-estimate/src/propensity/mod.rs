@@ -13,19 +13,23 @@
 //!
 //! **Matching caveat:** for nearest-neighbor matching with a fixed number of matches, the
 //! nonparametric bootstrap is asymptotically invalid (Abadie–Imbens 2008). Matching
-//! estimators expose Abadie–Imbens (2006) analytic SEs with donor-reuse counts; treat any
-//! matching bootstrap SE as diagnostic only.
+//! estimators expose Abadie–Imbens (2006) analytic SEs with donor-reuse counts and do
+//! **not** write [`crate::EffectEstimate::se_bootstrap`], even when `bootstrap_replicates > 0`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::similar_names,
     clippy::too_many_arguments,
     clippy::needless_range_loop,
     clippy::manual_memcpy,
     clippy::needless_pass_by_value
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 mod distance;
@@ -42,7 +46,7 @@ pub use prepare::{
 };
 pub(crate) use prepare::{
     clamp_scores, clip_of, gather, gather_into, prepare_propensity_problem_with_registry,
-    split_by_treatment, trim_of, trim_retained_rows,
+    require_interior_propensities, split_by_treatment, trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
 pub use weighting::PropensityWeighting;
@@ -72,13 +76,18 @@ pub(crate) fn propensity_overlap_report(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
     use std::sync::Arc;
 
     use antecedent_core::{
         AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, DistributionRef, ExecutionContext,
-        MeasurementSpec, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
+        MeasurementSpec, RoleHint, SmallRoleSet, StreamDomain, TargetPopulation, ValueType,
+        VariableId,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
@@ -98,7 +107,8 @@ mod tests {
     }
 
     fn confounded_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
 
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
@@ -200,6 +210,48 @@ mod tests {
     /// Diagnostics-mandatory policy with an explicit trim band for the outlier tests.
     fn trim_overlap() -> OverlapPolicy {
         OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.02) }
+    }
+
+    #[test]
+    fn weighting_attached_bootstrap_equals_the_one_shot_fit() {
+        let (data, estimand) = confounded_scm(400, 3);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let boot = PropensityWeighting { bootstrap_replicates: 30, ..PropensityWeighting::new() };
+        let prep = boot.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let point_only = PropensityWeighting { bootstrap_replicates: 0, ..boot.clone() };
+        let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(point.se_bootstrap.is_none());
+        let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+        assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+        assert_eq!(attached.se_analytic.to_bits(), full.se_analytic.to_bits());
+        assert!(full.se_bootstrap.is_some());
+        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+    }
+
+    #[test]
+    fn stratification_attached_bootstrap_equals_the_one_shot_fit() {
+        let (data, estimand) = confounded_scm(400, 4);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let boot = PropensityStratification {
+            bootstrap_replicates: 30,
+            ..PropensityStratification::new()
+        };
+        let prep = boot.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let point_only = PropensityStratification { bootstrap_replicates: 0, ..boot.clone() };
+        let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(point.se_bootstrap.is_none());
+        let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+        assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+        assert!(full.se_bootstrap.is_some());
+        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
     }
 
     #[test]
@@ -311,7 +363,8 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap.is_none());
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
     }
 
     #[test]
@@ -376,7 +429,8 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap.is_none());
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
         assert!(effect.overlap_report.is_some());
     }
 

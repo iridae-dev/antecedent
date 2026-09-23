@@ -201,10 +201,7 @@ def required_jobs(
     return wanted, problems
 
 
-PUBLISH_WORKFLOWS = (
-    Path(".github") / "workflows" / "publish-release.yml",
-    Path(".github") / "workflows" / "publish-crates.yml",
-)
+PUBLISH_WORKFLOWS = (Path(".github") / "workflows" / "publish-release.yml",)
 ATTESTATION = "gate_calibration_attestation.sh"
 
 

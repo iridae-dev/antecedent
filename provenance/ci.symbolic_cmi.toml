@@ -13,6 +13,8 @@ implementation_deviations = [
  "Requires already-binned or ordinal integer codes. It does not discretize continuous variables.",
  "Reports a permutation p-value (Y shuffled within exact Z-symbol strata), not the paper's asymptotic chi-square reference distribution.",
  "Blocked permutation is licensed only when Z is empty. A requested block size with nonempty Z refuses.",
+ "When no Z stratum varies in both X and Y the permutation null reproduces the observed statistic in every replicate; the test refuses instead of reporting p = 1.",
+ "Without an explicit replicate count the permutation null uses 49 draws (smallest attainable p-value 0.02).",
 ]
 
 upstream_implementations_observed = []

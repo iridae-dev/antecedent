@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::unreadable_literal)]
+#![allow(clippy::unreadable_literal)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -57,6 +64,37 @@ impl Pcmci {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.run_with(workspace, |engine, workspace| {
+            engine.run_pc_mci(data, variables, workspace, ctx)
+        })
+    }
+
+    /// Run lagged PCMCI over the units of a panel: every unit's lag windows are built inside
+    /// that unit and the rows are pooled (see [`PcmciEngine::run_pc_mci_panel`]).
+    ///
+    /// # Errors
+    ///
+    /// Propagates engine / data failures.
+    pub fn run_panel(
+        &self,
+        units: &[TimeSeriesData],
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
+        self.run_with(workspace, |engine, workspace| {
+            engine.run_pc_mci_panel(units, variables, workspace, ctx)
+        })
+    }
+
+    fn run_with(
+        &self,
+        workspace: &mut DiscoveryWorkspace,
+        pc_mci: impl FnOnce(
+            &PcmciEngine,
+            &mut DiscoveryWorkspace,
+        ) -> Result<DagDiscoveryResult, DiscoveryError>,
+    ) -> Result<DagDiscoveryResult, DiscoveryError> {
         if self.engine.constraints.temporal.min_lag.is_contemporaneous() {
             return Err(DiscoveryError::unsupported(
                 "Pcmci requires min_lag >= 1 (lagged-only); contemporaneous links need \
@@ -64,7 +102,13 @@ impl Pcmci {
                  tiebreaking",
             ));
         }
-        let mut result = self.engine.run_pc_mci(data, variables, workspace, ctx)?;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
+            self.engine.constraints.alpha,
+            self.fdr.is_some(),
+        )?;
+        let mut result = pc_mci(&self.engine, workspace)?;
         let alpha = self.engine.constraints.alpha;
 
         let scored = threshold_scored_links(
@@ -93,7 +137,12 @@ impl Pcmci {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "calibration tests cast small non-negative simulation indices and counts, which fit their targets"
+)]
 mod calibration_tests {
     use super::*;
     use antecedent_core::{
@@ -257,6 +306,43 @@ mod calibration_tests {
             rate >= lo && rate <= hi,
             "PCMCI null link rate={rate:.3} outside [{lo:.3}, {hi:.3}] \
              ({retained}/{total}; α={ALPHA})"
+        );
+    }
+
+    /// A panel of short units pools each unit's own lag windows: the planted X→Y@lag1 link is
+    /// recovered from rows no single 60-step unit could support alone, and the pooled frame has
+    /// exactly the per-unit effective rows (no window crosses a unit boundary).
+    #[test]
+    fn pcmci_panel_pools_per_unit_lag_windows() {
+        const UNITS: u64 = 6;
+        const N_OBS: usize = 60;
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            alpha: 0.05,
+            max_cond_size: 1,
+            ..DiscoveryConstraints::default()
+        };
+        let pcmci = Pcmci::new().with_fdr(false).with_constraints(constraints);
+        let mut units = Vec::new();
+        let mut vars = Vec::new();
+        for u in 0..UNITS {
+            let (data, v) = planted_lag1_series(N_OBS, 13_000 + u);
+            units.push(data);
+            vars = v;
+        }
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(400);
+        let result = pcmci.run_panel(&units, &vars, &mut ws, &ctx).unwrap();
+        assert!(result.evidence.links.iter().any(|s| {
+            s.link.source == VariableId::from_raw(0)
+                && s.link.target == VariableId::from_raw(1)
+                && s.link.source_lag.raw() == 1
+        }));
+        // PC and MCI share one frame of depth 2·max_lag: every unit loses 2 rows, none more.
+        let expected_rows = UNITS as usize * (N_OBS - 2);
+        assert_eq!(
+            result.performance.lagged_frame_bytes,
+            (expected_rows * vars.len() * 3 * std::mem::size_of::<f64>()) as u64
         );
     }
 

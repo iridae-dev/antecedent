@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::sync::Arc;
 
 use antecedent_estimate::OverlapPolicy;
@@ -75,19 +73,36 @@ impl OverlapRefuter {
         if let Some(report) = self.continuous_report(problem)? {
             return Ok(report);
         }
-        let (report, replicates) = match &problem.original.overlap_report {
-            Some(r) => (r.clone(), 0),
-            None => (
-                crate::common::diagnostic_overlap_report_with(
-                    problem,
-                    &self.glm_options,
-                    OverlapPolicy::require_diagnostics(),
-                    propensity,
-                )?,
-                1,
-            ),
+        let (report, replicates) = if let Some(r) = &problem.original.overlap_report {
+            (r.clone(), 0)
+        } else {
+            let fit = crate::common::diagnostic_overlap_report_with(
+                problem,
+                &self.glm_options,
+                OverlapPolicy::require_diagnostics(),
+                propensity,
+            )?;
+            if let Some(defect) = fit.defect {
+                return Ok(Self::separated_report(problem, defect));
+            }
+            (fit.report, 1)
         };
         self.binary_report(problem, &report, replicates)
+    }
+
+    /// The overlap failure a separated / non-converged diagnostic propensity fit stands for.
+    fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
+        RefutationReport {
+            refuter: Arc::from("overlap.assessment"),
+            original_ate: problem.original.ate,
+            refuted_ate: problem.original.ate,
+            // Same polarity as the ESS report: the share of the sample without support.
+            comparison: 1.0,
+            informative: true,
+            passed: false,
+            failure_condition: Some(Arc::from(defect)),
+            replicates: 1,
+        }
     }
 
     #[allow(clippy::float_cmp)] // Binary treatment is exactly 0/1.

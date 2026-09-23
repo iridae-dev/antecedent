@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -25,6 +23,22 @@ impl Pag {
     #[must_use]
     pub fn empty() -> Self {
         Self { nodes: Vec::new(), adj: Vec::new() }
+    }
+
+    /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
+    ///
+    /// # Errors
+    ///
+    /// Window larger than the node-id space.
+    pub fn from_unfolding(indexer: &antecedent_core::TemporalIndexer) -> Result<Self, GraphError> {
+        let mut g = Self::empty();
+        for dense in 0..indexer.dense_len() {
+            let key = indexer
+                .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
+                .map_err(|_| GraphError::TooManyNodes)?;
+            g.add_node(NodeRef::Unfolded { variable: key.variable, offset: key.offset })?;
+        }
+        Ok(g)
     }
 
     /// One static node per variable `0..n`.
@@ -79,8 +93,10 @@ impl Pag {
     ///
     /// Non-static or capacity.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
-        if !matches!(node, NodeRef::Static(_)) {
-            return Err(GraphError::InvalidEndpoints { message: "Pag accepts only Static nodes" });
+        if !node.is_static_graph_node() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "Pag accepts only Static or Unfolded nodes",
+            });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
@@ -285,6 +301,15 @@ impl Pag {
 }
 
 /// Path whose every non-endpoint has definite collider or non-collider status.
+///
+/// A non-endpoint `V` between `A` and `B` is a definite collider when both path
+/// edges have an arrowhead at `V`. It is a definite non-collider when a path
+/// edge has a tail at `V`, or when the marks at `V` are not both arrowheads and
+/// `A`, `B` are not adjacent (Zhang 2008 states this for circle-circle; a
+/// remaining circle beside an arrowhead is covered by the same argument): an
+/// unshielded triple that is not marked as a collider is a collider in no
+/// member of the class. A conflict mark records
+/// that the orientation is unknown, so it never yields a definite status.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DefiniteStatusPath {
     /// Ordered nodes on the path.
@@ -319,81 +344,156 @@ impl Pag {
         if max_paths == 0 || max_len == 0 {
             return Ok(DefiniteStatusPathSearch { paths: out, truncated: true });
         }
-        let mut truncated = false;
+        let mut capped = false;
+        let cut = self.walk_simple_paths(x, y, max_len, |path| {
+            if out.len() >= max_paths {
+                capped = true;
+                return false;
+            }
+            if self.path_is_definite_status(path) {
+                out.push(DefiniteStatusPath { nodes: path.to_vec() });
+            }
+            true
+        });
+        Ok(DefiniteStatusPathSearch { paths: out, truncated: capped || cut })
+    }
+
+    /// Depth-first walk over the simple paths from `x` to `y` of at most `max_len`
+    /// nodes. `visit` returns `false` to stop. Returns whether `max_len` left a
+    /// path unexplored.
+    pub(crate) fn walk_simple_paths(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        max_len: usize,
+        mut visit: impl FnMut(&[DenseNodeId]) -> bool,
+    ) -> bool {
+        let mut cut = false;
         let mut stack = vec![vec![x]];
         while let Some(path) = stack.pop() {
-            if out.len() >= max_paths {
-                truncated = true;
-                break;
-            }
             let last = *path.last().expect("nonempty");
             if path.len() > 1 && last == y {
-                if self.path_is_definite_status(&path) {
-                    out.push(DefiniteStatusPath { nodes: path });
-                }
-                continue;
-            }
-            if path.len() >= max_len {
-                // Neighbors exist that we refuse to expand → incomplete.
-                for (nbr, _, _) in self.neighbors(last) {
-                    if path.len() >= 2 && path[path.len() - 2] == nbr {
-                        continue;
-                    }
-                    if path.contains(&nbr) {
-                        continue;
-                    }
-                    truncated = true;
+                if !visit(&path) {
                     break;
                 }
                 continue;
             }
-            for (nbr, _, _) in self.neighbors(last) {
-                if path.len() >= 2 && path[path.len() - 2] == nbr {
-                    continue; // no immediate backtrack
-                }
-                if path.contains(&nbr) {
-                    continue;
-                }
+            let onward = self.neighbors(last).map(|(nbr, _, _)| nbr).filter(|n| !path.contains(n));
+            if path.len() >= max_len {
+                // Neighbors exist that we refuse to expand → incomplete.
+                cut |= onward.count() > 0;
+                continue;
+            }
+            for nbr in onward {
                 let mut next = path.clone();
                 next.push(nbr);
                 stack.push(next);
             }
         }
-        Ok(DefiniteStatusPathSearch { paths: out, truncated })
+        cut
     }
 
-    fn path_is_definite_status(&self, path: &[DenseNodeId]) -> bool {
-        if path.len() < 2 {
-            return true;
-        }
-        for i in 1..path.len() - 1 {
-            let pred = path[i - 1];
-            let v = path[i];
-            let succ = path[i + 1];
-            let Some(e1) = self.edge_between(pred, v) else {
+    /// Marks at `v` on the path edges from `pred` and to `succ`.
+    fn marks_at(
+        &self,
+        pred: DenseNodeId,
+        v: DenseNodeId,
+        succ: DenseNodeId,
+    ) -> Option<(Endpoint, Endpoint)> {
+        let e1 = self.edge_between(pred, v)?;
+        let e2 = self.edge_between(v, succ)?;
+        Some((if e1.a == v { e1.at_a } else { e1.at_b }, if e2.a == v { e2.at_a } else { e2.at_b }))
+    }
+
+    pub(crate) fn path_is_definite_status(&self, path: &[DenseNodeId]) -> bool {
+        path.windows(3).all(|w| {
+            let Some((from_pred, from_succ)) = self.marks_at(w[0], w[1], w[2]) else {
                 return false;
             };
-            let Some(e2) = self.edge_between(v, succ) else {
+            let definite_collider = from_pred == Endpoint::Arrow && from_succ == Endpoint::Arrow;
+            // Members keep the PAG's unshielded colliders and add none, so an
+            // unshielded triple without two arrowheads is a non-collider in all
+            // of them even when only one mark at `V` is a circle.
+            let conflict = from_pred == Endpoint::Conflict || from_succ == Endpoint::Conflict;
+            let definite_noncollider = from_pred == Endpoint::Tail
+                || from_succ == Endpoint::Tail
+                || (!conflict && !definite_collider && !self.has_edge(w[0], w[2]));
+            definite_collider || definite_noncollider
+        })
+    }
+
+    /// Whether some member of the class could have `path` m-connecting given `z`.
+    ///
+    /// Each non-endpoint is judged on its own marks: it may be a non-collider
+    /// unless both marks are arrowheads, and it may be a collider unless a mark
+    /// is a tail or the triple is unshielded and not marked as a collider. A
+    /// possible collider is open when it, or a node it may be an ancestor of, is
+    /// in `z`. Every path that is m-connecting in a member passes this test, so
+    /// the absence of such a path certifies separation in every member.
+    pub(crate) fn path_possibly_active_given(
+        &self,
+        path: &[DenseNodeId],
+        z: &[DenseNodeId],
+    ) -> bool {
+        let unknown = |m: Endpoint| matches!(m, Endpoint::Circle | Endpoint::Conflict);
+        path.windows(3).all(|w| {
+            let Some((from_pred, from_succ)) = self.marks_at(w[0], w[1], w[2]) else {
                 return false;
             };
-            let mark_from_pred = if e1.a == v { e1.at_a } else { e1.at_b };
-            let mark_from_succ = if e2.a == v { e2.at_a } else { e2.at_b };
-            let definite_collider = matches!(mark_from_pred, Endpoint::Arrow)
-                && matches!(mark_from_succ, Endpoint::Arrow);
-            let definite_noncollider = matches!(mark_from_pred, Endpoint::Tail)
-                || matches!(mark_from_succ, Endpoint::Tail);
-            if !(definite_collider || definite_noncollider) {
-                return false;
+            let in_z = z.contains(&w[1]);
+            let arrows = from_pred == Endpoint::Arrow && from_succ == Endpoint::Arrow;
+            let conflict = from_pred == Endpoint::Conflict || from_succ == Endpoint::Conflict;
+            let may_collide = (from_pred == Endpoint::Arrow || unknown(from_pred))
+                && (from_succ == Endpoint::Arrow || unknown(from_succ))
+                && (arrows || conflict || self.has_edge(w[0], w[2]));
+            (!arrows && !in_z) || (may_collide && (in_z || self.possible_descendant_in(w[1], z)))
+        })
+    }
+
+    /// True if some node of `z` is reachable from `v` along edges that no mark
+    /// forbids reading as `a -> b` (no arrowhead at `a`, no tail at `b`).
+    fn possible_descendant_in(&self, v: DenseNodeId, z: &[DenseNodeId]) -> bool {
+        let mut seen = vec![false; self.node_count()];
+        let mut stack = vec![v];
+        seen[v.as_usize()] = true;
+        while let Some(a) = stack.pop() {
+            for (b, at_a, at_b) in self.neighbors(a) {
+                if at_a == Endpoint::Arrow || at_b == Endpoint::Tail || seen[b.as_usize()] {
+                    continue;
+                }
+                if z.contains(&b) {
+                    return true;
+                }
+                seen[b.as_usize()] = true;
+                stack.push(b);
             }
         }
-        true
+        false
     }
 
     /// Whether a definite-status path is active given `z` (m-connecting).
     ///
     /// A collider is open if it **or any definite directed descendant** is in `z`.
-    #[must_use]
-    pub fn path_active_given(&self, path: &[DenseNodeId], z: &[DenseNodeId]) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::InvalidEndpoints`] when `path` is not a walk over existing edges of this
+    /// graph (an unknown node, or two consecutive nodes that are not adjacent).
+    pub fn path_active_given(
+        &self,
+        path: &[DenseNodeId],
+        z: &[DenseNodeId],
+    ) -> Result<bool, GraphError> {
+        if path.windows(2).any(|w| self.edge_between(w[0], w[1]).is_none()) {
+            return Err(GraphError::InvalidEndpoints {
+                message: "path_active_given: consecutive path nodes must be adjacent",
+            });
+        }
+        Ok(self.path_active_on_edges(path, z))
+    }
+
+    /// [`Self::path_active_given`] for a path already known to follow existing edges.
+    pub(crate) fn path_active_on_edges(&self, path: &[DenseNodeId], z: &[DenseNodeId]) -> bool {
         if path.len() < 2 {
             return false;
         }
@@ -405,8 +505,10 @@ impl Pag {
             let pred = path[i - 1];
             let v = path[i];
             let succ = path[i + 1];
-            let e1 = self.edge_between(pred, v).expect("path edge");
-            let e2 = self.edge_between(v, succ).expect("path edge");
+            let (Some(e1), Some(e2)) = (self.edge_between(pred, v), self.edge_between(v, succ))
+            else {
+                return false;
+            };
             let mark_from_pred = if e1.a == v { e1.at_a } else { e1.at_b };
             let mark_from_succ = if e2.a == v { e2.at_a } else { e2.at_b };
             let collider = matches!(mark_from_pred, Endpoint::Arrow)
@@ -460,8 +562,13 @@ mod tests {
         g.insert_directed(b, c).unwrap();
         let paths = g.definite_status_paths(a, c, 10, 8).unwrap();
         assert!(!paths.paths.is_empty());
-        assert!(g.path_active_given(&paths.paths[0].nodes, &[]));
-        assert!(!g.path_active_given(&paths.paths[0].nodes, &[b]));
+        assert!(g.path_active_given(&paths.paths[0].nodes, &[]).unwrap());
+        assert!(!g.path_active_given(&paths.paths[0].nodes, &[b]).unwrap());
+        // Non-paths and unknown nodes are errors, not panics.
+        assert!(g.path_active_given(&[a, c], &[]).is_err());
+        assert!(g.path_active_given(&[a, DenseNodeId::from_raw(99)], &[]).is_err());
+        // Accessors on out-of-range ids are empty rather than panicking.
+        assert_eq!(g.neighbors(DenseNodeId::from_raw(99)).count(), 0);
     }
 }
 

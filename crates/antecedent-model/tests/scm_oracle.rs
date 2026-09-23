@@ -137,7 +137,7 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
 }
 
 #[test]
-fn minnesota_bvar_matches_independent_augmented_ridge_solve() {
+fn minnesota_bvar_matches_independent_standardized_ridge_solve() {
     let expected = fixture("bvar");
     let n = json_usize(&expected["data"]["n"], "n");
     let mut x1 = Vec::with_capacity(n);
@@ -171,7 +171,7 @@ fn minnesota_bvar_matches_independent_augmented_ridge_solve() {
         assert!((*actual - target.as_f64().unwrap()).abs() <= tolerance);
     }
     assert!(
-        (*sigma - expected["reference"]["augmented_residual_sigma"].as_f64().unwrap()).abs()
+        (*sigma - expected["reference"]["data_residual_sigma"].as_f64().unwrap()).abs()
             <= tolerance
     );
 }

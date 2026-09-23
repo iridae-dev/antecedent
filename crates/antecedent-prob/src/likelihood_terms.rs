@@ -4,8 +4,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use antecedent_kernels::norm_cdf;
 
 use crate::backend::{BayesDesignRef, BayesLikelihood};
@@ -161,7 +159,12 @@ pub(crate) fn validate_design(
                 }
             }
             BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit => {
-                if !(yi == 0.0 || yi == 1.0) {
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "a Bernoulli outcome must be exactly the coded value 0 or 1"
+                )]
+                let is_binary = yi == 0.0 || yi == 1.0;
+                if !is_binary {
                     return Err(ProbError::Shape { message: "Bernoulli outcomes must be 0 or 1" });
                 }
             }
@@ -204,7 +207,22 @@ pub(crate) fn validate_design(
     Ok(())
 }
 
-/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation).
+/// Share of the (weighted) rows that must be fitted with certainty on their observed side
+/// before a Bernoulli mode is flagged as (quasi-)separated.
+///
+/// Separation is a property of the data as a whole: the likelihood keeps improving as the
+/// coefficients grow because a large share of rows is already classified with certainty.
+/// One extreme row in an otherwise informative sample is a high-leverage point, not
+/// separation, and must not refuse the posterior.
+const SEPARATION_ROW_SHARE: f64 = 0.10;
+
+/// Fitted probability of the observed side beyond which a Bernoulli row is counted as fitted
+/// with certainty.
+const SEPARATION_CERTAINTY: f64 = 1e-8;
+
+/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation);
+/// the separation flag (at least [`SEPARATION_ROW_SHARE`] of the weighted rows fitted with
+/// certainty on their observed side) is evaluated only when `want_hessian` is set.
 ///
 /// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
 /// likelihoods ignore it.
@@ -230,7 +248,8 @@ pub(crate) fn accumulate_likelihood(
     neg_hess.fill(0.0);
     let inv_sigma2 = gaussian_precision(likelihood, gaussian_sigma2)?;
 
-    let mut separation = false;
+    let mut certain_weight = 0.0;
+    let mut total_weight = 0.0;
     for r in 0..nrows {
         let offset = design.offsets.map_or(0.0, |o| o[r]);
         let mut e = offset;
@@ -246,15 +265,26 @@ pub(crate) fn accumulate_likelihood(
         let y = design.y[r];
 
         let terms = glm_observation_terms(likelihood, y, e, w_obs, inv_sigma2)?;
-        if matches!(likelihood, BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit)
+        // The separation flag is read only where curvature is (the mode fit);
+        // gradient-only leapfrog evaluations discard it, so skip its exp/erfc.
+        if want_hessian
+            && matches!(
+                likelihood,
+                BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit
+            )
         {
             let mu = if matches!(likelihood, BayesLikelihood::BernoulliLogit) {
                 1.0 / (1.0 + (-e).exp())
             } else {
                 antecedent_kernels::norm_cdf(e)
             };
-            if mu < 1e-8 || mu > 1.0 - 1e-8 {
-                separation = true;
+            // Certain on the *observed* side: a misclassified extreme row is an outlier, not
+            // evidence that the labels are separable.
+            let observed_one = y > 0.5;
+            let miss = if observed_one { 1.0 - mu } else { mu };
+            total_weight += w_obs;
+            if miss < SEPARATION_CERTAINTY {
+                certain_weight += w_obs;
             }
         }
         work_w[r] = terms.neg_hessian_eta;
@@ -284,6 +314,7 @@ pub(crate) fn accumulate_likelihood(
     for g in grad.iter() {
         ginf = ginf.max(g.abs());
     }
+    let separation = total_weight > 0.0 && certain_weight >= SEPARATION_ROW_SHARE * total_weight;
     Ok((ginf, separation))
 }
 
@@ -583,5 +614,83 @@ mod tests {
         let lambda1 = (log_phi(eta) - log_normal_cdf(eta)).exp();
         let obs_ref = lambda1 * (lambda1 + eta);
         assert!((t.neg_hessian_eta - obs_ref).abs() < 1e-10);
+    }
+
+    #[test]
+    fn separation_flag_is_only_evaluated_with_curvature() {
+        // One row at eta = 30: fitted P(y=1) = 1 - 9e-14, inside the 1e-8 boundary.
+        let design = BayesDesignRef {
+            x_colmajor: &[1.0],
+            nrows: 1,
+            ncols: 1,
+            y: &[1.0],
+            weights: None,
+            offsets: None,
+        };
+        let flag = |want_hessian: bool| {
+            let (mut grad, mut hess, mut eta, mut work) = ([0.0], [0.0], [0.0], [0.0]);
+            accumulate_likelihood(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &[30.0],
+                &mut grad,
+                &mut hess,
+                &mut eta,
+                &mut work,
+                1.0,
+                want_hessian,
+            )
+            .unwrap()
+            .1
+        };
+        assert!(flag(true));
+        assert!(!flag(false));
+    }
+
+    /// One row fitted with certainty among 100 is a leverage point, not separation; the same
+    /// row among ten (10% of the weight) is, and a misclassified extreme row never counts.
+    #[test]
+    fn separation_needs_a_share_of_rows_fitted_with_certainty_on_their_observed_side() {
+        let flag = |eta_values: &[f64], y: &[f64]| {
+            let n = y.len();
+            let design = BayesDesignRef {
+                x_colmajor: &vec![1.0; n],
+                nrows: n,
+                ncols: 1,
+                y,
+                weights: None,
+                offsets: None,
+            };
+            // The design column is the constant 1, so eta = beta; use offsets to place each
+            // row's linear predictor.
+            let design = BayesDesignRef { offsets: Some(eta_values), ..design };
+            let (mut grad, mut hess) = ([0.0], [0.0]);
+            let (mut eta, mut work) = (vec![0.0; n], vec![0.0; n]);
+            accumulate_likelihood(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &[0.0],
+                &mut grad,
+                &mut hess,
+                &mut eta,
+                &mut work,
+                1.0,
+                true,
+            )
+            .unwrap()
+            .1
+        };
+        // 100 rows, y = 1, one at eta = 30 (certain), the rest at eta = 0.
+        let mut etas = vec![0.0; 100];
+        etas[0] = 30.0;
+        assert!(!flag(&etas, &vec![1.0; 100]));
+        // Ten rows, one certain: 10% of the weight.
+        let mut etas = vec![0.0; 10];
+        etas[0] = 30.0;
+        assert!(flag(&etas, &[1.0; 10]));
+        // The same extreme predictor on the wrong side (y = 0 at eta = +30) is a misfit.
+        let mut y = vec![1.0; 10];
+        y[0] = 0.0;
+        assert!(!flag(&etas, &y));
     }
 }

@@ -5,12 +5,6 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::similar_names,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::unnecessary_wraps,
     clippy::manual_memcpy,
@@ -21,6 +15,15 @@
     clippy::needless_range_loop,
     clippy::too_many_lines,
     clippy::too_many_arguments
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 pub mod backend;
@@ -38,6 +41,7 @@ pub(crate) mod linalg;
 pub mod mcmc_stats;
 pub mod posterior;
 pub mod prior;
+pub(crate) mod streams;
 pub mod transport;
 
 pub use backend::{

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use antecedent_core::StreamDomain;
 
 impl super::Study {
     /// The panel license owner, consulted on the data each execute receives
@@ -768,6 +769,7 @@ impl super::Study {
                         &query.target_population,
                         EstimatorId::TemporalResponseGcomp,
                         None,
+                        crate::analysis::prepared::single_step_dose(query)?,
                     )?),
                     false,
                 )
@@ -1743,6 +1745,8 @@ fn panel_between_unit_band(mean: &[f64], unit_means: &[Arc<[f64]>]) -> ResponseU
         level: PANEL_INTERVAL_LEVEL,
         lower: lower.into(),
         upper: upper.into(),
+        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+        draws: None,
     }
 }
 
@@ -2022,7 +2026,11 @@ struct PanelRefuteAtom {
 /// for its own fit would carry the same weight as a long one. The floor is the
 /// effective-row threshold below which a temporal response band is not calibrated
 /// ([`antecedent_estimate::RESPONSE_SHORT_SERIES_ROWS`]).
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "RESPONSE_SHORT_SERIES_ROWS is the positive integer-valued constant 15.0, so the cast is exact"
+)]
 const PANEL_MIN_UNIT_ROWS: usize = antecedent_estimate::RESPONSE_SHORT_SERIES_ROWS as usize;
 
 /// Refuse a panel whose unit has fewer than [`PANEL_MIN_UNIT_ROWS`] rows left after
@@ -2292,8 +2300,10 @@ impl PanelUnitBootstrap {
 /// Units are prepared once; a replicate only restacks and refits. The replicate SD
 /// is scaled by `sqrt(G/(G−1))` (the Arellano finite-sample factor the analytic SE
 /// carries) and by `t_{G−1}/z`, so both SEs read on the same `t_{G−1}` scale. The SE is
-/// withheld unless at least two replicates succeeded and successes outnumber
-/// failures.
+/// withheld unless at least [`super::PERCENTILE_95_BAND_MIN_SUCCESSES`] replicates
+/// succeeded, successes outnumber failures, and the run was not cancelled.
+/// Cancellation is not adaptive early-stop: a cancel after the success floor still
+/// withholds the SE.
 fn panel_unit_bootstrap(
     atoms: &[PanelPulseAtom],
     replicates: u32,
@@ -2312,7 +2322,7 @@ fn panel_unit_bootstrap(
     }
     let estimator = pooled_panel_estimator();
     let fresh_ids: Vec<u32> = (0..u32::try_from(units).unwrap_or(u32::MAX)).collect();
-    let mut rng = ctx.rng.stream(0xC1A5_5E11);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Panel, 0xC1A5_5E11);
     let mut workspace = EstimationWorkspace::default();
     let mut draws = Vec::with_capacity(replicates as usize);
     let mut attempted = 0usize;
@@ -2353,7 +2363,7 @@ fn panel_unit_bootstrap(
         }
     }
     out.completed = u32::try_from(draws.len()).unwrap_or(u32::MAX);
-    if bootstrap_has_enough_successes(draws.len(), attempted) {
+    if !out.cancelled && bootstrap_has_enough_successes(draws.len(), attempted) {
         let g = units as f64;
         let sd = antecedent_stats::sample_std(&draws);
         let se = sd

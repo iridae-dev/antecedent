@@ -5,11 +5,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::needless_range_loop
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet};
@@ -159,7 +162,11 @@ pub fn combine_inclusion_exclusion(terms: &[f64]) -> Result<f64, StatsError> {
 }
 
 /// Validate panel HAC inputs: equal lengths, finite `u`, unique `(cluster, time)`.
-fn validate_panel_hac(u: &[f64], clusters: &[u32], time: &[i64]) -> Result<usize, StatsError> {
+pub(crate) fn validate_panel_hac(
+    u: &[f64],
+    clusters: &[u32],
+    time: &[i64],
+) -> Result<usize, StatsError> {
     let n = u.len();
     if clusters.len() != n || time.len() != n {
         return Err(StatsError::Shape { message: "panel HAC u/clusters/time length mismatch" });
@@ -181,6 +188,67 @@ fn validate_panel_hac(u: &[f64], clusters: &[u32], time: &[i64]) -> Result<usize
         }
     }
     Ok(n)
+}
+
+/// One-way cluster meat `M = Σ_g s_g²` and cluster count `G` for a scalar score sequence,
+/// with `s_g = Σ_{i∈g} (values_i − mean)`.
+///
+/// This is the `p = 1` case of the matrix cluster meat used by
+/// [`coefficient_covariance`](crate::coefficient_covariance) with the score demeaned at
+/// `mean` (influence-function sequences have `E ψ ≠ 0` and must be demeaned; regression
+/// scores already sum to zero and pass `mean = 0`). Finite-sample factors are the caller's.
+///
+/// # Errors
+///
+/// Length mismatch.
+pub fn cluster_meat_scalar(
+    values: &[f64],
+    groups: &[u32],
+    mean: f64,
+) -> Result<(f64, usize), StatsError> {
+    let n = values.len();
+    if groups.len() != n {
+        return Err(StatsError::Shape { message: "cluster meat groups length != values length" });
+    }
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by_key(|&i| groups[i]);
+    let mut meat = 0.0;
+    let mut group_count = 0usize;
+    let mut idx = 0usize;
+    while idx < n {
+        let g = groups[order[idx]];
+        let mut s = 0.0;
+        while idx < n && groups[order[idx]] == g {
+            s += values[order[idx]] - mean;
+            idx += 1;
+        }
+        meat += s * s;
+        group_count += 1;
+    }
+    Ok((meat, group_count))
+}
+
+/// Newey–West meat `Σ_t d_t² + 2 Σ_{ℓ=1}^{L_eff} w_ℓ Σ_t d_t d_{t−ℓ}` for an already
+/// demeaned scalar series, Bartlett weights with `L_eff = min(lag, T − 1)`. Consecutive
+/// entries are unit-spaced time. The `p = 1` case of the matrix Newey–West meat.
+#[must_use]
+pub fn newey_west_meat_scalar(demeaned: &[f64], lag: usize) -> f64 {
+    let n = demeaned.len();
+    let mut meat: f64 = demeaned.iter().map(|d| d * d).sum();
+    let l_eff = effective_nw_lag(lag, n.saturating_sub(1));
+    for ell in 1..=l_eff {
+        let gamma: f64 = (ell..n).map(|t| demeaned[t] * demeaned[t - ell]).sum();
+        meat += 2.0 * bartlett_weight(ell, l_eff) * gamma;
+    }
+    meat
+}
+
+/// Effective panel HAC lag `min(requested, max_g (max t_g − min t_g))` actually used by
+/// [`panel_hac_meat_scalar`] / [`panel_hac_meat_matrix`]. A requested lag beyond the panel's
+/// widest time span is silently capped there; report this value alongside the requested one.
+#[must_use]
+pub fn panel_effective_lag(clusters: &[u32], time: &[i64], requested: usize) -> usize {
+    effective_nw_lag(requested, panel_max_time_span(clusters, time))
 }
 
 /// Global panel bandwidth span: `max_g (max t_g − min t_g)`.
@@ -245,8 +313,11 @@ pub fn panel_hac_meat_scalar(
             let weight = bartlett_weight(ell, l_eff);
             let ell_i = i64::try_from(ell).unwrap_or(i64::MAX);
             for &row in rows {
-                let obs_time = time[row];
-                if let Some(&lagged) = by_time.get(&(obs_time - ell_i)) {
+                // `checked_sub`: a time label near `i64::MIN` has no lagged partner.
+                let Some(lag_time) = time[row].checked_sub(ell_i) else {
+                    continue;
+                };
+                if let Some(&lagged) = by_time.get(&lag_time) {
                     meat += 2.0 * weight * demeaned[row] * lagged;
                 }
             }
@@ -319,8 +390,10 @@ pub fn panel_hac_meat_matrix(
             let weight = bartlett_weight(ell, l_eff);
             let ell_i = i64::try_from(ell).unwrap_or(i64::MAX);
             for &row in rows {
-                let obs_time = time[row];
-                let Some(&lag_row) = by_time.get(&(obs_time - ell_i)) else {
+                let Some(lag_time) = time[row].checked_sub(ell_i) else {
+                    continue;
+                };
+                let Some(&lag_row) = by_time.get(&lag_time) else {
                     continue;
                 };
                 for col_a in 0..ncols {
@@ -341,6 +414,23 @@ pub fn panel_hac_meat_matrix(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scalar_meats_match_closed_form_and_the_matrix_meat() {
+        // S = [3, -3, 1] at mean 0 gives sum S^2 = 19, G = 3; at mean 1/4 each cluster of two
+        // loses 1/2: S = [2.5, -3.5, 0.5] gives 6.25 + 12.25 + 0.25 = 18.75.
+        let v = [1.0, 2.0, -1.0, -2.0, 0.5, 0.5];
+        let g = [0u32, 0, 1, 1, 2, 2];
+        assert_eq!(cluster_meat_scalar(&v, &g, 0.0).unwrap(), (19.0, 3));
+        let (m, count) = cluster_meat_scalar(&v, &g, 0.25).unwrap();
+        assert!((m - 18.75).abs() < 1e-14 && count == 3);
+        assert!(cluster_meat_scalar(&v, &g[..5], 0.0).is_err());
+        // d = [1,2,3], lag 1: 14 + 2 * 1/2 * 8 = 22. A lag beyond T - 1 is capped at 2
+        // (weights 2/3, 1/3): 14 + 2 * (2/3 * 8 + 1/3 * 3).
+        assert!((newey_west_meat_scalar(&[1.0, 2.0, 3.0], 1) - 22.0).abs() < 1e-14);
+        let capped = 14.0 + 2.0 * (2.0 / 3.0 * 8.0 + 1.0 / 3.0 * 3.0);
+        assert!((newey_west_meat_scalar(&[1.0, 2.0, 3.0], 9) - capped).abs() < 1e-13);
+    }
 
     #[test]
     fn few_cluster_t_ratio_is_the_t_over_z_critical_value() {

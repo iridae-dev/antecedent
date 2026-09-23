@@ -335,6 +335,8 @@ def _rd(data: dict[str, np.ndarray], **kwargs: Any):
     kwargs.setdefault("cutoff", 0.0)
     kwargs.setdefault("bandwidth", 1.2)
     rv = kwargs["running_variable"]
+    # A sharp design's treatment column is that design's threshold rule.
+    data = {**data, "t": (data[rv] >= kwargs["cutoff"]).astype(float)}
     return _analyze(
         data=data,
         graph=[(rv, "t"), (rv, "y"), ("t", "y")],
@@ -375,3 +377,62 @@ def test_on_stage_reaches_plan():
     stages: list[str] = []
     _analyze(bootstrap=40, on_stage=lambda stage, _payload: stages.append(stage))
     assert stages[:2] == ["identify", "estimate_point"]
+
+
+def _transport_query():
+    from antecedent import transport
+
+    graph = ant.Admg.from_edges(["x", "y"], [("x", "y")])
+    evidence = transport.Evidence(
+        source=transport.Source(
+            "source", kind="experimental", interventions=["x"], sampling="independent"
+        ),
+        target_sampling="representative_sample",
+    )
+    data = transport.StatisticalTransportData(
+        samples=(
+            transport.RegimeSample(
+                "source",
+                "source",
+                "v1",
+                {"y": [0.0] * 50 + [1.0] * 50},
+                interventions=(("x", 0.0),),
+            ),
+            transport.RegimeSample(
+                "source",
+                "source",
+                "v1",
+                {"y": [0.0] * 20 + [1.0] * 80},
+                interventions=(("x", 1.0),),
+            ),
+        )
+    )
+    query = transport.Transport(ant.AverageEffect("x", "y"), target="target", evidence=evidence)
+    return graph, data, query
+
+
+def test_provider_reaches_plan():
+    """Applies only to transport.Transport: prepare_transport rejects it elsewhere
+    (see the reason on the ``provider`` row of parity/python_products.toml)."""
+    from antecedent import transport
+
+    graph, data, query = _transport_query()
+    default = ant.analyze(data, query=query, graph=graph)
+    learned = ant.analyze(data, query=query, graph=graph, provider=transport.LearnedCategorical())
+    assert default.transport.provider == "empirical_table"
+    assert learned.transport.provider == "learned_categorical"
+    assert default.estimate.estimator_id != learned.estimate.estimator_id
+
+
+def test_controls_reaches_plan():
+    """Applies only to transport.Transport (see the ``controls`` row's reason)."""
+    from antecedent import transport
+    from antecedent.state import CancellationToken
+
+    graph, data, query = _transport_query()
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(ValueError, match="cancelled"):
+        ant.analyze(
+            data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
+        )

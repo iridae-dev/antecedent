@@ -188,6 +188,64 @@ fn contemp_meek_r1_orients_contemporaneous_chain() {
 }
 
 #[test]
+fn contemp_meek_r1_skips_ambiguous_triple() {
+    // Same a → b — c pattern as the definite non-collider case, but the triple is
+    // marked ambiguous: R1 must not orient b → c.
+    let mut g = TemporalCpdag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(a, b).unwrap();
+    g.insert_undirected(b, c).unwrap();
+    let mut state = OrientationState::default();
+    state.mark_ambiguous_triple(a, b, c);
+    let mut queue = OrientationQueue::new();
+    queue.push(b);
+    let d = ContempMeekR1.apply(&mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    assert!(g.edge_between(b, c).unwrap().is_undirected());
+}
+
+#[test]
+fn meek_r1_skips_ambiguous_triple() {
+    let mut g = Cpdag::with_variables(3);
+    let a = DenseNodeId::from_raw(0);
+    let b = DenseNodeId::from_raw(1);
+    let c = DenseNodeId::from_raw(2);
+    g.insert_directed(a, b).unwrap();
+    g.insert_undirected(b, c).unwrap();
+    let mut state = OrientationState::default();
+    state.mark_ambiguous_triple(a, b, c);
+    let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 1] = [&MeekR1];
+    let d = run_static_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    assert!(g.edge_between(b, c).unwrap().is_undirected());
+}
+
+#[test]
+fn orient_collider_marks_missing_sepset_ambiguous() {
+    // Unshielded a — c — b with no Sep(a,b): collider status unknown.
+    let mut g = TemporalCpdag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_undirected(a, c).unwrap();
+    g.insert_undirected(c, b).unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let _ = OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+        &OrientCollider,
+        &mut g,
+        &mut state,
+        &mut queue,
+    )
+    .unwrap();
+    assert!(state.is_ambiguous_triple(a, c, b));
+    assert!(g.edge_between(a, c).unwrap().is_undirected());
+    assert!(g.edge_between(c, b).unwrap().is_undirected());
+}
+
+#[test]
 fn contemp_meek_r4_orients_discriminating_path() {
     // a — b, a — c → d → b, adj(a,d), not adj(c,b) → a → b (all contemporaneous).
     let mut g = TemporalCpdag::empty();
@@ -222,4 +280,49 @@ fn fixed_point_runner() {
     let d = run_orientation_to_fixed_point(&mut g, &rules, &mut state).unwrap();
     assert!(d.fixed_point);
     assert_eq!(g.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
+}
+
+/// Rule *k* only sees what rule *k−1* enqueued, so a pass that changes nothing has not
+/// necessarily shown rule 1 the whole graph. Here rule B enables rule A at node 0 while the last
+/// rule leaves only node 5 queued: the next pass gives A the focus `{5}`, finds nothing, and a
+/// scheduler that stopped on the first quiet pass would end with A's application at node 0
+/// still pending. It must confirm with a full-scan pass and apply it.
+#[test]
+fn quiet_pass_does_not_end_scheduling_before_a_full_scan() {
+    use std::cell::Cell;
+
+    let n = 8usize;
+    let node = DenseNodeId::from_raw;
+    let enabled = Cell::new(false);
+    let applied = Cell::new(false);
+    let b_fired = Cell::new(false);
+    let c_fired = Cell::new(false);
+    let d = drive_to_fixed_point(n, |queue| {
+        let mut pass = RuleDelta::default();
+        // Rule A: acts at node 0 once enabled, but only if 0 is in its focus.
+        let focus = focus_nodes(n, queue);
+        if enabled.get() && !applied.get() && focus.contains(&node(0)) {
+            applied.set(true);
+            pass.edges_changed += 1;
+        }
+        // Rule B: enables A; the node it enqueues is drained by rule C.
+        let _ = focus_nodes(n, queue);
+        if !b_fired.get() {
+            b_fired.set(true);
+            enabled.set(true);
+            pass.edges_changed += 1;
+            queue.push(node(1));
+        }
+        // Rule C (last): fires once and leaves node 5 queued for the next pass.
+        let _ = focus_nodes(n, queue);
+        if !c_fired.get() {
+            c_fired.set(true);
+            pass.edges_changed += 1;
+            queue.push(node(5));
+        }
+        Ok(pass)
+    })
+    .unwrap();
+    assert!(applied.get(), "rule A's pending application was never examined");
+    assert!(d.fixed_point);
 }

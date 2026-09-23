@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the counterfactual constructions that
+//! Repeated-sampling coverage of the counterfactual constructions that
 //! heterogeneity-capable mechanism families introduced, at the level the facade
 //! publishes.
 //!
@@ -40,13 +40,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines, clippy::doc_markdown)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::float_cmp,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::too_many_lines,
-    clippy::doc_markdown
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -59,7 +57,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, SampleGrid, gaussian, n_sim, stream_seed};
+use common::calibration::{
+    CoverageTally, RecordKey, SampleGrid, gaussian, map_replicates, n_sim, stream_seed,
+};
 use common::calibration_bind::bind;
 use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate_at, posterior_pair};
 use common::static_dgp::{bernoulli, sigmoid, table, uniform};
@@ -231,12 +231,12 @@ fn design(
     test: &'static str,
     dgp: &'static str,
     labels: [&str; 2],
-    data_for: impl Fn(u64) -> TabularData,
+    data_for: impl Fn(u64) -> TabularData + Sync,
     graph: &Dag,
     treatment: u32,
     outcome: u32,
-    truth_for: impl Fn(&TabularData) -> Vec<f64>,
-    designated: impl Fn(&TabularData) -> [usize; 2],
+    truth_for: impl Fn(&TabularData) -> Vec<f64> + Sync,
+    designated: impl Fn(&TabularData) -> [usize; 2] + Sync,
     family: &[&str],
     seed_tag: u64,
     measured: &Measured,
@@ -249,33 +249,36 @@ fn design(
     ];
     let mut all_units = AllUnits::default();
     let mut other_family = 0u32;
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(seed_tag, rep);
         let data = data_for(seed);
         let truths = truth_for(&data);
         let units = designated(&data);
-        let Some((study, result)) = run(data, graph.clone(), query(treatment, outcome), seed)
-        else {
-            tallies.iter_mut().for_each(CoverageTally::skip);
-            continue;
-        };
+        let (study, result) = run(data, graph.clone(), query(treatment, outcome), seed)?;
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
         }
-        let selected = selected_outcome_family(&result, outcome);
+        Some((study, result, truths, units))
+    });
+    for scored in &runs {
+        let Some((study, result, truths, units)) = scored else {
+            tallies.iter_mut().for_each(CoverageTally::skip);
+            continue;
+        };
+        let selected = selected_outcome_family(result, outcome);
         other_family += u32::from(!family.contains(&selected.as_str()));
-        let (effects, intervals) = unit_intervals(&result);
+        let (effects, intervals) = unit_intervals(result);
         assert_eq!(effects.len(), truths.len());
-        all_units.add(&intervals, &truths);
+        all_units.add(&intervals, truths);
         let mean_truth = truths.iter().sum::<f64>() / truths.len() as f64;
         let column = result
             .posterior
             .as_ref()
             .and_then(antecedent::CausalPosterior::effect_column)
             .expect("mean-ITE posterior column");
-        let [reported, at_gate] = posterior_pair(&result, column);
+        let [reported, at_gate] = posterior_pair(result, column);
         for tally in &mut tallies {
-            bind(tally, &study, &result);
+            bind(tally, study, result);
         }
         tallies[0].record(Some(intervals[units[0]]), truths[units[0]]);
         tallies[1].record(Some(intervals[units[1]]), truths[units[1]]);
@@ -320,11 +323,11 @@ fn counterfactual_interaction_bayesian_unit_and_mean_ite_coverage() {
     );
 }
 
-/// Boundary readings of [`counterfactual_interaction_bayesian_unit_and_mean_ite_coverage`],
-/// in tally order (`unit_b0`, `unit_b1`, mean ITE at 0.95, mean ITE at 0.90);
-/// `None` gates the nominal band.
+/// [`counterfactual_interaction_bayesian_unit_and_mean_ite_coverage`] has no
+/// named boundary: every tally at every grid point clears the nominal band
+/// (see [`Measured`]'s doc for the `None` convention).
 const INTERACTION_MEASURED: Measured =
-    [[Some(0.868), None, None], [Some(0.882), None, None], [None, None, None], [None, None, None]];
+    [[None, None, None], [None, None, None], [None, None, None], [None, None, None]];
 
 /// Spline design at `n = 2500`. Units 0 and 1 of each replicate are the
 /// designated units (each an independent draw of `z`).

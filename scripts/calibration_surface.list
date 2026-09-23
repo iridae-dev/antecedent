@@ -22,6 +22,12 @@
 #                      the facet's items, which cannot run the facet's code for
 #                      records that do not carry it. Any other reference, and
 #                      any stale name here, fails `calibration_facets.py check`.
+#   testmod <path>     A reviewed file whose inline `#[cfg(test)] mod name { ... }`
+#                      blocks hold unit-test scaffolding, not measurement (or that
+#                      is itself a `#[cfg(test)] mod name;` file): an edit confined
+#                      to them is not a change to the surface. No record's test or
+#                      dgp may live in the file; `calibration_facets.py check`
+#                      refuses one that does, and a suite file.
 #
 # Cargo.toml / Cargo.lock are compared with workspace version numbers removed:
 # a release bump is not interval theory, but a feature, profile or external
@@ -46,6 +52,7 @@ key estimator.bayesian_mediation estimator temporal.mediation.bayesian
 estimator.conditional crates/antecedent-estimate/src/conditional.rs
 key estimator.conditional estimator conditional.linear.*
 estimator.frontdoor crates/antecedent-estimate/src/frontdoor.rs
+estimator.frontdoor crates/antecedent-estimate/src/frontdoor_functional.rs
 key estimator.frontdoor estimator frontdoor.*
 estimator.functional crates/antecedent-estimate/src/functional_distribution.rs
 key estimator.functional estimator functional.*
@@ -53,6 +60,12 @@ estimator.glm crates/antecedent-estimate/src/glm_adjustment.rs
 key estimator.glm estimator glm.*
 estimator.iv crates/antecedent-estimate/src/iv.rs
 key estimator.iv estimator iv.*
+estimator.learner crates/antecedent-estimate/src/causal_forest.rs
+estimator.learner crates/antecedent-estimate/src/dml.rs
+estimator.learner crates/antecedent-estimate/src/dr.rs
+key estimator.learner estimator dml
+key estimator.learner estimator dr.learner
+key estimator.learner estimator causal.forest
 estimator.mediation crates/antecedent-estimate/src/static_mediation.rs
 key estimator.mediation estimator mediation.*
 estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighting.rs
@@ -82,6 +95,9 @@ estimator.interference crates/antecedent-stats/src/interference.rs
 key estimator.interference estimator interference.*
 estimator.transport crates/antecedent-estimate/src/transport.rs
 key estimator.transport estimator transport.*
+estimator.transport_empirical crates/antecedent-estimate/src/empirical_table.rs
+estimator.transport_empirical crates/antecedent-estimate/src/statistical_transport.rs
+key estimator.transport_empirical estimator transport.empirical_table_plugin
 
 # ---- identification paths --------------------------------------------------
 identity.backdoor crates/antecedent-identify/src/backdoor.rs
@@ -184,7 +200,7 @@ key mechanism estimator gcm.*
 # ChangeAttribution, MechanismChange, UnitChange}: exactly the `key` queries.
 allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution execute_anomaly execute_change_attribution execute_counterfactual execute_mechanism_change execute_unit_change
 # Sibling re-exports of the gcm entry points; every caller is checked by name.
-allow mechanism crates/antecedent/src/analysis/execute/mod.rs anomaly_attribution attribute_distribution_change attribute_unit_change attribution_path counterfactual_ite fit_gcm fit_gcm_counterfactual gcm map_mechanism_fit mechanism_change_detection
+allow mechanism crates/antecedent/src/analysis/execute/mod.rs anomaly_attribution_with attribute_distribution_change attribute_unit_change attribution_path counterfactual_ite fit_gcm fit_gcm_counterfactual gcm map_mechanism_fit mechanism_change_detection
 # Result slots and payload enum variants holding the facet's outputs (types only).
 allow mechanism crates/antecedent/src/analysis/execute/execute_helpers.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
 allow mechanism crates/antecedent/src/analysis/helpers.rs AnomalyScores ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
@@ -192,6 +208,11 @@ allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttributionR
 # CausalQuery::ChangeAttribution / a `unit_change` field: core names the facet shares.
 allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution unit_change
 allow mechanism crates/antecedent/src/support.rs ChangeAttribution
+# Reviewed transport-only name collision: these private `assignments` helpers
+# encode antecedent_expr::Assignment values into (u32, ValueWire) records. They
+# neither import nor call mechanism fitting; both paths remain in the core facet.
+allow mechanism crates/antecedent/src/analysis/exact.rs assignments
+allow mechanism crates/antecedent/src/analysis/transport_grid.rs assignments
 # `From` conversions of the facet crates' error types.
 allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualError ModelError antecedent_attribution antecedent_counterfactual antecedent_model
 # `pub mod gcm;`.
@@ -218,7 +239,7 @@ allow design crates/antecedent/src/lib.rs design
 registry_mirror crates/antecedent-io/src/coverage_records_data.rs
 registry_mirror crates/antecedent-core/src/reason_codes_data.rs
 allow registry_mirror crates/antecedent-core/src/reason_code.rs REASON_CODES RUNTIME_REFUSAL_CODES
-allow registry_mirror crates/antecedent-io/src/calibration.rs CoverageGridPoint CoverageRecord REASON_CODES RECORDS coverage_records_data
+allow registry_mirror crates/antecedent-io/src/calibration.rs ATTESTING_RECORD_IDS CoverageGridPoint CoverageRecord REASON_CODES RECORDS coverage_records_data
 allow registry_mirror crates/antecedent-io/src/contract_section.rs CoverageRecord coverage_records_data
 allow registry_mirror crates/antecedent-io/src/lib.rs coverage_records_data
 allow registry_mirror crates/antecedent/src/lib.rs INTERVAL_METHOD_REASONS RECORDS coverage_records_data
@@ -246,3 +267,13 @@ suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_tempora
 suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
 suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
 suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
+suite.v20_transport_statistical_calibration crates/antecedent/tests/v20_transport_statistical_calibration.rs
+
+# Learner adapters and their dependency choices can move nuisance predictions.
+core crates/antecedent-learn/
+core crates/antecedent-learn-burn/
+
+# ---- files whose inline unit tests are scaffolding, not measurement ---------
+testmod crates/antecedent-prob/src/hmc.rs
+testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
+testmod crates/antecedent-validate/src/tests.rs

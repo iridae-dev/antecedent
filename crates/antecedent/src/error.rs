@@ -116,10 +116,10 @@ pub enum CausalError {
     Estimate(#[from] EstimationError),
     /// Validation / refutation failed.
     #[error(transparent)]
-    Validate(#[from] ValidationError),
+    Validate(ValidationError),
     /// Discovery failed.
     #[error(transparent)]
-    Discovery(#[from] DiscoveryError),
+    Discovery(DiscoveryError),
     /// Structural / probabilistic model failure.
     #[error(transparent)]
     Model(#[from] ModelError),
@@ -128,7 +128,7 @@ pub enum CausalError {
     Counterfactual(#[from] CounterfactualError),
     /// Attribution failed.
     #[error(transparent)]
-    Attribution(#[from] AttributionError),
+    Attribution(AttributionError),
     /// Artifact serialization / deserialization.
     #[error(transparent)]
     Serialization(#[from] IoError),
@@ -246,6 +246,55 @@ pub enum CausalError {
         /// Failure detail.
         message: String,
     },
+}
+
+/// Stage id reported on a [`CausalError::Cancelled`] raised while refuting /
+/// running predictive checks. Matches `analysis::stage::STAGE_VALIDATE`'s value.
+const STAGE_VALIDATE: &str = "validate";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by a standalone
+/// discovery call (outside the `AverageEffect` progressive-execute pipeline,
+/// which has no discovery stage of its own).
+const STAGE_DISCOVER: &str = "discover";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by a standalone
+/// attribution call (Shapley allocation, root-cause ranking).
+const STAGE_ATTRIBUTE: &str = "attribute";
+
+/// Cooperative cancellation and resource refusals are non-scientific facade
+/// outcomes, not refutation/discovery/attribution findings, so they are
+/// pulled out of the blanket stage conversion before it wraps everything else.
+/// [`CausalError::blocker_id`] relies on this to mark them correctly.
+impl From<ValidationError> for CausalError {
+    fn from(error: ValidationError) -> Self {
+        match error {
+            ValidationError::Cancelled => Self::Cancelled { stage: STAGE_VALIDATE },
+            ValidationError::Discovery(DiscoveryError::Cancelled) => {
+                Self::Cancelled { stage: STAGE_VALIDATE }
+            }
+            ValidationError::Discovery(DiscoveryError::Resource(message)) => {
+                Self::Resource { message }
+            }
+            other => Self::Validate(other),
+        }
+    }
+}
+
+impl From<DiscoveryError> for CausalError {
+    fn from(error: DiscoveryError) -> Self {
+        match error {
+            DiscoveryError::Cancelled => Self::Cancelled { stage: STAGE_DISCOVER },
+            DiscoveryError::Resource(message) => Self::Resource { message },
+            other => Self::Discovery(other),
+        }
+    }
+}
+
+impl From<AttributionError> for CausalError {
+    fn from(error: AttributionError) -> Self {
+        match error {
+            AttributionError::Cancelled => Self::Cancelled { stage: STAGE_ATTRIBUTE },
+            other => Self::Attribution(other),
+        }
+    }
 }
 
 /// Build a [`CausalError::Unsupported`] refusal carrying a registered
@@ -387,6 +436,7 @@ impl CausalError {
         let message = match self {
             Self::Compile { message } | Self::NotIdentified { message, .. } => message.as_str(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
+            Self::Estimate(EstimationError::Refused { code, .. }) => return Some(code),
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
@@ -464,3 +514,94 @@ const _: () = assert!(
     is_runtime_refusal_code("effect_not_identified"),
     "`effect_not_identified` is not a runtime_refusal code in parity/reason_codes.toml"
 );
+
+#[cfg(test)]
+mod tests {
+    use super::{AttributionError, CausalError, DiscoveryError, ValidationError};
+
+    // A cancellation token fired mid-refuter, mid-discovery, or mid-Shapley
+    // computation must surface at the facade boundary as `CausalError::Cancelled`,
+    // not as the stage's scientific error kind — a caller filtering on
+    // `except CausalCancelledError` (or `blocker_id().scientific`) would otherwise
+    // never see it, and a `CausalValidateError`/`CausalDiscoveryError` would wrongly
+    // read as a refutation/discovery finding.
+
+    #[test]
+    fn validate_cancelled_is_top_level_cancelled_not_validate() {
+        let error = CausalError::from(ValidationError::Cancelled);
+        assert!(
+            matches!(error, CausalError::Cancelled { stage: "validate" }),
+            "expected top-level Cancelled, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn validate_wrapped_discovery_cancelled_is_top_level_cancelled() {
+        // A stability refuter runs discovery internally; its cancellation must not
+        // be reported as the outer refutation's own scientific failure either.
+        let error = CausalError::from(ValidationError::Discovery(DiscoveryError::Cancelled));
+        assert!(
+            matches!(error, CausalError::Cancelled { stage: "validate" }),
+            "expected top-level Cancelled, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn validate_wrapped_discovery_resource_is_top_level_resource() {
+        let error =
+            CausalError::from(ValidationError::Discovery(DiscoveryError::Resource("cap".into())));
+        assert!(
+            matches!(error, CausalError::Resource { ref message } if message == "cap"),
+            "expected top-level Resource, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn discovery_cancelled_is_top_level_cancelled_not_discovery() {
+        let error = CausalError::from(DiscoveryError::Cancelled);
+        assert!(
+            matches!(error, CausalError::Cancelled { stage: "discover" }),
+            "expected top-level Cancelled, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn discovery_resource_is_top_level_resource_not_discovery() {
+        let error = CausalError::from(DiscoveryError::Resource("budget exceeded".into()));
+        assert!(
+            matches!(error, CausalError::Resource { ref message } if message == "budget exceeded"),
+            "expected top-level Resource, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn attribution_cancelled_is_top_level_cancelled_not_attribution() {
+        let error = CausalError::from(AttributionError::Cancelled);
+        assert!(
+            matches!(error, CausalError::Cancelled { stage: "attribute" }),
+            "expected top-level Cancelled, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn non_cancellation_stage_errors_still_wrap_as_the_scientific_kind() {
+        assert!(matches!(
+            CausalError::from(ValidationError::NotApplicable { message: "n/a" }),
+            CausalError::Validate(ValidationError::NotApplicable { .. })
+        ));
+        assert!(matches!(
+            CausalError::from(DiscoveryError::unsupported("nope")),
+            CausalError::Discovery(DiscoveryError::Unsupported { .. })
+        ));
+        assert!(matches!(
+            CausalError::from(AttributionError::UnknownPlayer),
+            CausalError::Attribution(AttributionError::UnknownPlayer)
+        ));
+    }
+}

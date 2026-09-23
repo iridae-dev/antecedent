@@ -1,5 +1,7 @@
 # CI / orientation / kNN baselines
 
+Commit: ab88e55b (the commit that added this file; the measured commit was not written down)
+
 Established: 2026-07-21
 Machine class: Apple M1 (arm64), 64 GB
 Criterion: `--quick` sample (refresh with full Criterion for gate decisions)

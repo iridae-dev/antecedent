@@ -35,6 +35,22 @@ impl Dag {
         }
     }
 
+    /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
+    ///
+    /// # Errors
+    ///
+    /// Window larger than the node-id space.
+    pub fn from_unfolding(indexer: &antecedent_core::TemporalIndexer) -> Result<Self, GraphError> {
+        let mut g = Self::empty();
+        for dense in 0..indexer.dense_len() {
+            let key = indexer
+                .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
+                .map_err(|_| GraphError::TooManyNodes)?;
+            g.add_node(NodeRef::Unfolded { variable: key.variable, offset: key.offset })?;
+        }
+        Ok(g)
+    }
+
     /// Build a DAG with one static node per variable `0..n`.
     #[must_use]
     pub fn with_variables(n: u32) -> Self {
@@ -88,8 +104,10 @@ impl Dag {
     ///
     /// [`GraphError::TooManyNodes`] on overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
-        if !matches!(node, NodeRef::Static(_)) {
-            return Err(GraphError::InvalidEndpoints { message: "Dag accepts only Static nodes" });
+        if !node.is_static_graph_node() {
+            return Err(GraphError::InvalidEndpoints {
+                message: "Dag accepts only Static or Unfolded nodes",
+            });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
@@ -140,16 +158,16 @@ impl Dag {
         self.parents[to.as_usize()].retain(|p| *p != from);
     }
 
-    /// Children of `id`.
+    /// Children of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.children[id.as_usize()]
+        self.children.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
-    /// Parents of `id`.
+    /// Parents of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.parents[id.as_usize()]
+        self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
     /// Whether `from` can reach `to` via directed edges.
@@ -401,9 +419,7 @@ impl DagReview {
     /// Accept a pending directed edge (no-op if absent).
     #[must_use]
     pub fn accept_edge(mut self, from: VariableId, to: VariableId) -> Self {
-        let pending: Vec<_> =
-            self.pending_edges.iter().copied().filter(|e| *e != (from, to)).collect();
-        self.pending_edges = Arc::from(pending);
+        self.pending_edges = crate::types::without_pending(&self.pending_edges, (from, to));
         self
     }
 

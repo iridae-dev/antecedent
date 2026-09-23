@@ -9,14 +9,22 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
 - **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
-  crates.io publish dry-run when manifests change).
+  crates.io publish dry-run when manifests change). Three lints that can hide a
+  real defect (`cast_possible_truncation`, `cast_sign_loss`, `float_cmp`) are
+  never allowed file-wide in library code: an allow sits on the smallest item or
+  statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
+- **`features`** — compiles the feature combinations crates.io users get (default
+  features, each optional feature alone, `--no-default-features`), which the
+  workspace-wide jobs never build because the `python` member enables `ml-full`
+  and `ml-neural`.
+- **`deny`** — `cargo deny check` (licenses, advisories, sources).
 - **`gates`** — first the calibration attestation
   (`scripts/gate_calibration_attestation.sh`, seconds), then
   `scripts/gate_release.sh`, which runs the parity-manifest schema check,
   provenance and metadata checks, support-matrix and evidence checks, feature
   gates, artifact tests, and Criterion benchmark smokes.
-- **`python-lint`** — Ruff, mypy, and pytest with an 85% coverage floor after
-  building the native extension.
+- **`python-lint`** — `scripts/gate_python_lint.sh` (Ruff, mypy), then pytest with an
+  85% coverage floor after building the native extension.
 - **`python-wheels`** — builds and tests the supported wheel matrix.
 
 **Statistical calibration is measured on a development machine before you push,
@@ -45,6 +53,7 @@ bash scripts/gate_response_calibration.sh
 bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
 bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
+bash scripts/gate_transport.sh     # transport stage contracts; every fixture family runs a positive and a counterexample
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
@@ -97,11 +106,12 @@ a record that failed at any point is `scope_not_assessed` /
 coverage; outside the range it is `scope_not_assessed` /
 `sample_size_outside_measured_range`. Nothing is extrapolated.
 
-A named boundary asserts its measured coverage at the base point with
-`CoverageTally::assert_boundary(m)` and is recorded, not gated, at the other
-points; once those points are measured, `assert_boundary_at([m0, m1, m2])`
-holds each point to its own value (`None` gates a point at nominal). A gated
-design that fails at one point is named the boundary it measures the same way.
+A named boundary asserts its measured coverage at every grid point with
+`CoverageTally::assert_boundary_at([Some(m0), Some(m1), Some(m2)])`, so a
+regression at any point fails (`None` gates a point at nominal). The values come
+from the gate's own deterministic seeds: the band is a change detector around
+the measured level, not a claim about the true coverage. A gated design that
+fails at one point is named the boundary it measures the same way.
 
 A wiring smoke run (`ANTECEDENT_CALIBRATION_SMOKE=1` with a small
 `ANTECEDENT_CALIBRATION_NSIM`) never gates and flags its lines
@@ -239,7 +249,8 @@ per-point timings replace them.
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
 `calibration` / `calibration_reason` pair on every licensed cell and estimator
-row, and regenerates `crates/antecedent-io/src/coverage_records_data.rs`.
+row (a licensed cell whose every reported-level record is a boundary also states
+`calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io/src/coverage_records_data.rs`.
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
 logs measured at another commit, pass `--sha <commit>`. After you edit
 `scripts/calibration_surface.list`, `collect_coverage_records.py --retag`
@@ -291,14 +302,15 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 
 ## Release candidates
 
-For 1.11, the independent [practitioner acceptance suite](practitioner-acceptance.md)
-is an additional cut requirement. Run its Python and Rust jobs and both scale
+The independent [practitioner acceptance suite](practitioner-acceptance.md)
+is an additional cut requirement for this 2.0.0 tree. Run its Python and Rust jobs and both scale
 sizes against the candidate, and close its leftover ledger. It remains outside
 `gate_release.sh`; passing the commands below alone does not discharge S.
 
 `gate_release.sh` is the PR inventory; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
-tagging). It needs one input:
+tagging). It refuses a dirty tree, `SKIP_PRIOR_GATES`, `SKIP_PYTHON_SMOKE` and
+`ALLOW_SKIP_PYTHON_SMOKE`, and requires `cargo-deny`. It needs one input:
 
 ```bash
 CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
@@ -309,8 +321,8 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   the commit being cut (`gh run list --workflow ci.yml --commit "$(git rev-parse HEAD)"`).
   The gate reads it with `gh run view <id> --json headSha,jobs` and requires
   every job id listed in `parity/release.toml` `required_jobs` to have
-  succeeded. Job ids are `ci.yml` keys (`rust`, `gates`, `python-lint`,
-  `python-wheels`); a run reports display names instead, one per matrix
+  succeeded. Job ids are `ci.yml` keys (`rust`, `features`, `deny`, `gates`,
+  `python-lint`, `python-wheels`); a run reports display names instead, one per matrix
   combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
@@ -321,10 +333,13 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   wheel (outside `python/`, so the source tree cannot shadow it).
 
 Each gate that decides a release has a `--self-test` mode that feeds it
-deliberately broken input and requires a failure: `gate_composition.sh`,
+deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
-`gate_release_candidate.sh` and `gate_calibration_attestation.sh`.
-`gate_release.sh` runs all of them.
+`gate_release_candidate.sh` and `gate_calibration_attestation.sh`, plus the
+citation, reachability, metadata and support-matrix gates.
+`scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and
+runs a whole gate, so it takes tens of minutes and is run on demand (after
+changing a gate or its cases), not by `gate_release.sh` or CI.
 
 ## Python lint / types
 
@@ -397,10 +412,12 @@ Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
 Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
-`antecedent-prob/hmc`. `antecedent-prob/smc` is an empty feature that enables no
-backend, and there is no `simd-runtime` feature, so `KernelPolicy::allow_arch_simd`
-always selects the portable kernels. Ingest and exchange adapters are optional
-features and never reshape core types.
+`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
+declared (the HMC backend is always compiled), and there is no `simd-runtime`
+feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
+Ingest and exchange adapters are optional features and never reshape core types.
+CI compiles the feature combinations crates.io users get (default features, each
+optional feature alone, `--no-default-features`) in the `features` job.
 
 ## Unsafe / deps
 
@@ -412,7 +429,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **1.11.0**).
+Workspace and Python package version are kept in sync (currently **2.0.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -434,8 +451,8 @@ committing. The generator rewrites live licensed-cell markers only in
 
 ## Releases
 
-Keep the changelog under **Unreleased** until a cut is approved and
-its date is known. A package version bump is not proof that a release has been
+Keep the changelog's section for the version in preparation headed
+`## X.Y.Z — draft` until a cut is approved and its date is known. A package version bump is not proof that a release has been
 published.
 
 Before merging the release PR:
@@ -464,9 +481,11 @@ Before merging the release PR:
 7. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the dated 1.11.0 changelog section is present, Unreleased
-is empty, its comparison link is `v1.10.0...HEAD` until `v1.11.0` exists, and
-release-status text matches the cut. Coverage records must be attested at
+Before tagging, confirm the changelog section for the version being cut is
+dated (`## X.Y.Z — <date>`, no longer `draft`), the release notes named by
+`docs/release-notes/preparation.toml` (or the workspace version) are current,
+the supported-versions table in `SECURITY.md` and the version in `CITATION.cff`
+name that version, and release-status text matches the cut. Coverage records must be attested at
 HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
@@ -475,17 +494,17 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 `scripts/set_version.sh` before maturin.
 
 ```bash
-# Optional: bump and commit on main first
-bash scripts/set_version.sh 1.11.0
+# Optional: bump and commit on main first (X.Y.Z is the version being cut)
+bash scripts/set_version.sh X.Y.Z
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -s -m "chore: bump version to 1.11.0"
+git commit -s -m "chore: bump version to X.Y.Z"
 
 # Tag current (or just-bumped) version and push
 CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_candidate.sh
-git push origin v1.11.0
+git push origin vX.Y.Z
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -521,9 +540,11 @@ bash scripts/publish_crates.sh
 bash scripts/publish_crates.sh --execute
 ```
 
-Tag workflow [`.github/workflows/publish-crates.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-crates.yml)
-runs on `v*` tags (and `workflow_dispatch`) separately from the Python
-`publish-release.yml` wheel pipeline. Set repository secret `CRATES_IO_TOKEN`.
+The `crates-dry-run` and `publish-crates` jobs of
+[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
+publish the crates as part of the same tagged release as the wheels: every crate is
+dry-run before PyPI is touched, and the upload runs after PyPI succeeded, in the
+`release` environment. Set repository secret `CRATES_IO_TOKEN`.
 
 Checklist before the first public crate release:
 
@@ -539,4 +560,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.11.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `vX.Y.Z` for the version being cut (or bump first) to cut wheels + PyPI (+ crates.io with token).

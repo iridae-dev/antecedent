@@ -10,10 +10,14 @@
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    clippy::fn_params_excessive_bools,
-    clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss
+    clippy::fn_params_excessive_bools
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 mod artifact_api;
@@ -30,6 +34,8 @@ mod graph_build;
 mod graph_io;
 mod graphs;
 mod identification_details;
+mod interrupt;
+mod learned_trial_api;
 mod observation_api;
 mod prepared_api;
 mod prepared_options;
@@ -39,7 +45,10 @@ mod stability;
 mod state_api;
 mod temporal_api;
 mod temporal_license;
+mod transport_exact_api;
+mod transport_grid_api;
 mod transport_interference_api;
+mod transport_statistical_api;
 
 pub(crate) use ate_api::{
     GraphEdge, ate_result_from_analysis, panel_discovery_builder, panel_multi_dataset_constraints,
@@ -94,11 +103,14 @@ use antecedent::discovery::{
     RegimeAssignment, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
     discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
     discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
-    discover_lpcmci as facade_discover_lpcmci, discover_notears as facade_discover_notears,
-    discover_pc as facade_discover_pc, discover_pcmci as facade_discover_pcmci,
-    discover_pcmci_plus as facade_discover_pcmci_plus, discover_rfci as facade_discover_rfci,
-    discover_rpcmci as facade_discover_rpcmci, pag_definite_directed_edge_count,
-    two_regime_half_split,
+    discover_lpcmci as facade_discover_lpcmci,
+    discover_lpcmci_panel as facade_discover_lpcmci_panel,
+    discover_notears as facade_discover_notears, discover_pc as facade_discover_pc,
+    discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
+    discover_pcmci_plus as facade_discover_pcmci_plus,
+    discover_pcmci_plus_panel as facade_discover_pcmci_plus_panel,
+    discover_rfci as facade_discover_rfci, discover_rpcmci as facade_discover_rpcmci,
+    pag_definite_directed_edge_count, two_regime_half_split,
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
 use antecedent::estimate::{TemporalLinearPredictor, TemporalMediationEstimator};
@@ -292,13 +304,7 @@ pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
 /// Build the Python exception for a refusal, carrying its `reason=<code>:` prefix.
 fn unsupported_py_err(message: String) -> PyErr {
     // A support-matrix refusal renders its verdict first: `refused: reason=<code>: …`.
-    let reason = antecedent_core::reason_code::split_prefix(&message)
-        .or_else(|| {
-            message
-                .split_once(": ")
-                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
-        })
-        .map(|(code, _)| code.to_string());
+    let reason = reason_code_in_message(&message).map(str::to_string);
     Python::attach(|py| {
         let err: PyErr = UNSUPPORTED_ERROR_CLASS
             .get(py)
@@ -534,122 +540,142 @@ fn panic_payload_msg(payload: &(dyn Any + Send)) -> String {
     }
 }
 
-/// Release the GIL for native work and convert any panic into [`CausalError`].
+/// Release the GIL for native work, convert any panic into [`CausalError`], and let Ctrl-C in the
+/// calling thread cancel the run (see [`interrupt`]).
 pub(crate) fn detach_catch<F, T>(py: Python<'_>, f: F) -> PyResult<T>
 where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
 {
-    py.detach(|| catch_ffi(f))
+    interrupt::run(py, f)
+}
+
+/// The registered reason code a converted [`RustCausalError`] carries, if it has one.
+///
+/// The one owner of which native refusal raises which code: [`IntoCausalPyErr`] attaches
+/// exactly this, so a caller reads `reason_code` off the exception and never parses the
+/// message. A code the error names in its own `reason=<code>:` message wins over the
+/// variant's default; an unregistered code is never attached.
+fn reason_code_of(error: &RustCausalError) -> Option<String> {
+    use antecedent_core::reason_code;
+    let message = error.to_string();
+    let named = reason_code_in_message(&message)
+        .filter(|code| reason_code::is_registered(code))
+        .map(str::to_string);
+    let default = match error {
+        RustCausalError::Graph(e) => Some(if matches!(e, GraphError::UnknownVariableName { .. }) {
+            reason_code!("unknown_variable")
+        } else {
+            reason_code!("graph_invalid")
+        }),
+        RustCausalError::Schema(
+            SchemaError::UnknownVariableName { .. } | SchemaError::UnknownVariableId { .. },
+        ) => Some(reason_code!("unknown_variable")),
+        RustCausalError::SchemaMismatch { .. } => Some(reason_code!("schema_mismatch")),
+        RustCausalError::NotIdentified { .. } => Some(reason_code!("effect_not_identified")),
+        RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
+        // A matrix refusal without a finer registered code carries the code of its cell verdict.
+        RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
+            reason_code!("cell_not_applicable")
+        } else {
+            reason_code!("cell_not_licensed")
+        }),
+        RustCausalError::Missing { .. } => Some(reason_code!("required_option_missing")),
+        RustCausalError::Conflict { .. } => Some(reason_code!("invalid_argument")),
+        _ => None,
+    };
+    named.or_else(|| default.map(str::to_string))
+}
+
+/// The registered-shape `reason=<code>:` a message opens with, directly or after one
+/// `<label>: ` (a matrix refusal renders its verdict first: `refused: reason=<code>: ...`).
+fn reason_code_in_message(message: &str) -> Option<&str> {
+    antecedent_core::reason_code::split_prefix(message)
+        .or_else(|| {
+            message
+                .split_once(": ")
+                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
+        })
+        .map(|(code, _)| code)
 }
 
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
-        match self {
-            Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
-            // A reason-coded estimator refusal is the one refusal class, as a Rust
-            // `Unsupported` refusal is.
-            Self::Estimate(
-                e @ (antecedent_estimate::EstimationError::Refused { .. }
-                | antecedent_estimate::EstimationError::TargetPopulation),
-            ) => unsupported_py_err(e.to_string()),
-            Self::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
-            Self::Validate(e) => CausalValidateError::new_err(e.to_string()),
-            Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
-            Self::Model(e) => CausalModelError::new_err(e.to_string()),
-            Self::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
-            Self::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
-            Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
-            Self::Data(e) => CausalDataError::new_err(e.to_string()),
-            Self::Graph(e) => {
-                let code = if matches!(e, GraphError::UnknownVariableName { .. }) {
-                    antecedent_core::reason_code!("unknown_variable")
-                } else {
-                    antecedent_core::reason_code!("graph_invalid")
-                };
-                with_reason_code(CausalGraphError::new_err(e.to_string()), code)
-            }
-            Self::Design(e) => CausalDesignError::new_err(e.to_string()),
-            Self::Callback { name, message } => {
-                CausalDesignError::new_err(format!("callback {name}: {message}"))
-            }
-            Self::State(e) => match &e {
-                antecedent::state::StateError::CacheBudget { .. } => {
-                    CausalResourceError::new_err(e.to_string())
-                }
-                _ => CausalStateError::new_err(e.to_string()),
-            },
-            Self::Schema(e) => {
-                let err = CausalDataError::new_err(e.to_string());
-                match e {
-                    SchemaError::UnknownVariableName { .. }
-                    | SchemaError::UnknownVariableId { .. } => {
-                        with_reason_code(err, antecedent_core::reason_code!("unknown_variable"))
-                    }
-                    _ => err,
-                }
-            }
-            // A structure that does not describe the table is a data problem, and
-            // callers should be able to catch it as one rather than the root class.
-            Self::SchemaMismatch { detail } => with_reason_code(
-                CausalDataError::new_err(detail),
-                antecedent_core::reason_code!("schema_mismatch"),
-            ),
-            Self::Compile { message } => {
-                let code = antecedent_core::reason_code::split_prefix(&message)
-                    .map(|(code, _)| code.to_string());
-                let err = CausalCompileError::new_err(message);
-                match code {
-                    Some(code) => with_reason_code(err, &code),
-                    None => err,
-                }
-            }
-            Self::NotIdentified { status, search_capped, message } => {
-                not_identified_py_err(status.as_str(), search_capped, message)
-            }
-            Self::Resource { message } => CausalResourceError::new_err(message),
-            Self::ReviewRequired {
-                kind,
-                algorithm,
-                pending_edge_count,
-                pending_edges,
-                message,
-                hint,
-            } => review_required_py_err(
-                kind,
-                algorithm,
-                pending_edge_count,
-                pending_edges,
-                message,
-                hint,
-            ),
-            Self::Unsupported { message } => with_default_reason_code(
-                unsupported_py_err(message.to_string()),
-                antecedent_core::reason_code!("route_not_supported"),
-            ),
-            Self::Support { id, message } => {
-                // A matrix refusal without a finer registered code carries the
-                // code of its cell verdict.
-                let code = match antecedent_core::reason_code::split_prefix(message) {
-                    Some((code, _)) => code,
-                    None if id.as_str() == "not_applicable" => {
-                        antecedent_core::reason_code!("cell_not_applicable")
-                    }
-                    None => antecedent_core::reason_code!("cell_not_licensed"),
-                };
-                with_default_reason_code(unsupported_py_err(format!("{id}: {message}")), code)
-            }
-            Self::Missing { field } => {
-                CausalCompileError::new_err(format!("missing required field: {field}"))
-            }
-            Self::Cancelled { stage } => {
-                CausalCancelledError::new_err(format!("cancelled during {stage}"))
-            }
-            // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
-            // hierarchy root rather than failing the build. Give new variants an explicit
-            // arm above when their Python-facing category is decided.
-            ref other => CausalError::new_err(other.to_string()),
+        let code = reason_code_of(&self);
+        let err = uncoded_py_err(self);
+        match code {
+            Some(code) => with_default_reason_code(err, &code),
+            None => err,
         }
+    }
+}
+
+/// The Python exception of an error's class, before its reason code is attached (see
+/// [`reason_code_of`]).
+fn uncoded_py_err(error: RustCausalError) -> PyErr {
+    match error {
+        RustCausalError::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
+        // A reason-coded estimator refusal is the one refusal class, as a Rust
+        // `Unsupported` refusal is.
+        RustCausalError::Estimate(
+            e @ (antecedent_estimate::EstimationError::Refused { .. }
+            | antecedent_estimate::EstimationError::TargetPopulation),
+        ) => unsupported_py_err(e.to_string()),
+        RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
+        RustCausalError::Validate(e) => CausalValidateError::new_err(e.to_string()),
+        RustCausalError::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
+        RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
+        RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
+        RustCausalError::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
+        RustCausalError::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
+        RustCausalError::Data(e) => CausalDataError::new_err(e.to_string()),
+        RustCausalError::Graph(e) => CausalGraphError::new_err(e.to_string()),
+        RustCausalError::Design(e) => CausalDesignError::new_err(e.to_string()),
+        RustCausalError::Callback { name, message } => {
+            CausalDesignError::new_err(format!("callback {name}: {message}"))
+        }
+        RustCausalError::State(e) => match &e {
+            antecedent::state::StateError::CacheBudget { .. } => {
+                CausalResourceError::new_err(e.to_string())
+            }
+            _ => CausalStateError::new_err(e.to_string()),
+        },
+        // A structure that does not describe the table is a data problem, and
+        // callers should be able to catch it as one rather than the root class.
+        RustCausalError::Schema(e) => CausalDataError::new_err(e.to_string()),
+        RustCausalError::SchemaMismatch { detail } => CausalDataError::new_err(detail),
+        RustCausalError::Compile { message } => CausalCompileError::new_err(message),
+        RustCausalError::NotIdentified { status, search_capped, message } => {
+            not_identified_py_err(status.as_str(), search_capped, message)
+        }
+        RustCausalError::Resource { message } => CausalResourceError::new_err(message),
+        RustCausalError::ReviewRequired {
+            kind,
+            algorithm,
+            pending_edge_count,
+            pending_edges,
+            message,
+            hint,
+        } => review_required_py_err(
+            kind,
+            algorithm,
+            pending_edge_count,
+            pending_edges,
+            message,
+            hint,
+        ),
+        RustCausalError::Unsupported { message } => unsupported_py_err(message.to_string()),
+        RustCausalError::Support { id, message } => unsupported_py_err(format!("{id}: {message}")),
+        RustCausalError::Missing { field } => {
+            CausalCompileError::new_err(format!("missing required field: {field}"))
+        }
+        RustCausalError::Cancelled { stage } => {
+            CausalCancelledError::new_err(format!("cancelled during {stage}"))
+        }
+        // `CausalError` is `#[non_exhaustive]`: any variant added upstream maps to the
+        // hierarchy root rather than failing the build. Give new variants an explicit
+        // arm above when their Python-facing category is decided.
+        ref other => CausalError::new_err(other.to_string()),
     }
 }
 
@@ -748,7 +774,7 @@ pub(crate) fn public_adjustment_set(
 }
 
 /// Scalar identified set `[lower, upper]` of a class-aware result and its
-/// interval: endpoints, level, construction, and truncation flag (1.9, C-3).
+/// interval: endpoints, level, construction, and truncation flag (C-3).
 #[derive(Default)]
 pub(crate) struct IdentifiedSetFields {
     pub set: Option<(f64, f64)>,
@@ -1149,7 +1175,7 @@ impl RefutationReportView {
 // `StudyResult →` section builder; facades only attach modality extras (ATE
 // posterior artifacts, temporal mediation grids). Nested sections mirror
 // `antecedent.results._views`. Flat fields stay in place and are filled from
-// the same builder so 1.9 fields (`structural_identified_set_interval`,
+// the same builder so identified-set interval fields (`structural_identified_set_interval`,
 // `distribution.mean_interval`) have a single owner.
 
 /// Identification section (mirrors `antecedent.results.IdentificationView`).
@@ -1250,6 +1276,26 @@ pub(crate) struct EstimateSection {
     /// outcome (the probability `P(Y = 1 | do(x))`). `None` otherwise.
     #[pyo3(get)]
     mean_interval: Option<ProbabilityIntervalSection>,
+    /// Per-row CATE when a heterogeneous-effect estimator produced one.
+    #[pyo3(get)]
+    cate: Option<Vec<f64>>,
+    /// Licensed pointwise CATE standard errors, when computed.
+    #[pyo3(get)]
+    cate_se: Option<Vec<f64>>,
+    /// Forest leaf-dispersion diagnostic per row. Not a standard error.
+    #[pyo3(get)]
+    cate_leaf_dispersion: Option<Vec<f64>>,
+    /// Actual fitted learner spec, implementation and version, in fit order.
+    #[pyo3(get)]
+    outcome_oof_r2: Option<f64>,
+    #[pyo3(get)]
+    treatment_oof_logloss: Option<f64>,
+    #[pyo3(get)]
+    crossfit_folds: Option<usize>,
+    #[pyo3(get)]
+    crossfit_seed: Option<u64>,
+    #[pyo3(get)]
+    learner_provenance: Vec<(String, String, String)>,
 }
 
 /// Bounded interval for one interventional probability, or the reason none
@@ -1544,6 +1590,19 @@ pub(crate) fn shared_study_sections(
         evalue_threshold: result.estimate.evalue_threshold,
         distribution_atoms,
         mean_interval,
+        cate: result.estimate.cate.as_ref().map(|c| c.to_vec()),
+        cate_se: result.estimate.cate_se.as_ref().map(|c| c.to_vec()),
+        cate_leaf_dispersion: result.estimate.cate_leaf_dispersion.as_ref().map(|c| c.to_vec()),
+        outcome_oof_r2: result.estimate.outcome_oof_r2,
+        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
+        crossfit_folds: result.estimate.crossfit_folds,
+        crossfit_seed: result.estimate.crossfit_seed,
+        learner_provenance: result
+            .estimate
+            .learner_provenance
+            .iter()
+            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
+            .collect(),
     };
     let (
         posterior_effect_mean,
@@ -1597,6 +1656,12 @@ pub(crate) fn shared_study_sections(
     };
     let (evidence_status, allowlist_reason, allowlist_parent) =
         evidence_status_parts(result.support_status);
+    // A query with no matrix cell (mechanism / unit change) is off the axis by design; say so
+    // rather than leaving a reader to mistake it for a licensed cell that was never stamped.
+    let evidence_status = match (evidence_status, result.support_status) {
+        (None, None) => Some("off_axis".to_owned()),
+        (status, _) => status,
+    };
     let structural = result.structural_response.as_ref();
     Ok(SharedStudySections {
         identification,
@@ -1874,7 +1939,6 @@ struct PosteriorArtifact {
     q025: Vec<f64>,
     #[pyo3(get)]
     q975: Vec<f64>,
-    #[pyo3(get)]
     draws: Vec<f64>,
     #[pyo3(get)]
     backend_id: String,
@@ -1901,6 +1965,13 @@ struct PosteriorArtifact {
 
 #[pymethods]
 impl PosteriorArtifact {
+    /// Posterior draws as a float64 array (one memcpy, no boxed floats). `numpy.asarray(artifact)`
+    /// views the same storage through the buffer protocol without copying at all.
+    #[getter]
+    fn draws<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        PyArray1::from_slice(py, &self.draws)
+    }
+
     #[new]
     #[pyo3(signature = (
         n_draws,
@@ -2167,23 +2238,33 @@ pub(crate) fn columns_to_batch(
         return Err(PyValueError::new_err("at least one column required"));
     }
     let n = columns[0].as_array().len();
-    for col in columns {
-        if col.as_array().len() != n {
-            return Err(PyValueError::new_err("column length mismatch"));
+    for (i, col) in columns.iter().enumerate() {
+        let len = col.as_array().len();
+        if len != n {
+            return Err(PyValueError::new_err(format!(
+                "column length mismatch: '{}' has length {}, '{}' has length {}",
+                names[0], n, names[i], len
+            )));
         }
     }
     let fields: Vec<Field> =
         names.iter().map(|nm| Field::new(nm, DataType::Float64, true)).collect();
     let schema = Schema::new(fields);
-    // Contiguous copy from NumPy buffers (no Option-per-element intermediate).
+    // One pass into the Arrow values buffer. NumPy has no validity bitmap (NaN is its
+    // missing-value sentinel), so the Option-per-element route is taken only for a column that
+    // actually holds a NaN.
     let arrays: Vec<Arc<dyn arrow_array::Array>> = columns
         .iter()
         .map(|c| {
-            let slice = c.as_array();
-            // NumPy has no validity bitmap: NaN is its missing-value sentinel.
-            let values: Vec<Option<f64>> =
-                slice.iter().map(|&v| (!v.is_nan()).then_some(v)).collect();
-            Arc::new(Float64Array::from(values)) as Arc<dyn arrow_array::Array>
+            let view = c.as_array();
+            let array = if view.iter().any(|v| v.is_nan()) {
+                Float64Array::from(
+                    view.iter().map(|&v| (!v.is_nan()).then_some(v)).collect::<Vec<Option<f64>>>(),
+                )
+            } else {
+                Float64Array::from_iter_values(view.iter().copied())
+            };
+            Arc::new(array) as Arc<dyn arrow_array::Array>
         })
         .collect();
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
@@ -2363,6 +2444,17 @@ pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext 
     py_execution_context_ext(seed, threads, None, None, Some(PY_DEFAULT_CACHE_MAX_BYTES))
 }
 
+/// [`py_execution_context`] honouring an optional caller token.
+pub(crate) fn py_execution_context_cancel(
+    seed: u64,
+    threads: u32,
+    cancel: Option<PyCancellationToken>,
+) -> ExecutionContext {
+    let mut ctx = py_execution_context(seed, threads);
+    apply_cancel(&mut ctx, cancel);
+    ctx
+}
+
 pub(crate) fn py_execution_context_ext(
     seed: u64,
     threads: u32,
@@ -2372,11 +2464,30 @@ pub(crate) fn py_execution_context_ext(
 ) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, threads);
     ctx.cache_policy = CachePolicy::enabled(cache_max_bytes);
-    if let Some(token) = cancel {
-        ctx.cancellation = token;
-    }
+    install_cancellation(&mut ctx, cancel);
     ctx.progress = progress;
     ctx
+}
+
+/// Install the caller's cancellation token on `ctx`; Ctrl-C also fires it (or, with no token, the
+/// run's own).
+pub(crate) fn apply_cancel(ctx: &mut ExecutionContext, cancel: Option<PyCancellationToken>) {
+    install_cancellation(ctx, cancel.map(|token| token.inner));
+}
+
+fn install_cancellation(
+    ctx: &mut ExecutionContext,
+    cancel: Option<antecedent_core::CancellationToken>,
+) {
+    if let Some(token) = cancel {
+        interrupt::link(&token);
+        ctx.cancellation = token;
+    } else if let Some(token) = interrupt::ambient_token() {
+        ctx.cancellation = token;
+    } else {
+        // Built ahead of the detached call: the token joins the run that executes this context.
+        interrupt::link(&ctx.cancellation);
+    }
 }
 
 /// Cooperative cancellation token shared with a running analysis.
@@ -2416,6 +2527,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     response_api::register(m)?;
     temporal_license::register(m)?;
     transport_interference_api::register(m)?;
+    transport_exact_api::register(m)?;
+    transport_grid_api::register(m)?;
+    transport_statistical_api::register(m)?;
+    learned_trial_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
@@ -2450,6 +2565,14 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// Inference settings the transport query modalities apply when a caller omits them.
+pub(crate) mod transport_defaults {
+    /// Bootstrap replicates of a statistical transport query.
+    pub(crate) const BOOTSTRAP: u32 = 199;
+    /// Central coverage level of a statistical transport interval.
+    pub(crate) const COVERAGE_LEVEL: f64 = 0.95;
+}
+
 /// The study builder's omitted-default table, read from the builder itself.
 ///
 /// `bootstrap` applies on resampling routes (the builder omits it on static and
@@ -2472,6 +2595,24 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     // Draw budgets belong to the Bayesian backend constructors.
     dict.set_item("n_draws", BayesianConfig::laplace().n_draws)?;
     dict.set_item("n_draws_hmc", BayesianConfig::hmc().n_draws)?;
+    // Keyword defaults the native signatures repeat as literals; a test compares them here.
+    dict.set_item("discovery_alpha", antecedent::discovery_defaults::DEFAULT_ALPHA)?;
+    dict.set_item(
+        "discovery_max_cond_size",
+        antecedent::discovery_defaults::DEFAULT_MAX_COND_SIZE,
+    )?;
+    dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
+    // Propensity overlap default shared by every propensity-score estimator.
+    let antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } =
+        antecedent_estimate::default_propensity_overlap()
+    else {
+        unreachable!("the default propensity overlap policy requires diagnostics");
+    };
+    dict.set_item("overlap_clip", clip)?;
+    dict.set_item("overlap_trim", trim)?;
+    // Inference settings of the transport query modalities.
+    dict.set_item("transport_bootstrap", transport_defaults::BOOTSTRAP)?;
+    dict.set_item("transport_coverage_level", transport_defaults::COVERAGE_LEVEL)?;
     Ok(dict.into())
 }
 
@@ -2590,6 +2731,70 @@ mod tests {
         assert!(result.reports.is_empty());
         assert_eq!(result.computation_failures[0].validator, "overlap");
         assert_eq!(result.computation_failures[0].reason, "singular fit");
+    }
+
+    /// Every refusal-shaped `CausalError` variant raises one registered reason code, taken
+    /// from its own `reason=<code>:` message when it names one and from its variant
+    /// otherwise; a code the vocabulary does not list is never attached.
+    #[test]
+    fn every_native_refusal_variant_names_its_registered_reason_code() {
+        use super::{RustCausalError as E, reason_code_of};
+        use antecedent::support::SupportRefusal;
+        use antecedent_core::{IdentificationStatus, SchemaError};
+        use antecedent_graph::GraphError;
+
+        let named =
+            format!("{}data_modality_not_licensed: panel", antecedent_core::reason_code::PREFIX);
+        let unregistered =
+            format!("{}not_a_registered_code: x", antecedent_core::reason_code::PREFIX);
+        let cases: Vec<(E, Option<&str>)> = vec![
+            (
+                E::Graph(GraphError::UnknownVariableName { name: "a".into() }),
+                Some("unknown_variable"),
+            ),
+            (E::Graph(GraphError::Cycle { from: 0, to: 1 }), Some("graph_invalid")),
+            (
+                E::Schema(SchemaError::UnknownVariableName { name: "a".into() }),
+                Some("unknown_variable"),
+            ),
+            (E::Schema(SchemaError::UnknownVariableId { id: 3 }), Some("unknown_variable")),
+            (E::Schema(SchemaError::TooManyVariables), None),
+            (E::SchemaMismatch { detail: "x".into() }, Some("schema_mismatch")),
+            (
+                E::NotIdentified {
+                    status: IdentificationStatus::NotIdentified,
+                    search_capped: false,
+                    message: "no estimand".into(),
+                },
+                Some("effect_not_identified"),
+            ),
+            (E::Unsupported { message: "no such route" }, Some("route_not_supported")),
+            (
+                E::Support { id: SupportRefusal::NotApplicable, message: "typed-impossible" },
+                Some("cell_not_applicable"),
+            ),
+            (
+                E::Support { id: SupportRefusal::Refused, message: "not licensed" },
+                Some("cell_not_licensed"),
+            ),
+            (E::Missing { field: "outcome" }, Some("required_option_missing")),
+            (E::Conflict { what: "seed", detail: "set once" }, Some("invalid_argument")),
+            // A message that names its own registered code wins over the variant default.
+            (E::Compile { message: named.clone() }, Some("data_modality_not_licensed")),
+            (
+                E::Unsupported { message: "refused: reason=cell_not_licensed: x" },
+                Some("cell_not_licensed"),
+            ),
+            // An unregistered code is not attached; the variant default stands.
+            (E::Compile { message: unregistered }, None),
+            (E::Compile { message: "plain compile failure".into() }, None),
+            (E::Resource { message: "memory".into() }, None),
+            (E::Cancelled { stage: "estimate" }, None),
+        ];
+        for (error, expected) in cases {
+            let label = error.to_string();
+            assert_eq!(reason_code_of(&error).as_deref(), expected, "{label}");
+        }
     }
 
     #[test]

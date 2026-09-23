@@ -2,19 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::similar_names,
-    clippy::many_single_char_names,
-    clippy::unreadable_literal,
-    clippy::cast_possible_truncation,
-    clippy::unnecessary_wraps
+#![allow(clippy::needless_range_loop, clippy::unreadable_literal, clippy::unnecessary_wraps)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use crate::cluster::{
     MAX_CLUSTER_DIMENSIONS, bartlett_weight, effective_nw_lag, intern_cluster_tuples,
-    multiway_subset_masks, panel_hac_meat_matrix,
+    multiway_subset_masks, panel_hac_meat_matrix, validate_panel_hac,
 };
 use crate::error::StatsError;
 use crate::gram::{form_xtx, invert_square};
@@ -52,12 +51,20 @@ pub enum SandwichKind<'a> {
     /// Lag products use explicit integer `time` labels within each unit.
     /// Cross-unit lag products are never formed. Finite-sample cluster DF
     /// correction uses `G = #units`.
+    ///
+    /// `lag = 0` is **not** "no serial correlation": it is the full Arellano cluster meat
+    /// `Σ_g s_g s_g'`, which keeps every within-unit cross product at weight 1 and so allows
+    /// arbitrary within-unit dependence. `lag = L ≥ 1` is a Bartlett-truncated within-unit HAC
+    /// (weights `1 − ℓ/(L_eff+1) < 1`, lags beyond `L_eff` dropped) and therefore accounts
+    /// for *less* dependence than `lag = 0`. A requested lag above the panel's widest time
+    /// span is capped; see [`crate::panel_effective_lag`]. `(unit, time)` must be unique at
+    /// every lag.
     PanelClusterHac {
         /// Unit id per row (length `nrows`).
         groups: &'a [u32],
         /// Calendar / index time per row (length `nrows`); unique with `groups`.
         time: &'a [i64],
-        /// Bartlett max lag within each unit.
+        /// Bartlett max lag within each unit (`0` = full cluster meat, see above).
         lag: usize,
     },
 }
@@ -83,12 +90,17 @@ pub fn coefficient_covariance(
 /// Score / GLM sandwich: meat from score multipliers `u_i` (`s_i = u_i x_i`),
 /// bread `(XᵀWX)⁻¹` with diagonal Fisher weights `w`.
 ///
-/// For identity-Gaussian with `u = y−μ` and `w = 1` this matches
+/// For identity-Gaussian with `u = y−μ` and `w = 1` and a robust `kind` this matches
 /// [`coefficient_covariance`]. Does not refit.
+///
+/// [`SandwichKind::Homoskedastic`] is refused on this path: the model-based GLM covariance
+/// is `φ (XᵀWX)⁻¹` and this function has no dispersion `φ`, so returning the bare Fisher
+/// bread would silently assume `φ = 1`. Callers with a known dispersion scale the bread
+/// themselves; every other kind is dispersion-free.
 ///
 /// # Errors
 ///
-/// Shape mismatch, empty design, or singular bread matrix.
+/// Shape mismatch, empty design, singular bread matrix, or `Homoskedastic`.
 pub fn score_coefficient_covariance(
     x_colmajor: &[f64],
     nrows: usize,
@@ -99,6 +111,12 @@ pub fn score_coefficient_covariance(
 ) -> Result<Vec<f64>, StatsError> {
     if fisher_weights.len() != nrows {
         return Err(StatsError::Shape { message: "fisher_weights length != nrows" });
+    }
+    if matches!(kind, SandwichKind::Homoskedastic) {
+        return Err(StatsError::Shape {
+            message: "score covariance has no Homoskedastic form: it needs a dispersion, \
+                      use a robust kind or scale (X'WX)^-1 by the model dispersion",
+        });
     }
     sandwich_from_multipliers(
         x_colmajor,
@@ -147,8 +165,11 @@ fn sandwich_from_multipliers(
     match kind {
         SandwichKind::Homoskedastic => {
             if fisher_weights.is_some() {
-                // GLM classical SE uses Fisher bread alone (dispersion folded elsewhere).
-                return Ok(bread);
+                // Unreachable through the public entry points (the score path refuses
+                // `Homoskedastic`); a bare Fisher bread would assume dispersion 1.
+                return Err(StatsError::Shape {
+                    message: "homoskedastic covariance needs a dispersion on the score path",
+                });
             }
             if nrows <= ncols {
                 return Err(StatsError::Shape { message: "non-positive residual df" });
@@ -197,8 +218,10 @@ fn sandwich_from_multipliers(
             if time.len() != nrows {
                 return Err(StatsError::Shape { message: "panel HAC time length != nrows" });
             }
-            // lag = 0 is Arellano/cluster meat (Σ_g s_g s_g'), not White Σ u_it².
+            // lag = 0 is Arellano/cluster meat (Σ_g s_g s_g'), not White Σ u_it². The same
+            // (unit, time) uniqueness contract applies as for lag ≥ 1.
             if lag == 0 {
+                validate_panel_hac(multipliers, groups, time)?;
                 let meat = cluster_meat(x_colmajor, nrows, ncols, multipliers, groups)?;
                 let g = distinct_count(groups);
                 let scale = cluster_finite_sample(nrows, ncols, g)?;
@@ -233,6 +256,9 @@ fn form_xtwx(x_colmajor: &[f64], nrows: usize, ncols: usize, w: &[f64], xtwx: &m
     }
 }
 
+/// A leverage within this distance of 1 is treated as exactly 1 (HC2/HC3 undefined).
+const LEVERAGE_SATURATION: f64 = 1e-8;
+
 fn hc_meat(
     x_colmajor: &[f64],
     nrows: usize,
@@ -244,7 +270,30 @@ fn hc_meat(
 ) -> Result<Vec<f64>, StatsError> {
     let hat = match kind {
         SandwichKind::Hc2 | SandwichKind::Hc3 => {
-            Some(leverages(x_colmajor, nrows, ncols, bread, fisher_weights))
+            let hat = leverages(x_colmajor, nrows, ncols, bread, fisher_weights);
+            // `h_ii = 1` (a row that alone identifies a coefficient, e.g. its own dummy)
+            // makes the residual exactly 0 and the `e²/(1−h)` adjustment 0/0: the estimator
+            // is undefined there. Clamping `h` would inflate rounding-noise residuals by
+            // `1/(1−h)²`, so refuse instead and name the rows.
+            let saturated: Vec<usize> = (0..nrows)
+                .filter(|&i| {
+                    hat[i]
+                        .partial_cmp(&(1.0 - LEVERAGE_SATURATION))
+                        .is_none_or(std::cmp::Ordering::is_gt)
+                })
+                .collect();
+            if !saturated.is_empty() {
+                let shown: Vec<String> =
+                    saturated.iter().take(5).map(ToString::to_string).collect();
+                return Err(StatsError::Backend(format!(
+                    "HC2/HC3 are undefined for {} row(s) with leverage 1 (rows {}{}); \
+                     use HC0/HC1 or drop the saturated rows",
+                    saturated.len(),
+                    shown.join(", "),
+                    if saturated.len() > shown.len() { ", …" } else { "" },
+                )));
+            }
+            Some(hat)
         }
         _ => None,
     };
@@ -254,11 +303,11 @@ fn hc_meat(
         let adj = match kind {
             SandwichKind::Hc0 | SandwichKind::Hc1 => e * e,
             SandwichKind::Hc2 => {
-                let h = hat.as_ref().unwrap()[i].clamp(0.0, 1.0 - 1e-12);
+                let h = hat.as_ref().unwrap()[i].max(0.0);
                 (e * e) / (1.0 - h)
             }
             SandwichKind::Hc3 => {
-                let h = hat.as_ref().unwrap()[i].clamp(0.0, 1.0 - 1e-12);
+                let h = hat.as_ref().unwrap()[i].max(0.0);
                 let d = 1.0 - h;
                 (e * e) / (d * d)
             }
@@ -381,21 +430,39 @@ fn multiway_meat(
             abs_diag[j] += (sign * scale * part[j * ncols + j]).abs();
         }
     }
-    // Fail closed on material negative diagonal (same tolerance as scalar IE).
-    for j in 0..ncols {
-        let v = meat[j * ncols + j];
-        if v < 0.0 {
-            let tol = 64.0 * f64::EPSILON * abs_diag[j];
-            if (-v) <= tol {
-                meat[j * ncols + j] = 0.0;
-            } else {
-                return Err(StatsError::NonPositiveVariance {
-                    message: "multiway inclusion-exclusion meat is materially negative",
-                });
-            }
+    // CGM meat can be indefinite with nonnegative diagonals; refuse rather than
+    // project onto the PSD cone (downstream SE clamps would otherwise publish 0).
+    ensure_multiway_meat_psd(&meat, ncols, &abs_diag)?;
+    Ok(meat)
+}
+
+/// Refuse a multiway meat with any eigenvalue materially below zero.
+///
+/// Tolerance is `64 ε` times the scale of the diagonal (max absolute IE
+/// contribution to any diagonal entry), matching scalar inclusion–exclusion.
+/// Matrices that are PSD within that tolerance are left unchanged.
+fn ensure_multiway_meat_psd(
+    meat: &[f64],
+    ncols: usize,
+    abs_diag: &[f64],
+) -> Result<(), StatsError> {
+    if ncols == 0 {
+        return Ok(());
+    }
+    let mat = faer::Mat::<f64>::from_fn(ncols, ncols, |r, c| meat[r * ncols + c]);
+    let eigs = mat
+        .self_adjoint_eigenvalues(faer::Side::Lower)
+        .map_err(|_| StatsError::Backend("multiway meat eigendecomposition failed".into()))?;
+    let scale = abs_diag.iter().copied().fold(0.0_f64, f64::max);
+    let tol = 64.0 * f64::EPSILON * scale;
+    for &lam in &eigs {
+        if lam < -tol {
+            return Err(StatsError::NonPositiveVariance {
+                message: "multiway inclusion-exclusion meat is not positive semidefinite",
+            });
         }
     }
-    Ok(meat)
+    Ok(())
 }
 
 fn newey_west_meat(
@@ -526,7 +593,7 @@ mod tests {
                     1,
                     &[1.0, -1.0],
                     &[bad, 2.0],
-                    SandwichKind::Homoskedastic
+                    SandwichKind::Hc0
                 )
                 .is_err()
             );
@@ -534,15 +601,56 @@ mod tests {
     }
 
     #[test]
-    fn hc0_matches_manual_two_row() {
-        // X = [1,0; 1,1], y residuals e = [1, -1]
-        let x = vec![1.0, 1.0, 0.0, 1.0]; // col-major 2×2
-        let e = vec![1.0, -1.0];
-        let cov = coefficient_covariance(&x, 2, 2, &e, SandwichKind::Hc0).unwrap();
-        assert!(cov[0].is_finite() && cov[3].is_finite());
-        // Diagonal entries positive.
-        assert!(cov[0] > 0.0);
-        assert!(cov[3] > 0.0);
+    fn hc0_intercept_only_is_sum_squares_over_n_squared() {
+        // X = 1, bread = 1/n, meat = Σe²: Var = Σe² / n² = 10.5 / 36.
+        let e = [1.0, 2.0, -1.0, -2.0, 0.5, 0.5];
+        let x = vec![1.0; 6];
+        let cov = coefficient_covariance(&x, 6, 1, &e, SandwichKind::Hc0).unwrap();
+        assert!((cov[0] - 10.5 / 36.0).abs() < 1e-14, "{}", cov[0]);
+    }
+
+    #[test]
+    fn cluster_intercept_only_matches_closed_form() {
+        // Cluster sums S = [3, −3, 1]; G = 3, p = 1 ⇒ factor G/(G−1) · (n−1)/(n−p) = 1.5.
+        // Var = 1.5 · ΣS² / n² = 1.5 · 19 / 36 = 19/24.
+        let e = [1.0, 2.0, -1.0, -2.0, 0.5, 0.5];
+        let groups = [0u32, 0, 1, 1, 2, 2];
+        let x = vec![1.0; 6];
+        let cov = coefficient_covariance(&x, 6, 1, &e, SandwichKind::Cluster { groups: &groups })
+            .unwrap();
+        assert!((cov[0] - 19.0 / 24.0).abs() < 1e-14, "{}", cov[0]);
+    }
+
+    #[test]
+    fn cluster_two_column_matches_hand_sandwich() {
+        // X rows (1,0),(1,1),(1,2),(1,3); e = [1,−.5,.25,−.75]; clusters {0,1},{2,3}.
+        // Cluster score sums (.5,−.5) and (−.5,−1.75); meat = [[.5,.625],[.625,3.3125]];
+        // factor G/(G−1)·(n−1)/(n−p) = 2 · 3/2 = 3; bread = [[.7,−.3],[−.3,.2]].
+        let x = vec![1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
+        let e = vec![1.0, -0.5, 0.25, -0.75];
+        let groups = [0u32, 0, 1, 1];
+        let cov = coefficient_covariance(&x, 4, 2, &e, SandwichKind::Cluster { groups: &groups })
+            .unwrap();
+        let expected = [0.841875, -0.48, -0.48, 0.3075];
+        for (g, w) in cov.iter().zip(expected) {
+            assert!((g - w).abs() < 1e-12, "got {cov:?} expected {expected:?}");
+        }
+    }
+
+    #[test]
+    fn two_way_intercept_only_matches_inclusion_exclusion() {
+        // e = 1..4, A = {01|23}, B = {02|13}. Each subset uses its own G and the factor
+        // G/(G−1) (p = 1): V_A = 2·(3²+7²) = 116, V_B = 2·(4²+6²) = 104,
+        // V_AB (G = 4, singleton cells) = 4/3 · 30 = 40 ⇒ meat = 180, Var = 180/16.
+        let x = vec![1.0; 4];
+        let e = [1.0, 2.0, 3.0, 4.0];
+        let dim_a = [0u32, 0, 1, 1];
+        let dim_b = [0u32, 1, 0, 1];
+        let dims: [&[u32]; 2] = [&dim_a, &dim_b];
+        let cov =
+            coefficient_covariance(&x, 4, 1, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap();
+        assert!((cov[0] - 11.25).abs() < 1e-13, "{}", cov[0]);
     }
 
     #[test]
@@ -569,18 +677,111 @@ mod tests {
     }
 
     #[test]
-    fn newey_west_finite() {
-        let n = 30usize;
-        let mut x = vec![0.0; n * 2];
-        let mut e = vec![0.0; n];
-        for i in 0..n {
-            x[i] = 1.0;
-            x[n + i] = i as f64;
-            e[i] = ((i % 3) as f64) - 1.0;
+    fn newey_west_intercept_only_matches_closed_form() {
+        // e = [1,2,3], lag 1: Γ₀ = 14, Γ₁ = 2 + 6 = 8, Bartlett weight 1 − 1/2.
+        // meat = 14 + 2 · 0.5 · 8 = 22; Var = 22 / 3².
+        let x = vec![1.0; 3];
+        let e = [1.0, 2.0, 3.0];
+        let cov = coefficient_covariance(&x, 3, 1, &e, SandwichKind::NeweyWest { lag: 1 }).unwrap();
+        assert!((cov[0] - 22.0 / 9.0).abs() < 1e-14, "{}", cov[0]);
+    }
+
+    #[test]
+    fn panel_hac_intercept_only_matches_closed_form() {
+        // Units e = [1,2,3] and [1,−1,2] at t = 0,1,2; Σe² = 20. Lag 1 (weight ½):
+        // products 2+6 and −1−2 sum to 5 ⇒ meat 20 + 2·½·5 = 25; G = 2 ⇒ factor 2;
+        // Var = 50/36. Lag 0 is the full cluster meat (6² + 2²)·2 = 80 ⇒ 80/36, which is
+        // *larger* than lag 1: lag 0 keeps all cross products at weight 1.
+        let x = vec![1.0; 6];
+        let e = [1.0, 2.0, 3.0, 1.0, -1.0, 2.0];
+        let groups = [0u32, 0, 0, 1, 1, 1];
+        let time = [0i64, 1, 2, 0, 1, 2];
+        let at = |lag| {
+            coefficient_covariance(
+                &x,
+                6,
+                1,
+                &e,
+                SandwichKind::PanelClusterHac { groups: &groups, time: &time, lag },
+            )
+            .unwrap()[0]
+        };
+        assert!((at(1) - 50.0 / 36.0).abs() < 1e-14, "{}", at(1));
+        assert!((at(0) - 80.0 / 36.0).abs() < 1e-14, "{}", at(0));
+    }
+
+    #[test]
+    fn panel_hac_lag_zero_rejects_duplicate_unit_time() {
+        let x = vec![1.0; 4];
+        let e = [1.0, 2.0, 3.0, 4.0];
+        let groups = [0u32, 0, 1, 1];
+        let time = [0i64, 0, 0, 1]; // (unit 0, time 0) twice
+        for lag in [0usize, 1] {
+            let err = coefficient_covariance(
+                &x,
+                4,
+                1,
+                &e,
+                SandwichKind::PanelClusterHac { groups: &groups, time: &time, lag },
+            )
+            .unwrap_err();
+            assert!(err.to_string().contains("unique (cluster, time)"), "lag={lag} err={err}");
         }
-        let cov = coefficient_covariance(&x, n, 2, &e, SandwichKind::NeweyWest { lag: 2 }).unwrap();
-        assert!(cov.iter().all(|v| v.is_finite()));
-        assert!(cov[0] > 0.0);
+    }
+
+    #[test]
+    fn panel_hac_time_labels_at_i64_min_do_not_overflow() {
+        // `time − ℓ` would overflow at i64::MIN. Units e = [1,2] and [3,4] at (MIN, MIN+1):
+        // lag-1 products 2 and 12, weight ½ ⇒ meat 30 + 14 = 44; G = 2 ⇒ 88; Var = 88/16.
+        let x = vec![1.0; 4];
+        let e = [1.0, 2.0, 3.0, 4.0];
+        let groups = [0u32, 0, 1, 1];
+        let time = [i64::MIN, i64::MIN + 1, i64::MIN, i64::MIN + 1];
+        let cov = coefficient_covariance(
+            &x,
+            4,
+            1,
+            &e,
+            SandwichKind::PanelClusterHac { groups: &groups, time: &time, lag: 1 },
+        )
+        .unwrap();
+        assert!((cov[0] - 5.5).abs() < 1e-13, "{}", cov[0]);
+    }
+
+    #[test]
+    fn panel_effective_lag_reports_the_cap() {
+        let groups = [0u32, 0, 1, 1];
+        let time = [0i64, 3, 0, 1];
+        assert_eq!(crate::panel_effective_lag(&groups, &time, 10), 3);
+        assert_eq!(crate::panel_effective_lag(&groups, &time, 2), 2);
+    }
+
+    #[test]
+    fn hc2_hc3_refuse_saturated_leverage() {
+        // Row 0 is the only one with d = 1, so it carries its own dummy: h₀₀ = 1 and its
+        // residual is 0. HC2/HC3 are 0/0 there; HC0/HC1 remain defined.
+        let x = vec![1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        let e = [0.0, 0.3, -0.1, -0.2];
+        for kind in [SandwichKind::Hc2, SandwichKind::Hc3] {
+            let err = coefficient_covariance(&x, 4, 2, &e, kind).unwrap_err();
+            assert!(err.to_string().contains("leverage 1 (rows 0"), "kind={kind:?} err={err}");
+        }
+        assert!(coefficient_covariance(&x, 4, 2, &e, SandwichKind::Hc0).is_ok());
+    }
+
+    #[test]
+    fn score_path_refuses_homoskedastic_without_dispersion() {
+        let x = vec![1.0; 4];
+        let err = score_coefficient_covariance(
+            &x,
+            4,
+            1,
+            &[0.1, -0.2, 0.3, -0.1],
+            &[1.0; 4],
+            SandwichKind::Homoskedastic,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("dispersion"), "err={err}");
     }
 
     #[test]
@@ -771,6 +972,50 @@ mod tests {
             coefficient_covariance(&x, n, 1, &e, SandwichKind::Multiway { dimensions: &dims })
                 .unwrap_err();
         assert!(err.to_string().contains("at least 2 clusters"), "err={err}");
+    }
+
+    #[test]
+    fn multiway_refuses_indefinite_two_way_meat() {
+        // Two-way IE meat with nonnegative diagonals but a negative eigenvalue
+        // (indefinite). Diagonals alone would pass; full PSD check must refuse.
+        let n = 8usize;
+        let x = vec![
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, // intercept
+            0.0625, 0.1875, 0.3125, 0.4375, 0.5625, 0.6875, 0.8125, 0.9375,
+        ];
+        let e = [-1.5, -1.25, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25];
+        let dim_a = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let dim_b = [0u32, 1, 0, 1, 0, 1, 0, 1];
+        let dims: [&[u32]; 2] = [&dim_a, &dim_b];
+        let err =
+            coefficient_covariance(&x, n, 2, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                StatsError::NonPositiveVariance {
+                    message: "multiway inclusion-exclusion meat is not positive semidefinite"
+                }
+            ),
+            "err={err}"
+        );
+    }
+
+    #[test]
+    fn multiway_one_way_cluster_remains_psd() {
+        let n = 8usize;
+        let x = vec![
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, // intercept
+            0.0625, 0.1875, 0.3125, 0.4375, 0.5625, 0.6875, 0.8125, 0.9375,
+        ];
+        let e = [-1.5, -1.25, -1.0, -0.75, -0.5, -0.25, 0.0, 0.25];
+        let dim_a = [0u32, 0, 0, 0, 1, 1, 1, 1];
+        let dims: [&[u32]; 1] = [&dim_a];
+        let cov =
+            coefficient_covariance(&x, n, 2, &e, SandwichKind::Multiway { dimensions: &dims })
+                .unwrap();
+        assert!(cov.iter().all(|v| v.is_finite()));
+        assert!(cov[0] > 0.0 && cov[3] > 0.0);
     }
 
     #[test]

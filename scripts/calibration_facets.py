@@ -68,6 +68,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LIST = ROOT / "scripts" / "calibration_surface.list"
 RECORDS = ROOT / "parity" / "coverage_records.toml"
+GATES = ROOT / "parity" / "calibration_gates.toml"
+# Ids of the pseudo-records the record-less group ledger contributes: a group that
+# passed at a commit is attested exactly like a record measured there, but never by
+# a replay waiver (a replay reproduces stored records; a ledger row stores none).
+GATE_PREFIX = "gate."
 
 CORE = "core"
 FACET_NAME = re.compile(r"[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)?")
@@ -165,6 +170,125 @@ def rust_code(text: str) -> str:
     return "".join(out)
 
 
+
+def rust_mask(text: str) -> str:
+    """`text` with comments and string / char literals blanked to spaces, keeping every
+    offset and newline, so braces found in the mask are braces of the code."""
+    out: list[str] = []
+    i, n = 0, len(text)
+
+    def blank(a: int, b: int) -> None:
+        out.append("".join("\n" if c == "\n" else " " for c in text[a:b]))
+
+    while i < n:
+        m = _SPECIAL.search(text, i)
+        if m is None:
+            out.append(text[i:])
+            break
+        start = m.start()
+        tok = m.group(0)
+        if tok.startswith(("r", "b")) and start > 0 and (
+            text[start - 1].isalnum() or text[start - 1] == "_"
+        ):
+            out.append(text[i : start + len(tok) - 1])
+            i = start + len(tok) - 1
+            continue
+        out.append(text[i:start])
+        if tok == "//":
+            end = text.find("\n", start)
+            end = n if end < 0 else end
+            blank(start, end)
+            i = end
+        elif tok == "/*":
+            depth, j = 1, start + 2
+            while j < n and depth:
+                if text.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            j = min(j, n)
+            blank(start, j)
+            i = j
+        elif tok == '"':
+            j = start + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            end = min(j + 1, n)
+            blank(start, end)
+            i = end
+        elif tok == "'":
+            ch = _CHAR.match(text, start)
+            if ch:
+                blank(start, ch.end())
+                i = ch.end()
+            else:  # a lifetime or label
+                out.append("'")
+                i = start + 1
+        else:  # raw string r#"..."#
+            hashes = tok.count("#")
+            end = text.find('"' + "#" * hashes, m.end())
+            end = n if end < 0 else end + 1 + hashes
+            blank(start, end)
+            i = end
+    return "".join(out)
+
+
+_TEST_MOD = re.compile(
+    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{"
+)
+
+
+def strip_test_modules(text: str) -> str:
+    """`text` without its inline `#[cfg(test)] mod name { ... }` blocks.
+
+    Only inline test modules go; a `#[cfg(test)]` item of any other kind, and an
+    out-of-line `mod tests;` (a different file), stay."""
+    mask = rust_mask(text)
+    spans: list[tuple[int, int]] = []
+    pos = 0
+    while (m := _TEST_MOD.search(mask, pos)) is not None:
+        depth, j = 1, m.end()
+        while j < len(mask) and depth:
+            depth += (mask[j] == "{") - (mask[j] == "}")
+            j += 1
+        spans.append((m.start(), j))
+        pos = j
+    out: list[str] = []
+    last = 0
+    for a, b in spans:
+        out.append(text[last:a])
+        last = b
+    out.append(text[last:])
+    return "".join(out)
+
+
+def declares_out_of_line_test_module(rel: str, root: Path | None = None) -> bool:
+    """Whether `rel` is a file that a sibling module declares as `#[cfg(test)] mod stem;`,
+    so the whole file is compiled only into unit-test builds."""
+    root = ROOT if root is None else root
+    path = Path(rel)
+    stem = path.stem
+    parent = root / path.parent
+    candidates = [parent / "lib.rs", parent / "mod.rs", parent / "main.rs"]
+    candidates.append(root / path.parent.parent / f"{path.parent.name}.rs")
+    pattern = re.compile(
+        r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+"
+        + re.escape(stem)
+        + r"\s*;"
+    )
+    for cand in candidates:
+        if cand.is_file() and pattern.search(rust_mask(cand.read_text(errors="ignore"))):
+            return True
+    return False
+
+
+def scaffolding_view(rel: str, text: str) -> str:
+    """`text` as the calibration surface sees a testmod file: without its inline test
+    modules, or empty when the whole file is an out-of-line `#[cfg(test)]` module."""
+    return "" if declares_out_of_line_test_module(rel) else strip_test_modules(text)
+
 _PUB_USE = re.compile(r"^[ \t]*pub(?:\([^)]*\))?[ \t]+use\b([^;]*);", re.M)
 
 
@@ -222,6 +346,7 @@ def anchored_names(code: str, anchor: str) -> tuple[set[str], bool]:
 class Surface:
     entries: list[tuple[str, str]] = field(default_factory=list)  # (facet, path)
     allows: dict[tuple[str, str], set[str]] = field(default_factory=dict)
+    testmods: set[str] = field(default_factory=set)
     keys: list[tuple[str, str, list[str]]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -264,6 +389,13 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
             if key in surface.allows:
                 surface.errors.append(f"{where}: duplicate allow for {parts[1]} {parts[2]}")
             surface.allows[key] = set(parts[3:])
+        elif parts[0] == "testmod":
+            if len(parts) != 2 or not parts[1].endswith(".rs"):
+                surface.errors.append(f"{where}: testmod <path to a .rs file>")
+                continue
+            if parts[1] in surface.testmods:
+                surface.errors.append(f"{where}: duplicate testmod for {parts[1]}")
+            surface.testmods.add(parts[1])
         elif parts[0] == "key":
             if len(parts) < 4 or parts[2] not in RECORD_KEY_FIELDS:
                 surface.errors.append(
@@ -529,6 +661,21 @@ def check(surface: Surface) -> list[str]:
     for (facet, rel), _ in sorted(surface.allows.items()):
         if rel not in refs.by_facet.get(facet, {}):
             problems.append(f"allow {facet} {rel}: the file no longer names {facet} items")
+    hosted = {
+        str(spec).rsplit("::", 1)[0]
+        for rec in load_records()
+        for spec in (rec.get("test", ""), rec.get("dgp", ""))
+        if spec
+    }
+    for rel in sorted(surface.testmods):
+        facet = surface.facet_of(rel)
+        if facet is None:
+            problems.append(f"testmod {rel}: not a path of the calibration surface")
+        elif facet.startswith("suite.") or rel in hosted:
+            problems.append(
+                f"testmod {rel}: a record's test or dgp lives in this file, so its test "
+                "modules are measurement, not scaffolding"
+            )
     return problems
 
 
@@ -541,6 +688,25 @@ def load_records(path: Path = RECORDS) -> list[dict]:
     if not path.is_file():
         return []
     return tomllib.loads(path.read_text()).get("record", [])
+
+
+def load_gate_rows(path: Path = GATES) -> list[dict]:
+    """The record-less calibration groups (CI Type I, uniformity, SBC, ...) as pseudo-records.
+
+    Their logs leave no coverage record, so without this a change to the core facet could
+    never make one of them owe a re-run. Each depends on `core` only: the ledger does not
+    name the suite behind a group, and over-attesting nothing is the safe direction."""
+    if not path.is_file():
+        return []
+    return [
+        {
+            "id": f"{GATE_PREFIX}{row['group']}",
+            "test": "",
+            "dgp": "",
+            "calibration_sha": row["calibration_sha"],
+        }
+        for row in tomllib.loads(path.read_text()).get("gate", [])
+    ]
 
 
 def record_facets(rec: dict, surface: Surface, refs: References | None = None) -> list[str]:
@@ -613,15 +779,29 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
     """Surface paths whose content differs between `sha` and `head` (default: the
     working tree), with workspace version numbers ignored in the manifests."""
     between = [sha] if head is None else [sha, head]
-    diff = _git("diff", "--name-only", *between, "--", *surface.paths)
+    # NUL-separated: a path with a space (or one git would quote) stays one path.
+    diff = _git("diff", "--name-only", "-z", *between, "--", *surface.paths)
     if diff.returncode != 0:
         raise SystemExit(f"git diff {' '.join(between)} failed: {diff.stderr.strip()}")
-    changed = set(diff.stdout.split())
+    changed = {p for p in diff.stdout.split("\0") if p}
     if head is None:
-        untracked = _git("ls-files", "--others", "--exclude-standard", "--", *surface.paths)
-        changed |= set(untracked.stdout.split())
+        untracked = _git("ls-files", "--others", "--exclude-standard", "-z", "--", *surface.paths)
+        changed |= {p for p in untracked.stdout.split("\0") if p}
     kept = []
     for rel in sorted(changed):
+        if rel in surface.testmods:
+            old = _git("show", f"{sha}:{rel}")
+            if head is None:
+                new_text = (ROOT / rel).read_text() if (ROOT / rel).is_file() else None
+            else:
+                new = _git("show", f"{head}:{rel}")
+                new_text = new.stdout if new.returncode == 0 else None
+            if (
+                old.returncode == 0
+                and new_text is not None
+                and scaffolding_view(rel, old.stdout) == scaffolding_view(rel, new_text)
+            ):
+                continue
         if NORMALIZED.search(rel):
             old = _git("show", f"{sha}:{rel}")
             if head is None:
@@ -696,7 +876,7 @@ class FakeRepo(Repo):
 WAIVERS = ROOT / "parity" / "calibration_waivers.toml"
 WAIVER_ID = re.compile(r"[a-z0-9][a-z0-9._-]*")
 # Stored record fields that are bookkeeping, not measurement output.
-NOT_EMITTED = frozenset({"calibration_sha", "facets"})
+NOT_EMITTED = frozenset({"calibration_sha", "facets", "surface_list_blob"})
 LOG_DIR = ROOT / "target" / "calibration-records"
 REPLAY_DIR = ROOT / "target" / "calibration-replay"
 WAIVERS_HEADER = """\
@@ -1171,7 +1351,7 @@ def assess(
                 rid = str(rec.get("id"))
                 if not facets[rid] & drifted.keys():
                     continue
-                for waiver in checked.valid:
+                for waiver in () if rid.startswith(GATE_PREFIX) else checked.valid:
                     if waiver_applies(waiver, resolved, facets[rid], paths, surface, repo):
                         waived[rid] = waiver.id
                         break
@@ -2059,6 +2239,26 @@ def self_test() -> int:
         "fit_gcm" not in code and "a();" in code and "b();" in code and "d::<'a>()" in code,
         "comments and literals are not code; code after them survives",
     )
+    tm = "fn a() { 1 }\n#[cfg(test)]\nmod tests {\n    fn t() { let s = \"}\"; /* } */ }\n}\nfn b() {}\n"
+    expect(
+        strip_test_modules(tm) == "fn a() { 1 }\n\nfn b() {}\n",
+        "an inline test module goes, braces in its strings and comments included",
+    )
+    expect(
+        strip_test_modules(tm.replace("fn a() { 1 }", "fn a() { 2 }")) != strip_test_modules(tm)
+        and strip_test_modules(tm.replace("let s", "let z")) == strip_test_modules(tm),
+        "an edit to production code counts; an edit inside the test module does not",
+    )
+    expect(
+        strip_test_modules("#[cfg(test)]\nmod tests;\nfn a() {}\n") == "#[cfg(test)]\nmod tests;\nfn a() {}\n"
+        and "cfg(test)" in strip_test_modules("#[cfg(test)]\nfn helper() {}\n"),
+        "an out-of-line test module and a cfg(test) function are not stripped",
+    )
+    expect(
+        declares_out_of_line_test_module("crates/antecedent-validate/src/tests.rs")
+        and not declares_out_of_line_test_module("crates/antecedent-validate/src/validator.rs"),
+        "a file declared `#[cfg(test)] mod name;` is test-only; a production file is not",
+    )
     refs = references(base)
     counterfactual = {
         "test": "crates/antecedent/tests/v19_static_calibration.rs::t",
@@ -2093,11 +2293,18 @@ def self_test() -> int:
         if est.startswith("gcm."):
             continue
         got = [f for f in record_facets(rec, base) if f.startswith("estimator.")]
-        if len(got) != 1:
+        # Empirical transport intentionally carries both the shared transport
+        # surface and its empirical fitting/bootstrap surface. Keep both
+        # attestation obligations; an exact-one assertion predates this route.
+        if est == "transport.empirical_table_plugin":
+            if set(got) != {"estimator.transport", "estimator.transport_empirical"}:
+                split.append((est, got))
+        elif len(got) != 1:
             split.append((est, got))
     expect(
         split == [],
-        "every non-mechanism estimator maps to exactly one estimator facet",
+        "non-mechanism estimators carry their expected estimator facets "
+        "(shared and empirical facets for empirical transport)",
     )
     counterfactual |= {"id": "cf", "calibration_sha": "a" * 40}
     temporal_rec |= {"id": "tp", "calibration_sha": "a" * 40}
@@ -2179,12 +2386,41 @@ def self_test() -> int:
     return 0
 
 
+def widening_problems(base: str) -> list[str]:
+    """How this tree's surface list narrows the list at `base`.
+
+    Attestation compares each record against *today's* list, so re-pointing a
+    file from `core` to a facet no record carries would retroactively attest
+    every record against later edits to that file. A change to the list may
+    therefore only widen it (add paths, or move a path toward `core`) unless the
+    same change carries a replay waiver edit, which is reviewed on its own."""
+    shown = _git("show", f"{base}:scripts/calibration_surface.list")
+    if shown.returncode != 0:
+        return [f"cannot read scripts/calibration_surface.list at {base}: {shown.stderr.strip()}"]
+    old = load_surface(text=shown.stdout)
+    new = load_surface()
+    if _git("diff", "--quiet", base, "--", "parity/calibration_waivers.toml").returncode != 0:
+        return []
+    problems = []
+    for facet, path in old.entries:
+        now = new.facet_of(path)
+        if now is None:
+            problems.append(f"{path} left the calibration surface (was {facet})")
+        elif now not in (facet, CORE):
+            problems.append(f"{path} moved from facet {facet} to {now}, away from {CORE}")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="validate the list and the facet boundaries")
+    p_wide = sub.add_parser(
+        "widening", help="fail when the surface list narrows relative to a base ref"
+    )
+    p_wide.add_argument("base", help="ref holding the list this change is measured against")
     status = sub.add_parser("status", help="report drift since each record's SHA")
     status.add_argument("--require", action="store_true", help="fail unless every record stands")
     sub.add_parser("counts", help="records carrying each facet")
@@ -2206,6 +2442,18 @@ def main() -> int:
         return replay(args.waiver, args.dry_run)
     if args.command == "replay-candidates":
         return replay_candidates(args.start, args.end, args.paths)
+    if args.command == "widening":
+        problems = widening_problems(args.base)
+        for problem in problems:
+            print(f"FAIL: {problem}")
+        if problems:
+            print(
+                "the surface list may only widen in a change without a waiver: a narrower list "
+                "retroactively attests every record against later edits to the file"
+            )
+            return 1
+        print(f"calibration surface list does not narrow relative to {args.base}")
+        return 0
     surface = load_surface()
     if args.command == "check":
         problems = check(surface)
@@ -2225,14 +2473,15 @@ def main() -> int:
         print(
             f"calibration surface: {len(surface.entries)} paths in "
             f"{len(surface.facets)} facets; boundaries hold; "
-            f"{len(waivers)} replay waiver(s) valid"
+            f"{len(waivers)} replay waiver(s) valid; list blob "
+            f"{_git('hash-object', str(LIST)).stdout.strip()[:12]}"
         )
         return 0
     if surface.errors:
         for problem in surface.errors:
             print(f"FAIL: {problem}")
         return 1
-    records = load_records()
+    records = load_records() + load_gate_rows()
     if args.command == "counts":
         refs = references(surface)
         derived = [set(record_facets(rec, surface, refs)) for rec in records]
@@ -2242,7 +2491,18 @@ def main() -> int:
         return 0
     assessments = assess(surface, records)
     if args.command == "stale-tests":
-        print("\n".join(sorted({str(rec["test"]) for a in assessments for rec in a.stale})))
+        print(
+            "\n".join(
+                sorted(
+                    {
+                        str(rec["test"])
+                        for a in assessments
+                        for rec in a.stale
+                        if not str(rec.get("id", "")).startswith(GATE_PREFIX)
+                    }
+                )
+            )
+        )
         return 0
     if args.require:
         return attest(assessments, surface, bool(records))
