@@ -55,7 +55,8 @@ calibration; they may not summarize only the successful estimators.
 ## X1 — Additional restricted-experiment settings
 
 **Question:** Can the studies we actually have identify the target when the
-source cannot experiment on every variable? **Depends on:** T1–T4, T7.
+source cannot experiment on every variable? **Depends on:** the existing
+fixed-graph transport identification and prepared-evidence lifecycle.
 
 - [ ] Implement a named z-transportability contract with controllable-set
       assumptions and its required experimental information family. Keep planned
@@ -68,8 +69,9 @@ source cannot experiment on every variable? **Depends on:** T1–T4, T7.
       reduction's premises, rather than inheriting completeness by algorithm name.
 - [ ] Add positive derivations, theorem-specific obstructions, and catalog-local
       computational failures. An unavailable experiment is not a proof witness.
-- [ ] Execute identified restricted-experiment formulas with T4/T6 providers;
-      add new provider support only with corresponding uncertainty evidence.
+- [ ] Execute identified restricted-experiment formulas with the existing exact
+      and empirical transport providers; add new provider support only with
+      corresponding uncertainty evidence.
 - [ ] Add those restricted-experiment cells to the transport coverage matrix,
       including their source-specific evidence and experiment-availability
       requirements. An identification derivation alone does not license an
@@ -81,12 +83,14 @@ limited multi-source positive/negative cases and exact numerical truth.
 
 **Reference:** [z-transportability](https://arxiv.org/abs/1309.6842) treats
 experiments on controllable subsets and has its own completeness premises.
-Use the limited-experiment reference in T7 for its distinct multi-source setting.
+Use a separately scoped limited-experiment reference for its distinct
+multi-source setting.
 
 ## X2 — Transport under graph and selection uncertainty
 
 **Question:** Which transport claims survive plausible causal structures and
-mechanism differences? **Depends on:** T3, T7–T9.
+mechanism differences? **Depends on:** the existing fixed-graph transport
+certificate, evidence, and execution lifecycle.
 
 - [ ] Define supplied graph/selection scenarios and their shared named variable
       coordinates. License explicit finite sets first; separately assess CPDAG/
@@ -119,7 +123,8 @@ numerical/calibration cases preserving the declared structural semantics.
 ## X3 — Sensitivity to mechanism-invariance violations
 
 **Question:** How much allowed change would overturn the transported conclusion?
-**Depends on:** T2, T6–T8; may start on fixed graphs before X2.
+**Depends on:** the existing fixed-graph transport execution path; may start on
+fixed graphs before X2.
 
 - [ ] Choose an initial bounded sensitivity model on a named mechanism/factor
       scale, with units, feasible parameter domain, and a zero-violation baseline.
@@ -142,9 +147,9 @@ recover the claimed coverage/bounding behavior and expose tipping thresholds.
 ## X4 — Continuous responses and broader statistical providers
 
 **Question:** Can we compute useful transported responses beyond sparse finite
-tables with honest approximation and inference? **Depends on:** T4, T6–T8,
-and the 2.0 learner substrate. Conditional-density/regression providers bind
-through `antecedent-learn`.
+tables with honest approximation and inference? **Depends on:** the existing
+exact/empirical transport providers and the 2.0 learner substrate.
+Conditional-density/regression providers bind through `antecedent-learn`.
 
 - [ ] Define separately continuous point interventions, stochastic interventions,
       smoothed dose responses, and coarsened treatment grids. Record the actual
@@ -187,7 +192,8 @@ convergence/tolerance checks, and calibration for each claimed inferential row.
 ## X5 — Temporal transport
 
 **Question:** Which intervention sequences transfer across populations and time?
-**Depends on:** T1–T9 and accepted temporal 1.x contracts.
+**Depends on:** the existing transport lifecycle and accepted temporal query,
+identification, and execution contracts.
 
 - [ ] Define time-indexed mechanism differences, population and regime identity,
       baseline versus time-varying variables, measurement windows, and initial
@@ -212,8 +218,9 @@ support failure, and dependence-preserving horizon calibration.
 ## X6 — Experiment planning from transport failures
 
 **Question:** Which feasible study would resolve this failure or improve the
-licensed target decision? **Depends on:** T1, T3, T7; X1 for restricted catalogs;
-X2/X3 only for objectives using their uncertainty.
+licensed target decision? **Depends on:** the existing transport certificate and
+evidence lifecycle; X1 for restricted catalogs; X2/X3 only for objectives using
+their uncertainty.
 
 - [ ] Add intervention-and-measurement candidates with environment, feasible
       values, recruitment/sampling design, cost, and constraints to the existing
@@ -283,9 +290,9 @@ small workload where CPU correctly remains the selected or faster route.
 
 **Question:** Which currently unsupported counterfactual query/graph/evidence
 cells can become executable without weakening cross-world, identification, or
-uncertainty claims? **Depends on:** the 2.0 counterfactual engine, T1–T9, and
-X2 where a counterfactual is transported rather than evaluated in one fixed
-population.
+uncertainty claims? **Depends on:** the 2.0 counterfactual engine, the existing
+transport lifecycle, and X2 where a counterfactual is transported rather than
+evaluated in one fixed population.
 
 - [ ] Publish and maintain a counterfactual coverage matrix with axes for query
       family (unit-level, nested, path-specific, and temporal), graph class
