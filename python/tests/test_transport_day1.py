@@ -190,7 +190,11 @@ def test_provider_opt_in_is_explicit():
         provider=transport.LearnedCategorical(),
     )
     assert learned.transport.provider == "learned_categorical"
-    assert list(learned.response.values) == list(result.response.values)
+    # Two providers compute the same probabilities by different arithmetic, so they
+    # agree to rounding (one ulp differs across platforms), not bit for bit.
+    learned_values = [value for row in learned.response.values for value in row]
+    empirical_values = [value for row in result.response.values for value in row]
+    assert learned_values == pytest.approx(empirical_values, rel=1e-12)
 
 
 def test_missing_evidence_inspect_and_unavailable_answer():
