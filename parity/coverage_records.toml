@@ -1374,7 +1374,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::causal_forest_analytic_ci_coverage"
-facets = ["core", "suite.calibration_coverage"]
+facets = ["core", "estimator.learner", "suite.calibration_coverage"]
 calibration_sha = "689900f58b3c5672164997128dfcc4fe336571ff"
 surface_list_blob = "46e59198f0ced3d3c392b45408b253fdeb40c07f"
 
@@ -1410,7 +1410,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::dml_analytic_ci_coverage"
-facets = ["core", "suite.calibration_coverage"]
+facets = ["core", "estimator.learner", "suite.calibration_coverage"]
 calibration_sha = "689900f58b3c5672164997128dfcc4fe336571ff"
 surface_list_blob = "46e59198f0ced3d3c392b45408b253fdeb40c07f"
 
@@ -1446,7 +1446,7 @@ grid = [
 ]
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::dr_learner_analytic_ci_coverage"
-facets = ["core", "suite.calibration_coverage"]
+facets = ["core", "estimator.learner", "suite.calibration_coverage"]
 calibration_sha = "689900f58b3c5672164997128dfcc4fe336571ff"
 surface_list_blob = "46e59198f0ced3d3c392b45408b253fdeb40c07f"
 

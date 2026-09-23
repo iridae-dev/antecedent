@@ -54,6 +54,12 @@ estimator.glm crates/antecedent-estimate/src/glm_adjustment.rs
 key estimator.glm estimator glm.*
 estimator.iv crates/antecedent-estimate/src/iv.rs
 key estimator.iv estimator iv.*
+estimator.learner crates/antecedent-estimate/src/causal_forest.rs
+estimator.learner crates/antecedent-estimate/src/dml.rs
+estimator.learner crates/antecedent-estimate/src/dr.rs
+key estimator.learner estimator dml
+key estimator.learner estimator dr.learner
+key estimator.learner estimator causal.forest
 estimator.mediation crates/antecedent-estimate/src/static_mediation.rs
 key estimator.mediation estimator mediation.*
 estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighting.rs
