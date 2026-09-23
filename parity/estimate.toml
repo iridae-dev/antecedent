@@ -243,7 +243,7 @@ limitations = "frontdoor.linear_two_stage: Exact only under a linear SEM with no
 owner = "estimate"
 evidence_test = "crates/antecedent/tests/estimate_conformance.rs"
 evidence_assertion = "estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_does_not"
-calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_arm_linear_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_saturated_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_curved_mediator_ci_coverage"]
+calibration = ["cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_saturated_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_curved_mediator_ci_coverage"]
 
 [[capabilities]]
 id = "estimate.conditional"
