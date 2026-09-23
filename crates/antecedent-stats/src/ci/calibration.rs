@@ -1125,7 +1125,7 @@ mod tests {
     /// As [`assert_conditional_null_calibrated`], but the exact binomial region is
     /// centred on `target` rather than the nominal `alpha`: for a cell whose
     /// analytic Type I rate is a stable, measured, conservative (never liberal)
-    /// deviation from nominal, not sampling noise (e.g. ParCorr's analytic
+    /// deviation from nominal, not sampling noise (e.g. `ParCorr`'s analytic
     /// significance at a finite n, checked deterministic and reproduced on
     /// re-run), naming the true target keeps the gate meaningful instead of
     /// loosening it for every conditional-null cell.

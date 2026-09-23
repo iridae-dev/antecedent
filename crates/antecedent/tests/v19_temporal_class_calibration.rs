@@ -133,7 +133,7 @@ struct FreqTally {
     ses: Vec<f64>,
     truth: f64,
     /// A plain per-replicate flag counter, not a coverage record: see
-    /// CoverageTally::persist. A raw `u32` counter here would only count an
+    /// `CoverageTally::persist`. A raw `u32` counter here would only count an
     /// extending recheck's own new replicates while `n_sim()` reports the full
     /// count, undercounting the warning rate.
     warned: CoverageTally,
@@ -843,16 +843,17 @@ fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
         // precision ceiling 0.913: a named boundary, not a band failure.
         [Some(0.916), None, None],
         |s| {
-        run_study(
-            chain_pag_series(grid_n(N), 0.0, 74_000 + u64::from(s)),
-            chain_pag(),
-            &pulse_query(),
-            InferenceMode::Frequentist,
-            None,
-            BOOT,
-            u64::from(s),
-        )
-    });
+            run_study(
+                chain_pag_series(grid_n(N), 0.0, 74_000 + u64::from(s)),
+                chain_pag(),
+                &pulse_query(),
+                InferenceMode::Frequentist,
+                None,
+                BOOT,
+                u64::from(s),
+            )
+        },
+    );
 }
 
 #[test]
