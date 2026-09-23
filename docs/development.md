@@ -15,7 +15,8 @@ GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
   statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
 - **`features`** — compiles the feature combinations crates.io users get (default
   features, each optional feature alone, `--no-default-features`), which the
-  workspace-wide jobs never build because the `python` member enables `ml-full`.
+  workspace-wide jobs never build because the `python` member enables `ml-full`
+  and `ml-neural`.
 - **`deny`** — `cargo deny check` (licenses, advisories, sources).
 - **`gates`** — first the calibration attestation
   (`scripts/gate_calibration_attestation.sh`, seconds), then

@@ -9,7 +9,7 @@ Antecedent 2.0.0 keeps the established `identify → estimate → inspect → re
 #### Learners and heterogeneous effects
 
 - Adds a Rust-native prediction layer with stable learner specifications, capability checks, zero-copy design views, row-indexed folds, and fold-local preprocessing. The causal estimators remain independent of a particular ML provider.
-- Adds controlled linear, ridge, logistic, elastic-net, gradient-boosted-tree, random-forest, and extra-tree nuisance routes, plus restrained automatic nuisance selection where licensed.
+- Adds controlled linear, ridge, logistic, elastic-net, gradient-boosted-tree, random-forest, extra-tree, and CPU-native neural nuisance routes, plus restrained automatic nuisance selection where licensed. The standard Python wheel includes the neural route.
 - Adds reusable out-of-fold predictions, fold assignments, nuisance diagnostics, overlap/trimming disclosure, and implementation provenance.
 - Adds DML, cross-fitted AIPW, DR-Learner, and honest causal-forest paths. CATE uncertainty remains deliberately limited: a forest's leaf dispersion is a diagnostic, not a pointwise standard error or confidence interval.
 

@@ -16,6 +16,7 @@ invent a second ML stack.
 - [X4 — Continuous responses and broader statistical providers](#x4--continuous-responses-and-broader-statistical-providers)
 - [X5 — Temporal transport](#x5--temporal-transport)
 - [X6 — Experiment planning from transport failures](#x6--experiment-planning-from-transport-failures)
+- [X7 — GPU acceleration for neural nuisance learning](#x7--gpu-acceleration-for-neural-nuisance-learning)
 - [Ordering and promotion rule](#ordering-and-promotion-rule)
 
 ## X1 — Additional restricted-experiment settings
@@ -176,6 +177,50 @@ X2/X3 only for objectives using their uncertainty.
 frozen transport failure; executing its synthetic data completes the predicted
 transport path. Include impossible candidates, tied costs, and truncated search.
 
+## X7 — GPU acceleration for neural nuisance learning
+
+**Question:** When does an accelerator make cross-fitted neural nuisance
+learning materially faster without weakening Antecedent's reproducibility,
+resource, provenance, or distribution contracts? **Depends on:** the 2.0
+learner substrate and the CPU-native `NeuralNet` provider. This is an execution
+provider project, not a new causal estimator or an inference claim.
+
+- [ ] Define the first supported accelerator/backend and platform scope. Treat
+      WGPU, Metal, CUDA, and any remote backend as separate contracts with their
+      own driver, device, wheel, and CI requirements; do not label any available
+      hardware "GPU support" by default.
+- [ ] Add an explicit neural device policy (`cpu`, `gpu`, `auto`) and report its
+      resolved backend, device class, dtype, library version, and fallback reason
+      in learner provenance. An explicit `gpu` request refuses when no licensed
+      device is available; `auto` may use CPU only under a documented policy.
+- [ ] Keep the CPU path portable and deterministic enough to remain the reference
+      provider. Burn's generic model code does not make backend choice dynamic:
+      implement and test the selected concrete training and inference backend,
+      preserve the `f64` public prediction contract, and state the accepted
+      floating-point comparison tolerances.
+- [ ] Extend `ExecutionContext` with an accelerator compute/memory lease and
+      cancellation semantics. Cross-fitting must not blindly launch one model per
+      fold on the same device; define stream, memory, transfer, and CPU/GPU
+      parallelism ownership before enabling concurrent fits.
+- [ ] Design the Python distribution contract before publishing. Standard wheels
+      remain usable without drivers; an extra is valid only if it installs an
+      actual separately loadable provider. Do not publish indistinguishable wheels
+      with different Cargo features and expect `pip` to select the accelerator.
+- [ ] Add accelerator-aware health checks, unavailable-device refusals,
+      deterministic-seed/replay evidence, CPU-versus-accelerator numerical tests,
+      and benchmarks that include transfer and fold orchestration. A faster kernel
+      alone does not establish a faster causal analysis.
+- [ ] Preserve artifact portability: exported neural predictions and models must
+      be independently consumable without the originating accelerator, while
+      retaining the backend/device execution provenance and any lossy conversion
+      receipt.
+
+**Exit evidence:** a fresh supported-platform installation selects a declared
+backend, completes a cross-fitted neural analysis, records reproducible
+provenance, and matches the CPU reference within the stated tolerance. Fixtures
+cover no compatible device, exhausted accelerator memory, cancellation, and a
+small workload where CPU correctly remains the selected or faster route.
+
 ## Ordering and promotion rule
 
 - [ ] Prioritize X1 and fixed-graph X3 to expand usable evidence and make
@@ -184,6 +229,10 @@ transport path. Include impossible candidates, tied costs, and truncated search.
       compose them only after their independent evidence gates pass.
 - [ ] Build X5 on finite discrete transport first. Begin X6 with structural
       experiment sufficiency before introducing probabilistic design objectives.
+- [ ] Start X7 only after a measured workload demonstrates that accelerator
+      transfer and orchestration costs do not dominate the intended neural
+      nuisance workloads. Keep it independent of X4's causal/statistical
+      provider scope unless a later contract explicitly joins them.
 - [ ] For every promoted capability, name the consumer problem, exact theorem/
       estimator scope, existing owner, support rows, positive and negative
       fixtures, calibration obligations, artifact changes, and compatibility

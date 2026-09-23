@@ -35,7 +35,7 @@ Documentation = "https://antecedent.readthedocs.io/"
 "Release notes" = "https://github.com/iridae-dev/antecedent/blob/main/CHANGELOG.md"
 
 [tool.maturin]
-features = ["pyo3/extension-module", "ml-full"]
+features = ["pyo3/extension-module", "ml-full", "ml-neural"]
 python-source = "."
 module-name = "antecedent._native"
 include = ["antecedent/py.typed"]
