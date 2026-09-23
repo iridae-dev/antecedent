@@ -743,7 +743,11 @@ impl FunctionalDistribution {
                 atoms.push(DistributionAtom {
                     outcomes: Arc::from(outcome_pairs),
                     conditioning: Arc::from(z_bind.clone()),
-                    probability: p,
+                    // `p` is a ratio-of-sums (a CPT lookup, or a free-variable
+                    // weighted average of such ratios) that is mathematically
+                    // confined to [0, 1]; clamp away the float rounding that can
+                    // push a near-boundary value a few ULPs past it.
+                    probability: p.clamp(0.0, 1.0),
                 });
             }
         }
