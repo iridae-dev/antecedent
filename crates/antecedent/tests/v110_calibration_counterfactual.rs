@@ -323,11 +323,11 @@ fn counterfactual_interaction_bayesian_unit_and_mean_ite_coverage() {
     );
 }
 
-/// Boundary readings of [`counterfactual_interaction_bayesian_unit_and_mean_ite_coverage`],
-/// in tally order (`unit_b0`, `unit_b1`, mean ITE at 0.95, mean ITE at 0.90);
-/// `None` gates the nominal band.
+/// [`counterfactual_interaction_bayesian_unit_and_mean_ite_coverage`] has no
+/// named boundary: every tally at every grid point clears the nominal band
+/// (see [`Measured`]'s doc for the `None` convention).
 const INTERACTION_MEASURED: Measured =
-    [[Some(0.868), None, None], [Some(0.882), None, None], [None, None, None], [None, None, None]];
+    [[None, None, None], [None, None, None], [None, None, None], [None, None, None]];
 
 /// Spline design at `n = 2500`. Units 0 and 1 of each replicate are the
 /// designated units (each an independent draw of `z`).
