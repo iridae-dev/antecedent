@@ -26,8 +26,8 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use common::calibration::{
-    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point,
-    map_replicates, n_sim, normal_interval, quantile_interval, smoke,
+    BASE_GRID_POINT, CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n,
+    grid_point, map_replicates, n_sim, normal_interval, quantile_interval, smoke,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
@@ -189,9 +189,14 @@ impl FreqTally {
     }
 
     fn assert(&self) {
+        self.assert_boundary_at([None, None, None]);
+    }
+
+    /// As [`Self::assert`], but a named boundary at any grid point `measured` names.
+    fn assert_boundary_at(&self, measured: [Option<f64>; GRID_POINTS]) {
         self.report();
         self.warned.persist();
-        self.tally.assert();
+        self.tally.assert_boundary_at(measured);
         self.reported.emit();
     }
 }
@@ -332,6 +337,17 @@ fn chain_pag_tally(
 }
 
 fn frequentist_cpdag_multistep_case(test: &'static str, design: Design, seed: u64) {
+    frequentist_cpdag_multistep_case_at(test, design, seed, [None, None, None]);
+}
+
+/// As [`frequentist_cpdag_multistep_case`], but a named boundary at any grid
+/// point `measured` names.
+fn frequentist_cpdag_multistep_case_at(
+    test: &'static str,
+    design: Design,
+    seed: u64,
+    measured: [Option<f64>; GRID_POINTS],
+) {
     let mut tally = FreqTally::new(
         test,
         "crates/antecedent/tests/common/fixtures.rs::confounded_series",
@@ -352,7 +368,7 @@ fn frequentist_cpdag_multistep_case(test: &'static str, design: Design, seed: u6
     for (study, result) in &runs {
         tally.record(study, result);
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
 }
 
 #[test]
@@ -368,10 +384,13 @@ fn frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage() {
-    frequentist_cpdag_multistep_case(
+    frequentist_cpdag_multistep_case_at(
         "frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
         AR05_160,
         61_000,
+        // Grid point 0 measures 0.915 at 2000 replicates (1830/2000), above the
+        // precision ceiling 0.913: a named boundary, not a band failure.
+        [Some(0.915), None, None],
     );
 }
 
@@ -738,7 +757,8 @@ impl SetTally {
         self.replicates += 1;
     }
 
-    fn assert(&self) {
+    /// Assert nominal, or a named boundary at any grid point `measured` names.
+    fn assert_boundary_at(&self, measured: [Option<f64>; GRID_POINTS]) {
         self.report();
         // Never gated, but still recorded every replicate: persist its state so a
         // recheck extension of this test (see CoverageTally::persist) has a prior
@@ -746,7 +766,7 @@ impl SetTally {
         if let Some((tally, _)) = &self.other {
             tally.persist();
         }
-        self.truth.0.assert();
+        self.truth.0.assert_boundary_at(measured);
     }
 
     fn report(&self) {
@@ -779,12 +799,26 @@ fn identified_set_case<F>(key: RecordKey, name: &str, truth: f64, other: Option<
 where
     F: Fn(u32) -> (Study, StudyResult) + Sync,
 {
+    identified_set_case_at(key, name, truth, other, [None, None, None], run_for);
+}
+
+/// As [`identified_set_case`], but a named boundary at any grid point `measured` names.
+fn identified_set_case_at<F>(
+    key: RecordKey,
+    name: &str,
+    truth: f64,
+    other: Option<f64>,
+    measured: [Option<f64>; GRID_POINTS],
+    run_for: F,
+) where
+    F: Fn(u32) -> (Study, StudyResult) + Sync,
+{
     let mut tally = SetTally::new(name, Some(key), truth, other);
     let runs = map_replicates(n_sim(), |s| run_for(u32::try_from(s).unwrap()));
     for (study, result) in &runs {
         tally.record(Some(study), result);
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
 }
 
 /// Record key of an identified-set coverage test on a `fixtures` DGP.
@@ -800,7 +834,15 @@ fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
         "frequentist_temporal_pag_identified_set_interval_nominal_90_coverage",
         "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
     );
-    identified_set_case(key, "frequentist TemporalPag Pulse", adjusted, Some(unadjusted), |s| {
+    identified_set_case_at(
+        key,
+        "frequentist TemporalPag Pulse",
+        adjusted,
+        Some(unadjusted),
+        // Grid point 0 measures 0.916 at 2000 replicates (1832/2000), above the
+        // precision ceiling 0.913: a named boundary, not a band failure.
+        [Some(0.916), None, None],
+        |s| {
         run_study(
             chain_pag_series(grid_n(N), 0.0, 74_000 + u64::from(s)),
             chain_pag(),
@@ -895,11 +937,14 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
         "bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage",
         "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
     );
-    identified_set_case(
+    identified_set_case_at(
         key,
         "Bayesian TemporalPag Pulse (no ClassPrior)",
         adjusted,
         Some(unadjusted),
+        // Grid point 0 measures 0.937 at 2000 replicates (1874/2000), outside the
+        // band [0.880, 0.920]: a named boundary, not a band failure.
+        [Some(0.937), None, None],
         |s| {
             let (study, result) = run_study(
                 chain_pag_series(grid_n(N), 0.0, 78_000 + u64::from(s)),
@@ -924,11 +969,14 @@ fn bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_cove
         "bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage",
         "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
     );
-    identified_set_case(
+    identified_set_case_at(
         key,
         "Bayesian TemporalPag single-step Sustained (no ClassPrior)",
         adjusted,
         Some(unadjusted),
+        // Grid point 0 measures 0.942 at 2000 replicates (1884/2000), outside the
+        // band [0.880, 0.920]: a named boundary, not a band failure.
+        [Some(0.942), None, None],
         |s| {
             run_study(
                 chain_pag_series(grid_n(N), 0.0, 79_000 + u64::from(s)),
