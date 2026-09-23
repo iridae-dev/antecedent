@@ -1,13 +1,10 @@
-"""1.5 Python surface: functionals, retarget, tiered background, EconML extras."""
+"""Python surface: functionals, retarget, tiered background, EconML extras."""
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-
-import antecedent
 from antecedent.errors import CausalIdentifyError, CausalUnsupportedError
 from antecedent.graph import TieredBackground, WithinTier
 from antecedent.handoff import econml
@@ -920,3 +917,18 @@ def test_response_quantile_refuses_mean_only_estimator(prepared):
     run = antecedent.estimation.PreparedAnalysis.prepare if prepared else antecedent.analyze
     with pytest.raises(CausalUnsupportedError, match="quantiles require"):
         run(data, graph=graph, query=query, refute="none", bootstrap=0)
+
+
+@pytest.mark.parametrize("entry", ["prepare", "prepare_cells"])
+def test_batch_prepare_forwards_omitted_bootstrap_and_refute(entry):
+    """An omitted ``bootstrap`` / ``refute`` reaches the study builder as omitted.
+
+    The batch entry points must not carry their own defaults (0 / False): the
+    builder's omitted-default table is the single owner, so the same query gives
+    the same answer through ``analyze`` and through a batch.
+    """
+    import inspect
+
+    params = inspect.signature(getattr(antecedent.estimation.PreparedBatch, entry)).parameters
+    assert params["bootstrap"].default is None
+    assert params["refute"].default is None

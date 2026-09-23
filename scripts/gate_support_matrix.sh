@@ -35,10 +35,38 @@ EVIDENCE_KINDS = {
     "implementation_exists",
     "internal_known_truth",
     "internal_cross_check",
+    # frozen output of this library itself (a seeded run or a copied value): a change
+    # detector, never truth. Names its test, never a known_truth_fixture.
+    "regression_pin",
     "frozen_external_oracle",
     "behavioral_parity",
     "contract_equivalence",
 }
+
+def regression_pin_problem(fixture: str, inference: str) -> str | None:
+    """Why `fixture` cannot back known truth for a cell of this inference mode.
+
+    A fixture whose `oracle.kind` is `regression_pin` holds frozen output of this library. Only
+    the inference modes its oracle lists in `independent_inferences` (a part checked against an
+    independent reference beside the pin) may cite it as truth."""
+    import json
+
+    path = root / fixture / "expected.json"
+    if not path.is_file():
+        return None
+    try:
+        oracle = json.loads(path.read_text()).get("oracle")
+    except (OSError, ValueError):
+        return None
+    if isinstance(oracle, dict) and oracle.get("kind") == "regression_pin":
+        if inference not in (oracle.get("independent_inferences") or []):
+            return (
+                f"known_truth_fixture {fixture} is a regression_pin fixture (frozen output of "
+                f"this library) and lists no independent {inference} reference; the cell is "
+                "evidence_kind = regression_pin, not known truth"
+            )
+    return None
+
 
 def load(rel: str) -> dict:
     path = root / rel
@@ -92,10 +120,13 @@ else:
     block = init_text[q_start:q_end]
     live_queries = re.findall(r'"([A-Za-z][A-Za-z0-9]+)"', block)
 
-if sorted(queries) != sorted(live_queries):
+# TransportQuery stays on the support-matrix query axis (licensed trial-IPW
+# cell) but lives on `antecedent.transport.advanced`, not root `__all__`.
+root_queries = [q for q in queries if q != "TransportQuery"]
+if sorted(root_queries) != sorted(live_queries):
     fail.append(
         "parity/support_axes.toml queries != python __all__ query names: "
-        f"axes={sorted(queries)} live={sorted(live_queries)}"
+        f"axes={sorted(root_queries)} live={sorted(live_queries)}"
     )
 
 for name in ["Frequentist", "Bayesian"]:
@@ -103,10 +134,13 @@ for name in ["Frequentist", "Bayesian"]:
         fail.append(f"{name} is an inference axis value but is not in python __all__")
 
 for name in stage_queries:
-    module = "transport" if name == "TransportQuery" else "interference"
-    src = (root / "python/antecedent" / f"{module}.py").read_text()
+    if name == "TransportQuery":
+        src_path = root / "python/antecedent/transport/_impl.py"
+    else:
+        src_path = root / "python/antecedent/interference.py"
+    src = src_path.read_text() if src_path.is_file() else ""
     if f"class {name}" not in src:
-        fail.append(f"{name}: no class {name} in python/antecedent/{module}.py")
+        fail.append(f"{name}: no class {name} in {src_path.relative_to(root)}")
 
 # --- live GraphClass variants ------------------------------------------------
 accepted = (root / "crates/antecedent/src/accepted.rs").read_text()
@@ -343,6 +377,21 @@ legal_q = set(all_queries)
 # parity/_evidence_test_backlog.txt; the backlog only shrinks.
 missing_evidence: set[str] = set()
 
+# Estimator wire-ids recorded on licensed rows (secondary axis; not cartesian).
+# When present, every entry must be a non-empty string. Empty lists are allowed
+# only when the row honestly has no estimator evidence (classify_estimator then
+# refuses every concrete EstimatorId, including the five unmeasured families).
+def check_estimators(label: str, row: dict) -> None:
+    named = row.get("estimators")
+    if named is None:
+        return
+    if not isinstance(named, list):
+        fail.append(f"{label}: estimators must be a list of wire-ids")
+        return
+    for est in named:
+        if not isinstance(est, str) or not est.strip():
+            fail.append(f"{label}: estimators entries must be non-empty strings")
+
 
 def check_evidence_test(label: str, row: dict) -> None:
     for problem in test_evidence.row_evidence_problems(row):
@@ -354,6 +403,7 @@ for i, row in enumerate(cells, 1):
     for key in required:
         if key not in row:
             fail.append(f"{label}: missing {key}")
+    check_estimators(label, row)
     q = row.get("query")
     g = row.get("graph_class")
     s = row.get("structure")
@@ -382,11 +432,23 @@ for i, row in enumerate(cells, 1):
             fail.append(f"{label}: {kind} requires known_truth_fixture")
         elif not (root / fixture).exists():
             fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
+        elif (why := regression_pin_problem(fixture, inf)) is not None:
+            fail.append(f"{label}: {why}")
         elif not (row.get("evidence_test") and row.get("evidence_assertion")):
             fail.append(
                 f"{label}: {kind} requires evidence_test/evidence_assertion whose own "
                 "function consumes the fixture"
             )
+    elif kind == "regression_pin":
+        if fixture is not None:
+            fail.append(
+                f"{label}: regression_pin must not name known_truth_fixture; a frozen "
+                "output of this library is not truth (name the pin fixture in limitations)"
+            )
+        if not str(row.get("limitations", "")).strip():
+            fail.append(f"{label}: regression_pin requires limitations saying what is pinned")
+        if not (row.get("evidence_test") and row.get("evidence_assertion")):
+            fail.append(f"{label}: regression_pin requires evidence_test/evidence_assertion")
     elif kind == "internal_cross_check":
         if fixture is not None:
             fail.append(
@@ -429,6 +491,30 @@ for i, row in enumerate(cells, 1):
         )
     if all(cell.values()) and is_allowed(cell):
         fail.append(f"{label}: cell matches support_allowlist.toml; cannot license it")
+
+# --- cross-check-only cells need a known-truth sibling -------------------------
+# A cell whose only evidence is an internal cross-check (the estimator against an
+# in-test recomputation that may share its convention) and that carries no measured
+# coverage has nothing tying it to the truth. It is licensed only while another cell of
+# the same query and inference mode has known-truth or external-oracle evidence, so the
+# estimand itself is checked against a simulation truth somewhere.
+_truth_kinds = {"internal_known_truth", "frozen_external_oracle"}
+_truthful = {
+    (c.get("query"), c.get("inference"))
+    for c in cells
+    if c.get("evidence_kind") in _truth_kinds
+}
+for row in cells:
+    if row.get("evidence_kind") in {"internal_cross_check", "regression_pin"} and not row.get(
+        "calibration"
+    ):
+        if (row.get("query"), row.get("inference")) not in _truthful:
+            fail.append(
+                f"{row.get('query')}/{row.get('graph_class')}/{row.get('structure')}/"
+                f"{row.get('inference')}/{row.get('validation')}: {row.get('evidence_kind')} with no "
+                "calibration and no known-truth sibling cell of the same query and inference "
+                "mode; add known-truth evidence or a measured calibration"
+            )
 
 # --- evidence_test ratchet ---------------------------------------------------
 backlog_rel = "parity/_evidence_test_backlog.txt"
@@ -502,3 +588,5 @@ print(
     f"{allowed_count} active allowed_unlicensed compatibility entries)"
 )
 PY
+
+python3 "$ROOT/scripts/check_transport_stages.py"

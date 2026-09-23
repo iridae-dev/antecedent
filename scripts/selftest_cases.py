@@ -28,6 +28,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+_PREP = ROOT / "docs" / "release-notes" / "preparation.toml"
+DOC_VERSION = (
+    tomllib.loads(_PREP.read_text())["target_version"] if _PREP.is_file() else VERSION
+)
 
 Mutation = Callable[[str], str]
 
@@ -181,10 +185,12 @@ def in_block(header: str, row_id: str, fn: Mutation) -> Mutation:
 
 def changelog_current(line: str) -> Mutation:
     def apply(text: str) -> str:
-        head = f"## [{VERSION}]"
-        i = text.index(head)
-        j = text.index("\n", i)
-        return text[: j + 1] + "\n" + line + "\n" + text[j + 1 :]
+        for head in (f"## [{DOC_VERSION}]", f"## {DOC_VERSION}"):
+            if head in text:
+                i = text.index(head)
+                j = text.index("\n", i)
+                return text[: j + 1] + "\n" + line + "\n" + text[j + 1 :]
+        raise ValueError(f"CHANGELOG.md has no {DOC_VERSION} heading")
 
     return apply
 
@@ -200,7 +206,7 @@ def docs_cases() -> list[bool]:
             g,
             "walkthrough_deferral",
             {
-                "docs/v1.10-practitioner-walkthrough.md": append(
+                "docs/python-workflow.md": append(
                     "Panel promotions stay a separately gated workstream."
                 )
             },
@@ -316,6 +322,7 @@ dgp = "{suite}::confounded_scm"
 test = "{suite}::linear_adjustment_analytic_ci_coverage"
 facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
 calibration_sha = "{"1" * 40}"
+surface_list_blob = "{"1" * 40}"
 """
 
 
@@ -379,8 +386,10 @@ def schema_cases() -> list[bool]:
             "required_job_not_a_job",
             {
                 "parity/release.toml": replace(
-                    'required_jobs = ["rust", "gates", "python-lint", "python-wheels"]',
-                    'required_jobs = ["rust", "gates", "python-lint", "python-wheels", "pull_request"]',
+                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
+                    '"python-wheels"]',
+                    'required_jobs = ["rust", "features", "deny", "gates", "python-lint", '
+                    '"python-wheels", "pull_request"]',
                 )
             },
             ["required job 'pull_request' missing from ci.yml"],
@@ -447,12 +456,12 @@ def schema_cases() -> list[bool]:
             g,
             "publish_without_attestation",
             {
-                ".github/workflows/publish-crates.yml": replace(
+                ".github/workflows/publish-release.yml": replace(
                     "        run: bash scripts/gate_calibration_attestation.sh\n",
                     "        run: echo skipped\n",
                 )
             },
-            ["publish-crates.yml: no step runs gate_calibration_attestation.sh"],
+            ["publish-release.yml: no step runs gate_calibration_attestation.sh"],
         ),
         case(
             g,
@@ -551,14 +560,39 @@ def schema_cases() -> list[bool]:
     ]
 
 
-COND_DAG_BAYES = (
-    "0.890 (record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90."
-    "conditional_effect_dag_bayesian_nominal_90_coverage`)"
-)
-BOUNDARY_CITE = (
-    "0.858 (boundary record `cov.mediation_effect.dag.bayesian.posterior_quantile.l90."
-    "mediation_nde_bayesian_nominal_90_coverage`)"
-)
+def _live_citation(boundary: bool) -> tuple[str, str, float]:
+    """A coverage figure the licensed prose cites today, as `(text, figure, observed)`.
+
+    The fixtures below mutate this text, so it is read from the committed prose and
+    registry rather than written here: a hard-coded figure fails the self-test at the
+    next collection, before any of its cases runs."""
+    records = {
+        rec["id"]: rec
+        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text())["record"]
+    }
+    prose = (ROOT / "parity/support_licensed.toml").read_text()
+    for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
+        rec = records.get(m.group(3))
+        if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:
+            continue
+        if boundary:
+            # The undisclosed-boundary case strips the words `boundary record`; the
+            # sentence must not name the boundary another way, or nothing is undisclosed.
+            from coverage_citations import BOUNDARY_DISCLOSURE_RE
+
+            head = prose[: m.start()]
+            sentence = head[max(head.rfind(". "), head.rfind("\\n")) + 1 :]
+            if BOUNDARY_DISCLOSURE_RE.search(sentence):
+                continue
+        if abs(float(rec["observed"]) - float(m.group(1))) <= 0.0005 + 1e-9:
+            return m.group(0), m.group(1), float(rec["observed"])
+    raise SystemExit(f"no live {'boundary ' if boundary else ''}l90 citation to build a fixture from")
+
+
+COND_DAG_BAYES, COND_FIG, COND_OBSERVED = _live_citation(boundary=False)
+BOUNDARY_CITE, _, _ = _live_citation(boundary=True)
+# A figure that differs from the cited record's by far more than the gate's tolerance.
+OTHER_FIG = "0.931" if abs(COND_OBSERVED - 0.931) > 0.01 else "0.812"
 
 
 def citation_cases() -> list[bool]:
@@ -569,14 +603,17 @@ def citation_cases() -> list[bool]:
         case(
             g,
             "coverage_figure_unattributed",
-            {lic: replace(COND_DAG_BAYES, "0.890")},
-            ["coverage figure 0.890 has no record citation"],
+            {lic: replace(COND_DAG_BAYES, COND_FIG)},
+            [f"coverage figure {COND_FIG} has no record citation"],
         ),
         case(
             g,
             "coverage_figure_disagrees_with_record",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("0.890", "0.931"))},
-            ["coverage figure 0.931 does not match its cited record(s) (0.8900)"],
+            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace(COND_FIG, OTHER_FIG))},
+            [
+                f"coverage figure {OTHER_FIG} does not match its cited record(s) "
+                f"({COND_OBSERVED:.4f})"
+            ],
         ),
         case(
             g,
@@ -589,10 +626,11 @@ def citation_cases() -> list[bool]:
             "attribution_for_a_later_clause_does_not_cover",
             {
                 lic: replace(
-                    COND_DAG_BAYES, "0.890; the probe measured 0.180 (not a registry value)"
+                    COND_DAG_BAYES,
+                    f"{COND_FIG}; the probe measured 0.180 (not a registry value)",
                 )
             },
-            ["coverage figure 0.890 has no record citation"],
+            [f"coverage figure {COND_FIG} has no record citation"],
         ),
         case(
             g,
@@ -609,7 +647,8 @@ def citation_cases() -> list[bool]:
                     COND_DAG_BAYES,
                     COND_DAG_BAYES
                     + "; P(Y=1|do(T=1)) = 0.625, mean SE 0.0416 vs Monte Carlo SD 0.0410, "
-                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value)",
+                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value "
+                    "(probe latency_tiers::interactive_vs_standard_records_mode_and_effort))",
                 )
             },
             [],
@@ -665,6 +704,29 @@ def reachability_cases() -> list[bool]:
                 )
             },
             ["conformance/bayesian/dag_posterior is consumed by no executing"],
+        ),
+        # A calibration test that says it runs via the gate but that no group selects.
+        case(
+            g,
+            "orphan_calibration_test",
+            {
+                "crates/antecedent/tests/v19_calibration.rs": append(
+                    '\n#[test]\n#[ignore = "calibration: run via scripts/gate_calibration.sh"]\n'
+                    "fn orphan_cell_nominal_90_coverage() {}\n"
+                )
+            },
+            ["`orphan_cell_nominal_90_coverage` claims to run via scripts/gate_calibration.sh"],
+        ),
+        # An oracle block whose kind is outside the closed vocabulary.
+        case(
+            g,
+            "oracle_kind_outside_vocabulary",
+            {
+                "conformance/estimate/cpdag_ate_envelope/expected.json": replace(
+                    '"kind": "regression_pin"', '"kind": "trust_me"'
+                )
+            },
+            ["`oracle` must be an object with `kind` in"],
         ),
     ]
 

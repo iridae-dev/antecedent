@@ -29,7 +29,8 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "distance.matching",
     "aipw",
     "glm.adjustment",
-    "frontdoor.two_stage",
+    "frontdoor.linear_two_stage",
+    "frontdoor.functional",
     "iv.wald",
     "iv.2sls",
     "rd.sharp",
@@ -37,6 +38,9 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "cell.aipw",
     "transport.trial_ipw",
     "interference.ht_hajek",
+    "dml",
+    "dr.learner",
+    "causal.forest",
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",

@@ -66,7 +66,10 @@ impl Default for BayesFitOptions {
 pub struct BayesFitResult {
     /// Columnar coefficient (and dispersion) draws.
     pub draws: PosteriorDraws,
-    /// MAP / posterior mean coefficients (length = ncols).
+    /// Point estimate of the coefficients (length = ncols): the posterior mode
+    /// for Laplace, the posterior mean for conjugate and HMC (the two coincide
+    /// for the Gaussian linear model). HMC never reports a best-visited draw as
+    /// a mode.
     pub map: Vec<f64>,
     /// Diagnostics (required for Laplace).
     pub diagnostics: InferenceDiagnostics,

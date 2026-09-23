@@ -4,11 +4,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // `t`, `y`, `z`, `x`, `g` are the variable names of the laws below.
+#![allow(clippy::doc_markdown)]
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::doc_markdown,
     clippy::float_cmp,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;
@@ -295,12 +294,14 @@ fn partially_identified_cpdag_conditional_effect_carries_the_identified_set() {
     round_trip(&prepared, &result, &ctx, "cpdag-conditional-partial");
 }
 
-/// `t -> y`, `z -> y` as a PAG: the intervention response is identified by
-/// generalized adjustment on every completion, on the Pag response owner.
+/// `z -> t -> y` as a PAG: `z` points into `t` and is not adjacent to `y`, so
+/// `t -> y` is visible and the intervention response is identified by
+/// generalized adjustment, on the Pag response owner. Without the witness
+/// (`t -> y`, `z -> y`) the edge is invisible and the response is refused.
 fn response_pag() -> Pag {
     let mut g = Pag::with_variables(3);
+    g.insert_directed(d(2), d(0)).unwrap();
     g.insert_directed(d(0), d(1)).unwrap();
-    g.insert_directed(d(2), d(1)).unwrap();
     g
 }
 

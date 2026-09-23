@@ -32,7 +32,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 /// RNG stream base for the aligned-row block replicates.
 const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
@@ -45,8 +52,8 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, forced_refit_estimator,
-    linear_estimator_no_bootstrap, refit_effect, with_resampled_rows,
+    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
+    forced_refit_estimator, linear_estimator_no_bootstrap, refit_effect, with_resampled_rows,
 };
 use crate::error::ValidationError;
 
@@ -76,6 +83,25 @@ impl Default for BootstrapRefute {
 /// Largest gap, in published SDs, between the published estimate and the
 /// least-squares contrast for the least-squares block bootstrap to check it.
 const STAND_IN_MAX_GAP_SD: f64 = 0.25;
+
+/// Smallest fraction of the requested block replicates that must refit. A replicate that
+/// fails is typically a near-singular resample, i.e. one from the tails of the sampling
+/// distribution, so an interval from the survivors is not the interval the check names.
+const MIN_SURVIVOR_FRACTION: f64 = 0.9;
+
+/// Refuse when too few of `requested` block-bootstrap replicates produced an estimate.
+fn require_survivors(fit: usize, requested: u32) -> Result<(), ValidationError> {
+    let requested_f = f64::from(requested);
+    if fit >= 2 && (fit as f64) >= MIN_SURVIVOR_FRACTION * requested_f {
+        return Ok(());
+    }
+    Err(ValidationError::estimation_msg(format!(
+        "bootstrap CI coverage: only {fit} of {requested} block replicates could be fit \
+         (at least {}% and two are required; failed resamples are typically the near-singular \
+         tail draws, so the survivors would give an interval that is too narrow)",
+        MIN_SURVIVOR_FRACTION * 100.0
+    )))
+}
 
 impl BootstrapRefute {
     fn refute_composed(
@@ -113,11 +139,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
-        if boot.draws.len() < 2 {
-            return Err(ValidationError::estimation_msg(
-                "bootstrap CI coverage: fewer than two block replicates could be fit",
-            ));
-        }
+        require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         Ok(coverage_report(
             problem,
@@ -212,11 +234,7 @@ impl BootstrapRefute {
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }
-        if boot.draws.len() < 2 {
-            return Err(ValidationError::estimation_msg(
-                "bootstrap CI coverage: fewer than two block replicates could be fit",
-            ));
-        }
+        require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
         Ok(coverage_report(
             problem,
@@ -313,6 +331,7 @@ impl BootstrapRefute {
                 let mut x_boot = vec![0.0; n_design * prepared.design.ncols];
                 let mut y_boot = vec![0.0; n_design];
                 for _ in 0..self.replicates {
+                    check_cancelled(ctx)?;
                     for slot in &mut row_idx {
                         *slot = valid[unbiased_index(&mut rng, valid.len())];
                     }
@@ -350,6 +369,7 @@ impl BootstrapRefute {
             }
         }
         for _ in 0..self.replicates {
+            check_cancelled(ctx)?;
             for slot in &mut row_idx {
                 *slot = valid[unbiased_index(&mut rng, valid.len())];
             }
@@ -384,16 +404,28 @@ fn coverage_report(
     scale: f64,
     stand_in: Option<&str>,
 ) -> RefutationReport {
-    ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    ates.sort_by(f64::total_cmp);
     let m = ates.len();
     let lo_frac = (1.0 - ci_level) / 2.0;
     let hi_frac = 1.0 - lo_frac;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the rounded position is scaled from a fraction in [0, 1] (a confidence level in (0, 1)) by m - 1, so it is non-negative and at most m - 1"
+    )]
     let lo_idx = ((lo_frac * (m - 1) as f64).round() as usize).min(m - 1);
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the rounded position is scaled from a fraction in [0, 1] (a confidence level in (0, 1)) by m - 1, so it is non-negative and at most m - 1"
+    )]
     let hi_idx = ((hi_frac * (m - 1) as f64).round() as usize).min(m - 1);
     let mean_ate = ates.iter().sum::<f64>() / m as f64;
     let lo = mean_ate - scale * (mean_ate - ates[lo_idx]);
     let hi = mean_ate + scale * (ates[hi_idx] - mean_ate);
     let width = hi - lo;
+    // A non-finite replicate (total order puts `-NaN` first, `NaN` last) makes the endpoints
+    // or the mean non-finite; every comparison below is then false, so the check fails closed.
     let passed = problem.original.ate >= lo && problem.original.ate <= hi;
     RefutationReport {
         refuter: Arc::from("bootstrap.ci_coverage"),
@@ -406,14 +438,38 @@ fn coverage_report(
             None
         } else {
             Some(Arc::from(format!(
-                "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
-                 (the point estimate against its own refit bootstrap interval: neither a placebo \
-                 falsification nor a calibration check of a published credible interval){}",
+                "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] from {m} of {replicates} \
+                 replicates (the point estimate against its own refit bootstrap interval: \
+                 neither a placebo falsification nor a calibration check of a published \
+                 credible interval){}",
                 problem.original.ate,
                 ci_level * 100.0,
                 stand_in.map(|note| format!("; {note}")).unwrap_or_default()
             )))
         },
-        replicates,
+        // Replicates that produced the interval, not the number requested.
+        replicates: u32::try_from(m).unwrap_or(u32::MAX),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn survivor_floor_is_ninety_percent_of_the_requested_replicates() {
+        assert!(require_survivors(180, 200).is_ok());
+        assert!(require_survivors(200, 200).is_ok());
+        let err = require_survivors(179, 200).unwrap_err().to_string();
+        assert!(err.contains("179 of 200"), "{err}");
+        // Seven survivors of two hundred are refused, never reported as a 200-replicate interval.
+        assert!(require_survivors(7, 200).is_err());
+    }
+
+    #[test]
+    fn survivor_floor_never_admits_fewer_than_two_replicates() {
+        assert!(require_survivors(1, 1).is_err());
+        assert!(require_survivors(0, 2).is_err());
+        assert!(require_survivors(2, 2).is_ok());
     }
 }

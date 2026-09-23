@@ -79,6 +79,7 @@ impl IdcIdentifier {
     ) -> Result<IdentificationResult, IdentificationError> {
         match query {
             CausalQuery::Distribution(q) => {
+                crate::id::validate_distribution_query(q)?;
                 if q.conditioning.is_empty() {
                     return self.inner.identify(prepared, query, workspace);
                 }
@@ -118,6 +119,15 @@ impl IdcIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         crate::intervention_support::require_hard_set_interventions(interventions, "IDC")?;
+        // Y, X and Z must be pairwise disjoint: an overlap is not a
+        // conditional interventional law and the rule-2 search below would
+        // silently treat the shared node as two different variables.
+        crate::id::validate_distribution_query(&InterventionalDistributionQuery {
+            outcomes: Arc::from(outcomes.to_vec()),
+            interventions: Arc::from(interventions.to_vec()),
+            conditioning: Arc::from(conditioning.to_vec()),
+            target_population: antecedent_core::TargetPopulation::AllObserved,
+        })?;
         let n = prepared.admg().node_count();
         let mut y = BitSet::with_len(n);
         for &v in outcomes {
@@ -175,7 +185,7 @@ impl IdcIdentifier {
                     vec![estimand],
                     arena,
                     derivation,
-                    prepared.declared_assumptions().clone(),
+                    crate::id::with_causal_markov(prepared, "general.idc"),
                     perf,
                 ))
             }
@@ -495,11 +505,43 @@ mod tests {
             for iv in q.interventions.iter() {
                 if let Intervention::Set { value, .. } = iv {
                     assert!(
-                        value.as_f64().is_none_or(|x| !x.is_nan()),
-                        "IDC must not invent NaN Set values"
+                        !value.is_symbolic_intervention()
+                            && value.as_f64().is_none_or(f64::is_finite),
+                        "IDC must not invent symbolic or non-finite Set values"
                     );
                 }
             }
         }
+    }
+
+    #[test]
+    fn conditional_records_causal_markov() {
+        // IDC's rule-2 reduction and the underlying ID calls both depend on
+        // the Causal Markov condition; it must appear in the returned
+        // assumption set, not just in the unconditional ID path.
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let idc = IdcIdentifier::new();
+        let prep = idc.prepare_dag(&dag).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        let res = idc
+            .identify_conditional(
+                &prep,
+                &[VariableId::from_raw(2)],
+                &[Intervention::set(VariableId::from_raw(1), Value::f64(1.0))],
+                &[VariableId::from_raw(0)],
+                &mut ws,
+            )
+            .unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            res.required_assumptions
+                .entries
+                .iter()
+                .any(|r| matches!(r.assumption, antecedent_core::Assumption::CausalMarkov)),
+            "IDC must record the Causal Markov assumption it relies on"
+        );
     }
 }

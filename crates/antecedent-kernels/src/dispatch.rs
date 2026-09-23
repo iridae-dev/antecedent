@@ -24,7 +24,7 @@ pub enum KernelImpl {
 /// returns false, selection falls through to portable/scalar.
 #[must_use]
 pub fn arch_simd_available() -> bool {
-    false
+    antecedent_core::ARCH_SIMD_COMPILED
 }
 
 /// Resolve the implementation for a batch from policy.

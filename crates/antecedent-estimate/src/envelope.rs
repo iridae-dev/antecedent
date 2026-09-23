@@ -14,14 +14,19 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::neg_cmp_op_on_partial_ord,
     clippy::needless_range_loop,
-    clippy::float_cmp,
     clippy::doc_markdown,
     clippy::too_many_lines
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -67,6 +72,14 @@ pub struct GraphEffectDraws {
 /// Moments are exact for the supplied empirical component posteriors (up to
 /// floating-point error). Quantiles use reproducible finite Monte Carlo draws;
 /// they are not exact quantiles of the weighted empirical mixture.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the product is a uniform draw in [0, 1) times the draw count, so it is below n_draws; the index is additionally clamped to n_draws - 1"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the product is a non-negative uniform draw in [0, 1) scaled by the draw count"
+)]
 pub fn aggregate_effect_envelope(
     graphs: &WeightedGraphSamples,
     per_graph: &[GraphEffectDraws],
@@ -213,9 +226,10 @@ pub fn aggregate_effect_envelope(
     };
     let draws = PosteriorDraws::from_column_major(schema, n_draws, mixture)
         .map_err(EstimationError::from)?;
-    let mut summaries = draws.summarize();
-    summaries.mean = Arc::from([exact_mean]);
-    summaries.sd = Arc::from([exact_sd]);
+    // The published draws carry the exact mixture moments themselves (a one-step affine
+    // correction of the Monte Carlo sample), so the summaries are the draws' own summaries and
+    // a reader recomputing them from the draws gets the same numbers.
+    let (draws, summaries) = moment_matched(&draws, exact_mean, Some(exact_sd))?;
 
     let identification = if identified_mass > 0.0 && retained_unidentified > 0.0 {
         IdentificationStatus::GraphDependent
@@ -244,6 +258,7 @@ pub fn aggregate_effect_envelope(
 
     Ok(CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification,
@@ -255,6 +270,30 @@ pub fn aggregate_effect_envelope(
         early_stopped: false,
         treatment_contrast: None,
     })
+}
+
+/// Affinely correct a single-quantity draw set so that its own summaries carry `mean` and, when
+/// given, `sd` (to rounding), and return those summaries. A draw set whose sample spread is zero
+/// or undefined cannot be rescaled and keeps its own summaries apart from the location.
+fn moment_matched(
+    draws: &PosteriorDraws,
+    mean: f64,
+    sd: Option<f64>,
+) -> Result<(PosteriorDraws, antecedent_prob::PosteriorSummary), EstimationError> {
+    let own = draws.summarize();
+    let (own_mean, own_sd) = (own.mean[0], own.sd[0]);
+    let scale = match sd {
+        Some(target) if own_sd.is_finite() && own_sd > 0.0 => target / own_sd,
+        _ => 1.0,
+    };
+    if !own_mean.is_finite() || !scale.is_finite() {
+        return Err(EstimationError::stats_msg("effect mixture moments overflow"));
+    }
+    let values: Vec<f64> = draws.values.iter().map(|x| mean + (x - own_mean) * scale).collect();
+    let corrected = PosteriorDraws::from_column_major(draws.schema.clone(), draws.n_draws, values)
+        .map_err(EstimationError::from)?;
+    let summaries = corrected.summarize();
+    Ok((corrected, summaries))
 }
 
 /// Posterior of the frozen-weight mixture functional `Σ_g w̄_g τ_g` over
@@ -321,15 +360,13 @@ pub fn aggregate_mixture_functional_envelope(
     let sub: Vec<f64> =
         kept.iter().flat_map(|&a| kept.iter().map(move |&b| correlation[a * k + b])).collect();
     let mixture = couple_mixture_functional_draws(&atoms, &sub, 0x4D49_5846_554E_4354)?;
-    let n = mixture.len() as f64;
     let mean = posterior.summaries.mean[0];
-    let sd = (mixture.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0).max(1.0)).sqrt();
     let schema = posterior.draws.schema.clone();
-    posterior.draws = PosteriorDraws::from_column_major(schema, mixture.len(), mixture)
+    let coupled = PosteriorDraws::from_column_major(schema, mixture.len(), mixture)
         .map_err(EstimationError::from)?;
-    let mut summaries = posterior.draws.summarize();
-    summaries.mean = Arc::from([mean]);
-    summaries.sd = Arc::from([sd]);
+    // Centre the coupled draws on the frozen-weight mean; the spread stays the draws' own.
+    let (draws, summaries) = moment_matched(&coupled, mean, None)?;
+    posterior.draws = draws;
     posterior.summaries = summaries;
     let mut assumptions = AssumptionSet::new();
     assumptions.push(AssumptionRecord {
@@ -353,11 +390,15 @@ pub fn aggregate_mixture_functional_envelope(
     Ok(posterior)
 }
 
+/// Slack for rounding when checking that a coupling matrix is a correlation.
+const PSD_TOLERANCE: f64 = 1e-9;
+
 /// Rank-coupled mixture draws `Σ_g w_g τ_g^(d)` (weights already normalized).
 ///
 /// # Errors
 ///
-/// Empty or ragged draws, or a correlation of the wrong size.
+/// Empty or ragged draws, or a correlation that is the wrong size, asymmetric,
+/// off the unit diagonal, or not positive semidefinite.
 #[allow(clippy::many_single_char_names)]
 pub fn couple_mixture_functional_draws(
     atoms: &[(f64, &[f64])],
@@ -372,13 +413,33 @@ pub fn couple_mixture_functional_draws(
     if n == 0 || atoms.iter().any(|(_, d)| d.len() != n) {
         return Err(EstimationError::stats_msg("coupled atoms need equal, nonempty draw counts"));
     }
-    // Positive-semidefinite Cholesky: a zero pivot marks an atom that is a
-    // linear function of earlier ones (e.g. an identical estimand).
+    for i in 0..k {
+        if (correlation[i * k + i] - 1.0).abs() > PSD_TOLERANCE {
+            return Err(EstimationError::stats_msg(
+                "coupling correlation must have a unit diagonal",
+            ));
+        }
+        for j in 0..i {
+            if (correlation[i * k + j] - correlation[j * k + i]).abs() > PSD_TOLERANCE {
+                return Err(EstimationError::stats_msg("coupling correlation must be symmetric"));
+            }
+        }
+    }
+    // Positive-semidefinite Cholesky. A zero pivot marks an atom that is a linear
+    // function of earlier ones (e.g. an identical estimand) and is fine, but only if
+    // everything below it is consistent with that; a clearly negative Schur
+    // complement means the matrix is not a correlation, and truncating it would
+    // couple the atoms under a dependence other than the one supplied.
+    let not_psd =
+        || EstimationError::stats_msg("coupling correlation is not positive semidefinite");
     let mut l = vec![0.0; k * k];
     for j in 0..k {
         let mut s = correlation[j * k + j];
         for p in 0..j {
             s -= l[j * k + p] * l[j * k + p];
+        }
+        if s < -PSD_TOLERANCE {
+            return Err(not_psd());
         }
         let pivot = if s > 1e-12 { s.sqrt() } else { 0.0 };
         l[j * k + j] = pivot;
@@ -387,15 +448,15 @@ pub fn couple_mixture_functional_draws(
             for p in 0..j {
                 v -= l[i * k + p] * l[j * k + p];
             }
-            l[i * k + j] = if pivot > 0.0 { v / pivot } else { 0.0 };
+            if pivot > 0.0 {
+                l[i * k + j] = v / pivot;
+            } else if v.abs() > PSD_TOLERANCE {
+                return Err(not_psd());
+            }
         }
     }
     let mut rng = CausalRng::from_seed(seed);
-    let mut normal = move || {
-        let u1 = rng.next_f64().max(1e-300);
-        let u2 = rng.next_f64();
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    };
+    let mut normal = move || antecedent_kernels::standard_normal(&mut rng);
     let mut latent = vec![0.0; n * k];
     let mut e = vec![0.0; k];
     for d in 0..n {
@@ -423,6 +484,28 @@ pub fn couple_mixture_functional_draws(
 mod tests {
     use super::*;
     use antecedent_prob::InferenceDiagnostics;
+
+    #[test]
+    fn indefinite_asymmetric_or_non_unit_diagonal_coupling_is_refused() {
+        let n = 64;
+        let a: Vec<f64> = (0..n).map(f64::from).collect();
+        let atoms3: Vec<(f64, &[f64])> = vec![(1.0 / 3.0, &a), (1.0 / 3.0, &a), (1.0 / 3.0, &a)];
+        // rho12 = rho13 = 0.9, rho23 = -0.9: the third Schur complement is 1 - 0.81 - 1.7^2/0.19 < 0.
+        let indefinite = [1.0, 0.9, 0.9, 0.9, 1.0, -0.9, 0.9, -0.9, 1.0];
+        // Zero pivot at the second atom with a column below it that no factor can reproduce.
+        let zero_pivot = [1.0, 1.0, 0.5, 1.0, 1.0, 0.2, 0.5, 0.2, 1.0];
+        for bad in [indefinite, zero_pivot] {
+            let err = couple_mixture_functional_draws(&atoms3, &bad, 1).unwrap_err();
+            assert!(err.to_string().contains("not positive semidefinite"), "{err}");
+        }
+        let atoms2: Vec<(f64, &[f64])> = vec![(0.5, &a), (0.5, &a)];
+        let asymmetric = couple_mixture_functional_draws(&atoms2, &[1.0, 0.5, 0.2, 1.0], 1);
+        assert!(asymmetric.unwrap_err().to_string().contains("symmetric"));
+        let bad_diagonal = couple_mixture_functional_draws(&atoms2, &[2.0, 0.5, 0.5, 1.0], 1);
+        assert!(bad_diagonal.unwrap_err().to_string().contains("unit diagonal"));
+        // A rank-deficient but valid correlation is still accepted.
+        assert!(couple_mixture_functional_draws(&atoms2, &[1.0, 1.0, 1.0, 1.0], 1).is_ok());
+    }
 
     #[test]
     fn coupled_mixture_keeps_marginals_and_tracks_correlation() {
@@ -485,18 +568,30 @@ mod tests {
     fn large_location_does_not_erase_small_mixture_variance() {
         let posterior =
             aggregate(vec![0.5, 0.5], vec![vec![1e12 - 1.0; 128], vec![1e12 + 1.0; 128]]).unwrap();
-        assert_eq!(posterior.summaries.mean[0], 1e12);
-        assert_eq!(posterior.summaries.sd[0], 1.0);
+        // Exact mixture moments (mean 1e12, SD 1), carried by the published draws to within the
+        // 1.2e-4 spacing of doubles at 1e12; the naive E[X^2] - E[X]^2 form loses all of it.
+        assert!((posterior.summaries.mean[0] - 1e12).abs() < 1e-3);
+        assert!((posterior.summaries.sd[0] - 1.0).abs() < 1e-3);
+        assert_eq!(posterior.summaries, posterior.draws.summarize());
     }
 
     #[test]
     fn categorical_draws_do_not_alias_ordered_component_samples() {
+        // A second, all-zero component is a point mass: `moment_matched`'s affine correction
+        // (mean + (x - own_mean) * scale) shifts a point mass in its *entirety* to one side of
+        // zero, in whichever direction cancels the raw Monte Carlo sample's finite-draw mean
+        // bias — a property of the moment-matching step, not of the resampling this test means
+        // to exercise. Use an anti-phase alternating component instead (still exact mean 0,
+        // still exercises the same index-selection path into an ordered array), so every
+        // component contributes both signs and the moment-matching shift cannot swing the
+        // whole mixture to one side.
         let alternating = (0..4096).map(|i| if i % 2 == 0 { -1.0 } else { 1.0 }).collect();
-        let posterior = aggregate(vec![0.5, 0.5], vec![alternating, vec![0.0; 4096]]).unwrap();
+        let anti_phase = (0..4096).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let posterior = aggregate(vec![0.5, 0.5], vec![alternating, anti_phase]).unwrap();
         let negatives = posterior.draws.values.iter().filter(|&&x| x < 0.0).count();
         let positives = posterior.draws.values.iter().filter(|&&x| x > 0.0).count();
-        assert!((900..1150).contains(&negatives), "negative mass: {negatives}");
-        assert!((900..1150).contains(&positives), "positive mass: {positives}");
+        assert!((1900..2200).contains(&negatives), "negative mass: {negatives}");
+        assert!((1900..2200).contains(&positives), "positive mass: {positives}");
     }
 
     #[test]
@@ -528,7 +623,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(posterior.unidentified_mass, 0.5);
-        assert_eq!(posterior.summaries.mean[0], 3.0);
+        assert!((posterior.summaries.mean[0] - 3.0).abs() < 1e-12);
         let imbalanced = WeightedGraphSamples::new(
             vec![1e-30, 1.0],
             vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],

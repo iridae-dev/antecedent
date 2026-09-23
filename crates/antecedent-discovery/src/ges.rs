@@ -6,18 +6,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
+#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, NodeRef};
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
@@ -33,7 +34,7 @@ use crate::orientation::{
 use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink, discovery_assumptions,
 };
 
 /// Chickering GES over tabular data → CPDAG.
@@ -143,6 +144,14 @@ impl Ges {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
+        if self.screen_pc {
+            crate::ci::ensure_ci_decisions_meaningful(
+                &*self.ci,
+                self.constraints.significance,
+                self.constraints.alpha,
+                self.fdr.is_some(),
+            )?;
+        }
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "GES requires at least one variable",
@@ -187,6 +196,9 @@ impl Ges {
 
         // Forward equivalence search (Insert).
         loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let Some(best) = best_insert(
                 &cpdag,
                 &score_data,
@@ -208,6 +220,9 @@ impl Ges {
 
         // Turning phase (Reverse = Delete then Insert opposite).
         loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let Some(best) = best_reverse(
                 &cpdag,
                 &score_data,
@@ -230,6 +245,9 @@ impl Ges {
 
         // Backward equivalence search (Delete).
         loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let Some(best) = best_delete(
                 &cpdag,
                 &score_data,
@@ -250,7 +268,7 @@ impl Ges {
         let total_score = {
             // Sync cache parents from a consistent DAG extension for reporting.
             let dag = pdag_to_dag(&cpdag)?;
-            for node in 0..n_vars as u32 {
+            for node in 0..crate::indexing::dense_u32(n_vars) {
                 let d = DenseNodeId::from_raw(node);
                 let parents: Vec<u32> = dag.parents(d).iter().map(|p| p.raw()).collect();
                 let _ = cache.local_score(&score_data, node, &Arc::from(parents))?;
@@ -286,7 +304,8 @@ impl Ges {
             .iter()
             .map(|e| ScoredLink {
                 link: e.link,
-                statistic: 0.0,
+                // GES scores graphs, not edges: there is no per-edge test statistic.
+                statistic: f64::NAN,
                 p_value: f64::NAN,
                 adjusted_p_value: None,
             })
@@ -309,7 +328,7 @@ impl Ges {
                 "ges",
                 format!("family=gaussian_bic screen_pc={} score={total_score:.6}", self.screen_pc),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("ges", true),
             iterations: Vec::<DiscoveryIteration>::new(),
             diagnostics: Vec::<DiscoveryDiagnostic>::new(),
             performance: DiscoveryPerformanceRecord {
@@ -355,8 +374,11 @@ fn seed_required_edges(
     constraints: &DiscoveryConstraints,
 ) -> Result<(), DiscoveryError> {
     let var_set: HashSet<VariableId> = variables.iter().copied().collect();
-    let index: HashMap<VariableId, DenseNodeId> =
-        variables.iter().enumerate().map(|(i, v)| (*v, DenseNodeId::from_raw(i as u32))).collect();
+    let index: HashMap<VariableId, DenseNodeId> = variables
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (*v, DenseNodeId::from_raw(crate::indexing::dense_u32(i))))
+        .collect();
     for r in constraints.required.iter() {
         if r.source_lag != Lag::CONTEMPORANEOUS || r.target_lag != Lag::CONTEMPORANEOUS {
             continue;
@@ -675,12 +697,12 @@ fn best_insert(
     let n = cpdag.node_count();
     let mut best: Option<OpCand> = None;
     for xi in 0..n {
-        let x = DenseNodeId::from_raw(xi as u32);
+        let x = DenseNodeId::from_raw(crate::indexing::dense_u32(xi));
         for yi in 0..n {
             if xi == yi {
                 continue;
             }
-            let y = DenseNodeId::from_raw(yi as u32);
+            let y = DenseNodeId::from_raw(crate::indexing::dense_u32(yi));
             if cpdag.has_edge(x, y) {
                 continue;
             }
@@ -900,10 +922,11 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
         }
     }
 
-    let mut remaining: HashSet<DenseNodeId> = (0..n as u32).map(DenseNodeId::from_raw).collect();
+    let mut remaining: HashSet<DenseNodeId> =
+        (0..crate::indexing::dense_u32(n)).map(DenseNodeId::from_raw).collect();
     while !remaining.is_empty() {
-        // Select x ∈ remaining: no directed edge out of x to remaining,
-        // and undirected neighbors (in remaining) form a clique.
+        // Select x ∈ remaining: no directed edge out of x to remaining, and the
+        // adjacent set (remaining parents ∪ remaining undirected neighbors) is a clique.
         let mut selected = None;
         let mut candidates: Vec<_> = remaining.iter().copied().collect();
         candidates.sort_unstable_by_key(|node| node.raw());
@@ -912,22 +935,30 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             if out_to_remaining {
                 continue;
             }
-            let und_nbrs: Vec<DenseNodeId> = work
+            let remaining_undirected: Vec<DenseNodeId> = work
                 .undirected_neighbors(x)
                 .into_iter()
                 .filter(|n| remaining.contains(n))
                 .collect();
-            // Clique among {und_nbrs} in the full PDAG adjacency among remaining.
+            let mut adjacent: Vec<DenseNodeId> =
+                work.parents(x).into_iter().filter(|p| remaining.contains(p)).collect();
+            adjacent.extend(remaining_undirected.iter().copied());
+            adjacent.sort_unstable_by_key(|node| node.raw());
+            adjacent.dedup();
+            // Dor–Tarsi (1992): every undirected neighbor of `x` must be adjacent to every
+            // *other* vertex adjacent to `x` (parent or undirected neighbor alike). A pair of
+            // `x`'s parents that are not adjacent to each other is not itself disqualifying —
+            // those edges are already fixed, so nothing new is being oriented between them;
+            // requiring it here would reject every plain collider `a → x ← b` (a, b
+            // non-adjacent) as having "no consistent extension", when the collider already
+            // *is* its own extension.
             let mut ok = true;
-            for i in 0..und_nbrs.len() {
-                for j in i + 1..und_nbrs.len() {
-                    if !work.has_edge(und_nbrs[i], und_nbrs[j]) {
+            'outer: for &u in &remaining_undirected {
+                for &z in &adjacent {
+                    if z != u && !work.has_edge(u, z) {
                         ok = false;
-                        break;
+                        break 'outer;
                     }
-                }
-                if !ok {
-                    break;
                 }
             }
             if ok {
@@ -936,8 +967,9 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             }
         }
         let Some(x) = selected else {
-            // Fallback: orient remaining undirected arbitrarily in a topo-safe way.
-            return pdag_to_dag_fallback(&work, &dag, &remaining);
+            return Err(DiscoveryError::Unsupported {
+                message: "GES PDAG has no consistent DAG extension",
+            });
         };
         let mut neighbors = work.undirected_neighbors(x);
         neighbors.sort_unstable_by_key(|node| node.raw());
@@ -948,43 +980,6 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             }
         }
         remaining.remove(&x);
-    }
-    Ok(dag)
-}
-
-fn pdag_to_dag_fallback(
-    work: &Cpdag,
-    dag: &Dag,
-    remaining: &HashSet<DenseNodeId>,
-) -> Result<Dag, DiscoveryError> {
-    let mut dag = dag.clone();
-    let mut work = work.clone();
-    // Orient undirected edges among remaining by endpoint order when acyclic.
-    let mut pairs: Vec<(DenseNodeId, DenseNodeId)> = Vec::new();
-    for e in work.edges() {
-        if e.is_undirected() && remaining.contains(&e.a) && remaining.contains(&e.b) {
-            pairs.push((e.a, e.b));
-        }
-    }
-    for (a, b) in pairs {
-        if !work.has_edge(a, b) {
-            continue;
-        }
-        if let Some(e) = work.edge_between(a, b) {
-            if !e.is_undirected() {
-                continue;
-            }
-        }
-        // Prefer lower → higher if acyclic.
-        if dag.insert_directed(a, b).is_ok() {
-            let _ = work.orient_undirected(a, b);
-        } else if dag.insert_directed(b, a).is_ok() {
-            let _ = work.orient_undirected(b, a);
-        } else {
-            return Err(DiscoveryError::Unsupported {
-                message: "GES PDAG has no consistent DAG extension",
-            });
-        }
     }
     Ok(dag)
 }
@@ -1005,7 +1000,7 @@ fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
     // Orient unshielded colliders present in the DAG.
     let n = dag.node_count();
     for zi in 0..n {
-        let z = DenseNodeId::from_raw(zi as u32);
+        let z = DenseNodeId::from_raw(crate::indexing::dense_u32(zi));
         let parents = dag.parents(z);
         for i in 0..parents.len() {
             for j in i + 1..parents.len() {
@@ -1138,5 +1133,58 @@ mod tests {
         assert!(insert_valid(&cpdag, x, y, &[]));
         apply_insert(&mut cpdag, x, y, &[]).unwrap();
         assert!(cpdag.has_edge(x, y));
+    }
+
+    /// PDAG `0 → 2 — 1` (no 0—1): the weakened undirected-only clique test would
+    /// accept 2 as a sink and invent the v-structure `0 → 2 ← 1`. With parents in
+    /// the clique, the unique consistent extension is `0 → 2 → 1`.
+    #[test]
+    fn pdag_to_dag_rejects_sink_whose_parents_miss_undirected_neighbor() {
+        let mut pdag = Cpdag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        pdag.insert_directed(a, c).unwrap();
+        pdag.insert_undirected(b, c).unwrap();
+
+        let dag = pdag_to_dag(&pdag).expect("consistent extension exists");
+        // Must be the chain 0 → 2 → 1, not the invented collider 0 → 2 ← 1.
+        assert!(dag.children(a).contains(&c));
+        assert!(dag.children(c).contains(&b));
+        assert!(!dag.children(b).contains(&c));
+        assert!(dag.parents(c).iter().all(|&p| p == a));
+    }
+
+    #[test]
+    fn pdag_to_dag_extends_directed_chain() {
+        let mut pdag = Cpdag::with_variables(3);
+        let n0 = DenseNodeId::from_raw(0);
+        let n1 = DenseNodeId::from_raw(1);
+        let n2 = DenseNodeId::from_raw(2);
+        pdag.insert_directed(n0, n1).unwrap();
+        pdag.insert_directed(n1, n2).unwrap();
+
+        let dag = pdag_to_dag(&pdag).expect("chain is a consistent extension");
+        assert!(dag.children(n0).contains(&n1));
+        assert!(dag.children(n1).contains(&n2));
+        assert!(dag.children(n2).is_empty());
+    }
+
+    #[test]
+    fn pdag_to_dag_extends_undirected_clique() {
+        let mut pdag = Cpdag::with_variables(3);
+        let n0 = DenseNodeId::from_raw(0);
+        let n1 = DenseNodeId::from_raw(1);
+        let n2 = DenseNodeId::from_raw(2);
+        pdag.insert_undirected(n0, n1).unwrap();
+        pdag.insert_undirected(n1, n2).unwrap();
+        pdag.insert_undirected(n0, n2).unwrap();
+
+        let dag = pdag_to_dag(&pdag).expect("clique has a consistent extension");
+        // Dor–Tarsi orients into successive sinks; every undirected edge becomes directed.
+        assert_eq!(dag.edges().count(), 3);
+        for e in dag.edges() {
+            assert!(e.parent_child().is_some());
+        }
     }
 }

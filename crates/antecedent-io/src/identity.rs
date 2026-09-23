@@ -80,6 +80,18 @@ pub fn digest_wire<T: Serialize>(
     Ok(digest_canonical(domain, &to_cbor(value)?))
 }
 
+/// Lower-case hex of [`digest_wire`], for artifact ids and wire-level identity strings.
+///
+/// # Errors
+///
+/// CBOR encode failure.
+pub(crate) fn digest_wire_hex<T: Serialize>(
+    domain: IdentityDomain,
+    value: &T,
+) -> Result<String, IoError> {
+    Ok(digest_wire(domain, value)?.to_hex())
+}
+
 /// Host/Python view of the executed functional. Stable tags, not `Debug`.
 ///
 /// Every query kind reports through this owner so consume and prepare do not
@@ -284,6 +296,9 @@ fn population_label(population: &TargetPopulationWire) -> String {
             format!("custom_distribution:{handle}")
         }
         TargetPopulationWire::RowWeights { .. } => "row_weights".into(),
+        TargetPopulationWire::LocalAtCutoff { running, cutoff } => {
+            format!("local_at_cutoff:{running}:{cutoff}")
+        }
     }
 }
 
@@ -519,6 +534,13 @@ pub enum IdentityNodeWire {
         /// Lag magnitude (`0` = contemporaneous).
         lag: u32,
     },
+    /// Slot of a finite unfolding (`variable` at signed `offset` from the analysis origin).
+    Unfolded {
+        /// Variable raw id.
+        variable: u32,
+        /// Signed time offset (negative = history).
+        offset: i32,
+    },
     /// Context / environment node.
     Context {
         /// Variable raw id.
@@ -534,6 +556,9 @@ impl IdentityNodeWire {
             NodeRef::Static(variable) => Self::Static { variable: variable.raw() },
             NodeRef::Lagged { variable, lag } => {
                 Self::Lagged { variable: variable.raw(), lag: lag.raw() }
+            }
+            NodeRef::Unfolded { variable, offset } => {
+                Self::Unfolded { variable: variable.raw(), offset }
             }
             NodeRef::Context { variable, environment } => Self::Context {
                 variable: variable.raw(),
@@ -1236,6 +1261,11 @@ pub struct ScoreReuseIdentityWire {
     pub intervened: Vec<u32>,
     /// Requested bootstrap / shared-draw count.
     pub bootstrap_replicates: u32,
+    /// Inference binding the scores were produced under: the estimator configuration, GLM
+    /// options, overlap policy and backend all change the cross-fitted scores while the
+    /// provenance tag stays constant. Absent on a design-only share key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_binding: Option<[u8; 32]>,
 }
 
 impl ScoreReuseIdentityWire {
@@ -1253,6 +1283,7 @@ impl ScoreReuseIdentityWire {
         treatment: VariableId,
         intervened: &[VariableId],
         bootstrap_replicates: u32,
+        inference_binding: SemanticDigest,
     ) -> Self {
         Self {
             format: IDENTITY_FORMAT,
@@ -1267,6 +1298,7 @@ impl ScoreReuseIdentityWire {
             treatment: Some(treatment.raw()),
             intervened: vars_to_raw(intervened),
             bootstrap_replicates,
+            inference_binding: Some(*inference_binding.as_bytes()),
         }
     }
 
@@ -1293,6 +1325,7 @@ impl ScoreReuseIdentityWire {
             treatment: None,
             intervened: Vec::new(),
             bootstrap_replicates: 0,
+            inference_binding: None,
         }
     }
 }
@@ -1665,6 +1698,42 @@ pub struct EstimatorConfigWire {
     /// Population registry contents, when present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub population_registry: Option<PayloadDigestWire>,
+    /// Cross-fit folds (`dml` / `dr.learner`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folds: Option<u32>,
+    /// Outcome nuisance spec name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    /// Treatment nuisance spec name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment: Option<String>,
+    /// DML score name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<String>,
+    /// `dr.learner` final-stage spec name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_learner: Option<String>,
+    /// Full outcome learner configuration, including hyperparameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_config: Option<String>,
+    /// Full treatment learner configuration, including hyperparameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_config: Option<String>,
+    /// Full final-stage learner configuration, including hyperparameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_learner_config: Option<String>,
+    /// Causal-forest tree count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub n_trees: Option<u32>,
+    /// Causal-forest minimum leaf size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_leaf: Option<u32>,
+    /// Causal-forest maximum depth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
+    /// Causal-forest honesty flag.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub honesty: Option<bool>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).
@@ -1693,6 +1762,12 @@ pub enum EstimatorSpecWire {
     IvWald(EstimatorConfigWire),
     /// Caller-configured two-stage least squares.
     Iv2Sls(EstimatorConfigWire),
+    /// Caller-configured DML / AIPW.
+    Dml(EstimatorConfigWire),
+    /// Caller-configured DR-Learner.
+    DrLearner(EstimatorConfigWire),
+    /// Caller-configured causal forest.
+    CausalForest(EstimatorConfigWire),
 }
 
 /// Portable response-surface options (every field that changes the estimate).
@@ -1790,16 +1865,21 @@ pub fn execution_identity_from_context(ctx: &ExecutionContext) -> ExecutionIdent
         library_version: antecedent_core::VERSION.into(),
         seed: ctx.rng.master_seed(),
         threads: ctx.parallelism.max_threads.get(),
-        backend: if policy.force_scalar {
+        // The backend that runs, not the one requested: SIMD requested but not
+        // compiled in is the portable path, so behaviourally identical contexts
+        // share one execution identity.
+        backend: if policy.force_scalar
+            || !(policy.arch_simd_effective() || policy.allow_portable_optimized)
+        {
             "scalar".into()
-        } else if policy.allow_arch_simd {
+        } else if policy.arch_simd_effective() {
             "optimized".into()
         } else {
             "portable".into()
         },
         kernel: KernelPolicyWire {
             allow_portable_optimized: policy.allow_portable_optimized,
-            allow_arch_simd: policy.allow_arch_simd,
+            allow_arch_simd: policy.arch_simd_effective(),
             force_scalar: policy.force_scalar,
         },
         determinism: match ctx.determinism {
@@ -2449,6 +2529,7 @@ mod tests {
     fn score_reuse_keys_are_stricter_than_identification() {
         let identification = SemanticDigest::from_bytes([1; 32]);
         let snapshot = SemanticDigest::from_bytes([2; 32]);
+        let inference = SemanticDigest::from_bytes([4; 32]);
         let treatment = VariableId::from_raw(0);
         let z = VariableId::from_raw(2);
         let table = ScoreReuseIdentityWire::score_table(
@@ -2462,6 +2543,7 @@ mod tests {
             treatment,
             &[],
             0,
+            inference,
         );
         let share = ScoreReuseIdentityWire::batch_share(snapshot, &[0, 1, 0, 1], 2, &[z]);
         let table_digest = score_reuse_digest(&table).unwrap();
@@ -2480,6 +2562,7 @@ mod tests {
             treatment,
             &[],
             0,
+            inference,
         );
         assert_ne!(score_reuse_digest(&other_folds).unwrap(), table_digest);
         let other_rows = ScoreReuseIdentityWire::score_table(
@@ -2493,12 +2576,19 @@ mod tests {
             treatment,
             &[],
             0,
+            inference,
         );
         assert_ne!(score_reuse_digest(&other_rows).unwrap(), table_digest);
 
         let mut other_snapshot = table.clone();
         other_snapshot.data_snapshot = [3; 32];
         assert_ne!(score_reuse_digest(&other_snapshot).unwrap(), table_digest);
+
+        // Same folds, rows and tag under another estimator / GLM / overlap configuration
+        // produce different scores, so they must not share a key.
+        let mut other_inference = table.clone();
+        other_inference.inference_binding = Some([5; 32]);
+        assert_ne!(score_reuse_digest(&other_inference).unwrap(), table_digest);
 
         let mut other_nuisance = table;
         other_nuisance.nuisance_provenance = Some("crossfit.cell_aipw".into());

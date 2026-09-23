@@ -276,3 +276,83 @@ differences = [
 [waiver.outcome.fingerprints]
 "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage" = "ea6e1a2e5eec106195c31373f24a59facadfb986560542e280c355c2392da159"
 "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage" = "8823326a2eee097b106b9847002d6a93c0e1e3c5abed02607fca606447335d5c"
+
+[[waiver]]
+id = "licensing-and-attestation-a-87786ef0"
+from = "689900f58b3c5672164997128dfcc4fe336571ff"
+to = "87786ef000339f582932c22aaec94f567cdf7776"
+reviewed_by = "Charles Hinshaw"
+justification = """
+support_matrix_data.rs and calibration.rs changed after measurement, and neither
+moves an interval. support_matrix_data.rs is the generated licensing table: the
+generator now skips reported_level coverage records when listing a cell's
+estimators, so causal.forest no longer appears in the AverageEffect/Dag cells.
+calibration.rs decides only how a matching record is labelled on a result:
+whether a record attests the tree is now read from the generated
+ATTESTING_RECORD_IDS instead of an empty hand-kept list of commits. Neither file
+touches a seed, a replicate or an interval. Same seed, same interval. This
+cannot move a measured number.\
+"""
+paths = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+]
+
+[waiver.outcome]
+replayed_at = "87786ef000339f582932c22aaec94f567cdf7776"
+identical = true
+records = [
+  "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage" = "cb06f139bf27b22a9d6748b8a034f89410cb1757eba4b82655f86c5d630a05ee"
+
+[[waiver]]
+id = "licensing-and-attestation-b-87786ef0"
+from = "f4c6813a40808aac5430a01114eb969358cfd86a"
+to = "87786ef000339f582932c22aaec94f567cdf7776"
+reviewed_by = "Charles Hinshaw"
+justification = """
+support_matrix_data.rs and calibration.rs changed after measurement, and neither
+moves an interval. support_matrix_data.rs is the generated licensing table: the
+generator now skips reported_level coverage records when listing a cell's
+estimators, so causal.forest no longer appears in the AverageEffect/Dag cells.
+calibration.rs decides only how a matching record is labelled on a result:
+whether a record attests the tree is now read from the generated
+ATTESTING_RECORD_IDS instead of an empty hand-kept list of commits. Neither file
+touches a seed, a replicate or an interval. Same seed, same interval. This
+cannot move a measured number.\
+"""
+paths = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+]
+
+[waiver.outcome]
+replayed_at = "87786ef000339f582932c22aaec94f567cdf7776"
+identical = true
+records = [
+  "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "2dd984c877734c69493d95b36dc3aa3204ca826cc0fced813e852bb0bc03008b"

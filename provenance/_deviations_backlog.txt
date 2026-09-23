@@ -7,8 +7,6 @@
 #
 # One id per line. Each id has the required one-line grandfather explanation.
 
-# Grandfathered: papers = []; structure-attribution engineering, no cited procedure to re-read.
-attribution.structure
 # Grandfathered: papers = []; original design heuristic, no cited procedure to re-read.
 design.effect_width_reduction
 # Grandfathered: papers = []; calibration plumbing, no cited procedure to re-read.

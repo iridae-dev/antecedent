@@ -2,11 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::VariableId;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-
-use antecedent_core::VariableId;
 
 use crate::{CausalExprArena, DerivationMeta, ExprId, ExprNode, VarSetId};
 
@@ -17,23 +16,24 @@ use crate::{CausalExprArena, DerivationMeta, ExprId, ExprNode, VarSetId};
 /// `IntegralOut` as a **literal, unnormalized** sum/integral over
 /// `support(variables)`. A well-formed estimand always folds a `P(v|·)` factor into
 /// the body for each bound variable `v`, so the body's free variables always
-/// intersect `variables`. If they don't, the node is malformed: collapsing it to
-/// its body (the old behavior) would silently divide the true value by
-/// `|support(v)|` (`SumOut`) or drop the integration measure entirely
-/// (`IntegralOut`). Rather than guess, `simplify` fails closed and reports it.
+/// contain every variable in `variables`. If any bound variable is absent, the node
+/// is malformed: that variable contributes a bare `|support(v)|` factor (`SumOut`)
+/// or an unweighted integration measure (`IntegralOut`). Rather than guess,
+/// `simplify` fails closed and reports the offending variables. The check runs
+/// before nested binders are merged, so merging can never launder a dead binder.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum SimplifyError {
     /// A `SumOut` binds variable(s) that are absent from the free variables of its
     /// body.
     DeadSumOut {
-        /// The bound variables, none of which occur free in the summed body.
+        /// The bound variables that do not occur free in the summed body.
         variables: Vec<VariableId>,
     },
     /// An `IntegralOut` binds variable(s) that are absent from the free variables of
     /// its body.
     DeadIntegralOut {
-        /// The bound variables, none of which occur free in the integrated body.
+        /// The bound variables that do not occur free in the integrated body.
         variables: Vec<VariableId>,
     },
 }
@@ -65,15 +65,18 @@ fn write_var_list(f: &mut fmt::Formatter<'_>, variables: &[VariableId]) -> fmt::
     Ok(())
 }
 
+/// Free-variable lists (sorted, deduplicated) memoised per expression.
+pub(crate) type FreeMemo = HashMap<ExprId, Arc<[VariableId]>>;
+
 /// Simplify `root` bottom-up with memoization; returns a (possibly new) `ExprId`.
 ///
 /// # Errors
 ///
-/// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds a variable absent from its
+/// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds any variable absent from its
 /// body's free variables (an ill-formed estimand; see [`SimplifyError`] docs).
 pub(crate) fn simplify(arena: &mut CausalExprArena, root: ExprId) -> Result<ExprId, SimplifyError> {
     let mut memo: HashMap<ExprId, ExprId> = HashMap::new();
-    let mut free_memo: HashMap<ExprId, VarSetId> = HashMap::new();
+    let mut free_memo: FreeMemo = HashMap::new();
     simplify_rec(arena, root, &mut memo, &mut free_memo)
 }
 
@@ -81,7 +84,7 @@ fn simplify_rec(
     arena: &mut CausalExprArena,
     id: ExprId,
     memo: &mut HashMap<ExprId, ExprId>,
-    free_memo: &mut HashMap<ExprId, VarSetId>,
+    free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     if let Some(&cached) = memo.get(&id) {
         return Ok(cached);
@@ -96,11 +99,15 @@ fn rebuild_children(
     arena: &mut CausalExprArena,
     id: ExprId,
     memo: &mut HashMap<ExprId, ExprId>,
-    free_memo: &mut HashMap<ExprId, VarSetId>,
+    free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     let node = arena.node(id).clone();
     let rebuilt = match node {
         ExprNode::Distribution { .. } => id,
+        ExprNode::Kernel { body, bound, population, regime } => {
+            let body = simplify_rec(arena, body, memo, free_memo)?;
+            arena.intern(ExprNode::Kernel { body, bound, population, regime })
+        }
         ExprNode::Product(list) => {
             let children_ids: Vec<ExprId> = arena.list(list).to_vec();
             let mut children: Vec<ExprId> = Vec::with_capacity(children_ids.len());
@@ -139,7 +146,7 @@ fn rebuild_children(
 fn apply_rules_fixpoint(
     arena: &mut CausalExprArena,
     mut id: ExprId,
-    free_memo: &mut HashMap<ExprId, VarSetId>,
+    free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     // Local rules only; children are already simplified.
     loop {
@@ -154,7 +161,7 @@ fn apply_rules_fixpoint(
 fn apply_local_rules(
     arena: &mut CausalExprArena,
     id: ExprId,
-    free_memo: &mut HashMap<ExprId, VarSetId>,
+    free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     match arena.node(id).clone() {
         ExprNode::SumOut { variables, expr } => {
@@ -176,17 +183,21 @@ fn rewrite_sum_out(
     id: ExprId,
     variables: VarSetId,
     expr: ExprId,
-    free_memo: &mut HashMap<ExprId, VarSetId>,
+    free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     if arena.var_set(variables).is_empty() {
         return Ok(tag_if_new(arena, expr, id, "simplify.empty_sum_out"));
     }
+    let free = free_vars(arena, expr, free_memo);
+    let dead = difference(arena.var_set(variables), &free);
+    if !dead.is_empty() {
+        // Ill-formed estimand (see `SimplifyError` docs) — fail closed rather than
+        // silently eliminating the sum (which would leave a bare `|support(v)|` factor).
+        // Checked against the body's *free* variables, so a binder that the inner
+        // `SumOut` already consumed is dead here too and cannot be merged away.
+        return Err(SimplifyError::DeadSumOut { variables: dead });
+    }
     if let ExprNode::SumOut { variables: inner_v, expr: inner_e } = arena.node(expr).clone() {
-        if intersects(arena, variables, inner_v) {
-            // The inner binding shadows repeated variables: taking a union
-            // would erase the outer sum's multiplicity / integration measure.
-            return Ok(id);
-        }
         let merged: Vec<VariableId> = arena
             .var_set(variables)
             .iter()
@@ -197,12 +208,6 @@ fn rewrite_sum_out(
         let node = ExprNode::SumOut { variables: union, expr: inner_e };
         return Ok(intern_derived(arena, node, "simplify.merge_sum_out"));
     }
-    let free = free_vars(arena, expr, free_memo);
-    if !intersects(arena, variables, free) {
-        // Ill-formed estimand (see `SimplifyError` docs) — fail closed rather than
-        // silently eliminating the sum (which would drop the `|support(v)|` factor).
-        return Err(SimplifyError::DeadSumOut { variables: arena.var_set(variables).to_vec() });
-    }
     Ok(id)
 }
 
@@ -211,17 +216,21 @@ fn rewrite_integral_out(
     id: ExprId,
     variables: VarSetId,
     expr: ExprId,
-    free_memo: &mut HashMap<ExprId, VarSetId>,
+    free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
     if arena.var_set(variables).is_empty() {
         return Ok(tag_if_new(arena, expr, id, "simplify.empty_integral_out"));
     }
+    let free = free_vars(arena, expr, free_memo);
+    let dead = difference(arena.var_set(variables), &free);
+    if !dead.is_empty() {
+        // Ill-formed estimand (see `SimplifyError` docs) — fail closed rather than
+        // silently collapsing the integral (which would drop the integration measure).
+        // Checked against the body's *free* variables, so a binder that the inner
+        // `IntegralOut` already consumed is dead here too and cannot be merged away.
+        return Err(SimplifyError::DeadIntegralOut { variables: dead });
+    }
     if let ExprNode::IntegralOut { variables: inner_v, expr: inner_e } = arena.node(expr).clone() {
-        if intersects(arena, variables, inner_v) {
-            // The inner binding shadows repeated variables: taking a union
-            // would erase the outer sum's multiplicity / integration measure.
-            return Ok(id);
-        }
         let merged: Vec<VariableId> = arena
             .var_set(variables)
             .iter()
@@ -231,14 +240,6 @@ fn rewrite_integral_out(
         let union = arena.intern_var_set(merged);
         let node = ExprNode::IntegralOut { variables: union, expr: inner_e };
         return Ok(intern_derived(arena, node, "simplify.merge_integral_out"));
-    }
-    let free = free_vars(arena, expr, free_memo);
-    if !intersects(arena, variables, free) {
-        // Ill-formed estimand (see `SimplifyError` docs) — fail closed rather than
-        // silently collapsing the integral (which would drop the integration measure).
-        return Err(SimplifyError::DeadIntegralOut {
-            variables: arena.var_set(variables).to_vec(),
-        });
     }
     Ok(id)
 }
@@ -308,100 +309,134 @@ fn intern_derived(arena: &mut CausalExprArena, node: ExprNode, rule: &str) -> Ex
     let before = arena.len();
     let id = arena.intern(node);
     if arena.len() > before {
-        arena.set_derivation_if_absent(id, DerivationMeta { rule: Arc::from(rule), note: None });
+        arena.set_derivation_if_absent(id, DerivationMeta::rule(rule, None));
     }
     id
 }
 
-fn intersects(arena: &CausalExprArena, a: VarSetId, b: VarSetId) -> bool {
-    let av = arena.var_set(a);
-    let bv = arena.var_set(b);
-    let mut i = 0;
-    let mut j = 0;
-    while i < av.len() && j < bv.len() {
-        match av[i].raw().cmp(&bv[j].raw()) {
-            std::cmp::Ordering::Equal => return true,
-            std::cmp::Ordering::Less => i += 1,
-            std::cmp::Ordering::Greater => j += 1,
-        }
-    }
-    false
+/// Variables of `a` that are not in `b` (both sorted), in order.
+fn difference(a: &[VariableId], b: &[VariableId]) -> Vec<VariableId> {
+    a.iter().copied().filter(|v| b.binary_search(v).is_err()).collect()
 }
 
-fn free_vars(
-    arena: &mut CausalExprArena,
+/// Free variables of `id`, sorted and deduplicated. Reads the arena without interning, so it
+/// needs only a shared borrow.
+pub(crate) fn free_vars(
+    arena: &CausalExprArena,
     id: ExprId,
-    memo: &mut HashMap<ExprId, VarSetId>,
-) -> VarSetId {
-    if let Some(&cached) = memo.get(&id) {
-        return cached;
+    memo: &mut FreeMemo,
+) -> Arc<[VariableId]> {
+    if let Some(cached) = memo.get(&id) {
+        return Arc::clone(cached);
     }
-    let result = match arena.node(id).clone() {
+    let mut vars: Vec<VariableId> = match arena.node(id) {
         ExprNode::Distribution { variables, conditioned_on, intervention, .. } => {
-            let mut vars: Vec<VariableId> = arena.var_set(variables).to_vec();
+            let mut vars: Vec<VariableId> = arena.var_set(*variables).to_vec();
             // `conditioned_on` variables bound by the accompanying `intervention` set
             // are do(·)-fixed, not free — mirrors `eval::compute_free_vars`'s
             // `Distribution` arm (`eval.rs`), which this function must agree with:
             // both feed the "does the body depend on the summed variable" check in
             // `rewrite_sum_out`/`rewrite_integral_out` above, and a discrepancy there
-            // was previously masking ill-formed estimands (B3). This can only shrink
-            // the free-variable set relative to the old (unconditionally-inclusive)
-            // version, which can only make `intersects()` return true *less* often —
-            // i.e. it can only turn a previously-missed dead-sum/integral into a
-            // now-detected `SimplifyError`, never turn a legitimate dependency into a
-            // spurious elimination. It cannot newly enable an unsound rewrite.
-            let bound: Vec<VariableId> =
-                arena.intervention_assignments(intervention).iter().map(|a| a.variable).collect();
-            for &v in arena.var_set(conditioned_on) {
-                if !bound.iter().any(|b| *b == v) {
+            // was previously masking ill-formed estimands. A symbolic coordinate is free.
+            let assignments = arena.intervention_assignments(*intervention);
+            for &v in arena.var_set(*conditioned_on) {
+                if !assignments.iter().any(|a| a.variable == v && !a.is_symbolic()) {
                     vars.push(v);
                 }
             }
-            arena.intern_var_set(vars)
+            vars.extend(assignments.iter().filter(|a| a.is_symbolic()).map(|a| a.variable));
+            vars
         }
+        ExprNode::Kernel { body, .. } => free_vars(arena, *body, memo).to_vec(),
         ExprNode::Product(list) => {
-            let children: Vec<ExprId> = arena.list(list).to_vec();
             let mut vars = Vec::new();
-            for c in children {
-                let fv = free_vars(arena, c, memo);
-                vars.extend_from_slice(arena.var_set(fv));
+            for &c in arena.list(*list) {
+                vars.extend_from_slice(&free_vars(arena, c, memo));
             }
-            arena.intern_var_set(vars)
+            vars
         }
         ExprNode::SumOut { variables, expr } | ExprNode::IntegralOut { variables, expr } => {
-            let body = free_vars(arena, expr, memo);
-            let bound = arena.var_set(variables);
-            let remaining: Vec<VariableId> = arena
-                .var_set(body)
+            let bound = arena.var_set(*variables);
+            free_vars(arena, *expr, memo)
                 .iter()
                 .copied()
-                .filter(|v| !bound.iter().any(|b| b == v))
-                .collect();
-            arena.intern_var_set(remaining)
+                .filter(|v| bound.binary_search(v).is_err())
+                .collect()
         }
         ExprNode::Ratio { numerator, denominator } => {
-            let n = free_vars(arena, numerator, memo);
-            let d = free_vars(arena, denominator, memo);
-            let mut vars = arena.var_set(n).to_vec();
-            vars.extend_from_slice(arena.var_set(d));
-            arena.intern_var_set(vars)
+            let mut vars = free_vars(arena, *numerator, memo).to_vec();
+            vars.extend_from_slice(&free_vars(arena, *denominator, memo));
+            vars
         }
-        ExprNode::Expectation { function, distribution } => {
-            let dist = free_vars(arena, distribution, memo);
-            let mut vars = arena.var_set(dist).to_vec();
-            vars.push(function.variable());
-            arena.intern_var_set(vars)
-        }
+        ExprNode::Expectation { function, distribution } => free_vars(arena, *distribution, memo)
+            .iter()
+            .copied()
+            .filter(|v| *v != function.variable())
+            .collect(),
         ExprNode::Contrast { left, right, .. } => {
-            let l = free_vars(arena, left, memo);
-            let r = free_vars(arena, right, memo);
-            let mut vars = arena.var_set(l).to_vec();
-            vars.extend_from_slice(arena.var_set(r));
-            arena.intern_var_set(vars)
+            let mut vars = free_vars(arena, *left, memo).to_vec();
+            vars.extend_from_slice(&free_vars(arena, *right, memo));
+            vars
         }
     };
-    memo.insert(id, result);
+    vars.sort_unstable();
+    vars.dedup();
+    let result: Arc<[VariableId]> = Arc::from(vars);
+    memo.insert(id, Arc::clone(&result));
     result
+}
+
+/// A ratio `Σ_A k / Σ_B k` of two marginals of one joint `k` with `A ⊊ B`: the conditional
+/// distribution of `B∖A` given the remaining variables of `k`.
+///
+/// This is the one structural shape an exact evaluation may extend across a null conditioning
+/// event (`Σ_B k = 0` forces every summand, hence `Σ_A k`, to zero). It is owned here beside the
+/// rewrites that produce and reshape `SumOut` nests, so a rewrite cannot silently move a
+/// conditional out of the shape the evaluator recognises.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct MarginalConditional {
+    /// The joint both marginals are taken of.
+    pub joint: ExprId,
+    /// Variables summed out of the numerator (sorted; empty when the numerator is the joint).
+    pub numerator_summed: Vec<VariableId>,
+    /// Variables summed out of the denominator (sorted; a strict superset of the numerator's).
+    pub denominator_summed: Vec<VariableId>,
+}
+
+/// Peel `Kernel` wrappers and nested `SumOut`/`IntegralOut` layers off `id`, returning the
+/// innermost body and every variable summed on the way (sorted, deduplicated).
+fn peel_marginalisation(arena: &CausalExprArena, mut id: ExprId) -> (ExprId, Vec<VariableId>) {
+    let mut summed: Vec<VariableId> = Vec::new();
+    loop {
+        match arena.node(id) {
+            ExprNode::Kernel { body, .. } => id = *body,
+            ExprNode::SumOut { variables, expr } | ExprNode::IntegralOut { variables, expr } => {
+                summed.extend_from_slice(arena.var_set(*variables));
+                id = *expr;
+            }
+            _ => break,
+        }
+    }
+    summed.sort_unstable();
+    summed.dedup();
+    (id, summed)
+}
+
+/// Recognise `numerator / denominator` as [`MarginalConditional`].
+pub(crate) fn marginal_conditional(
+    arena: &CausalExprArena,
+    numerator: ExprId,
+    denominator: ExprId,
+) -> Option<MarginalConditional> {
+    let (joint, numerator_summed) = peel_marginalisation(arena, numerator);
+    let (denominator_joint, denominator_summed) = peel_marginalisation(arena, denominator);
+    let strict_superset = denominator_summed.len() > numerator_summed.len()
+        && numerator_summed.iter().all(|v| denominator_summed.binary_search(v).is_ok());
+    (joint == denominator_joint && strict_superset).then_some(MarginalConditional {
+        joint,
+        numerator_summed,
+        denominator_summed,
+    })
 }
 
 #[cfg(test)]
@@ -415,12 +450,7 @@ mod tests {
         let mut a = CausalExprArena::new();
         let empty = a.empty_var_set();
         let empty_i = a.empty_intervention_set();
-        let dist = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
         let summed = a.intern(ExprNode::SumOut { variables: empty, expr: dist });
         assert_eq!(simplify(&mut a, summed).unwrap(), dist);
     }
@@ -433,12 +463,7 @@ mod tests {
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
         let v2 = a.intern_var_set([VariableId::from_raw(2)]);
         let vars12 = a.intern_var_set([VariableId::from_raw(1), VariableId::from_raw(2)]);
-        let dist = a.intern(ExprNode::Distribution {
-            variables: vars12,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(vars12, empty, empty_i, DomainRef::Observational);
         let inner = a.intern(ExprNode::SumOut { variables: v2, expr: dist });
         let outer = a.intern(ExprNode::SumOut { variables: v1, expr: inner });
         let s = simplify(&mut a, outer).unwrap();
@@ -466,15 +491,101 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let y = a.intern_var_set([VariableId::from_raw(0)]);
         let z = a.intern_var_set([VariableId::from_raw(1)]);
-        let dist = a.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(y, empty, empty_i, DomainRef::Observational);
         let summed = a.intern(ExprNode::SumOut { variables: z, expr: dist });
         let err = simplify(&mut a, summed).unwrap_err();
         assert_eq!(err, SimplifyError::DeadSumOut { variables: vec![VariableId::from_raw(1)] });
+    }
+
+    #[test]
+    fn partially_dead_sum_out_reports_only_the_dead_binder() {
+        // SumOut{w,z}(P(z)): z is live, w is dead and would multiply the result by |supp(w)|.
+        let mut a = CausalExprArena::new();
+        let empty = a.empty_var_set();
+        let empty_i = a.empty_intervention_set();
+        let z = a.intern_var_set([VariableId::from_raw(1)]);
+        let wz = a.intern_var_set([VariableId::from_raw(0), VariableId::from_raw(1)]);
+        let dist = a.intern_distribution(z, empty, empty_i, DomainRef::Observational);
+        let summed = a.intern(ExprNode::SumOut { variables: wz, expr: dist });
+        let err = simplify(&mut a, summed).unwrap_err();
+        assert_eq!(err, SimplifyError::DeadSumOut { variables: vec![VariableId::from_raw(0)] });
+    }
+
+    #[test]
+    fn merge_cannot_launder_a_dead_outer_sum_out() {
+        // SumOut{w}(SumOut{z}(P(z))): the outer sum is fully dead. Merging into
+        // SumOut{w,z}(P(z)) would make it look partially live.
+        let mut a = CausalExprArena::new();
+        let empty = a.empty_var_set();
+        let empty_i = a.empty_intervention_set();
+        let w = a.intern_var_set([VariableId::from_raw(0)]);
+        let z = a.intern_var_set([VariableId::from_raw(1)]);
+        let dist = a.intern_distribution(z, empty, empty_i, DomainRef::Observational);
+        let inner = a.intern(ExprNode::SumOut { variables: z, expr: dist });
+        let outer = a.intern(ExprNode::SumOut { variables: w, expr: inner });
+        let err = simplify(&mut a, outer).unwrap_err();
+        assert_eq!(err, SimplifyError::DeadSumOut { variables: vec![VariableId::from_raw(0)] });
+    }
+
+    #[test]
+    fn partially_dead_and_laundered_integral_out_rejected() {
+        let mut a = CausalExprArena::new();
+        let empty = a.empty_var_set();
+        let empty_i = a.empty_intervention_set();
+        let w = a.intern_var_set([VariableId::from_raw(0)]);
+        let z = a.intern_var_set([VariableId::from_raw(1)]);
+        let wz = a.intern_var_set([VariableId::from_raw(0), VariableId::from_raw(1)]);
+        let dist = a.intern_distribution(z, empty, empty_i, DomainRef::Observational);
+        let partial = a.intern(ExprNode::IntegralOut { variables: wz, expr: dist });
+        assert_eq!(
+            simplify(&mut a, partial).unwrap_err(),
+            SimplifyError::DeadIntegralOut { variables: vec![VariableId::from_raw(0)] }
+        );
+        let inner = a.intern(ExprNode::IntegralOut { variables: z, expr: dist });
+        let outer = a.intern(ExprNode::IntegralOut { variables: w, expr: inner });
+        assert_eq!(
+            simplify(&mut a, outer).unwrap_err(),
+            SimplifyError::DeadIntegralOut { variables: vec![VariableId::from_raw(0)] }
+        );
+    }
+
+    #[test]
+    fn marginal_conditional_recognises_nested_and_merged_shapes() {
+        let mut a = CausalExprArena::new();
+        let empty = a.empty_var_set();
+        let none = a.empty_intervention_set();
+        let v = VariableId::from_raw;
+        let all = a.intern_var_set([v(0), v(1), v(2)]);
+        let joint = a.intern_distribution(all, empty, none, DomainRef::Observational);
+        let s2 = a.intern_var_set([v(2)]);
+        let s12 = a.intern_var_set([v(1), v(2)]);
+        let num = a.intern(ExprNode::SumOut { variables: s2, expr: joint });
+        let den = a.intern(ExprNode::SumOut { variables: s12, expr: joint });
+        // Σ_{v2} k / Σ_{v1,v2} k = P(v1 | v0).
+        let found = marginal_conditional(&a, num, den).unwrap();
+        assert_eq!(found.joint, joint);
+        assert_eq!(found.numerator_summed, vec![v(2)]);
+        assert_eq!(found.denominator_summed, vec![v(1), v(2)]);
+        // k / Σ_{v1,v2} k has an empty numerator binder.
+        let found = marginal_conditional(&a, joint, den).unwrap();
+        assert!(found.numerator_summed.is_empty());
+        // Nested binders (as built before merging) and kernel wrappers are peeled.
+        let inner = a.intern(ExprNode::SumOut { variables: s2, expr: joint });
+        let s1 = a.intern_var_set([v(1)]);
+        let nested = a.intern(ExprNode::SumOut { variables: s1, expr: inner });
+        assert_eq!(
+            marginal_conditional(&a, num, nested).unwrap().denominator_summed,
+            vec![v(1), v(2)]
+        );
+        // Same binders on both sides, the reverse containment, or different joints do not match.
+        assert!(marginal_conditional(&a, den, den).is_none());
+        assert!(marginal_conditional(&a, den, num).is_none());
+        let other = a.intern_distribution(all, empty, none, DomainRef::Interventional);
+        let other_den = a.intern(ExprNode::SumOut { variables: s12, expr: other });
+        assert!(marginal_conditional(&a, num, other_den).is_none());
+        // The merged form the simplifier produces still matches.
+        let simplified = simplify(&mut a, nested).unwrap();
+        assert_eq!(marginal_conditional(&a, num, simplified).unwrap().joint, joint);
     }
 
     #[test]
@@ -487,12 +598,7 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let y = a.intern_var_set([VariableId::from_raw(0)]);
         let z = a.intern_var_set([VariableId::from_raw(1)]);
-        let dist = a.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(y, empty, empty_i, DomainRef::Observational);
         let integrated = a.intern(ExprNode::IntegralOut { variables: z, expr: dist });
         let err = simplify(&mut a, integrated).unwrap_err();
         assert_eq!(
@@ -508,18 +614,8 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let v0 = a.intern_var_set([VariableId::from_raw(0)]);
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
-        let d1 = a.intern(ExprNode::Distribution {
-            variables: v0,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let d2 = a.intern(ExprNode::Distribution {
-            variables: v1,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let d1 = a.intern_distribution(v0, empty, empty_i, DomainRef::Observational);
+        let d2 = a.intern_distribution(v1, empty, empty_i, DomainRef::Observational);
         let inner = {
             let list = a.intern_list([d1]);
             a.intern(ExprNode::Product(list))
@@ -552,18 +648,8 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let v0 = a.intern_var_set([VariableId::from_raw(0)]);
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
-        let d1 = a.intern(ExprNode::Distribution {
-            variables: v0,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let d2 = a.intern(ExprNode::Distribution {
-            variables: v1,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let d1 = a.intern_distribution(v0, empty, empty_i, DomainRef::Observational);
+        let d2 = a.intern_distribution(v1, empty, empty_i, DomainRef::Observational);
         let p1 = {
             let list = a.intern_list([d1, d2]);
             a.intern(ExprNode::Product(list))
@@ -598,24 +684,9 @@ mod tests {
         let v0 = a.intern_var_set([VariableId::from_raw(0)]);
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
         let v2 = a.intern_var_set([VariableId::from_raw(2)]);
-        let da = a.intern(ExprNode::Distribution {
-            variables: v0,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let db = a.intern(ExprNode::Distribution {
-            variables: v1,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let dc = a.intern(ExprNode::Distribution {
-            variables: v2,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let da = a.intern_distribution(v0, empty, empty_i, DomainRef::Observational);
+        let db = a.intern_distribution(v1, empty, empty_i, DomainRef::Observational);
+        let dc = a.intern_distribution(v2, empty, empty_i, DomainRef::Observational);
         let ab = a.intern(ExprNode::Ratio { numerator: da, denominator: db });
         let nested = a.intern(ExprNode::Ratio { numerator: ab, denominator: dc });
         let s = simplify(&mut a, nested).unwrap();
@@ -640,12 +711,7 @@ mod tests {
         let mut a = CausalExprArena::new();
         let empty = a.empty_var_set();
         let empty_i = a.empty_intervention_set();
-        let dist = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
         let summed = a.intern(ExprNode::SumOut { variables: empty, expr: dist });
         let exp = a.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(VariableId::from_raw(0)),

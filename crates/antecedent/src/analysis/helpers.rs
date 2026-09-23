@@ -4,13 +4,7 @@
 
 //! Private execution helpers.
 
-#![allow(
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
 use std::sync::Arc;
 
@@ -319,13 +313,13 @@ pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
     match overlap {
         OverlapPolicy::ExplicitOverride => Diagnostic::new(
             "estimate.overlap.explicit_override",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Info,
             "estimator used ExplicitOverride for positivity (not a propensity-based method)",
         ),
         OverlapPolicy::RequireDiagnostics { .. } => Diagnostic::new(
             "estimate.overlap.require_diagnostics",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Info,
             "estimator used RequireDiagnostics for mandatory positivity diagnostics",
         ),
@@ -380,6 +374,7 @@ pub(crate) fn maybe_build_functional_scores(
     estimand: &IdentifiedEstimand,
     est: &AipwAte,
     shared: Option<&super::batch::SharedBatchDesign>,
+    fold_seed: u64,
 ) -> Result<Option<ScoreTable>, CausalError> {
     if !matches!(
         query.outcome_functional,
@@ -397,6 +392,8 @@ pub(crate) fn maybe_build_functional_scores(
         return Ok(None);
     }
     let mut problem = est.prepare(data, estimand, query)?;
+    // The recorded master seed governs the fold plan, not only the learners.
+    problem.fold_seed = fold_seed;
     if let Some(shared) = shared {
         shared.apply_to_propensity(&mut problem)?;
     }
@@ -431,7 +428,7 @@ pub(crate) fn attach_score_functional_grid(
     table: ScoreTable,
 ) -> Result<(EffectEstimate, Vec<Diagnostic>), CausalError> {
     let (summary, monotone_rearranged, mut diagnostics) = summarize_functional(&table, None)?;
-    let n_thresholds = distinct_threshold_count(&table);
+    let n_thresholds = table.distinct_threshold_count();
     if table.intervened.is_empty() && summary.means.len() >= 2 && n_thresholds <= 1 {
         let mut coefficients = vec![0.0; table.n_columns()];
         coefficients[0] = -1.0;
@@ -480,13 +477,6 @@ pub(crate) fn attach_score_functional_grid(
     Ok((estimate, diagnostics))
 }
 
-fn distinct_threshold_count(table: &ScoreTable) -> usize {
-    let mut thresholds: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-    thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    thresholds.dedup_by(|a, b| a.total_cmp(b).is_eq());
-    thresholds.len()
-}
-
 /// Build scores on original `Y` and attach the exceedance grid when licensed.
 pub(crate) fn attach_average_functional_grid(
     estimate: EffectEstimate,
@@ -496,6 +486,7 @@ pub(crate) fn attach_average_functional_grid(
     extra_diagnostics: &mut Vec<Diagnostic>,
     estimator_id: crate::strategy_table::EstimatorId,
     study: &super::execute::Study,
+    fold_seed: u64,
 ) -> Result<EffectEstimate, CausalError> {
     if estimator_id != crate::strategy_table::EstimatorId::Aipw
         || !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
@@ -534,6 +525,7 @@ pub(crate) fn attach_average_functional_grid(
         estimand,
         &config,
         study.shared_batch_design.as_deref(),
+        fold_seed,
     )?
     else {
         if !query.outcome_functional.is_mean() {
@@ -593,25 +585,29 @@ pub(crate) fn attach_quantile_from_table(
     Ok((estimate, diagnostics))
 }
 
+/// The joint-cell arm index of a binary `Set` response: the one decoder shared by quantile,
+/// batch family-contrast and retarget paths.
 pub(crate) fn requested_joint_arm(
     query: &antecedent_core::ResponseQuery,
 ) -> Result<u32, CausalError> {
     let antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. } =
         &query.functional
     else {
-        return Err(CausalError::Unsupported { message: "joint quantile requires Set response" });
+        return Err(CausalError::Unsupported {
+            message: "joint-cell response requires Set response",
+        });
     };
     let mut arm = 0u32;
     for (j, iv) in interventions.iter().enumerate() {
         let Intervention::Set { value, .. } = iv else {
             return Err(CausalError::Unsupported {
-                message: "joint quantile requires binary Set levels",
+                message: "joint-cell response requires binary Set levels",
             });
         };
         let v = value.as_f64();
-        if j >= 3 || !matches!(v, Some(0.0 | 1.0)) {
+        if j >= antecedent_estimate::cell_aipw::MAX_JOINT_BINARY || !matches!(v, Some(0.0 | 1.0)) {
             return Err(CausalError::Unsupported {
-                message: "joint quantile requires at most three binary Set levels",
+                message: "joint-cell response requires at most three binary Set levels",
             });
         }
         arm |= u32::from(v == Some(1.0)) << j;
@@ -914,14 +910,14 @@ pub(crate) fn attach_conditional_functional_grid(
     estimand: &IdentifiedEstimand,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
-    let _ = ctx;
     let Some(thresholds) =
         conditional_thresholds(data, query, estimand.adjustment_set.iter().copied())?
     else {
         return Ok(estimate);
     };
     let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
-    let est = antecedent_estimate::ConditionalLinearAdjustment::new();
+    let est = antecedent_estimate::ConditionalLinearAdjustment::new()
+        .with_fold_seed(ctx.rng.master_seed());
     let mut raw_cdf = Vec::with_capacity(thresholds.len() * 2);
     let mut columns = Vec::with_capacity(thresholds.len() * 2);
     let mut event_n_eff = Vec::with_capacity(thresholds.len() * 2);
@@ -1265,14 +1261,12 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
             )
             .map_err(CausalError::from)?;
         Ok((summary, sens))
-    } else if est.prior.is_some() {
-        let sens = PriorSensitivity::standard_resolved_grid();
-        let (summary, _) =
-            sens.evaluate_resolved_prior(est, prep, status, ws, ctx).map_err(CausalError::from)?;
-        Ok((summary, sens))
     } else {
-        let sens = PriorSensitivity::standard_grid();
-        let (summary, _) = sens.evaluate(est, prep, status, ws, ctx).map_err(CausalError::from)?;
+        // An explicit or transferred prior gets its variance-multiplier grid; with none the
+        // isotropic scale grid is the prior in force.
+        let sens = PriorSensitivity::for_estimator(est);
+        let (summary, _) =
+            sens.evaluate_in_force(est, prep, status, ws, ctx).map_err(CausalError::from)?;
         Ok((summary, sens))
     }
 }

@@ -64,6 +64,15 @@ for name in sorted(set(linked)):
             f"benches/baselines/{name} has no numeric wall-time (µs/ms/s) and no "
             "'none published' waiver"
         )
+    # Every baseline says when, on what class of machine and at which commit it stands
+    # (or that the original measurement did not record it).
+    for field, pattern in (
+        ("Established: <date>", r"(?im)^established:\s*\d{4}-\d{2}-\d{2}"),
+        ("Machine class: <class or 'not recorded'>", r"(?im)^machine class:\s*\S"),
+        ("Commit: <sha>", r"(?im)^commit:\s*[0-9a-f]{7,}"),
+    ):
+        if not re.search(pattern, text):
+            fail.append(f"benches/baselines/{name} has no `{field}` line")
     for m in FILE_GATE.finditer(text):
         gates.append((name, "*", float(m.group(1)), m.group(2).lower()))
     for m in ROW_GATE.finditer(text):

@@ -25,6 +25,7 @@ use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response
 
 /// Wire scalar value.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum ValueWire {
     /// Float64.
@@ -67,6 +68,7 @@ impl ValueWire {
 
 /// Hard set intervention on the wire (kept for posterior/distribution helpers).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SetInterventionWire {
     /// Target variable raw id.
     pub variable: u32,
@@ -76,6 +78,7 @@ pub struct SetInterventionWire {
 
 /// Outcome functional on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum OutcomeFunctionalWire {
     /// Mean (default).
@@ -126,7 +129,8 @@ impl OutcomeFunctionalWire {
 }
 
 /// Target population on the wire.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum TargetPopulationWire {
     /// All observed units.
@@ -161,6 +165,13 @@ pub enum TargetPopulationWire {
         weights: [u8; 32],
         /// Declared parents.
         depends_on: Vec<u32>,
+    },
+    /// Units at a running-variable cutoff (the sharp-RD limit population).
+    LocalAtCutoff {
+        /// Running variable.
+        running: u32,
+        /// Cutoff.
+        cutoff: f64,
     },
 }
 
@@ -242,6 +253,9 @@ impl TargetPopulationWire {
                 weights: *weights,
                 depends_on: depends_on.iter().map(|id| id.raw()).collect(),
             },
+            TargetPopulation::LocalAtCutoff { running, cutoff } => {
+                Self::LocalAtCutoff { running: running.raw(), cutoff: cutoff.to_f64() }
+            }
             other => {
                 return Err(IoError::Convert(format!(
                     "unsupported TargetPopulation for query wire: {other:?}"
@@ -278,12 +292,16 @@ impl TargetPopulationWire {
                 weights: *weights,
                 depends_on: depends_on.iter().copied().map(VariableId::from_raw).collect(),
             },
+            Self::LocalAtCutoff { running, cutoff } => {
+                TargetPopulation::local_at_cutoff(VariableId::from_raw(*running), *cutoff)
+            }
         })
     }
 }
 
 /// Temporal policy wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum TemporalPolicyWire {
     /// Pulse.
@@ -346,6 +364,7 @@ impl TemporalPolicyWire {
 
 /// Stochastic policy wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum StochasticPolicyWire {
     /// Bernoulli.
@@ -397,6 +416,7 @@ impl StochasticPolicyWire {
 
 /// Soft mechanism override wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct MechanismOverrideWire {
     /// Family id.
     pub family_id: String,
@@ -406,6 +426,7 @@ pub struct MechanismOverrideWire {
 
 /// Full intervention wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum InterventionWire {
     /// Hard set.
@@ -445,6 +466,7 @@ pub enum InterventionWire {
 
 /// Sequenced intervention step.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SequencedInterventionWire {
     /// Nested intervention.
     pub intervention: Box<InterventionWire>,
@@ -530,6 +552,7 @@ impl InterventionWire {
 
 /// Wire form of [`InterventionalDistributionQuery`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct InterventionalDistributionQueryWire {
     /// Outcome variable raw ids.
     pub outcomes: Vec<u32>,
@@ -544,6 +567,7 @@ pub struct InterventionalDistributionQueryWire {
 
 /// Wire form of [`PathSpecificEffectQuery`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct PathSpecificEffectQueryWire {
     /// Treatment raw id.
     pub treatment: u32,
@@ -565,6 +589,7 @@ pub struct PathSpecificEffectQueryWire {
 
 /// Population selector wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum PopulationSelectorWire {
     /// All.
@@ -587,6 +612,7 @@ pub enum PopulationSelectorWire {
 
 /// Full causal query wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum CausalQueryWire {
     /// Average effect.
@@ -603,7 +629,7 @@ pub enum CausalQueryWire {
         active: InterventionWire,
         /// Population.
         target_population: TargetPopulationWire,
-        /// Outcome functional. Absent on pre-1.5 artifacts decodes as Mean.
+        /// Outcome functional. Absent field decodes as Mean.
         #[serde(default, skip_serializing_if = "OutcomeFunctionalWire::is_mean")]
         outcome_functional: OutcomeFunctionalWire,
     },
@@ -785,7 +811,11 @@ impl CausalQueryWire {
 
 /// Structural transportability query wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct TransportQueryWire {
+    /// Supplied catalog; omission preserves the legacy experimental contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<crate::transport_catalog_wire::EvidenceCatalogWire>,
     /// Target response query.
     pub response: ResponseQueryWire,
     /// Source population key.
@@ -798,6 +828,7 @@ pub struct TransportQueryWire {
 
 /// Known assignment design wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum AssignmentDesignWire {
     /// Independent Bernoulli assignment.
@@ -821,6 +852,7 @@ pub enum AssignmentDesignWire {
 
 /// Built-in exposure mapping wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum ExposureMappingWire {
     /// Own treatment only.
@@ -837,6 +869,7 @@ pub enum ExposureMappingWire {
 
 /// Exposure level wire form.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ExposureLevelWire {
     /// Own treatment.
     pub own: f64,
@@ -846,6 +879,7 @@ pub struct ExposureLevelWire {
 
 /// Interference functional wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum InterferenceFunctionalWire {
     /// Exposure mean contrast.
@@ -869,6 +903,7 @@ fn default_mediation_horizons() -> Vec<u32> {
 
 /// Randomized interference query wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct InterferenceQueryWire {
     /// Known assignment design.
     pub assignment: AssignmentDesignWire,
@@ -883,6 +918,7 @@ pub struct InterferenceQueryWire {
 
 /// Allocation method wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum AllocationMethodWire {
     /// Sequential.
@@ -1364,6 +1400,10 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
 /// Unsupported response-query fields.
 pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire, IoError> {
     Ok(TransportQueryWire {
+        catalog: q
+            .catalog
+            .as_ref()
+            .map(crate::transport_catalog_wire::EvidenceCatalogWire::from_catalog),
         response: response_query_to_wire(&q.response)?,
         source_population: q.source_population.to_string(),
         target_population: q.target_population.to_string(),
@@ -1377,12 +1417,17 @@ pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire,
 ///
 /// Invalid response or transport semantics.
 pub fn transport_query_from_wire(w: &TransportQueryWire) -> Result<TransportQuery, IoError> {
-    let query = TransportQuery::new(
+    let mut query = TransportQuery::new(
         response_query_from_wire(&w.response)?,
         w.source_population.as_str(),
         w.target_population.as_str(),
         vars_from_raw(&w.source_experiments),
     );
+    if let Some(catalog) = &w.catalog {
+        query = query
+            .with_catalog(catalog.to_catalog()?)
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
     query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
     Ok(query)
 }
@@ -1565,6 +1610,29 @@ mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
     use antecedent_core::{ComponentId, PopulationRegistry};
+
+    #[test]
+    fn misspelled_query_keys_are_rejected_not_defaulted() {
+        let query = antecedent_core::CausalQuery::AverageEffect(
+            antecedent_core::AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            ),
+        );
+        let wire = causal_query_to_wire(&query).unwrap();
+        let value = serde_json::to_value(&wire).unwrap();
+        assert_eq!(serde_json::from_value::<CausalQueryWire>(value.clone()).unwrap(), wire);
+        for (misspelled, correct) in
+            [("outcome_functionl", "outcome_functional"), ("effect_modifer", "effect_modifiers")]
+        {
+            let mut tampered = value.clone();
+            let body = tampered.get_mut("average_effect").unwrap().as_object_mut().unwrap();
+            let moved = body.remove(correct).unwrap_or(serde_json::Value::Null);
+            body.insert(misspelled.into(), moved);
+            let error = serde_json::from_value::<CausalQueryWire>(tampered).unwrap_err();
+            assert!(error.to_string().contains("unknown field"), "{misspelled}: {error}");
+        }
+    }
 
     fn registry_for_wire_tests() -> PopulationRegistry {
         let mut registry = PopulationRegistry::new();
@@ -1813,9 +1881,13 @@ mod tests {
             TargetPopulation::Untreated,
             TargetPopulation::Environment(EnvironmentId::from_raw(3)),
             TargetPopulation::Predicate(PredicateExpr::rows([0usize, 2, 5])),
+            TargetPopulation::local_at_cutoff(VariableId::from_raw(2), -1.25),
         ] {
             assert_rt(&ate(pop));
         }
+        let local = ate(TargetPopulation::local_at_cutoff(VariableId::from_raw(2), -1.25));
+        let back = causal_query_from_wire(&causal_query_to_wire(&local).unwrap()).unwrap();
+        assert_eq!(back, local);
         let registry = registry_for_wire_tests();
         for pop in [
             TargetPopulation::Predicate(PredicateExpr::named("cohort")),

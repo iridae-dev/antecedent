@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::manual_memcpy, clippy::cast_precision_loss)]
+#![allow(clippy::needless_range_loop, clippy::manual_memcpy)]
 
 use std::sync::Arc;
 
@@ -429,7 +429,11 @@ pub fn standardize_columns(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_precision_loss,
+    reason = "tests assert exactly representable values (0/1 indicators, copied inputs) and cast small fixture indices"
+)]
 mod tests {
     use antecedent_core::VariableId;
 

@@ -97,7 +97,8 @@ pub fn resolve_ci(
                 message: "weights required when ci='weighted_parcorr'".into(),
             });
         };
-        return Ok(Arc::new(WeightedPartialCorrelation::new(w)));
+        // The facade takes one weight per series row; lagged frames drop leading rows.
+        return Ok(Arc::new(WeightedPartialCorrelation::aligned_to_series_end(w)));
     }
     if weights.is_some() {
         return Err(CausalError::Compile {

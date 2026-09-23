@@ -9,11 +9,9 @@ points did not, so `analyze(graph=<Cpdag|Pag|Admg>, latency=...)` raised
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.graph import Admg, Cpdag
 
 
@@ -59,7 +57,7 @@ def test_accepted_graph_analyze_on_cpdag_runs():
     """`AcceptedGraph.analyze` defaults to latency="interactive" — it must not raise."""
     data = _binary_treatment_scm()
     cpdag = Cpdag.from_directed_undirected(["z", "t", "y"], _EDGES, [])
-    accepted = antecedent.AcceptedGraph.asserted(cpdag, algorithm_id="pc")
+    accepted = antecedent.AcceptedGraph.from_graph(cpdag, algorithm_id="pc")
     result = accepted.analyze(
         data, query=antecedent.AverageEffect(treatment="t", outcome="y"), seed=1
     )

@@ -8,14 +8,26 @@
 //! same partial-R² grid on the residualized series — a production nonparametric path distinct
 //! from the partial-linear shape stand-in.
 //!
+//! The reported `robustness_value` is the *simulated tipping partial R²*: the smallest grid
+//! value at which adding `U` (added to the observed treatment and outcome, then refitting)
+//! flips or annihilates the estimate. It is **not** the closed-form Cinelli–Hazlett (2020)
+//! robustness value: the confounder here perturbs the observed `T` and `Y`, which also
+//! attenuates the slope like measurement error, and the outcome-side R² is relative to
+//! `Var(Y | Z)` rather than `Var(Y | T, Z)`. The simulated confounder is drawn uncorrelated
+//! with the design (`orthogonalize_confounder`), so on an OLS design the tipping point is
+//! exactly `r* = |ρ| / (1 + |ρ|)` (`ρ` the partial correlation of `T` and `Y` given `Z`), for
+//! example `ρ = 0.3 → 0.231` against Cinelli–Hazlett's `0.269`; it is the more conservative
+//! of the two.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::float_cmp
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -25,6 +37,7 @@ use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte, LinearFitKind};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, chol_solve, cholesky_spd, form_xtx,
+    form_xty,
 };
 
 use crate::common::{
@@ -107,6 +120,21 @@ fn default_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
 }
 
+/// Grid tipping partial R²: the smallest probed partial R² that explains the effect away
+/// (an upper bound on the true tipping point, which lies in `(previous grid value, this]`).
+/// If no grid point tips the estimate, the tipping value exceeds the whole grid — report
+/// `+∞` rather than the last grid point (which would look like a tipping strength that was
+/// never observed).
+fn grid_robustness_value(explained_away_at: Option<f64>) -> f64 {
+    explained_away_at.unwrap_or(f64::INFINITY)
+}
+
+/// Pass only when the robustness value is *strictly* above the caller's bar.
+/// Equality means a confounder at the threshold already kills the effect.
+fn robustness_passes(robustness_value: f64, pass_threshold: f64) -> bool {
+    robustness_value > pass_threshold
+}
+
 fn run_grid(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
@@ -166,20 +194,36 @@ impl GridSetup {
         // the adjustment set `Z` that the simulated confounder accounts for. Injecting
         // `scale · SD(T) · u` calibrates against the *marginal* variance instead, so whenever `Z`
         // has real explanatory power the realized partial R² far exceeds the nominal grid value
-        // (with R²(T,Z) = 0.8, a nominal 0.2 lands at 0.556) and the reported robustness is
+        // (with R²(T,Z) = 0.8, a nominal 0.2 lands at 0.556) and the reported tipping value is
         // misstated. Scale by the residual SD so `scale = √(r/(1−r))` targets the partial R² the
-        // docs and the Cinelli–Hazlett convention promise. `NonparametricSensitivity` already
-        // residualizes; this brings the linear paths in line.
+        // docs promise. `NonparametricSensitivity` already residualizes; this brings the linear
+        // paths in line.
         let (sd_t, sd_y) =
             residual_sd_pair_on_adjustment(problem, problem.treatment(), problem.outcome(), &mask)?;
-        let sd_t = sd_t.max(1e-12);
-        let sd_y = sd_y.max(1e-12);
+        // A zero (or undefined) residual SD leaves no variation for a confounder to explain.
+        if !(sd_t.is_finite() && sd_t > 0.0 && sd_y.is_finite() && sd_y > 0.0) {
+            return Err(ValidationError::NotApplicable {
+                message: "sensitivity requires positive, finite residual variation in treatment \
+                          and outcome given the adjustment set",
+            });
+        }
         let mut u = vec![0.0; n];
         if nonparametric {
             fill_bounded(&mut u, ctx, noise_stream);
         } else {
             fill_gaussian(&mut u, ctx, noise_stream);
         }
+        // Remove the O(1/√n) sampling correlation of the drawn `U` with the design, so the
+        // realized partial R² is the nominal grid value and the verdict carries no simulation
+        // noise (see [`orthogonalize_confounder`]).
+        let mut columns = vec![
+            problem.data.float64_masked(problem.treatment(), &mask)?,
+            problem.data.float64_masked(problem.outcome(), &mask)?,
+        ];
+        for &z in problem.estimand.adjustment_set.iter() {
+            columns.push(problem.data.float64_masked(z, &mask)?);
+        }
+        orthogonalize_confounder(&mut u, &mask, &columns);
 
         let mut sorted_grid = grid.to_vec();
         sorted_grid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -203,6 +247,52 @@ impl GridSetup {
     }
 }
 
+/// Make the simulated confounder exactly uncorrelated with the design it perturbs.
+///
+/// A raw standard-normal draw has sample correlation `O(1/√n)` with `T`, `Y` and `Z`, so the
+/// realized partial R² differs from the nominal grid value and the tipping point wanders with
+/// the seed. Replace `u` on the complete-case rows (`mask`) by its residual from the least-squares
+/// regression on `[1, columns…]`, rescaled to unit sample SD, and zero elsewhere. Then
+/// `T' = T + a·u` and `Y' = Y + b·u` give `Cov(T'|Z, Y'|Z) = Cov(T|Z, Y|Z) + a·b·SD(u)²` and
+/// `Var(T'|Z) = Var(T|Z) + a²·SD(u)²` exactly, so the OLS slope on the perturbed data is
+/// `(S_ty + a·b) / (S_tt + a²)` in closed form, independent of the draw.
+///
+/// Left unchanged when the design is rank deficient or too small for the residual to exist (the
+/// raw draw is then a valid, only slightly noisier, confounder).
+fn orthogonalize_confounder(u: &mut [f64], mask: &[bool], columns: &[Vec<f64>]) {
+    let rows: Vec<usize> = mask.iter().enumerate().filter_map(|(i, &k)| k.then_some(i)).collect();
+    let m = rows.len();
+    let ncols = columns.len() + 1;
+    if m < ncols + 2 || columns.iter().any(|c| c.len() != m) || rows.iter().any(|&i| i >= u.len()) {
+        return;
+    }
+    let mut design = vec![1.0; m];
+    for column in columns {
+        design.extend_from_slice(column);
+    }
+    let target: Vec<f64> = rows.iter().map(|&i| u[i]).collect();
+    let Ok(fit) = FaerBackend.least_squares(
+        &design,
+        m,
+        ncols,
+        &target,
+        &mut LeastSquaresWorkspace::default(),
+    ) else {
+        return;
+    };
+    if fit.rank != ncols || fit.residuals.len() != m {
+        return;
+    }
+    let sd = sample_sd(&fit.residuals);
+    if !(sd.is_finite() && sd > 0.0) || fit.residuals.iter().any(|r| !r.is_finite()) {
+        return;
+    }
+    u.fill(0.0);
+    for (&row, &r) in rows.iter().zip(&fit.residuals) {
+        u[row] = r / sd;
+    }
+}
+
 fn run_grid_data_pass(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
@@ -214,13 +304,16 @@ fn run_grid_data_pass(
     for &r in &setup.sorted_grid {
         let r = r.clamp(0.0, 0.999);
         last_ate = data_pass_ate(problem, workspace, ctx, estimator, setup, r)?;
+        #[allow(
+            clippy::float_cmp,
+            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+        )]
         let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
         if explained_away {
-            return Ok((r, last_ate, true));
+            return Ok((grid_robustness_value(Some(r)), last_ate, true));
         }
     }
-    let robustness_value = setup.sorted_grid.last().copied().unwrap_or(1.0);
-    Ok((robustness_value, last_ate, false))
+    Ok((grid_robustness_value(None), last_ate, false))
 }
 
 fn data_pass_ate(
@@ -271,13 +364,16 @@ fn try_run_grid_gram(
             return Ok(None);
         };
         last_ate = ate;
+        #[allow(
+            clippy::float_cmp,
+            reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+        )]
         let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
         if explained_away {
-            return Ok(Some((r, last_ate, true)));
+            return Ok(Some((grid_robustness_value(Some(r)), last_ate, true)));
         }
     }
-    let robustness_value = setup.sorted_grid.last().copied().unwrap_or(1.0);
-    Ok(Some((robustness_value, last_ate, false)))
+    Ok(Some((grid_robustness_value(None), last_ate, false)))
 }
 
 /// Sufficient statistics `WᵀW` / `WᵀY` for `W = [X | u]`, `X = [1, T, Z]`.
@@ -336,20 +432,6 @@ impl SensitivityGram {
         let beta = chol_solve(&chol, p, &xty)?;
         // Linear main-effects ATE is β_T · Δ for ATE/ATT/ATC/predicate (gcomp equals this).
         Some(beta[1] * self.treatment_delta)
-    }
-}
-
-fn form_xty(w_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], xty: &mut [f64]) {
-    debug_assert!(w_colmajor.len() >= nrows * ncols);
-    debug_assert!(y.len() >= nrows);
-    debug_assert!(xty.len() >= ncols);
-    for c in 0..ncols {
-        let col = &w_colmajor[c * nrows..(c + 1) * nrows];
-        let mut acc = 0.0;
-        for r in 0..nrows {
-            acc += col[r] * y[r];
-        }
-        xty[c] = acc;
     }
 }
 
@@ -454,7 +536,8 @@ fn fill_bounded(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
 pub struct LinearSensitivity {
     /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value exceeds this threshold (harder to explain away).
+    /// Pass if the robustness value *strictly exceeds* this threshold (harder to explain away).
+    /// Equality fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -482,6 +565,10 @@ impl LinearSensitivity {
     /// # Errors
     ///
     /// Data or estimation failures, or an empty `partial_r2_grid`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -507,7 +594,7 @@ impl LinearSensitivity {
             0xA7E0_000A_0000_u64,
             false,
         )?;
-        let passed = robustness_value >= self.pass_threshold;
+        let passed = robustness_passes(robustness_value, self.pass_threshold);
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.linear"),
             original_ate: problem.original.ate,
@@ -519,7 +606,7 @@ impl LinearSensitivity {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "effect explained away at partial R²={robustness_value}, below threshold {}",
+                    "effect explained away at partial R²={robustness_value}, not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -530,11 +617,16 @@ impl LinearSensitivity {
 
 /// Partial-linear sensitivity: same grid as [`LinearSensitivity`] with a bounded uniform
 /// confounder shape (partial-linear misspecification), not a nonparametric residualization path.
+///
+/// The confounder is orthogonalized to the design (see the module docs), and least squares sees
+/// only second moments, so for the OLS refit this coincides with [`LinearSensitivity`]; the
+/// bounded shape matters for the non-OLS refits (ridge, lasso, Huber) and the temporal path.
 #[derive(Clone, Debug)]
 pub struct PartialLinearSensitivity {
     /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value exceeds this threshold (harder to explain away).
+    /// Pass if the robustness value *strictly exceeds* this threshold (harder to explain away).
+    /// Equality fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -562,6 +654,10 @@ impl PartialLinearSensitivity {
     /// # Errors
     ///
     /// Data or estimation failures, or an empty `partial_r2_grid`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -587,7 +683,7 @@ impl PartialLinearSensitivity {
             0xA7E0_000B_0000_u64,
             true,
         )?;
-        let passed = robustness_value >= self.pass_threshold;
+        let passed = robustness_passes(robustness_value, self.pass_threshold);
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.partial_linear"),
             original_ate: problem.original.ate,
@@ -599,7 +695,7 @@ impl PartialLinearSensitivity {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "effect explained away at partial R²={robustness_value}, below threshold {}",
+                    "effect explained away at partial R²={robustness_value}, not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -615,58 +711,62 @@ impl PartialLinearSensitivity {
 /// `y2` in one pass halves the O(n²·dim) distance/`exp` work versus two calls;
 /// per-target accumulation order is unchanged, so each output matches the
 /// single-target form bit for bit.
+///
+/// Rows are independent, so the outer loop runs on `ctx`'s pool (results come back in row order,
+/// each row summed in `j` order, so the output does not depend on the thread count). Distances are
+/// squared Euclidean, which is exact for covariates already on a common scale (the caller
+/// standardizes); the weight shift `exp(−½ (d² − min d²) / h²)` keeps the nearest observations
+/// at weight 1 even for a tiny bandwidth.
 fn nw_loo_predict_pair(
     y1: &[f64],
     y2: &[f64],
     cov_rowmajor: &[f64],
     dim: usize,
     bandwidth: f64,
-) -> (Vec<f64>, Vec<f64>) {
+    ctx: &ExecutionContext,
+) -> Result<(Vec<f64>, Vec<f64>), ValidationError> {
     let n = y1.len();
-    let h = bandwidth;
-    let mut out1 = vec![0.0; n];
-    let mut out2 = vec![0.0; n];
-    let mut distances = vec![0.0; n];
-    for i in 0..n {
+    let h2 = bandwidth * bandwidth;
+    let rows = ctx.map_indexed(n, |i, inner| {
+        if inner.cancellation.is_cancelled() {
+            return Err(ValidationError::Cancelled);
+        }
         let xi = &cov_rowmajor[i * dim..(i + 1) * dim];
+        let mut squared = vec![f64::INFINITY; n];
         let mut nearest = f64::INFINITY;
-        for j in 0..n {
+        for (j, slot) in squared.iter_mut().enumerate() {
             if i == j {
-                distances[j] = f64::INFINITY;
                 continue;
             }
             let xj = &cov_rowmajor[j * dim..(j + 1) * dim];
-            let mut distance = 0.0_f64;
+            let mut acc = 0.0;
             for d in 0..dim {
-                distance = distance.hypot(xi[d] - xj[d]);
+                let diff = xi[d] - xj[d];
+                acc += diff * diff;
             }
-            distances[j] = distance;
-            nearest = nearest.min(distance);
+            *slot = acc;
+            nearest = nearest.min(acc);
         }
         let mut num1 = 0.0;
         let mut num2 = 0.0;
         let mut den = 0.0;
-        for j in 0..n {
+        for (j, &d2) in squared.iter().enumerate() {
             if i == j {
                 continue;
             }
-            let distance = distances[j];
-            // Subtract the largest log weight before exponentiation. Factoring
-            // d² - min(d)² avoids subtracting overflowed squares. The nearest
-            // observations always have weight 1, even for a tiny bandwidth.
-            let w = if distance == nearest {
-                1.0
-            } else {
-                (-0.5 * ((distance - nearest) / h) * (distance / h + nearest / h)).exp()
-            };
+            // The nearest observations always have weight 1, even for a tiny bandwidth.
+            #[allow(
+                clippy::float_cmp,
+                reason = "nearest is the minimum of these very squared distances, so the nearest observations compare exactly equal"
+            )]
+            let w = if d2 == nearest { 1.0 } else { (-0.5 * (d2 - nearest) / h2).exp() };
             num1 += w * y1[j];
             num2 += w * y2[j];
             den += w;
         }
-        out1[i] = num1 / den;
-        out2[i] = num2 / den;
-    }
-    (out1, out2)
+        Ok((num1 / den, num2 / den))
+    })?;
+    Ok(rows.into_iter().unzip())
 }
 
 /// SD of each target after linearly regressing it on the adjustment set, i.e.
@@ -703,6 +803,32 @@ pub(crate) fn residual_sd_pair_on_adjustment(
     let sd_a = residual_sd_given_design(&design, n, ncols, &ya, &mut ws);
     let sd_b = residual_sd_given_design(&design, n, ncols, &yb, &mut ws);
     Ok((sd_a, sd_b))
+}
+
+/// `(SD(T | Z), SD(Y | Z))` on the lag-aligned rows of a temporal problem, where `Z` is the
+/// unfolded adjustment set of the identified design (the dense node ids are not schema
+/// columns, so the aligned design carries them). Falls back to the marginal SDs with no
+/// adjustment covariates or too few rows, as [`residual_sd_pair_on_adjustment`] does.
+pub(crate) fn temporal_residual_sd_pair(
+    problem: &RefutationProblem<'_>,
+) -> Result<(f64, f64), ValidationError> {
+    let prep = crate::common::temporal_diagnostic_design(problem)?;
+    let n = prep.design.nrows;
+    let k = prep.adjustment_set.len();
+    let treatment: &[f64] = &prep.treatment;
+    let outcome: &[f64] = &prep.design.outcome;
+    if k == 0 || n < k + 2 {
+        return Ok((sample_sd(treatment), sample_sd(outcome)));
+    }
+    let mut design = vec![1.0; n];
+    for i in 0..k {
+        design.extend_from_slice(&prep.design.matrix[(i + 2) * n..(i + 3) * n]);
+    }
+    let mut ws = LeastSquaresWorkspace::default();
+    Ok((
+        residual_sd_given_design(&design, n, k + 1, treatment, &mut ws),
+        residual_sd_given_design(&design, n, k + 1, outcome, &mut ws),
+    ))
 }
 
 /// Column-major `[intercept | Z…]` design over the masked rows, or `None` when a covariate
@@ -755,7 +881,9 @@ fn residual_sd_given_design(
 }
 
 /// Row-major covariate matrix over the complete-case rows of `mask` (adjustment ∪ {T, Y};
-/// the caller computes that mask once and shares it with the residualization step).
+/// the caller computes that mask once and shares it with the residualization step), each
+/// column divided by its sample SD (a constant column is left as is) so one isotropic
+/// bandwidth means the same number of standard deviations in every direction.
 fn covariate_matrix(
     problem: &RefutationProblem<'_>,
     mask: &[bool],
@@ -773,33 +901,47 @@ fn covariate_matrix(
             cov[r * dim + c] = v;
         }
     }
+    standardize_columns(&mut cov, n, dim);
     Ok((cov, n, dim))
 }
 
-fn silverman_bandwidth(cov_rowmajor: &[f64], n: usize, dim: usize) -> f64 {
+/// Divide each column of a row-major `n × dim` matrix by its sample SD (a constant or
+/// non-finite-SD column is left unscaled).
+fn standardize_columns(cov: &mut [f64], n: usize, dim: usize) {
+    for d in 0..dim {
+        let column: Vec<f64> = (0..n).map(|r| cov[r * dim + d]).collect();
+        let sd = sample_sd(&column);
+        if sd.is_finite() && sd > 0.0 {
+            for r in 0..n {
+                cov[r * dim + d] /= sd;
+            }
+        }
+    }
+}
+
+/// Silverman's (1986) multivariate normal-reference bandwidth for covariates standardized to unit
+/// SD: `h = (4 / (d + 2))^(1/(d+4)) · n^(−1/(d+4))`.
+fn silverman_bandwidth(n: usize, dim: usize) -> f64 {
     if n == 0 || dim == 0 {
         return 1.0;
     }
-    let mut sum_sd = 0.0;
-    for d in 0..dim {
-        let mut vals = Vec::with_capacity(n);
-        for r in 0..n {
-            vals.push(cov_rowmajor[r * dim + d]);
-        }
-        sum_sd += sample_sd(&vals);
-    }
-    let mean_sd = (sum_sd / dim as f64).max(1e-6);
-    mean_sd * (n as f64).powf(-1.0 / (dim as f64 + 4.0))
+    let d = dim as f64;
+    (4.0 / (d + 2.0)).powf(1.0 / (d + 4.0)) * (n as f64).powf(-1.0 / (d + 4.0))
 }
+
+/// Largest complete-case sample the O(n²·d) leave-one-out kernel smoother accepts.
+const MAX_NONPARAMETRIC_ROWS: usize = 20_000;
 
 /// Nonparametric sensitivity: kernel-residualize T and Y on Z, then partial-R² grid on residuals.
 #[derive(Clone, Debug)]
 pub struct NonparametricSensitivity {
     /// Ascending grid of partial-R² values to test on residualized series.
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value exceeds this threshold.
+    /// Pass if the robustness value *strictly exceeds* this threshold.
+    /// Equality fails: a confounder at the bar already kills the residual effect.
     pub pass_threshold: f64,
-    /// Optional bandwidth override; `None` uses Silverman's (1986) rule of thumb.
+    /// Optional bandwidth override, in standard deviations of each (standardized) covariate;
+    /// `None` uses Silverman's (1986) multivariate normal-reference rule.
     pub bandwidth: Option<f64>,
 }
 
@@ -822,6 +964,10 @@ impl NonparametricSensitivity {
     ///
     /// Data failures or empty `partial_r2_grid`.
     #[allow(clippy::only_used_in_recursion)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -838,46 +984,37 @@ impl NonparametricSensitivity {
                 message: "nonparametric sensitivity requires a non-empty partial_r2_grid",
             });
         }
-        // One complete-case mask (adjustment ∪ {T, Y}) shared by the covariate matrix and
-        // the residualization pulls below — the two call sites used the identical id list.
-        let mut ids = problem.estimand.adjustment_set.to_vec();
-        ids.push(problem.treatment());
-        ids.push(problem.outcome());
-        let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
-        let (cov, n, dim) = covariate_matrix(problem, &mask)?;
-        let t = problem
-            .data
-            .float64_masked(problem.treatment(), &mask)
-            .map_err(ValidationError::from)?;
-        let y =
-            problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
-        if t.len() != n || y.len() != n {
-            return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
-        }
-        if n < 2 {
-            return Err(ValidationError::data_msg(
-                "nonparametric sensitivity requires at least 2 complete cases",
-            ));
-        }
-        let h = self.bandwidth.unwrap_or_else(|| silverman_bandwidth(&cov, n, dim));
-        if !h.is_finite() || h <= 0.0 {
-            return Err(ValidationError::data_msg(
-                "nonparametric sensitivity bandwidth must be finite and positive",
-            ));
-        }
-        let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h);
-        let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
-        let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
-
+        let (t_res, y_res, n) = kernel_residuals(problem, self.bandwidth, ctx)?;
         let (_, _, treatment_delta) = antecedent_estimate::prepare::treatment_contrast(
             &problem.query.active,
             &problem.query.control,
         )?;
         let residual_ate = residual_ols_ate(&t_res, &y_res);
-        let sd_t = sample_sd(&t_res).max(1e-12);
-        let sd_y = sample_sd(&y_res).max(1e-12);
+        // The check perturbs the *residual* slope, which need not share the published
+        // estimate's sign; a tipping value for a different effect says nothing about it.
+        // (`residual_ate` is per unit of treatment; the published estimate is per contrast.)
+        let residual_effect = residual_ate * treatment_delta;
+        if !residual_effect.is_finite()
+            || (residual_effect != 0.0
+                && problem.original.ate != 0.0
+                && residual_effect.signum() != problem.original.ate.signum())
+        {
+            return Err(ValidationError::NotApplicable {
+                message: "the kernel-residualized effect is undefined or has the opposite sign \
+                          of the published estimate, so its tipping value does not describe it",
+            });
+        }
+        let sd_t = sample_sd(&t_res);
+        let sd_y = sample_sd(&y_res);
+        if !(sd_t.is_finite() && sd_t > 0.0 && sd_y.is_finite() && sd_y > 0.0) {
+            return Err(ValidationError::NotApplicable {
+                message: "nonparametric sensitivity requires positive residual variation in \
+                          treatment and outcome after kernel residualization",
+            });
+        }
         let mut u = vec![0.0; n];
         fill_gaussian(&mut u, ctx, 0xA7E0_000C_0000_u64);
+        orthogonalize_confounder(&mut u, &vec![true; n], &[t_res.clone(), y_res.clone()]);
 
         let mut sorted_grid = self.partial_r2_grid.clone();
         sorted_grid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -885,7 +1022,7 @@ impl NonparametricSensitivity {
         // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
         let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
         let mut last_ate = residual_ate;
-        let mut robustness_value = sorted_grid.last().copied().unwrap_or(1.0);
+        let mut explained_away_at = None;
         for &r in &sorted_grid {
             let r = r.clamp(0.0, 0.999);
             let scale = (r / (1.0 - r)).sqrt();
@@ -894,12 +1031,18 @@ impl NonparametricSensitivity {
             let y_pert: Vec<f64> =
                 y_res.iter().zip(&u).map(|(&yv, &uu)| yv + dir * scale * sd_y * uu).collect();
             last_ate = residual_ols_ate(&t_pert, &y_pert);
-            if last_ate.abs() < 1e-9 || last_ate.signum() != original_sign {
-                robustness_value = r;
+            #[allow(
+                clippy::float_cmp,
+                reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
+            )]
+            let sign_flipped = last_ate.signum() != original_sign;
+            if last_ate.abs() < 1e-9 || sign_flipped {
+                explained_away_at = Some(r);
                 break;
             }
         }
-        let passed = robustness_value >= self.pass_threshold;
+        let robustness_value = grid_robustness_value(explained_away_at);
+        let passed = robustness_passes(robustness_value, self.pass_threshold);
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.nonparametric"),
             original_ate: problem.original.ate,
@@ -912,13 +1055,56 @@ impl NonparametricSensitivity {
             } else {
                 Some(Arc::from(format!(
                     "nonparametric residual effect explained away at partial R²={robustness_value}, \
-                     below threshold {}",
+                     not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
             replicates: self.partial_r2_grid.len() as u32,
         })
     }
+}
+
+/// Leave-one-out Nadaraya–Watson residuals of treatment and outcome on the adjustment
+/// covariates, over the complete cases, with the complete-case row count.
+fn kernel_residuals(
+    problem: &RefutationProblem<'_>,
+    bandwidth: Option<f64>,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<f64>, Vec<f64>, usize), ValidationError> {
+    // One complete-case mask (adjustment ∪ {T, Y}) shared by the covariate matrix and
+    // the residualization pulls below — the two call sites used the identical id list.
+    let mut ids = problem.estimand.adjustment_set.to_vec();
+    ids.push(problem.treatment());
+    ids.push(problem.outcome());
+    let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
+    let (cov, n, dim) = covariate_matrix(problem, &mask)?;
+    let t =
+        problem.data.float64_masked(problem.treatment(), &mask).map_err(ValidationError::from)?;
+    let y = problem.data.float64_masked(problem.outcome(), &mask).map_err(ValidationError::from)?;
+    if t.len() != n || y.len() != n {
+        return Err(ValidationError::data_msg("nonparametric sensitivity row mismatch"));
+    }
+    if n < 2 {
+        return Err(ValidationError::data_msg(
+            "nonparametric sensitivity requires at least 2 complete cases",
+        ));
+    }
+    if n > MAX_NONPARAMETRIC_ROWS {
+        return Err(ValidationError::NotApplicable {
+            message: "nonparametric sensitivity is quadratic in the sample size and is \
+                      limited to 20000 complete-case rows",
+        });
+    }
+    let h = bandwidth.unwrap_or_else(|| silverman_bandwidth(n, dim));
+    if !h.is_finite() || h <= 0.0 {
+        return Err(ValidationError::data_msg(
+            "nonparametric sensitivity bandwidth must be finite and positive",
+        ));
+    }
+    let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx)?;
+    let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
+    let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
+    Ok((t_res, y_res, n))
 }
 
 fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
@@ -940,8 +1126,8 @@ fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
 
 #[cfg(test)]
 mod gram_algebra {
-    use super::{assemble_perturbed_normal_eq, form_xty};
-    use antecedent_stats::form_xtx;
+    use super::assemble_perturbed_normal_eq;
+    use antecedent_stats::{form_xtx, form_xty};
 
     #[test]
     fn assemble_matches_explicit_perturbed_design() {
@@ -993,31 +1179,571 @@ mod gram_algebra {
 
 #[cfg(test)]
 mod kernel_regressions {
-    use super::nw_loo_predict_pair;
+    use antecedent_core::ExecutionContext;
+
+    use super::{
+        MAX_NONPARAMETRIC_ROWS, nw_loo_predict_pair, orthogonalize_confounder, silverman_bandwidth,
+        standardize_columns,
+    };
+    use crate::common::sample_sd;
+
+    fn predict(
+        y1: &[f64],
+        y2: &[f64],
+        x: &[f64],
+        dim: usize,
+        h: f64,
+        ctx: &ExecutionContext,
+    ) -> (Vec<f64>, Vec<f64>) {
+        nw_loo_predict_pair(y1, y2, x, dim, h, ctx).unwrap()
+    }
 
     #[test]
     fn leave_one_out_does_not_leak_target_when_weights_underflow() {
+        let ctx = ExecutionContext::for_tests(1);
         let (first, second) =
-            nw_loo_predict_pair(&[100.0, 2.0, 4.0], &[50.0, 10.0, 20.0], &[0.0, 1.0, 3.0], 1, 1e-6);
+            predict(&[100.0, 2.0, 4.0], &[50.0, 10.0, 20.0], &[0.0, 1.0, 3.0], 1, 1e-6, &ctx);
         assert_eq!(first, vec![2.0, 100.0, 2.0]);
         assert_eq!(second, vec![10.0, 50.0, 10.0]);
     }
 
     #[test]
     fn leave_one_out_preserves_nearest_neighbor_ties() {
-        let (first, _) =
-            nw_loo_predict_pair(&[2.0, 100.0, 4.0], &[0.0; 3], &[-1.0, 0.0, 1.0], 1, 1e-6);
+        let ctx = ExecutionContext::for_tests(1);
+        let (first, _) = predict(&[2.0, 100.0, 4.0], &[0.0; 3], &[-1.0, 0.0, 1.0], 1, 1e-6, &ctx);
         assert!((first[1] - 3.0).abs() < 1e-12);
     }
 
     #[test]
     fn normalized_kernel_matches_direct_gaussian_weights() {
+        let ctx = ExecutionContext::for_tests(1);
         let y = [1.0, 4.0, 9.0];
         let x = [0.0, 1.0, 2.0];
-        let (prediction, _) = nw_loo_predict_pair(&y, &y, &x, 1, 1.0);
+        let (prediction, _) = predict(&y, &y, &x, 1, 1.0, &ctx);
         let w1 = (-0.5_f64).exp();
         let w2 = (-2.0_f64).exp();
         assert!((prediction[0] - (w1 * 4.0 + w2 * 9.0) / (w1 + w2)).abs() < 1e-12);
         assert!((prediction[1] - 5.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn parallel_and_serial_smoothers_agree_bitwise() {
+        // Row-independent work returned in row order: the thread count cannot change a value.
+        let n = 40;
+        let x: Vec<f64> = (0..n).flat_map(|i| [f64::from(i) * 0.37, f64::from(i % 7)]).collect();
+        let y1: Vec<f64> = (0..n).map(|i| f64::from(i * i % 11)).collect();
+        let y2: Vec<f64> = (0..n).map(|i| f64::from(i) - 3.0).collect();
+        let serial = predict(&y1, &y2, &x, 2, 0.8, &ExecutionContext::for_tests(1));
+        let pooled = predict(&y1, &y2, &x, 2, 0.8, &ExecutionContext::production(1, 4));
+        assert_eq!(serial, pooled);
+    }
+
+    #[test]
+    fn squared_distance_kernel_matches_the_gaussian_weights_in_two_dimensions() {
+        // Three points in the plane, h = 2: row 0 sees (3, 4) at distance 5 and (0, 1) at
+        // distance 1; weights w = exp(-d² / (2h²)) = exp(-25/8) and exp(-1/8).
+        let ctx = ExecutionContext::for_tests(1);
+        let x = [0.0, 0.0, 3.0, 4.0, 0.0, 1.0];
+        let y = [0.0, 10.0, 20.0];
+        let (prediction, _) = predict(&y, &y, &x, 2, 2.0, &ctx);
+        let (wa, wb) = ((-25.0_f64 / 8.0).exp(), (-1.0_f64 / 8.0).exp());
+        assert!((prediction[0] - (wa * 10.0 + wb * 20.0) / (wa + wb)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn standardization_gives_an_age_like_and_a_binary_covariate_the_same_scale() {
+        // Column 0 has SD ~ 15 (age-like), column 1 is 0/1, column 2 is constant. After
+        // standardization the first two have unit SD, so one bandwidth treats them alike; the
+        // constant column is left alone rather than divided by zero.
+        let n = 200_usize;
+        let dim = 3;
+        let mut cov = Vec::new();
+        for i in 0..n {
+            cov.push(20.0 + 60.0 * i as f64 / n as f64);
+            cov.push((i % 2) as f64);
+            cov.push(4.0);
+        }
+        standardize_columns(&mut cov, n, dim);
+        for d in 0..2 {
+            let column: Vec<f64> = (0..n).map(|r| cov[r * dim + d]).collect();
+            assert!((sample_sd(&column) - 1.0).abs() < 1e-12, "column {d}");
+        }
+        assert!((0..n).all(|r| cov[r * dim + 2] == 4.0));
+    }
+
+    #[test]
+    fn silverman_rule_matches_the_multivariate_normal_reference_formula() {
+        // d = 1: (4/3)^(1/5) n^(-1/5); d = 2: 1^(1/6) n^(-1/6).
+        let n = 1000_usize;
+        assert!(
+            (silverman_bandwidth(n, 1) - (4.0_f64 / 3.0).powf(0.2) * 1000.0_f64.powf(-0.2)).abs()
+                < 1e-12
+        );
+        assert!((silverman_bandwidth(n, 2) - 1000.0_f64.powf(-1.0 / 6.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn the_row_cap_bounds_the_quadratic_kernel() {
+        assert_eq!(MAX_NONPARAMETRIC_ROWS, 20_000);
+    }
+
+    #[test]
+    fn orthogonalized_confounder_is_uncorrelated_with_the_design_and_unit_variance() {
+        // Design columns t, y over 6 complete rows of 8 (rows 2 and 5 masked out).
+        let mask = [true, true, false, true, true, false, true, true];
+        let t = vec![0.0, 1.0, 0.0, 1.0, 1.0, 0.0];
+        let y = vec![0.3, 1.9, 0.2, 2.4, 1.6, 0.7];
+        let mut u = vec![0.5, -1.2, 9.0, 0.7, 1.1, -9.0, -0.4, 0.9];
+        orthogonalize_confounder(&mut u, &mask, &[t.clone(), y.clone()]);
+        let rows: Vec<usize> = (0..8).filter(|&i| mask[i]).collect();
+        let um: Vec<f64> = rows.iter().map(|&i| u[i]).collect();
+        assert_eq!(u[2], 0.0);
+        assert_eq!(u[5], 0.0);
+        let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(x, y)| x * y).sum::<f64>();
+        assert!(um.iter().sum::<f64>().abs() < 1e-12, "not centred");
+        assert!(dot(&um, &t).abs() < 1e-12, "correlated with t");
+        assert!(dot(&um, &y).abs() < 1e-12, "correlated with y");
+        assert!((sample_sd(&um) - 1.0).abs() < 1e-12, "not unit SD");
+    }
+}
+
+#[cfg(test)]
+mod robustness_value {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
+    use antecedent_expr::ExprId;
+    use antecedent_identify::IdentifiedEstimand;
+
+    use super::{
+        LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity,
+        grid_robustness_value, robustness_passes,
+    };
+    use crate::common::RefutationProblem;
+
+    fn strong_effect_toy() -> (TabularData, IdentifiedEstimand) {
+        let n = 300usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 0.5 * z[i]).collect();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        (TabularData::new(storage), estimand)
+    }
+
+    fn problem_with_ate(
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+    ) -> (
+        EstimationWorkspace,
+        ExecutionContext,
+        AverageEffectQuery,
+        antecedent_estimate::EffectEstimate,
+    ) {
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = est.prepare(data, estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(11);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        (ws, ctx, query, original)
+    }
+
+    #[test]
+    fn never_explained_away_is_infinite_not_last_grid_point() {
+        assert!(grid_robustness_value(None).is_infinite());
+        assert_eq!(grid_robustness_value(Some(0.2)), 0.2);
+        assert!(!robustness_passes(0.1, 0.1));
+        assert!(robustness_passes(0.2, 0.1));
+        assert!(robustness_passes(f64::INFINITY, 0.5));
+    }
+
+    #[test]
+    fn linear_sensitivity_equality_at_threshold_fails() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5, 0.8, 0.95, 0.99];
+        let probe = LinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            estimator: LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                ..LinearAdjustmentAte::new()
+            },
+        };
+        let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(
+            tipped.comparison.is_finite() && tipped.comparison > 0.0,
+            "expected a finite tipping partial R², got {}",
+            tipped.comparison
+        );
+        let rv = tipped.comparison;
+
+        let at_bar = LinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: rv,
+            estimator: probe.estimator.clone(),
+        };
+        let equal = at_bar.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(equal.comparison, rv);
+        assert!(!equal.passed, "RV == threshold must fail (effect already gone at the bar)");
+    }
+
+    #[test]
+    fn linear_sensitivity_explained_away_past_threshold_passes() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5, 0.8, 0.95, 0.99];
+        let probe = LinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            estimator: LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                ..LinearAdjustmentAte::new()
+            },
+        };
+        let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
+        let rv = tipped.comparison;
+        assert!(rv.is_finite() && rv > 0.0, "comparison={rv}");
+
+        let idx = grid.iter().position(|&r| r == rv).expect("RV must be a grid point");
+        assert!(idx > 0, "need a grid point before the tipping RV to set a lower bar");
+        let threshold = grid[idx - 1];
+        let below = LinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: threshold,
+            estimator: probe.estimator.clone(),
+        };
+        let past = below.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(past.comparison, rv);
+        assert!(past.passed, "RV {rv} > threshold {threshold} must pass");
+    }
+
+    #[test]
+    fn partial_linear_equality_at_threshold_fails_past_passes() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5];
+        let estimator =
+            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let tip = PartialLinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            estimator: estimator.clone(),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        let rv = tip.comparison;
+        assert!(rv.is_finite() && rv > 0.0, "comparison={rv}");
+
+        let equal = PartialLinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: rv,
+            estimator: estimator.clone(),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert!(!equal.passed);
+
+        let past =
+            PartialLinearSensitivity { partial_r2_grid: grid, pass_threshold: rv * 0.5, estimator }
+                .refute(&problem, &mut ws, &ctx)
+                .unwrap();
+        assert!(past.passed);
+    }
+
+    #[test]
+    fn nonparametric_equality_at_threshold_fails_past_passes() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5, 0.8, 0.95, 0.99];
+        let tip = NonparametricSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            bandwidth: Some(0.5),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        let rv = tip.comparison;
+        assert!(rv.is_finite() && rv > 0.0, "comparison={rv}");
+
+        let equal = NonparametricSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: rv,
+            bandwidth: Some(0.5),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert!(!equal.passed);
+
+        let past = NonparametricSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: rv * 0.5,
+            bandwidth: Some(0.5),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert!(past.passed);
+    }
+
+    #[test]
+    fn never_explained_away_on_tiny_grid_reports_infinity() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let refuter = LinearSensitivity {
+            partial_r2_grid: vec![1e-6],
+            pass_threshold: 0.1,
+            estimator: LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                ..LinearAdjustmentAte::new()
+            },
+        };
+        let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(
+            report.comparison.is_infinite(),
+            "surviving the grid must report +∞, got {}",
+            report.comparison
+        );
+        assert!(report.passed);
+        assert!(report.failure_condition.is_none());
+    }
+}
+
+#[cfg(test)]
+mod tipping_closed_form {
+    use super::{LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity};
+    use crate::common::RefutationProblem;
+    use crate::test_support::{ate_query, backdoor, linear_original, tabular};
+
+    /// Residual of `v` on `[1, z]` (simple regression), computed independently of the crate.
+    fn residual_on(v: &[f64], z: &[f64]) -> Vec<f64> {
+        let n = v.len() as f64;
+        let (mv, mz) = (v.iter().sum::<f64>() / n, z.iter().sum::<f64>() / n);
+        let slope = v.iter().zip(z).map(|(a, b)| (a - mv) * (b - mz)).sum::<f64>()
+            / z.iter().map(|b| (b - mz) * (b - mz)).sum::<f64>();
+        v.iter().zip(z).map(|(a, b)| a - mv - slope * (b - mz)).collect()
+    }
+
+    /// `(t, y, z)` with a treatment that is partly explained by `z` and an outcome with
+    /// deterministic wiggle, so the partial correlation given `z` is neither 0 nor 1.
+    fn design() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let n = 400_usize;
+        let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let w = if (i / 2) % 2 == 0 { 1.0 } else { -1.0 };
+                0.6 * t[i] + 0.7 * z[i] + 0.5 * w + 0.3 * (i % 3) as f64
+            })
+            .collect();
+        (t, y, z)
+    }
+
+    /// Analytic tipping partial R²: `|ρ| / (1 + |ρ|)`, `ρ` the partial correlation of `t` and
+    /// `y` given `z`.
+    fn analytic_tipping(t: &[f64], y: &[f64], z: &[f64]) -> f64 {
+        let (rt, ry) = (residual_on(t, z), residual_on(y, z));
+        let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(x, y)| x * y).sum::<f64>();
+        let rho = (dot(&rt, &ry) / (dot(&rt, &rt) * dot(&ry, &ry)).sqrt()).abs();
+        rho / (1.0 + rho)
+    }
+
+    fn assert_brackets(reported: f64, analytic: f64, step: f64) {
+        // The report is the first grid value at or beyond the true tipping point.
+        assert!(
+            reported >= analytic - 1e-9 && reported - step < analytic + 1e-9,
+            "reported {reported} must be the first {step}-grid value >= analytic {analytic}"
+        );
+    }
+
+    #[test]
+    fn linear_and_partial_linear_tipping_match_the_partial_correlation_closed_form() {
+        let (t, y, z) = design();
+        let analytic = analytic_tipping(&t, &y, &z);
+        let data = tabular(&[t, y, z]);
+        let estimand = backdoor(1);
+        let query = ate_query();
+        let (original, mut ws, ctx) = linear_original(&data, &estimand, &query);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid: Vec<f64> = (1..=99).map(|k| f64::from(k) / 100.0).collect();
+        let linear = LinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            ..LinearSensitivity::new()
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert_brackets(linear.comparison, analytic, 0.01);
+        let partial = PartialLinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: 0.0,
+            ..PartialLinearSensitivity::new()
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        // Same design, same confounder scale: the OLS tipping point does not depend on the draw.
+        assert_eq!(partial.comparison, linear.comparison);
+    }
+
+    #[test]
+    fn tipping_point_does_not_depend_on_the_confounder_seed() {
+        let (t, y, z) = design();
+        let data = tabular(&[t, y, z]);
+        let estimand = backdoor(1);
+        let query = ate_query();
+        let (original, mut ws, _) = linear_original(&data, &estimand, &query);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid: Vec<f64> = (1..=99).map(|k| f64::from(k) / 100.0).collect();
+        let refuter = LinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: 0.0,
+            ..LinearSensitivity::new()
+        };
+        let values: Vec<f64> = [1_u64, 2, 3, 99]
+            .iter()
+            .map(|&seed| {
+                let ctx = antecedent_core::ExecutionContext::for_tests(seed);
+                refuter.refute(&problem, &mut ws, &ctx).unwrap().comparison
+            })
+            .collect();
+        assert!(values.iter().all(|&v| v == values[0]), "tipping value varies by seed: {values:?}");
+    }
+
+    #[test]
+    fn nonparametric_sensitivity_refuses_an_opposite_sign_residual_effect() {
+        // Published estimate positive; residual slope of y on t (after smoothing z) negative.
+        let n = 200_usize;
+        let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| -1.0 * t[i] + 0.2 * z[i]).collect();
+        let data = tabular(&[t, y, z]);
+        let estimand = backdoor(1);
+        let query = ate_query();
+        let (mut original, mut ws, ctx) = linear_original(&data, &estimand, &query);
+        original.ate = 1.0;
+        let problem = RefutationProblem::new(&data, &estimand, &query, &original, None, None);
+        let err = NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap_err();
+        assert!(matches!(err, crate::ValidationError::NotApplicable { .. }), "{err:?}");
     }
 }

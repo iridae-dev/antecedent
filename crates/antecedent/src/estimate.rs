@@ -10,8 +10,8 @@ pub use antecedent_estimate::{
     TemporalLinearPredictor, TemporalMediationEstimator, TemporalMediationGrid,
     TemporalMediationIdentifiedSet, TemporalMediationSlice, TemporalMediationUncertainty,
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
-    TransportResponseGridEstimate, estimate_interference, own_treatment_level,
-    transport_augmented_response_grid, trial_to_target_effect,
+    TransportResponseGridEstimate, estimate_interference, evaluate_exact_transport,
+    own_treatment_level, transport_augmented_response_grid, trial_to_target_effect,
 };
 
 pub use crate::strategy_table::{
@@ -30,4 +30,9 @@ pub use crate::strategy_table::{
     identify_provenance_step, identify_static, identify_static_query,
     identify_static_query_with_rd, require_identified, select_estimand, validate_distribution_pair,
     validate_path_specific_pair, validate_static_pair,
+};
+
+pub use antecedent_expr::{
+    Assignment, DiscreteAxis, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits,
+    ExactSupportRecord, ExactTransportData, LawTolerance,
 };

@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -17,8 +15,15 @@ use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    DerivationTrace, EstimandClaim, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand,
 };
+
+/// Assumption id: the restriction under which the Wald ratio is the average effect
+/// (constant linear effect), or else the complier local effect (monotonicity).
+pub const IV_EFFECT_RESTRICTION_ID: &str = "iv.constant_linear_effect_or_monotonicity";
+/// Assumption id: non-zero first stage for one instrument.
+pub const IV_RELEVANCE_ID: &str = "iv.relevance";
 
 /// Configuration for instrument search.
 #[derive(Clone, Debug)]
@@ -150,15 +155,26 @@ impl InstrumentalVariableIdentifier {
             ));
         }
 
+        // What the graph cannot certify: d-connection licenses a first stage but not a
+        // non-zero one, and the Wald ratio is the average effect only under a constant
+        // linear structural effect (with heterogeneous effects it is the complier local
+        // average effect, and only under monotonicity).
+        assumptions.push(wald_effect_restriction());
+        let shared = assumptions.clone();
+
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::with_capacity(valid.len());
+        let mut claims = Vec::with_capacity(valid.len());
         for &z in &valid {
             let z_var = dense_to_var(z, dag)?;
-            assumptions.push(AssumptionRecord {
-                assumption: Assumption::ExclusionRestriction { instrument: z_var },
-                source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("iv") },
-                scope: AssumptionScope::Identification,
-                status: AssumptionStatus::Declared,
+            // Each instrument's ratio relies on that instrument only.
+            let own = instrument_assumptions(z_var);
+            let mut claim_assumptions = shared.clone();
+            claim_assumptions.extend_unique(&own);
+            assumptions.extend_unique(&own);
+            claims.push(EstimandClaim {
+                status: IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                required_assumptions: claim_assumptions,
             });
             let (active, control) = match (&ate.active, &ate.control) {
                 (
@@ -171,7 +187,11 @@ impl InstrumentalVariableIdentifier {
                     });
                 }
             };
-            let functional = arena.iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control);
+            let functional = arena
+                .iv_wald(ate.treatment, ate.outcome, &[z_var], &active, &control)
+                .map_err(|_| IdentificationError::UnsupportedQuery {
+                    message: "IV requires a single instrument distinct from the treatment",
+                })?;
             estimands.push(IdentifiedEstimand::instrumental("iv", Arc::from([z_var]), functional));
             derivation.push("iv.instrument", format!("Z={}", z_var.raw()));
         }
@@ -186,8 +206,45 @@ impl InstrumentalVariableIdentifier {
                 candidates_examined: examined,
                 sets_returned: u64::try_from(valid.len()).unwrap_or(u64::MAX),
             },
-        ))
+        )
+        .with_estimand_claims(claims))
     }
+}
+
+fn iv_default(assumption: Assumption) -> AssumptionRecord {
+    AssumptionRecord {
+        assumption,
+        source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("iv") },
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    }
+}
+
+/// The restriction that decides which effect the Wald ratio is.
+fn wald_effect_restriction() -> AssumptionRecord {
+    iv_default(Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
+        id: Arc::from(IV_EFFECT_RESTRICTION_ID),
+        description: Arc::from(
+            "the Wald ratio equals the average effect only under a constant linear structural \
+             effect of the treatment on the outcome; with heterogeneous effects it is the \
+             complier local average effect, and only under monotonicity (no defiers)",
+        ),
+    }))
+}
+
+/// Records one instrument's ratio relies on: its exclusion restriction and relevance.
+fn instrument_assumptions(instrument: antecedent_core::VariableId) -> [AssumptionRecord; 2] {
+    [
+        iv_default(Assumption::ExclusionRestriction { instrument }),
+        iv_default(Assumption::Custom {
+            id: Arc::from(IV_RELEVANCE_ID),
+            description: Arc::from(format!(
+                "instrument {} has a non-zero first-stage association with the treatment (the \
+                 graph shows a connecting path, not its strength)",
+                instrument.raw()
+            )),
+        }),
+    ]
 }
 
 /// Whether `z` is a valid instrument for `t` -> `y`.
@@ -257,6 +314,69 @@ mod tests {
         assert!(res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(0)]));
         // The confounder U itself must never be reported as a valid instrument.
         assert!(!res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
+    }
+
+    #[test]
+    fn each_instrument_claims_its_own_exclusion_and_the_wald_restriction() {
+        // Z1 -> T <- Z2, T -> Y, U -> T, U -> Y: two valid instruments, one estimand each.
+        let mut g = Dag::with_variables(5);
+        let z1 = DenseNodeId::from_raw(0);
+        let z2 = DenseNodeId::from_raw(1);
+        let t = DenseNodeId::from_raw(2);
+        let y = DenseNodeId::from_raw(3);
+        let u = DenseNodeId::from_raw(4);
+        g.insert_directed(z1, t).unwrap();
+        g.insert_directed(z2, t).unwrap();
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(u, y).unwrap();
+
+        let id = InstrumentalVariableIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        // U is a parent of T but fails exogeneity, so exactly Z1 and Z2 qualify.
+        let instruments: Vec<u32> = res.estimands.iter().map(|e| e.instruments[0].raw()).collect();
+        assert_eq!(instruments, vec![0, 1]);
+        assert_eq!(res.estimand_claims.len(), 2);
+
+        let exclusions = |set: &AssumptionSet| -> Vec<u32> {
+            set.entries
+                .iter()
+                .filter_map(|r| match &r.assumption {
+                    Assumption::ExclusionRestriction { instrument } => Some(instrument.raw()),
+                    _ => None,
+                })
+                .collect()
+        };
+        for (index, instrument) in [0u32, 1].into_iter().enumerate() {
+            let claim = res.narrowed_to(index).unwrap();
+            assert_eq!(claim.status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
+            assert_eq!(exclusions(&claim.required_assumptions), vec![instrument]);
+            assert!(claim.required_assumptions.entries.iter().any(|r| matches!(
+                &r.assumption,
+                Assumption::ParametricRestriction(p) if p.id.as_ref() == IV_EFFECT_RESTRICTION_ID
+            )));
+            let relevance: Vec<&str> = claim
+                .required_assumptions
+                .entries
+                .iter()
+                .filter_map(|r| match &r.assumption {
+                    Assumption::Custom { id, description } if id.as_ref() == IV_RELEVANCE_ID => {
+                        Some(description.as_ref())
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(relevance.len(), 1);
+            assert!(relevance[0].starts_with(&format!("instrument {instrument} ")));
+        }
+        // The listing covers both instruments.
+        assert_eq!(exclusions(&res.required_assumptions), vec![0, 1]);
     }
 
     #[test]

@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry};
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
@@ -126,6 +124,39 @@ impl PropensityWeighting {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        let point = self.fit_point(problem, workspace, assumptions)?;
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage). Equal to what `fit` publishes when `bootstrap_replicates > 0`,
+    /// without refitting the point model.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let target = IpwTarget::from_population(&problem.target_population)?;
+        let trim = trim_of(problem.overlap);
+        let boot = self.bootstrap_se(problem, target, trim, workspace, ctx)?;
+        Ok(point.with_bootstrap(Some(boot)))
+    }
+
+    fn fit_point(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
         let target = IpwTarget::from_population(&problem.target_population)?;
         if matches!(target, IpwTarget::Custom) && problem.target_weights.is_none() {
             return Err(EstimationError::unsupported(
@@ -162,12 +193,6 @@ impl PropensityWeighting {
             }),
         )?;
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, target, trim, workspace, ctx)?)
-        };
-
         let overlap_report = Some(crate::propensity::propensity_overlap_report(
             problem,
             &model.fit.scores,
@@ -179,8 +204,7 @@ impl PropensityWeighting {
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
-            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
-            .with_bootstrap(boot))
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 
     fn bootstrap_se(
@@ -387,8 +411,9 @@ pub(crate) fn hajek_influence_se(
     }
 
     if let Some(p) = propensity {
-        let mut information = vec![0.0; ncols * ncols];
-        let mut derivative = vec![0.0; ncols];
+        let mut score_mult = vec![0.0; n];
+        let mut information_weight = vec![0.0; n];
+        let mut derivative_weight = vec![0.0; n];
         for i in 0..n {
             let e = p.scores[i];
             let clipped = p.clip.is_some_and(|c| e <= c || e >= 1.0 - c);
@@ -403,21 +428,19 @@ pub(crate) fn hajek_influence_se(
                     (IpwTarget::Atc, true) => -1.0,
                 }
             };
-            for c in 0..ncols {
-                let xc = p.design[c * n + i];
-                derivative[c] += psi[i] * log_weight_derivative * xc / nf;
-                for d in 0..ncols {
-                    information[c * ncols + d] += e * (1.0 - e) * xc * p.design[d * n + i] / nf;
-                }
-            }
+            score_mult[i] = treatment[i] - e;
+            information_weight[i] = e * (1.0 - e);
+            derivative_weight[i] = psi[i] * log_weight_derivative;
         }
-        let Some(alpha) = solve_symmetric_posdef(&mut information, &mut derivative, ncols) else {
-            return Err(EstimationError::stats_msg("singular logistic information in Hajek SE"));
-        };
-        for i in 0..n {
-            let adjustment = (0..ncols).map(|c| p.design[c * n + i] * alpha[c]).sum::<f64>();
-            psi[i] += adjustment * (treatment[i] - p.scores[i]);
-        }
+        crate::se::add_nuisance_correction(
+            &mut psi,
+            p.design,
+            ncols,
+            &score_mult,
+            &information_weight,
+            &derivative_weight,
+            "singular logistic information in Hajek SE",
+        )?;
     }
 
     let mean = psi.iter().sum::<f64>() / nf;

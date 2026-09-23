@@ -2,11 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(missing_docs)]
 #![allow(
-    missing_docs,
     clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use antecedent_prob::{
@@ -50,6 +49,7 @@ fn bench_hmc(c: &mut Criterion) {
         step_size: 0.08,
         target_accept: 0.8,
         mass: 1.0,
+        adapt_metric: true,
     };
 
     let mut ws = LaplaceWorkspace::default();

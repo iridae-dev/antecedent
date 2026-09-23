@@ -1,5 +1,9 @@
 //! Matching-index benchmark .
-#![allow(missing_docs, clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![allow(missing_docs)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent_stats::{MatchingDistance, MatchingIndex};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};

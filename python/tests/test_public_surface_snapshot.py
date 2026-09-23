@@ -20,8 +20,6 @@ import sys
 
 import pytest
 
-pytest.importorskip("antecedent")
-
 _DUMP = """
 import dataclasses, json, sys
 import antecedent
@@ -141,9 +139,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "SemiElasticity",
         "SustainedEffect",
         "TemporalMediationEffect",
-        # Design queries: their licensed cells run on analyze and retain a study
+        # Design queries: licensed cells run on analyze and retain a study
         "InterferenceQuery",
-        "TransportQuery",
         # Stage modules
         "accepted_graph",
         "artifacts",
@@ -166,14 +163,17 @@ SNAPSHOT: dict[str, set[str]] = {
         "model",
         "observation",
         "population",
+        "prediction",
         "priors",
         "query",
         "results",
         "state",
         "transport",
+        "learners",
         "validation",
     },
     "AnalysisResult": {
+        "fitted_model",
         # The five-line API (`ResultAPI`)
         "answer",
         "as_point",
@@ -232,12 +232,14 @@ SNAPSHOT: dict[str, set[str]] = {
         "unit_extrapolative",
         # Design-cell sections beside the scalar estimate
         "interference",
+        "transport",
         "transport_overlap",
         # Licensed GCM attribution cells
         "anomaly",
         "change_attribution",
     },
     "PreparedAnalysis": {
+        "replace_snapshot",
         # Compile, execute, and the two views
         "prepare",
         "estimate",
@@ -263,6 +265,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "export_artifact",
     },
     "LoadedResult": {
+        "fitted_model",
         "acceptance",
         "answer",
         "artifact",
@@ -317,9 +320,12 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "estimators": {
         "Aipw",
+        "CausalForest",
+        "DML",
+        "DRLearner",
         "DistanceMatching",
         "FitKind",
-        "FrontdoorTwoStage",
+        "FrontdoorLinearTwoStage",
         "GlmAdjustment",
         "GlmFamilyName",
         "GlmOptions",

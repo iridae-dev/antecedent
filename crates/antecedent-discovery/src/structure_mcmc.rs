@@ -2,16 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::similar_names,
-    clippy::too_many_lines
+#![allow(clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
 
@@ -152,7 +154,7 @@ impl StructureMcmc {
                 let mut local_rej = 0u64;
                 for li in 0..(end - start) {
                     let chain = start + li;
-                    let mut rng = ctx.rng.stream(1000 + chain as u64);
+                    let mut rng = ctx.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                     let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
                         data_version: 1,
                         family: score_family,
@@ -161,9 +163,27 @@ impl StructureMcmc {
                     });
                     let mut mask = initial_mask;
                     let mut cur = initial_score;
+                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
+                    // others after a random walk over the feasible set. Identical starts make
+                    // R-hat blind to a chain that has not left its initial mode.
+                    if chain > 0 {
+                        for _ in 0..(4 * n_params).min(400) {
+                            let (prop, _, _) = propose_structure(mask, n, &pairs, &mut rng);
+                            if let Some(ps) =
+                                score_dag_mask(prop, n, &score_data, &mut cache, prior, variables)
+                                    .filter(|s| s.is_finite())
+                            {
+                                mask = prop;
+                                cur = ps;
+                            }
+                        }
+                    }
                     let total_steps = n_warmup + n_draws * thin;
                     let mut kept = 0usize;
                     for step in 0..total_steps {
+                        if ctx.cancellation.is_cancelled() {
+                            break;
+                        }
                         let (prop, q_ratio, rej_inc) = propose_structure(mask, n, &pairs, &mut rng);
                         local_rej += rej_inc;
                         let prop_score =
@@ -192,7 +212,10 @@ impl StructureMcmc {
                     }
                 }
                 (start, local_traces, local_samples, local_rej)
-            });
+            })?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(DiscoveryError::Cancelled);
+        }
 
         FinishMaskPosterior {
             n,
@@ -201,6 +224,7 @@ impl StructureMcmc {
             sample_masks: &sample_masks,
             rejected,
             n_params,
+            param_edges: &pairs,
             require_gate: self.require_diagnostics_gate,
             refuse_msg: "structure MCMC diagnostics gate refused posterior",
             empty_msg: "structure MCMC produced no samples",
@@ -261,7 +285,7 @@ fn propose_structure(
     if pairs.is_empty() {
         return (mask, 1.0, 0);
     }
-    let idx = (rng.next_u64() as usize) % pairs.len();
+    let idx = crate::indexing::bounded_index(rng.next_u64(), pairs.len());
     let (i, j) = pairs[idx];
     let forward = has_edge(mask, n, i, j);
     let backward = has_edge(mask, n, j, i);
@@ -349,7 +373,10 @@ mod tests {
     #[test]
     fn structure_mcmc_fork_edges() {
         let (data, vars) = fork_data(250);
-        let eng = StructureMcmc::new().with_schedule(2, 200, 400, 1);
+        // 2 chains / 400 draws (old) left the per-edge MCSE above the publication gate's bar
+        // often enough to flake; 4 chains / 1200 draws converges comfortably without masking a
+        // real defect (the fork itself is trivially easy to recover).
+        let eng = StructureMcmc::new().with_schedule(4, 400, 1200, 1);
         let ctx = ExecutionContext::for_tests(42);
         let mut ws = DiscoveryWorkspace::default();
         let post = eng

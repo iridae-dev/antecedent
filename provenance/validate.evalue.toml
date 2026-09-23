@@ -10,7 +10,9 @@ papers = [
 ]
 
 implementation_deviations = [
- "Computes only the point-estimate E-value after the approximate continuous-outcome conversion RR=exp(0.91*ATE/SD(Y)); it does not calculate the recommended E-value for the confidence-limit nearest the null.",
+ "For a continuous outcome applies the approximate conversion RR=exp(0.91*ATE/sigma) with sigma the residual SD of the outcome regression on treatment and the adjustment set (the within-group SD the conversion is defined for), not the marginal SD of the outcome; an outcome with no residual variation has an infinite E-value.",
+ "For a 0/1 outcome the ATE is a risk difference, so the risk ratio is taken from the arm risks implied by the linear model's standardized means (control risk = mean(Y) + (ATE/delta)(control - mean(T)), treated risk = control risk + ATE), and the check is not applicable when a risk leaves (0, 1).",
+ "Reports the smaller of the point-estimate E-value and the E-value of the 95% confidence limit nearest the null (1 when the interval covers the null); without a usable standard error the point value is reported as non-informative and cannot support a pass.",
  "Adds a default pass threshold of 2.0, whereas the cited method defines a continuous diagnostic and does not prescribe that verdict threshold.",
 ]
 

@@ -12,18 +12,22 @@
 //!
 //! Vocabulary:
 //!
-//! - `calibrated`: a non-boundary record measured this construction (every key
-//!   field equal, including the nominal level and the identification label)
-//!   and the execution lies inside what it measured: its row count inside the
-//!   record's measured row-count range (the span of its sample-size grid points,
-//!   never extrapolated beyond them), at least as many successful resampling
-//!   replicates and posterior draws, and no more non-identified mass. A record
-//!   is a boundary when any of its grid points is: a construction that failed
-//!   at one measured sample size is not calibrated anywhere in the range.
+//! - `calibrated`: a non-boundary record that still attests the current code
+//!   (its facets have not drifted since `calibration_sha`) measured this
+//!   construction (every key field equal, including the nominal level and the
+//!   identification label) and the execution lies inside what it measured: its
+//!   row count inside the record's measured row-count range (the span of its
+//!   sample-size grid points, never extrapolated beyond them), at least as many
+//!   successful resampling replicates and posterior draws, and no more
+//!   non-identified mass. A record is a boundary when any of its grid points
+//!   is: a construction that failed at one measured sample size is not
+//!   calibrated anywhere in the range. A matching but stale (non-attesting)
+//!   record is never `calibrated`.
 //! - `scope_not_assessed`: a record measured the construction but the
-//!   execution is outside its scope (the reason names which bound), or the
+//!   execution is outside its scope (the reason names which bound), the
 //!   covering record is a named boundary / under-coverage measurement
-//!   (`boundary_record`, with its observed coverage).
+//!   (`boundary_record`, with its observed coverage), or the covering record
+//!   no longer attests the current code (`coverage_record_not_attesting`).
 //! - `unavailable`: no record measured this construction, level or
 //!   identification; or no interval was reported.
 //!
@@ -32,7 +36,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::contract_section::CalibrationSlotWire;
-use crate::coverage_records_data::{CoverageGridPoint, CoverageRecord, RECORDS};
+use crate::coverage_records_data::{
+    ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, RECORDS,
+};
 
 /// No interval was reported.
 pub const NO_INTERVAL_REPORTED: &str = "no_interval_reported";
@@ -54,9 +60,14 @@ pub const POSTERIOR_DRAWS_BELOW_MEASURED: &str = "posterior_draws_below_measured
 pub const UNIDENTIFIED_MASS_ABOVE_MEASURED: &str = "unidentified_mass_above_measured";
 /// The claim carries no match basis to re-derive the slot from.
 pub const BASIS_MISSING: &str = "calibration_basis_missing";
+/// A covering record matches, but no longer attests the current statistical
+/// surface (facets drifted since its `calibration_sha`, or it was never
+/// attested for this tree).
+pub const RECORD_NOT_ATTESTING: &str = "coverage_record_not_attesting";
 
-/// Every reason code the matcher can emit (all listed in `parity/reason_codes.toml`).
-pub const REASON_CODES: [&str; 10] = [
+/// Every reason code the matcher can emit (all listed in `parity/reason_codes.toml`,
+/// except [`RECORD_NOT_ATTESTING`], which is runtime-only).
+pub const REASON_CODES: [&str; 11] = [
     NO_INTERVAL_REPORTED,
     CONSTRUCTION_NOT_MEASURED,
     LEVEL_NOT_MEASURED,
@@ -67,7 +78,21 @@ pub const REASON_CODES: [&str; 10] = [
     POSTERIOR_DRAWS_BELOW_MEASURED,
     UNIDENTIFIED_MASS_ABOVE_MEASURED,
     BASIS_MISSING,
+    RECORD_NOT_ATTESTING,
 ];
+
+/// Whether `record` attests the code this binary was built from.
+///
+/// A `calibrated` slot requires this to be true for the governing record. The
+/// answer is generated with the registry ([`ATTESTING_RECORD_IDS`], from
+/// `scripts/calibration_facets.py`), so it changes when a record is re-measured
+/// or the statistical surface drifts, and never by hand. Stale or otherwise
+/// non-attesting records may still be reported as `scope_not_assessed` with
+/// [`RECORD_NOT_ATTESTING`].
+#[must_use]
+pub fn record_attests_current_code(record: &CoverageRecord) -> bool {
+    ATTESTING_RECORD_IDS.contains(&record.id)
+}
 
 /// Tolerance for comparing nominal levels and structural masses.
 const TOLERANCE: f64 = 1e-9;
@@ -93,7 +118,8 @@ pub struct CalibrationKeyWire {
     pub interval_method: String,
     /// Analytic SE kind recorded by the estimator; empty when not analytic.
     pub se_kind: String,
-    /// `iid`, `panel_cluster`, or `circular_block:<family>`.
+    /// `iid`, `panel_cluster`, `circular_block:<family>`, or, for a frequentist standard error on
+    /// time-ordered rows that names no block family, `serial_unmodelled` / `serial_hac`.
     pub dependence: String,
     /// Posterior construction (`<backend>.<likelihood>.<prior>`); empty for
     /// Frequentist executions.
@@ -179,9 +205,12 @@ impl CalibrationKeyWire {
 }
 
 /// Calibration slot of one reported interval (secondary list empty).
+///
+/// Uses the shipped [`RECORDS`] table and requires the governing record to
+/// [`record_attests_current_code`].
 #[must_use]
 pub fn calibration_slot(basis: &CalibrationBasisWire) -> CalibrationSlotWire {
-    calibration_slot_in(basis, RECORDS)
+    calibration_slot_with(basis, RECORDS, record_attests_current_code)
 }
 
 /// Calibration slot of the primary interval, with one secondary slot per
@@ -197,10 +226,30 @@ pub fn calibration_slots(bases: &[CalibrationBasisWire]) -> CalibrationSlotWire 
 }
 
 /// [`calibration_slot`] against an explicit record table.
+///
+/// Caller-supplied tables are treated as attesting so match-logic unit tests
+/// can pin construction and scope without restamping attestation. Production
+/// claim binding goes through [`calibration_slot`], which applies
+/// [`record_attests_current_code`]. Use [`calibration_slot_with`] to pin
+/// attestation itself.
 #[must_use]
 pub fn calibration_slot_in(
     basis: &CalibrationBasisWire,
     records: &[CoverageRecord],
+) -> CalibrationSlotWire {
+    calibration_slot_with(basis, records, |_| true)
+}
+
+/// [`calibration_slot_in`] with an explicit attestation predicate.
+///
+/// `attests` decides whether a covering record may yield `calibrated`. A
+/// matching record that fails `attests` is `scope_not_assessed` with
+/// [`RECORD_NOT_ATTESTING`].
+#[must_use]
+pub fn calibration_slot_with(
+    basis: &CalibrationBasisWire,
+    records: &[CoverageRecord],
+    attests: impl Fn(&CoverageRecord) -> bool,
 ) -> CalibrationSlotWire {
     let key = &basis.key;
     let scope = &basis.scope;
@@ -277,6 +326,8 @@ pub fn calibration_slot_in(
         .any(|record| scope.unidentified_mass > record.unidentified_mass_max + TOLERANCE)
     {
         Some(UNIDENTIFIED_MASS_ABOVE_MEASURED)
+    } else if !attests(governing) {
+        Some(RECORD_NOT_ATTESTING)
     } else {
         None
     };
@@ -599,6 +650,32 @@ mod tests {
         forged.status = "calibrated".into();
         forged.secondary[0].status = "calibrated".into();
         assert_ne!(rederive_calibration(&forged), forged);
+    }
+
+    #[test]
+    fn calibrated_requires_a_fresh_attesting_record() {
+        let fresh = record("cov.fresh");
+        let mut stale = record("cov.stale");
+        stale.calibration_sha = "stale00000000000000000000000000000000000";
+        let attests = |record: &CoverageRecord| record.id == "cov.fresh";
+
+        let fresh_slot = calibration_slot_with(&basis(), &[fresh], attests);
+        assert_eq!(fresh_slot.status, "calibrated");
+        assert_eq!(fresh_slot.record_id.as_deref(), Some("cov.fresh"));
+        assert_eq!(fresh_slot.reason, None);
+
+        let stale_slot = calibration_slot_with(&basis(), &[stale], attests);
+        assert_eq!(stale_slot.status, "scope_not_assessed");
+        assert_eq!(stale_slot.record_id.as_deref(), Some("cov.stale"));
+        assert_eq!(stale_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
+
+        // A measured-looking record the registry does not list as attesting is not
+        // calibrated.
+        let drifted = record("cov.drifted");
+        assert!(!record_attests_current_code(&drifted));
+        let drifted_slot = calibration_slot_with(&basis(), &[drifted], record_attests_current_code);
+        assert_ne!(drifted_slot.status, "calibrated");
+        assert_eq!(drifted_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
     }
 
     #[test]

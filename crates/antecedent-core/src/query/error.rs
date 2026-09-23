@@ -119,6 +119,13 @@ pub enum QueryError {
     /// Distribution conditioning overlaps an outcome or intervention target.
     #[error("distribution conditioning overlaps outcome or intervention")]
     ConditioningOverlapsOutcomeOrIntervention,
+    /// A distribution outcome is also an intervention target: `P(A | do(A))`
+    /// is a point mass fixed by the query, not an identification problem.
+    #[error("distribution outcome {id} is also an intervention target")]
+    OutcomeIsInterventionTarget {
+        /// Shared id.
+        id: VariableId,
+    },
     /// Named / custom population requires a [`super::PopulationRegistry`].
     #[error("named predicate / custom distribution requires a PopulationRegistry")]
     PopulationRegistryRequired,
@@ -159,6 +166,15 @@ pub enum QueryError {
     /// Environment-restricted populations need multi-env data (not resolved here).
     #[error("Environment target population is not resolved by PopulationRegistry")]
     PopulationEnvironmentUnsupported,
+    /// A cutoff population is a limit, not a set of rows.
+    #[error(
+        "LocalAtCutoff is the limit population at a running-variable cutoff; it has no row \
+         subset and is estimated only by a regression-discontinuity design"
+    )]
+    PopulationLocalAtCutoffNotRows,
+    /// Cutoff of a [`super::TargetPopulation::LocalAtCutoff`] is NaN or infinite.
+    #[error("LocalAtCutoff cutoff must be finite")]
+    NonFiniteCutoff,
     /// Distribution weights contain negatives or non-finite values.
     #[error("custom distribution weights must be finite and non-negative")]
     InvalidPopulationWeights,

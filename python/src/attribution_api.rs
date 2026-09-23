@@ -672,6 +672,8 @@ fn mechanism_change_detection(
                     p_value: d.p_value,
                     adjusted_p_value: d.adjusted_p_value,
                     changed: d.changed,
+                    n_permutations: d.n_permutations,
+                    p_value_floor: d.p_value_floor,
                 }
             })
             .collect())

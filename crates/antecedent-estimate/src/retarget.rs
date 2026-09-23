@@ -7,7 +7,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -21,6 +27,53 @@ use crate::scores::{LinearContrast, ScoreSummary, ScoreTable};
 
 /// Minimum Kish `n_eff` per arm under target weights.
 pub const MIN_WEIGHTED_ARM_N_EFF: f64 = 10.0;
+
+/// Largest target-weighted share of rows whose raw held-out propensity lies outside the
+/// applied clip band `[clip, 1 − clip]` (default `DEFAULT_PROPENSITY_CLIP`) for weighted
+/// overlap to pass.
+/// Such rows are the ones whose inverse-probability weight a clipped fit changes by a factor
+/// of at least the clip's reciprocal; a target concentrated on them is not supported.
+pub const MAX_EXTREME_PROPENSITY_SHARE: f64 = 0.10;
+
+/// The one weighted-overlap gate shared by the score-table and legacy supports: per-arm Kish
+/// counts, the raw propensity range (when propensities were supplied), and the target-weighted
+/// share of extreme propensities.
+pub(crate) fn overlap_gate(
+    n_eff_by_arm: &[f64],
+    min_n_eff: f64,
+    range: Option<(f64, f64)>,
+    range_required: bool,
+    extreme_share: f64,
+) -> bool {
+    !n_eff_by_arm.is_empty()
+        && n_eff_by_arm.iter().all(|&n| n >= min_n_eff)
+        && (!range_required || range.is_some())
+        && range.is_none_or(|(lo, hi)| lo > 1e-6 && hi < 1.0 - 1e-6)
+        && extreme_share <= MAX_EXTREME_PROPENSITY_SHARE
+}
+
+/// Target-weighted share of rows (over `w > 0`) with any listed propensity outside the
+/// `[clip, 1 − clip]` band. `columns` yields one propensity slice per score column.
+pub(crate) fn extreme_propensity_share<'a>(
+    columns: impl Iterator<Item = &'a [f64]>,
+    weights: &[f64],
+    clip: f64,
+) -> f64 {
+    let mass: f64 = weights.iter().filter(|w| **w > 0.0).sum();
+    if mass <= 0.0 {
+        return 0.0;
+    }
+    let (lo, hi) = (clip, 1.0 - clip);
+    let columns: Vec<&[f64]> = columns.collect();
+    let extreme: f64 = weights
+        .iter()
+        .enumerate()
+        .filter(|(_, w)| **w > 0.0)
+        .filter(|(i, _)| columns.iter().any(|c| c.get(*i).is_some_and(|&p| p < lo || p > hi)))
+        .map(|(_, w)| *w)
+        .sum();
+    extreme / mass
+}
 
 /// Why retargeting was refused.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -147,6 +200,10 @@ pub fn check_depends_on(
     Ok(())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "pos indexes the graph's node list, and dense node ids are u32 by construction"
+)]
 fn descendant_of_intervened(
     depends_on: &[VariableId],
     table: &ScoreTable,
@@ -249,7 +306,7 @@ pub fn retarget(
     if overlap_failed {
         diagnostics.push(Diagnostic::new(
             "retarget.weighted_overlap_failed",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             RetargetRefusal::WeightedOverlap.as_str(),
         ));
@@ -294,11 +351,16 @@ pub fn score_weighted_support(table: &ScoreTable, weights: &[f64]) -> WeightedSu
         }
     }
     let range = lo.is_finite().then_some((lo, hi));
+    // The band the fit actually clipped to; an unclipped table is judged against the
+    // library default band.
+    let extreme_share = extreme_propensity_share(
+        table.propensities.chunks(table.n_rows.max(1)),
+        weights,
+        table.propensity_clip.unwrap_or(crate::overlap::DEFAULT_PROPENSITY_CLIP),
+    );
     let overlap_ok = weights.len() == table.n_rows
         && table.observed_arm.len() == table.n_rows
-        && n_eff_by_arm.iter().all(|&n| n >= MIN_WEIGHTED_ARM_N_EFF)
-        && !n_eff_by_arm.is_empty()
-        && range.is_some_and(|(lo, hi)| lo > 1e-6 && hi < 1.0 - 1e-6);
+        && overlap_gate(&n_eff_by_arm, MIN_WEIGHTED_ARM_N_EFF, range, true, extreme_share);
     WeightedSupport {
         n_eff: crate::joint_if::kish_n_eff(weights),
         n_eff_by_arm,
@@ -422,6 +484,7 @@ mod tests {
             ]),
             adjustment_set: Arc::from([VariableId::from_raw(2)]),
             nuisance_provenance: Arc::from("aipw.crossfit.v1"),
+            propensity_clip: None,
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         }
@@ -510,5 +573,72 @@ mod tests {
         assert!((cdf[1] - 0.6).abs() < 1e-12);
         assert!((cdf[2] - 0.4).abs() < 1e-12);
         assert!((cdf[3] - 0.8).abs() < 1e-12);
+    }
+
+    #[test]
+    fn extreme_propensity_share_is_target_weighted_and_gates_overlap() {
+        // 100 rows; the first 15 have raw propensity 0.005 (below the 0.01 default clip).
+        let propensity: Vec<f64> = (0..100).map(|i| if i < 15 { 0.005 } else { 0.5 }).collect();
+        let uniform = vec![1.0; 100];
+        let share =
+            extreme_propensity_share(std::iter::once(propensity.as_slice()), &uniform, 0.01);
+        assert!((share - 0.15).abs() < 1e-12, "share {share}");
+        assert!(!overlap_gate(&[50.0, 50.0], 10.0, Some((0.005, 0.5)), true, share));
+        // Only 5 extreme rows: within the declared bound.
+        let mild: Vec<f64> = (0..100).map(|i| if i < 5 { 0.005 } else { 0.5 }).collect();
+        let share = extreme_propensity_share(std::iter::once(mild.as_slice()), &uniform, 0.01);
+        assert!((share - 0.05).abs() < 1e-12);
+        assert!(overlap_gate(&[50.0, 50.0], 10.0, Some((0.005, 0.5)), true, share));
+        // A target that lives on the extreme rows fails even though few rows are extreme.
+        let mut concentrated = vec![0.0; 100];
+        concentrated[..5].fill(1.0);
+        concentrated[5..10].fill(1.0);
+        let share = extreme_propensity_share(std::iter::once(mild.as_slice()), &concentrated, 0.01);
+        assert!((share - 0.5).abs() < 1e-12);
+        assert!(!overlap_gate(&[50.0, 50.0], 10.0, Some((0.005, 0.5)), true, share));
+        // The hard range bound still applies.
+        assert!(!overlap_gate(&[50.0, 50.0], 10.0, Some((1e-7, 0.5)), true, 0.0));
+    }
+
+    #[test]
+    fn table_support_measures_the_extreme_share_against_the_applied_clip() {
+        // 100 rows, alternating arms; 20 rows have raw propensity 0.03 for the treated
+        // column. Against the default 0.01 band they are interior (share 0); a fit that
+        // clipped at 0.05 changed the weights of exactly those rows, so the gate must see
+        // them as the 20% extreme share and refuse.
+        let n = 100usize;
+        let arm: Vec<u32> = (0..n).map(|i| (i % 2) as u32).collect();
+        let treated: Vec<f64> = (0..n).map(|i| if i < 20 { 0.03 } else { 0.5 }).collect();
+        let mut propensities = treated.iter().map(|p| 1.0 - p).collect::<Vec<_>>();
+        propensities.extend(treated.iter().copied());
+        let mut t = table();
+        t.n_rows = n;
+        t.observed_arm = arm.into();
+        t.observed_outcome = vec![0.0; n].into();
+        t.row_index = (0..n as u32).collect::<Vec<_>>().into();
+        t.fold_ids = (0..n).map(|i| (i % 2) as u32).collect::<Vec<_>>().into();
+        t.scores = vec![0.0; 2 * n].into();
+        t.propensities = propensities.into();
+        let weights = vec![1.0; n];
+        t.propensity_clip = Some(crate::overlap::DEFAULT_PROPENSITY_CLIP);
+        assert!(score_weighted_support(&t, &weights).overlap_ok);
+        t.propensity_clip = Some(0.05);
+        assert!(!score_weighted_support(&t, &weights).overlap_ok);
+    }
+
+    #[test]
+    fn legacy_and_table_supports_apply_the_same_propensity_gate() {
+        let treatment: Vec<f64> = (0..40).map(|i| f64::from(i % 2)).collect();
+        let weights = vec![1.0; 40];
+        let mut propensity = vec![0.5; 40];
+        assert!(
+            crate::crossfit_aipw::weighted_support(&treatment, &weights, Some(&propensity), 10.0)
+                .overlap_ok
+        );
+        propensity[0] = 1e-7;
+        assert!(
+            !crate::crossfit_aipw::weighted_support(&treatment, &weights, Some(&propensity), 10.0)
+                .overlap_ok
+        );
     }
 }

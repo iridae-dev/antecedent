@@ -6,10 +6,12 @@ copied_comments = false
 copied_tests = false
 
 # Leave-one-out adjustment-covariate sensitivity (drop each backdoor covariate in turn,
-# refit, report worst relative ATE change). This is an ad hoc robustness diagnostic on the
-# *chosen adjustment set*, not a check tied to a specific published methodology; no single
-# primary paper introduces it as a named method. Honestly left uncited rather than
-# retrofitting a plausible-sounding source — see report for detail.
+# refit on the rows complete for the full adjustment set, report worst relative ATE change).
+# This is an ad hoc, descriptive diagnostic on the *chosen adjustment set* (a moving estimate
+# is what a real confounder does, so reports are non-informative), not a check tied to a
+# specific published methodology; no single primary paper introduces it as a named method.
+# Honestly left uncited rather than retrofitting a plausible-sounding source — see report
+# for detail.
 papers = []
 
 upstream_implementations_observed = []

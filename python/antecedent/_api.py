@@ -57,9 +57,6 @@ def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
             result = fn(*args, **kwargs)
         except (CausalError, ValueError, TypeError) as error:
             message = str(error)
-            if getattr(error, "reason_code", None) is None and message.startswith("reason="):
-                code, _, _ = message.partition(":")
-                cast(Any, error).reason_code = code.removeprefix("reason=").strip()
             if (
                 getattr(error, "reason_code", None) is None
                 and isinstance(error, TypeError)

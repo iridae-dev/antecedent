@@ -45,8 +45,15 @@ pub struct StaticResultWire {
     pub identification: crate::IdentificationResultWire,
     /// Primary requested contrast.
     pub estimate: f64,
-    /// Sampling standard error; absent when unavailable.
+    /// Sampling standard error; absent when unavailable or when the published
+    /// interval is an Anderson–Rubin set (`interval_lower` / `interval_upper`).
     pub standard_error: Option<f64>,
+    /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_upper: Option<f64>,
     /// Declared estimation assumptions, separate from identification.
     pub assumptions: Vec<crate::AssumptionRecordWire>,
     /// Empirical support diagnostics (range/overlap), never structural ID.
@@ -480,7 +487,32 @@ pub(crate) fn validate_query_ids(
         Q::Response(wire) => validate_response_query_ids(wire, variable_count),
         Q::Transport(wire) => {
             validate_response_query_ids(&wire.response, variable_count)?;
-            validate_ids(wire.source_experiments.iter().copied(), variable_count)
+            validate_ids(wire.source_experiments.iter().copied(), variable_count)?;
+            if let Some(catalog) = &wire.catalog {
+                for environment in &catalog.environments {
+                    validate_ids(
+                        environment
+                            .variables
+                            .iter()
+                            .map(|v| v.0)
+                            .chain(environment.selection_targets.iter().copied()),
+                        variable_count,
+                    )?;
+                }
+                for regime in &catalog.regimes {
+                    validate_ids(
+                        regime
+                            .interventions
+                            .iter()
+                            .chain(&regime.measured)
+                            .copied()
+                            .chain(regime.intervention_values.iter().map(|v| v.0))
+                            .chain(regime.separate_marginals.iter().flatten().copied()),
+                        variable_count,
+                    )?;
+                }
+            }
+            Ok(())
         }
         Q::Interference(wire) => {
             let crate::InterferenceFunctionalWire::ExposureContrast { outcome, .. } =
@@ -943,6 +975,21 @@ fn validate_uncertainty(
     value_len: Option<usize>,
 ) -> Result<(), IoError> {
     use crate::ResponseUncertaintyWire;
+    // A response without a licensed value (unidentified / unevaluable) has no
+    // shape for an interval to describe, so only a non-numeric uncertainty
+    // record may accompany it.
+    let Some(value_len) = value_len else {
+        return match uncertainty {
+            ResponseUncertaintyWire::None => Ok(()),
+            ResponseUncertaintyWire::Posterior { artifact_id } if !artifact_id.trim().is_empty() => {
+                Ok(())
+            }
+            _ => Err(IoError::Convert(
+                "a response without an identified value must not carry a numeric uncertainty interval"
+                    .into(),
+            )),
+        };
+    };
     let validate_band = |level: f64, lower: &[f64], upper: &[f64]| -> Result<(), IoError> {
         if !level.is_finite() || !(0.0..1.0).contains(&level) || level == 0.0 {
             return Err(IoError::Convert(
@@ -951,7 +998,7 @@ fn validate_uncertainty(
         }
         if lower.is_empty()
             || lower.len() != upper.len()
-            || value_len.is_some_and(|expected| expected != lower.len())
+            || value_len != lower.len()
             || lower.iter().zip(upper).any(|(lo, hi)| lo > hi)
         {
             return Err(IoError::Convert(
@@ -962,8 +1009,8 @@ fn validate_uncertainty(
     };
     match uncertainty {
         ResponseUncertaintyWire::None => Ok(()),
-        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper } => {
-            if value_len != Some(1) || !standard_error.is_finite() || *standard_error < 0.0 {
+        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper, .. } => {
+            if value_len != 1 || !standard_error.is_finite() || *standard_error < 0.0 {
                 return Err(IoError::Convert(
                     "scalar uncertainty requires a scalar response and non-negative finite standard error"
                         .into(),
@@ -971,13 +1018,14 @@ fn validate_uncertainty(
             }
             validate_band(*level, &[*lower], &[*upper])
         }
-        ResponseUncertaintyWire::PointwiseBand { level, lower, upper }
+        ResponseUncertaintyWire::PointwiseBand { level, lower, upper, .. }
         | ResponseUncertaintyWire::IdentifiedEnvelopeBand {
             level,
             lower_outer: lower,
             upper_outer: upper,
+            ..
         } => validate_band(*level, lower, upper),
-        ResponseUncertaintyWire::SimultaneousBand { level, lower, upper, replicates } => {
+        ResponseUncertaintyWire::SimultaneousBand { level, lower, upper, replicates, .. } => {
             if *replicates == 0 {
                 return Err(IoError::Convert(
                     "simultaneous response band requires positive replicates".into(),
@@ -1106,7 +1154,8 @@ fn validate_transport_identification_ids(
             }
             validate_ids(certificate.selection_targets.iter().copied(), variable_count)
         }
-        TransportIdentificationWire::NotCertified(certificate) => {
+        TransportIdentificationWire::NotCertified(certificate)
+        | TransportIdentificationWire::MissingEvidence(certificate) => {
             validate_ids(certificate.witness.iter().copied(), variable_count)
         }
     }
@@ -1125,7 +1174,8 @@ fn validate_transport_identification(
                 ));
             }
         }
-        TransportIdentificationWire::NotCertified(certificate) => {
+        TransportIdentificationWire::NotCertified(certificate)
+        | TransportIdentificationWire::MissingEvidence(certificate) => {
             if certificate.reason.trim().is_empty() || certificate.message.trim().is_empty() {
                 return Err(IoError::Convert(
                     "non-transportable certificate reason and message must be non-blank".into(),
@@ -1426,6 +1476,7 @@ mod tests {
                 level: 0.95,
                 lower: vec![0.5, 1.0, 1.5, 2.0],
                 upper: vec![1.5, 2.0, 2.5, 3.0],
+                interpretation: crate::IntervalInterpretationWire::Confidence,
             },
             support: SupportReportWire {
                 status: SupportStatusWire::Supported,
@@ -1494,6 +1545,7 @@ mod tests {
             level: 0.95,
             lower: vec![1.0, 2.0],
             upper: vec![2.0, 3.0],
+            interpretation: crate::IntervalInterpretationWire::Confidence,
         };
         response.support.point_status = Some(vec![SupportStatusWire::Supported; 2]);
         response.provenance_id = "estimate.temporal_response.intervention_gcomp".into();
@@ -1709,6 +1761,41 @@ mod tests {
     }
 
     #[test]
+    fn unidentified_response_may_not_carry_a_numeric_interval() {
+        let mut wire = partially_identified_scalar(scalar_interval(-0.19, 0.01));
+        wire.identification_status = IdentificationStatusWire::NotIdentified;
+        wire.estimate =
+            ResponseIdentificationWire::Unidentified { certificate: "identify.hedge".into() };
+        wire.uncertainty = ResponseUncertaintyWire::None;
+        assert!(validate_response_result(&wire, 2).is_ok());
+        for uncertainty in [
+            ResponseUncertaintyWire::PointwiseBand {
+                level: 0.95,
+                lower: vec![0.1],
+                upper: vec![0.4],
+                interpretation: crate::IntervalInterpretationWire::Confidence,
+            },
+            ResponseUncertaintyWire::SimultaneousBand {
+                level: 0.95,
+                lower: vec![0.1],
+                upper: vec![0.4],
+                replicates: 10,
+                interpretation: crate::IntervalInterpretationWire::Confidence,
+            },
+            ResponseUncertaintyWire::IdentifiedEnvelopeBand {
+                level: 0.95,
+                lower_outer: vec![0.1],
+                upper_outer: vec![0.4],
+                interpretation: crate::IntervalInterpretationWire::Confidence,
+            },
+        ] {
+            wire.uncertainty = uncertainty;
+            let error = validate_response_result(&wire, 2).unwrap_err().to_string();
+            assert!(error.contains("without an identified value"), "{error}");
+        }
+    }
+
+    #[test]
     fn partially_identified_scalar_functional_stores_a_coordinate_free_interval() {
         // The shape a bound such as Balke-Pearl produces. Format 0.3 has to be able to say
         // "this effect lies in [l, u]" for a scalar functional, or saying it later costs a
@@ -1838,7 +1925,7 @@ mod tests {
     #[test]
     fn decode_rejects_transport_certificate_id_outside_header() {
         let identification =
-            TransportIdentificationWire::NotCertified(crate::NonTransportableCertificateWire {
+            TransportIdentificationWire::NotCertified(crate::NotCertifiedCertificateWire {
                 reason: "not_certified".into(),
                 witness: vec![2],
                 message: "implemented rules did not certify transport".into(),

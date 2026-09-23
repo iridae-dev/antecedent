@@ -873,7 +873,7 @@ impl super::Study {
             // No bidirected edges: this ADMG *is* a DAG. Coercing keeps the
             // caller's identifier choice meaningful instead of forcing general
             // ID on a graph with no latent structure to reason about.
-            let coerced = admg_to_dag(admg)?;
+            let coerced = admg_without_latents_to_dag(admg)?;
             return identify_static_query(id, &coerced, &self.query);
         }
 
@@ -987,8 +987,10 @@ fn gaussian_likelihood_disclosure(
 }
 
 /// `binary` / `count` when the outcome is declared or observed as such.
-// Exact comparison is the point: a coded 0/1 outcome, not values near 0 or 1.
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact comparison is the point: a coded 0/1 outcome, not values near 0 or 1"
+)]
 fn discrete_outcome_kind<'a>(
     tables: impl IntoIterator<Item = &'a dyn TableView>,
     outcome: VariableId,
@@ -1000,7 +1002,11 @@ fn discrete_outcome_kind<'a>(
         match table.schema().get(outcome).ok().map(|variable| &variable.value_type) {
             Some(antecedent_core::ValueType::Binary) => return Some("binary"),
             Some(antecedent_core::ValueType::Count) => return Some("count"),
-            Some(antecedent_core::ValueType::Continuous) => {}
+            // An unspecified type claims nothing, so the observed values decide, as for a
+            // declared-continuous variable.
+            Some(
+                antecedent_core::ValueType::Continuous | antecedent_core::ValueType::Unspecified,
+            ) => {}
             _ => return None,
         }
         let values = table.float64_values(outcome).ok()?;

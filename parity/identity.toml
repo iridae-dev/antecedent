@@ -18,7 +18,7 @@ contract_key = "identities.identification"
 python = "inspect().identification_id"
 availability = "prepared|loaded"
 naming_row = "Identification premises identity"
-covers = "population-free question, accepted structure (posterior atoms and weights, class prior, transport selection), observation contract, RD premises"
+covers = "population-free question, accepted structure (posterior atoms and weights, class prior, transport selection and full optional evidence catalog including regimes, measurements, assignments, projections, snapshot bindings and target sampling), observation contract, RD premises"
 
 [[identity]]
 domain = "identification_product"
@@ -90,7 +90,7 @@ contract_key = "identities.score_reuse"
 python = "inspect().score_reuse_id"
 availability = "prepared|loaded"
 naming_row = "Score reuse identity"
-covers = "identification, data snapshot, row index, folds, adjustment set, nuisance provenance, treatment, replicates"
+covers = "identification, data snapshot, row index, folds, adjustment set, nuisance provenance, treatment, replicates, inference binding"
 
 [[identity]]
 domain = "target_weights"
@@ -100,3 +100,21 @@ python = "inspect().target_weights_id"
 availability = "loaded"
 naming_row = "Target-weight identity"
 covers = "weight digest, row count, data snapshot, score reuse, declared parents"
+
+[[identity]]
+domain = "learned_trial"
+rust = "LearnedTrialWire"
+contract_key = "manifest.artifact_id"
+python = "n/a (artifact_id in the learned-trial artifact manifest)"
+availability = "loaded"
+naming_row = "Learned-trial artifact identity"
+covers = "graph, query, raw inputs, frozen options, seed, retained score and bootstrap evidence"
+
+[[identity]]
+domain = "transport_certificate"
+rust = "TransportCertificateWire"
+contract_key = "manifest.artifact_id"
+python = "n/a (artifact_id in the transport-certificate artifact manifest)"
+availability = "loaded"
+naming_row = "Transport-certificate artifact identity"
+covers = "structural transport certificate outcome (positive proof or refusal)"

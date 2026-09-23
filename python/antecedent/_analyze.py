@@ -32,7 +32,8 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import Analysis
-from .transport import TransportQuery
+from .transport import Transport, TransportControls, TransportInference
+from .transport.advanced import TransportQuery
 
 
 class EstimatorConfigLike(Protocol):
@@ -67,6 +68,7 @@ def analyze(
         | ResponseJacobian
         | InterventionResponse
         | TransportQuery
+        | Transport
         | InterferenceQuery
         | AnomalyAttribution
         | ChangeAttribution
@@ -85,7 +87,7 @@ def analyze(
         | None
     ) = None,
     discovery: Any | None = None,
-    inference: Frequentist | Bayesian | None = None,
+    inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
@@ -104,6 +106,8 @@ def analyze(
     cancel: Any | None = None,
     on_progress: Any | None = None,
     on_stage: Any | None = None,
+    provider: Any | None = None,
+    controls: TransportControls | None = None,
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
@@ -128,8 +132,10 @@ def analyze(
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
         ``InterventionalDistribution``, ``PathSpecificEffect``,
         ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``,
-        ``TransportQuery`` (on an ``Admg`` selection diagram, with its trial
-        columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
+        ``transport.Transport`` (T5–T9 compiler on an ``Admg``, with
+        ``provider=`` / ``TransportInference`` / ``controls=``),
+        ``transport.advanced.TransportQuery`` (the licensed trial-IPW cell on
+        an ``Admg`` selection diagram, with its trial columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
         network and realized assignment), ``AnomalyAttribution`` /
         ``ChangeAttribution`` (on a ``Dag`` or edge list; GCM parametric /
         ``gcm.fit``), or a response-family query.
@@ -233,6 +239,8 @@ def analyze(
         running_variable=running_variable,
         cutoff=cutoff,
         bandwidth=bandwidth,
+        provider=provider,
+        controls=controls,
     )
     result = prepared.estimate()
     if return_posterior_artifact:
@@ -256,4 +264,7 @@ def analyze(
             result,
             posterior=copy_model(result.posterior, artifact=prepared.export_artifact()),
         )
-    return result
+    # This facade accepts only the legacy analysis query family.
+    from typing import cast
+
+    return cast(Analysis, result)

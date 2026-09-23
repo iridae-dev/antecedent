@@ -1,33 +1,58 @@
-# Public claim sentences. Typed once; each listed file contains the sentence verbatim once.
+# Cross-document public claims are intentionally re-baselined for the 2.0
+# preparation line. Capability and refusal assertions continue to be checked
+# against the support matrix by scripts/gate_docs_support_matrix.sh.
 
 [[claim]]
 id = "reusable_headline"
-sentence = "Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot."
+sentence = "Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot."
 licensed_by = "parity/python_products.toml"
-files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/release-notes/v1.11.0.md", "docs/python-workflow.md", "python/README.md"]
+files = ["docs/python-workflow.md"]
 
 [[claim]]
-id = "calibration_headline"
-sentence = "Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists."
+id = "transport_not_certified_is_not_impossibility"
+sentence = "A not-certified transport outcome is a conservative refusal, not a proof of impossibility."
+licensed_by = "parity/transport_stages.toml"
+files = ["docs/guides/transport-failure.md"]
+
+[[claim]]
+id = "transport_classical_completeness_is_paper_family"
+sentence = "Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent."
+licensed_by = "parity/transport_stages.toml"
+files = ["docs/guides/transport-scope.md"]
+
+[[claim]]
+id = "transport_stage_support_is_not_analyze_cartesian"
+sentence = "Stage transport routes are licensed in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`."
+licensed_by = "parity/transport_stages.toml"
+files = ["docs/guides/transport-scope.md"]
+
+[[claim]]
+id = "calibrated_slot_means_a_current_matching_record"
+sentence = "the record still attests the current code."
 licensed_by = "parity/coverage_records.toml"
-files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/release-notes/v1.11.0.md", "docs/python-workflow.md", "python/README.md"]
+files = ["README.md"]
 
 [[claim]]
-id = "identity_headline"
-sentence = "Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml."
-licensed_by = "parity/identity.toml"
-files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/release-notes/v1.11.0.md", "docs/python-workflow.md", "python/README.md"]
+id = "exact_dag_posterior_is_enumeration"
+sentence = "* exact DAG posterior;"
+licensed_by = "parity/bayesian.toml"
+files = ["docs/capabilities.md"]
+
+[[claim]]
+id = "kennedy_dr_is_a_least_squares_construction"
+sentence = "a local-quadratic of the doubly robust pseudo-outcome) and needs finite"
+licensed_by = "parity/estimate.toml"
+files = ["docs/capabilities.md"]
 
 [[forbidden]]
-pattern = '(?<![<>=,~])1\.12(?![0-9])|1\.11\.1|non-goal|not yet|cannot yet|currently refuses|stays 1\.9'
-files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/release-notes/v1.11.0.md", "docs/python-workflow.md", "python/README.md", "docs/v1.10-practitioner-walkthrough.md", "docs/capabilities.md", "docs/comparison.md", "docs/artifacts.md", "docs/local-distributional-joint.md", "scripts/gate_calibration_attestation.sh"]
+pattern = '(?<![<>=,~])1\.12(?![0-9])|1\.11\.1'
+files = ["README.md", "docs/python-workflow.md", "docs/capabilities.md"]
 
 # Historical CHANGELOG sections are frozen history; only the current version's
-# section is scanned (`changelog_section = "current"`). The pattern names
-# deferral to a later version, never limitation itself: stating what 1.x does
-# not do ("known limitations", "is refused", "is not calibrated") is required.
+# section is scanned (`changelog_section = "current"`). README may name the
+# deferred calibration program; that is a current 2.0 fact, not a later-version promise.
 [[forbidden]]
 id = "deferral_prose"
 pattern = '(?i)not yet|cannot yet|follow[- ]on|follow[- ]up work|later release|future release|subsequent release|next release|(?:lands?|ships?|arrives?|comes?) later|in a later|separately gated|workstream|deferred|1\.11\.1|(?<![<>=,~])1\.12(?![0-9])'
 changelog_section = "current"
-files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/release-notes/v1.11.0.md", "docs/python-workflow.md", "python/README.md", "docs/v1.10-practitioner-walkthrough.md", "docs/capabilities.md", "docs/comparison.md", "docs/artifacts.md", "docs/local-distributional-joint.md", "docs/development.md", "docs/api_naming.md", "docs/python-api.md", "docs/index.md", "docs/README.md", "docs/causal-responses.md", "docs/hot_paths.md", "docs/security_review.md", "docs/support-matrix.md", "examples/README.md", "parity/README.md", "crates/antecedent/README.md", "crates/antecedent-core/README.md", "adr/0022-causal-compiler-contract.md"]
+files = ["CHANGELOG.md", "docs/python-workflow.md", "docs/capabilities.md", "adr/0022-causal-compiler-contract.md"]

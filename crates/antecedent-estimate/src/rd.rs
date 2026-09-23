@@ -1,7 +1,19 @@
 //! Sharp regression discontinuity estimator.
 //!
-//! Treatment is defined deterministically by the running variable: `T = 1{running ≥ cutoff}`.
-//! The local effect at the cutoff is the coefficient on `T` in a local-linear OLS of `Y` on
+//! **Estimand.** The average effect for units at the cutoff,
+//! `τ_c = lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]`
+//! ([`antecedent_core::TargetPopulation::LocalAtCutoff`]). It is not the population average effect and not
+//! the average effect over the bandwidth window: with an effect that varies in `R` those
+//! are three different numbers, and only `τ_c` is identified by the design. A query that
+//! names any other target population is refused.
+//!
+//! **Sharpness is checked, not assumed.** The design says `T = 1{R ≥ cutoff}`. The
+//! treatment column is read and every complete row is compared with that rule; one
+//! violation refuses the problem (`rd_assignment_not_sharp`). With imperfect compliance
+//! the outcome jump is an intent-to-treat contrast, not the effect of the treatment, and
+//! reporting it under the treatment's name would be wrong.
+//!
+//! The effect is the coefficient on `T` in a local-linear OLS of `Y` on
 //! `[1, T, (R − c), T·(R − c)]`, restricted to rows within `bandwidth` of the cutoff.
 //!
 //! Bandwidth is explicit configuration — no data-driven bandwidth selector
@@ -43,13 +55,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::similar_names)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
-};
+use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
@@ -82,6 +98,9 @@ pub struct PreparedRdProblem {
     pub bandwidth: f64,
     /// Overlap policy applied.
     pub overlap: OverlapPolicy,
+    /// Complete rows on which `T = 1{R ≥ cutoff}` was checked and held (every one of them;
+    /// a single violation refuses the problem).
+    pub assignment_verified_rows: usize,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -91,7 +110,8 @@ pub struct RdWorkspace {
     pub ols: LeastSquaresWorkspace,
 }
 
-/// Sharp regression discontinuity estimator.
+/// Sharp regression discontinuity estimator of the average effect for units at the
+/// cutoff ([`antecedent_core::TargetPopulation::LocalAtCutoff`]) — not a population average effect.
 ///
 /// `running_variable`, `cutoff`, and `bandwidth` are explicit configuration; there is no
 /// data-driven bandwidth selector.
@@ -204,8 +224,10 @@ impl SharpRegressionDiscontinuity {
     /// # Errors
     ///
     /// Overlap policy is not `ExplicitOverride`, incompatible estimand, unsupported query,
-    /// missing/invalid data columns, no rows within the bandwidth window, or a window with only
-    /// one treatment arm represented.
+    /// a target population other than the design's cutoff (`population_not_estimable`), a
+    /// treatment column that is not `1{R ≥ cutoff}` on every complete row
+    /// (`rd_assignment_not_sharp`), missing/invalid data columns, no rows within the
+    /// bandwidth window, or a window with only one treatment arm represented.
     pub fn prepare(
         &self,
         data: &TabularData,
@@ -234,10 +256,17 @@ impl SharpRegressionDiscontinuity {
         if !query.effect_modifiers.is_empty() {
             return Err(EstimationError::unsupported("sharp RD does not support effect modifiers"));
         }
-        if query.target_population != TargetPopulation::AllObserved {
+        // The jump is the effect for units at the cutoff and for no other population, so
+        // the query has to ask for exactly that; it is never relabelled here.
+        if !query.target_population.is_local_at_cutoff(running_variable, cutoff) {
             return Err(EstimationError::refused(
                 antecedent_core::reason_code!("population_not_estimable"),
-                "sharp RD only supports TargetPopulation::AllObserved",
+                format!(
+                    "sharp RD estimates the average effect for units at the cutoff only \
+                     (TargetPopulation::LocalAtCutoff on running variable {running_variable:?} \
+                     at {cutoff}); the query targets {:?}, which this design does not identify",
+                    query.target_population
+                ),
             ));
         }
         // The sharp-RD estimand is the outcome jump at the cutoff for the 0/1 crossing
@@ -253,12 +282,16 @@ impl SharpRegressionDiscontinuity {
             ));
         }
 
-        let ids = [query.outcome, running_variable];
+        let ids = [query.outcome, running_variable, query.treatment];
         let row_mask = data.complete_case_mask(&ids).map_err(EstimationError::from)?;
         let outcome_full =
             data.float64_masked(query.outcome, &row_mask).map_err(EstimationError::from)?;
         let running_full =
             data.float64_masked(running_variable, &row_mask).map_err(EstimationError::from)?;
+        let treatment_full =
+            data.float64_masked(query.treatment, &row_mask).map_err(EstimationError::from)?;
+        let assignment_verified_rows =
+            verify_sharp_assignment(&treatment_full, &running_full, cutoff)?;
 
         let mut y_sel = Vec::new();
         let mut centered_sel = Vec::new();
@@ -295,6 +328,7 @@ impl SharpRegressionDiscontinuity {
             cutoff,
             bandwidth,
             overlap: self.overlap,
+            assignment_verified_rows,
         })
     }
 
@@ -377,6 +411,21 @@ impl SharpRegressionDiscontinuity {
             status: antecedent_core::AssumptionStatus::Declared,
         });
 
+        // `prepare` compared every complete row with the threshold rule, so the declared
+        // sharpness assumption is now supported by the data it speaks about.
+        if problem.assignment_verified_rows > 0 {
+            for record in &mut assumptions.entries {
+                let is_sharpness = matches!(
+                    &record.assumption,
+                    antecedent_core::Assumption::Custom { id, .. }
+                        if id.as_ref() == "rd.sharp_assignment"
+                );
+                if is_sharpness {
+                    record.status = antecedent_core::AssumptionStatus::Supported;
+                }
+            }
+        }
+
         let boot = if self.bootstrap_replicates == 0 {
             None
         } else {
@@ -414,6 +463,54 @@ impl SharpRegressionDiscontinuity {
     }
 }
 
+/// Check `T = 1{R ≥ cutoff}` on every row; return the number of rows checked.
+///
+/// Sharpness is a statement about the whole assignment rule, so rows outside the
+/// bandwidth window count too: a treated unit far below the cutoff says the rule is not
+/// the one the design declares.
+fn verify_sharp_assignment(
+    treatment: &[f64],
+    running: &[f64],
+    cutoff: f64,
+) -> Result<usize, EstimationError> {
+    let n = treatment.len();
+    let mut not_binary = 0usize;
+    let mut off_rule = 0usize;
+    for (&t, &r) in treatment.iter().zip(running) {
+        let treated = (t - 1.0).abs() <= 1e-12;
+        let control = t.abs() <= 1e-12;
+        if !treated && !control {
+            not_binary += 1;
+        } else if treated != (r >= cutoff) {
+            off_rule += 1;
+        }
+    }
+    if not_binary > 0 {
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("rd_assignment_not_sharp"),
+            format!(
+                "sharp RD needs a 0/1 treatment column to check against T = 1{{R >= {cutoff}}}; \
+                 {not_binary} of {n} rows hold another value"
+            ),
+        ));
+    }
+    if off_rule > 0 {
+        let share = off_rule as f64 / n as f64;
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("rd_assignment_not_sharp"),
+            format!(
+                "treatment is not the threshold rule T = 1{{R >= {cutoff}}}: {off_rule} of {n} rows \
+                 ({:.1}%) are treated below the cutoff or untreated at or above it. The outcome \
+                 jump is then an intent-to-treat contrast, not the effect of the treatment; a \
+                 fuzzy design needs the jump in treatment as well, which this estimator does \
+                 not compute. Check the running variable, the cutoff, and which side is treated",
+                100.0 * share
+            ),
+        ));
+    }
+    Ok(n)
+}
+
 /// Build the column-major `[1, T, (R-c), T·(R-c)]` local-linear design.
 fn build_rd_matrix(treated: &[f64], centered: &[f64]) -> Vec<f64> {
     let n = treated.len();
@@ -435,8 +532,14 @@ fn analytic_se_treatment(x_colmajor: &[f64], nrows: usize, sigma2: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -454,77 +557,231 @@ mod tests {
 
     /// `R ~ U(-1, 1)`, `T = 1{R ≥ 0}`, `Y = 2 + 0.5R + 3T − 0.8T·R + noise`. Jump at cutoff = 3.
     fn sharp_rd_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x8D15_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x8D15_u64);
+        let mut t = vec![0.0; n];
         let mut r = vec![0.0; n];
         let mut y = vec![0.0; n];
         for i in 0..n {
             let ri = 2.0 * rng.next_f64() - 1.0;
             let ti = if ri >= 0.0 { 1.0 } else { 0.0 };
             let noise = (rng.next_f64() - 0.5) * 0.2;
+            t[i] = ti;
             r[i] = ri;
             y[i] = 2.0 + 0.5 * ri + 3.0 * ti - 0.8 * ti * ri + noise;
         }
+        (table_tyr(t, y, r), rd_estimand())
+    }
 
+    fn rd_estimand() -> IdentifiedEstimand {
+        IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0))
+    }
+
+    /// Columns `t` (id 0), `y` (id 1), `r` (id 2).
+    fn table_tyr(t: Vec<f64>, y: Vec<f64>, r: Vec<f64>) -> TabularData {
+        let n = t.len();
         let mut b = CausalSchemaBuilder::new();
-        b.add_variable(
-            "t",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "r",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("r", RoleHint::Context),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(role),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
         let schema = b.build().unwrap();
-        // Treatment column (id 0) is unused by RD (T is derived from the running variable),
-        // but the query still needs a nominal treatment variable id.
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(vec![0.0; n]),
-                    ValidityBitmap::all_valid(n),
+        let cols = [t, y, r]
+            .into_iter()
+            .enumerate()
+            .map(|(i, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(2),
-                    Arc::from(r),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
+            })
+            .collect();
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
-        (TabularData::new(storage), estimand)
+        TabularData::new(storage)
+    }
+
+    /// The cutoff-population query of the design `(R = id 2, c)`.
+    fn local_query(cutoff: f64) -> AverageEffectQuery {
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_target_population(TargetPopulation::local_at_cutoff(
+                VariableId::from_raw(2),
+                cutoff,
+            ))
+    }
+
+    // ---- known truth: three different effects, one of which the design identifies
+    //
+    // R has density f(r) = 2(r + 1)/9 on [−1, 2] (R = 3√U − 1), T = 1{R ≥ 0},
+    // Y = g(R) + T·τ(R) + ε with a curved baseline g(r) = 1 + 0.5r + 0.8r² + r³ and a
+    // heterogeneous effect τ(r) = 2 + 6r. Closed forms:
+    //   effect at the cutoff        τ(0)                 = 2
+    //   window average (h = 0.4)    2 + 6·E[R | |R| ≤ h] = 2 + 6·h²/3 = 2.32
+    //   population average effect   2 + 6·E[R]           = 2 + 6·1    = 8
+    // (E[R | |R| ≤ h] = ∫ r(r+1) / ∫ (r+1) over [−h, h] = h²/3; E[R] = 1.)
+    const TAU_AT_CUTOFF: f64 = 2.0;
+    const TAU_WINDOW_AVERAGE: f64 = 2.32;
+    const TAU_POPULATION: f64 = 8.0;
+    const KNOWN_TRUTH_BANDWIDTH: f64 = 0.4;
+
+    fn heterogeneous_curved_scm(n: usize, seed: u64) -> TabularData {
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x8D16_u64);
+        let (mut t, mut y, mut r) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            let ri = 3.0 * rng.next_f64().sqrt() - 1.0;
+            let ti = if ri >= 0.0 { 1.0 } else { 0.0 };
+            let baseline = 1.0 + 0.5 * ri + 0.8 * ri * ri + ri * ri * ri;
+            let noise = (rng.next_f64() - 0.5) * 0.4;
+            t[i] = ti;
+            r[i] = ri;
+            y[i] = baseline + ti * (2.0 + 6.0 * ri) + noise;
+        }
+        table_tyr(t, y, r)
+    }
+
+    /// The estimator targets the effect at the cutoff, not the window average and not the
+    /// population average, on a design where the three are different known numbers.
+    ///
+    /// The heterogeneity `6r` is linear, so the `T·(R − c)` column absorbs it exactly. The
+    /// quadratic baseline term biases both one-sided intercepts equally and cancels; the
+    /// cubic term leaves a smoothing bias of about `−0.4·h³ = −0.026` at `h = 0.4`, which
+    /// is why the tolerance is 0.06 rather than sampling error alone (SE ≈ 0.006 here).
+    #[test]
+    fn targets_the_cutoff_effect_not_the_window_or_population_average() {
+        let data = heterogeneous_curved_scm(60_000, 11);
+        let est = SharpRegressionDiscontinuity {
+            bootstrap_replicates: 0,
+            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, KNOWN_TRUTH_BANDWIDTH)
+        };
+        let prep = est.prepare(&data, &rd_estimand(), &local_query(0.0)).unwrap();
+        let mut ws = RdWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!(effect.se_analytic < 0.02, "se={}", effect.se_analytic);
+        assert!((effect.ate - TAU_AT_CUTOFF).abs() < 0.06, "jump={}", effect.ate);
+        assert!((effect.ate - TAU_WINDOW_AVERAGE).abs() > 0.25, "jump={}", effect.ate);
+        assert!((effect.ate - TAU_POPULATION).abs() > 5.0, "jump={}", effect.ate);
+    }
+
+    /// The number is the cutoff effect, so a query that names any other population —
+    /// including the default population-wide one — is refused rather than relabelled.
+    #[test]
+    fn refuses_a_population_the_design_does_not_identify() {
+        let data = heterogeneous_curved_scm(2_000, 12);
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 0.4);
+        let population_wide =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let other_cutoff = local_query(0.25);
+        let other_running = population_wide.clone().with_target_population(
+            TargetPopulation::local_at_cutoff(VariableId::from_raw(1), 0.0),
+        );
+        for query in [population_wide, other_cutoff, other_running] {
+            let err = est.prepare(&data, &rd_estimand(), &query).unwrap_err();
+            assert!(
+                matches!(err, EstimationError::Refused { code: "population_not_estimable", .. }),
+                "err={err:?}"
+            );
+        }
+        assert!(est.prepare(&data, &rd_estimand(), &local_query(0.0)).is_ok());
+    }
+
+    /// Fuzzy compliance: P(T=1 | R ≥ 0) = 0.75, P(T=1 | R < 0) = 0.25, effect of T = 3.
+    /// The outcome jump at the cutoff is the intent-to-treat contrast 0.5·3 = 1.5, not
+    /// the effect of T. The treatment column shows the rule is not sharp, so refuse.
+    #[test]
+    fn refuses_when_the_treatment_column_is_not_the_threshold_rule() {
+        let n = 4_000;
+        let mut rng =
+            ExecutionContext::for_tests(13).rng.stream_for(StreamDomain::Estimate, 0x8D17_u64);
+        let (mut t, mut y, mut r) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            let ri = 2.0 * rng.next_f64() - 1.0;
+            let p = if ri >= 0.0 { 0.75 } else { 0.25 };
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            t[i] = ti;
+            r[i] = ri;
+            y[i] = 1.0 + 0.5 * ri + 3.0 * ti + (rng.next_f64() - 0.5) * 0.2;
+        }
+        let data = table_tyr(t, y, r);
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0);
+        let err = est.prepare(&data, &rd_estimand(), &local_query(0.0)).unwrap_err();
+        let EstimationError::Refused { code, message } = err else {
+            panic!("expected a refusal, got {err:?}");
+        };
+        assert_eq!(code, "rd_assignment_not_sharp");
+        // About a quarter of rows on each side break the rule.
+        assert!(message.contains("of 4000 rows"), "{message}");
+    }
+
+    /// A treatment column that is not 0/1 cannot be checked against the rule.
+    #[test]
+    fn refuses_a_non_binary_treatment_column() {
+        let t = vec![0.0, 2.0, 0.0, 2.0];
+        let r = vec![-0.5, 0.5, -0.2, 0.3];
+        let y = vec![1.0, 4.0, 1.1, 4.2];
+        let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0);
+        let err = est.prepare(&table_tyr(t, y, r), &rd_estimand(), &local_query(0.0)).unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "rd_assignment_not_sharp", .. }),
+            "err={err:?}"
+        );
+    }
+
+    /// Verified sharpness is evidence: the declared assumption becomes `Supported`.
+    #[test]
+    fn verified_assignment_marks_the_sharpness_assumption_supported() {
+        let (data, estimand) = sharp_rd_scm(800, 7);
+        let est = SharpRegressionDiscontinuity {
+            bootstrap_replicates: 0,
+            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+        };
+        let prep = est.prepare(&data, &estimand, &local_query(0.0)).unwrap();
+        assert_eq!(prep.assignment_verified_rows, 800);
+        let mut declared = AssumptionSet::new();
+        for id in ["rd.continuity", "rd.sharp_assignment"] {
+            declared.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::Custom {
+                    id: Arc::from(id),
+                    description: Arc::from(""),
+                },
+                source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("rd.sharp"),
+                },
+                scope: antecedent_core::AssumptionScope::Identification,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+        }
+        let mut ws = RdWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx(), declared).unwrap();
+        let status = |id: &str| {
+            effect
+                .assumptions
+                .entries
+                .iter()
+                .find(|r| {
+                    matches!(&r.assumption, antecedent_core::Assumption::Custom { id: i, .. } if i.as_ref() == id)
+                })
+                .map(|r| r.status)
+        };
+        assert_eq!(
+            status("rd.sharp_assignment"),
+            Some(antecedent_core::AssumptionStatus::Supported)
+        );
+        assert_eq!(status("rd.continuity"), Some(antecedent_core::AssumptionStatus::Declared));
     }
 
     fn ctx() -> ExecutionContext {
@@ -538,8 +795,7 @@ mod tests {
             bootstrap_replicates: 30,
             ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
         };
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let query = local_query(0.0);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
@@ -552,8 +808,7 @@ mod tests {
     #[test]
     fn hc1_is_the_default_se_and_homoskedastic_is_opt_in() {
         let (data, estimand) = sharp_rd_scm(800, 4);
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let query = local_query(0.0);
         let robust = SharpRegressionDiscontinuity {
             bootstrap_replicates: 0,
             ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
@@ -621,17 +876,20 @@ mod tests {
             VariableId::from_raw(1),
             0.0,
             2.0,
-        );
+        )
+        .with_target_population(TargetPopulation::local_at_cutoff(VariableId::from_raw(2), 0.0));
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Unsupported { .. }), "err={err:?}");
     }
 
     #[test]
     fn rejects_empty_bandwidth_window() {
-        let (data, estimand) = sharp_rd_scm(200, 4);
+        // Every unit sits below a cutoff of 100, so a sharp rule treats no one.
+        let r: Vec<f64> = (0..200).map(|i| f64::from(i) / 100.0 - 1.0).collect();
+        let data = table_tyr(vec![0.0; 200], r.clone(), r);
+        let estimand = rd_estimand();
         let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 100.0, 0.01);
-        let query =
-            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let query = local_query(100.0);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
         assert!(matches!(err, EstimationError::Data(_)));
     }

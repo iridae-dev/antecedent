@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the design-based coordinates: the
+//! Repeated-sampling coverage of the design-based coordinates: the
 //! trial-to-target transported ATE on an explicit selection-diagram ADMG and
 //! the randomized network-interference exposure contrast on a Dag.
 //!
@@ -15,12 +15,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::doc_markdown)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::doc_markdown,
     clippy::float_cmp,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -36,7 +35,8 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
+    CoverageTally, GRID_POINTS, RecordKey, gaussian, grid_n, map_replicates, n_sim, stream_seed,
+    unit_uniform,
 };
 use common::calibration_bind::bind_all;
 use common::reported::{
@@ -171,17 +171,21 @@ fn transport_admg_trial_ipw_frequentist_nominal_coverage() {
     let truth = transport_truth();
     let mut tallies =
         keyed_pair("transport_admg_trial_ipw_frequentist_nominal_coverage", TRANSPORT_CELL);
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0201, rep);
-        let Some((study, result)) = run_transport(transport_data(grid_n(1000), seed), seed) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_transport(transport_data(grid_n(1000), seed), seed)?;
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(TRANSPORT_CELL.estimator));
         }
-        bind_pair(&mut tallies, &study, &result);
-        record_pair(&mut tallies, scalar_normal_pair(&result), truth);
+        Some((study, result))
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, scalar_normal_pair(result), truth);
     }
     eprintln!("info transport: target ATE truth {truth:.6}");
     gate(&tallies, &[None, None]);
@@ -272,7 +276,7 @@ const INTERFERENCE_CELL: Cell =
 /// coverage, not nominal: an interval that started to miss would be a
 /// regression in the bound, and the bound cannot be sharpened into a
 /// nominal interval without the Aronow–Samii joint-exposure variance.
-const INTERFERENCE_MEASURED: f64 = 1.0;
+const INTERFERENCE_MEASURED: [f64; GRID_POINTS] = [1.0; GRID_POINTS];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -282,17 +286,21 @@ fn interference_dag_bernoulli_neighbor_count_conservative_bound_boundary() {
         "interference_dag_bernoulli_neighbor_count_conservative_bound_boundary",
         INTERFERENCE_CELL,
     );
-    for rep in 0..u64::from(n_sim()) {
+    let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0202, rep);
-        let Some((study, result)) = run_interference(&alpha, seed) else {
-            skip_pair(&mut tallies);
-            continue;
-        };
+        let (study, result) = run_interference(&alpha, seed)?;
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(INTERFERENCE_CELL.estimator));
         }
-        bind_pair(&mut tallies, &study, &result);
-        record_pair(&mut tallies, scalar_normal_pair(&result), DIRECT_EFFECT);
+        Some((study, result))
+    });
+    for scored in &runs {
+        let Some((study, result)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, scalar_normal_pair(result), DIRECT_EFFECT);
     }
     gate(&tallies, &[Some(INTERFERENCE_MEASURED), Some(INTERFERENCE_MEASURED)]);
 }

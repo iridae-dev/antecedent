@@ -52,13 +52,14 @@ impl super::Study {
             let completion_count = envelope.cases.len();
             let mut effects = Vec::new();
             let mut local_diagnostics = Vec::new();
-            // Frequentist completions that all fit the same mediation design
-            // (same estimand, same S(h)) estimate one contrast; that design is
+            // Completions (frequentist or Bayesian) that all fit the same mediation
+            // design (same estimand, same S(h)) estimate one contrast; that design is
             // kept for the class interval below.
             let mut shared_design: Option<(
                 IdentifiedEstimand,
                 Arc<[antecedent_data::LaggedColumn]>,
             )> = None;
+            let mut shared_status: Option<IdentificationStatus> = None;
             let mut designs_agree = true;
             for (completion_idx, (case, indexer)) in
                 envelope.cases.iter().zip(&bundle.envelope.indexers).enumerate()
@@ -89,6 +90,21 @@ impl super::Study {
                     })
                     .collect::<Vec<_>>()
                     .into();
+                // Tracked for both inference modes: whether every completion at this
+                // horizon fits the same mediation design (same estimand, same S(h)).
+                // When it does, the class's identified set collapses to one contrast,
+                // which the post-loop branch below recomputes canonically instead of
+                // reusing whichever completion happened to run last.
+                match shared_design.as_ref() {
+                    None => {
+                        shared_design = Some((estimand.clone(), adjustment.clone()));
+                        shared_status = Some(identification.status);
+                    }
+                    Some((first, first_adjustment)) => {
+                        designs_agree &= first.adjustment_set == estimand.adjustment_set
+                            && first_adjustment.as_ref() == adjustment.as_ref();
+                    }
+                }
                 let frequentist_estimate = match &self.inference {
                     InferenceMode::Bayesian(cfg) => {
                         let bayes = bayesian_gcomp(cfg, ctx);
@@ -158,13 +174,6 @@ impl super::Study {
                             )
                             .map_err(CausalError::from)?;
                         effects.push(estimate.effect.ate);
-                        match shared_design.as_ref() {
-                            None => shared_design = Some((estimand.clone(), adjustment.clone())),
-                            Some((first, first_adjustment)) => {
-                                designs_agree &= first.adjustment_set == estimand.adjustment_set
-                                    && first_adjustment.as_ref() == adjustment.as_ref();
-                            }
-                        }
                         Some(estimate)
                     }
                 };
@@ -232,52 +241,136 @@ impl super::Study {
                 {
                     let mut qh = query.clone();
                     qh.horizons = Arc::from([horizon]);
-                    let (mediation, block) = estimator
-                        .estimate_with_block_bootstrap(
-                            data,
-                            shared_estimand,
-                            &qh,
-                            shared_adjustment,
-                            self.bootstrap_replicates,
-                            MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
-                            ctx,
-                        )
-                        .map_err(CausalError::from)?;
-                    class_block_replicates_ok = Some(
-                        class_block_replicates_ok
-                            .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
-                    );
-                    class_block_cancelled |= mediation.effect.bootstrap_cancelled;
-                    class_shared_horizons += 1;
-                    if single_horizon {
-                        class_shared_contrast = Some(mediation.clone());
+                    match &self.inference {
+                        InferenceMode::Frequentist => {
+                            let (mediation, block) = estimator
+                                .estimate_with_block_bootstrap(
+                                    data,
+                                    shared_estimand,
+                                    &qh,
+                                    shared_adjustment,
+                                    self.bootstrap_replicates,
+                                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
+                                    ctx,
+                                )
+                                .map_err(CausalError::from)?;
+                            class_block_replicates_ok = Some(
+                                class_block_replicates_ok.map_or(block.replicates_ok, |ok: u32| {
+                                    ok.min(block.replicates_ok)
+                                }),
+                            );
+                            class_block_cancelled |= mediation.effect.bootstrap_cancelled;
+                            class_shared_horizons += 1;
+                            if single_horizon {
+                                class_shared_contrast = Some(mediation.clone());
+                            }
+                            local_diagnostics.extend(temporal_dependence_se_diagnostics(
+                                antecedent_estimate::CircularBlockFamily::Mediation,
+                                block.block_length,
+                                block.rows,
+                                block.kernel_bias,
+                                block.effective_rows,
+                                block.replicates_attempted > 0,
+                                &format!(
+                                    "horizon {horizon}: every completion fits the same mediation \
+                                     design, so the completion identified set is one contrast; \
+                                     one shared circular-block replicate of consecutive \
+                                     lag-aligned rows refits all three mechanism regressions, \
+                                     {}/{} replicates",
+                                    block.replicates_ok, block.replicates_attempted,
+                                ),
+                            ));
+                            let uncertainty = if block.replicates_attempted > 0 {
+                                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                                    requested: mediation.effect.se_bootstrap,
+                                    block,
+                                }
+                            } else {
+                                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                                    standard_error: None,
+                                }
+                            };
+                            (mediation, uncertainty)
+                        }
+                        InferenceMode::Bayesian(cfg) => {
+                            // Every completion fits the same design, so the class's
+                            // identified set is one contrast: recompute it canonically
+                            // from the shared design (mirrors the Frequentist branch
+                            // above) rather than reusing whichever completion's
+                            // composed posterior happened to run last.
+                            let bayes = bayesian_gcomp(cfg, ctx);
+                            let status = shared_status
+                                .unwrap_or(IdentificationStatus::NonparametricallyIdentified);
+                            let preparations = antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
+                                data,
+                                shared_estimand,
+                                &qh,
+                                shared_adjustment,
+                                ctx,
+                            )
+                            .map_err(CausalError::from)?;
+                            let mechanisms =
+                                preparations
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(index, prep)| {
+                                        let mut mechanism = bayes.clone();
+                                        mechanism.seed = mechanism
+                                            .seed
+                                            .wrapping_add(if index == 0 { 0 } else { 0xBA71 });
+                                        let (prior, conflict) =
+                                            resolve_envelope_prior_anchor(cfg, prep, ctx)?;
+                                        if let Some(summary) = conflict.as_ref() {
+                                            push_conflict_diagnostics(&mut diagnostics, summary);
+                                        }
+                                        mechanism.prior = prior;
+                                        mechanism
+                                            .fit(
+                                                prep,
+                                                status,
+                                                &mut BayesianGCompWorkspace::default(),
+                                                ctx,
+                                            )
+                                            .map_err(CausalError::from)
+                                    })
+                                    .collect::<Result<Vec<_>, _>>()?;
+                            let composed =
+                                antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
+                                    &mechanisms[0],
+                                    &mechanisms[1],
+                                    &qh,
+                                    status,
+                                )
+                                .map_err(CausalError::from)?;
+                            let mediation = TemporalMediationEstimate {
+                                effect: effect_from_posterior(&composed)?,
+                                total: None,
+                                direct: None,
+                                mediated: None,
+                            };
+                            class_shared_horizons += 1;
+                            if single_horizon {
+                                class_shared_contrast = Some(mediation.clone());
+                            }
+                            let summary =
+                                |index: usize| antecedent_estimate::MediationPosteriorSummary {
+                                    mean: composed.summaries.mean[index],
+                                    standard_deviation: composed.summaries.sd[index],
+                                    q025: composed.summaries.q025[index],
+                                    q975: composed.summaries.q975[index],
+                                };
+                            let uncertainty =
+                                antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+                                    requested: summary(0),
+                                    total: summary(1),
+                                    direct: summary(2),
+                                    mediated: summary(3),
+                                    n_draws: composed.draws.n_draws,
+                                    backend: Arc::clone(&composed.diagnostics.backend_id),
+                                };
+                            (mediation, uncertainty)
+                        }
                     }
-                    local_diagnostics.extend(temporal_dependence_se_diagnostics(
-                        antecedent_estimate::CircularBlockFamily::Mediation,
-                        block.block_length,
-                        block.rows,
-                        block.kernel_bias,
-                        block.effective_rows,
-                        block.replicates_attempted > 0,
-                        &format!(
-                            "horizon {horizon}: every completion fits the same mediation design, \
-                             so the completion identified set is one contrast; one shared \
-                             circular-block replicate of consecutive lag-aligned rows refits \
-                             all three mechanism regressions, {}/{} replicates",
-                            block.replicates_ok, block.replicates_attempted,
-                        ),
-                    ));
-                    let uncertainty = if block.replicates_attempted > 0 {
-                        antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                            requested: mediation.effect.se_bootstrap,
-                            block,
-                        }
-                    } else {
-                        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                            standard_error: None,
-                        }
-                    };
-                    (mediation, uncertainty)
                 }
                 _ => (
                     TemporalMediationEstimate {
@@ -1343,9 +1436,26 @@ impl super::Study {
         };
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        // Every mechanism-overlay estimator (the observed-data Bayesian path and the
+        // frequentist/complete-data sequential g-formula path alike) reads only each
+        // horizon's identification status and adjustment set (identifiability is
+        // level-free); neither reads the schedule contrast's active level, since both
+        // simulate the query's own per-step intervention values directly off the
+        // unfolded SEM (or `overlays`, for the sequential engine) rather than off the
+        // certificate's literal. A per-node varying-dose schedule that the general-ID
+        // single-literal contrast cannot express (see `resolve_schedule_active_level`)
+        // is therefore still identifiable here: strip the levels before certifying so a
+        // genuine per-node dose schedule is not refused for a contrast neither
+        // consumption path reads.
+        let observed_bayes = matches!(self.inference, InferenceMode::Bayesian(_))
+            && query.observation != ObservationSpec::Complete;
         let schedule = match antecedent_estimate::plan_from_response_query(query) {
             Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
-                Some(plan.identification_schedule(temporal))
+                let mut nodes = plan.identification_schedule(temporal);
+                for node in &mut nodes {
+                    node.2 = None;
+                }
+                Some(nodes)
             }
             Ok(_) => None,
             Err(error) => return Err(CausalError::from(error)),
@@ -1367,6 +1477,7 @@ impl super::Study {
                             EstimatorId::TemporalResponseGcomp
                         },
                         schedule.as_deref(),
+                        crate::analysis::prepared::single_step_dose(query)?,
                     )?),
                     false,
                 )
@@ -1394,8 +1505,6 @@ impl super::Study {
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut working_query = query.clone();
         let mut observation_adjusted = None;
-        let observed_bayes = matches!(self.inference, InferenceMode::Bayesian(_))
-            && query.observation != ObservationSpec::Complete;
         let series_owned = if query.observation == ObservationSpec::Complete {
             None
         } else if observed_bayes {
@@ -1687,6 +1796,12 @@ impl super::Study {
         let mut upper = Vec::with_capacity(temporal.horizons.len());
         let mut horizons = Vec::with_capacity(temporal.horizons.len());
         let mut last_posterior = None;
+        // Every horizon's posterior notes are kept (not just the scalar artifact's),
+        // so a `tempering_capped` / `tempering_inestimable` disclosure raised at an
+        // earlier horizon still reaches the result even when only the last horizon's
+        // posterior is attached as the scalar summary.
+        let mut horizon_posteriors: Vec<CausalPosterior> =
+            Vec::with_capacity(temporal.horizons.len());
         let attach_scalar_posterior = temporal.horizons.len() == 1;
         let mut uncertainty_complete = true;
         let mut bootstrap_cancelled = false;
@@ -1717,6 +1832,9 @@ impl super::Study {
                 let se = effect.se_bootstrap.unwrap_or(effect.se_analytic);
                 (effect.ate, effect.ate - z * se, effect.ate + z * se)
             };
+            if let Some(post) = posterior.as_ref() {
+                horizon_posteriors.push(post.clone());
+            }
             if attach_scalar_posterior {
                 last_posterior = posterior;
             }
@@ -1771,7 +1889,7 @@ impl super::Study {
             }],
             warnings: vec![Diagnostic::new(
                 "response.temporal.sequence_joint_support_unassessed",
-                DiagnosticKind::Scientific,
+                DiagnosticKind::Support,
                 DiagnosticSeverity::Warning,
                 "joint longitudinal positivity for the requested Sequence overlay is not \
                  estimated; support is conservatively marked extrapolative",
@@ -1814,6 +1932,13 @@ impl super::Study {
                     level: 0.95,
                     lower: Arc::from(lower),
                     upper: Arc::from(upper),
+                    // Posterior quantiles when a Bayesian fit ran, else Wald bounds.
+                    interpretation: if bayes.is_some() {
+                        antecedent_core::IntervalInterpretation::Credible
+                    } else {
+                        antecedent_core::IntervalInterpretation::Confidence
+                    },
+                    draws: None,
                 }
             } else {
                 ResponseUncertainty::None
@@ -1868,6 +1993,16 @@ impl super::Study {
              identifier remains temporal.backdoor.unfolded; no last-step collapse",
         )];
         diagnostics.extend(response.support.warnings.iter().cloned());
+        // Every horizon's posterior notes feed the same tempering / draw-floor
+        // diagnostics the scalar path derives from `extras.posterior`; a
+        // multi-horizon surface must not lose a disclosure raised at a horizon
+        // other than the last one just because only the last posterior is
+        // attached as the scalar artifact below.
+        let mut seen_diagnostic_codes: std::collections::HashSet<Arc<str>> =
+            diagnostics.iter().map(|d| Arc::clone(&d.code)).collect();
+        for diagnostic in posterior_note_diagnostics(&horizon_posteriors) {
+            push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
+        }
         if !attach_scalar_posterior && matches!(self.inference, InferenceMode::Bayesian(_)) {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal.sequence_posterior_not_attached",
@@ -4600,8 +4735,13 @@ const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation o
 
 /// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
 ///
-/// Matches the estimator bootstrap policy: fewer than two successes or more than half
-/// failed attempts cannot justify a reported interval.
+/// Same success floor as the inner estimator's own joint bootstrap
+/// (`temporal_response::bootstrap_surface`): at least two surviving replicates and at
+/// most half of the attempted ones failed, or a cancelled run (even at the success
+/// floor) cannot justify a reported band. Cancellation is not adaptive early-stop. This
+/// is deliberately looser than [`super::PERCENTILE_95_BAND_MIN_SUCCESSES`], which gates
+/// only the *simultaneous* band (see [`antecedent_estimate::TEMPORAL_RESPONSE_FEW_REPLICATES`]):
+/// a pointwise band below that floor still publishes, flagged as resting on a noisy SD.
 fn summarize_observation_bootstrap(
     draws: &[Vec<f64>],
     center: &[f64],
@@ -4618,7 +4758,9 @@ fn summarize_observation_bootstrap(
         cancelled,
         block: None,
     };
-    if !bootstrap_has_enough_successes(completed as usize, attempted as usize)
+    let enough_successes = completed >= 2 && completed >= attempted.saturating_sub(completed);
+    if cancelled
+        || !enough_successes
         || draws.iter().any(|draw| draw.len() != center.len())
         || center.iter().any(|value| !value.is_finite())
     {
@@ -5004,6 +5146,8 @@ fn apply_tuple_bootstrap_band(
             level: 0.95,
             lower: Arc::from(bootstrap.lower.clone()),
             upper: Arc::from(bootstrap.upper.clone()),
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         };
         response.support.warnings.retain(|warning| {
             !matches!(
@@ -5347,6 +5491,93 @@ mod tests {
         assert!(temporal_prior_designs_match(3, &[z], 3, &[z]));
         assert!(!temporal_prior_designs_match(3, &[z], 3, &[w]));
     }
+
+    /// A minimal posterior carrying one horizon's inference notes, standing in
+    /// for what `estimate_sequence_mechanisms` returns per horizon.
+    fn posterior_with_notes(notes: Vec<Arc<str>>) -> CausalPosterior {
+        let schema = antecedent_prob::PosteriorSchema {
+            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+                name: Arc::from("test"),
+            }]),
+        };
+        let draws =
+            antecedent_prob::PosteriorDraws::from_column_major(schema, 2, Arc::from([0.0, 0.0]))
+                .unwrap();
+        let summaries = draws.summarize();
+        let mut diagnostics = InferenceDiagnostics::analytic("test.posterior_with_notes");
+        diagnostics.notes = notes;
+        CausalPosterior {
+            draws,
+            summaries,
+            identification: IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics,
+            assumptions: antecedent_core::AssumptionSet::new(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+        }
+    }
+
+    #[test]
+    fn multi_horizon_posterior_notes_all_reach_result_diagnostics() {
+        // A multi-horizon Sequence-overlay response used to keep only the LAST
+        // horizon's posterior (`attach_scalar_posterior = horizons.len() == 1`),
+        // so a disclosure raised at an earlier horizon never reached the
+        // result. This pins the fix: every horizon's notes are fed through
+        // `posterior_note_diagnostics`, regardless of which horizon carries
+        // the disclosure and regardless of the scalar-attachment decision.
+        let inestimable_note: Arc<str> = Arc::from(
+            "serial_dependence.long_run_tempering kappa=1.000000 raw_ratio=1.000000 \
+             ar_ratio=1.000000 df_loss=2.000000 kappa_log_sd=0.000000 hac_ratio=1.000000 \
+             fixed_b=1.000000 score_ar_order=0 residual_ar_order=0 n=6 n_eff=6.000 bandwidth=1 \
+             scope=treatment bounded=false capped=false inestimable=true",
+        );
+        let first_horizon = posterior_with_notes(vec![inestimable_note]);
+        let second_horizon = posterior_with_notes(Vec::new());
+        let horizon_posteriors = vec![first_horizon, second_horizon];
+        let diagnostics = posterior_note_diagnostics(&horizon_posteriors);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.bayesian.temporal.tempering_inestimable"),
+            "the first horizon's inestimable disclosure must reach the diagnostics even though \
+             it is not the last horizon: {:?}",
+            diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
+        );
+        // The old code fed only `extras.posterior` (the last horizon's posterior,
+        // attached only when there is a single horizon) into this helper; with
+        // two horizons and the disclosure on the first, that path saw nothing.
+        let old_behavior = posterior_note_diagnostics(std::iter::empty::<&CausalPosterior>());
+        assert!(
+            old_behavior.is_empty(),
+            "sanity check: the pre-fix input (no posterior attached) discloses nothing"
+        );
+    }
+
+    #[test]
+    fn repeated_inestimable_notes_do_not_read_as_one_fit() {
+        // Five fits raise the identical inestimable note. De-duplicating the notes by text must not
+        // leave a message that claims the condition hit a single fit.
+        let note: Arc<str> = Arc::from(
+            "serial_dependence.long_run_tempering kappa=1.000000 raw_ratio=1.000000 \
+             ar_ratio=1.000000 df_loss=2.000000 kappa_log_sd=0.000000 hac_ratio=1.000000 \
+             fixed_b=1.000000 score_ar_order=0 residual_ar_order=0 n=6 n_eff=6.000 bandwidth=1 \
+             scope=treatment bounded=false capped=false inestimable=true",
+        );
+        let posteriors: Vec<CausalPosterior> =
+            (0..5).map(|_| posterior_with_notes(vec![Arc::clone(&note)])).collect();
+        let diagnostics = posterior_note_diagnostics(&posteriors);
+        let inestimable = diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "estimate.bayesian.temporal.tempering_inestimable")
+            .expect("inestimable disclosure");
+        assert!(!inestimable.message.contains("1 fit"), "{}", inestimable.message);
+        assert!(inestimable.message.contains("at least one fit"), "{}", inestimable.message);
+    }
 }
 
 #[cfg(test)]
@@ -5367,12 +5598,33 @@ mod observation_bootstrap_tests {
         let band = summarize_observation_bootstrap(&[vec![1.0], vec![3.0]], &[2.5], 2, true);
         assert!(band.cancelled);
         assert_eq!(band.completed, 2);
-        // center ± z·SD with SD = sqrt(2) around the full-sample point, not the draw mean.
-        let half = crate::result::reported_se_interval_z() * 2f64.sqrt();
-        assert!((band.lower[0] - (2.5 - half)).abs() < 1e-12);
-        assert!((band.upper[0] - (2.5 + half)).abs() < 1e-12);
+        assert_eq!(band.attempted, 2);
+        // Two successes cannot earn a nominal 0.95 band under the (B+1) floor.
+        assert!(band.lower.is_empty());
+        assert!(band.upper.is_empty());
         let empty = summarize_observation_bootstrap(&[], &[], 0, true);
         assert!(empty.cancelled && empty.lower.is_empty());
+    }
+
+    #[test]
+    fn earned_minimum_successes_publish_pointwise_band() {
+        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![f64::from(i)]).collect();
+        let band = summarize_observation_bootstrap(&draws, &[19.5], 40, false);
+        assert!(!band.lower.is_empty());
+        assert!(!band.upper.is_empty());
+        assert_eq!(band.completed, 40);
+        assert_eq!(band.attempted, 40);
+    }
+
+    #[test]
+    fn cancelled_at_earned_minimum_withholds_band() {
+        let draws: Vec<Vec<f64>> = (0..40).map(|i| vec![f64::from(i)]).collect();
+        let band = summarize_observation_bootstrap(&draws, &[19.5], 40, true);
+        assert!(band.cancelled);
+        assert_eq!(band.completed, 40);
+        assert_eq!(band.attempted, 40);
+        assert!(band.lower.is_empty());
+        assert!(band.upper.is_empty());
     }
 }
 

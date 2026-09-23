@@ -371,6 +371,7 @@ impl TemporalMediationIdentifier {
                 sets_returned: 1,
             },
             hedge: None,
+            estimand_claims: Vec::new(),
         })
     }
 

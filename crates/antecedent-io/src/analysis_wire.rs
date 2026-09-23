@@ -12,6 +12,7 @@ use antecedent_estimate::{
     PropensityInterval,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
+use antecedent_graph::DenseNodeId;
 use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 use antecedent_validate::RefutationReport;
 use serde::{Deserialize, Serialize};
@@ -98,6 +99,33 @@ pub struct EffectEstimateWire {
     /// Per-unit effects are homogeneous by construction of the selected mechanisms.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects_homogeneous: Option<bool>,
+    /// Complete-case-aligned CATE point predictions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate: Option<Vec<f64>>,
+    /// Portable fitted effect, bound into the result body identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
+    /// Licensed pointwise CATE standard errors, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_se: Option<Vec<f64>>,
+    /// Forest leaf-dispersion diagnostic per row. Not a standard error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_leaf_dispersion: Option<Vec<f64>>,
+    /// Held-out outcome R².
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_oof_r2: Option<f64>,
+    /// Held-out treatment probability log loss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_oof_logloss: Option<f64>,
+    /// Number of nuisance cross-fitting folds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_folds: Option<usize>,
+    /// Master seed used for nuisance cross-fitting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_seed: Option<u64>,
+    /// Actual fitted learner (spec, implementation, version), in fit order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub learner_provenance: Vec<(String, String, String)>,
     /// Point E-value for a named no-latent premise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evalue: Option<f64>,
@@ -182,6 +210,9 @@ pub struct ScoreTableWire {
     pub adjustment_set: Vec<u32>,
     /// Nuisance provenance.
     pub nuisance_provenance: String,
+    /// Propensity clip the estimator applied (`None`: unclipped or a legacy artifact).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub propensity_clip: Option<f64>,
     /// Treatment raw id.
     pub treatment: u32,
     /// Extra intervened raw ids.
@@ -241,6 +272,12 @@ pub struct FirstStageDiagnosticsWire {
     pub df1: u64,
     pub df2: u64,
     pub partial_r2: f64,
+    /// Homoskedastic Anderson–Rubin set `(lower, upper, level)`; endpoints may be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anderson_rubin: Option<(f64, f64, f64)>,
+    /// Why AR / licensed IV uncertainty was withheld.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uncertainty_withheld: Option<String>,
 }
 
 /// Sharp RD design on the wire.
@@ -293,6 +330,84 @@ pub struct IdentificationResultWire {
     pub candidates_examined: u64,
     /// Sets returned.
     pub sets_returned: u64,
+    /// ID-algorithm hedge witnessing that `not_identified` is a proof rather than a
+    /// failure to find an identifier. Absent when no witness was produced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hedge: Option<HedgeCertificateWire>,
+}
+
+/// Shpitser–Pearl hedge `(F, F')` on the wire: the two C-forests as variable ids and
+/// dense graph coordinates, each strictly increasing.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HedgeCertificateWire {
+    /// Variables of the larger forest `F`.
+    pub f: Vec<u32>,
+    /// Variables of the smaller forest `F'`.
+    pub f_prime: Vec<u32>,
+    /// Dense ids of `F`.
+    pub f_dense: Vec<u32>,
+    /// Dense ids of `F'`.
+    pub f_prime_dense: Vec<u32>,
+    /// The graph and query the hedge was found in; with it the witness re-verifies on load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem: Option<HedgeProblemWire>,
+}
+
+/// ADMG plus treatments and outcomes a hedge witnesses (see `HedgeProblem`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HedgeProblemWire {
+    /// Variable of each dense node, in dense order.
+    pub variables: Vec<u32>,
+    /// Directed edges by dense id.
+    pub directed: Vec<(u32, u32)>,
+    /// Bidirected edges by dense id.
+    pub bidirected: Vec<(u32, u32)>,
+    /// Treatment variables.
+    pub treatments: Vec<u32>,
+    /// Outcome variables.
+    pub outcomes: Vec<u32>,
+}
+
+impl HedgeCertificateWire {
+    /// Every variable named by the witness.
+    pub(crate) fn variables(&self) -> impl Iterator<Item = u32> + '_ {
+        let problem = self
+            .problem
+            .iter()
+            .flat_map(|p| p.variables.iter().chain(&p.treatments).chain(&p.outcomes).copied());
+        self.f.iter().chain(&self.f_prime).copied().chain(problem)
+    }
+
+    /// Structural conditions of a hedge that need no graph: strictly increasing dense
+    /// coordinates paired one-to-one with distinct variables, and `F'` a non-empty
+    /// subset of `F` coordinate by coordinate. The graph conditions are re-verified by
+    /// `HedgeCertificate::verify` wherever the graph is held.
+    fn validate(&self) -> Result<(), IoError> {
+        let invalid = |what: &str| IoError::Convert(format!("invalid hedge certificate: {what}"));
+        if self.f.len() != self.f_dense.len() || self.f_prime.len() != self.f_prime_dense.len() {
+            return Err(invalid("variable and dense id lists differ in length"));
+        }
+        let distinct = |ids: &[u32]| ids.iter().collect::<std::collections::BTreeSet<_>>().len();
+        if [&self.f_dense, &self.f_prime_dense].iter().any(|d| d.windows(2).any(|w| w[0] >= w[1]))
+            || distinct(&self.f) != self.f.len()
+            || distinct(&self.f_prime) != self.f_prime.len()
+        {
+            return Err(invalid("dense ids must be strictly increasing and variables distinct"));
+        }
+        let forest: std::collections::BTreeMap<u32, u32> =
+            self.f_dense.iter().copied().zip(self.f.iter().copied()).collect();
+        let nested = self
+            .f_prime_dense
+            .iter()
+            .zip(&self.f_prime)
+            .all(|(dense, variable)| forest.get(dense) == Some(variable));
+        if self.f_prime.is_empty() || !nested {
+            return Err(invalid("F' must be a non-empty subset of F"));
+        }
+        Ok(())
+    }
 }
 
 /// Diagnostic wire.
@@ -362,6 +477,8 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
                 df1: u64::try_from(diagnostic.df1).unwrap_or(u64::MAX),
                 df2: u64::try_from(diagnostic.df2).unwrap_or(u64::MAX),
                 partial_r2: diagnostic.partial_r2,
+                anderson_rubin: diagnostic.anderson_rubin,
+                uncertainty_withheld: diagnostic.uncertainty_withheld.map(str::to_owned),
             }
         }),
         retained_memory_bytes: e.retained_memory_bytes,
@@ -370,6 +487,19 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         family_contrast: e.family_contrast,
         family_contrast_interval: e.family_contrast_interval,
         unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
+        cate: e.cate.as_ref().map(|v| v.to_vec()),
+        fitted_effect: e.fitted_effect.as_deref().cloned(),
+        cate_se: e.cate_se.as_ref().map(|v| v.to_vec()),
+        cate_leaf_dispersion: e.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
+        outcome_oof_r2: e.outcome_oof_r2,
+        treatment_oof_logloss: e.treatment_oof_logloss,
+        crossfit_folds: e.crossfit_folds,
+        crossfit_seed: e.crossfit_seed,
+        learner_provenance: e
+            .learner_provenance
+            .iter()
+            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
+            .collect(),
         evalue: e.evalue,
         evalue_threshold: e.evalue_threshold,
         candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
@@ -425,6 +555,7 @@ fn score_table_to_wire(table: &antecedent_estimate::ScoreTable) -> ScoreTableWir
             .collect(),
         adjustment_set: wire.adjustment_set,
         nuisance_provenance: wire.nuisance_provenance,
+        propensity_clip: wire.propensity_clip,
         treatment: wire.treatment,
         intervened: wire.intervened,
     }
@@ -449,6 +580,7 @@ fn score_table_from_wire(
             .collect(),
         adjustment_set: wire.adjustment_set.clone(),
         nuisance_provenance: wire.nuisance_provenance.clone(),
+        propensity_clip: wire.propensity_clip,
         treatment: wire.treatment,
         intervened: wire.intervened.clone(),
     };
@@ -489,27 +621,7 @@ fn overlap_report_to_wire(report: &OverlapReport) -> OverlapReportWire {
 pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimate, IoError> {
     let overlap = overlap_policy_from_wire(w)?;
     let overlap_report = w.overlap_report.as_ref().map(overlap_report_from_wire).transpose()?;
-    let first_stage = w
-        .first_stage_diagnostics
-        .as_ref()
-        .map(|diagnostic| {
-            if !diagnostic.f_statistic.is_finite()
-                || diagnostic.f_statistic < 0.0
-                || !diagnostic.partial_r2.is_finite()
-                || !(0.0..=1.0).contains(&diagnostic.partial_r2)
-                || diagnostic.df1 == 0
-                || diagnostic.df2 == 0
-            {
-                return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
-            }
-            Ok(FirstStageDiagnostics {
-                f_statistic: diagnostic.f_statistic,
-                df1: usize::try_from(diagnostic.df1).map_err(|_| IoError::TooLarge)?,
-                df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
-                partial_r2: diagnostic.partial_r2,
-            })
-        })
-        .transpose()?;
+    let first_stage = w.first_stage_diagnostics.as_ref().map(first_stage_from_wire).transpose()?;
     let mut estimate = EffectEstimate::from_parts(
         w.ate,
         w.se_analytic,
@@ -557,7 +669,70 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
+    if let Some(model) = &w.fitted_effect {
+        if model.version == 1 && model.predictor.version == 1 {
+            model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            estimate.fitted_effect = Some(std::sync::Arc::new(model.clone()));
+        }
+    }
+    estimate.cate = w.cate.clone().map(Into::into);
+    estimate.cate_se = w.cate_se.clone().map(Into::into);
+    estimate.cate_leaf_dispersion = w.cate_leaf_dispersion.clone().map(Into::into);
+    estimate.outcome_oof_r2 = w.outcome_oof_r2;
+    estimate.treatment_oof_logloss = w.treatment_oof_logloss;
+    estimate.crossfit_folds = w.crossfit_folds;
+    estimate.crossfit_seed = w.crossfit_seed;
+    estimate.learner_provenance = w
+        .learner_provenance
+        .iter()
+        .map(|(spec, implementation, version)| antecedent_estimate::LearnerProvenance {
+            spec: spec.clone(),
+            implementation: implementation.clone(),
+            version: version.clone(),
+        })
+        .collect();
     Ok(estimate)
+}
+
+fn first_stage_from_wire(
+    diagnostic: &FirstStageDiagnosticsWire,
+) -> Result<FirstStageDiagnostics, IoError> {
+    if !diagnostic.f_statistic.is_finite()
+        || diagnostic.f_statistic < 0.0
+        || !diagnostic.partial_r2.is_finite()
+        || !(0.0..=1.0).contains(&diagnostic.partial_r2)
+        || diagnostic.df1 == 0
+        || diagnostic.df2 == 0
+    {
+        return Err(IoError::Convert("invalid first-stage diagnostic evidence".into()));
+    }
+    Ok(FirstStageDiagnostics {
+        f_statistic: diagnostic.f_statistic,
+        df1: usize::try_from(diagnostic.df1).map_err(|_| IoError::TooLarge)?,
+        df2: usize::try_from(diagnostic.df2).map_err(|_| IoError::TooLarge)?,
+        partial_r2: diagnostic.partial_r2,
+        anderson_rubin: diagnostic.anderson_rubin,
+        uncertainty_withheld: match diagnostic.uncertainty_withheld.as_deref() {
+            None => None,
+            Some("anderson_rubin_requires_homoskedastic") => {
+                Some("anderson_rubin_requires_homoskedastic")
+            }
+            Some("anderson_rubin_set_is_union") => Some("anderson_rubin_set_is_union"),
+            Some("anderson_rubin_set_empty") => Some("anderson_rubin_set_empty"),
+            Some("anderson_rubin_requires_excluded_instruments") => {
+                Some("anderson_rubin_requires_excluded_instruments")
+            }
+            Some("anderson_rubin_invalid_level") => Some("anderson_rubin_invalid_level"),
+            Some("anderson_rubin_critical_value_failed") => {
+                Some("anderson_rubin_critical_value_failed")
+            }
+            Some(_) => {
+                return Err(IoError::Convert(
+                    "unknown first-stage uncertainty_withheld reason".into(),
+                ));
+            }
+        },
+    })
 }
 
 fn score_inference_from_wire(
@@ -711,6 +886,48 @@ fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, I
     })
 }
 
+/// The one table of identification-status spellings: `snake_case` on the analysis and
+/// response wires, `PascalCase` on posterior artifacts and prior-bank metadata (the
+/// host-facing label those durable formats and their consumers already carry).
+pub(crate) const STATUS_SPELLINGS: [(IdentificationStatus, &str, &str); 6] = [
+    (
+        IdentificationStatus::NonparametricallyIdentified,
+        "nonparametrically_identified",
+        "NonparametricallyIdentified",
+    ),
+    (
+        IdentificationStatus::IdentifiedUnderParametricRestrictions,
+        "identified_under_parametric_restrictions",
+        "IdentifiedUnderParametricRestrictions",
+    ),
+    (
+        IdentificationStatus::IdentifiedUnderPriorRestrictions,
+        "identified_under_prior_restrictions",
+        "IdentifiedUnderPriorRestrictions",
+    ),
+    (IdentificationStatus::PartiallyIdentified, "partially_identified", "PartiallyIdentified"),
+    (IdentificationStatus::GraphDependent, "graph_dependent", "GraphDependent"),
+    (IdentificationStatus::NotIdentified, "not_identified", "NotIdentified"),
+];
+
+/// `snake_case` spelling of a status.
+pub(crate) fn identification_status_snake(status: IdentificationStatus) -> &'static str {
+    STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("not_identified", |row| row.1)
+}
+
+/// `PascalCase` spelling of a status.
+pub(crate) fn identification_status_pascal(status: IdentificationStatus) -> &'static str {
+    STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("NotIdentified", |row| row.2)
+}
+
+/// Status named by either spelling.
+pub(crate) fn identification_status_from_any(spelling: &str) -> Option<IdentificationStatus> {
+    STATUS_SPELLINGS
+        .iter()
+        .find(|(_, snake, pascal)| *snake == spelling || *pascal == spelling)
+        .map(|(status, _, _)| *status)
+}
+
 /// Encode identification result.
 ///
 /// # Errors
@@ -732,20 +949,7 @@ pub fn identification_to_wire_with_registry(
     registry: Option<&antecedent_core::PopulationRegistry>,
 ) -> Result<IdentificationResultWire, IoError> {
     Ok(IdentificationResultWire {
-        status: match r.status {
-            IdentificationStatus::NonparametricallyIdentified => {
-                "nonparametrically_identified".into()
-            }
-            IdentificationStatus::IdentifiedUnderParametricRestrictions => {
-                "identified_under_parametric_restrictions".into()
-            }
-            IdentificationStatus::IdentifiedUnderPriorRestrictions => {
-                "identified_under_prior_restrictions".into()
-            }
-            IdentificationStatus::PartiallyIdentified => "partially_identified".into(),
-            IdentificationStatus::GraphDependent => "graph_dependent".into(),
-            IdentificationStatus::NotIdentified => "not_identified".into(),
-        },
+        status: identification_status_snake(r.status).into(),
         query: crate::query_wire::causal_query_to_wire_with_registry(&r.query, registry)?,
         estimands: r
             .estimands
@@ -774,6 +978,19 @@ pub fn identification_to_wire_with_registry(
         diagnostics: r.diagnostics.iter().map(diagnostic_to_wire).collect(),
         candidates_examined: r.performance.candidates_examined,
         sets_returned: r.performance.sets_returned,
+        hedge: r.hedge.as_ref().map(|h| HedgeCertificateWire {
+            f: vars_to_raw(&h.f),
+            f_prime: vars_to_raw(&h.f_prime),
+            f_dense: h.f_dense.iter().map(|d| d.raw()).collect(),
+            f_prime_dense: h.f_prime_dense.iter().map(|d| d.raw()).collect(),
+            problem: h.problem.as_ref().map(|p| HedgeProblemWire {
+                variables: vars_to_raw(&p.variables),
+                directed: p.directed.to_vec(),
+                bidirected: p.bidirected.to_vec(),
+                treatments: vars_to_raw(&p.treatments),
+                outcomes: vars_to_raw(&p.outcomes),
+            }),
+        }),
     })
 }
 
@@ -785,21 +1002,67 @@ pub fn identification_to_wire_with_registry(
 pub fn identification_from_wire(
     w: &IdentificationResultWire,
 ) -> Result<IdentificationResult, IoError> {
-    let status = match w.status.as_str() {
-        "nonparametrically_identified" => IdentificationStatus::NonparametricallyIdentified,
-        "identified_under_parametric_restrictions" => {
-            IdentificationStatus::IdentifiedUnderParametricRestrictions
+    let status = STATUS_SPELLINGS
+        .iter()
+        .find(|(_, snake, _)| *snake == w.status)
+        .map(|(status, _, _)| *status)
+        .ok_or_else(|| IoError::Convert(format!("unknown IdentificationStatus `{}`", w.status)))?;
+    let hedge = match &w.hedge {
+        Some(wire) => {
+            if status != IdentificationStatus::NotIdentified {
+                return Err(IoError::Convert(
+                    "a hedge witness is only meaningful for a not_identified result".into(),
+                ));
+            }
+            wire.validate()?;
+            let certificate = antecedent_identify::HedgeCertificate {
+                f: vars_from_raw(&wire.f),
+                f_prime: vars_from_raw(&wire.f_prime),
+                f_dense: wire.f_dense.iter().copied().map(DenseNodeId::from_raw).collect(),
+                f_prime_dense: wire
+                    .f_prime_dense
+                    .iter()
+                    .copied()
+                    .map(DenseNodeId::from_raw)
+                    .collect(),
+                problem: wire.problem.as_ref().map(|p| antecedent_identify::HedgeProblem {
+                    variables: vars_from_raw(&p.variables),
+                    directed: p.directed.clone().into(),
+                    bidirected: p.bidirected.clone().into(),
+                    treatments: vars_from_raw(&p.treatments),
+                    outcomes: vars_from_raw(&p.outcomes),
+                }),
+            };
+            // A witness that carries its graph is re-checked from the definition on load, so a
+            // hand-edited or corrupted hedge cannot pass as a proof of non-identification.
+            if certificate.problem.is_some() {
+                certificate
+                    .verify_carried()
+                    .map_err(|e| IoError::Convert(format!("invalid hedge certificate: {e}")))?;
+            }
+            Some(certificate)
         }
-        "identified_under_prior_restrictions" => {
-            IdentificationStatus::IdentifiedUnderPriorRestrictions
-        }
-        "partially_identified" => IdentificationStatus::PartiallyIdentified,
-        "graph_dependent" => IdentificationStatus::GraphDependent,
-        "not_identified" => IdentificationStatus::NotIdentified,
-        other => {
-            return Err(IoError::Convert(format!("unknown IdentificationStatus `{other}`")));
-        }
+        None => None,
     };
+    for estimand in &w.estimands {
+        // The estimand's root pointer indexes the arena directly; a dangling
+        // one would panic in every consumer that renders or compiles it.
+        if estimand.functional as usize >= w.arena.nodes.len() {
+            return Err(IoError::Convert(
+                "identified estimand functional is outside its expression arena".into(),
+            ));
+        }
+        if let Some(design) = &estimand.rd_design {
+            if !design.cutoff.is_finite()
+                || !design.bandwidth.is_finite()
+                || design.bandwidth <= 0.0
+            {
+                return Err(IoError::Convert(
+                    "sharp RD design needs a finite cutoff and a finite positive bandwidth".into(),
+                ));
+            }
+        }
+    }
     Ok(IdentificationResult::from_parts(
         status,
         causal_query_from_wire(&w.query)?,
@@ -839,7 +1102,7 @@ pub fn identification_from_wire(
             candidates_examined: w.candidates_examined,
             sets_returned: w.sets_returned,
         },
-        None,
+        hedge,
     ))
 }
 
@@ -880,6 +1143,7 @@ pub fn diagnostic_to_wire(d: &Diagnostic) -> DiagnosticWire {
         code: d.code.to_string(),
         kind: match d.kind {
             DiagnosticKind::Scientific => "scientific",
+            DiagnosticKind::Support => "support",
             DiagnosticKind::Execution => "execution",
         }
         .into(),
@@ -905,6 +1169,7 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
         code: Arc::from(w.code.as_str()),
         kind: match w.kind.as_str() {
             "scientific" => DiagnosticKind::Scientific,
+            "support" => DiagnosticKind::Support,
             "execution" => DiagnosticKind::Execution,
             other => return Err(IoError::Convert(format!("unknown DiagnosticKind `{other}`"))),
         },
@@ -935,6 +1200,40 @@ mod tests {
     use super::*;
     use crate::trace::{AssumptionRecordWire, AssumptionTagWire};
 
+    #[test]
+    fn learner_outputs_survive_wire_round_trip() {
+        let mut effect = EffectEstimate::new(
+            2.0,
+            0.1,
+            AssumptionSet::new(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        )
+        .with_cate(Some(vec![1.0, 3.0].into()))
+        .with_cate_se(Some(vec![0.2, 0.4].into()))
+        .with_cate_leaf_dispersion(Some(vec![0.3, 0.5].into()));
+        effect.learner_provenance.push(antecedent_estimate::LearnerProvenance {
+            spec: "ridge".into(),
+            implementation: "faer".into(),
+            version: "0.24".into(),
+        });
+        effect.outcome_oof_r2 = Some(0.8);
+        effect.treatment_oof_logloss = Some(0.4);
+        effect.crossfit_folds = Some(5);
+        effect.crossfit_seed = Some(42);
+        let wire = effect_estimate_to_wire(&effect);
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded: EffectEstimateWire = serde_json::from_slice(&bytes).unwrap();
+        let restored = effect_estimate_from_wire(&decoded).unwrap();
+        assert_eq!(restored.outcome_oof_r2, effect.outcome_oof_r2);
+        assert_eq!(restored.treatment_oof_logloss, effect.treatment_oof_logloss);
+        assert_eq!(restored.crossfit_folds, effect.crossfit_folds);
+        assert_eq!(restored.crossfit_seed, effect.crossfit_seed);
+        assert_eq!(restored.cate, effect.cate);
+        assert_eq!(restored.cate_se, effect.cate_se);
+        assert_eq!(restored.cate_leaf_dispersion, effect.cate_leaf_dispersion);
+        assert_eq!(restored.learner_provenance, effect.learner_provenance);
+    }
+
     fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
@@ -949,6 +1248,155 @@ mod tests {
             IdentificationPerformanceRecord::default(),
             None,
         )
+    }
+
+    fn estimand_wire(functional: u32, rd_design: Option<RdDesignWire>) -> IdentifiedEstimandWire {
+        IdentifiedEstimandWire {
+            method: "backdoor".into(),
+            adjustment_set: Vec::new(),
+            instruments: Vec::new(),
+            mediators: Vec::new(),
+            functional,
+            rd_design,
+        }
+    }
+
+    #[test]
+    fn dangling_estimand_functional_is_rejected_not_panicked_on() {
+        let mut wire =
+            identification_to_wire(&empty_id_result(IdentificationStatus::NotIdentified)).unwrap();
+        assert!(wire.arena.nodes.is_empty());
+        wire.estimands = vec![estimand_wire(4_000_000_000, None)];
+        let error = identification_from_wire(&wire).unwrap_err().to_string();
+        assert!(error.contains("outside its expression arena"), "{error}");
+        // Index equal to the arena length is the first out-of-range value.
+        wire.estimands = vec![estimand_wire(0, None)];
+        assert!(identification_from_wire(&wire).is_err());
+    }
+
+    #[test]
+    fn rd_design_needs_finite_cutoff_and_positive_bandwidth() {
+        let mut arena = CausalExprArena::new();
+        let root = arena.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[],
+            antecedent_core::Value::Bool(true),
+            antecedent_core::Value::Bool(false),
+        );
+        let result = IdentificationResult::from_parts(
+            IdentificationStatus::NonparametricallyIdentified,
+            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            )),
+            Vec::new(),
+            arena,
+            DerivationTrace::default(),
+            AssumptionSet::default(),
+            Vec::new(),
+            IdentificationPerformanceRecord::default(),
+            None,
+        );
+        let mut wire = identification_to_wire(&result).unwrap();
+        for (cutoff, bandwidth) in
+            [(f64::NAN, 1.0), (0.5, 0.0), (0.5, -1.0), (0.5, f64::INFINITY), (0.5, f64::NAN)]
+        {
+            wire.estimands = vec![estimand_wire(
+                root.raw(),
+                Some(RdDesignWire { running_variable: 0, cutoff, bandwidth }),
+            )];
+            assert!(identification_from_wire(&wire).is_err(), "{cutoff} {bandwidth}");
+        }
+        wire.estimands = vec![estimand_wire(
+            root.raw(),
+            Some(RdDesignWire { running_variable: 0, cutoff: 0.5, bandwidth: 0.25 }),
+        )];
+        assert!(identification_from_wire(&wire).is_ok());
+    }
+
+    fn bow_hedge() -> antecedent_identify::HedgeCertificate {
+        // Bow graph X -> Y with X <-> Y: F = {X, Y}, F' = {Y}.
+        let ids = |raw: &[u32]| -> Arc<[VariableId]> {
+            raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>().into()
+        };
+        let dense = |raw: &[u32]| -> Arc<[DenseNodeId]> {
+            raw.iter().copied().map(DenseNodeId::from_raw).collect::<Vec<_>>().into()
+        };
+        antecedent_identify::HedgeCertificate {
+            f: ids(&[0, 1]),
+            f_prime: ids(&[1]),
+            f_dense: dense(&[0, 1]),
+            f_prime_dense: dense(&[1]),
+            problem: Some(antecedent_identify::HedgeProblem {
+                variables: ids(&[0, 1]),
+                directed: vec![(0, 1)].into(),
+                bidirected: vec![(0, 1)].into(),
+                treatments: ids(&[0]),
+                outcomes: ids(&[1]),
+            }),
+        }
+    }
+
+    #[test]
+    fn carried_hedge_is_reverified_on_load() {
+        let mut result = empty_id_result(IdentificationStatus::NotIdentified);
+        result.hedge = Some(bow_hedge());
+        let wire = identification_to_wire(&result).unwrap();
+        // Untouched: verifies (X -> Y with X <-> Y really is a hedge).
+        assert!(identification_from_wire(&wire).is_ok());
+        // Remove the confounding edge: F is no longer bidirected-connected, so it is no hedge.
+        let mut no_confounding = wire.clone();
+        no_confounding.hedge.as_mut().unwrap().problem.as_mut().unwrap().bidirected.clear();
+        let err = identification_from_wire(&no_confounding).unwrap_err().to_string();
+        assert!(err.contains("not a hedge"), "{err}");
+        // The witness cannot certify a query whose treatment it does not contain.
+        let mut wrong_treatment = wire;
+        let problem = wrong_treatment.hedge.as_mut().unwrap().problem.as_mut().unwrap();
+        problem.treatments = vec![1];
+        problem.outcomes = vec![0];
+        assert!(identification_from_wire(&wrong_treatment).is_err());
+    }
+
+    #[test]
+    fn hedge_witness_survives_save_and_load() {
+        let mut result = empty_id_result(IdentificationStatus::NotIdentified);
+        result.hedge = Some(bow_hedge());
+        let wire = identification_to_wire(&result).unwrap();
+        assert!(wire.hedge.is_some());
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded: IdentificationResultWire = serde_json::from_slice(&bytes).unwrap();
+        let back = identification_from_wire(&decoded).unwrap();
+        assert_eq!(back.hedge, Some(bow_hedge()));
+        // A refusal without a witness stays without one.
+        let plain =
+            identification_to_wire(&empty_id_result(IdentificationStatus::NotIdentified)).unwrap();
+        assert!(identification_from_wire(&plain).unwrap().hedge.is_none());
+    }
+
+    #[test]
+    fn hedge_witness_is_rejected_when_malformed_or_on_an_identified_result() {
+        let mut result = empty_id_result(IdentificationStatus::NotIdentified);
+        result.hedge = Some(bow_hedge());
+        let wire = identification_to_wire(&result).unwrap();
+
+        let mut identified = wire.clone();
+        identified.status = "nonparametrically_identified".into();
+        assert!(identification_from_wire(&identified).is_err());
+
+        let mut not_nested = wire.clone();
+        not_nested.hedge.as_mut().unwrap().f_prime = vec![7];
+        assert!(identification_from_wire(&not_nested).is_err());
+
+        let mut empty_inner = wire.clone();
+        let hedge = empty_inner.hedge.as_mut().unwrap();
+        hedge.f_prime.clear();
+        hedge.f_prime_dense.clear();
+        assert!(identification_from_wire(&empty_inner).is_err());
+
+        let mut unordered = wire;
+        unordered.hedge.as_mut().unwrap().f_dense = vec![1, 0];
+        assert!(identification_from_wire(&unordered).is_err());
     }
 
     #[test]
@@ -1022,6 +1470,8 @@ mod tests {
                 df1: 1,
                 df2: 98,
                 partial_r2: 0.2,
+                anderson_rubin: Some((1.0, 3.0, 0.95)),
+                uncertainty_withheld: None,
             }),
             retained_memory_bytes: Some(4096),
             score_table: None,
@@ -1037,6 +1487,15 @@ mod tests {
             monotone_rearranged: false,
             interaction_structurally_zero: None,
             unit_effects_homogeneous: None,
+            cate: None,
+            fitted_effect: None,
+            cate_se: None,
+            cate_leaf_dispersion: None,
+            outcome_oof_r2: None,
+            treatment_oof_logloss: None,
+            crossfit_folds: None,
+            crossfit_seed: None,
+            learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,
             candidate_selection: None,
@@ -1077,6 +1536,19 @@ mod tests {
     }
 
     #[test]
+    fn support_kind_survives_the_wire_independent_of_its_code() {
+        let diagnostic = Diagnostic::new(
+            "estimate.propensity.floor",
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            "propensity floored",
+        );
+        let wire = diagnostic_to_wire(&diagnostic);
+        assert_eq!(wire.kind, "support");
+        assert_eq!(diagnostic_from_wire(&wire).unwrap().kind, DiagnosticKind::Support);
+    }
+
+    #[test]
     fn distribution_and_path_specific_query_identification_wire() {
         use antecedent_core::{
             Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, Value,
@@ -1104,12 +1576,23 @@ mod tests {
         );
         let mut path = empty_id_result(IdentificationStatus::NonparametricallyIdentified);
         path.query = path_q;
+        // The estimand's functional must resolve inside the result's own expression arena
+        // (identification_from_wire now rejects a dangling functional); give it one node.
+        let mut arena = CausalExprArena::new();
+        let root = arena.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            &[],
+            antecedent_core::Value::Bool(true),
+            antecedent_core::Value::Bool(false),
+        );
+        path.arena = arena;
         path.estimands.push(IdentifiedEstimand::new(
             Arc::from("path_specific.natural"),
             Arc::from([]),
             Arc::from([]),
             Arc::from([]),
-            ExprId::from_raw(0),
+            root,
             None,
         ));
         let wire = identification_to_wire(&path).unwrap();

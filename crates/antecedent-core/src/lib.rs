@@ -51,6 +51,8 @@ pub mod provenance;
 pub mod query;
 pub mod reason_code;
 pub mod reasoning;
+pub mod transport_result;
+pub use transport_result::TransportGridFailure;
 pub mod response;
 pub mod schema;
 pub mod temporal;
@@ -75,11 +77,11 @@ pub use claim::{
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
-    AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
-    CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext, ExecutionReceipt,
-    ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError,
-    NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
-    default_user_threads,
+    ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
+    CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
+    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
+    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
+    StreamDomain, default_user_threads,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{
@@ -105,25 +107,30 @@ pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNod
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
     AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
-    ContinuousDomain, CounterfactualQuery, DerivativeScale, DerivativeWeighting,
-    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping, GridSpec, InterferenceFunctional,
-    InterferenceQuery, InterventionalDistributionQuery, MAX_NONPARAMETRIC_RESPONSE_DIM,
+    ContinuousDomain, CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting,
+    DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog, EvidenceKind,
+    EvidenceProjection, EvidenceRegime, ExposureLevel, ExposureMapping, FactorNeed, GridSpec,
+    InterferenceFunctional, InterferenceQuery, InterventionAssignment,
+    InterventionalDistributionQuery, LicensedWeights, MAX_NONPARAMETRIC_RESPONSE_DIM,
     MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS, MechanismChangeQuery,
     MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PathSpecificEffectQuery, PopulationRegistry, PopulationSelection,
-    PopulationSelector, PredicateExpr, QueryError, ResponseFunctional, ResponseQuery,
-    ShapleyConfig, ShapleyMode, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation,
-    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TransportQuery,
-    UnitChangeQuery,
+    PopulationSelector, PredicateExpr, QueryError, RegimeBinding, RegimeKind, ResponseFunctional,
+    ResponseQuery, SamplingDesign, ShapleyConfig, ShapleyMode, TEMPORAL_OBSERVATION_UNLICENSED,
+    TargetPopulation, TargetSampling, TemporalEffectQuery, TemporalResponseLicense,
+    TemporalResponseSpec, TheoremFamily, TheoremScope, TransportEvaluateSupport,
+    TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
+    TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport, UnitChangeQuery,
+    UnmetDependency, VariableCoordinate, VariableDomain,
 };
 pub use reasoning::{
     AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
     UncertaintyComponent, UncertaintySlot, UncertaintySource,
 };
 pub use response::{
-    CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus,
+    CausalResponse, CredibleDraws, HorizonIdentification, IdentifiedSet, IntervalInterpretation,
+    ResponseEnvelope, ResponseIdentification, ResponseUncertainty, ResponseValue,
+    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

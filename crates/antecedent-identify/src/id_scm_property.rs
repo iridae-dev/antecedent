@@ -8,8 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)]
-
 use antecedent_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, VariableId};
 use antecedent_expr::{
     Assignment, DomainRef, EmpiricalTableProvider, EvalContext, FactorSpec, InterventionAssignment,
@@ -70,6 +68,8 @@ fn confounding_provider(t: VariableId, y: VariableId, z: VariableId) -> Empirica
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         let assign = Assignment::from_pairs([(z, f(zval))]);
         p.insert_probability(&spec, &assign, prob).unwrap();
@@ -96,6 +96,8 @@ fn confounding_provider(t: VariableId, y: VariableId, z: VariableId) -> Empirica
                     conditioned_on: &[z],
                     intervention: &interv,
                     domain: DomainRef::Interventional,
+                    population: "",
+                    regime: None,
                 };
                 let assign = Assignment::from_pairs([(y, f(yval)), (z, f(zlev))]);
                 p.insert_probability(&spec, &assign, prob).unwrap();
@@ -273,6 +275,8 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob).unwrap();
     }
@@ -285,6 +289,8 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
                 conditioned_on: &[t],
                 intervention: &interv,
                 domain: DomainRef::Interventional,
+                population: "",
+                regime: None,
             };
             let assign = Assignment::from_pairs([(m, f(mval)), (t, f(tlev))]);
             p.insert_probability(&spec, &assign, prob).unwrap();
@@ -309,6 +315,8 @@ fn id_scm_frontdoor_admg_functional_matches_true_intervention() {
                     conditioned_on: &[t, m],
                     intervention: &[],
                     domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
                 };
                 let assign = Assignment::from_pairs([(y, f(yval)), (t, f(tlev)), (m, f(mlev))]);
                 p.insert_probability(&spec, &assign, prob).unwrap();

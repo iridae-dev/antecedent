@@ -2,18 +2,25 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_data::{ResamplingPlan, TableView, TimeSeriesData, resample_timeseries};
+use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, NodeRef};
 
 use crate::error::ValidationError;
 
+use super::gapped_block_bootstrap;
 use super::pcmci_grid::{LinkStability, report_from_counts};
 
 /// Undirected contemporaneous edge retention frequency.
@@ -93,17 +100,15 @@ impl OrientationStability {
         let mut conflict_reps = 0u32;
         let mut rng = ctx.rng.stream(0x0E1E_u64);
         let mut index_scratch = Vec::new();
+        // PCMCI+ materializes lags up to twice its maximum lag: separate blocks by that many
+        // missing rows so no lag window mixes two blocks (see `gapped_block_bootstrap`).
+        let gap = 2 * self.pcmci_plus.engine().constraints.temporal.max_lag.raw() as usize;
         for _ in 0..self.replicates {
-            let boot = resample_timeseries(
-                data,
-                ResamplingPlan::MovingBlock { length: self.block_size },
-                &mut rng,
-                &mut index_scratch,
-            )
-            .map_err(ValidationError::from)?;
+            let boot =
+                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
             let result = self
                 .pcmci_plus
-                .run(&boot, variables, workspace, ctx)
+                .run(&boot.series, variables, workspace, ctx)
                 .map_err(ValidationError::from)?;
             let mut had_conflict = false;
             for edge in result.evidence.graph.edges() {

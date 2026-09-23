@@ -1,12 +1,11 @@
-//! 1.10 contracts-first: identities, inspection, transformation preview, claims.
+//! Contracts-first: identities, inspection, transformation preview, claims.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::float_cmp,
-    clippy::many_single_char_names,
-    clippy::too_many_lines
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;
@@ -2045,12 +2044,15 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
             level: 0.95,
             lower: Arc::from([0.0]),
             upper: Arc::from([1.0]),
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+            draws: None,
         }),
         std::mem::discriminant(&antecedent_core::ResponseUncertainty::SimultaneousBand {
             level: 0.95,
             lower: Arc::from([0.0]),
             upper: Arc::from([1.0]),
             replicates: 100,
+            interpretation: antecedent_core::IntervalInterpretation::Confidence,
         })
     );
 
@@ -5269,9 +5271,11 @@ fn partially_identified_answers_are_not_calibrated_against_point_records() {
     let contract = point.contract().unwrap();
     let mut basis = result.calibration_bases(&contract).unwrap()[0].clone();
     assert_eq!(basis.key.identification, "point");
-    if record_for(&basis).is_none() {
-        return; // nothing measures this construction yet; the rule below is still checked in io
-    }
+    assert!(
+        record_for(&basis).is_some(),
+        "the registry must measure this construction: {:?}",
+        basis.key
+    );
     assert_eq!(
         antecedent_io::calibration::calibration_slot(&basis).status,
         "calibrated",
@@ -5291,9 +5295,11 @@ fn calibration_slot_only_matches_the_level_it_measured() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let mut basis = result.calibration_bases(&contract).unwrap()[0].clone();
-    if record_for(&basis).is_none() {
-        return;
-    }
+    assert!(
+        record_for(&basis).is_some(),
+        "the registry must measure the construction this study builds: {:?}",
+        basis.key
+    );
     assert_eq!(antecedent_io::calibration::calibration_slot(&basis).status, "calibrated");
     basis.key.level = 0.99;
     let other = antecedent_io::calibration::calibration_slot(&basis);
@@ -5447,7 +5453,10 @@ fn every_licensed_cell_has_a_calibration_record_or_code() {
     for block in licensed.split("[[cell]]").skip(1) {
         let has_record = block.contains("calibration =");
         let has_reason = block.contains("calibration_reason =");
-        if has_record == has_reason {
+        // A record list beside `boundary_record` says what was measured and that none
+        // of it is a nominal pass; any other pairing is one too many or too few.
+        let boundary_only = block.contains("calibration_reason = \"boundary_record\"");
+        if has_record == has_reason && !(has_record && boundary_only) {
             missing.push(block.lines().take(6).collect::<Vec<_>>().join(" "));
         }
         if has_record {
@@ -5474,8 +5483,15 @@ fn every_licensed_cell_has_a_calibration_record_or_code() {
 
 #[test]
 fn every_calibration_reason_code_is_in_the_vocabulary() {
+    // `RECORD_NOT_ATTESTING` is runtime-only (see `antecedent_io::calibration`'s
+    // module doc): it is deliberately absent from `parity/reason_codes.toml`,
+    // because whether a record attests is generated with the registry
+    // (`ATTESTING_RECORD_IDS`) and is not part of the checked-in vocabulary.
     let vocabulary = include_str!("../../../parity/reason_codes.toml");
     for code in antecedent_io::calibration::REASON_CODES {
+        if code == antecedent_io::calibration::RECORD_NOT_ATTESTING {
+            continue;
+        }
         assert!(
             vocabulary.contains(&format!("id = \"{code}\"")),
             "{code} is not in parity/reason_codes.toml"

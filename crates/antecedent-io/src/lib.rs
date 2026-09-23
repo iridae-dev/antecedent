@@ -17,6 +17,7 @@ pub mod convert;
 pub mod coverage_records_data;
 pub mod discovery_wire;
 pub mod error;
+pub mod exact_law_wire;
 pub mod expr_wire;
 pub mod external_estimate;
 pub mod graph_dot;
@@ -42,7 +43,10 @@ pub mod query_wire;
 pub mod reader;
 pub mod response_wire;
 pub mod trace;
+pub mod transport_catalog_wire;
+pub mod transport_certificate;
 pub mod transport_interference_wire;
+pub mod transport_proof;
 pub mod wire;
 
 pub use analysis_result_artifact::{
@@ -55,11 +59,11 @@ pub use analysis_result_artifact::{
     identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
-    DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
-    RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
-    effect_estimate_from_wire, effect_estimate_to_wire, identification_from_wire,
-    identification_to_wire, identification_to_wire_with_registry, refutation_from_wire,
-    refutation_to_wire,
+    DiagnosticWire, EffectEstimateWire, HedgeCertificateWire, IdentificationResultWire,
+    IdentifiedEstimandWire, RdDesignWire, RefutationReportWire, diagnostic_from_wire,
+    diagnostic_to_wire, effect_estimate_from_wire, effect_estimate_to_wire,
+    identification_from_wire, identification_to_wire, identification_to_wire_with_registry,
+    refutation_from_wire, refutation_to_wire,
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use causal_artifact::{
@@ -186,19 +190,20 @@ pub use reader::{
 };
 pub use response_wire::{
     CausalResponseWire, ContinuousDomainWire, DerivativeScaleWire, DerivativeWeightingWire,
-    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, ObservationAssumptionWire,
-    ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire, ResponseIdentificationWire,
-    ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire, SupportDiagnosticWire,
-    SupportRegionWire, SupportReportWire, SupportStatusWire, TemporalResponseSpecWire,
-    causal_response_from_wire, causal_response_to_wire, response_query_from_wire,
-    response_query_to_wire, response_value_from_wire, response_value_to_wire,
+    GridSpecWire, HorizonAdjustmentNodeWire, IdentificationStatusWire, IntervalInterpretationWire,
+    ObservationAssumptionWire, ObservationSpecWire, ResponseEnvelopeWire, ResponseFunctionalWire,
+    ResponseIdentificationWire, ResponseQueryWire, ResponseUncertaintyWire, ResponseValueWire,
+    SupportDiagnosticWire, SupportRegionWire, SupportReportWire, SupportStatusWire,
+    TemporalResponseSpecWire, causal_response_from_wire, causal_response_to_wire,
+    response_query_from_wire, response_query_to_wire, response_value_from_wire,
+    response_value_to_wire,
 };
 pub use trace::{
     AnalysisTraceWire, AssumptionRecordWire, AssumptionTagWire, DerivationStepWire,
     assumptions_to_wire,
 };
 pub use transport_interference_wire::{
-    ExposureProbabilityMethodWire, InterferenceEstimateWire, NonTransportableCertificateWire,
+    ExposureProbabilityMethodWire, InterferenceEstimateWire, NotCertifiedCertificateWire,
     PopulationFactorWire, RandomizationContrastWire, TransportCertificateWire,
     TransportEffectEstimateWire, TransportFormulaWire, TransportIdentificationWire,
     TransportOverlapDiagnosticWire, interference_estimate_from_wire, interference_estimate_to_wire,
@@ -335,3 +340,9 @@ mod tests {
         assert_eq!(round.derivation[0].rule, "backdoor.criterion");
     }
 }
+
+/// Transport grid artifact records and encoding.
+pub mod transport_grid_wire;
+
+/// Learner-backed trial transport artifact verification.
+pub mod learned_trial_wire;

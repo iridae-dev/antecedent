@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::similar_names, clippy::cast_precision_loss)]
-
 use faer::linalg::solvers::{ColPivQr, SolveLstsqCore};
 use faer::{Conj, Mat};
 
@@ -104,7 +102,11 @@ impl DenseLinearAlgebra for FaerBackend {
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)]
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_precision_loss,
+    reason = "tests assert exactly representable values (rank counts, copied inputs) and cast small fixture indices"
+)]
 mod tests {
     #[test]
     fn review_qr_rank_is_invariant_to_design_units() {

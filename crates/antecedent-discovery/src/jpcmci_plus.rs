@@ -9,18 +9,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::match_same_arms,
-    clippy::too_many_lines
+#![allow(clippy::match_same_arms, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
 use antecedent_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
 use antecedent_stats::{
@@ -47,6 +48,7 @@ use crate::pipeline::{
 };
 use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, ScoredLink,
+    discovery_assumptions,
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
@@ -143,6 +145,17 @@ impl JpcmciPlus {
 
         let space_ids_full = Arc::clone(&pooled.space_dummy_variables);
         let time_ids_full = Arc::clone(&pooled.time_dummy_variables);
+        // A synthetic dummy must never share an id with a schema variable: results, sepsets and
+        // user constraints would silently address the real variable.
+        if let Some(alias) = space_ids_full
+            .iter()
+            .chain(time_ids_full.iter())
+            .find(|d| data.schema().variables().iter().any(|v| v.id == **d))
+        {
+            return Err(DiscoveryError::data_msg(format!(
+                "J-PCMCI+ dummy variable {alias} aliases a schema variable"
+            )));
+        }
         let use_mv_space_dummy =
             md.space_dummy_ci == SpaceDummyCiMode::MultivariateBlock && space_ids_full.len() > 1;
         let use_mv_time_dummy =
@@ -205,6 +218,13 @@ impl JpcmciPlus {
                 (Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))), blocks)
             };
 
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*ci,
+            constraints.significance,
+            constraints.alpha,
+            self.fdr.is_some(),
+        )?;
+        crate::ci::ensure_ci_fits_frame(&*ci, frame)?;
         let threads = ctx.parallelism.max_threads.get().max(1);
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
@@ -464,7 +484,7 @@ impl JpcmciPlus {
             evidence,
             review,
             algorithm,
-            assumptions: AssumptionSet::new(),
+            assumptions: discovery_assumptions("jpcmci_plus", true),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {

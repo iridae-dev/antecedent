@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::fs;
 use std::path::PathBuf;
@@ -55,29 +58,84 @@ fn run(test: &dyn ConditionalIndependenceTest, case: &JsonValue, seed: u64) -> (
     (output.results[0].statistic, output.results[0].p_value)
 }
 
+/// Partial correlation of columns 0 and 1 given `z`, from an independent dense OLS: normal
+/// equations on `[1 | Z]` solved by Gauss-Jordan with partial pivoting, then Pearson of the
+/// two residual vectors.
+#[allow(clippy::needless_range_loop)] // the index is a node/row id shared by several parallel tables
+fn partial_correlation(columns: &[Vec<f64>], z: &[usize]) -> f64 {
+    let n = columns[0].len();
+    let q = 1 + z.len();
+    let design = |r: usize, j: usize| if j == 0 { 1.0 } else { columns[z[j - 1]][r] };
+    let residuals = |target: &[f64]| -> Vec<f64> {
+        let mut a = vec![vec![0.0; q + 1]; q];
+        for (i, row) in a.iter_mut().enumerate() {
+            for (j, cell) in row.iter_mut().enumerate().take(q) {
+                *cell = (0..n).map(|r| design(r, i) * design(r, j)).sum();
+            }
+            row[q] = (0..n).map(|r| design(r, i) * target[r]).sum();
+        }
+        for c in 0..q {
+            let piv = (c..q).max_by(|&p, &s| a[p][c].abs().total_cmp(&a[s][c].abs())).unwrap();
+            a.swap(c, piv);
+            let d = a[c][c];
+            for j in 0..=q {
+                a[c][j] /= d;
+            }
+            for r in 0..q {
+                if r != c {
+                    let f = a[r][c];
+                    for j in 0..=q {
+                        let v = a[c][j];
+                        a[r][j] -= f * v;
+                    }
+                }
+            }
+        }
+        (0..n).map(|r| target[r] - (0..q).map(|j| a[j][q] * design(r, j)).sum::<f64>()).collect()
+    };
+    let (rx, ry) = (residuals(&columns[0]), residuals(&columns[1]));
+    let nf = n as f64;
+    let (mx, my) = (rx.iter().sum::<f64>() / nf, ry.iter().sum::<f64>() / nf);
+    let sxy: f64 = rx.iter().zip(&ry).map(|(a, b)| (a - mx) * (b - my)).sum();
+    let sxx: f64 = rx.iter().map(|a| (a - mx) * (a - mx)).sum();
+    let syy: f64 = ry.iter().map(|b| (b - my) * (b - my)).sum();
+    sxy / (sxx * syy).sqrt()
+}
+
+/// The Bayes factor is a Zellner g-prior (`g = n`) factor on the partial regression
+/// coefficient, `log BF10 = -1/2 ln(1+g) - 1/2 (n-1-|Z|) ln(1 - g r^2/(1+g))`, a function of the
+/// partial correlation only. Expected values are computed from the fixture columns with an
+/// independent OLS, not read from the NIG-model oracle values (which price a different prior and
+/// are kept in the fixture for the posterior-predictive model).
 #[test]
-fn conjugate_bayes_factor_and_posterior_probability_match_clean_room_oracle() {
+fn g_prior_bayes_factor_and_posterior_probability_match_closed_form() {
     let fixture = fixture();
     let bf_atol = fixture["tolerances"]["log_bf_atol"].as_f64().unwrap();
     let probability_atol = fixture["tolerances"]["probability_atol"].as_f64().unwrap();
     for case in fixture["cases"].as_array().unwrap() {
-        let reference = &case["reference"];
+        let (owned, z) = columns(case);
+        let n = owned[0].len();
+        let r = partial_correlation(&owned, &z);
+        let g = n as f64;
+        let d = n as f64 - 1.0 - z.len() as f64;
+        let expected_log_bf = -0.5 * (1.0 + g).ln() - 0.5 * d * (1.0 - g / (1.0 + g) * r * r).ln();
+        let expected_independence = 1.0 / (1.0 + expected_log_bf.exp());
+        let expected_dependence = 1.0 / (1.0 + (-expected_log_bf).exp());
+
         let (log_bf, independence) = run(&BayesFactorCi::new(), case, 1);
         assert!(
-            (log_bf - reference["log_bf10"].as_f64().unwrap()).abs() <= bf_atol,
-            "{} log BF",
+            (log_bf - expected_log_bf).abs() <= bf_atol,
+            "{} log BF {log_bf} != {expected_log_bf} (r={r})",
             case["name"]
         );
         assert!(
-            (independence - reference["posterior_independence"].as_f64().unwrap()).abs()
-                <= probability_atol,
+            (independence - expected_independence).abs() <= probability_atol,
             "{} independence mass",
             case["name"]
         );
         let (dependence, complement) = run(&PosteriorDependenceCi::new(), case, 2);
         assert!(
-            (dependence - reference["posterior_dependence"].as_f64().unwrap()).abs()
-                <= probability_atol,
+            (dependence - expected_dependence).abs() <= probability_atol,
             "{} dependence mass",
             case["name"]
         );

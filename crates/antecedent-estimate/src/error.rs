@@ -63,6 +63,28 @@ pub enum EstimationError {
         /// Refusal, including the certificate's reason and message.
         message: String,
     },
+    /// A banked posterior's coefficient count does not match the target design's, so
+    /// its coefficients cannot be mapped one-to-one onto a prior. Callers that treat
+    /// "not this mechanism's prior" as a fallback match this variant, never its text;
+    /// the message still carries the registered `prior_dimension_mismatch` reason so a
+    /// caller with no fallback (the prior transfer is terminal) surfaces a coded refusal.
+    #[error(
+        "{}prior_dimension_mismatch: posterior coefficient dimension {posterior} != expected n_coef {design}",
+        antecedent_core::reason_code::PREFIX
+    )]
+    PriorDimensionMismatch {
+        /// Coefficients in the banked posterior.
+        posterior: usize,
+        /// Coefficients in the target design.
+        design: usize,
+    },
+    /// A resampled empirical law received no rows, so it has no defined table. Bootstrap
+    /// loops count this as a failed replicate; anywhere else it is an ordinary error.
+    #[error("{message}")]
+    EmptyEmpiricalSample {
+        /// Located description of the empty sample.
+        message: String,
+    },
     /// A refusal carrying a registered runtime reason code
     /// (`parity/reason_codes.toml`), rendered `reason=<code>: <message>` so every
     /// boundary reads the code the same way.

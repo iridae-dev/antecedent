@@ -2,13 +2,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize};
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci};
 
 use crate::error::ValidationError;
+use crate::stability::{lagged_link_family, null_rate_se};
 
 /// Null transform applied to observed series before rediscovery.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -28,9 +35,13 @@ pub struct FalsePositiveCheckReport {
     pub replicates: u32,
     /// Mean retained edge count after nullification.
     pub mean_edge_count: f64,
-    /// Empirical edge rate vs family size estimate.
+    /// Empirical edge rate: retained links per replicate over the candidate lagged links (every
+    /// ordered variable pair at each lag of `min_lag..=max_lag`).
     pub empirical_fpr: f64,
-    /// Whether mean edge count is at/below the α-calibrated expectation band.
+    /// Standard error of `empirical_fpr` (see [`super::SyntheticNullCalibration`]).
+    pub se: f64,
+    /// Whether the empirical rate is at most `α + 3·se`. One-sided: surrogates that remove
+    /// structure should not raise the false-positive rate, and a lower rate is not a failure.
     pub passed: bool,
 }
 
@@ -70,10 +81,10 @@ impl FalsePositiveCheck {
             });
         }
         let alpha = self.pcmci.engine().constraints.alpha;
-        let max_lag = self.pcmci.engine().constraints.temporal.max_lag.raw().max(1) as usize;
-        let family = (variables.len() * variables.len() * max_lag).max(1);
+        let lags = &self.pcmci.engine().constraints.temporal;
+        let family = lagged_link_family(variables.len(), lags.min_lag.raw(), lags.max_lag.raw())?;
         let mut rng = ctx.rng.stream(0xF41E_u64);
-        let mut total_edges = 0u64;
+        let mut hits_per_run = Vec::with_capacity(self.replicates as usize);
         for _ in 0..self.replicates {
             let null = match self.transform {
                 NullTransform::ColumnPermute => {
@@ -85,18 +96,18 @@ impl FalsePositiveCheck {
             };
             let result =
                 self.pcmci.run(&null, variables, workspace, ctx).map_err(ValidationError::from)?;
-            total_edges += result.evidence.links.len() as u64;
+            hits_per_run.push(result.evidence.links.len() as u64);
         }
-        let mean_edge_count = total_edges as f64 / f64::from(self.replicates);
+        let mean_edge_count = hits_per_run.iter().sum::<u64>() as f64 / f64::from(self.replicates);
         let empirical_fpr = mean_edge_count / family as f64;
-        // Pass if empirical FPR is not far above α (allow 3√(α(1-α)/R) + 0.05 floor).
-        let se = (alpha * (1.0 - alpha) / f64::from(self.replicates)).sqrt();
-        let passed = empirical_fpr <= alpha + (3.0 * se).max(0.05);
+        let se = null_rate_se(alpha, family, &hits_per_run);
+        let passed = empirical_fpr <= alpha + 3.0 * se;
         Ok(FalsePositiveCheckReport {
             method: self.transform,
             replicates: self.replicates,
             mean_edge_count,
             empirical_fpr,
+            se,
             passed,
         })
     }
@@ -180,9 +191,20 @@ mod tests {
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(8);
         let before = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap().evidence.links.len();
+        // The smooth series carry at least the two autocorrelation links (x→x, y→y at lag 1).
+        assert!(before >= 2, "structured series must keep links, got {before}");
         let check = FalsePositiveCheck::new(pcmci, NullTransform::ColumnPermute, 4);
         let report = check.run(&data, &vars, &mut ws, &ctx).unwrap();
-        assert!(report.mean_edge_count <= before as f64 + 1.0);
+        // Permuting each column destroys the structure: the surviving links are false positives
+        // at roughly alpha per candidate link (2 x 2 links at one lag), far below the structured
+        // graph's.
+        assert!(
+            report.mean_edge_count < before as f64,
+            "mean surrogate edges {} not below the structured {before}",
+            report.mean_edge_count
+        );
         assert_eq!(report.method, NullTransform::ColumnPermute);
+        // Candidate links: 2 variables squared at a single lag.
+        assert!((report.empirical_fpr - report.mean_edge_count / 4.0).abs() < 1e-15);
     }
 }

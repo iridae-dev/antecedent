@@ -134,8 +134,10 @@ impl TemporalPolicy {
 /// Opaque mechanism replacement used by soft interventions.
 ///
 /// The model layer resolves `family_id` against its registry; `parameters` are a
-/// packed coefficient / noise vector interpreted by that family.
-#[derive(Clone, Debug, PartialEq)]
+/// packed coefficient / noise vector interpreted by that family. Equality and
+/// hashing are by parameter bits, like [`Value`], so `Eq` and `Hash` agree and a
+/// NaN parameter equals itself.
+#[derive(Clone, Debug)]
 pub struct MechanismOverride {
     /// Registry family identifier (e.g. `"linear_gaussian"`, `"constant"`).
     pub family_id: Arc<str>,
@@ -181,7 +183,18 @@ impl MechanismOverride {
     }
 }
 
+impl PartialEq for MechanismOverride {
+    fn eq(&self, other: &Self) -> bool {
+        self.family_id == other.family_id && bits_eq(&self.parameters, &other.parameters)
+    }
+}
+
 impl Eq for MechanismOverride {}
+
+/// Elementwise bit equality: the relation `Hash` (over `to_bits`) is consistent with.
+fn bits_eq(left: &[f64], right: &[f64]) -> bool {
+    left.len() == right.len() && left.iter().zip(right).all(|(a, b)| a.to_bits() == b.to_bits())
+}
 
 impl core::hash::Hash for MechanismOverride {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
@@ -193,7 +206,11 @@ impl core::hash::Hash for MechanismOverride {
 }
 
 /// Stochastic assignment policy for an intervened variable.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Equality and hashing are by parameter bits, like [`Value`], so `Eq` and `Hash`
+/// agree; [`Self::validate`] rejects the NaN parameters that would make the
+/// bit relation differ from numeric equality.
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum StochasticPolicy {
     /// Bernoulli draw with success probability `p` in `[0, 1]`.
@@ -248,7 +265,12 @@ impl StochasticPolicy {
                     });
                 }
             }
-            Self::Gaussian { variance, .. } => {
+            Self::Gaussian { mean, variance } => {
+                if !mean.is_finite() {
+                    return Err(InterventionError::InvalidStochasticPolicy {
+                        message: "Gaussian mean must be finite",
+                    });
+                }
                 if !(variance.is_finite() && *variance > 0.0) {
                     return Err(InterventionError::InvalidStochasticPolicy {
                         message: "Gaussian variance must be finite and > 0",
@@ -275,6 +297,20 @@ impl StochasticPolicy {
             }
         }
         Ok(())
+    }
+}
+
+impl PartialEq for StochasticPolicy {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bernoulli { p: a }, Self::Bernoulli { p: b }) => a.to_bits() == b.to_bits(),
+            (
+                Self::Gaussian { mean: ma, variance: va },
+                Self::Gaussian { mean: mb, variance: vb },
+            ) => ma.to_bits() == mb.to_bits() && va.to_bits() == vb.to_bits(),
+            (Self::Categorical { probs: a }, Self::Categorical { probs: b }) => bits_eq(a, b),
+            _ => false,
+        }
     }
 }
 
@@ -460,7 +496,20 @@ impl Intervention {
     /// Invalid stochastic policy or empty sequence.
     pub fn validate(&self) -> Result<(), InterventionError> {
         match self {
-            Self::Set { .. } | Self::Shift { .. } | Self::Soft { .. } => Ok(()),
+            // The symbolic marker is a label, not a level; only a genuine
+            // non-finite float is a malformed assignment.
+            Self::Set { value: level, .. } | Self::Shift { delta: level, .. } => {
+                if matches!(level, Value::Float64(v) if !v.is_finite()) {
+                    return Err(InterventionError::NonFiniteLevel);
+                }
+                Ok(())
+            }
+            Self::Soft { mechanism, .. } => {
+                if mechanism.parameters.iter().any(|p| !p.is_finite()) {
+                    return Err(InterventionError::NonFiniteLevel);
+                }
+                Ok(())
+            }
             Self::Stochastic { policy, .. } => policy.validate(),
             Self::Sequence(seq) => {
                 if seq.is_empty() {
@@ -492,6 +541,9 @@ pub enum InterventionError {
         /// Context.
         message: &'static str,
     },
+    /// A hard level, shift, or soft-mechanism parameter is NaN or infinite.
+    #[error("intervention level must be finite")]
+    NonFiniteLevel,
     /// Sequence has no steps.
     #[error("intervention sequence is empty")]
     EmptySequence,
@@ -528,6 +580,56 @@ mod tests {
         ok.validate().unwrap();
         let bad = Intervention::stochastic(v, StochasticPolicy::bernoulli(1.5));
         assert!(bad.validate().is_err());
+    }
+
+    #[test]
+    fn non_finite_levels_fail_validation() {
+        let v = VariableId::from_raw(0);
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                Intervention::set(v, Value::f64(bad)).validate(),
+                Err(InterventionError::NonFiniteLevel)
+            );
+            assert_eq!(
+                Intervention::shift(v, Value::f64(bad)).validate(),
+                Err(InterventionError::NonFiniteLevel)
+            );
+            assert_eq!(
+                Intervention::soft(v, MechanismOverride::additive_shift(bad)).validate(),
+                Err(InterventionError::NonFiniteLevel)
+            );
+        }
+        assert!(
+            Intervention::stochastic(v, StochasticPolicy::gaussian(f64::NAN, 1.0))
+                .validate()
+                .is_err()
+        );
+        // The symbolic marker is not a numeric level and stays valid.
+        assert!(Intervention::set(v, Value::symbolic_intervention()).validate().is_ok());
+        assert!(Intervention::set(v, Value::f64(-0.0)).validate().is_ok());
+    }
+
+    #[test]
+    fn policy_eq_and_hash_agree_on_signed_zero_and_nan() {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let hash = |x: &dyn Fn(&mut DefaultHasher)| {
+            let mut h = DefaultHasher::new();
+            x(&mut h);
+            h.finish()
+        };
+        let pos = StochasticPolicy::gaussian(0.0, 1.0);
+        let neg = StochasticPolicy::gaussian(-0.0, 1.0);
+        // Whatever Eq decides, Hash must decide the same way.
+        assert_eq!(pos == neg, hash(&|h| pos.hash(h)) == hash(&|h| neg.hash(h)));
+        let nan = StochasticPolicy::bernoulli(f64::NAN);
+        assert_eq!(nan, nan.clone());
+        assert_eq!(hash(&|h| nan.hash(h)), hash(&|h| nan.clone().hash(h)));
+        let soft = MechanismOverride::additive_shift(-0.0);
+        let soft_pos = MechanismOverride::additive_shift(0.0);
+        assert_eq!(soft == soft_pos, hash(&|h| soft.hash(h)) == hash(&|h| soft_pos.hash(h)));
+        let nan_soft = MechanismOverride::additive_shift(f64::NAN);
+        assert_eq!(nan_soft, nan_soft.clone());
     }
 
     #[test]

@@ -5,10 +5,11 @@
 
 use antecedent::gcm::{fit_gcm, sample_do};
 use antecedent::prelude::*;
-use antecedent_core::{Intervention, Value};
+use antecedent_core::{Intervention, StreamDomain, Value};
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+#[allow(clippy::cast_precision_loss)]
+pub fn run() -> Result<(), CausalError> {
     let n = 120usize;
     let z: Vec<f64> = (0..n).map(|i| (i as f64) * 0.01).collect();
     let t: Vec<f64> = z.iter().map(|&zi| if zi > 0.5 { 1.0 } else { 0.0 }).collect();
@@ -29,7 +30,7 @@ fn main() -> Result<(), CausalError> {
     let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")])?;
     let fitted = fit_gcm(dag, &data)?;
     let ctx = ExecutionContext::for_tests(1);
-    let mut rng = ctx.rng.stream(1);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 1);
     let draws = sample_do(
         &fitted.model,
         &[Intervention::set(schema.id_of("t")?, Value::f64(1.0))],
@@ -38,5 +39,10 @@ fn main() -> Result<(), CausalError> {
         &ctx,
     )?;
     println!("do(t=1) sample rows = {}", draws.n_rows);
+    assert_eq!(draws.n_rows, 50, "one row per requested interventional draw");
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

@@ -2,19 +2,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::type_complexity
+#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::type_complexity)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{
     DenseNodeId, Endpoint, MiddleMark, NodeRef, TemporalPag, TemporalPagReview,
@@ -28,7 +29,7 @@ use crate::orientation::OrientationState;
 use crate::pipeline::{algorithm_record, push_diagnostic};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, LaggedParent,
-    PagDiscoveryResult, PcSepsets, ScoredLink, SepsetKey,
+    PagDiscoveryResult, PcSepsets, ScoredLink, SepsetKey, discovery_assumptions,
 };
 use crate::rule_scheduling::{default_lpcmci_rules, prelim_lpcmci_rules, run_lpcmci_orientation};
 use crate::weakly_minimal::{make_sepset_weakly_minimal, store_weakly_minimal_sepset};
@@ -253,9 +254,11 @@ fn homologous_pairs(
             continue;
         }
         let _ = lag_diff;
-        if let (Some(&a), Some(&b)) =
-            (idx.get(&(x.raw(), xl as u32)), idx.get(&(y.raw(), yl as u32)))
-        {
+        // Both lags were just checked to lie in `0..=max_lag`.
+        let (Ok(xl), Ok(yl)) = (u32::try_from(xl), u32::try_from(yl)) else {
+            continue;
+        };
+        if let (Some(&a), Some(&b)) = (idx.get(&(x.raw(), xl)), idx.get(&(y.raw(), yl))) {
             out.push((a, b));
         }
     }
@@ -328,7 +331,7 @@ fn restore_contemporaneous_marks(
 fn force_ambiguous_middles_to_both(pag: &mut TemporalPag) {
     let n = pag.node_count();
     for a_raw in 0..n {
-        let a = DenseNodeId::from_raw(a_raw as u32);
+        let a = DenseNodeId::from_raw(crate::indexing::dense_u32(a_raw));
         let nbrs: Vec<_> = pag.neighbors(a).map(|(x, _, _)| x).collect();
         for b in nbrs {
             if a.raw() > b.raw() {
@@ -882,12 +885,46 @@ pub fn run_lpcmci_algorithm(
     fdr: Option<FdrAdjustment>,
     n_preliminary: u32,
 ) -> Result<PagDiscoveryResult, DiscoveryError> {
+    let frame = LaggedFrame::from_series(data, variables, engine.frame_depth(), &ctx.kernel_policy)
+        .map_err(DiscoveryError::from)?;
+    run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
+}
+
+/// [`run_lpcmci_algorithm`] over the units of a panel: each unit's lag windows are built inside
+/// that unit and the rows are pooled ([`LaggedFrame::from_panel`]).
+pub fn run_lpcmci_panel(
+    engine: &PcmciEngine,
+    units: &[TimeSeriesData],
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    fdr: Option<FdrAdjustment>,
+    n_preliminary: u32,
+) -> Result<PagDiscoveryResult, DiscoveryError> {
+    let frame = LaggedFrame::from_panel(units, variables, engine.frame_depth(), &ctx.kernel_policy)
+        .map_err(DiscoveryError::from)?;
+    run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
+}
+
+fn run_lpcmci_on_frame(
+    engine: &PcmciEngine,
+    frame: &LaggedFrame,
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    fdr: Option<FdrAdjustment>,
+    n_preliminary: u32,
+) -> Result<PagDiscoveryResult, DiscoveryError> {
     let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
-    let frame_depth = 2 * max_lag;
-    let frame = LaggedFrame::from_series(data, variables, frame_depth, &ctx.kernel_policy)
-        .map_err(DiscoveryError::from)?;
+    crate::ci::ensure_ci_decisions_meaningful(
+        &*engine.ci,
+        engine.constraints.significance,
+        alpha,
+        fdr.is_some(),
+    )?;
+    crate::ci::ensure_ci_fits_frame(&*engine.ci, frame)?;
     workspace.prepared_ci = None;
 
     let mut sepsets = PcSepsets::default();
@@ -903,7 +940,7 @@ pub fn run_lpcmci_algorithm(
         apply_remembered_parents(&mut pag, &idx, &parents_mem);
         let t = ancestral_removal_phase(
             engine,
-            &frame,
+            frame,
             &mut pag,
             &idx,
             variables,
@@ -928,7 +965,7 @@ pub fn run_lpcmci_algorithm(
     apply_remembered_parents(&mut pag, &idx, &parents_mem);
     let t = ancestral_removal_phase(
         engine,
-        &frame,
+        frame,
         &mut pag,
         &idx,
         variables,
@@ -944,7 +981,7 @@ pub fn run_lpcmci_algorithm(
 
     let t = non_ancestral_removal_phase(
         engine,
-        &frame,
+        frame,
         &mut pag,
         &idx,
         variables,
@@ -988,6 +1025,17 @@ pub fn run_lpcmci_algorithm(
             review.pending_circles.len(),
         ),
     );
+    if !state.discriminating_skipped.is_empty() {
+        push_diagnostic(
+            &mut diagnostics,
+            "lpcmci.discriminating_path_budget",
+            format!(
+                "discriminating-path search exhausted its budget on {} edge(s); their circle \
+                 marks were left unresolved (sound, possibly incomplete)",
+                state.discriminating_skipped.len()
+            ),
+        );
+    }
     if state.conflicts > 0 || delta.conflicts > 0 {
         push_diagnostic(
             &mut diagnostics,
@@ -1000,7 +1048,7 @@ pub fn run_lpcmci_algorithm(
         evidence,
         review,
         algorithm,
-        assumptions: AssumptionSet::new(),
+        assumptions: discovery_assumptions("lpcmci", false),
         iterations,
         diagnostics,
         performance: DiscoveryPerformanceRecord {

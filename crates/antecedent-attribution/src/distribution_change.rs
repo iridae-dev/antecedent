@@ -16,11 +16,13 @@ use antecedent_data::TabularData;
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
-    MechanismWorkspace, SelectionPolicy, sample_observational_into,
+    MechanismWorkspace, SelectionPolicy,
 };
-use antecedent_stats::mean_var;
 
-use crate::change_common::{ChangeOptions, run_change_allocation, total_change};
+use crate::change_common::{
+    ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation, sample_outcome_law, stream_tag,
+    total_change,
+};
 use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
 use crate::prep::{require_mechanism_or_joint, resolve_change_populations, resolve_outcome_dense};
@@ -63,6 +65,21 @@ pub fn distribution_change(
     options: &DistributionChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    validate_distribution_change_query(query)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    distribution_change_on_populations(
+        graph_model,
+        &baseline_data,
+        &comparison_data,
+        query,
+        options,
+        ctx,
+    )
+}
+
+fn validate_distribution_change_query(
+    query: &ChangeAttributionQuery,
+) -> Result<(), AttributionError> {
     query.validate()?;
     require_mechanism_or_joint(query.components)?;
     if matches!(query.components, AttributionComponents::All) {
@@ -71,17 +88,131 @@ pub fn distribution_change(
              for Structure, or InputsAndMechanisms for joint input+mechanism change",
         ));
     }
+    Ok(())
+}
 
+/// [`distribution_change`] plus the uncertainty from fitting the mechanisms on finite
+/// populations: `replicates` row bootstraps of the two populations (each refits every mechanism
+/// and recomputes the attribution with the same Shapley sampling seed), summarised as
+/// percentile intervals at `level` in [`ChangeAttributionResult::fit_uncertainty`].
+///
+/// The point attribution is the ordinary one on the original populations. Replicates whose
+/// refit fails are counted; when any fails the intervals are withheld rather than computed
+/// from the survivors.
+///
+/// # Errors
+///
+/// As [`distribution_change`]; fewer than 2 replicates or a level outside `(0, 1)`;
+/// [`AttributionError::Cancelled`] when the context is cancelled.
+pub fn distribution_change_with_fit_uncertainty(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    replicates: u32,
+    level: f64,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    use antecedent_core::StreamDomain;
+    use antecedent_data::TableView;
+
+    use crate::population::subset_table;
+    use crate::result::FitUncertainty;
+
+    if replicates < 2 || !(level > 0.0 && level < 1.0) {
+        return Err(AttributionError::invalid_input(
+            "fit-uncertainty bootstrap needs >= 2 replicates and a level in (0, 1)",
+        ));
+    }
+    validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
-
-    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+    let mut point = distribution_change_on_populations(
         graph_model,
         &baseline_data,
+        &comparison_data,
+        query,
+        options,
+        ctx,
+    )?;
+    let n_components = point.contributions.len();
+
+    let resample = |source: &TabularData, rng: &mut antecedent_core::CausalRng| {
+        let n = source.row_count();
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "next_f64() is in [0, 1), so the scaled draw is a non-negative index below n"
+        )]
+        let rows: Vec<usize> =
+            (0..n).map(|_| ((rng.next_f64() * n as f64) as usize).min(n - 1)).collect();
+        subset_table(source, &rows)
+    };
+    let outcomes = ctx.map_indexed(replicates as usize, |b, worker| {
+        if worker.cancellation.is_cancelled() {
+            return Err(AttributionError::Cancelled);
+        }
+        let mut rng = worker.rng.stream_for(StreamDomain::Attribution, 0xB007_5712 ^ b as u64);
+        let refit = resample(&baseline_data, &mut rng).and_then(|base| {
+            let cmp = resample(&comparison_data, &mut rng)?;
+            distribution_change_on_populations(graph_model, &base, &cmp, query, options, worker)
+        });
+        match refit {
+            Ok(result) if result.contributions.len() == n_components => Ok(Some((
+                result.total_change,
+                result.contributions.iter().map(|c| c.contribution).collect::<Vec<_>>(),
+            ))),
+            Err(AttributionError::Cancelled) => Err(AttributionError::Cancelled),
+            _ => Ok(None),
+        }
+    })?;
+    let failures = outcomes.iter().filter(|o| o.is_none()).count();
+    let (lower, upper, total_interval) = if failures == 0 {
+        let tail = 0.5 * (1.0 - level);
+        let interval = |mut values: Vec<f64>| {
+            values.sort_by(f64::total_cmp);
+            (
+                antecedent_kernels::quantile_type7_sorted(&values, tail),
+                antecedent_kernels::quantile_type7_sorted(&values, 1.0 - tail),
+            )
+        };
+        let draws: Vec<&(f64, Vec<f64>)> = outcomes.iter().flatten().collect();
+        let per_component: Vec<(f64, f64)> =
+            (0..n_components).map(|j| interval(draws.iter().map(|d| d.1[j]).collect())).collect();
+        (
+            Some(per_component.iter().map(|p| p.0).collect::<Arc<[f64]>>()),
+            Some(per_component.iter().map(|p| p.1).collect::<Arc<[f64]>>()),
+            Some(interval(draws.iter().map(|d| d.0).collect())),
+        )
+    } else {
+        (None, None, None)
+    };
+    point.fit_uncertainty = Some(FitUncertainty {
+        replicates,
+        failures: u32::try_from(failures).unwrap_or(u32::MAX),
+        level,
+        lower,
+        upper,
+        total_interval,
+    });
+    Ok(point)
+}
+
+fn distribution_change_on_populations(
+    graph_model: &CompiledCausalModel,
+    baseline_data: &TabularData,
+    comparison_data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    let (baseline_mechs, _) = MechanismRegistry::standard().assign_and_fit(
+        graph_model,
+        baseline_data,
         SelectionPolicy::BestScore,
     )?;
     let (comparison_mechs, _) = MechanismRegistry::standard().assign_and_fit(
         graph_model,
-        &comparison_data,
+        comparison_data,
         SelectionPolicy::BestScore,
     )?;
 
@@ -102,17 +233,18 @@ pub fn distribution_change(
     // O(n_nodes) `dense_of` scan per player per coalition).
     let player_dense: Vec<Option<DenseNodeId>> =
         players.iter().map(|c| graph_model.dense_of(c.variable())).collect();
-    // Persistent slot scratch: starts at the all-baseline (mask 0) store and is
-    // patched incrementally between masks.
-    let slot_scratch: Vec<MechanismSlot> = baseline_mechs.slots.to_vec();
+    // The hybrid model is built once at the all-baseline (mask 0) store and its slot array
+    // is patched in place between masks; nothing is cloned per coalition.
+    let hybrid = graph_model
+        .clone()
+        .with_mechanisms(CompiledMechanismStore { slots: Arc::clone(&baseline_mechs.slots) });
 
     let mut payoff = MechanismSwapPayoff {
-        template: graph_model.clone(),
+        hybrid,
         baseline: baseline_mechs,
         comparison: comparison_mechs,
         player_kinds,
         player_dense,
-        slot_scratch,
         scratch_mask: 0,
         outcome: outcome_dense,
         measure: options.measure,
@@ -254,16 +386,15 @@ pub(crate) fn joint_players(
 }
 
 struct MechanismSwapPayoff<'a> {
-    template: CompiledCausalModel,
+    /// Hybrid model whose slots reflect `scratch_mask`: baseline slots everywhere except
+    /// comparison slots for set mechanism-player bits.
+    hybrid: CompiledCausalModel,
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
     player_kinds: Vec<PlayerKind>,
     /// Dense node per player, hoisted at construction.
     player_dense: Vec<Option<DenseNodeId>>,
-    /// Persistent hybrid-slot scratch reflecting `scratch_mask`: baseline slots
-    /// everywhere except comparison slots for set mechanism-player bits.
-    slot_scratch: Vec<MechanismSlot>,
-    /// Mask currently applied to `slot_scratch`.
+    /// Mask currently applied to `hybrid`.
     scratch_mask: u64,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
@@ -315,45 +446,43 @@ impl MechanismSwapPayoff<'_> {
     /// mean — a variance shift, a shape change — produced identical coalition values and was
     /// attributed exactly zero.
     fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
-        // Patch the persistent slot scratch incrementally: only bits that changed
-        // since the previous mask are touched (restore to baseline on clear, swap
-        // in the comparison slot on set). `Input`-kind players never swap slots,
-        // exactly as before; the resulting store is value-identical to rebuilding
-        // the full hybrid from baseline for every coalition.
+        // Patch the hybrid's slot array incrementally: only bits that changed since the
+        // previous mask are touched (restore to baseline on clear, swap in the comparison
+        // slot on set). `Input`-kind players never swap slots; the resulting store is
+        // value-identical to rebuilding the full hybrid from baseline for every coalition.
         let diff = mask ^ self.scratch_mask;
-        for (i, dense) in self.player_dense.iter().enumerate() {
-            if diff & (1u64 << i) == 0 || matches!(self.player_kinds[i], PlayerKind::Input) {
-                continue;
+        if diff != 0 {
+            let slots = unique_slots(&mut self.hybrid.mechanisms.slots);
+            for (i, dense) in self.player_dense.iter().enumerate() {
+                if diff & (1u64 << i) == 0 || matches!(self.player_kinds[i], PlayerKind::Input) {
+                    continue;
+                }
+                let Some(d) = dense else { continue };
+                let idx = d.as_usize();
+                let src = if mask & (1u64 << i) != 0 { &self.comparison } else { &self.baseline };
+                slots[idx] = src.slots[idx].clone();
             }
-            let Some(d) = dense else { continue };
-            let idx = d.as_usize();
-            let src = if mask & (1u64 << i) != 0 { &self.comparison } else { &self.baseline };
-            self.slot_scratch[idx] = src.slots[idx].clone();
+            self.scratch_mask = mask;
         }
-        self.scratch_mask = mask;
-        let store = CompiledMechanismStore { slots: self.slot_scratch.iter().cloned().collect() };
-
-        let model = self.template.clone().with_mechanisms(store);
-        let mut rng = self.ctx.rng.stream(0xDC01_u64.wrapping_add(self.seed));
-        let n_rows = self.n_samples.max(1);
-        let n_nodes = model.n_nodes();
-        let need = n_rows.saturating_mul(n_nodes);
-        if self.values_buf.len() < need {
-            self.values_buf.resize(need, 0.0);
-        }
-        sample_observational_into(
-            &model,
-            n_rows,
-            &mut rng,
-            &mut self.ws,
-            &mut self.values_buf[..need],
+        sample_outcome_law(
+            &self.hybrid,
+            self.outcome,
+            self.n_samples,
+            stream_tag(DISTRIBUTION_STREAM, self.seed),
             self.ctx,
-        )?;
-        let start = self.outcome.as_usize() * n_rows;
-        let col = &self.values_buf[start..start + n_rows];
-        let (mu, var) = mean_var(col);
-        Ok((mu, var.max(1e-12)))
+            &mut self.ws,
+            &mut self.values_buf,
+        )
     }
+}
+
+/// Mutable view of a slot array this payoff owns exclusively (the hybrid model is never
+/// shared); falls back to a private copy if it ever is.
+fn unique_slots(slots: &mut Arc<[MechanismSlot]>) -> &mut [MechanismSlot] {
+    if Arc::get_mut(slots).is_none() {
+        *slots = Arc::from(slots.to_vec());
+    }
+    Arc::get_mut(slots).expect("slot array is uniquely owned")
 }
 
 #[cfg(test)]
@@ -362,7 +491,7 @@ mod tests {
     use crate::change_common::measure_value;
     use antecedent_core::{
         AllocationMethod, AttributionComponents, CachePolicy, CausalSchemaBuilder, MeasurementSpec,
-        PopulationSelector, RoleHint, ShapleyConfig, SmallRoleSet, ToleranceClass, ValueType,
+        PopulationSelector, RoleHint, ShapleyConfig, SmallRoleSet, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
@@ -420,6 +549,134 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let model = CompiledCausalModel::compile(g).unwrap();
         (model, data)
+    }
+
+    /// [`two_period_chain`] with Y perturbed by a small deterministic per-row residual.
+    ///
+    /// `two_period_chain`'s `Y = a + 2X` is exactly noiseless, so every row bootstrap of it
+    /// refits the identical OLS line regardless of which rows are repeated: a fit-uncertainty
+    /// interval over such resamples is a point, not because refitting doesn't work, but because
+    /// there is no sampling variation in a deterministic fixture to reveal. Adding a residual
+    /// gives different bootstrap draws different multisets of residuals and hence different
+    /// fitted intercepts.
+    fn two_period_chain_with_noise() -> (CompiledCausalModel, TabularData) {
+        let n = 80usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let mut xv = Vec::with_capacity(n);
+        let mut yv = Vec::with_capacity(n);
+        for i in 0..n {
+            let x = (i % 40) as f64 * 0.1;
+            xv.push(x);
+            let base = if i < 40 { 1.0 + 2.0 * x } else { 6.0 + 2.0 * x };
+            // Deterministic pseudo-noise (no RNG dependency): a few incommensurate frequencies
+            // summed so no small subset of rows shares a residual. Real enough that a row
+            // bootstrap's different multiset of residuals refits a genuinely different line.
+            let t = i as f64;
+            let noise =
+                0.15 * (t * 0.913_1).sin() + 0.1 * (t * 2.071_3).sin() + 0.05 * (t * 5.311_7).sin();
+            yv.push(base + noise);
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let model = CompiledCausalModel::compile(g).unwrap();
+        (model, data)
+    }
+
+    /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
+    /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
+    /// resampled 40-row populations moves the contributions.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[test]
+    fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution() {
+        let (model, data) = two_period_chain_with_noise();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 400,
+            seed: 3,
+        };
+        let serial = ExecutionContext::for_tests(1);
+        let plain = distribution_change(&model, &data, &query, &opts, &serial).unwrap();
+        assert!(plain.fit_uncertainty.is_none());
+        assert!(plain.contributions.iter().all(|c| c.stderr.is_none()));
+
+        let with_fit = distribution_change_with_fit_uncertainty(
+            &model, &data, &query, &opts, 40, 0.9, &serial,
+        )
+        .unwrap();
+        // The point attribution is the ordinary one.
+        assert_eq!(with_fit.total_change, plain.total_change);
+        assert_eq!(with_fit.contributions.len(), plain.contributions.len());
+        let fit = with_fit.fit_uncertainty.as_ref().unwrap();
+        assert_eq!((fit.replicates, fit.failures), (40, 0));
+        assert!((fit.level - 0.9).abs() < 1e-15);
+        let (lower, upper) = (fit.lower.as_ref().unwrap(), fit.upper.as_ref().unwrap());
+        assert_eq!((lower.len(), upper.len()), (with_fit.contributions.len(), lower.len()));
+        for j in 0..lower.len() {
+            assert!(lower[j] <= upper[j]);
+        }
+        // Refitting on resamples moves the y contribution: a genuine interval, not a point.
+        let y_idx = with_fit
+            .contributions
+            .iter()
+            .position(|c| c.component.variable() == VariableId::from_raw(1))
+            .unwrap();
+        assert!(upper[y_idx] - lower[y_idx] > 1e-6);
+        let (t_lo, t_hi) = fit.total_interval.unwrap();
+        assert!(t_lo <= with_fit.total_change && with_fit.total_change <= t_hi);
+
+        // Independent of the thread budget.
+        let threaded = ExecutionContext::production(1, 4);
+        let again = distribution_change_with_fit_uncertainty(
+            &model, &data, &query, &opts, 40, 0.9, &threaded,
+        )
+        .unwrap();
+        assert_eq!(again.fit_uncertainty, with_fit.fit_uncertainty);
+
+        for (replicates, level) in [(1, 0.9), (10, 0.0), (10, 1.0)] {
+            assert!(
+                distribution_change_with_fit_uncertainty(
+                    &model, &data, &query, &opts, replicates, level, &serial
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
@@ -483,11 +740,11 @@ mod tests {
             x_contrib,
             result.contributions
         );
-        // Exact Shapley efficiency: Σφ = total_change (payoff uses CRN across coalitions).
+        // Exact Shapley efficiency is an algebraic identity of the cached telescoping sum
+        // (every coalition value is deterministic under CRN), so no Monte Carlo slack.
         let phi_sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
         assert!(
-            (phi_sum - result.total_change).abs() < 1e-6
-                || ToleranceClass::MonteCarlo.close(phi_sum, result.total_change),
+            (phi_sum - result.total_change).abs() < 1e-9,
             "efficiency: Σφ={phi_sum} total={}",
             result.total_change
         );
@@ -512,8 +769,7 @@ mod tests {
         let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
         let phi_sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
         assert!(
-            (phi_sum - result.total_change).abs() < 1e-6
-                || ToleranceClass::MonteCarlo.close(phi_sum, result.total_change),
+            (phi_sum - result.total_change).abs() < 1e-9,
             "Σφ={phi_sum} total_change={}",
             result.total_change
         );
@@ -598,8 +854,18 @@ mod tests {
             seed: 5,
         };
         let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
-        assert!(result.total_change.is_finite());
-        assert!(!result.contributions.is_empty());
+        // Truth by construction: Y's intercept moves by exactly +5 while X's law is the same
+        // 40 values in both periods, so the whole +5 is Y's mechanism and X contributes 0.
+        assert!((result.total_change - 5.0).abs() < 1e-3, "total={}", result.total_change);
+        let phi = |raw: u32| {
+            result
+                .contributions
+                .iter()
+                .find(|c| c.component.variable() == VariableId::from_raw(raw))
+                .map_or(0.0, |c| c.contribution)
+        };
+        assert!((phi(1) - 5.0).abs() < 1e-3, "y={}", phi(1));
+        assert!(phi(0).abs() < 1e-3, "x={}", phi(0));
     }
 
     #[test]
@@ -623,6 +889,70 @@ mod tests {
         };
         let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
         assert!(!result.path_breakdown.is_empty(), "path_breakdown should be populated");
-        assert!(result.total_change.is_finite());
+        // Truth by construction: the +5 intercept shift on Y is the whole change.
+        assert!((result.total_change - 5.0).abs() < 1e-3, "total={}", result.total_change);
+        // The breakdown only apportions each player's share across its paths: it must sum
+        // to the players' total.
+        let by_path: f64 = result.path_breakdown.iter().map(|p| p.contribution).sum();
+        assert!((by_path - result.contribution_sum()).abs() < 1e-9, "paths={by_path}");
+    }
+
+    /// Adversarial fixture: X's law is identical between populations (same 40
+    /// values repeated); only Y's intercept moves by +5. The true change
+    /// decomposition is X = 0, Y = `total_change` — X's mechanism never moved, so
+    /// swapping it between baseline and comparison cannot move the outcome law.
+    /// `PathBased` must not attribute a share of the change to X merely because
+    /// X→Y has a nonzero path coefficient in the (pooled) model used for
+    /// structure.
+    #[test]
+    fn path_based_attributes_only_the_mechanism_that_changed() {
+        let (model, data) = two_period_chain();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::PathBased);
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = DistributionChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 400,
+            seed: 7,
+        };
+        let result = distribution_change(&model, &data, &query, &opts, &ctx).unwrap();
+        let x_contrib = result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(0))
+            .map_or(0.0, |c| c.contribution);
+        let y_contrib = result
+            .contributions
+            .iter()
+            .find(|c| c.component.variable() == VariableId::from_raw(1))
+            .expect("y component")
+            .contribution;
+        assert!(
+            x_contrib.abs() < 0.25,
+            "X's mechanism did not change; expected ~0, got x={x_contrib} y={y_contrib} \
+             total={}",
+            result.total_change
+        );
+        assert!(
+            (y_contrib - result.total_change).abs() < 0.25,
+            "all of the change is Y's; expected y≈total, got x={x_contrib} y={y_contrib} \
+             total={}",
+            result.total_change
+        );
+        // Efficiency: shares still sum exactly to the measured total change.
+        let sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        assert!(
+            (sum - result.total_change).abs() < 1e-6,
+            "sum={sum} total={}",
+            result.total_change
+        );
     }
 }

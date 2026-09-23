@@ -27,10 +27,6 @@ def test_verdict_table_is_exhaustive():
     assert set(VERDICTS) == set(identification_status_names())
 
 
-def test_verdicts_cover_native_status_names():
-    test_verdict_table_is_exhaustive()
-
-
 def test_statement_lines_nonempty_when_assumptions_exist():
     identification = ant.identify(
         graph=[("z", "t"), ("z", "y"), ("t", "y")],

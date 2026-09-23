@@ -4,7 +4,7 @@
 //! The facade publishes every interval at 0.95 unless the caller asks for
 //! another level ([`REPORTED_LEVEL`]; `IntervalBinding::level`,
 //! `ContinuousResponseOptions::confidence_level`, the posterior `q025`/`q975`
-//! summaries). The v1.9 gate measures at 0.90 ([`GATE_LEVEL`]). The 1.10
+//! summaries). The `v19` gate measures at 0.90 ([`GATE_LEVEL`]). The `v110`
 //! coverage tests score both levels from the same replicates:
 //!
 //! * a normal interval `est ± z·se` is re-formed at 0.90 from the reported SE
@@ -12,8 +12,10 @@
 //!   0.90 interval is the facade's own construction);
 //! * a posterior-quantile interval is re-formed from the effect draws with the
 //!   summaries' rounding rule (checked against `q025` / `q975` at 0.95);
-//! * a response interval whose quantile rule is internal to the estimator is
-//!   re-run at `confidence_level = 0.90` on the same data and seed.
+//! * a Bayesian response's credible interval or band is re-formed at 0.90
+//!   from the draws the estimator retains on it (`CredibleDraws`) under the
+//!   estimator's own exchangeable-rank rule (checked to reproduce the
+//!   published endpoints at 0.95 exactly), so one execution scores both levels.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -22,7 +24,7 @@
 use antecedent::StudyResult;
 use antecedent_core::ResponseUncertainty;
 
-use super::calibration::{Z90, normal_interval, quantile_interval};
+use super::calibration::{Z90, normal_interval};
 
 /// Level every facade interval is published at by default.
 ///
@@ -87,6 +89,9 @@ pub fn scalar_reported_se(result: &StudyResult) -> (f64, &'static str) {
     }
 }
 
+/// `[reported, gate]` intervals of one coordinate.
+pub type IntervalPair = [Option<(f64, f64)>; 2];
+
 /// Reported (0.95) and gate-level (0.90) normal intervals of a scalar result.
 #[must_use]
 pub fn scalar_normal_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
@@ -95,6 +100,31 @@ pub fn scalar_normal_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
         normal_at(result.estimate.ate, se, REPORTED_LEVEL),
         normal_at(result.estimate.ate, se, GATE_LEVEL),
     ]
+}
+
+/// Equal-tailed interval of `draws` at `level` under the type-7 interpolated
+/// rule [`antecedent_prob::PosteriorDraws::summarize`] publishes posterior
+/// `q025`/`q975` summaries with (fixed at `(0.025, 0.975)`, i.e. 0.95;
+/// `crates/antecedent-prob/src/posterior.rs`, `quantile_type7_sorted`).
+///
+/// This is the one place in this suite the posterior credible interval is
+/// re-derived from draws, so it uses the same rule and kernel as the
+/// producer (`antecedent_stats::equal_tail_interval_sorted` with
+/// `QuantileRule::Interpolated`) rather than [`quantile_interval`]'s simpler
+/// nearest-rank rule, which [`posterior_pair`]'s own reproduction check
+/// showed no longer matches it bit-for-bit.
+#[must_use]
+fn published_quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
+    let mut sorted: Vec<f64> = draws.iter().copied().filter(|v| v.is_finite()).collect();
+    if sorted.len() < 2 {
+        return None;
+    }
+    sorted.sort_by(f64::total_cmp);
+    Some(antecedent_stats::equal_tail_interval_sorted(
+        &sorted,
+        level,
+        antecedent_stats::QuantileRule::Interpolated,
+    ))
 }
 
 /// Reported posterior interval of column `col` (`q025`, `q975`) and the same
@@ -113,24 +143,24 @@ pub fn posterior_pair(result: &StudyResult, col: usize) -> [Option<(f64, f64)>; 
     let Ok(draws) = posterior.draws.column(col) else {
         return [Some(reported), None];
     };
-    let rebuilt = quantile_interval(draws, REPORTED_LEVEL);
+    let rebuilt = published_quantile_interval(draws, REPORTED_LEVEL);
     if let Some((lo, hi)) = rebuilt {
         assert!(
-            (lo - reported.0).abs() <= 1e-12 * lo.abs().max(1.0)
-                && (hi - reported.1).abs() <= 1e-12 * hi.abs().max(1.0),
+            (lo - reported.0).abs() <= 1e-9 * lo.abs().max(1.0)
+                && (hi - reported.1).abs() <= 1e-9 * hi.abs().max(1.0),
             "posterior summaries [{}, {}] are not the equal-tailed draw quantiles [{lo}, {hi}]",
             reported.0,
             reported.1
         );
     }
-    [Some(reported), quantile_interval(draws, GATE_LEVEL)]
+    [Some(reported), published_quantile_interval(draws, GATE_LEVEL)]
 }
 
 /// Scalar response interval `(lower, upper)` with its level and SE.
 #[must_use]
 pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
     match result.response.as_ref()?.uncertainty {
-        ResponseUncertainty::Scalar { standard_error, level, lower, upper } => {
+        ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } => {
             Some((lower, upper, level, standard_error))
         }
         _ => None,
@@ -141,11 +171,82 @@ pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
 #[must_use]
 pub fn response_band(result: &StudyResult) -> Option<(Vec<f64>, Vec<f64>, f64)> {
     match &result.response.as_ref()?.uncertainty {
-        ResponseUncertainty::PointwiseBand { level, lower, upper } => {
+        ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
             Some((lower.to_vec(), upper.to_vec(), *level))
         }
         _ => None,
     }
+}
+
+/// Equal-tailed interval of a Bayesian response's retained `draws` at `level`
+/// under the rule the response estimator publishes with: exchangeable-rank
+/// (Hyndman–Fan type 6) quantiles of the `total_cmp`-sorted draws
+/// (`antecedent-estimate`, `summarize_scalar_draws` and
+/// `summarize_linear_response_draws`, both
+/// `antecedent_stats::equal_tail_interval_sorted(.., QuantileRule::ExchangeableRank)`).
+///
+/// Not [`published_quantile_interval`]: the posterior `q025`/`q975` summaries
+/// are type-7 interpolated and a response interval is not, and neither rule
+/// is silently substituted for the other.
+#[must_use]
+fn response_quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
+    if draws.len() < 2 || draws.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+    let mut sorted = draws.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    Some(antecedent_stats::equal_tail_interval_sorted(
+        &sorted,
+        level,
+        antecedent_stats::QuantileRule::ExchangeableRank,
+    ))
+}
+
+/// Reported and gate-level intervals of every coordinate of a Bayesian
+/// response's credible scalar interval or pointwise band, the gate level
+/// re-summarized from the draws the estimator retained on the uncertainty.
+///
+/// `None` when the result carries neither a scalar interval nor a pointwise
+/// band; otherwise one `[reported, gate]` pair per coordinate.
+///
+/// # Panics
+///
+/// When the published level is not [`REPORTED_LEVEL`], when a credible
+/// interval retained no draws (the 0.90 interval could then not be the
+/// estimator's construction), or when re-summarizing the retained draws at
+/// [`REPORTED_LEVEL`] does not reproduce the published endpoints *exactly*:
+/// the retained vector must be the one the endpoints were taken from.
+#[must_use]
+pub fn response_posterior_pairs(result: &StudyResult) -> Option<Vec<IntervalPair>> {
+    let uncertainty = &result.response.as_ref()?.uncertainty;
+    let (level, published): (f64, Vec<(f64, f64)>) = match uncertainty {
+        ResponseUncertainty::Scalar { level, lower, upper, .. } => (*level, vec![(*lower, *upper)]),
+        ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
+            (*level, lower.iter().copied().zip(upper.iter().copied()).collect())
+        }
+        _ => return None,
+    };
+    assert!((level - REPORTED_LEVEL).abs() < 1e-12, "published level {level}");
+    let draws = uncertainty
+        .credible_draws()
+        .expect("a Bayesian response's credible interval retains the draws it was taken from");
+    assert_eq!(draws.n_coordinates(), published.len(), "one draw column per coordinate");
+    Some(
+        published
+            .into_iter()
+            .enumerate()
+            .map(|(j, (lo, hi))| {
+                let column = draws.column(j).expect("coordinate in range");
+                let rebuilt = response_quantile_interval(column, REPORTED_LEVEL);
+                assert!(
+                    rebuilt == Some((lo, hi)),
+                    "coordinate {j}: the published interval [{lo}, {hi}] is not the \
+                     exchangeable-rank quantiles {rebuilt:?} of the retained draws"
+                );
+                [Some((lo, hi)), response_quantile_interval(column, GATE_LEVEL)]
+            })
+            .collect(),
+    )
 }
 
 /// Reported and gate-level intervals of a Frequentist scalar response whose
@@ -188,20 +289,24 @@ pub fn skip_pair(tallies: &mut [super::calibration::CoverageTally; 2]) {
 }
 
 /// Gate every tally, printing every line before failing on any of them.
-/// `measured[i] = Some(m)` asserts tally `i` as a named boundary cell against
-/// its measured coverage `m`; `None` asserts it at nominal.
+/// `measured[i] = Some([m0, m1, m2])` asserts tally `i` as a named boundary cell
+/// against its measured coverage at each sample-size grid point; `None` asserts it
+/// at nominal.
 ///
 /// # Panics
 ///
 /// When any tally fails its gate.
-pub fn gate(tallies: &[super::calibration::CoverageTally], measured: &[Option<f64>]) {
+pub fn gate(
+    tallies: &[super::calibration::CoverageTally],
+    measured: &[Option<[f64; super::calibration::GRID_POINTS]>],
+) {
     assert_eq!(tallies.len(), measured.len(), "one gate entry per tally");
     let failures: Vec<String> = tallies
         .iter()
         .zip(measured)
         .filter_map(|(tally, measured)| {
             std::panic::catch_unwind(|| match measured {
-                Some(m) => tally.assert_boundary(*m),
+                Some(m) => tally.assert_boundary_at(m.map(Some)),
                 None => tally.assert(),
             })
             .err()

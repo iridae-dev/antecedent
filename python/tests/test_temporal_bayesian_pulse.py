@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import math
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def test_manufacturing_bayesian_pulse_recovers_effect():

@@ -353,8 +353,16 @@ pub struct AnalysisResultWire {
     pub temporal_identification: Vec<TemporalIdentificationWire>,
     /// Scalar estimate when one exists; function-valued results have no scalar placeholder.
     pub estimate: Option<f64>,
-    /// Scalar standard error when justified.
+    /// Scalar standard error when justified. Absent when the published interval
+    /// is an Anderson–Rubin set (`interval_lower` / `interval_upper`) or when
+    /// no scalar SE is licensed.
     pub standard_error: Option<f64>,
+    /// Lower endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_lower: Option<f64>,
+    /// Upper endpoint of a published Anderson–Rubin set. May be infinite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_upper: Option<f64>,
     /// Estimation assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,
     /// Execution and scientific diagnostics.
@@ -375,10 +383,38 @@ pub struct AnalysisResultWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects: Option<UnitEffectsWire>,
+    /// Complete-case-aligned CATE point predictions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate: Option<Vec<f64>>,
+    /// Portable fitted effect, bound into the result body identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted_effect: Option<antecedent_estimate::FittedEffect>,
+    /// Licensed pointwise CATE standard errors, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_se: Option<Vec<f64>>,
+    /// Forest leaf-dispersion diagnostic per row. Not a standard error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate_leaf_dispersion: Option<Vec<f64>>,
+    /// Held-out outcome R².
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_oof_r2: Option<f64>,
+    /// Held-out treatment probability log loss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_oof_logloss: Option<f64>,
+    /// Number of nuisance cross-fitting folds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_folds: Option<usize>,
+    /// Master seed used for nuisance cross-fitting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_seed: Option<u64>,
+    /// Fitted learner (spec, implementation, version), in fit order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub learner_provenance: Vec<(String, String, String)>,
 }
 
 /// Per-unit counterfactual effects an execution reported.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct UnitEffectsWire {
     /// One effect per unit, in row order.
     pub effects: Vec<f64>,
@@ -394,6 +430,7 @@ pub struct UnitEffectsWire {
 
 /// Level-tagged per-unit interval bounds aligned with [`UnitEffectsWire::effects`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct UnitEffectIntervalsWire {
     /// Lower bound per unit.
     pub lower: Vec<f64>,
@@ -521,6 +558,16 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     use crate::causal_artifact::{
         validate_query_ids, validate_response_result, validate_variable_names,
     };
+    if let Some(model) = &result.fitted_effect {
+        // Unsupported optional prediction codecs do not erase the scientific claim.
+        // The sealed body still binds their bytes; prediction loading rejects them.
+        if model.version == 1 && model.predictor.version == 1 {
+            model.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+        }
+        if model.features.iter().any(|v| *v as usize >= variable_names.len()) {
+            return Err(IoError::Convert("fitted effect names an unknown feature".into()));
+        }
+    }
     validate_variable_names(variable_names)?;
     validate_query_ids(&result.query, variable_names.len())?;
     crate::causal_query_from_wire(&result.query)?;
@@ -563,6 +610,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             "analysis scalar estimate must be finite when present".into(),
         ));
     }
+    if result.estimate.is_some() && !licenses_scalar_estimate(&result.identification.status) {
+        return Err(IoError::Convert(
+            "identification status does not license a scalar estimate".into(),
+        ));
+    }
     if result.standard_error.is_some_and(|se| !se.is_finite() || se < 0.0) {
         return Err(IoError::Convert(
             "analysis standard error must be finite and nonnegative".into(),
@@ -574,44 +626,234 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     if let Some(posterior) = &result.posterior_artifact {
         crate::decode_causal_posterior_bytes(posterior)?;
     }
+    if let Some(grid) = &result.mediation_grid {
+        validate_mediation_grid(grid, variable_names.len())?;
+    }
+    if let Some(unit_effects) = &result.unit_effects {
+        validate_unit_effects(unit_effects)?;
+    }
+    validate_cate_and_learner_metrics(result)?;
     if let Some(structural) = &result.structural_response {
-        if let Some(interval) = &structural.identified_set_interval {
-            identified_set_interval_from_wire(interval)?;
+        validate_structural_response(structural, variable_names.len())?;
+    }
+    Ok(())
+}
+
+fn validate_structural_response(
+    structural: &StructuralResponseMixtureWire,
+    n_variables: usize,
+) -> Result<(), IoError> {
+    if let Some(interval) = &structural.identified_set_interval {
+        identified_set_interval_from_wire(interval)?;
+    }
+    if !(0.0..=1.0).contains(&structural.subsampled_out_mass) {
+        return Err(IoError::Convert(
+            "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
+        ));
+    }
+    let total = structural.identified_mass
+        + structural.unidentified_mass
+        + structural.unevaluable_mass
+        + structural.subsampled_out_mass;
+    if !total.is_finite() || (total - 1.0).abs() > 1e-9 {
+        return Err(IoError::Convert("structural masses must sum to one".into()));
+    }
+    if !structural.atoms.is_empty() {
+        let weight: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
+        if !weight.is_finite() || (weight - 1.0).abs() > 1e-9 {
+            return Err(IoError::Convert("inconsistent atom totals".into()));
         }
-        if !(0.0..=1.0).contains(&structural.subsampled_out_mass) {
+    }
+    for atom in &structural.atoms {
+        if !atom.weight.is_finite() || atom.weight < 0.0 {
             return Err(IoError::Convert(
-                "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
+                "structural atom weight must be finite and nonnegative".into(),
             ));
         }
-        let total = structural.identified_mass
-            + structural.unidentified_mass
-            + structural.unevaluable_mass
-            + structural.subsampled_out_mass;
-        if !total.is_finite() || (total - 1.0).abs() > 1e-9 {
-            return Err(IoError::Convert("structural masses must sum to one".into()));
+        if let Some(value) = &atom.value {
+            crate::response_value_from_wire(value)?;
         }
-        if !structural.atoms.is_empty() {
-            let weight: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
-            if !weight.is_finite() || (weight - 1.0).abs() > 1e-9 {
-                return Err(IoError::Convert("inconsistent atom totals".into()));
-            }
+        if let Some(response) = &atom.response {
+            crate::causal_artifact::validate_response_result(response, n_variables)?;
         }
-        for atom in &structural.atoms {
-            if !atom.weight.is_finite() || atom.weight < 0.0 {
+        if let Some(posterior) = &atom.posterior_artifact {
+            crate::decode_causal_posterior_bytes(posterior)?;
+        }
+    }
+    Ok(())
+}
+
+/// A point scalar is licensed only when identification does not refuse the estimand.
+/// `not_identified` never licenses one; partial / graph-dependent mixtures may still
+/// publish a conditional or retained identified-mass summary.
+fn licenses_scalar_estimate(status: &str) -> bool {
+    status != "not_identified"
+}
+
+fn validate_mediation_grid(
+    grid: &TemporalMediationGridWire,
+    base_variable_count: usize,
+) -> Result<(), IoError> {
+    if grid.slices.is_empty() {
+        return Err(IoError::Convert("mediation grid must contain at least one slice".into()));
+    }
+    let mut horizons = std::collections::BTreeSet::new();
+    for slice in &grid.slices {
+        if slice.horizon == 0 || !horizons.insert(slice.horizon) {
+            return Err(IoError::Convert(
+                "mediation grid horizons must be positive and unique".into(),
+            ));
+        }
+        if slice.method.trim().is_empty() {
+            return Err(IoError::Convert("mediation grid method must be non-blank".into()));
+        }
+        for node in &slice.adjustment {
+            if node.variable as usize >= base_variable_count {
                 return Err(IoError::Convert(
-                    "structural atom weight must be finite and nonnegative".into(),
+                    "mediation grid adjustment names an unknown base variable".into(),
                 ));
             }
-            if let Some(value) = &atom.value {
-                crate::response_value_from_wire(value)?;
-            }
-            if let Some(response) = &atom.response {
-                validate_response_result(response, variable_names.len())?;
-            }
-            if let Some(posterior) = &atom.posterior_artifact {
-                crate::decode_causal_posterior_bytes(posterior)?;
+        }
+        let optionals = [slice.total, slice.direct, slice.mediated];
+        if !slice.effect.is_finite() || optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite()))
+        {
+            return Err(IoError::Convert(
+                "mediation grid effects must be finite when present".into(),
+            ));
+        }
+        if let Some([lower, upper]) = slice.identified_set {
+            if !lower.is_finite() || !upper.is_finite() || lower > upper {
+                return Err(IoError::Convert(
+                    "mediation grid identified set must be finite and ordered".into(),
+                ));
             }
         }
+        validate_mediation_uncertainty(&slice.uncertainty)?;
+    }
+    Ok(())
+}
+
+fn validate_mediation_uncertainty(
+    uncertainty: &TemporalMediationUncertaintyWire,
+) -> Result<(), IoError> {
+    match uncertainty {
+        TemporalMediationUncertaintyWire::FrequentistPointwise { standard_error } => {
+            if standard_error.is_some_and(|se| !se.is_finite() || se < 0.0) {
+                return Err(IoError::Convert(
+                    "mediation grid standard error must be finite and nonnegative".into(),
+                ));
+            }
+        }
+        TemporalMediationUncertaintyWire::BayesianPointwise {
+            requested,
+            total,
+            direct,
+            mediated,
+            n_draws,
+            backend,
+        } => {
+            for summary in [requested, total, direct, mediated] {
+                if ![summary.mean, summary.standard_deviation, summary.q025, summary.q975]
+                    .iter()
+                    .all(|v| v.is_finite())
+                    || summary.standard_deviation < 0.0
+                    || summary.q025 > summary.q975
+                {
+                    return Err(IoError::Convert(
+                        "mediation grid posterior summary must be finite and ordered".into(),
+                    ));
+                }
+            }
+            if *n_draws == 0 || backend.trim().is_empty() {
+                return Err(IoError::Convert(
+                    "mediation grid Bayesian uncertainty needs draws and a backend".into(),
+                ));
+            }
+        }
+        TemporalMediationUncertaintyWire::Unavailable => {}
+    }
+    Ok(())
+}
+
+fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> {
+    if unit_effects.effects.is_empty()
+        || unit_effects.effects.iter().any(|effect| !effect.is_finite())
+    {
+        return Err(IoError::Convert("unit effects must be a non-empty finite vector".into()));
+    }
+    let n = unit_effects.effects.len();
+    if let Some(intervals) = &unit_effects.intervals {
+        if intervals.lower.len() != n
+            || intervals.upper.len() != n
+            || intervals.lower.iter().any(|v| !v.is_finite())
+            || intervals.upper.iter().any(|v| !v.is_finite())
+            || intervals.lower.iter().zip(&intervals.upper).any(|(lo, hi)| lo > hi)
+            || !(0.0..=1.0).contains(&intervals.level)
+            || !intervals.level.is_finite()
+            || intervals.method.trim().is_empty()
+        {
+            return Err(IoError::Convert(
+                "unit effect intervals must match effects length with finite ordered bounds, \
+                 level in [0, 1], and a non-blank method"
+                    .into(),
+            ));
+        }
+    }
+    if unit_effects.extrapolative.as_ref().is_some_and(|flags| flags.len() != n) {
+        return Err(IoError::Convert(
+            "unit effect extrapolative flags must match effects length".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), IoError> {
+    if result.cate.is_none() && (result.cate_se.is_some() || result.cate_leaf_dispersion.is_some())
+    {
+        return Err(IoError::Convert(
+            "cate standard errors and leaf dispersion require cate point predictions".into(),
+        ));
+    }
+    if let (Some(cate), Some(dispersion)) = (&result.cate, &result.cate_leaf_dispersion) {
+        if dispersion.len() != cate.len() || dispersion.iter().any(|v| !v.is_finite() || *v < 0.0) {
+            return Err(IoError::Convert(
+                "cate leaf dispersion must match cate length and be finite nonnegative".into(),
+            ));
+        }
+    }
+    match (&result.cate, &result.cate_se) {
+        (None, _) => {}
+        (Some(cate), cate_se) => {
+            if cate.is_empty() || cate.iter().any(|v| !v.is_finite()) {
+                return Err(IoError::Convert(
+                    "cate predictions must be a non-empty finite vector".into(),
+                ));
+            }
+            if let Some(se) = cate_se {
+                if se.len() != cate.len() || se.iter().any(|v| !v.is_finite() || *v < 0.0) {
+                    return Err(IoError::Convert(
+                        "cate standard errors must match cate length and be finite nonnegative"
+                            .into(),
+                    ));
+                }
+            }
+        }
+    }
+    if result.outcome_oof_r2.is_some_and(|v| !v.is_finite()) {
+        return Err(IoError::Convert("outcome_oof_r2 must be finite when present".into()));
+    }
+    if result.treatment_oof_logloss.is_some_and(|v| !v.is_finite() || v < 0.0) {
+        return Err(IoError::Convert(
+            "treatment_oof_logloss must be finite and nonnegative".into(),
+        ));
+    }
+    if result.crossfit_folds.is_some_and(|folds| folds < 2) {
+        return Err(IoError::Convert("crossfit_folds must be at least two when present".into()));
+    }
+    if result.learner_provenance.iter().any(|(spec, implementation, version)| {
+        spec.trim().is_empty() || implementation.trim().is_empty() || version.trim().is_empty()
+    }) {
+        return Err(IoError::Convert("learner provenance entries must be non-blank".into()));
     }
     Ok(())
 }
@@ -640,7 +882,15 @@ fn validate_identification_namespace(
                         .chain(&estimand.mediators)
                 })
                 .copied(),
-        );
+        )
+        .chain(
+            identification
+                .estimands
+                .iter()
+                .filter_map(|estimand| estimand.rd_design.as_ref())
+                .map(|design| design.running_variable),
+        )
+        .chain(identification.hedge.iter().flat_map(crate::HedgeCertificateWire::variables));
     if ids.into_iter().any(|id| id as usize >= count) {
         return Err(IoError::Convert(
             "identification variable is outside its declared namespace".into(),
@@ -981,5 +1231,80 @@ mod tests {
         bad.structural_response.as_mut().unwrap().identified_mass = 0.5;
         let err = encode_analysis_result_artifact(&bad, names, "mass-bad").unwrap_err();
         assert!(err.to_string().contains("masses must sum to one"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_scalar_estimate_under_not_identified() {
+        let names = vec!["a".into(), "y".into()];
+        let mut result = fixture();
+        result.identification.status = "not_identified".into();
+        assert_eq!(result.estimate, Some(1.0));
+        let err = encode_analysis_result_artifact(&result, names.clone(), "uid").unwrap_err();
+        assert!(err.to_string().contains("does not license a scalar estimate"), "{err}");
+        result.estimate = None;
+        result.standard_error = None;
+        assert!(encode_analysis_result_artifact(&result, names, "uid-ok").is_ok());
+    }
+
+    fn mediation_slice() -> TemporalMediationSliceWire {
+        TemporalMediationSliceWire {
+            horizon: 1,
+            identification_status: crate::IdentificationStatusWire::NonparametricallyIdentified,
+            method: "front_door".into(),
+            adjustment: vec![],
+            effect: 0.5,
+            total: Some(0.5),
+            direct: Some(0.2),
+            mediated: Some(0.3),
+            uncertainty: TemporalMediationUncertaintyWire::Unavailable,
+            identified_set: None,
+            diagnostics: vec![],
+        }
+    }
+
+    #[test]
+    fn validate_result_refuses_malformed_mediation_grid() {
+        let names = vec!["a".into(), "y".into()];
+        let mut ok = fixture();
+        ok.mediation_grid = Some(TemporalMediationGridWire {
+            slices: vec![mediation_slice()],
+            joint_posterior: false,
+        });
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "grid-ok").is_ok());
+
+        let mut bad = ok.clone();
+        bad.mediation_grid.as_mut().unwrap().slices[0].effect = f64::NAN;
+        let err = encode_analysis_result_artifact(&bad, names.clone(), "grid-nan").unwrap_err();
+        assert!(err.to_string().contains("mediation grid"), "{err}");
+
+        let mut inverted = ok;
+        inverted.mediation_grid.as_mut().unwrap().slices[0].identified_set = Some([1.0, 0.0]);
+        let err = encode_analysis_result_artifact(&inverted, names, "grid-set").unwrap_err();
+        assert!(err.to_string().contains("identified set"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_malformed_cate() {
+        let names = vec!["a".into(), "y".into()];
+        let mut ok = fixture();
+        ok.cate = Some(vec![0.1, 0.2]);
+        ok.cate_se = Some(vec![0.05, 0.04]);
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "cate-ok").is_ok());
+
+        let mut bad_len = ok.clone();
+        bad_len.cate_se = Some(vec![0.05]);
+        let err = encode_analysis_result_artifact(&bad_len, names.clone(), "cate-len").unwrap_err();
+        assert!(err.to_string().contains("cate"), "{err}");
+
+        let mut bad_dispersion = ok.clone();
+        bad_dispersion.cate_leaf_dispersion = Some(vec![0.05, -1.0]);
+        let err = encode_analysis_result_artifact(&bad_dispersion, names.clone(), "cate-disp")
+            .unwrap_err();
+        assert!(err.to_string().contains("leaf dispersion"), "{err}");
+
+        let mut bad_nan = ok;
+        bad_nan.cate = Some(vec![0.1, f64::NAN]);
+        let err = encode_analysis_result_artifact(&bad_nan, names, "cate-nan").unwrap_err();
+        assert!(err.to_string().contains("cate"), "{err}");
     }
 }

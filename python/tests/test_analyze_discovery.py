@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _two_regime_lag1_series(n: int = 120, seed: int = 3):
@@ -54,7 +52,10 @@ def test_analyze_discovery_pcmci_smoke():
         seed=1,
         refute=False,
     )
-    assert isinstance(result.ate, float)
+    # y_t = 0.6 x_{t-1} + 0.2 noise, so a unit pulse of x at lag 1 moves y one step later
+    # by 0.6. The OLS SE at n = 120 is about 0.02, so 0.1 is five SEs: the discovered
+    # lag-1 graph must give the structural effect, not merely a float.
+    assert abs(result.ate - 0.6) < 0.1
     assert result.performance.plan_id
     assert isinstance(result.diagnostics, list)
     assert "node_count" in result.provenance
@@ -146,7 +147,41 @@ def test_analyze_discovery_rpcmci_regimes():
         )
 
 
-def test_analyze_discovery_pc_smoke():
+def _v_structure_data(n: int = 1000, seed: int = 7):
+    """``t -> y <- w`` with independent causes: PC must orient both edges into ``y``.
+
+    ``t`` and ``w`` are marginally independent and become dependent given their
+    collider ``y``, so the skeleton drops ``t - w`` and the unshielded triple is a
+    v-structure; nothing is left undirected, and the ATE of ``t`` is its coefficient.
+    """
+    rng = np.random.default_rng(seed)
+    t = rng.normal(size=n)
+    w = rng.normal(size=n)
+    y = 1.5 * t + 1.0 * w + rng.normal(size=n) * 0.3
+    return {"t": t, "y": y, "w": w}
+
+
+def test_analyze_discovery_pc_orients_v_structure_and_recovers_effect():
+    data = _v_structure_data()
+    result = antecedent.analyze(
+        data,
+        discovery=antecedent.discovery.PC(alpha=0.001, fdr=False, max_cond_size=2),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    # `w` is a second cause of `y`, not a confounder, so the adjustment set is empty and
+    # the OLS SE of the t coefficient is sqrt(1.0**2 + 0.3**2) / sqrt(n) = 0.033. The
+    # estimate must sit within four SEs of the structural coefficient 1.5, so a
+    # discovered graph that adjusts wrongly or an estimate that is garbage cannot pass.
+    se = result.estimate.se_analytic
+    assert 0.02 < se < 0.05
+    assert abs(result.ate - 1.5) < 4.0 * se
+    assert result.performance.plan_id
+
+
+def test_analyze_discovery_pc_refuses_unorientable_triangle():
     n = 250
     rng = np.random.default_rng(7)
     z = rng.normal(size=n)
@@ -155,27 +190,29 @@ def test_analyze_discovery_pc_smoke():
     # z, t, y form a fully connected triangle (z->t, z->y, t->y): every pair stays
     # dependent under every conditioning set available here, so PC's skeleton phase
     # can remove no edge, and with no unshielded triple to seed a v-structure it can
-    # orient none of the three either. The CPDAG-shaped review
-    # (`accept_cpdag_review` in `python/src/lib.rs`) only auto-accepts already
-    # directed pending edges, so a fully undirected triangle still blocks with
-    # ReviewRequired even at accept_discovered=True (the default). A clean
-    # Ready-estimate is the other legitimate outcome if discovery manages to orient
-    # the triangle after all.
-    try:
-        result = antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
-        assert np.isfinite(result.ate)
-        assert result.performance.plan_id
-    except antecedent.errors.CausalReviewError as exc:
-        assert exc.kind
-        assert exc.hint
-        assert exc.pending_edge_count > 0
+    # orient none of the three either. `accept_cpdag_review` (`python/src/lib.rs`)
+    # only ever gates on *directed* pending edges — there are none here — so
+    # `CpdagReview::into_accepted` (`crates/antecedent/src/accepted.rs`) accepts the
+    # fully undirected CPDAG outright at accept_discovered=True (the default):
+    # undirected marks are the MEC, not incompleteness, and generalized adjustment
+    # (`identify.cpdag.envelope`) is exactly the machinery built to consume them.
+    # So this must not refuse: it must return a graph-dependent envelope that
+    # mixes the identified and unidentified completions of the triangle's MEC,
+    # never a single confident number.
+    result = antecedent.analyze(
+        {"t": t, "y": y, "z": z},
+        discovery=antecedent.discovery.PC(alpha=0.2, fdr=False, max_cond_size=2),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.answer.kind == "bounds"
+    assert result.answer.value is None
+    assert result.answer.bounds is not None
+    assert result.structural_identified_mass == pytest.approx(0.5)
+    assert result.structural_unidentified_mass == pytest.approx(0.5)
+    assert result.identification.status == "GraphDependent"
 
 
 def test_analyze_ate_enriched_fields():

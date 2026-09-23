@@ -1,14 +1,13 @@
 //! End-to-end temporal-response facade conformance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 
 use std::sync::Arc;
 
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
-    InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
+    Assumption, CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
+    Intervention, InterventionSequence, Lag, MeasurementSpec, MechanismOverride, MemoryBudget,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
     RoleHint, SequencedIntervention, SmallRoleSet, SupportStatus, TargetPopulation,
     TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType, VariableId,
@@ -29,6 +28,74 @@ fn fixture() -> serde_json::Value {
 fn temporal_fixture_series() -> (TimeSeriesData, TemporalDag) {
     let fixture = fixture();
     let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
+    let t: Vec<f64> = (0..n)
+        .map(|i| match i % 4 {
+            0 | 2 => 0.0,
+            1 => 1.0,
+            3 => -1.0,
+            _ => unreachable!(),
+        })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * i.checked_sub(1).map_or(0.0, |j| t[j])
+                + 3.0 * i.checked_sub(2).map_or(0.0, |j| t[j])
+        })
+        .collect();
+
+    let mut builder = CausalSchemaBuilder::new();
+    builder
+        .add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    builder
+        .add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    let schema = builder.build().unwrap();
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    let series = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let t2 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t2, y0).unwrap();
+    (series, graph)
+}
+
+/// A deliberately short version of [`temporal_fixture_series`]: same variables,
+/// graph and generating mechanism, but few enough lag-aligned rows that the
+/// Bayesian long-run tempering factor cannot be estimated (`n` below
+/// `max(8, p+2)`).
+fn short_temporal_series(n: usize) -> (TimeSeriesData, TemporalDag) {
     let t: Vec<f64> = (0..n)
         .map(|i| match i % 4 {
             0 | 2 => 0.0,
@@ -446,8 +513,8 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
             .unwrap()
     };
 
-    // One series: the Pulse publishes only the circular-block bootstrap SE (1.9
-    // R-1). With no replicates there is no calibrated SE, so none is published.
+    // One series: the Pulse publishes only the circular-block bootstrap SE
+    // (R-1). With no replicates there is no calibrated SE, so none is published.
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
     assert!(pulse_analytic.estimate.se_analytic.is_nan(), "iid OLS SE must not be published");
@@ -1071,7 +1138,7 @@ fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
 }
 
 /// With zero replicates the dose×horizon surface keeps its point values and
-/// publishes no band: the analytic OLS band the fixture pinned before 1.9
+/// publishes no band: the withheld analytic OLS band
 /// treated lag-aligned rows as independent and is no longer published.
 /// Requested replicates publish the joint circular-block bands, and the
 /// fixture's `block_band` pins every value of that seeded run (pointwise and
@@ -1130,7 +1197,8 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
         atol,
         "estimate.temporal_response.gcomp",
     );
-    let ResponseUncertainty::PointwiseBand { level, lower, upper } = &response.uncertainty else {
+    let ResponseUncertainty::PointwiseBand { level, lower, upper, .. } = &response.uncertainty
+    else {
         panic!("expected the circular-block pointwise band");
     };
     assert!((level - pin["level"].as_f64().unwrap()).abs() <= rtol);
@@ -1389,3 +1457,79 @@ fn bayesian_sequence_band_matches_posterior_quantiles() {
     assert_eq!(lower[0].to_bits(), posterior.summaries.q025[0].to_bits());
     assert_eq!(upper[0].to_bits(), posterior.summaries.q975[0].to_bits());
 }
+
+#[test]
+fn bayesian_temporal_curve_discloses_inestimable_tempering() {
+    let (series, graph) = short_temporal_series(6);
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap());
+    let result = Study::series(series)
+        .graph(graph)
+        .query(query)
+        .inference(antecedent::InferenceMode::Bayesian(
+            antecedent::BayesianConfig::conjugate().n_draws(256),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(7))
+        .unwrap();
+    let response = result.response.as_ref().expect("temporal response");
+    let tempering = response
+        .support
+        .diagnostics
+        .iter()
+        .find(|d| d.id.as_ref() == "response.temporal_bayesian.tempering")
+        .expect("tempering support diagnostic");
+    assert_eq!(tempering.values.as_ref(), [1.0], "kappa=1 while inestimable is not a genuine fit");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "response.temporal_bayesian.tempering_inestimable"),
+        "an inestimable horizon must raise a result diagnostic, not vanish silently: {:?}",
+        result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
+    );
+    let assumption_text = response
+        .assumptions
+        .entries
+        .iter()
+        .find_map(|record| match &record.assumption {
+            Assumption::ParametricRestriction(p)
+                if p.id.as_ref() == "bayes.temporal.long_run_tempering" =>
+            {
+                Some(p.description.to_string())
+            }
+            _ => None,
+        })
+        .expect("long-run tempering assumption");
+    assert!(assumption_text.contains("inestimable"), "{assumption_text}");
+    assert!(
+        assumption_text.contains("REML"),
+        "must describe the fitted REML AR(q) formula, not the pre-REML HAC-only rule: {assumption_text}"
+    );
+    assert!(
+        !assumption_text.contains(
+            "the largest autoregressive-prewhitened (AR(1), plus a \
+             BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's \
+             grid-cell level scores, floored at 1"
+        ),
+        "must not keep the wrong pre-REML formula text: {assumption_text}"
+    );
+}
+
+// The Sequence-overlay multi-horizon posterior-retention fix (every horizon's
+// posterior notes now reach `posterior_note_diagnostics`, not just the last
+// one's) is pinned by a lower-level unit test in
+// `crates/antecedent/src/analysis/execute/temporal_path.rs`
+// (`multi_horizon_posterior_notes_all_reach_result_diagnostics`): the Sequence
+// overlay path currently always fits its per-horizon mechanisms with an iid
+// likelihood (`SequentialEval::Level` in `temporal_sequential.rs`), so no
+// tempering note is ever produced for this facade entry point today and a
+// full end-to-end reproduction is not currently reachable through it.

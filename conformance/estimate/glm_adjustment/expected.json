@@ -1,9 +1,9 @@
 {
   "true_effect": 0.25,
-  "tolerance": 0.15,
+  "tolerance": 0.08,
   "identifier": "backdoor.adjustment",
   "estimator": "glm.adjustment",
-  "notes": "logistic g-comp on binary Y",
+  "notes": "logistic g-comp on binary Y; tolerance 0.08 excludes the unadjusted treated-minus-control mean (~0.35–0.38 under this SCM) while admitting adjusted g-comp near the true ATE (~0.25)",
   "generation": {
     "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
@@ -14,7 +14,7 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false, "unexercised": "Not compared with any Antecedent output. The recorded DoWhy estimate (0.0283) is about seven of its own standard errors from this fixture's true_effect (0.25); it is not evidence of agreement and is kept only as the recorded run.",
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "backdoor.generalized_linear_model",

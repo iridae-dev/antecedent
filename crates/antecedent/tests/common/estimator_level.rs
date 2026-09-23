@@ -70,7 +70,7 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "",
         "all_observed.mean",
     ),
-    case("aipw_analytic_ci_coverage", "aipw", "analytic_se", "", "all_observed.mean"),
+    case("aipw_analytic_ci_coverage", "aipw", "analytic_se", "homoskedastic", "all_observed.mean"),
     case("aipw_att_hc1_ci_coverage", "aipw", "analytic_se", "hc1", "treated.mean"),
     case("aipw_atc_hc1_boundary_within_band", "aipw", "analytic_se", "hc1", "untreated.mean"),
     case("aipw_ate_hc1_ci_coverage", "aipw", "analytic_se", "hc1", "all_observed.mean"),
@@ -82,40 +82,44 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "homoskedastic",
         "treated.mean",
     ),
-    case(
-        "wald_iv_analytic_ci_coverage",
-        "iv.wald",
-        "analytic_se",
-        "homoskedastic",
-        "all_observed.mean",
-    ),
-    case("wald_iv_hc1_ci_coverage", "iv.wald", "analytic_se", "hc1", "all_observed.mean"),
-    case(
-        "iv_2sls_analytic_ci_coverage",
-        "iv.2sls",
-        "analytic_se",
-        "homoskedastic",
-        "all_observed.mean",
-    ),
-    case(
-        "iv_2sls_hc1_heteroskedastic_ci_coverage",
-        "iv.2sls",
-        "analytic_se",
-        "hc1",
-        "all_observed.mean",
-    ),
+    case("wald_iv_analytic_ci_coverage", "iv.wald", "anderson_rubin", "", "all_observed.mean"),
+    // A non-homoskedastic Wald SE is never licensed (Anderson-Rubin requires the
+    // homoskedastic assumption, and the estimator never publishes a finite
+    // `se_analytic`), so the facade withholds the interval entirely: no product,
+    // `calibration_coverage.rs::wald_coverage_on` only `report()`s this cell,
+    // never `assert()`s or `emit()`s a coverage record for it.
+    case("wald_iv_hc1_ci_coverage", "iv.wald", "none", "", "all_observed.mean"),
+    case("iv_2sls_analytic_ci_coverage", "iv.2sls", "anderson_rubin", "", "all_observed.mean"),
+    // Non-homoskedastic (HC1): Anderson-Rubin requires the homoskedastic
+    // assumption and 2SLS never publishes a finite `se_analytic`, so the
+    // facade withholds the interval entirely, same as the Wald IV HC1 case.
+    case("iv_2sls_hc1_heteroskedastic_ci_coverage", "iv.2sls", "none", "", "all_observed.mean"),
     case(
         "frontdoor_stacked_hc0_ci_coverage",
-        "frontdoor.two_stage",
+        "frontdoor.linear_two_stage",
         "analytic_se",
         "hc0",
         "all_observed.mean",
     ),
     case(
         "frontdoor_stacked_hc1_ci_coverage",
-        "frontdoor.two_stage",
+        "frontdoor.linear_two_stage",
         "analytic_se",
         "hc1",
+        "all_observed.mean",
+    ),
+    case(
+        "frontdoor_functional_saturated_ci_coverage",
+        "frontdoor.functional",
+        "analytic_se",
+        "",
+        "all_observed.mean",
+    ),
+    case(
+        "frontdoor_functional_arm_linear_ci_coverage",
+        "frontdoor.functional",
+        "analytic_se",
+        "",
         "all_observed.mean",
     ),
     case(
@@ -123,11 +127,67 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "rd.sharp",
         "analytic_se",
         "homoskedastic",
-        "all_observed.mean",
+        "local_at_cutoff.mean",
     ),
     case(
         "rd_sharp_hc1_heteroskedastic_ci_coverage",
         "rd.sharp",
+        "analytic_se",
+        "hc1",
+        "local_at_cutoff.mean",
+    ),
+    case(
+        "wald_iv_weak_first_stage_adversarial_ci_coverage",
+        "iv.wald",
+        "anderson_rubin",
+        "",
+        "all_observed.mean",
+    ),
+    case(
+        "ipw_hajek_weak_overlap_adversarial_ci_coverage",
+        "propensity.weighting",
+        "analytic_se",
+        "",
+        "all_observed.mean",
+    ),
+    case(
+        "rd_sharp_hc1_curved_adversarial_ci_coverage",
+        "rd.sharp",
+        "analytic_se",
+        "hc1",
+        "local_at_cutoff.mean",
+    ),
+    case(
+        "matching_heteroskedastic_adversarial_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "treated.mean",
+    ),
+    case(
+        "matching_heterogeneous_att_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "treated.mean",
+    ),
+    case(
+        "matching_heterogeneous_atc_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "untreated.mean",
+    ),
+    case(
+        "matching_heterogeneous_ate_ci_coverage",
+        "propensity.matching",
+        "analytic_se",
+        "homoskedastic",
+        "all_observed.mean",
+    ),
+    case(
+        "frontdoor_stacked_hc1_curved_mediator_ci_coverage",
+        "frontdoor.linear_two_stage",
         "analytic_se",
         "hc1",
         "all_observed.mean",
@@ -159,7 +219,9 @@ pub fn case_for(test: &str) -> EstimatorLevelCase {
 
 impl EstimatorLevelCase {
     /// The facade construction: a Frequentist `AverageEffect` on an explicit
-    /// `Dag`, point identified, iid rows, reported at 0.95.
+    /// `Dag`, point identified, iid rows, reported at 0.95 — or at 0.0 when no
+    /// interval product is licensed (`interval == "none"`), matching
+    /// `IntervalBinding::none`.
     #[must_use]
     pub fn construction(&self) -> Construction {
         Construction {
@@ -175,7 +237,7 @@ impl EstimatorLevelCase {
             posterior: String::new(),
             functional: self.functional.into(),
             identification: "point".into(),
-            reported_level: 0.95,
+            reported_level: if self.interval == "none" { 0.0 } else { 0.95 },
         }
     }
 }

@@ -341,7 +341,15 @@ mod tests {
         .unwrap();
         let [pre, closure] =
             bg.unknown_canonical_sets(s.id_of("t").unwrap(), s.id_of("y").unwrap()).unwrap();
-        assert!(pre.len() < closure.len() || pre.len() == 2);
-        assert_ne!(pre.as_ref(), closure.as_ref());
+        let id = |name: &str| s.id_of(name).unwrap();
+        let sorted = |set: &[VariableId]| {
+            let mut v = set.to_vec();
+            v.sort_by_key(|x| x.raw());
+            v
+        };
+        // Pretreatment: exactly the tiers before `t`'s tier. Closure: those plus the
+        // treatment tier minus `t`.
+        assert_eq!(sorted(&pre), sorted(&[id("era"), id("scale")]));
+        assert_eq!(sorted(&closure), sorted(&[id("era"), id("scale"), id("design")]));
     }
 }

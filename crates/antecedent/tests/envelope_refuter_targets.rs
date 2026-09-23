@@ -1,9 +1,9 @@
-//! R-3 (1.9 cell review): multi-atom refuters test each atom against its own estimate.
+//! R-3: multi-atom refuters test each atom against its own estimate.
 //!
-//! Before 1.9 every envelope atom's refuters compared that atom's perturbation
-//! refits with the *pooled* mixture effect, so a perfectly stable atom whose
-//! effect differs from the pooled value "failed" `data.subset`, and the
-//! unanimous-pass mixture report failed with it. These fixtures have atoms whose
+//! Comparing every envelope atom's perturbation refits with the *pooled*
+//! mixture effect made a perfectly stable atom fail `data.subset` whenever
+//! its effect differed from the pooled value, and the unanimous-pass mixture
+//! report failed with it. These fixtures have atoms whose
 //! effects genuinely differ; the companion unit test
 //! `envelope_refuters_compare_each_atom_with_its_own_estimate` (in
 //! `crates/antecedent/src/analysis/execute/mod.rs`) shows an atom whose own
@@ -11,7 +11,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};

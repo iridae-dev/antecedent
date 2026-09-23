@@ -1,16 +1,27 @@
-//! Scalar linear-Gaussian state-space helpers (Kalman 1960 filter / Rauch–Tung–Striebel 1965
-//! smoother / innovation packing).
+//! Scalar linear-Gaussian state-space helpers (Kalman 1960 filter / Rauch–Tung–Striebel
+//! 1965 smoother / residual-path sampling).
 //!
 //! Model: `x_t = a x_{t-1} + σ_proc ε_t`, `y_t = x_t + σ_obs η_t` with `ε, η ~ N(0,1)`.
 //!
+//! The structural noise of an LGSSM mechanism is the *residual path*
+//! `r_t = x_t + σ_obs η_t` itself, one lossless `f64` per row. Parents enter only
+//! through an additive mean, so `y_t = mean(pa_t) + r_t` and the residual is
+//! identified exactly from an observed row (`r_t = y_t − mean(pa_t)`): abduction is
+//! exact inversion, and replaying it with unchanged parents reproduces the data to
+//! machine precision. The latent split of `r_t` into `(ε, η)` is not identified by
+//! one series and does not affect any counterfactual of the outcome, so it is not
+//! carried.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use antecedent_core::CausalRng;
@@ -18,34 +29,29 @@ use antecedent_kernels::standard_normal;
 
 use crate::error::ModelError;
 
-/// Pack unit-normal process and observation innovations into one `f64` (f32×2).
-#[must_use]
-pub fn pack_innovations(process_eps: f64, obs_eta: f64) -> f64 {
-    let bits =
-        u64::from((process_eps as f32).to_bits()) | (u64::from((obs_eta as f32).to_bits()) << 32);
-    f64::from_bits(bits)
-}
-
-/// Unpack innovations packed by [`pack_innovations`].
-#[must_use]
-pub fn unpack_innovations(packed: f64) -> (f64, f64) {
-    let bits = packed.to_bits();
-    let eps = f64::from(f32::from_bits(bits as u32));
-    let eta = f64::from(f32::from_bits((bits >> 32) as u32));
-    (eps, eta)
-}
-
-/// Sample packed LGSSM innovations into `output`.
+/// Sample a residual path `r_t = x_t + σ_obs η_t` from the LGSSM prior into
+/// `output` (`x_0 = initial_mean + σ_proc ε_0`, `x_t = a x_{t-1} + σ_proc ε_t`).
+///
+/// # Errors
+///
+/// `output` shorter than `n_rows`.
 pub fn sample_lgssm_noise(
     n_rows: usize,
+    a: f64,
+    process_std: f64,
+    obs_std: f64,
+    initial_mean: f64,
     rng: &mut CausalRng,
     output: &mut [f64],
 ) -> Result<(), ModelError> {
     if output.len() < n_rows {
         return Err(ModelError::Shape { message: "lgssm noise output too short".into() });
     }
-    for i in 0..n_rows {
-        output[i] = pack_innovations(standard_normal(rng), standard_normal(rng));
+    let mut x = initial_mean;
+    for t in 0..n_rows {
+        let eps = standard_normal(rng);
+        x = if t == 0 { initial_mean + process_std * eps } else { a * x + process_std * eps };
+        output[t] = x + obs_std * standard_normal(rng);
     }
     Ok(())
 }
@@ -150,97 +156,90 @@ pub(crate) fn scaled_lgssm(
     })
 }
 
-/// Abduce packed innovations from observations via Kalman conditioning.
-///
-/// With an RNG, forward filtering/backward sampling draws a joint latent path
-/// conditional on all observations, retaining cross-time posterior covariance.
-/// Without an RNG, uses RTS smoothed means (a conditional mean reconstruction,
-/// not a posterior draw). Innovations retain the existing f32 packing precision.
-pub fn infer_lgssm_innovations(
-    y: &[f64],
-    a: f64,
-    process_std: f64,
-    obs_std: f64,
-    initial_mean: f64,
-    output: &mut [f64],
-    rng: Option<&mut CausalRng>,
-) -> Result<(), ModelError> {
-    let n = y.len();
-    if output.len() < n {
-        return Err(ModelError::Shape { message: "lgssm infer output too short".into() });
-    }
-    if n == 0 {
-        return Ok(());
-    }
-    let scaled = scaled_lgssm(y, a, process_std, obs_std, initial_mean)?;
-    let q = scaled.process_var;
-    let r = scaled.obs_var;
-    // x_0 has variance q, matching the generative mechanism.
-    let (x_f, p_f, x_pred, p_pred) = kalman_filter(&scaled.values, a, q, r, scaled.initial_mean, q);
-    let x_draw = if let Some(rng) = rng {
-        let mut path = vec![0.0; n];
-        path[n - 1] = x_f[n - 1] + p_f[n - 1].max(0.0).sqrt() * standard_normal(rng);
-        for t in (0..n - 1).rev() {
-            // p(x_t | x_{t+1}, y_{0:t}); the future is conditionally independent
-            // of x_t given x_{t+1}. Independently sampling smoothed marginals
-            // would erase the lag covariance and corrupt process innovations.
-            let gain = if p_pred[t + 1] > 0.0 { p_f[t] * a / p_pred[t + 1] } else { 0.0 };
-            let mean = x_f[t] + gain * (path[t + 1] - x_pred[t + 1]);
-            let variance = if p_pred[t + 1] > 0.0 { p_f[t] * (q / p_pred[t + 1]) } else { 0.0 };
-            path[t] = mean + variance.max(0.0).sqrt() * standard_normal(rng);
-        }
-        path
-    } else {
-        rts_smooth(a, &x_f, &p_f, &x_pred, &p_pred).0
-    };
-    for t in 0..n {
-        let eps = if t == 0 {
-            (x_draw[0] - scaled.initial_mean) / (process_std / scaled.scale)
-        } else {
-            (x_draw[t] - a * x_draw[t - 1]) / (process_std / scaled.scale)
-        };
-        let eta = (scaled.values[t] - x_draw[t]) / (obs_std / scaled.scale);
-        output[t] = pack_innovations(eps, eta);
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::batch::{MechanismWorkspace, ParentBatch};
+    use crate::compile::MechanismSlot;
+    use crate::mechanism::{
+        NoiseInferenceMode, evaluate_column, infer_noise_column_rng, log_prob_column,
+    };
     use antecedent_core::CausalRng;
 
+    /// The residual-path prior has `Var(r_0) = q² + r²` and
+    /// `Cov(r_0, r_1) = a·q²` (`x_0 = μ + qε`, `x_1 = a x_0 + qε'`, independent obs noise).
+    /// Draws are seeded; the tolerance is ~6 Monte-Carlo standard errors.
     #[test]
-    fn sampled_paths_preserve_joint_smoothing_covariance() {
-        // Prior covariance for a=1, q=1 is [[1,1],[1,2]]. With r=1,
-        // posterior covariance = (prior^-1 + I)^-1 = [[2,1],[1,3]] / 5.
+    fn sampled_residual_paths_have_the_prior_variance_and_lag_covariance() {
+        let (a, q, r) = (0.7, 0.3, 0.2);
         let mut rng = CausalRng::from_seed(287);
-        let mut product = 0.0;
-        let mut first_square = 0.0;
-        let mut second_square = 0.0;
-        let draws = 40_000;
+        let draws = 20_000;
+        let mut var0 = 0.0;
+        let mut cov01 = 0.0;
         for _ in 0..draws {
-            let mut packed = [0.0; 2];
-            infer_lgssm_innovations(&[0.0, 0.0], 1.0, 1.0, 1.0, 0.0, &mut packed, Some(&mut rng))
-                .unwrap();
-            let x0 = unpack_innovations(packed[0]).0;
-            let x1 = x0 + unpack_innovations(packed[1]).0;
-            product += x0 * x1;
-            first_square += x0 * x0;
-            second_square += x1 * x1;
+            let mut path = [0.0; 2];
+            sample_lgssm_noise(2, a, q, r, 0.0, &mut rng, &mut path).unwrap();
+            var0 += path[0] * path[0];
+            cov01 += path[0] * path[1];
         }
-        assert!((product / f64::from(draws) - 0.2).abs() < 0.015);
-        assert!((first_square / f64::from(draws) - 0.4).abs() < 0.015);
-        assert!((second_square / f64::from(draws) - 0.6).abs() < 0.015);
+        let n = f64::from(draws);
+        assert!((var0 / n - (q * q + r * r)).abs() < 0.006, "var0={}", var0 / n);
+        assert!((cov01 / n - a * q * q).abs() < 0.006, "cov01={}", cov01 / n);
+    }
+
+    /// Abduction is exact inversion in full `f64` precision: replaying the
+    /// abduced residual with unchanged parents reproduces the observations to
+    /// rounding error, and shifting a parent moves the outcome by exactly its
+    /// coefficient times the shift.
+    #[test]
+    fn abduction_is_lossless_and_reports_invertible_noise() {
+        let slot = MechanismSlot::ConditionalLinearGaussianStateSpace {
+            intercept: 4.0,
+            coeffs: std::sync::Arc::from([2.0]),
+            a: 0.999,
+            process_std: 0.3,
+            obs_std: 0.2,
+            initial_mean: 0.1,
+        };
+        let n = 400;
+        let parents: Vec<f64> = (0..n).map(|t| f64::from(t as u32).sin()).collect();
+        let batch = ParentBatch { n_rows: n, n_parents: 1, values: &parents };
+        let mut rng = CausalRng::from_seed(7);
+        let mut noise = vec![0.0; n];
+        crate::mechanism::sample_noise_column(&slot, n, &mut rng, &mut noise).unwrap();
+        let mut ws = MechanismWorkspace::default();
+        let mut y = vec![0.0; n];
+        evaluate_column(&slot, batch, &noise, &mut y, &mut ws).unwrap();
+
+        let mut inferred = vec![0.0; n];
+        let mode =
+            infer_noise_column_rng(&slot, &y, batch, &mut inferred, &mut CausalRng::from_seed(1))
+                .unwrap();
+        assert_eq!(mode, NoiseInferenceMode::Invertible);
+        let mut replay = vec![0.0; n];
+        evaluate_column(&slot, batch, &inferred, &mut replay, &mut ws).unwrap();
+        for t in 0..n {
+            assert!((replay[t] - y[t]).abs() < 1e-12, "t={t}: {} vs {}", replay[t], y[t]);
+        }
+        let shifted: Vec<f64> = parents.iter().map(|p| p + 1.0).collect();
+        let mut cf = vec![0.0; n];
+        evaluate_column(
+            &slot,
+            ParentBatch { n_rows: n, n_parents: 1, values: &shifted },
+            &inferred,
+            &mut cf,
+            &mut ws,
+        )
+        .unwrap();
+        for t in 0..n {
+            assert!((cf[t] - y[t] - 2.0).abs() < 1e-12);
+        }
     }
 
     #[test]
-    fn innovations_and_likelihood_respect_changes_of_units() {
-        use crate::{MechanismSlot, ParentBatch, log_prob_column};
-        let mut reference = [0.0; 2];
-        infer_lgssm_innovations(&[1.0, 1.0], 0.5, 2.0, 1.0, 0.0, &mut reference, None).unwrap();
-        let mut base_logp = [0.0; 2];
+    fn likelihood_respects_changes_of_units() {
         let parents = ParentBatch { values: &[], n_rows: 2, n_parents: 0 };
+        let mut base_logp = [0.0; 2];
         log_prob_column(
             &MechanismSlot::LinearGaussianStateSpace {
                 a: 0.5,
@@ -254,17 +253,6 @@ mod tests {
         )
         .unwrap();
         for scale in [1e-150, 1e-12, 1e12, 1e150] {
-            let mut packed = [0.0; 2];
-            infer_lgssm_innovations(
-                &[scale, scale],
-                0.5,
-                2.0 * scale,
-                scale,
-                0.0,
-                &mut packed,
-                None,
-            )
-            .unwrap();
             let mut logp = [0.0; 2];
             log_prob_column(
                 &MechanismSlot::LinearGaussianStateSpace {
@@ -279,88 +267,8 @@ mod tests {
             )
             .unwrap();
             for t in 0..2 {
-                let (eps, eta) = unpack_innovations(packed[t]);
-                let (base_eps, base_eta) = unpack_innovations(reference[t]);
-                assert!((eps - base_eps).abs() < 1e-6);
-                assert!((eta - base_eta).abs() < 1e-6);
                 assert!((logp[t] + scale.ln() - base_logp[t]).abs() < 1e-12);
             }
         }
-    }
-
-    #[test]
-    fn pack_unpack_round_trip() {
-        let p = pack_innovations(0.5, -1.25);
-        let (a, b) = unpack_innovations(p);
-        assert!((a - 0.5).abs() < 1e-5);
-        assert!((b - (-1.25)).abs() < 1e-5);
-    }
-
-    #[test]
-    fn generative_abduction_recovers_observations() {
-        let a = 0.7;
-        let process_std = 0.3;
-        let obs_std = 0.2;
-        let initial_mean = 0.0;
-        let mut rng = CausalRng::from_seed(7);
-        let n = 32;
-        let mut noise = vec![0.0; n];
-        sample_lgssm_noise(n, &mut rng, &mut noise).unwrap();
-
-        let mut y = vec![0.0; n];
-        let mut x = initial_mean;
-        for t in 0..n {
-            let (eps, eta) = unpack_innovations(noise[t]);
-            x = if t == 0 { initial_mean + process_std * eps } else { a * x + process_std * eps };
-            y[t] = x + obs_std * eta;
-        }
-
-        let mut inferred = vec![0.0; n];
-        infer_lgssm_innovations(&y, a, process_std, obs_std, initial_mean, &mut inferred, None)
-            .unwrap();
-
-        let mut x2 = initial_mean;
-        for t in 0..n {
-            let (eps, eta) = unpack_innovations(inferred[t]);
-            x2 = if t == 0 { initial_mean + process_std * eps } else { a * x2 + process_std * eps };
-            let yhat = x2 + obs_std * eta;
-            assert!((yhat - y[t]).abs() < 1e-4, "t={t}: yhat={yhat} y={}", y[t]);
-        }
-    }
-
-    /// MM-A3: `infer_lgssm_innovations` must seed the Kalman filter's initial state variance
-    /// from `process_std²` (matching the generative model `x_0 = initial_mean + process_std *
-    /// eps`, i.e. `Var(x_0) = process_std²`), not a hardcoded `1.0`.
-    ///
-    /// Expected `eps`/`eta` below are hand-derived (exact rationals) from the Kalman
-    /// filter/RTS-smoother recursion for `a=0.5, q=process_std²=4.0, r=obs_std²=1.0,
-    /// initial_mean=0.0, y=[1.0, 1.0]` with `p0 = q = 4.0`:
-    ///   `x_pred`=[0, 2/5], `p_pred`=[4, 21/5], `x_f`=[4/5, 23/26], `p_f`=[4/5, 21/26]
-    ///   `x_s`=[11/13, 23/26]  ⇒  eps0=11/26, eps1=3/13, eta0=2/13, eta1=3/26
-    ///
-    /// The pre-fix code hardcoded `p0=1.0`, which gives a materially different `x_s[0]` (and
-    /// hence `eps0 ≈ 0.268293`, not `11/26 ≈ 0.423077`) — a self-consistency round trip
-    /// (reconstructing `y` from the inferred innovations) cannot distinguish the two, so this
-    /// test compares against the independently-computed rationals instead.
-    #[test]
-    fn infer_lgssm_innovations_seeds_initial_variance_from_process_std() {
-        let a = 0.5;
-        let process_std = 2.0; // ≠ 1.0, so the old hardcoded p0 would be wrong.
-        let obs_std = 1.0;
-        let initial_mean = 0.0;
-        let y = [1.0_f64, 1.0];
-        let mut inferred = [0.0; 2];
-        infer_lgssm_innovations(&y, a, process_std, obs_std, initial_mean, &mut inferred, None)
-            .unwrap();
-        let (eps0, eta0) = unpack_innovations(inferred[0]);
-        let (eps1, eta1) = unpack_innovations(inferred[1]);
-        let expected_eps0 = 11.0 / 26.0;
-        let expected_eps1 = 3.0 / 13.0;
-        let expected_eta0 = 2.0 / 13.0;
-        let expected_eta1 = 3.0 / 26.0;
-        assert!((eps0 - expected_eps0).abs() < 1e-4, "eps0={eps0} expected={expected_eps0}");
-        assert!((eps1 - expected_eps1).abs() < 1e-4, "eps1={eps1} expected={expected_eps1}");
-        assert!((eta0 - expected_eta0).abs() < 1e-4, "eta0={eta0} expected={expected_eta0}");
-        assert!((eta1 - expected_eta1).abs() < 1e-4, "eta1={eta1} expected={expected_eta1}");
     }
 }

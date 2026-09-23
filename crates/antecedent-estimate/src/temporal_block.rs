@@ -7,7 +7,7 @@
 //! replicate row keeps its own intact lag window, and consecutive rows inside a
 //! block keep their joint dependence. Resampling the raw series instead and
 //! rebuilding lags would pair, at every block junction, an outcome with lagged
-//! regressors from an unrelated block; in the 1.9 calibration that inflated a
+//! regressors from an unrelated block; calibration showed that inflated a
 //! strong-effect SE by ~10% under iid noise and pushed a nominal-90% temporal
 //! mediation Total interval to 0.96 coverage.
 //!
@@ -27,9 +27,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::StreamDomain;
 use antecedent_data::{circular_block_length, fill_circular_block_indexes};
 
 use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
@@ -58,13 +66,20 @@ pub enum CircularBlockFamily {
 }
 
 impl CircularBlockFamily {
+    /// Family of a shared mediation bootstrap over `atoms` frozen-weight atoms: one atom is
+    /// plain temporal mediation, several are a mixture resampled on one shared replicate.
+    #[must_use]
+    pub const fn for_mediation_atoms(atoms: usize) -> Self {
+        if atoms == 1 { Self::Mediation } else { Self::Mixture }
+    }
+
     /// Threshold on [`score_effective_rows`] of the family's estimating scores
     /// below which the interval carries a `short_series` warning.
     ///
     /// Provenance: `crates/antecedent/tests/v19_short_series_measurement.rs`,
-    /// table in `docs/short-series-thresholds.md` (2000 replicates per cell,
-    /// nominal 0.90, AR(1) ρ ∈ {0.5, 0.8, 0.9, 0.95}, n from 40 to 1600). Each
-    /// family is measured on a short-memory score and on a persistent one
+    /// table in `docs/short-series-thresholds.md` (2000 replicates per cell, the
+    /// nominal-0.90 interval built from the published SE, AR(1) ρ ∈ {0.5, 0.8, 0.9,
+    /// 0.95}, n from 40 to 1600). Each family is measured on a short-memory score and on a persistent one
     /// (AR(1) treatment as well as residual), because the effective-row count
     /// alone does not separate them: the short-memory designs cover nominally
     /// at every measured n, the persistent ones fail at the same counts. A
@@ -77,7 +92,11 @@ impl CircularBlockFamily {
     /// ([`kernel_bias_scale`]; blocks sized on every estimating score,
     /// circular-Bartlett fixed-b factor). That factor only widens intervals;
     /// re-measured with it, every cell below 0.855 still warns on at least 91%
-    /// of its replicates and the thresholds stand:
+    /// of its replicates and the thresholds stand. The factor has since taken the
+    /// Kendall-corrected AR(1) and BIC AR(q) model of [`crate::ar_kernel`], which is
+    /// never smaller on the same score; the warning reads effective rows, not the
+    /// factor, so the warnings are unchanged and only the coverage of the affected
+    /// cells can rise:
     ///
     /// * `SingleWindow` 45 (sweep 45, replication 40): the AR(1)-treatment
     ///   Pulse covers 0.750–0.854 at n = 40–60 (ρ ≥ 0.8), n = 100–160 (ρ ≥ 0.9)
@@ -253,6 +272,14 @@ const SCORE_VARIANCE_FLOOR: f64 = 1e-20;
 /// insignificant autocorrelations. Capped at `min(3√n, n/3)`; `None` for fewer
 /// than 8 scores or a degenerate series.
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "ceil(sqrt(n)) and ceil(sqrt(log10 n)) of a series length are far below usize::MAX; the block length is clamped to [1, cap] with cap at most n"
+)]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "both values are ceilings of square roots of positive reals, hence non-negative; the block length is clamped to at least 1 before the cast"
+)]
 pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     let n = scores.len();
     if n < 8 || scores.iter().any(|s| !s.is_finite()) {
@@ -328,8 +355,8 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
 /// Jin 2008), so the data-driven constant is kept and the rate rescaled by
 /// `n^{1/6}`. The per-atom maximum matters: a mixture score can look nearly
 /// uncorrelated lag by lag while one atom's score carries slowly decaying
-/// dependence (persistent regressor × persistent residual). In the 1.9
-/// calibration (AR(1) ρ = 0.9, n = 400) the `⌈n^{1/3}⌉` rule gave SE/SD 0.82–0.93
+/// dependence (persistent regressor × persistent residual). On AR(1)
+/// ρ = 0.9, n = 400 the `⌈n^{1/3}⌉` rule gave SE/SD 0.82–0.93
 /// and coverage 0.81–0.85 on multi-atom mixtures; this length restored SE/SD ≈ 1.
 /// The nuisance scores matter for the same reason: a short-memory slope
 /// influence over a persistent residual (the intercept's score) left SE/SD at
@@ -346,6 +373,11 @@ pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[
 /// [`politis_white_block_length`] over `scores`; `0` when no series yields one.
 /// Callers cap it at `rows / 3` and never go below their own rule.
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the product ceil(pw * rows^(1/6)) is far below usize::MAX for in-memory series"
+)]
+#[allow(clippy::cast_sign_loss, reason = "both factors are non-negative")]
 pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
     let pw = scores.iter().filter_map(|s| politis_white_block_length(s)).max().unwrap_or(0);
     (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize
@@ -359,8 +391,8 @@ pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
 /// ones included, for [`dependence_block_length`]. The targeted coefficient's
 /// influence can be nearly uncorrelated lag by lag while the residual — the
 /// intercept's score — is strongly persistent. The replicate slope then depends
-/// on how well a block reproduces the persistent residual level: in the 1.9
-/// calibration (AR(1) ρ = 0.9 residual, n = 400, a short-memory regressor) blocks
+/// on how well a block reproduces the persistent residual level: on AR(1)
+/// ρ = 0.9 residual, n = 400, a short-memory regressor, blocks
 /// sized on the slope influence alone gave SE/SD 0.94–0.96 and coverage
 /// 0.850–0.873.
 #[must_use]
@@ -383,18 +415,25 @@ pub fn normal_equation_scores(
             &mut LeastSquaresWorkspace::default(),
         )
         .ok()?;
-    let residuals = fit.residuals;
-    Some(
-        (0..cols)
-            .map(|j| {
-                matrix[j * rows..(j + 1) * rows]
-                    .iter()
-                    .zip(&residuals)
-                    .map(|(x, e)| x * e)
-                    .collect()
-            })
-            .collect(),
-    )
+    Some(normal_equation_scores_of_residuals(matrix, rows, cols, &fit.residuals))
+}
+
+/// [`normal_equation_scores`] for a regression whose OLS `residuals` the caller
+/// already holds: the score `x_tj · ê_t` of every column, without a second fit.
+///
+/// `matrix` is column-major `rows × cols` and `residuals` has length `rows`.
+#[must_use]
+pub fn normal_equation_scores_of_residuals(
+    matrix: &[f64],
+    rows: usize,
+    cols: usize,
+    residuals: &[f64],
+) -> Vec<Vec<f64>> {
+    (0..cols)
+        .map(|j| {
+            matrix[j * rows..(j + 1) * rows].iter().zip(residuals).map(|(x, e)| x * e).collect()
+        })
+        .collect()
 }
 
 /// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
@@ -427,11 +466,14 @@ pub fn normal_equation_scores(
 /// [`dependence_block_length`] and the short-series warning are for.
 ///
 /// Scaling the SE by this ratio makes `estimate ± 1.96·SE` the 95% fixed-b
-/// interval. Published 90% scalar intervals use the same 95% ratio (not
-/// `cv_90 / z_{0.90}`), so they are 90% normal intervals around a 95%-scaled SE;
-/// in the same simulation that construction covers 0.901–0.913 at nominal 0.90
-/// for `b ≤ 1/3` (conservative, increasingly so at long blocks). The gates
-/// measured that construction; do not silently swap in the 90% ratio.
+/// interval, which is the level the result publishes
+/// (`REPORTED_SE_INTERVAL_LEVEL`). The short-series sweeps
+/// ([`CircularBlockFamily::min_effective_rows`]) measured a different, nominal
+/// 0.90, interval built from the same published SE: `estimate ± z_{0.90}·SE`
+/// with the 95% ratio (not `cv_90 / z_{0.90}`). In the same simulation that
+/// construction covers 0.901–0.913 at nominal 0.90 for `b ≤ 1/3` (conservative,
+/// increasingly so at long blocks). The thresholds describe where that
+/// construction stops covering; do not silently swap in the 90% ratio.
 #[must_use]
 pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     if rows == 0 {
@@ -441,17 +483,10 @@ pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96
 }
 
-/// Largest lag-1 autocorrelation the kernel-bias factor prewhitens with
-/// (Andrews & Monahan 1992 cap the AR(1) coefficient the same way, so a
-/// near-unit-root score cannot inflate the factor without bound).
-const KERNEL_BIAS_MAX_RHO: f64 = 0.97;
-
-/// Bartlett kernel-bias factor for a circular-block SE over `block_length`:
-/// `sqrt(LRV_AR(1)(ρ̂) / Bartlett_ℓ,AR(1)(ρ̂))`, the largest over `scores` (the
-/// interval's estimating scores: the target influence(s) and, for a mixture,
-/// the weighted mixture score), with `ρ̂` each score's lag-1 autocorrelation
-/// floored at zero and capped at [`KERNEL_BIAS_MAX_RHO`]. `1` for fewer than
-/// three scores, a non-finite or constant series, or a non-positive `ρ̂`.
+/// Bartlett kernel-bias factor of a circular-block SE over `block_length`: the largest
+/// [`crate::ar_kernel::kernel_bias_factor`] over `scores` (the interval's estimating
+/// scores: the target influence(s) and, for a mixture, the weighted mixture score).
+/// `1` for no scores, a non-finite or constant series, or fewer than eight rows.
 ///
 /// A circular block of length `ℓ` reproduces the circular Bartlett long-run
 /// variance at bandwidth `ℓ`, whose expectation under an AR(1)(ρ) score is
@@ -461,48 +496,18 @@ const KERNEL_BIAS_MAX_RHO: f64 = 0.97;
 /// the randomness of the block variance under short memory, not this bias,
 /// which grows with the score's memory relative to the block: 3% of the SE for
 /// an AR(1)(0.81) score at `ℓ = 74` (a persistent treatment and residual at
-/// ρ = 0.9, n = 400, where the 1.9 short-series measurement put the interval at
-/// 0.87–0.89 for nominal 0.90), under 1% for short-memory scores. Prewhitening
-/// the score by its lag-1 autocorrelation (Andrews & Monahan 1992) gives the
-/// ratio directly; the factor is capped so a near-unit-root `ρ̂` (at most
-/// 0.97) cannot inflate it without bound, and the short-series warning, not
-/// this factor, is what says the series is too short for the dependence.
+/// ρ = 0.9, n = 400, where the short-series measurement put the interval at
+/// 0.87–0.89 for nominal 0.90), under 1% for short-memory scores. The score is
+/// modelled by a Kendall-corrected AR(1) and a BIC-selected AR(q ≤ 4)
+/// ([`crate::ar_kernel`]); the response bands read the same factor per cell, so a
+/// scalar Pulse or Sustained SE and the matching response-cell SE apply one
+/// correction to one score. The factor only widens an interval, and the short-series
+/// warning, not this factor, is what says the series is too short for the
+/// dependence.
 #[must_use]
 pub fn kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64 {
     let l = block_length.max(1);
-    scores
-        .iter()
-        .filter_map(|s| lag_one_autocorrelation(s))
-        .map(|rho| {
-            let rho = rho.clamp(0.0, KERNEL_BIAS_MAX_RHO);
-            let long_run = (1.0 + rho) / (1.0 - rho);
-            let mut power = 1.0;
-            let tail: f64 = (1..l)
-                .map(|k| {
-                    power *= rho;
-                    (1.0 - k as f64 / l as f64) * power
-                })
-                .sum();
-            (long_run / (1.0 + 2.0 * tail)).sqrt()
-        })
-        .filter(|f| f.is_finite())
-        .fold(1.0, f64::max)
-}
-
-/// Lag-1 autocorrelation of `scores`; `None` for fewer than three, non-finite
-/// or constant scores.
-fn lag_one_autocorrelation(scores: &[f64]) -> Option<f64> {
-    let n = scores.len();
-    if n < 3 || scores.iter().any(|s| !s.is_finite()) {
-        return None;
-    }
-    let mean = scores.iter().sum::<f64>() / n as f64;
-    let gamma0: f64 = scores.iter().map(|s| (s - mean).powi(2)).sum();
-    if gamma0 <= 0.0 {
-        return None;
-    }
-    let gamma1: f64 = scores.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum();
-    Some(gamma1 / gamma0)
+    scores.iter().map(|s| crate::ar_kernel::kernel_bias_factor(s, l)).fold(1.0, f64::max)
 }
 
 /// Kiefer–Vogelsang (2005) fixed-b correction for a *non-circular* Bartlett
@@ -617,7 +622,7 @@ pub fn common_time_window(designs: &[AlignedRows]) -> Option<(usize, usize)> {
 /// original series, and every design is refit on the same resampled index set.
 /// Rebuilding lags on a resampled raw series instead pairs, at every block
 /// junction and at the circular wrap, an outcome with regressors from an
-/// unrelated block; in the 1.9 calibration that inflated multi-atom SEs 1.35–2.3×.
+/// unrelated block; that pairing inflated multi-atom SEs 1.35–2.3×.
 ///
 /// `block_length` is in series times (callers pass [`dependence_block_length`]
 /// of the structural span over the window's estimating scores, at least
@@ -654,7 +659,7 @@ pub fn aligned_block_bootstrap(
 ///
 /// `estimate` returns `None` for a replicate that cannot be fit; that replicate
 /// counts as failed for every target, so all targets always come from the same
-/// replicates. Replicate `r` draws from `ctx.rng.stream(stream_base + r)`.
+/// replicates. Replicate `r` draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
 pub fn row_block_bootstrap_vec(
     rows: usize,
     block_length: usize,
@@ -693,7 +698,8 @@ fn block_replicates<T: AsRef<[f64]>>(
             break;
         }
         attempted += 1;
-        let mut rng = ctx.rng.stream(stream_base.wrapping_add(u64::from(replicate)));
+        let mut rng =
+            ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ u64::from(replicate));
         if fill_circular_block_indexes(rows, block_length, &mut rng, &mut row_src).is_err() {
             continue;
         }
@@ -966,7 +972,10 @@ mod tests {
     /// The per-family thresholds on one fixed series whose statistic sits
     /// between them: the families disagree exactly as their thresholds say.
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the thresholds are exact constants returned unchanged, so exact equality is intended"
+    )]
     fn circular_block_family_thresholds_on_a_fixed_series() {
         use CircularBlockFamily::{Mediation, Mixture, Sequential, SingleWindow};
         assert_eq!(SingleWindow.min_effective_rows(), 45.0);
@@ -988,6 +997,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the kernel bias factor is a deterministic function of the same score and lag, so the test asserts bit-identical values"
+    )]
     fn kernel_bias_scale_grows_with_score_memory_and_shrinks_with_block_length() {
         // A short-memory (alternating, negative r1) score keeps the factor at 1.
         let alternating: Vec<f64> = (0..200).map(|t| if t % 2 == 0 { 1.0 } else { -1.0 }).collect();
@@ -1014,6 +1027,11 @@ mod tests {
         let at_20 = kernel_bias_scale(&[&persistent], 20);
         assert!(at_74 > 1.01 && at_74 < 1.08, "{at_74}");
         assert!(at_20 > at_74, "{at_20} vs {at_74}");
+        // One correction for one score: the scalar SE reads exactly the factor the
+        // response bands read per cell (Kendall-corrected AR(1) / BIC AR(q)), and a
+        // mildly persistent score is not left at the raw-lag-1 reading.
+        assert_eq!(at_74, crate::ar_kernel::kernel_bias_factor(&persistent, 74));
+        assert_eq!(at_20, crate::kernel_bias_factor(&persistent, 20));
         // The largest over several scores, and the ρ̂ cap keeps it finite.
         assert!((kernel_bias_scale(&[&alternating, &persistent], 74) - at_74).abs() < 1e-12);
         let ramp: Vec<f64> = (0..400).map(f64::from).collect();

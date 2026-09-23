@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "projects": {
       "fci_ges": {
         "project": "causal-learn",
@@ -42,7 +43,7 @@
     },
     "python": "3.11.5",
     "seed": 20260730,
-    "command": "uv run --python 3.11 --with numpy==1.26.4 --with scipy==1.12.0 --with scikit-learn==1.4.2 --with pandas==2.2.2 --with causal-learn==0.1.4.3 --with lingam==1.9.1 python /tmp/antecedent_static_discovery_oracles.py",
+    "command": "uv run --python 3.11 --with numpy==1.26.4 --with scipy==1.12.0 --with scikit-learn==1.4.2 --with pandas==2.2.2 --with causal-learn==0.1.4.3 --with lingam==1.9.1 python /tmp/antecedent_static_discovery_oracles.py", "generator_retained": false,
     "generation_location": "temporary external harness; not retained"
   },
   "canonicalization": {

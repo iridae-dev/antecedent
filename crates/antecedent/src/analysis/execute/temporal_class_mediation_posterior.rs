@@ -116,7 +116,11 @@ impl super::Study {
         let (replicates_ok, replicates_attempted) = shared
             .as_ref()
             .map_or((0, 0), |s| (s.block.replicates_ok, s.block.replicates_attempted));
-        let mut estimate = mixed.estimate;
+        let family = shared.as_ref().map_or_else(
+            || antecedent_estimate::CircularBlockFamily::for_mediation_atoms(designs.len()),
+            |s| s.family,
+        );
+        let mut estimate = mixed.estimate.with_block_family(family);
         estimate.se_analytic = f64::NAN;
         estimate.se_bootstrap = requested_se;
         estimate.bootstrap_replicates_ok = replicates_requested.then_some(replicates_ok);
@@ -154,11 +158,6 @@ impl super::Study {
             mixed.mixture.unevaluable_mass,
             0.0,
         );
-        let family = if designs.len() == 1 {
-            antecedent_estimate::CircularBlockFamily::Mediation
-        } else {
-            antecedent_estimate::CircularBlockFamily::Mixture
-        };
         match shared.as_ref() {
             Some(s) if replicates_requested && requested_se.is_some() => {
                 diagnostics.push(Diagnostic::new(

@@ -6,9 +6,22 @@
 
 use crate::view::{BitMaskView, F64VectorView};
 
+/// A mask must cover exactly the vector it masks: `BitMaskView::get` reads out of
+/// range as "excluded", so a short mask would silently drop the tail.
+fn check_mask_len(len: usize, mask: Option<BitMaskView<'_>>) {
+    if let Some(m) = mask {
+        assert_eq!(m.len(), len, "mask length must equal vector length");
+    }
+}
+
 /// Masked sum of a vector. When `mask` is `None`, all elements are included.
+///
+/// # Panics
+///
+/// Panics if `mask` is present and its length differs from `x`.
 #[must_use]
 pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> f64 {
+    check_mask_len(x.len(), mask);
     let mut acc = 0.0;
     for i in 0..x.len() {
         if mask.is_some_and(|m| !m.get(i)) {
@@ -21,8 +34,13 @@ pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> f64 {
 }
 
 /// Masked mean. Returns `None` when no valid observations.
+///
+/// # Panics
+///
+/// Panics if `mask` is present and its length differs from `x`.
 #[must_use]
 pub fn masked_mean(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Option<f64> {
+    check_mask_len(x.len(), mask);
     let mut acc = 0.0;
     let mut n = 0usize;
     for i in 0..x.len() {
@@ -36,6 +54,10 @@ pub fn masked_mean(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Optio
 }
 
 /// Population variance with optional mask. Returns `None` when `n == 0`.
+///
+/// # Panics
+///
+/// Panics if `mask` is present and its length differs from `x`.
 #[must_use]
 pub fn masked_variance(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Option<f64> {
     let mean = masked_mean(x, mask)?;
@@ -86,6 +108,7 @@ pub fn masked_covariance(
     mask: Option<BitMaskView<'_>>,
 ) -> Option<f64> {
     assert_eq!(x.len(), y.len(), "covariance views must share length");
+    check_mask_len(x.len(), mask);
     let mut sx = 0.0;
     let mut sy = 0.0;
     let mut n = 0usize;
@@ -270,4 +293,30 @@ pub fn weighted_dot(x: &[f64], y: &[f64], weights: &[f64]) -> f64 {
         acc += sanitize_weight(weights[i]) * x[i] * y[i];
     }
     acc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "mask length must equal vector length")]
+    fn short_mask_is_a_shape_error_not_a_silent_tail_drop() {
+        let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        let bytes = [0xFFu8];
+        let mask = BitMaskView::new(&bytes, 8).unwrap();
+        let _ = masked_sum(F64VectorView::contiguous(&x), Some(mask));
+    }
+
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[test]
+    #[allow(clippy::float_cmp, reason = "the masked sum of small integers is exact in f64")]
+    fn full_length_mask_selects_exactly_its_bits() {
+        let x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        let bytes = [0b0000_0101u8, 0b0000_0010];
+        let mask = BitMaskView::new(&bytes, 10).unwrap();
+        // Bits 0, 2 and 9 are set: 1 + 3 + 10.
+        assert_eq!(masked_sum(F64VectorView::contiguous(&x), Some(mask)), 14.0);
+        assert_eq!(masked_mean(F64VectorView::contiguous(&x), Some(mask)), Some(14.0 / 3.0));
+    }
 }

@@ -13,11 +13,11 @@ use antecedent_core::{
     Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus,
     AttestedEvidence, CalibrationView, CausalQuery, CausalSchema, ClaimDomains, ClaimEnvelope,
     ClaimKind, ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT,
-    IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalMethod, NextAction,
-    ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness,
-    OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability, SemanticLayer,
-    SlotAvailability, SupportSlot, TargetPopulation, TransformIntent, TransformationReport,
-    UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
+    IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalInterpretation,
+    IntervalMethod, NextAction, ObligationKind, ObligationRecord, ObligationScope, OperationKind,
+    OperationReadiness, OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability,
+    SemanticLayer, SlotAvailability, SupportSlot, TargetPopulation, TransformIntent,
+    TransformationReport, UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{
@@ -482,7 +482,8 @@ impl PreparedStudy {
     }
 
     /// Score-table reuse key. Stricter than identification: folds, rows,
-    /// nuisance provenance, and the snapshot are part of the digest.
+    /// nuisance provenance, the inference binding (estimator options, overlap, backend)
+    /// and the snapshot are part of the digest.
     ///
     /// # Errors
     ///
@@ -513,6 +514,7 @@ impl PreparedStudy {
             table.treatment,
             &table.intervened,
             self.study().bootstrap_replicates,
+            identities.inference_binding,
         ))
     }
 
@@ -837,7 +839,9 @@ impl StudyResult {
     ///
     /// # Errors
     ///
-    /// Canonical-encoding failures, or mass totals that do not conserve.
+    /// [`CausalError::Conflict`] when the result carries no execution stamp or was
+    /// executed under other identities; canonical-encoding failures, or mass totals
+    /// that do not conserve.
     pub fn claim(
         &self,
         contract: &CausalContract,
@@ -858,17 +862,24 @@ impl StudyResult {
         contract: &CausalContract,
         ctx: &ExecutionContext,
     ) -> Result<(ClaimEnvelope, AnalysisResultWire), CausalError> {
-        if let Some(executed) = &self.executed_contract {
-            if executed.identities != contract.identities {
-                return Err(CausalError::Conflict {
-                    what: "program",
-                    detail: "result was not executed under this contract",
-                });
-            }
+        // A claim seals the result under the contract's identities, so the result must
+        // prove which contract it ran under. An unstamped result (a plain `Study::run`, a
+        // mixed-execution refutation) would be sealed under identities it never carried.
+        let Some(executed) = &self.executed_contract else {
+            return Err(CausalError::Conflict {
+                what: "result",
+                detail: "result carries no execution stamp; only a prepared handle's execution \
+                         can be sealed into a claim",
+            });
+        };
+        if executed.identities != contract.identities {
+            return Err(CausalError::Conflict {
+                what: "program",
+                detail: "result was not executed under this contract",
+            });
         }
         let body = body_for(&contract.body, self)?;
-        let mut reasoning =
-            result_reasoning(self, &contract.reasoning, &body, &contract.inference)?;
+        let mut reasoning = result_reasoning(self, &contract.reasoning, &body)?;
         if let (SlotAvailability::Available(slot), Some(status)) =
             (&mut reasoning.identification, contract.body.identification_status)
         {
@@ -989,7 +1000,40 @@ impl StudyResult {
         &self,
         query: &antecedent_core::CausalQuery,
     ) -> Result<AnalysisResultWire, CausalError> {
-        body_for(&body_frame(query, None, None, None)?, self)
+        self.analysis_result_wire_with_context(query, None, None)
+    }
+
+    /// [`Self::analysis_result_wire`], threading the originating study's population
+    /// registry and cached temporal identification. Callers that hold both the
+    /// prepared study and its executed result (the composite artifact path) use
+    /// this instead of re-deriving the body from the result alone, so the scalar,
+    /// identification and every other field come from the one place that builds
+    /// the contracted artifact.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn analysis_result_wire_with_context(
+        &self,
+        query: &antecedent_core::CausalQuery,
+        registry: Option<&antecedent_core::PopulationRegistry>,
+        temporal: Option<&CachedTemporalIdentification>,
+    ) -> Result<AnalysisResultWire, CausalError> {
+        body_for(&body_frame(query, temporal, None, registry)?, self)
+    }
+}
+
+/// Uncertainty component of a response interval by what its level means: a credible
+/// interval is posterior parameter uncertainty, a confidence interval is sampling
+/// uncertainty.
+fn response_interval_component(
+    interpretation: IntervalInterpretation,
+    credible: &'static str,
+    confidence: &'static str,
+) -> (UncertaintySource, &'static str) {
+    match interpretation {
+        IntervalInterpretation::Credible => (UncertaintySource::Parameter, credible),
+        IntervalInterpretation::Confidence => (UncertaintySource::Sampling, confidence),
     }
 }
 
@@ -1227,14 +1271,9 @@ fn compile_with_payloads(
         payloads.identities.program = None;
     }
     let reasoning = reasoning_view(study, prepared, cached, search_capped);
-    let lagged = study
-        .temporal_identification_cache
-        .as_deref()
-        .cloned()
-        .or_else(|| dbn_projected_temporal_identification(study))
-        .or_else(|| class_projected_temporal_identification(study));
+    let lagged = full_temporal_identification(study);
     let body =
-        body_frame(&study.query, lagged.as_ref(), cached, study.population_registry.as_ref())?;
+        body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
     let functional = match overlap_label(study, resolved_estimator.as_deref()) {
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
         None => functional_label(&study.query),
@@ -1519,6 +1558,26 @@ fn cached_identification(study: &Study) -> Option<&IdentificationResult> {
         return cache.atoms.first().map(|atom| &atom.identification);
     }
     None
+}
+
+/// The study's temporal identification product and its exact unfolded variable namespace,
+/// however it was produced.
+///
+/// A `TemporalDag` prepare caches this directly. A DBN posterior or a TemporalCpdag/Pag
+/// envelope instead cache a per-atom or per-completion result with its own unfold indexer;
+/// [`dbn_projected_temporal_identification`] and [`class_projected_temporal_identification`]
+/// project those onto the same [`CachedTemporalIdentification`] shape so every consumer —
+/// the compiled contract and an exported `analysis_result` artifact alike — validates and
+/// reports the same namespace for the same study.
+pub(crate) fn full_temporal_identification(
+    study: &Study,
+) -> Option<Cow<'_, CachedTemporalIdentification>> {
+    if let Some(cache) = study.temporal_identification_cache.as_deref() {
+        return Some(Cow::Borrowed(cache));
+    }
+    dbn_projected_temporal_identification(study)
+        .or_else(|| class_projected_temporal_identification(study))
+        .map(Cow::Owned)
 }
 
 /// Project a DBN posterior atom onto the existing temporal-namespace owner.
@@ -1818,6 +1877,7 @@ fn functional_label(query: &CausalQuery) -> String {
             TargetPopulation::Predicate(_) => "predicate",
             TargetPopulation::CustomDistribution(_) => "custom_distribution",
             TargetPopulation::RowWeights { .. } => "row_weights",
+            TargetPopulation::LocalAtCutoff { .. } => "local_at_cutoff",
             _ => "other_population",
         }
     }
@@ -2336,23 +2396,33 @@ fn result_reasoning(
     result: &StudyResult,
     prepared: &ReasoningView,
     body: &AnalysisResultWire,
-    inference: &str,
 ) -> Result<ReasoningView, CausalError> {
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
-    if result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0 {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            "analytic_se",
-            false,
-        ));
-    }
-    if result.estimate.se_bootstrap.is_some() {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            "bootstrap_se",
-            false,
-        ));
+    let published = crate::PublishedScalarUncertainty::select(&result.estimate);
+    match published.method {
+        antecedent_core::IntervalMethod::AnalyticSe => {
+            components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling,
+                "analytic_se",
+                false,
+            ));
+        }
+        antecedent_core::IntervalMethod::BootstrapSe => {
+            components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling,
+                "bootstrap_se",
+                false,
+            ));
+        }
+        antecedent_core::IntervalMethod::AndersonRubin => {
+            components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling,
+                "anderson_rubin",
+                false,
+            ));
+        }
+        _ => {}
     }
     if result.posterior.is_some() {
         components.push(UncertaintyComponent::new(
@@ -2363,25 +2433,52 @@ fn result_reasoning(
     }
     // A function-valued posterior can carry its band directly on the response,
     // without a scalar posterior or SE on StudyResult. Its portable reasoning
-    // must not call that published parameter uncertainty "omitted".
-    if inference == "bayesian" {
+    // must not call that published parameter uncertainty "omitted". This runs for
+    // every inference kind: the interval's own tag decides the uncertainty source
+    // below, so a Frequentist response confidence band is exactly as available
+    // here as a Bayesian credible band — there is nothing left for an
+    // `inference == "bayesian"` gate to guard.
+    {
         if let Some(response) = &result.response {
+            // The interval's own tag decides the source: a credible interval is posterior
+            // parameter uncertainty; a confidence interval (a Wald interval on influence
+            // scores, say) is sampling uncertainty even when the fit was Bayesian.
             let target = match &response.uncertainty {
                 ResponseUncertainty::None => None,
-                ResponseUncertainty::Scalar { .. } => Some("posterior_interval"),
-                ResponseUncertainty::PointwiseBand { .. } => Some("posterior_pointwise_band"),
-                ResponseUncertainty::SimultaneousBand { .. } => Some("posterior_simultaneous_band"),
-                ResponseUncertainty::IdentifiedEnvelopeBand { .. } => {
-                    Some("posterior_envelope_band")
+                ResponseUncertainty::Scalar { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_interval",
+                        "response_confidence_interval",
+                    ))
                 }
-                ResponseUncertainty::Posterior { .. } => Some("posterior_artifact"),
+                ResponseUncertainty::PointwiseBand { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_pointwise_band",
+                        "response_pointwise_confidence_band",
+                    ))
+                }
+                ResponseUncertainty::SimultaneousBand { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_simultaneous_band",
+                        "response_simultaneous_confidence_band",
+                    ))
+                }
+                ResponseUncertainty::IdentifiedEnvelopeBand { interpretation, .. } => {
+                    Some(response_interval_component(
+                        *interpretation,
+                        "posterior_envelope_band",
+                        "response_envelope_confidence_band",
+                    ))
+                }
+                ResponseUncertainty::Posterior { .. } => {
+                    Some((UncertaintySource::Parameter, "posterior_artifact"))
+                }
             };
-            if let Some(target) = target {
-                components.push(UncertaintyComponent::new(
-                    UncertaintySource::Parameter,
-                    target,
-                    false,
-                ));
+            if let Some((source, target)) = target {
+                components.push(UncertaintyComponent::new(source, target, false));
             }
         }
     }
@@ -2467,15 +2564,16 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone());
     identification.query = frame.query.clone();
+    let published = crate::PublishedScalarUncertainty::select(&result.estimate);
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),
         identification,
         identification_variables,
         temporal_identification,
         estimate: executed_scalar(result),
-        standard_error: result.estimate.se_bootstrap.or_else(|| {
-            result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
-        }),
+        standard_error: published.standard_error,
+        interval_lower: published.lower,
+        interval_upper: published.upper,
         assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
@@ -2484,6 +2582,20 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
+        fitted_effect: result.estimate.fitted_effect.as_deref().cloned(),
+        cate_se: result.estimate.cate_se.as_ref().map(|v| v.to_vec()),
+        cate_leaf_dispersion: result.estimate.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
+        outcome_oof_r2: result.estimate.outcome_oof_r2,
+        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
+        crossfit_folds: result.estimate.crossfit_folds,
+        crossfit_seed: result.estimate.crossfit_seed,
+        learner_provenance: result
+            .estimate
+            .learner_provenance
+            .iter()
+            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
+            .collect(),
     };
     result.fill_analysis_result_payloads(&mut wire, "execution-posterior")?;
     Ok(wire)
@@ -2527,7 +2639,7 @@ fn temporal_identification_wires(
         .collect()
 }
 
-fn reasoning_section(view: &ReasoningView) -> ReasoningSectionWire {
+pub(super) fn reasoning_section(view: &ReasoningView) -> ReasoningSectionWire {
     ReasoningSectionWire {
         identification: slot_section_from_availability(&view.identification, |slot| {
             IdentificationSlotWire {
@@ -3006,6 +3118,22 @@ fn structural_response_wire(
 mod tests {
     use super::*;
     use antecedent_core::{AverageEffectQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity};
+
+    #[test]
+    fn response_interval_component_follows_the_interval_tag_not_the_inference_mode() {
+        assert_eq!(
+            response_interval_component(IntervalInterpretation::Credible, "posterior", "sampling"),
+            (UncertaintySource::Parameter, "posterior")
+        );
+        assert_eq!(
+            response_interval_component(
+                IntervalInterpretation::Confidence,
+                "posterior",
+                "sampling"
+            ),
+            (UncertaintySource::Sampling, "sampling")
+        );
+    }
     use antecedent_identify::{
         CAPPED_COMPLETION_DIAGNOSTIC_CODE, DerivationTrace, GraphIdentificationCase,
         IdentificationPerformanceRecord, ProbabilityMass,
@@ -3070,7 +3198,10 @@ mod tests {
 
     // Exact 0.0 / 1.0 are the facts under test: no capped case contributes
     // exactly no mass, and an unexamined envelope is entirely incomplete.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an empty search leaves the mass exactly 0.0, which is the claim under test"
+    )]
     #[test]
     fn a_complete_envelope_reports_no_incomplete_search_mass() {
         let envelope = IdentificationEnvelope::from_cases(vec![
@@ -3106,7 +3237,10 @@ mod tests {
 
     // Exact 0.0 / 1.0 are the facts under test: no capped case contributes
     // exactly no mass, and an unexamined envelope is entirely incomplete.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "an unexamined envelope has exactly 0.0 unidentified and 1.0 incomplete mass, which is the claim under test"
+    )]
     #[test]
     fn nothing_examined_is_not_proof_of_non_identification() {
         let envelope: IdentificationEnvelope<u32> = IdentificationEnvelope::from_cases(Vec::new());

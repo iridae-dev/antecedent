@@ -44,7 +44,14 @@
 
 // Uniform index draws truncate a non-negative float; envelope slopes are compared
 // exactly to merge identical lines.
-#![allow(clippy::cast_sign_loss, clippy::float_cmp)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_sign_loss,
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::{norm_cdf, norm_pdf, norm_sf, standard_normal};
@@ -514,6 +521,11 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
             unreachable!("the normal model is always exact");
         };
         let k = states.len();
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "next_f64 is in [0, 1), so the product is a non-negative value below k"
+        )]
         let truth = ((rng.next_f64() * k as f64) as usize).min(k - 1);
         let statistic = self.signal.sample_statistic(&states[truth], n, rng)?;
         let mut log_lik = vec![0.0; k];
@@ -568,7 +580,12 @@ pub(crate) fn expected_max_affine(lines: &[(f64, f64)], s: f64) -> f64 {
     // Keep the highest intercept among equal slopes (last after the sort).
     let mut distinct: Vec<(f64, f64)> = Vec::with_capacity(sorted.len());
     for line in sorted {
-        if distinct.last().is_some_and(|last| last.1 == line.1) {
+        #[allow(
+            clippy::float_cmp,
+            reason = "lines were sorted by slope, so bit-identical slopes are the duplicates to collapse"
+        )]
+        let same_slope = distinct.last().is_some_and(|last| last.1 == line.1);
+        if same_slope {
             distinct.pop();
         }
         distinct.push(line);

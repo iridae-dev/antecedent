@@ -38,4 +38,14 @@ pub enum ProbError {
         /// Context.
         message: String,
     },
+    /// A typed refusal: the request is not one the library will run, as opposed
+    /// to a numerical failure of a request it would run. `code` is the stable
+    /// machine-readable reason code (`parity/reason_codes.toml`).
+    #[error("{message}")]
+    Refused {
+        /// Stable reason code.
+        code: &'static str,
+        /// Human-readable context, led by the code.
+        message: String,
+    },
 }

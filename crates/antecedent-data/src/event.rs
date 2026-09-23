@@ -2,7 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -116,12 +123,25 @@ impl EventData {
         let times = self.event_times_ns.as_ref();
         let t0 = times[0];
         let t_last = times[times.len() - 1];
+        #[allow(
+            clippy::cast_sign_loss,
+            reason = "event times are non-decreasing (checked at construction), so the span is non-negative"
+        )]
         let span = (t_last - t0) as u64;
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the bin count is bounded by the event span in nanoseconds divided by the interval, which fits the address space of any dataset that can be held in memory"
+        )]
         let n_bins = (span / interval_ns) as usize + 1;
 
         // Last event index per bin (None = empty).
         let mut last_in_bin: Vec<Option<usize>> = vec![None; n_bins];
         for (i, &t) in times.iter().enumerate() {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "t is at or after the first event time (times are non-decreasing) and the bin index is clamped to n_bins - 1 right after, so it is non-negative and in range"
+            )]
             let bin = ((t - t0) as u64 / interval_ns) as usize;
             let bin = bin.min(n_bins - 1);
             last_in_bin[bin] = Some(i);

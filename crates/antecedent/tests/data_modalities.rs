@@ -2,11 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::uninlined_format_args)]
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names,
-    clippy::uninlined_format_args
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 mod common;
@@ -978,7 +977,7 @@ fn panel_response_band_is_the_between_unit_t_interval() {
             .unwrap();
         let response = result.response.as_ref().unwrap();
         let mean = point_surface(response);
-        let antecedent_core::ResponseUncertainty::PointwiseBand { level, lower, upper } =
+        let antecedent_core::ResponseUncertainty::PointwiseBand { level, lower, upper, .. } =
             &response.uncertainty
         else {
             panic!("expected a pointwise band, got {:?}", response.uncertainty);

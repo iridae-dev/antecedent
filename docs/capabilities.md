@@ -1,9 +1,12 @@
 # Capabilities
 
-This page is a readable tour of what exists in Antecedent. The parity manifests
+This is a readable inventory of what exists in Antecedent, not the product's
+mental model or a promise that every combination can run. Read
+[what “supported” means](guarantees.md) for the distinction between capability,
+licensed execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
-is the public **license** for analysis cells. 1.11 inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/1.11/parity/compiler.toml)
+is the public **license** for analysis cells. Inspect / claim / reuse /
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/2.0/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -56,13 +59,13 @@ bootstrap uncertainty. TemporalCpdag/TemporalPag class envelopes publish a
 shared circular-block mixture SE (frozen-weight aggregate over identified
 atoms; unidentified mass is retained, not mixed) and Imbens–Manski
 identified-set intervals with per-completion endpoints; Bayesian class envelopes
-publish the product-posterior envelope quantile (independently seeded completion
-posteriors) at Imbens–Manski tails; both are flagged `truncated` over a capped
+publish the product-posterior envelope quantile (completion posteriors from
+distinct `StreamDomain` RNG streams) at Imbens–Manski tails; both are flagged
+`truncated` over a capped
 completion enumeration. Temporal PAG results retain MAG
 completions and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: TemporalPag
-mediation, temporal graph-posterior responses,
-partial-graph derivatives, graph-posterior / nested counterfactuals,
+mediation, partial-graph derivatives, graph-posterior / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
 
@@ -85,7 +88,10 @@ Graph operations:
 * districts;
 * latent projection;
 * Markov-equivalence completions;
-* definite-status separation;
+* PAG m-separation as a statement about every MAG in the class: `separated`,
+  `connected`, or `undetermined` (definite-status paths first, then the
+  enumerated completions; never "separated" because a path was of indefinite
+  status);
 * temporal unfolding;
 * intervention overlays.
 
@@ -95,9 +101,9 @@ licensed (explicit/accepted, Frequentist and Bayesian) via a MEC envelope;
 runtime class stays `Cpdag`. Completing the graph yourself is still the `Dag`
 cell. Pulse and single-step Sustained on incomplete `TemporalCpdag` /
 `TemporalPag` are licensed (explicit/accepted, Frequentist) via a completion
-envelope. A fully oriented supplied class stays that class. Completing those
-graphs yourself is still the `TemporalDag` coordinate. Bayesian
-incomplete-class temporal cells stay refused.
+envelope, and the Bayesian counterparts are licensed as well. A fully oriented
+supplied class stays that class. Completing those graphs yourself is still the
+`TemporalDag` coordinate.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
 CBOR artifacts.
@@ -226,31 +232,56 @@ Implemented identification strategies:
 * efficient backdoor adjustment;
 * front-door identification;
 * instrumental variables;
-* sharp regression discontinuity;
-* an explicitly scoped, incomplete ID/IDC implementation for DAGs and ADMGs;
-* line-5 hedge node-set diagnostics (not fully validated C-forest certificates);
+* sharp regression discontinuity, for the effect at the cutoff only (see below);
+* Shpitser–Pearl ID/IDC for DAGs and ADMGs with hard `Set` interventions on
+  finite domains. Every valid ID query ends either in a functional or in a
+  hedge; this is checked exhaustively against enumerated SCMs on all ADMGs of
+  up to four nodes (single treatment and outcome) and on a sample of larger
+  joint queries, not proved. Napkin-type functionals keep a free pre-treatment
+  variable: the identity holds at every supported value of it;
+* line-5 hedge node-set certificates, checkable against the hedge definition
+  with `HedgeCertificate::verify` (existential over the C-forest edge subsets,
+  which the certificate does not store);
 * bounded path-specific identification by selected-edge graph reduction;
 * generalized adjustment for partial graphs;
 * unfolded temporal backdoor;
 * temporal mediation;
 * pairwise backdoor identification for continuous-response functionals;
 * sharp binary-IV Balke–Pearl ATE bounds by response-type enumeration;
-* single-source selection-diagram transport on a sound sID subset (direct,
-  S-admissible / exogenous standardization, singleton c-components), with
-  `NotCertified` outside that subset.
+* classical single-source sID (Bareinboim–Pearl Figure-5 recursion, access to
+  all source experiments): an independently checked symbolic distribution, an
+  independently verified s-hedge `ProvenNonTransportable` certificate, or
+  `NotCertified` where the recursion meets an obstruction it cannot certify;
+  meta-transport does the same across sources. Completeness holds only in
+  those experimental-information families;
+* catalog-bound single-source transport on a sound but incomplete subset
+  (direct, S-admissible / exogenous standardization, singleton c-components),
+  with `NotCertified` outside that subset. Failing to bind a formula to a finite
+  supplied catalog is not a non-transportability proof.
 
 `AutoIdentifier` reports applicable strategies. It does not silently choose an
 estimator.
 
-For PAGs, Antecedent uses generalized adjustment, identification envelopes, or
-explicit graph completions. Licensed PAG analysis is `AverageEffect`,
-`ResponseCurve` / `InterventionResponse`, and `ConditionalEffect` after a MAG
-visibility check; this is a sufficient adjustment criterion, not a licensed
-complete identification theory for MAG or PAG response functionals, and not a
-path-specific, distribution, or mediation surface. Full PAG-native ID and IDC
-are outside the supported scope.
-General multi-node sID recursion and definitive non-transportability
-certificates are outside the 0.9 transport contract.
+For PAGs, Antecedent enumerates the valid MAG completions (maximal, ancestral,
+same unshielded colliders, one Markov class) and identifies each; the envelope
+keeps unidentified mass. `AverageEffect` and `ConditionalEffect` use generalized
+adjustment after a MAG visibility check. Single-treatment `ResponseCurve` /
+`InterventionResponse` try that adjustment first and then Shpitser–Pearl ID on
+the completion with every *invisible* directed edge `A -> B` (Zhang 2008) also
+read as `A <-> B`. Every DAG a MAG represents projects to a subgraph of that
+ADMG, so a functional found there holds for all of them; a directed MAG edge is
+never read as unconfounded unless it is visible. This is sound and reaches
+effects no adjustment set identifies, but it is not complete: a refusal
+(`identify.response.mag_id_refused`) is not a proof of non-identifiability. The
+complete algorithm for PAGs, IDP (Jaber, Zhang & Bareinboim 2019), is not
+implemented, and there is no PAG-native IDC. A circle-free graph that is not a
+maximal ancestral graph (for example the front-door ADMG `T -> M -> Y`,
+`T <-> Y`) has no completion and identifies nothing as a `Pag`; hold it as an
+`Admg`. This is not a path-specific, distribution, or mediation surface.
+Transport completeness is per theorem family (see
+[transport scope](guides/transport-scope.md)): classical sID and meta-transport
+are complete only in their experimental-information families, and the finite
+catalog search is sound and incomplete.
 
 ## Estimation
 
@@ -263,10 +294,11 @@ certificates are outside the 0.9 transport contract.
 * covariate-distance matching;
 * stratification;
 * AIPW;
-* front-door two-stage estimation;
+* front-door functional plug-in estimation (`frontdoor.functional`);
+* linear front-door two-stage estimation (`frontdoor.linear_two_stage`);
 * Wald estimation;
 * 2SLS;
-* sharp local-linear regression discontinuity;
+* sharp local-linear regression discontinuity (effect at the cutoff);
 * linear conditional effect models;
 * temporal adjustment;
 * temporal mediation;
@@ -292,10 +324,13 @@ the structure before estimating a response.
 The list above is inventory. Derivative cells are licensed on explicit or
 accepted DAGs under Frequentist and Bayesian inference at validation `none`;
 partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
-licensed on `Dag`, `TemporalDag`, `Admg`, `Cpdag`, and `Pag` under Frequentist
-and Bayesian inference with validation `none` (class graphs via the same
-generalized-adjustment envelope as ATE; see the [support matrix](support-matrix.md)).
-That is not MAG/PAG-native response identification. Graph-posterior
+licensed on `Dag`, `Admg`, `Cpdag`, `Pag`, `TemporalDag`, `TemporalCpdag`, and
+`TemporalPag` under Frequentist
+and Bayesian inference with validation `none` (class graphs via the completion
+envelope: generalized adjustment per completion, then, for `Pag`, the sound but
+incomplete visibility-aware ID described under identification; see the
+[support matrix](support-matrix.md)). That is not PAG-native (IDP) response
+identification. Graph-posterior
 `ResponseCurve` cheap/full on `Admg` / `Cpdag` / `Pag`, and Bayesian
 graph-posterior `InterventionResponse` cheap/full on `Cpdag` / `Pag`, stay
 refused. Bayesian responses require the documented Gaussian additive models and
@@ -312,11 +347,42 @@ license is that matrix, not this page.
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
 
-* **Front-door two-stage estimation** is the linear-SEM product-of-coefficients
-  estimator. It assumes linear structural equations and no direct treatment to
-  outcome edge. The general nonparametric front-door formula is reached through
-  the ID path and functional plug-in estimation, not through this estimator.
-* **Sharp regression discontinuity** uses a caller-supplied bandwidth with a
+* **Linear front-door two-stage estimation** (`frontdoor.linear_two_stage`) is the
+  linear-SEM product-of-coefficients estimator. The front-door criterion licenses
+  the functional `E[Y|do(t)] = sum_m P(m|t) sum_t' E[Y|m,t'] P(t')`; the product of
+  coefficients equals it only when `E[M|T]` is linear and `E[Y|M,T]` has no
+  treatment-mediator interaction. A latent treatment-outcome confounder that
+  modifies the mediator's effect breaks this (a binary example converges to 0.363
+  against a true 0.315), so a result produced by this estimator is reported as
+  identified under parametric restrictions, with `frontdoor.linear_path_product`
+  in its identification assumptions, exactly as a Wald estimate carries the IV
+  restriction; this holds under the `frontdoor` and the `auto` identifier alike.
+  A `frontdoor.functional` result keeps the nonparametric claim: it evaluates the
+  identified functional, and its per-arm linear outcome regression is a model of
+  an observable regression, recorded at estimation scope. For a discrete treatment use
+  `frontdoor.functional`, which estimates the functional itself: saturated cell
+  means for discrete mediators (nothing assumed; refused when a mediator value is
+  missing from an arm), or a per-arm linear outcome regression for continuous
+  mediators (treatment-mediator interaction free, within-arm linearity recorded),
+  with an influence-function standard error. It refuses a continuous treatment.
+* **Sharp regression discontinuity identifies and estimates one effect: the
+  average effect for units at the cutoff,**
+  `lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]`. It is not the population
+  average effect and not the average over the bandwidth window; with an effect
+  that varies in the running variable these are different numbers. The result's
+  target population is `LocalAtCutoff { running, cutoff }`: a study that selects
+  `rd.sharp` and leaves the population at its default is retargeted to it, the
+  `identify.rd.local_estimand` diagnostic says the population-wide effect is not
+  identified, and any other target population is refused. `AutoIdentifier` uses
+  a supplied design only for a query that asks for that population, and never
+  infers a running variable or cutoff. The design is checked where it can be:
+  the graph must make the running variable the treatment's only parent, and the
+  estimator compares the treatment column with `T = 1{R ≥ c}` on every complete
+  row and refuses (`rd_assignment_not_sharp`) on any violation, so imperfect
+  compliance is not reported as a treatment effect (fuzzy RD is not
+  implemented). Continuity of the potential-outcome regressions at the cutoff
+  and no manipulation of the running variable are recorded as assumptions and
+  are not tested. The estimator uses a caller-supplied bandwidth with a
   uniform kernel and reports a conventional, not bias-corrected, interval; its
   default SE is the HC1 residual sandwich, and the homoskedastic SE is an
   explicit opt-in (`RdConfig::with_se_kind`). There
@@ -387,14 +453,19 @@ In both, the replicate SD is multiplied by the circular-Bartlett fixed-b factor
 critical value for a mean studentized by the circular Bartlett variance that the
 circular-block bootstrap estimates. The Kiefer–Vogelsang polynomial is for the
 non-circular Bartlett estimator and is too small at long blocks (it covers 0.942
-at `b = 1/3` for a nominal 95% interval). Published 90% intervals use the same
-95% ratio around a normal critical value, not the 90% fixed-b value; in the same
-simulation that construction covers 0.901–0.913 for `b ≤ 1/3`. The replicate
-SD is also multiplied by the Bartlett kernel-bias factor
-`sqrt(LRV_AR(1)(ρ̂) / Bartlett_ℓ(ρ̂))` of the interval's target scores
-(`antecedent_estimate::kernel_bias_scale`, `ρ̂` the lag-1 autocorrelation
-capped at 0.97): a circular block of length `ℓ` reproduces the Bartlett variance
-at bandwidth `ℓ`, which the fixed-b critical value does not correct for. The
+at `b = 1/3` for a nominal 95% interval). The published SE interval is the 95%
+`estimate ± 1.96·SE`; the short-series sweeps measure a nominal-0.90 interval
+built from the same SE (the 95% ratio around a normal 0.90 critical value, not
+the 90% fixed-b value), which covers 0.901–0.913 for `b ≤ 1/3` in the same
+simulation. The replicate SD is also multiplied by the Bartlett kernel-bias
+factor `1/sqrt(f)` of the interval's target scores
+(`antecedent_estimate::kernel_bias_scale`, the largest over the scores of
+`antecedent_estimate::kernel_bias_factor`, the same per-score factor the response
+bands apply per cell): `f` is the share of a fitted autoregression's long-run
+variance that the Bartlett kernel at the block length keeps, under a
+Kendall-corrected AR(1) and a BIC-selected AR(q ≤ 4) (larger factor kept). A
+circular block of length `ℓ` reproduces the Bartlett variance at bandwidth `ℓ`,
+which the fixed-b critical value does not correct for. The
 `estimate.temporal.circular_block_se` diagnostic (the shared-block diagnostic
 for mixtures) records the block length, row count, fixed-b factor, and the
 estimating score's effective rows: over every score of the interval (every
@@ -478,7 +549,7 @@ invariant rather than the license.
 
 Conditional effects, temporal mediation and DBN-posterior pulse/sustained effects license query-native `cheap` and `full` validation. Multi-step Sustained refuters re-estimate the complete sequential model. Bayesian checks retain each child mechanism for PPC; full prior sensitivity refits the composed effect. Single-regression sensitivity formulas are inapplicable to composed effects, while sequential unobserved-confounder perturbations remain available. Composed mediation and
 multi-step sustained posteriors support conjugate and Laplace backends; HMC
-composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
+composition remains refused. Per-cell evidence is in the [support matrix](support-matrix.md).
 
 ## Observation, transport, and interference
 
@@ -496,10 +567,11 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   censored, truncated, and selected mechanisms. Assumptions are declared
   separately from the recorded columns; MAR / independent censoring is never
   inferred from column presence.
-* **Structural transport** (`antecedent.transport`): single-source selection
-  diagrams, the `identify` stage, and `TransportQuery`, whose trial-to-target
+* **Structural transport** (`antecedent.transport`, theorem-stage types in
+  `antecedent.transport.advanced`): single-source selection
+  diagrams, the `identify` stage, and `advanced.TransportQuery`, whose trial-to-target
   IPW reports separate selection and treatment overlap diagnostics
-  (`result.transport_overlap`). `transport.estimate_trial_effect` remains an
+  (`result.transport_overlap`). `transport.advanced.estimate_trial_effect` remains an
   unlicensed IPW/AIPW utility that returns bare numbers. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,

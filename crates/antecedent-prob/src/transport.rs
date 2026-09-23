@@ -259,7 +259,7 @@ impl TransportError {
 
 impl From<TransportError> for ProbError {
     fn from(e: TransportError) -> Self {
-        ProbError::Numerical { message: e.to_string() }
+        ProbError::Refused { code: e.code(), message: e.to_string() }
     }
 }
 
@@ -401,18 +401,23 @@ pub fn apply_transport(
                     extra.push_str("; alpha_forced=0 reason=missing_propensity_weights");
                 }
                 (_, Some(adj)) => {
-                    let (mean, var) = adj.weighted_moments();
-                    let n_coef = prepared
+                    let (mean, _het_var) = adj.weighted_moments();
+                    let coef = prepared
                         .prior
                         .gaussian_coefficients()
                         .ok_or(TransportError::InvalidWeights {
                             message: "source prior missing GaussianCoefficients for transport reweight",
-                        })?
-                        .len();
+                        })?;
+                    let n_coef = coef.len();
                     let idx = ctx.coef_index.unwrap_or(n_coef.saturating_sub(1));
-                    replace_coef_moments(&mut prepared.prior, idx, mean, var)?;
+                    // Heterogeneity updates the prior *mean* under the invariance.
+                    // Coefficient V0 stays the source posterior scale (already in
+                    // conjugate units) — never the weighted unit-effect variance,
+                    // which collapses to the 1e-12 floor when effects are homogeneous.
+                    let source_v0 = coef.variance[idx];
+                    replace_coef_moments(&mut prepared.prior, idx, mean, source_v0)?;
                     extra.push_str(&format!(
-                        "; reweighted mean={mean:.6} var={var:.6} ess={:.3}",
+                        "; reweighted mean={mean:.6} kept_v0={source_v0:.6} ess={:.3}",
                         adj.kish_ess()
                     ));
                 }
@@ -536,6 +541,47 @@ mod tests {
     }
 
     #[test]
+    fn transport_refusals_are_typed_refusals_not_numerical_failures() {
+        let sources = [source("a", 1.0, 1.0)];
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: None,
+            adjustment: None,
+            coef_index: None,
+        };
+        let err: ProbError = apply_transport(&sources, &ctx).unwrap_err().into();
+        match err {
+            ProbError::Refused { code, message } => {
+                assert_eq!(code, "transport_policy_required");
+                assert!(message.starts_with("transport_policy_required: "), "{message}");
+            }
+            other => panic!("a policy refusal surfaced as {other:?}"),
+        }
+    }
+
+    #[test]
+    fn every_transport_refusal_code_is_in_the_closed_vocabulary() {
+        let vocabulary = include_str!("../../../parity/reason_codes.toml");
+        for error in [
+            TransportError::PolicyRequired {
+                source_population: Arc::from("a"),
+                target_population: Arc::from("b"),
+            },
+            TransportError::SourceCountMismatch { n_sources: 1, n_populations: 2 },
+            TransportError::InvalidWeights { message: "x" },
+            TransportError::UnknownPolicy { name: Arc::from("x") },
+            TransportError::CoefIndexOutOfRange { index: 3, n_coef: 1 },
+        ] {
+            assert!(
+                vocabulary.contains(&format!("id = \"{}\"", error.code())),
+                "{} is not in parity/reason_codes.toml",
+                error.code()
+            );
+        }
+    }
+
+    #[test]
     fn claim_only_records_assumption() {
         let sources = [source("a", 2.0, 1.0)];
         let baseline = gauss(0.0, 4.0);
@@ -584,10 +630,12 @@ mod tests {
         let adj = TransportAdjustment::new([0.0, 0.0, 10.0], [0.0, 0.0, 1.0]).unwrap();
         let (mean, var) = adj.weighted_moments();
         assert!((mean - 10.0).abs() < 1e-12);
-        assert!(var >= REWEIGHT_VAR_FLOOR);
+        // Heterogeneity variance floors when weights concentrate — diagnostic only.
+        assert!((var - REWEIGHT_VAR_FLOOR).abs() < 1e-18, "var {var}");
+        assert!((adj.kish_ess() - 1.0).abs() < 1e-12);
 
+        // Source prior V0 = 1.0; transport must keep it (not write the floor).
         let sources = [source("a", 0.0, 1.0)];
-        let baseline = gauss(0.0, 100.0);
         let ctx = TransportContext {
             source_populations: &[Some("us")],
             target_population: Some("eu"),
@@ -595,10 +643,52 @@ mod tests {
             adjustment: Some(&adj),
             coef_index: Some(0),
         };
+        let (prepared, _) = apply_transport(&sources, &ctx).unwrap();
+        let coef = prepared[0].prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[0] - 10.0).abs() < 1e-12, "mean {}", coef.mean[0]);
+        assert!(
+            (coef.variance[0] - 1.0).abs() < 1e-12,
+            "transport must keep source V0, got {}",
+            coef.variance[0]
+        );
+        assert!(coef.variance[0] > REWEIGHT_VAR_FLOOR * 1e3);
+
+        let baseline = gauss(0.0, 100.0);
         let (composed, _) = compose_with_transport(&sources, &baseline, &ctx).unwrap();
-        let coef = composed.prior.gaussian_coefficients().unwrap();
-        // Power-add with α=1: prior mean pulled toward 10 from reweighted source.
-        assert!(coef.mean[0] > 5.0, "mean {}", coef.mean[0]);
+        let ccoef = composed.prior.gaussian_coefficients().unwrap();
+        // Power-add with α=1: precisions 1/100 (baseline) + 1/1 (source) = 1.01;
+        // mean = (0/100 + 10/1)/1.01 = 1000/101, variance = 1/1.01 = 100/101.
+        assert!((ccoef.mean[0] - 1000.0 / 101.0).abs() < 1e-9, "composed mean {}", ccoef.mean[0]);
+        assert!(
+            (ccoef.variance[0] - 100.0 / 101.0).abs() < 1e-12,
+            "composed variance {}",
+            ccoef.variance[0]
+        );
+    }
+
+    #[test]
+    fn homogeneous_reweight_does_not_dogmatize_v0() {
+        let adj = TransportAdjustment::new([2.0, 2.0, 2.0], [1.0, 1.0, 1.0]).unwrap();
+        let (mean, het) = adj.weighted_moments();
+        assert!((mean - 2.0).abs() < 1e-12);
+        assert!((het - REWEIGHT_VAR_FLOOR).abs() < 1e-18);
+
+        let sources = [source("a", 0.5, 1.0)]; // V0 = 1
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: Some(TransportPolicy::InvariantConditionalOutcome),
+            adjustment: Some(&adj),
+            coef_index: Some(0),
+        };
+        let (prepared, _) = apply_transport(&sources, &ctx).unwrap();
+        let coef = prepared[0].prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[0] - 2.0).abs() < 1e-12);
+        assert!(
+            (coef.variance[0] - 1.0).abs() < 1e-12,
+            "homogeneous effects must not replace V0 with REWEIGHT_VAR_FLOOR; got {}",
+            coef.variance[0]
+        );
     }
 
     #[test]
@@ -618,6 +708,53 @@ mod tests {
             adjustment: None,
             coef_index: None,
         };
-        assert!(apply_transport(&sources, &ctx).is_ok());
+        let (out, outcomes) = apply_transport(&sources, &ctx).unwrap();
+        assert!(!outcomes[0].required);
+        assert!(outcomes[0].alpha_override.is_none());
+        assert!(outcomes[0].zero_reason.is_none());
+        assert!(out[0].prior.restrictions.is_empty());
+        assert_eq!(out[0].weight.alpha, 1.0);
+        let coef = out[0].prior.gaussian_coefficients().unwrap();
+        assert_eq!(coef.mean[0], 1.0);
+        assert_eq!(coef.variance[0], 1.0);
+    }
+
+    #[test]
+    fn policy_refusal_stays_a_typed_transport_error() {
+        let sources = [source("a", 1.0, 1.0)];
+        let baseline = gauss(0.0, 4.0);
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: None,
+            adjustment: None,
+            coef_index: None,
+        };
+        let err = compose_with_transport(&sources, &baseline, &ctx).unwrap_err();
+        match err {
+            ProbError::Refused { code, .. } => assert_eq!(code, "transport_policy_required"),
+            other => panic!("expected ProbError::Refused, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn every_transport_code_is_a_registered_runtime_refusal() {
+        let errors = [
+            TransportError::PolicyRequired {
+                source_population: Arc::from("a"),
+                target_population: Arc::from("b"),
+            },
+            TransportError::SourceCountMismatch { n_sources: 1, n_populations: 2 },
+            TransportError::InvalidWeights { message: "x" },
+            TransportError::UnknownPolicy { name: Arc::from("x") },
+            TransportError::CoefIndexOutOfRange { index: 3, n_coef: 1 },
+        ];
+        for e in &errors {
+            assert!(
+                antecedent_core::reason_code::is_runtime_refusal(e.code()),
+                "{} is not a registered runtime-refusal code",
+                e.code()
+            );
+        }
     }
 }

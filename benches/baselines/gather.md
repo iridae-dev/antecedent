@@ -1,5 +1,7 @@
 # Sample gather benchmark baseline
 
+Commit: c9db53a0 (the commit that added this file; the measured commit was not written down)
+
 Workload: `gather_stride10_n100k` — gather every 10th index from a contiguous
 `f64` vector of length 100_000 via the public dispatch entry.
 

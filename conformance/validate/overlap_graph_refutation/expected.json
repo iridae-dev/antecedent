@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "DoWhy 0.14 plus direct overlap formulas",
     "version": "0.14",
     "generator": "temporary pinned Python environment and clean-room formula harness (deleted after artifact import)"

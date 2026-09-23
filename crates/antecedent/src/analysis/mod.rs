@@ -2,23 +2,35 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
 mod batch;
 mod builder;
 mod contract;
 mod contract_identity;
+mod exact;
 mod execute;
+mod learned_trial;
+mod statistical;
+mod transport_grid;
+pub use exact::{
+    ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
+    ExactStudyResult,
+};
+pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
+pub use statistical::{
+    StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
+    StatisticalStudyInspection, StatisticalStudyResult,
+};
+pub use transport_grid::{
+    TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
+    TransportGridResult, TransportGridState,
+};
 mod helpers;
 mod latency;
 mod prepared;
 mod stage;
+mod transport_common;
 
 pub use antecedent_core::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,

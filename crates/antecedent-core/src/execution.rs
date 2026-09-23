@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Parallel execution budget.
@@ -101,6 +101,13 @@ impl MemoryBudget {
     }
 }
 
+/// Whether an architecture-SIMD kernel path is compiled into this build.
+///
+/// Always `false` until a justified `simd-runtime` kernel lands. Kernel dispatch and
+/// execution identity both read it, so a request for SIMD that cannot be honored is
+/// neither run nor recorded as if it were.
+pub const ARCH_SIMD_COMPILED: bool = false;
+
 /// Kernel selection policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct KernelPolicy {
@@ -123,6 +130,12 @@ impl KernelPolicy {
     #[must_use]
     pub const fn scalar_only() -> Self {
         Self { allow_portable_optimized: false, allow_arch_simd: false, force_scalar: true }
+    }
+
+    /// Whether SIMD is both allowed and available in this build.
+    #[must_use]
+    pub const fn arch_simd_effective(&self) -> bool {
+        self.allow_arch_simd && ARCH_SIMD_COMPILED && !self.force_scalar
     }
 }
 
@@ -206,9 +219,12 @@ pub struct MonteCarloError {
 
 /// Opt-in bootstrap early-stop budget bounded by Monte Carlo error.
 ///
-/// A bootstrap SE computed from `B` replicates carries a relative Monte Carlo
-/// standard error of about `1/√(2(B − 1))` (the SD of a sample SD), so the
-/// only honest stopping rule is a replicate floor: after
+/// For approximately normal replicates, a bootstrap SE computed from `B` of them
+/// carries a relative Monte Carlo standard error of about `1/√(2(B − 1))` (the SD
+/// of a sample SD); for a replicate distribution with kurtosis `κ` it is
+/// `√((κ − 1)/(4B))`, so heavy-tailed replicates need more than the floor below
+/// to reach the same precision. The only honest stopping rule is a replicate
+/// floor: after
 /// [`Self::required_replicates`] successful replicates — the larger of
 /// [`Self::min_replicates`] and `⌈1 + 1/(2·se_rel_epsilon²)⌉`, the count at
 /// which that relative error is at most [`Self::se_rel_epsilon`] — the loop
@@ -270,15 +286,21 @@ impl AdaptiveBootstrapBudget {
         }
         let bound = (1.0 + 0.5 / (self.se_rel_epsilon * self.se_rel_epsilon)).ceil();
         // Saturate rather than truncate: a tiny ε is "never stop", not "stop at 0".
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the value is a non-negative ceil and the branch saturates at u32::MAX before the cast, so it can neither truncate nor lose sign"
+        )]
         let bound = if bound >= f64::from(u32::MAX) { u32::MAX } else { bound as u32 };
         bound.max(self.min_replicates).max(2)
     }
 }
 
 impl Default for AdaptiveBootstrapBudget {
+    /// Disabled, like every constructor: early stopping is opt-in, so
+    /// `..Default::default()` never changes how many replicates run.
     fn default() -> Self {
-        Self::enabled_default()
+        Self::disabled()
     }
 }
 
@@ -321,8 +343,10 @@ impl AdaptiveDrawBudget {
 }
 
 impl Default for AdaptiveDrawBudget {
+    /// Disabled, like every constructor: early stopping is opt-in, so
+    /// `..Default::default()` never changes how many draws are materialized.
     fn default() -> Self {
-        Self::enabled_default()
+        Self::disabled()
     }
 }
 
@@ -357,10 +381,60 @@ pub trait ProgressSink: Send + Sync {
     fn report(&self, fraction: f64, stage: &str);
 }
 
-/// Factory for deterministic, independently seeded RNG streams.
+/// Closed set of RNG stream domains.
 ///
-/// Streams are derived from a master seed and a stream id so algorithms can
-/// request reproducible substreams without a global RNG.
+/// Indexed families must use [`RngFactory::stream_for`] with a dedicated variant
+/// rather than `CONST.wrapping_add(index)` into [`RngFactory::stream`]: additive
+/// family offsets collide across domains and, under an additive mixer, across
+/// adjacent master seeds.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[repr(u64)]
+pub enum StreamDomain {
+    /// IID / block / cluster / Bayesian bootstrap replicates.
+    Resample = 1,
+    /// Lag-aligned temporal block-bootstrap families.
+    TemporalBlock = 2,
+    /// Bayesian draw / posterior simulation streams.
+    Bayesian = 3,
+    /// Structure-MCMC chains.
+    McmcStructure = 4,
+    /// Order-MCMC chains.
+    McmcOrder = 5,
+    /// DBN posterior MCMC chains.
+    McmcDbn = 6,
+    /// Graph-completion / identified-set posterior streams.
+    Completion = 7,
+    /// Counterfactual abduction / action / prediction noise.
+    Counterfactual = 8,
+    /// Attribution Monte Carlo arms.
+    Attribution = 9,
+    /// Design ranking and allocation draws.
+    Design = 10,
+    /// Statistical transport / retargeting draws.
+    Transport = 11,
+    /// Conditional-independence / CI null Monte Carlo.
+    StatsCi = 12,
+    /// Learner-internal randomness (forest, GBT, neural).
+    Learner = 13,
+    /// Estimator-local streams (AIPW, IV, RD, …).
+    Estimate = 14,
+    /// Temporal / DBN mediation block streams.
+    Mediation = 15,
+    /// Panel / interference path streams.
+    Panel = 16,
+    /// Facade execute-path streams.
+    Execute = 17,
+    /// Unit / integration test fixtures.
+    Test = 18,
+    /// Example programs.
+    Example = 19,
+}
+
+/// Factory for deterministic RNG streams.
+///
+/// Streams are derived from a master seed and a stream id via a non-additive
+/// mixer so algorithms can request reproducible substreams without a global RNG.
+/// Prefer [`Self::stream_for`] so indexed families do not share additive ids.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RngFactory {
     master_seed: u64,
@@ -379,11 +453,24 @@ impl RngFactory {
         self.master_seed
     }
 
-    /// Derive an independent stream for `stream_id`.
+    /// Derive a stream for a raw `stream_id`.
+    ///
+    /// Prefer [`Self::stream_for`] for new call sites. This entry point remains
+    /// for low-level ids that are already domain-unique.
     #[must_use]
     pub fn stream(&self, stream_id: u64) -> CausalRng {
-        let seed = mix_seed(self.master_seed, stream_id);
-        CausalRng::from_seed(seed)
+        CausalRng::from_seed(mix_seed(self.master_seed, stream_id))
+    }
+
+    /// Derive a stream for `(domain, index)`.
+    ///
+    /// Domain and index are packed without an additive family offset, then passed
+    /// through the single `mix_seed` mixer with the master seed.
+    #[must_use]
+    pub fn stream_for(&self, domain: StreamDomain, index: u64) -> CausalRng {
+        // Odd multiplier so domain tags stay distinct under xor with index.
+        let stream_id = (domain as u64).wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
+        self.stream(stream_id)
     }
 }
 
@@ -435,8 +522,15 @@ impl CausalRng {
     }
 }
 
+/// Non-additive mix of `(master, stream_id)`.
+///
+/// The previous `master.wrapping_add(stream_id)` form made
+/// `(master=s, stream=k)` identical to `(s−δ, k+δ)`, so adjacent user seeds
+/// shared almost every bootstrap replicate stream.
 fn mix_seed(master: u64, stream_id: u64) -> u64 {
-    let mut z = master.wrapping_add(stream_id).wrapping_mul(0xD6E8_FEB8_6659_FD93);
+    let mut z = master.wrapping_mul(0xD6E8_FEB8_6659_FD93);
+    z ^= stream_id.wrapping_mul(0xC2B2_AE3D_27D4_EB4F);
+    z = (z ^ (z >> 32)).wrapping_mul(0x1656_67B1_9E37_79F9);
     z = (z ^ (z >> 32)).wrapping_mul(0xD6E8_FEB8_6659_FD93);
     z ^ (z >> 32)
 }
@@ -517,12 +611,13 @@ impl ExecutionContext {
     ///
     /// # Errors
     ///
-    /// Returns the first error produced by `f`.
+    /// Returns the lowest-index error produced by `f`. Work above a known failure
+    /// is skipped, so a failing run does not evaluate every remaining index.
     ///
     /// # Panics
     ///
-    /// Panics if a worker fails to write its assigned slot (a programming error
-    /// in the pool, not in `f`).
+    /// Panics if a worker fails to write a slot at or below the first error (a
+    /// programming error in the pool, not in `f`).
     pub fn map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, E>
     where
         T: Send,
@@ -538,9 +633,15 @@ impl ExecutionContext {
         }
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
+        // Lowest index known to have failed. A serial run stops at the first error,
+        // so an item above a known failure can no longer change the result and is
+        // skipped; items below it still run, so the returned error is always the
+        // lowest-index one regardless of thread count or scheduling.
+        let first_failure = AtomicUsize::new(usize::MAX);
         std::thread::scope(|scope| {
             let f = &f;
             let inner = &inner;
+            let first_failure = &first_failure;
             let mut rest = slots.as_mut_slice();
             let mut start = 0usize;
             for t in 0..threads {
@@ -549,7 +650,15 @@ impl ExecutionContext {
                 let begin = start;
                 scope.spawn(move || {
                     for (k, slot) in mine.iter_mut().enumerate() {
-                        *slot = Some(f(begin + k, inner));
+                        let index = begin + k;
+                        if first_failure.load(Ordering::Relaxed) < index {
+                            break;
+                        }
+                        let outcome = f(index, inner);
+                        if outcome.is_err() {
+                            first_failure.fetch_min(index, Ordering::Relaxed);
+                        }
+                        *slot = Some(outcome);
                     }
                 });
                 rest = next;
@@ -559,7 +668,11 @@ impl ExecutionContext {
                 }
             }
         });
-        slots.into_iter().map(|slot| slot.expect("every index was filled")).collect()
+        // Unfilled slots exist only above the lowest failure, which `collect` reaches first.
+        slots
+            .into_iter()
+            .map(|slot| slot.expect("every index below the first error was filled"))
+            .collect()
     }
 
     /// Production context: optimized kernels allowed, cache enabled, bounded threads.
@@ -704,9 +817,9 @@ mod tests {
     #[test]
     fn rng_streams_are_deterministic() {
         let factory = RngFactory::from_seed(42);
-        let mut a1 = factory.stream(0);
-        let mut a2 = factory.stream(0);
-        let mut b = factory.stream(1);
+        let mut a1 = factory.stream_for(StreamDomain::Test, 0);
+        let mut a2 = factory.stream_for(StreamDomain::Test, 0);
+        let mut b = factory.stream_for(StreamDomain::Test, 1);
         let seq_a1: Vec<u64> = (0..8).map(|_| a1.next_u64()).collect();
         let seq_a2: Vec<u64> = (0..8).map(|_| a2.next_u64()).collect();
         let seq_b: Vec<u64> = (0..8).map(|_| b.next_u64()).collect();
@@ -718,11 +831,39 @@ mod tests {
     fn independent_factories_same_seed_match() {
         let f1 = RngFactory::from_seed(7);
         let f2 = RngFactory::from_seed(7);
-        let mut s1 = f1.stream(99);
-        let mut s2 = f2.stream(99);
+        let mut s1 = f1.stream_for(StreamDomain::Test, 99);
+        let mut s2 = f2.stream_for(StreamDomain::Test, 99);
         for _ in 0..32 {
             assert_eq!(s1.next_u64(), s2.next_u64());
         }
+    }
+
+    #[test]
+    fn mix_seed_rejects_additive_master_stream_alias() {
+        // (s, k) must not equal (s − 1, k + 1).
+        for s in [1u64, 42, 1000, u64::MAX / 2, u64::MAX] {
+            for k in [0u64, 1, 999, 0xA7E0_0001_1000] {
+                let a = RngFactory::from_seed(s).stream(k).state();
+                let b = RngFactory::from_seed(s.wrapping_sub(1)).stream(k.wrapping_add(1)).state();
+                assert_ne!(a, b, "alias at master={s} stream={k}");
+                let af = RngFactory::from_seed(s).stream_for(StreamDomain::Resample, k).state();
+                let bf = RngFactory::from_seed(s.wrapping_sub(1))
+                    .stream_for(StreamDomain::Resample, k.wrapping_add(1))
+                    .state();
+                assert_ne!(af, bf, "stream_for alias at master={s} index={k}");
+            }
+        }
+    }
+
+    #[test]
+    fn stream_for_domains_separate_same_index() {
+        let factory = RngFactory::from_seed(42);
+        let a = factory.stream_for(StreamDomain::Resample, 7).state();
+        let b = factory.stream_for(StreamDomain::TemporalBlock, 7).state();
+        let c = factory.stream_for(StreamDomain::McmcStructure, 7).state();
+        assert_ne!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(b, c);
     }
 
     #[test]
@@ -787,6 +928,45 @@ mod tests {
             .unwrap();
         assert_eq!(inner_threads, vec![1]);
         assert_eq!(serial.serial_inner().parallelism.max_threads.get(), 1);
+    }
+
+    #[test]
+    fn map_indexed_stops_at_a_failure_and_reports_the_lowest_index() {
+        let ctx = ExecutionContext::production(1, 4);
+        let evaluated = AtomicUsize::new(0);
+        let n = 2000;
+        // Index 0 fails immediately; its own chunk (500 items) must stop there.
+        let result = ctx.map_indexed(n, |i, _| {
+            evaluated.fetch_add(1, Ordering::Relaxed);
+            if i == 0 { Err(i) } else { Ok(i) }
+        });
+        assert_eq!(result, Err(0));
+        assert!(evaluated.load(Ordering::Relaxed) <= n - 499, "the failing chunk must not run on");
+        // Two failures in different chunks: the lowest index wins on every run.
+        for _ in 0..20 {
+            let result =
+                ctx.map_indexed(n, |i, _| if i == 700 || i == 1500 { Err(i) } else { Ok(i) });
+            assert_eq!(result, Err(700));
+        }
+        // No failure: everything is evaluated, in order.
+        let all = ctx.map_indexed(n, |i, _| Ok::<_, ()>(i * 2)).unwrap();
+        assert_eq!(all, (0..n).map(|i| i * 2).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn adaptive_budgets_are_disabled_by_default() {
+        assert_eq!(AdaptiveBootstrapBudget::default(), AdaptiveBootstrapBudget::disabled());
+        assert_eq!(AdaptiveDrawBudget::default(), AdaptiveDrawBudget::disabled());
+        let spread = AdaptiveBootstrapBudget { min_replicates: 5, ..Default::default() };
+        assert!(!spread.enabled);
+        assert_eq!(spread.required_replicates(), u32::MAX);
+    }
+
+    #[test]
+    fn unavailable_arch_simd_is_not_an_effective_request() {
+        const { assert!(!ARCH_SIMD_COMPILED) };
+        assert!(!KernelPolicy::default_policy().arch_simd_effective());
+        assert!(!KernelPolicy::scalar_only().arch_simd_effective());
     }
 
     #[test]

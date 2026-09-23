@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -54,7 +52,15 @@ fn toy() -> (TabularData, IdentifiedEstimand) {
     let schema = b.build().unwrap();
     let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
     let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
-    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + z[i]).collect();
+    // Noise in the pattern `+ - - +` per block of four rows is orthogonal to the constant, to
+    // `t = i % 2` and to the linear trend `z`, so least squares still recovers the coefficient 2
+    // exactly while the outcome keeps the residual variation the E-value standardizes by.
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let e = if matches!(i % 4, 0 | 3) { 0.5 } else { -0.5 };
+            1.0 + 2.0 * t[i] + z[i] + e
+        })
+        .collect();
     let cols = vec![
         OwnedColumn::Float64(
             Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
@@ -113,16 +119,20 @@ fn refuters_and_sensitivity_smoke() {
         None,
     );
 
-    assert!(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
-    assert!(RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    // OLS-gated noise/subset refuters have no power against the causal claim: they
+    // must report informative=false, as does the descriptive leave-one-out check. The remaining
+    // validators keep informative=true.
+    assert!(!PlaceboTreatment::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(!RandomCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(BootstrapRefute::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(UnobservedCommonCause::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(OverlapRefuter::new().refute(&problem).unwrap().informative);
     assert!(OverlapRuleRefuter::new().refute(&problem).unwrap().informative);
-    assert!(DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
-    assert!(DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(!DataSubsetRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    assert!(!DummyOutcome::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(EValue::new().refute(&problem).unwrap().informative);
-    assert!(GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
+    // Leave-one-out covariate dropping is descriptive: a real confounder is supposed to move it.
+    assert!(!GraphRefuter::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(LinearSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(PartialLinearSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);
     assert!(NonparametricSensitivity::new().refute(&problem, &mut ws, &ctx).unwrap().informative);

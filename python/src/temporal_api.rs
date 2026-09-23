@@ -49,10 +49,17 @@ fn mediation_effects_summary(
     })
 }
 
-/// Intervene+predict summary (mean predicted outcome under do(parent=level)).
+/// Mean conditional prediction of `target` with the lagged `parent` held at `level`.
+///
+/// Fits `target_t ~ 1 + parent_{t-lag}` by OLS and averages the fitted line at
+/// `parent = level`. No graph is involved and nothing is identified: this is the
+/// association `E[target_t | parent_{t-lag} = level]` under a linear fit, which equals
+/// an interventional mean only when the lagged parent is unconfounded with the target
+/// and the relation is linear. For an identified interventional quantity with its
+/// assumptions, support and uncertainty, run a temporal analysis with a graph instead.
 #[pyfunction]
 #[pyo3(signature = (names, columns, target, parent, *, parent_lag=1, level=1.0))]
-fn predict_intervened_summary(
+fn predict_conditional_summary(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
@@ -75,7 +82,7 @@ fn predict_intervened_summary(
             &policy,
         )
         .map_err(py_err)?;
-        let yhat = pred.predict_intervened(&series, x, level, &policy).map_err(py_err)?;
+        let yhat = pred.predict_conditional(&series, x, level, &policy).map_err(py_err)?;
         let mean = yhat.iter().sum::<f64>() / yhat.len().max(1) as f64;
         Ok(PredictSummary { mean_prediction: mean, n: yhat.len() as u64 })
     })
@@ -107,7 +114,7 @@ pub(crate) struct MediationEffectsSummary {
     pub(crate) mediated: f64,
 }
 
-/// Prediction summary under intervention.
+/// Mean of a conditional (associational) linear prediction over the lag-aligned rows.
 #[pyclass]
 pub(crate) struct PredictSummary {
     #[pyo3(get)]
@@ -2311,7 +2318,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_temporal_graph_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_graph_posterior_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
-    m.add_function(wrap_pyfunction!(predict_intervened_summary, m)?)?;
+    m.add_function(wrap_pyfunction!(predict_conditional_summary, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_temporal_mediation, m)?)?;
     Ok(())
 }

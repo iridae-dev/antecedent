@@ -132,6 +132,8 @@ pub enum ValueTypeWire {
     Categorical,
     /// Ordinal.
     Ordinal,
+    /// Not recorded (schema migrated from a format that stored names only).
+    Unspecified,
     /// Fixed-width vector.
     Vector {
         /// Width.
@@ -181,6 +183,13 @@ impl SchemaWire {
     #[must_use]
     pub fn variable_names(&self) -> Vec<String> {
         self.variables.iter().map(|v| v.name.clone()).collect()
+    }
+
+    /// Whether any variable's measurement scale was never recorded (schema migrated from a
+    /// names-only format).
+    #[must_use]
+    pub fn has_unspecified_value_types(&self) -> bool {
+        self.variables.iter().any(|v| matches!(v.value_type, ValueTypeWire::Unspecified))
     }
 }
 

@@ -544,18 +544,39 @@ impl HandoffReceipt {
         self.omitted.is_empty() && self.unresolved.is_empty() && self.output == Some(self.input)
     }
 
-    /// Accumulate unresolved losses from `self` then `next`.
+    /// Accumulate losses from `self` then `next`.
+    ///
+    /// Omissions, unresolved obligations and unavailable operations only grow
+    /// along a chain; a later hop cannot restore what an earlier one lost, so
+    /// retained fields exclude everything already omitted. Receipts about
+    /// different claims (`self.output != Some(next.input)`) do not describe one
+    /// path, so the chain records `chain_discontinuity` as unresolved and is
+    /// never equivalent to the claim.
     #[must_use]
     pub fn chain(&self, next: &Self) -> Self {
+        let omitted = merge_unique(&self.omitted, &next.omitted);
+        let retained: Arc<[Arc<str>]> = next
+            .retained
+            .iter()
+            .filter(|field| !omitted.iter().any(|lost| lost == *field))
+            .cloned()
+            .collect();
+        let mut unresolved = merge_unique(&self.unresolved, &next.unresolved);
+        if self.output != Some(next.input) {
+            unresolved = merge_unique(&unresolved, &[Arc::from("chain_discontinuity")]);
+        }
         Self {
             input: self.input,
             output: next.output,
             consumer: next.consumer.clone(),
             rule: next.rule.clone(),
-            retained: next.retained.clone(),
-            omitted: merge_unique(&self.omitted, &next.omitted),
-            unresolved: merge_unique(&self.unresolved, &next.unresolved),
-            unavailable_operations: next.unavailable_operations.clone(),
+            retained,
+            omitted,
+            unresolved,
+            unavailable_operations: merge_unique(
+                &self.unavailable_operations,
+                &next.unavailable_operations,
+            ),
         }
     }
 }
@@ -606,7 +627,7 @@ pub enum ClaimOperation {
     Aggregate,
     /// Retarget within an existing certified derivation.
     Retarget,
-    /// Pool / synthesize. Unlicensed in 1.10; not transport.
+    /// Pool / synthesize. Unlicensed; not transport.
     Pool,
 }
 
@@ -708,10 +729,7 @@ impl SharedEvidenceRef {
             alignment: claim
                 .evidence
                 .iter()
-                .find(|item| {
-                    item.starts_with("alignment:")
-                        || matches!(&***item, "joint_draws" | "covariance" | "replicate_ids")
-                })
+                .find(|item| item.starts_with("alignment:") || alignment_kind(item).is_some())
                 .cloned(),
             dependence: EvidenceDependence::Unknown,
         }
@@ -734,7 +752,9 @@ impl SharedEvidenceRef {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct ClaimFreshness {
-    /// The claim was valid for the snapshot that produced it.
+    /// The claim was valid for the snapshot that produced it. Freshness never
+    /// revokes this: withdrawal and supersession preserve the original claim and
+    /// only change [`Self::currently_applicable`].
     pub historically_valid: bool,
     /// `Some` when the receiver has a current snapshot; `None` when offline.
     pub currently_applicable: Option<bool>,
@@ -759,9 +779,13 @@ impl ClaimFreshness {
         withdrawn: bool,
         locally_ready: bool,
     ) -> Self {
-        let currently_applicable = current_snapshot.map(|snapshot| {
-            snapshot == claim.identities.data_snapshot && superseded_by.is_none() && !withdrawn
-        });
+        // Withdrawal and supersession are known facts about the claim, not readings
+        // of a snapshot: they make it inapplicable even for an offline receiver.
+        let currently_applicable = if withdrawn || superseded_by.is_some() {
+            Some(false)
+        } else {
+            current_snapshot.map(|snapshot| snapshot == claim.identities.data_snapshot)
+        };
         Self {
             historically_valid: true,
             currently_applicable,
@@ -1030,19 +1054,43 @@ pub fn claim_compatibility(
     }
 }
 
+/// Alignment kinds a claim may declare for a joint uncertainty contract.
+const ALIGNMENT_KINDS: [&str; 3] = ["joint_draws", "covariance", "replicate_ids"];
+
+/// Kind of an alignment evidence string (`kind` or `kind:<id>`, optionally `alignment:`-prefixed).
+fn alignment_kind(value: &str) -> Option<&str> {
+    let stripped = value.strip_prefix("alignment:").unwrap_or(value);
+    let kind = stripped.split_once(':').map_or(stripped, |(kind, _)| kind);
+    ALIGNMENT_KINDS.contains(&kind).then_some(kind)
+}
+
+/// The shared-draw identity of an alignment declaration: `<kind>:<id>` with a non-empty id.
+///
+/// A bare kind names a mechanism but not *which* draw set, so it cannot show that
+/// two claims share one.
+fn alignment_token(value: &str) -> Option<&str> {
+    let stripped = value.strip_prefix("alignment:").unwrap_or(value);
+    let (kind, id) = stripped.split_once(':')?;
+    (ALIGNMENT_KINDS.contains(&kind) && !id.is_empty()).then_some(stripped)
+}
+
+/// Alignment is licensed only when every parent declares the same draw set
+/// (`kind:id` equality) and was computed on the same data snapshot: replicates
+/// from different snapshots are unrelated draws however they are labelled.
 fn alignment_is_licensed(parents: &[&ClaimEnvelope], alignment: Option<&str>) -> bool {
-    fn token(value: &str) -> Option<&str> {
-        let stripped = value.strip_prefix("alignment:").unwrap_or(value);
-        matches!(stripped, "joint_draws" | "covariance" | "replicate_ids").then_some(stripped)
+    let snapshot = parents.first().map(|parent| parent.identities.data_snapshot);
+    if parents.iter().any(|parent| Some(parent.identities.data_snapshot) != snapshot) {
+        return false;
     }
     let parent_alignments: Vec<Option<String>> = parents
         .iter()
         .map(|parent| parent.evidence_ref().alignment.map(|item| item.to_string()))
         .collect();
     let parent_tokens: Vec<Option<&str>> =
-        parent_alignments.iter().map(|item| item.as_deref().and_then(token)).collect();
-    let Some(expected) =
-        alignment.and_then(token).or_else(|| parent_tokens.iter().copied().flatten().next())
+        parent_alignments.iter().map(|item| item.as_deref().and_then(alignment_token)).collect();
+    let Some(expected) = alignment
+        .and_then(alignment_token)
+        .or_else(|| parent_tokens.iter().copied().flatten().next())
     else {
         return false;
     };
@@ -1138,18 +1186,8 @@ fn derived_departs_from_parents(
     {
         return Some("retarget_changes_identification");
     }
-    match identified_mass(derived) {
-        None if parents.iter().any(|parent| identified_mass(parent).is_some()) => {
-            return Some("derived_drops_identification_slot");
-        }
-        Some(derived_mass)
-            if parents.iter().any(|parent| {
-                identified_mass(parent).is_some_and(|mass| derived_mass > mass + 1e-12)
-            }) =>
-        {
-            return Some("parents_not_retroactively_strengthened");
-        }
-        _ => {}
+    if let Some(restriction) = identification_strengthened(parents, derived) {
+        return Some(restriction);
     }
     let upgrades =
         [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
@@ -1161,8 +1199,40 @@ fn derived_departs_from_parents(
     upgrades.then_some("derived_upgrades_domain")
 }
 
-fn identified_mass(claim: &ClaimEnvelope) -> Option<f64> {
-    claim.reasoning.identification.as_ref().map(|slot| slot.identified_mass)
+/// Identification-slot departures: a dropped slot, malformed masses, more
+/// identified mass than a parent, or a stronger status than a parent.
+///
+/// Comparisons are written so a NaN mass fails them (`!(a <= b)`), never passes.
+fn identification_strengthened(
+    parents: &[&ClaimEnvelope],
+    derived: &ClaimEnvelope,
+) -> Option<&'static str> {
+    let parent_slots: Vec<_> =
+        parents.iter().filter_map(|parent| parent.reasoning.identification.as_ref()).collect();
+    let Some(derived_slot) = derived.reasoning.identification.as_ref() else {
+        return (!parent_slots.is_empty()).then_some("derived_drops_identification_slot");
+    };
+    if parent_slots.is_empty() {
+        return None;
+    }
+    if !derived_slot.masses_are_valid() || parent_slots.iter().any(|slot| !slot.masses_are_valid())
+    {
+        return Some("identification_masses_invalid");
+    }
+    if parent_slots.iter().any(|slot| {
+        // A non-comparable (NaN) mass is a violation, like a larger one.
+        derived_slot
+            .identified_mass
+            .partial_cmp(&(slot.identified_mass + 1e-12))
+            .is_none_or(std::cmp::Ordering::is_gt)
+    }) {
+        return Some("parents_not_retroactively_strengthened");
+    }
+    let weakest = parent_slots.iter().map(|slot| slot.status.strength_rank()).min();
+    if weakest.is_some_and(|rank| derived_slot.status.strength_rank() > rank) {
+        return Some("derived_strengthens_identification_status");
+    }
+    None
 }
 
 fn provenance_node(
@@ -1369,6 +1439,176 @@ mod tests {
         assert!(!evidence.reverifiable);
         assert_eq!(evidence.config_digest.as_deref(), Some("aa"));
         assert_eq!(evidence.payload_digest.as_deref(), Some("bb"));
+    }
+
+    fn with_identification(
+        mut claim: ClaimEnvelope,
+        status: crate::identification::IdentificationStatus,
+        masses: [f64; 4],
+    ) -> ClaimEnvelope {
+        use crate::reasoning::{IdentificationSlot, SlotAvailability};
+        claim.reasoning.identification = SlotAvailability::Available(IdentificationSlot::new(
+            status, masses[0], masses[1], masses[2], masses[3], true, None, false,
+        ));
+        claim
+    }
+
+    fn retarget_refusal(parent: &ClaimEnvelope, child: ClaimEnvelope) -> Option<String> {
+        match compose_claims(&[parent], ClaimOperation::Retarget, Some(child), None) {
+            DerivedClaimOutcome::Refused { restriction, .. } => Some(restriction.to_string()),
+            DerivedClaimOutcome::Derived(_) => None,
+            other => panic!("unexpected outcome {other:?}"),
+        }
+    }
+
+    #[test]
+    fn withdrawal_is_known_without_a_current_snapshot() {
+        let claim = sample_claim(1, 0.4);
+        let snapshot = claim.identities.data_snapshot;
+        let offline_withdrawn = claim.freshness(Some(snapshot), None, None, true, true);
+        assert_eq!(offline_withdrawn.currently_applicable, Some(false));
+        let offline_superseded =
+            claim.freshness(Some(snapshot), None, Some(digest(99)), false, true);
+        assert_eq!(offline_superseded.currently_applicable, Some(false));
+        // Not withdrawn and offline: applicability really is unknown.
+        assert_eq!(
+            claim.freshness(Some(snapshot), None, None, false, true).currently_applicable,
+            None
+        );
+        // Online and matching snapshot: applicable; mismatching: not.
+        assert_eq!(
+            claim.freshness(Some(snapshot), Some(snapshot), None, false, true).currently_applicable,
+            Some(true)
+        );
+        assert_eq!(
+            claim
+                .freshness(Some(snapshot), Some(digest(77)), None, false, true)
+                .currently_applicable,
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn nan_identified_mass_cannot_pass_the_strengthening_gate() {
+        use crate::identification::IdentificationStatus::NonparametricallyIdentified as Np;
+        let parent = sample_claim(1, 0.4);
+        let nan_child = with_identification(sample_claim(3, 0.4), Np, [f64::NAN, 0.6, 0.0, 0.0]);
+        assert_eq!(
+            retarget_refusal(&parent, nan_child).as_deref(),
+            Some("identification_masses_invalid")
+        );
+        // A NaN parent mass no longer disables the comparison for that parent.
+        let nan_parent = with_identification(sample_claim(1, 0.4), Np, [f64::NAN, 0.6, 0.0, 0.0]);
+        assert_eq!(
+            retarget_refusal(&nan_parent, sample_claim(3, 0.4)).as_deref(),
+            Some("identification_masses_invalid")
+        );
+        // Masses that are finite but do not partition unit mass are malformed too.
+        let inflated = with_identification(sample_claim(3, 0.4), Np, [0.4, 0.6, 0.5, 0.0]);
+        assert_eq!(
+            retarget_refusal(&parent, inflated).as_deref(),
+            Some("identification_masses_invalid")
+        );
+    }
+
+    #[test]
+    fn derived_status_cannot_be_stronger_than_the_weakest_parent() {
+        use crate::identification::IdentificationStatus::{
+            NonparametricallyIdentified as Np, NotIdentified as No, PartiallyIdentified as Pi,
+        };
+        let parent = with_identification(sample_claim(1, 0.0), No, [0.0, 1.0, 0.0, 0.0]);
+        let child = with_identification(sample_claim(3, 0.0), Np, [0.0, 1.0, 0.0, 0.0]);
+        assert_eq!(
+            retarget_refusal(&parent, child).as_deref(),
+            Some("derived_strengthens_identification_status")
+        );
+        let weaker = with_identification(sample_claim(3, 0.0), No, [0.0, 1.0, 0.0, 0.0]);
+        assert_eq!(retarget_refusal(&parent, weaker), None);
+        let partial_parent = with_identification(sample_claim(1, 0.4), Pi, [0.4, 0.6, 0.0, 0.0]);
+        let np_child = with_identification(sample_claim(3, 0.4), Np, [0.4, 0.6, 0.0, 0.0]);
+        assert_eq!(
+            retarget_refusal(&partial_parent, np_child).as_deref(),
+            Some("derived_strengthens_identification_status")
+        );
+    }
+
+    #[test]
+    fn identification_slot_try_new_requires_a_probability_partition() {
+        use crate::identification::IdentificationStatus::NonparametricallyIdentified as Np;
+        use crate::reasoning::IdentificationSlot;
+        let build = |m: [f64; 4]| {
+            IdentificationSlot::try_new(Np, m[0], m[1], m[2], m[3], true, None, false)
+        };
+        assert!(build([0.25, 0.25, 0.25, 0.25]).is_ok());
+        assert_eq!(build([f64::NAN, 0.0, 0.0, 1.0]).err(), Some("identification_mass_not_finite"));
+        assert_eq!(build([1.5, -0.5, 0.0, 0.0]).err(), Some("identification_mass_out_of_range"));
+        assert_eq!(build([0.5, 0.2, 0.0, 0.0]).err(), Some("identification_mass_not_partition"));
+    }
+
+    fn aligned_claim(byte: u8, snapshot: u8, evidence: &str) -> ClaimEnvelope {
+        let mut claim = sample_claim(byte, 0.4);
+        claim.identities.data_snapshot = digest(snapshot);
+        claim.evidence = Arc::from([Arc::from(evidence)]);
+        claim
+    }
+
+    #[test]
+    fn contrast_alignment_requires_the_same_draw_set_and_snapshot() {
+        let contrast = |left: &ClaimEnvelope, right: &ClaimEnvelope| {
+            claim_compatibility(&[left, right], ClaimOperation::Contrast, None)
+        };
+        let a = aligned_claim(1, 16, "alignment:replicate_ids:aa11");
+        let same = aligned_claim(2, 16, "alignment:replicate_ids:aa11");
+        assert!(contrast(&a, &same).compatible);
+        // Same mechanism, different replicate set.
+        let other_draws = aligned_claim(2, 16, "alignment:replicate_ids:bb22");
+        let report = contrast(&a, &other_draws);
+        assert!(!report.compatible);
+        assert!(report.unresolved.iter().any(|item| &**item == "alignment"));
+        // Same declared draw set id on a different data snapshot is not one draw set.
+        let other_snapshot = aligned_claim(2, 17, "alignment:replicate_ids:aa11");
+        assert!(!contrast(&a, &other_snapshot).compatible);
+        // A bare kind names no draw set at all.
+        let bare_a = aligned_claim(1, 16, "replicate_ids");
+        let bare_b = aligned_claim(2, 16, "replicate_ids");
+        assert!(!contrast(&bare_a, &bare_b).compatible);
+        // Different kinds do not align either.
+        let joint = aligned_claim(2, 16, "alignment:joint_draws:aa11");
+        assert!(!contrast(&a, &joint).compatible);
+    }
+
+    #[test]
+    fn chained_receipt_keeps_earlier_operation_and_retention_losses() {
+        let id = digest(1);
+        let chained =
+            HandoffReceipt::lossy_scalar(id, "a").chain(&HandoffReceipt::lossless(id, "b"));
+        for operation in ["accept_as_claim", "re_estimate"] {
+            assert!(
+                chained.unavailable_operations.iter().any(|op| &**op == operation),
+                "{operation} must stay unavailable"
+            );
+        }
+        for lost in ["reasoning", "domains", "identities"] {
+            assert!(chained.omitted.iter().any(|f| &**f == lost));
+            assert!(
+                !chained.retained.iter().any(|f| &**f == lost),
+                "{lost} is omitted and cannot also be retained"
+            );
+        }
+        assert!(chained.retained.iter().any(|f| &**f == "claim.envelope"));
+        assert!(!chained.equivalent_claim());
+        assert!(chained.unresolved.is_empty());
+    }
+
+    #[test]
+    fn chaining_receipts_of_different_claims_is_a_discontinuity() {
+        let first = HandoffReceipt::lossless(digest(1), "a");
+        let second = HandoffReceipt::lossless(digest(2), "b");
+        let chained = first.chain(&second);
+        assert!(chained.unresolved.iter().any(|item| &**item == "chain_discontinuity"));
+        assert!(!chained.equivalent_claim());
+        // A contiguous chain of lossless hops stays equivalent.
+        assert!(first.chain(&HandoffReceipt::lossless(digest(1), "c")).equivalent_claim());
     }
 
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {

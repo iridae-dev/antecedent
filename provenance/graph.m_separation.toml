@@ -7,12 +7,13 @@ copied_tests = false
 
 papers = [
  { title = "Markov Properties for Acyclic Directed Mixed Graphs", doi = "10.1111/1467-9469.00323", sections = ["m-separation via moralization of the ancestral subgraph"] },
- { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["definite-status separation in MAGs/PAGs"] },
+ { title = "Ancestral graph Markov models", doi = "10.1214/aos/1031689015", sections = ["m-separation in ancestral graphs"] },
+ { title = "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias", doi = "10.1016/j.artint.2008.08.001", sections = ["definite-status paths: definite colliders and definite non-colliders, including unshielded circle-circle triples"] },
 ]
 
 implementation_deviations = [
  "Exact ADMG m-separation is implemented only for directed and bidirected graphs; general ancestral graphs with undirected selection edges are not supported.",
- "The PAG path evaluates definite-status m-connection rather than separation in a specific completed MAG.",
+ "The PAG query is a statement about every MAG the completion audit enumerates, with three outcomes (separated, connected, undetermined). Definite status follows Zhang (2008): collider, a tail at the node, or an unshielded circle-circle triple. A definite-status active path proves connection in every member; absence of any possibly-active path (marks judged node by node, colliders opened by possible descendants) proves separation; otherwise the member MAGs are enumerated. This is not Zhang's lemma for complete PAGs, which the code cannot assume of a hand-built PAG.",
  "PAG search is bounded by caller-supplied maximum path count and path length and fails on exhausted or truncated budgets; it is not an unbounded complete orientation or completion procedure.",
  "As with d-separation, the endpoint API is singleton-to-singleton and treats conditioning on an endpoint as connected rather than enforcing disjoint query sets.",
 ]
@@ -23,6 +24,7 @@ upstream_implementations_observed = [
 
 test_sources = [
  "ADMG m-separation unit tests (crates/antecedent-graph/src/msep.rs)",
- "PAG definite-status m-separation unit tests (crates/antecedent-graph/src/pag.rs)",
- "clean-room path-status enumeration oracle (conformance/graph/definite_status_separation)",
+ "PAG definite-status path tests (crates/antecedent-graph/src/pag.rs) and class-wide m-separation tests (crates/antecedent-graph/src/msep.rs)",
+ "brute force against every enumerated member MAG: all mark assignments on 3 nodes, strided samples on 4 and 5 nodes (2637 PAGs with members, 80312 queries), mark-only certificates checked separately from the enumeration fallback (msep::pag_msep_tests::class_wide_answers_match_every_member_on_small_graphs)",
+ "clean-room path-status enumeration oracle with hand-enumerated circle-mark, shielded-path and conflict-mark cases (conformance/graph/definite_status_separation)",
 ]

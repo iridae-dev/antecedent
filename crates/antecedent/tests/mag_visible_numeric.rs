@@ -1,7 +1,7 @@
 //! Visibility-certified MAG estimation against y = 1 + 2t.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::too_many_lines, clippy::many_single_char_names)]
+#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
@@ -13,18 +13,49 @@ use antecedent_graph::{DenseNodeId, Pag};
 use std::sync::Arc;
 
 #[test]
+#[allow(clippy::cast_sign_loss, reason = "the row index i runs over 0..800, so it is non-negative")]
 fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
-    let t: Vec<_> = (0..800).map(|i| 0.05 + 0.9 * f64::from(i) / 799.0).collect();
-    let y: Vec<_> = t.iter().map(|t| 1.0 + 2.0 * t).collect();
-    let r: Vec<_> = (0..800).map(|i| f64::from(i % 2)).collect();
-    let s: Vec<_> = (0..800).map(|i| f64::from(i).sin()).collect();
-    let v: Vec<_> = (0..800).map(|i| f64::from(i).cos()).collect();
+    // `r -> t`, a measured confounder `z -> t, z -> y`, and `y = 1 + 2t + 1.5z`. The
+    // sample mean of `z` is exactly 0, so every certified functional equals the
+    // structural value only when `z` is in the adjustment set; the crude slope of `y`
+    // on `t` is far from 2, so an empty or partial set cannot pass.
+    //
+    // `z` and `r` cycle through 5 symmetric levels (mean exactly 0 for `z`, one full
+    // period every 5 rows) rather than 2. The PAG's InterventionResponse cell runs the
+    // visibility-aware general-ID path, which fits an additive-GAM plug-in target over
+    // every adjustment covariate (not only a minimal backdoor set); a cubic smooth spline
+    // needs more than two distinct knot locations, and a 2-valued `z`/`r` left that fit
+    // singular ("additive GAM target did not converge"). 5 levels is enough for the GAM's
+    // quantile knots to be non-degenerate while keeping the DGP exactly computable.
+    let z: Vec<_> = (0..800).map(|i: i32| 0.5 * f64::from(i % 5 - 2)).collect();
+    let r: Vec<_> = (0..800).map(|i| f64::from((i / 5) % 5)).collect();
+    let t: Vec<_> = (0..800)
+        .map(|i| {
+            let jitter = f64::from((i * 7919) % 101) / 101.0 * 0.1 - 0.05;
+            0.5 + 0.2 * z[i as usize] + 0.0375 * (r[i as usize] - 2.0) + jitter
+        })
+        .collect();
+    let y: Vec<_> = t.iter().zip(&z).map(|(t, z)| 1.0 + 2.0 * t + 1.5 * z).collect();
+    let v: Vec<_> = (0..800).map(|i| f64::from(i).sin()).collect();
+    let w: Vec<_> = (0..800).map(|i| f64::from(i).cos()).collect();
+    let crude_slope = {
+        let n = t.len() as f64;
+        let (mt, my) = (t.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+        let cov: f64 = t.iter().zip(&y).map(|(t, y)| (t - mt) * (y - my)).sum();
+        let var: f64 = t.iter().map(|t| (t - mt).powi(2)).sum();
+        cov / var
+    };
+    assert!(
+        crude_slope > 2.5,
+        "the confounder must bias the crude slope by more than 0.5: {crude_slope}"
+    );
     let data = TabularData::from_f64_columns([
         ("t", t.as_slice()),
         ("y", y.as_slice()),
         ("r", r.as_slice()),
-        ("s", s.as_slice()),
+        ("z", z.as_slice()),
         ("v", v.as_slice()),
+        ("w", w.as_slice()),
     ])
     .unwrap();
     let t = VariableId::from_raw(0);
@@ -57,11 +88,13 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
         ),
     ];
     for mixed in [false, true] {
-        let mut pag = Pag::with_variables(5);
+        let mut pag = Pag::with_variables(6);
         pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+        pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap();
         pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         if mixed {
-            pag.insert_circle_circle(DenseNodeId::from_raw(3), DenseNodeId::from_raw(4)).unwrap();
+            pag.insert_circle_circle(DenseNodeId::from_raw(4), DenseNodeId::from_raw(5)).unwrap();
         }
         for accepted in [false, true] {
             for bayesian in [false, true] {
@@ -88,7 +121,7 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
                     let fresh = study.clone().run(&ctx).unwrap();
                     let prepared = study.prepare(&ctx).unwrap();
                     let click = prepared.estimate(&data, &ctx).unwrap();
-                    for result in [fresh, click] {
+                    for result in vec![fresh, click] {
                         let values = if let Some(response) = result.response {
                             match response.estimate {
                                 ResponseIdentification::PointIdentified(value)
@@ -106,7 +139,7 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
                         assert_eq!(values.len(), expected.len());
                         for (value, target) in values.iter().zip(expected) {
                             assert!(
-                                (value - target).abs() < 0.05,
+                                (value - target).abs() < 0.02,
                                 "{query:?}: {value} vs {target}"
                             );
                         }

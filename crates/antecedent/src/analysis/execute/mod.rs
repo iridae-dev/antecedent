@@ -3,11 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::similar_names,
     clippy::too_many_lines,
     clippy::doc_markdown,
     clippy::too_many_arguments,
-    clippy::cast_precision_loss,
     clippy::wildcard_imports
 )]
 
@@ -37,7 +35,7 @@ pub(super) use antecedent_estimate::{
     nonidentified_with_prior, support_from_functional_eval,
 };
 pub(super) use antecedent_expr::{
-    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalContext, EvalError, ExprNode,
+    CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalError, ExprNode,
     IdentifiedEstimand, OutcomeExprId,
 };
 pub(super) use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag};
@@ -59,8 +57,9 @@ pub(super) use crate::accepted::{AcceptedGraph, GraphClass};
 pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
-    anomaly_attribution, attribute_distribution_change, attribute_unit_change, counterfactual_ite,
-    fit_gcm, fit_gcm_counterfactual, map_mechanism_fit, mechanism_change_detection,
+    anomaly_attribution_with, attribute_distribution_change, attribute_unit_change,
+    counterfactual_ite, fit_gcm, fit_gcm_counterfactual, map_mechanism_fit,
+    mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
@@ -91,7 +90,8 @@ pub(super) use crate::strategy_table::{
     estimate_provenance_step, estimate_static_effect, identify_admg, identify_admg_query,
     identify_cpdag, identify_pag, identify_provenance_step, identify_static, identify_static_query,
     identify_static_query_with_rd, identify_temporal_cpdag_configured,
-    identify_temporal_pag_configured, require_identified, select_estimand, validate_static_pair,
+    identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
+    validate_static_pair,
 };
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
@@ -132,6 +132,10 @@ pub struct Study {
     /// `None`); `None` here means no downgrade happened. Surfaced to the
     /// caller as diagnostic `exec.refute.default_suite_unsupported`.
     pub(crate) refute_default_downgrade: Option<RefuteSuite>,
+    /// `(tier_replicates, configured_replicates)` when a latency tier mapped a
+    /// bootstrap budget but the configured estimator's own replicate count won.
+    /// Surfaced as diagnostic `latency.bootstrap_not_applied`.
+    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
     pub(crate) bootstrap_replicates: u32,
     pub(crate) split: Option<DiscoveryEstimationSplit>,
     pub(crate) identifier: Option<IdentifierId>,
@@ -213,6 +217,7 @@ impl std::fmt::Debug for Study {
             .field("query", &"<query>")
             .field("refute", &self.refute)
             .field("refute_default_downgrade", &self.refute_default_downgrade)
+            .field("latency_bootstrap_not_applied", &self.latency_bootstrap_not_applied)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
             .field("split", &self.split)
             .field("identifier", &self.identifier)
@@ -507,7 +512,19 @@ mod envelope_refuter_target_tests {
             .collect()
     }
 
-    fn data_subset(
+    /// `bootstrap.ci_coverage`'s report for `atoms` against `data`.
+    ///
+    /// Picked (over `data.subset`) because it is the one refuter in the mixed
+    /// suite whose verdict directly compares the *passed-in* `original.ate`
+    /// against a CI the refuter builds independently from the atom's own
+    /// `estimand`+data (`problem.original.ate >= lo && <= hi` in
+    /// `bootstrap_refute::coverage_report`). `data.subset` (and RCC) instead
+    /// centre on their own full-sample refit of that same `estimand`
+    /// (`fix: make validate refuters, sensitivity and stability checks say
+    /// only what they test`), so tampering with `original.ate` alone can no
+    /// longer move their verdict — they would pass here regardless of which
+    /// target the envelope wiring routed.
+    fn bootstrap_report(
         data: &TabularData,
         atoms: &[EnvelopeRefuteAtom],
         ctx: &ExecutionContext,
@@ -528,7 +545,10 @@ mod envelope_refuter_target_tests {
             None,
         )
         .unwrap();
-        reports.into_iter().find(|r| r.refuter.as_ref() == "data.subset").expect("data.subset")
+        reports
+            .into_iter()
+            .find(|r| r.refuter.as_ref() == "bootstrap.ci_coverage")
+            .expect("bootstrap.ci_coverage")
     }
 
     #[test]
@@ -545,27 +565,27 @@ mod envelope_refuter_target_tests {
 
         // Stable atoms with different effects pass against their own estimates;
         // the mixed original_ate is the mass-weighted mean of what was compared.
-        let stable = data_subset(&data, &atoms, &ctx);
+        let stable = bootstrap_report(&data, &atoms, &ctx);
         assert!(stable.passed, "stable heterogeneous atoms must pass: {stable:?}");
         assert!((stable.original_ate - pooled).abs() < 1e-8);
 
-        // The pre-1.9 targeting (every atom against the pooled mixture) rejects
+        // Targeting every atom against the pooled mixture rejects
         // the same stable atoms: this is the defect R-3 removes.
         let mut pooled_target = fitted_atoms(&data, &ctx);
         for atom in &mut pooled_target {
             atom.original.ate = pooled;
         }
-        assert!(!data_subset(&data, &pooled_target, &ctx).passed);
+        assert!(!bootstrap_report(&data, &pooled_target, &ctx).passed);
 
         // An atom whose own refits do not reproduce its reported estimate is
         // still refuted, and unanimity fails the mixture even though the other
         // atom passes.
         let mut unstable = fitted_atoms(&data, &ctx);
         unstable[1].original.ate += 0.5;
-        let report = data_subset(&data, &unstable, &ctx);
+        let report = bootstrap_report(&data, &unstable, &ctx);
         assert!(!report.passed, "a refuted atom must fail the mixture: {report:?}");
         assert!(report.failure_condition.is_some());
-        let alone = data_subset(&data, &unstable[..1], &ctx);
+        let alone = bootstrap_report(&data, &unstable[..1], &ctx);
         assert!(alone.passed, "the other atom passes on its own: {alone:?}");
     }
 

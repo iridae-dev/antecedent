@@ -1,5 +1,9 @@
 # regime / mediation baselines
 
+Established: 2026-09-07 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: d4494901 (the commit that added this file; the measured commit was not written down)
+
 Criterion benches (run with `--test` in `gate_context.sh`):
 
 - `antecedent-discovery` bench `rpcmci`: `rpcmci_sparse_120`, `rpcmci_stress_240`

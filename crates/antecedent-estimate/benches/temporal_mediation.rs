@@ -2,11 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(missing_docs)]
 #![allow(
-    missing_docs,
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;

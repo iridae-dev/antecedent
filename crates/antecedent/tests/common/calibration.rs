@@ -14,16 +14,18 @@
 //! something:
 //!
 //! * **Recheck.** At fewer than [`PRECISION_N_SIM`] replicates, a cell whose
-//!   coverage falls below `level − RECHECK_SHORTFALL` (2 points) while still
-//!   inside the band passes the band but prints a `calibration-recheck` line.
+//!   coverage falls more than [`RECHECK_SHORTFALL`] (2 points) away from the
+//!   level in either direction while still inside the band passes the band
+//!   but prints a `calibration-recheck` line. That includes
+//!   [`CoverageTally::emit`] for `reported_level` (0.95) records.
 //!   `scripts/gate_calibration.sh` re-runs such a group at
 //!   [`RECHECK_N_SIM`] replicates and takes that run's verdict.
-//! * **Precision floor.** At [`PRECISION_N_SIM`] replicates or more, coverage
-//!   must also be at least `level − 2·MCSE` (one-sided): 0.887 at 2000
-//!   replicates and a 90% level, 0.940 at 95%. A cell that measures 2–4
-//!   points low at 400 replicates therefore fails once it is measured
-//!   precisely; a cell whose true coverage is the level fails the floor about
-//!   2% of the time.
+//! * **Precision floor and ceiling.** At [`PRECISION_N_SIM`] replicates or
+//!   more, coverage must lie in `[level − 2·MCSE, level + 2·MCSE]`: at 2000
+//!   replicates and a 95% level that is about `[0.940, 0.960]`. A cell that
+//!   measures 2–4 points off at 400 replicates therefore fails once it is
+//!   measured precisely; a cell whose true coverage is the level fails a
+//!   one-sided bound about 2% of the time.
 //!
 //! "Nominal" in a test name means the cell passes both: the band at the
 //! gate's replicate count and, when rechecked, the precision floor. Designs
@@ -36,7 +38,7 @@
 //! `common::calibration_bind::bind`), which takes the construction from the
 //! runtime's own calibration match key, so a record describes exactly what
 //! the facade reported. [`CoverageTally::assert`] then prints a
-//! `calibration-record` line (boundary `false`), [`CoverageTally::assert_boundary`]
+//! `calibration-record` line (boundary `false`), [`CoverageTally::assert_boundary_at`]
 //! one flagged boundary, and [`CoverageTally::emit`] one for an
 //! [`CoverageTally::unasserted`] second level scored on the same replicates
 //! (boundary when it misses the nominal band). `scripts/collect_coverage_records.py`
@@ -64,9 +66,53 @@
 //! study. Same seed, same interval. The old 1.6 h / overnight figures were
 //! one-core loops.
 //!
+//! `ANTECEDENT_CALIBRATION_THREADS=<n>` ([`THREADS_ENV`]) caps the worker
+//! count of [`map_replicates`] (default `available_parallelism`, clamped to
+//! `[1, replicates]`). `scripts/calibration_groups.py` sets it to
+//! `ceil(cores / jobs)` so concurrent gate jobs share the machine instead of
+//! each taking all of it. Results are folded in replicate order whatever the
+//! worker count, so the cap changes no printed line.
+//!
+//! **Recheck by extension.** Replicate `k`'s outcome is a deterministic
+//! function of `k`, so a recheck at [`RECHECK_N_SIM`] need not recompute the
+//! first run's replicates. Three variables make the gate's recheck extend the
+//! first run instead of restarting it:
+//!
+//! * [`TALLY_OUT_ENV`] (`ANTECEDENT_CALIBRATION_TALLY_OUT=<path>`): every
+//!   emitting tally appends its raw state (counts, length sum, bound scope,
+//!   construction) as one JSON line when it is asserted or emitted. The gate
+//!   sets it on every run.
+//! * [`REPLICATE_START_ENV`] (`ANTECEDENT_CALIBRATION_REPLICATE_START=<k>`):
+//!   [`map_replicates`] evaluates replicates `k..n` instead of `0..n`, and
+//!   marks the test thread as extending.
+//! * [`PRIOR_TALLIES_ENV`] (`ANTECEDENT_CALIBRATION_PRIOR_TALLIES=<path>`):
+//!   the first run's tally file. On an extending thread, each tally seeds
+//!   itself from its prior state at its first `record` / `skip` / `bind`
+//!   (before the extension's replicates are folded in, so the length sum is
+//!   added in the same order as a fresh run's), and the band, recheck rule and
+//!   precision floor are evaluated on the merged counts. The printed
+//!   `calibration` and `calibration-record` lines equal a fresh run's at `n`.
+//!
+//! Only a test that draws its replicates through [`map_replicates`] (or a
+//! helper built on it) extends; a serial `for rep in 0..n_sim()` loop never
+//! sees the start and recomputes every replicate, and its tallies never seed,
+//! so a whole-file group mixing both kinds stays correct. The seed refuses a
+//! prior whose first run did not compute exactly `k` replicates through
+//! `map_replicates`, so a test whose count is not `n_sim()` cannot double
+//! count. A test that mixes an extended `map_replicates` with a serial
+//! replicate loop feeding another tally is not supported (that tally would
+//! seed too); keep every replicate of an extending test behind
+//! `map_replicates`. Smoke runs ([`SMOKE_ENV`]) extend like measured runs:
+//! the extension is wiring, which is what a smoke run proves.
+//!
+//! Every `calibration-recheck` line is followed by a
+//! `calibration-recheck-test <test>` line naming the libtest thread (the test
+//! function), so `scripts/gate_calibration.sh` can recheck only that test of a
+//! whole-file group.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, clippy::cast_precision_loss)]
+#![allow(dead_code)]
 
 /// Standard-normal 0.95 quantile (two-sided 90% interval).
 pub const Z90: f64 = 1.644_853_626_951_472_2;
@@ -79,18 +125,24 @@ pub const Z95: f64 = 1.959_963_984_540_054;
 /// (`antecedent::result::REPORTED_SE_INTERVAL_LEVEL`).
 pub const REPORTED_LEVEL: f64 = 0.95;
 
-/// Default replicate count for 1.9 coverage tests.
+/// Default replicate count for coverage tests.
 pub const DEFAULT_N_SIM: u32 = 400;
 
 /// Replicate count the gate script re-runs a `calibration-recheck` group at.
 pub const RECHECK_N_SIM: u32 = 2000;
 
-/// Replicate count from which the one-sided precision floor applies.
+/// Replicate count from which the precision floor and ceiling apply.
 pub const PRECISION_N_SIM: u32 = 1000;
 
-/// Shortfall below the level (in coverage points) that asks for a recheck at
-/// fewer than [`PRECISION_N_SIM`] replicates.
+/// Absolute shortfall from the level (in coverage points) that asks for a
+/// recheck at fewer than [`PRECISION_N_SIM`] replicates, on either side.
 pub const RECHECK_SHORTFALL: f64 = 0.02;
+
+/// Maximum share of replicates that may be skipped (1%). Skips count as
+/// misses in [`CoverageTally::rate`]; the cap stops an estimator from
+/// discarding almost every draw and still claiming coverage on the rest.
+pub const SKIP_CAP_NUM: u32 = 1;
+pub const SKIP_CAP_DEN: u32 = 100;
 
 /// Environment variable selecting the sample-size grid point a run measures
 /// (`0`, `1` or `2`; unset is the base point [`BASE_GRID_POINT`]).
@@ -204,6 +256,18 @@ pub fn grid_seed(seed: u64) -> u64 {
     seed ^ grid_salt()
 }
 
+/// Environment variable naming the commit under measurement (`scripts/gate_calibration.sh`
+/// exports it). Every record carries it, so a line copied from another run or another
+/// commit is refused by `scripts/collect_coverage_records.py` on its own, not only when
+/// its log's trailer happens to agree.
+pub const MEASURED_AT_ENV: &str = "ANTECEDENT_CALIBRATION_SHA";
+
+/// The commit this run measures; empty outside the gate (the collector then refuses the line).
+#[must_use]
+pub fn measured_at() -> String {
+    std::env::var(MEASURED_AT_ENV).unwrap_or_default()
+}
+
 /// Environment variable of a wiring smoke run (`1`): tallies emit their
 /// records flagged `"smoke": true` and never gate. A smoke run proves that
 /// designs scale with the grid and that the records key and bind; it measures
@@ -228,41 +292,132 @@ pub fn n_sim() -> u32 {
         .unwrap_or(DEFAULT_N_SIM)
 }
 
-/// Evaluate `f(0), …, f(n-1)` on `available_parallelism` workers.
+/// Environment variable capping the worker threads of [`map_replicates`]
+/// (unset: `available_parallelism`). Clamped to `[1, replicates]`.
+pub const THREADS_ENV: &str = "ANTECEDENT_CALIBRATION_THREADS";
+
+/// Environment variable of a recheck by extension: the first replicate index
+/// [`map_replicates`] evaluates (the first run's replicate count). Unset or
+/// `0` runs every replicate.
+pub const REPLICATE_START_ENV: &str = "ANTECEDENT_CALIBRATION_REPLICATE_START";
+
+/// Environment variable naming the first run's tally file an extending run
+/// seeds its tallies from (written by that run under [`TALLY_OUT_ENV`]).
+pub const PRIOR_TALLIES_ENV: &str = "ANTECEDENT_CALIBRATION_PRIOR_TALLIES";
+
+/// Environment variable naming the file every emitting tally appends its raw
+/// state to, one JSON line per tally, so a later run can extend this one.
+pub const TALLY_OUT_ENV: &str = "ANTECEDENT_CALIBRATION_TALLY_OUT";
+
+/// Worker threads for `n` replicates: [`THREADS_ENV`] when set, else
+/// `available_parallelism`, clamped to `[1, n]`.
+///
+/// # Panics
+///
+/// When the variable is set to anything but a positive integer.
+#[must_use]
+pub fn worker_threads(n: usize) -> usize {
+    let threads = match std::env::var(THREADS_ENV) {
+        Err(_) => {
+            std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1)
+        }
+        Ok(raw) => raw
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .filter(|&t| t > 0)
+            .unwrap_or_else(|| panic!("{THREADS_ENV}={raw}: want a positive integer")),
+    };
+    threads.clamp(1, n.max(1))
+}
+
+/// First replicate index of this run ([`REPLICATE_START_ENV`]; `0` when unset).
+///
+/// # Panics
+///
+/// When the variable is set to anything but a non-negative integer.
+#[must_use]
+pub fn replicate_start() -> u32 {
+    static START: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *START.get_or_init(|| match std::env::var(REPLICATE_START_ENV) {
+        Err(_) => 0,
+        Ok(raw) => raw
+            .trim()
+            .parse::<u32>()
+            .unwrap_or_else(|_| panic!("{REPLICATE_START_ENV}={raw}: want a replicate index")),
+    })
+}
+
+thread_local! {
+    /// Per test thread: the replicate count of the last [`map_replicates`]
+    /// call, and whether that call extended a first run (`replicate_start() > 0`).
+    /// libtest runs each test on its own named thread, so a whole-file group
+    /// keeps one state per test.
+    static MAP_STATE: std::cell::Cell<(Option<u32>, bool)> = const { std::cell::Cell::new((None, false)) };
+}
+
+/// Whether the current test thread's last [`map_replicates`] call extended a
+/// first run, so its tallies seed from [`PRIOR_TALLIES_ENV`].
+fn extending() -> bool {
+    MAP_STATE.with(|state| state.get().1)
+}
+
+/// Replicate count of the current test thread's last [`map_replicates`] call.
+fn last_map_end() -> Option<u32> {
+    MAP_STATE.with(|state| state.get().0)
+}
+
+/// Evaluate `f(0), …, f(n-1)` on [`worker_threads`] workers, or, when
+/// [`REPLICATE_START_ENV`] is `k > 0`, `f(k), …, f(n-1)` (a recheck by
+/// extension; the tallies fed afterwards seed from the first run's state).
 ///
 /// Results come back in seed order so `bind` / `record` stay deterministic.
 /// Each call is an independent dataset; `f` must be deterministic in `rep`.
 /// Workers are `std::thread::scope` threads — not `rayon`, and not product
 /// [`antecedent_core::ExecutionContext`] parallelism. A single replicate
 /// still builds its own serial test context.
+///
+/// # Panics
+///
+/// When [`REPLICATE_START_ENV`] is at least `n`: there is nothing to extend.
 pub fn map_replicates<T: Send>(n: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
-    let n_us = usize::try_from(n).expect("replicate count fits usize");
+    let start = replicate_start();
+    assert!(
+        start == 0 || start < n,
+        "{REPLICATE_START_ENV}={start} is not below the replicate count {n}: nothing to extend"
+    );
+    MAP_STATE.with(|state| state.set((Some(n), start > 0)));
+    map_replicates_from(start, n, f)
+}
+
+/// Evaluate `f(start), …, f(end-1)` on [`worker_threads`] workers, results in
+/// replicate order. The building block of [`map_replicates`]; it neither reads
+/// [`REPLICATE_START_ENV`] nor marks the thread as extending.
+pub fn map_replicates_from<T: Send>(start: u32, end: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
+    let n_us = usize::try_from(end.saturating_sub(start)).expect("replicate count fits usize");
     if n_us == 0 {
         return Vec::new();
     }
-    let threads = std::thread::available_parallelism()
-        .map(std::num::NonZeroUsize::get)
-        .unwrap_or(1)
-        .clamp(1, n_us);
+    let threads = worker_threads(n_us);
     if threads == 1 {
-        return (0..n).map(|rep| f(u64::from(rep))).collect();
+        return (start..end).map(|rep| f(u64::from(rep))).collect();
     }
     let mut out: Vec<Option<T>> = (0..n_us).map(|_| None).collect();
     std::thread::scope(|scope| {
         let f = &f;
         let mut rest = out.as_mut_slice();
-        let mut start = 0usize;
+        let mut first = usize::try_from(start).expect("replicate index fits usize");
         for t in 0..threads {
             let take = rest.len().div_ceil(threads - t);
             let (mine, next) = rest.split_at_mut(take);
-            let begin = start;
+            let begin = first;
             scope.spawn(move || {
                 for (k, slot) in mine.iter_mut().enumerate() {
                     *slot = Some(f((begin + k) as u64));
                 }
             });
             rest = next;
-            start += take;
+            first += take;
             if rest.is_empty() {
                 break;
             }
@@ -284,18 +439,47 @@ pub fn coverage_band(n_sim: u32, level: f64) -> (f64, f64) {
     ((level - 3.0 * mcse).max(0.0), (level + 3.0 * mcse).min(1.0))
 }
 
-/// One-sided precision floor `level − 2·MCSE`, in force from [`PRECISION_N_SIM`]
+/// Precision floor `level − 2·MCSE`, in force from [`PRECISION_N_SIM`]
 /// replicates; `None` below that count.
 #[must_use]
 pub fn precision_floor(n_sim: u32, level: f64) -> Option<f64> {
     (n_sim >= PRECISION_N_SIM).then(|| level - 2.0 * coverage_mcse(n_sim, level))
 }
 
-/// Whether a rate at `n_sim` replicates asks for a recheck: below
-/// `level − RECHECK_SHORTFALL` at fewer than [`PRECISION_N_SIM`] replicates.
+/// Precision ceiling `level + 2·MCSE`, in force from [`PRECISION_N_SIM`]
+/// replicates; `None` below that count. Symmetric counterpart of
+/// [`precision_floor`]: a conservative interval that over-covers must fail
+/// once it is measured precisely.
+#[must_use]
+pub fn precision_ceiling(n_sim: u32, level: f64) -> Option<f64> {
+    (n_sim >= PRECISION_N_SIM).then(|| level + 2.0 * coverage_mcse(n_sim, level))
+}
+
+/// Whether a rate at `n_sim` replicates asks for a recheck: more than
+/// [`RECHECK_SHORTFALL`] from the level in either direction at fewer than
+/// [`PRECISION_N_SIM`] replicates.
 #[must_use]
 pub fn needs_recheck(n_sim: u32, level: f64, rate: f64) -> bool {
-    n_sim < PRECISION_N_SIM && rate < level - RECHECK_SHORTFALL
+    n_sim < PRECISION_N_SIM
+        && (rate < level - RECHECK_SHORTFALL || rate > level + RECHECK_SHORTFALL)
+}
+
+/// Whether `rate` passes the two-sided band and, from [`PRECISION_N_SIM`],
+/// the precision floor and ceiling. Used by gated [`CoverageTally::assert`]
+/// and by [`CoverageTally::emit`] for `reported_level` records.
+#[must_use]
+pub fn passes_precision(n_sim: u32, level: f64, rate: f64) -> bool {
+    let (lo, hi) = coverage_band(n_sim, level);
+    if !(rate >= lo && rate <= hi) {
+        return false;
+    }
+    if precision_floor(n_sim, level).is_some_and(|floor| rate < floor) {
+        return false;
+    }
+    if precision_ceiling(n_sim, level).is_some_and(|ceiling| rate > ceiling) {
+        return false;
+    }
+    true
 }
 
 /// Provenance of a record-keyed tally: which test measured it, on which data
@@ -318,7 +502,7 @@ pub struct RecordKey {
 /// Construction of one reported interval, as the runtime keys it
 /// (`antecedent_io::calibration::CalibrationKeyWire` without the level: the
 /// record's level is the tally's).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Construction {
     pub query: String,
     pub graph_class: String,
@@ -376,6 +560,65 @@ pub struct CoverageTally {
     with_interval: u32,
     length_sum: f64,
     record: Option<BoundRecord>,
+    /// Whether the first `record` / `skip` / `bind` has run (and, on an
+    /// extending thread, seeded the tally from its prior state).
+    seeded: bool,
+}
+
+/// The raw state one tally writes to [`TALLY_OUT_ENV`] and an extending run
+/// seeds from: everything [`CoverageTally::emit_record`] and the printed
+/// line need, keyed by test thread, tally name and level.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TallyState {
+    key: String,
+    level: f64,
+    covered: u32,
+    scored: u32,
+    skipped: u32,
+    with_interval: u32,
+    length_sum: f64,
+    /// Replicate count of the test thread's last [`map_replicates`] call when
+    /// the tally was emitted; an extension must start exactly there.
+    map_end: Option<u32>,
+    record: Option<RecordState>,
+}
+
+/// The measured part of a [`BoundRecord`] (its key, file and label are the
+/// code's own and are not stored).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RecordState {
+    construction: Option<Construction>,
+    n_min: u64,
+    n_max: u64,
+    replicates_min: Option<u32>,
+    posterior_draws_min: Option<u32>,
+    unidentified_mass_max: f64,
+    bound: u32,
+}
+
+/// The first run's tally states ([`PRIOR_TALLIES_ENV`]), by key.
+fn prior_tallies() -> &'static std::collections::HashMap<String, TallyState> {
+    static PRIOR: std::sync::OnceLock<std::collections::HashMap<String, TallyState>> =
+        std::sync::OnceLock::new();
+    PRIOR.get_or_init(|| {
+        let path = std::env::var(PRIOR_TALLIES_ENV).unwrap_or_else(|_| {
+            panic!("{REPLICATE_START_ENV} is set but {PRIOR_TALLIES_ENV} is not")
+        });
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("{PRIOR_TALLIES_ENV}={path}: {err}"));
+        let mut out = std::collections::HashMap::new();
+        for line in text.lines().filter(|line| !line.trim().is_empty()) {
+            let state: TallyState = serde_json::from_str(line)
+                .unwrap_or_else(|err| panic!("{PRIOR_TALLIES_ENV}={path}: bad line: {err}"));
+            assert!(
+                !out.contains_key(&state.key),
+                "{PRIOR_TALLIES_ENV}={path}: two tallies wrote the key {}",
+                state.key
+            );
+            out.insert(state.key.clone(), state);
+        }
+        out
+    })
 }
 
 impl CoverageTally {
@@ -391,6 +634,145 @@ impl CoverageTally {
             with_interval: 0,
             length_sum: 0.0,
             record: None,
+            seeded: false,
+        }
+    }
+
+    /// The key this tally's state is stored under: the libtest thread (the
+    /// test function), the tally name and the level. A whole-file group runs
+    /// several tests in one process, and one test scores the same name at two
+    /// levels.
+    fn state_key(&self) -> String {
+        let thread = std::thread::current();
+        format!("{}::{}@{:.6}", thread.name().unwrap_or(""), self.name, self.level)
+    }
+
+    /// Before the first mutation: on an extending thread, take over the first
+    /// run's state so the extension's replicates are folded on top of it in
+    /// replicate order, exactly as a fresh run would have folded them.
+    ///
+    /// # Panics
+    ///
+    /// When the prior file lacks this tally, scored another level, or its
+    /// first run did not compute exactly [`replicate_start`] replicates
+    /// through [`map_replicates`] (an extension would then double count or
+    /// skip replicates).
+    fn seed(&mut self) {
+        if self.seeded {
+            return;
+        }
+        self.seeded = true;
+        if !extending() {
+            return;
+        }
+        let key = self.state_key();
+        let start = replicate_start();
+        let prior = prior_tallies().get(&key).unwrap_or_else(|| {
+            panic!("{}: no prior tally state under the key {key} to extend from", self.name)
+        });
+        assert!(
+            (prior.level - self.level).abs() < 1e-9,
+            "{}: the prior tally scored level {}, not {}",
+            self.name,
+            prior.level,
+            self.level
+        );
+        assert!(
+            prior.map_end == Some(start),
+            "{}: the first run computed {:?} replicates through map_replicates, so an \
+             extension cannot start at {REPLICATE_START_ENV}={start}",
+            self.name,
+            prior.map_end
+        );
+        self.covered = prior.covered;
+        self.scored = prior.scored;
+        self.skipped = prior.skipped;
+        self.with_interval = prior.with_interval;
+        self.length_sum = prior.length_sum;
+        match (self.record.as_mut(), prior.record.as_ref()) {
+            (Some(record), Some(prior)) => {
+                record.construction.clone_from(&prior.construction);
+                record.n_min = prior.n_min;
+                record.n_max = prior.n_max;
+                record.replicates_min = prior.replicates_min;
+                record.posterior_draws_min = prior.posterior_draws_min;
+                record.unidentified_mass_max = prior.unidentified_mass_max;
+                record.bound = prior.bound;
+            }
+            (None, None) => {}
+            (mine, prior) => panic!(
+                "{}: this tally {} a record but its prior state {}",
+                self.name,
+                if mine.is_some() { "backs" } else { "backs no" },
+                if prior.is_some() { "does" } else { "does not" }
+            ),
+        }
+    }
+
+    /// This tally's raw state, for [`TALLY_OUT_ENV`].
+    fn state(&self) -> TallyState {
+        TallyState {
+            key: self.state_key(),
+            level: self.level,
+            covered: self.covered,
+            scored: self.scored,
+            skipped: self.skipped,
+            with_interval: self.with_interval,
+            length_sum: self.length_sum,
+            map_end: last_map_end(),
+            record: self.record.as_ref().map(|record| RecordState {
+                construction: record.construction.clone(),
+                n_min: record.n_min,
+                n_max: record.n_max,
+                replicates_min: record.replicates_min,
+                posterior_draws_min: record.posterior_draws_min,
+                unidentified_mass_max: record.unidentified_mass_max,
+                bound: record.bound,
+            }),
+        }
+    }
+
+    /// The first step of every emission: append this tally's state to
+    /// [`TALLY_OUT_ENV`] when it is set, and refuse to emit a tally on an
+    /// extending thread that was never seeded (fed before `map_replicates`
+    /// ran, so its counts would cover the extension alone).
+    ///
+    /// # Panics
+    ///
+    /// As described, or when the state file cannot be written.
+    fn finish(&self) {
+        assert!(
+            self.seeded || !extending(),
+            "{}: emitted on an extending thread without seeding from the first run; feed \
+             every replicate of an extending test through map_replicates",
+            self.name
+        );
+        let Ok(path) = std::env::var(TALLY_OUT_ENV) else {
+            return;
+        };
+        let line = serde_json::to_string(&self.state()).expect("tally state serializes");
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .unwrap_or_else(|err| panic!("{TALLY_OUT_ENV}={path}: {err}"));
+        // One write per line: a whole-file group's tests append concurrently.
+        std::io::Write::write_all(&mut file, format!("{line}\n").as_bytes())
+            .unwrap_or_else(|err| panic!("{TALLY_OUT_ENV}={path}: {err}"));
+    }
+
+    /// The `calibration-recheck` line and the `calibration-recheck-test`
+    /// line that names this test for a per-test recheck.
+    fn print_recheck(&self, attempts: u32, rate: f64) {
+        let side = if rate < self.level { "below" } else { "above" };
+        eprintln!(
+            "calibration-recheck {}: coverage={rate:.3} is more than {RECHECK_SHORTFALL:.2} \
+             {side} {:.2} at {attempts} replicates; re-run at \
+             ANTECEDENT_CALIBRATION_NSIM={RECHECK_N_SIM}",
+            self.name, self.level
+        );
+        if let Some(test) = std::thread::current().name() {
+            eprintln!("calibration-recheck-test {test}");
         }
     }
 
@@ -398,7 +780,7 @@ impl CoverageTally {
     ///
     /// The single emission entry point. Bind every scored replicate's
     /// execution with [`Self::bind`]; [`Self::assert`] /
-    /// [`Self::assert_boundary`] (or [`Self::emit`] for an
+    /// [`Self::assert_boundary_at`] (or [`Self::emit`] for an
     /// [`Self::unasserted`] tally) then print one `calibration-record <json>`
     /// line, which `scripts/collect_coverage_records.py` collects.
     #[must_use]
@@ -441,9 +823,12 @@ impl CoverageTally {
     }
 
     /// A tally scored on the same replicates at a second level (the runtime's
-    /// reported level when the gate asserts another). It is never asserted:
-    /// [`Self::emit`] records its measured coverage, flagged as a boundary
-    /// when it falls outside the nominal band or below the precision floor.
+    /// reported level when the gate asserts another). It is never asserted
+    /// against the gate band as a pass/fail of the cargo test, but
+    /// [`Self::emit`] applies the same precision floor, ceiling and recheck
+    /// rule as [`Self::assert`]: a miss marks the record a boundary, and a
+    /// shortfall/overshoot near the level prints `calibration-recheck` so the
+    /// gate remeasures at [`RECHECK_N_SIM`].
     #[must_use]
     pub fn unasserted(mut self) -> Self {
         if let Some(record) = self.record.as_mut() {
@@ -460,6 +845,7 @@ impl CoverageTally {
     /// When the construction differs between replicates, when it is not the
     /// interval method the record declared, or on a tally without a record.
     pub fn bind(&mut self, construction: &Construction, scope: ScopeFacts) {
+        self.seed();
         let name = self.name.clone();
         let record = self
             .record
@@ -493,17 +879,32 @@ impl CoverageTally {
         record.unidentified_mass_max = record.unidentified_mass_max.max(scope.unidentified_mass);
     }
 
-    /// Whether the rate passes the nominal band (and the precision floor at
-    /// [`PRECISION_N_SIM`] replicates or more).
+    /// Whether the rate passes the nominal band and the precision floor /
+    /// ceiling at [`PRECISION_N_SIM`] replicates or more.
     fn passes_nominal(&self) -> bool {
-        let (lo, hi) = coverage_band(self.scored, self.level);
-        let rate = self.rate();
-        rate >= lo
-            && rate <= hi
-            && precision_floor(self.scored, self.level).is_none_or(|f| rate >= f)
+        passes_precision(self.attempts(), self.level, self.rate())
     }
 
     /// Print an [`Self::unasserted`] tally's line and its record.
+    ///
+    /// Applies the same band, floor, ceiling and recheck rule as
+    /// [`Self::assert`]. A miss is recorded as a boundary (the cargo test
+    /// still passes); a rate more than [`RECHECK_SHORTFALL`] from the level
+    /// below [`PRECISION_N_SIM`] prints `calibration-recheck` so the gate
+    /// remeasures.
+    /// Persist this tally's raw state for extension without gating or printing
+    /// a `calibration` line: for a tally that is only ever [`Self::record`]ed
+    /// (an info-only accumulator never [`Self::assert`]ed or [`Self::emit`]ted,
+    /// e.g. a class-prior's weighted-mean or a class-set's other-endpoint
+    /// tally). Without this, [`Self::seed`] still fires on such a tally's first
+    /// `record` call on an extending thread (it does not know the tally is
+    /// info-only), and panics for want of prior state that a normal `assert`/
+    /// `emit` would have written on the first run. Call once after every
+    /// replicate has been recorded, alongside the info-only tally's own report.
+    pub fn persist(&self) {
+        self.finish();
+    }
+
     ///
     /// # Panics
     ///
@@ -514,19 +915,35 @@ impl CoverageTally {
             "{}: emit is for unasserted record tallies",
             self.name
         );
+        self.finish();
+        let attempts = self.attempts();
+        let rate = self.rate();
+        let (lo, hi) = coverage_band(attempts, self.level);
+        let floor = precision_floor(attempts, self.level);
+        let ceiling = precision_ceiling(attempts, self.level);
         eprintln!(
             "calibration {} (recorded, not gated): nominal={:.2} coverage={:.3} mcse={:.4} \
-             mean_length={:.4} ({}/{} covered, {} skipped)",
+             band=[{lo:.3}, {hi:.3}]{}{} mean_length={:.4} ({}/{} covered, {} skipped)",
             self.name,
             self.level,
-            self.rate(),
-            coverage_mcse(self.scored, self.level),
+            rate,
+            coverage_mcse(attempts.max(1), self.level),
+            floor.map_or(String::new(), |f| format!(" floor={f:.3}")),
+            ceiling.map_or(String::new(), |c| format!(" ceiling={c:.3}")),
             self.mean_length(),
             self.covered,
-            self.scored,
+            attempts,
             self.skipped
         );
-        self.emit_record(!self.passes_nominal(), "reported_level");
+        if needs_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+        }
+        // A short run more than RECHECK_SHORTFALL under the level is unresolved until
+        // the recheck at RECHECK_N_SIM supersedes it; until then it is a boundary,
+        // never a nominal pass.
+        let unresolved_shortfall =
+            attempts < PRECISION_N_SIM && rate < self.level - RECHECK_SHORTFALL;
+        self.emit_record(!self.passes_nominal() || unresolved_shortfall, "reported_level");
     }
 
     /// Record a named boundary cell whose coverage the test measures but does
@@ -538,6 +955,8 @@ impl CoverageTally {
     /// On a tally without a record, or one that bound no execution.
     pub fn emit_named_boundary(&self) {
         assert!(self.record.is_some(), "{}: emit_named_boundary needs a record tally", self.name);
+        self.finish();
+        let attempts = self.attempts();
         eprintln!(
             "calibration-boundary {} (recorded, not gated): nominal={:.2} coverage={:.3} \
              mean_length={:.4} ({}/{} covered, {} skipped)",
@@ -546,7 +965,7 @@ impl CoverageTally {
             self.rate(),
             self.mean_length(),
             self.covered,
-            self.scored,
+            attempts,
             self.skipped
         );
         self.emit_record(true, "named_boundary");
@@ -567,7 +986,11 @@ impl CoverageTally {
             format!("{file}::{}", record.key.dgp)
         };
         // A nominal level is in [0, 1], so the rounded percentage is in [0, 100].
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a nominal level is in [0, 1], so the rounded percentage is in [0, 100]"
+        )]
         let level_pct = (self.level * 100.0).round() as u32;
         let mut id = format!(
             "cov.{}.{}.{}.{}.l{level_pct}.{}",
@@ -582,6 +1005,7 @@ impl CoverageTally {
             id.push_str(&sanitize_label(label));
         }
         let rate = self.rate();
+        let attempts = self.attempts();
         let mut payload = serde_json::json!({
                 "id": id,
                 "query": construction.query,
@@ -603,10 +1027,11 @@ impl CoverageTally {
                 "posterior_draws_min": record.posterior_draws_min.unwrap_or(0),
                 "unidentified_mass_max": record.unidentified_mass_max,
                 "observed": rate,
-                "mcse": (rate * (1.0 - rate) / f64::from(self.scored.max(1))).sqrt(),
-                "replicates": self.scored,
+                "mcse": (rate * (1.0 - rate) / f64::from(attempts.max(1))).sqrt(),
+                "replicates": attempts,
                 "bound_replicates": record.bound,
                 "grid_point": grid_point(),
+                "measured_at": measured_at(),
                 "boundary": boundary,
                 "role": role,
                 "dgp": dgp,
@@ -628,6 +1053,7 @@ impl CoverageTally {
     /// A non-finite or inverted interval counts as a miss, never as a skip, so
     /// an estimator cannot improve its coverage by failing to report.
     pub fn record(&mut self, interval: Option<(f64, f64)>, truth: f64) {
+        self.seed();
         self.scored += 1;
         let Some((lo, hi)) =
             interval.filter(|(lo, hi)| lo.is_finite() && hi.is_finite() && lo <= hi)
@@ -642,15 +1068,34 @@ impl CoverageTally {
     }
 
     /// Record a replicate that could not be evaluated for a documented reason
-    /// (e.g. a refused fit on a degenerate draw). Skips are capped in [`assert`].
+    /// (e.g. a refused fit on a degenerate draw). A skip counts as a miss in
+    /// [`Self::rate`] and is capped at [`SKIP_CAP_NUM`]/[`SKIP_CAP_DEN`] in
+    /// [`Self::assert`].
     pub fn skip(&mut self) {
+        self.seed();
         self.skipped += 1;
     }
 
-    /// Empirical coverage over scored replicates.
+    /// Scored replicates plus skips: the denominator of [`Self::rate`].
+    #[must_use]
+    pub fn attempts(&self) -> u32 {
+        self.scored + self.skipped
+    }
+
+    /// The numerator of [`Self::rate`]: replicates whose interval covered
+    /// the recorded truth (a plain per-replicate flag counter reuses this by
+    /// recording a fixed in-range/out-of-range pair, see e.g. a short-series
+    /// warning rate that must stay extension-safe across a recheck).
+    #[must_use]
+    pub fn covered(&self) -> u32 {
+        self.covered
+    }
+
+    /// Empirical coverage over scored replicates and skips (skips are misses).
     #[must_use]
     pub fn rate(&self) -> f64 {
-        if self.scored == 0 { f64::NAN } else { f64::from(self.covered) / f64::from(self.scored) }
+        let n = self.attempts();
+        if n == 0 { f64::NAN } else { f64::from(self.covered) / f64::from(n) }
     }
 
     /// Mean interval length over replicates that produced an interval.
@@ -663,49 +1108,47 @@ impl CoverageTally {
         }
     }
 
-    /// Assert nominal coverage; at most 5% of replicates may be skipped.
+    /// Assert nominal coverage; at most [`SKIP_CAP_NUM`]/[`SKIP_CAP_DEN`] of
+    /// replicates may be skipped (skips count as misses).
     ///
     /// The two-sided band `level ± 3·MCSE` always applies. From
-    /// [`PRECISION_N_SIM`] replicates the one-sided floor `level − 2·MCSE`
-    /// applies as well; below that count a rate more than
-    /// [`RECHECK_SHORTFALL`] under the level passes but prints a
-    /// `calibration-recheck` line for the gate script to act on.
+    /// [`PRECISION_N_SIM`] replicates the floor `level − 2·MCSE` and ceiling
+    /// `level + 2·MCSE` apply as well; below that count a rate more than
+    /// [`RECHECK_SHORTFALL`] from the level in either direction passes but
+    /// prints a `calibration-recheck` line for the gate script to act on.
     ///
     /// # Panics
     ///
-    /// When coverage falls outside the band, below the precision floor, or too
-    /// many replicates were skipped.
+    /// When coverage falls outside the band, below the precision floor, above
+    /// the precision ceiling, or too many replicates were skipped.
     pub fn assert(&self) {
         assert!(
             !self.record.as_ref().is_some_and(|record| record.unasserted),
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
+        self.finish();
         if smoke() {
             self.emit_smoke(!self.passes_nominal(), "gated");
             return;
         }
-        let total = self.scored + self.skipped;
-        assert!(self.scored > 0, "{}: no replicates scored", self.name);
-        assert!(
-            self.skipped * 20 <= total,
-            "{}: {} of {total} replicates skipped (cap 5%)",
-            self.name,
-            self.skipped
-        );
-        let (lo, hi) = coverage_band(self.scored, self.level);
+        self.check_skips();
+        let attempts = self.attempts();
+        let (lo, hi) = coverage_band(attempts, self.level);
         let rate = self.rate();
-        let mcse = coverage_mcse(self.scored, self.level);
-        let floor = precision_floor(self.scored, self.level);
+        let mcse = coverage_mcse(attempts, self.level);
+        let floor = precision_floor(attempts, self.level);
+        let ceiling = precision_ceiling(attempts, self.level);
         eprintln!(
-            "calibration {}: nominal={:.2} coverage={rate:.3} mcse={mcse:.4} band=[{lo:.3}, {hi:.3}]{} \
+            "calibration {}: nominal={:.2} coverage={rate:.3} mcse={mcse:.4} band=[{lo:.3}, {hi:.3}]{}{} \
              mean_length={:.4} ({}/{} covered, {} skipped)",
             self.name,
             self.level,
             floor.map_or(String::new(), |f| format!(" floor={f:.3}")),
+            ceiling.map_or(String::new(), |c| format!(" ceiling={c:.3}")),
             self.mean_length(),
             self.covered,
-            self.scored,
+            attempts,
             self.skipped
         );
         assert!(
@@ -714,25 +1157,32 @@ impl CoverageTally {
             self.name,
             self.level * 100.0,
             self.covered,
-            self.scored
+            attempts
         );
         if let Some(floor) = floor {
             assert!(
                 rate >= floor,
                 "{} {:.0}% coverage={rate:.3} below the precision floor {floor:.3} \
-                 (level - 2 MCSE at {} replicates; {}/{})",
+                 (level - 2 MCSE at {attempts} replicates; {}/{})",
                 self.name,
                 self.level * 100.0,
-                self.scored,
                 self.covered,
-                self.scored
+                attempts
             );
-        } else if needs_recheck(self.scored, self.level, rate) {
-            eprintln!(
-                "calibration-recheck {}: coverage={rate:.3} is more than {RECHECK_SHORTFALL:.2} \
-                 below {:.2} at {} replicates; re-run at ANTECEDENT_CALIBRATION_NSIM={RECHECK_N_SIM}",
-                self.name, self.level, self.scored
+        }
+        if let Some(ceiling) = ceiling {
+            assert!(
+                rate <= ceiling,
+                "{} {:.0}% coverage={rate:.3} above the precision ceiling {ceiling:.3} \
+                 (level + 2 MCSE at {attempts} replicates; {}/{})",
+                self.name,
+                self.level * 100.0,
+                self.covered,
+                attempts
             );
+        }
+        if floor.is_none() && needs_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
         }
         self.emit_record(false, "gated");
     }
@@ -771,58 +1221,25 @@ fn snake(name: &str) -> String {
 }
 
 impl CoverageTally {
-    /// Assert a named boundary cell against its *measured* coverage: the rate
-    /// must lie within `measured ± 3·MCSE` at the replicate count. No recheck
-    /// and no precision floor apply, because the cell is documented as
-    /// under-covering (the mechanism is named where the test is defined); the
-    /// assertion guards against a regression below, or a silent change above,
-    /// the measured level.
+    /// Assert a cell per sample-size grid point. At a point with
+    /// `Some(measured)` the cell is a named boundary held to `measured ± 3·MCSE`:
+    /// the rate must lie inside that band at the replicate count. No recheck and
+    /// no precision floor apply, because the cell is documented as under-covering
+    /// (the mechanism is named where the test is defined). At a point with `None`
+    /// it must pass the nominal band (and floor or recheck) like [`Self::assert`].
     ///
-    /// `measured` is the coverage measured at the base grid point. At the other
-    /// sample-size grid points the cell is recorded as a boundary without a
-    /// band (nothing was measured there to hold it to); once those points are
-    /// measured, [`Self::assert_boundary_at`] holds each point to its own value.
-    ///
-    /// # Panics
-    ///
-    /// When coverage falls outside `measured ± 3·MCSE` or too many replicates
-    /// were skipped.
-    pub fn assert_boundary(&self, measured: f64) {
-        if smoke() {
-            self.emit_smoke(true, "named_boundary");
-            return;
-        }
-        if grid_point() != BASE_GRID_POINT {
-            self.check_skips();
-            eprintln!(
-                "calibration-boundary {} (grid point {}; measured {measured:.3} at the base point \
-                 only, recorded, not gated): nominal={:.2} coverage={:.3} mean_length={:.4} \
-                 ({}/{} covered, {} skipped)",
-                self.name,
-                grid_point(),
-                self.level,
-                self.rate(),
-                self.mean_length(),
-                self.covered,
-                self.scored,
-                self.skipped
-            );
-            self.emit_record(true, "named_boundary");
-            return;
-        }
-        self.assert_measured_band(measured);
-    }
-
-    /// Assert a cell per sample-size grid point: at a point with
-    /// `Some(measured)` the cell is a named boundary held to
-    /// `measured ± 3·MCSE`; at a point with `None` it must pass the nominal
-    /// band (and floor or recheck) like [`Self::assert`]. The record is a
-    /// boundary over its whole range when any point is one, with the coverage
-    /// measured at each point.
+    /// A named boundary gives every point its own measured value: a cell held
+    /// at one point only would let a regression at the others pass. The value
+    /// comes from the gate's own deterministic seeds, so the band is a change
+    /// detector around the measured level, not a claim about the true coverage;
+    /// a pass does not show nominal coverage. The record is a boundary over
+    /// its whole range when any point is one, with the coverage measured at
+    /// each point.
     ///
     /// # Panics
     ///
-    /// As [`Self::assert`] or [`Self::assert_boundary`] at this run's point.
+    /// As [`Self::assert`], or when coverage falls outside `measured ± 3·MCSE`
+    /// or too many replicates were skipped, at this run's point.
     pub fn assert_boundary_at(&self, measured: [Option<f64>; GRID_POINTS]) {
         match measured[grid_point()] {
             Some(value) => self.assert_measured_band(value),
@@ -832,6 +1249,7 @@ impl CoverageTally {
 
     /// A smoke run's line: never gated, flagged `"smoke": true` (see [`SMOKE_ENV`]).
     fn emit_smoke(&self, boundary: bool, role: &str) {
+        let attempts = self.attempts();
         eprintln!(
             "calibration-smoke {} (grid point {}; not gated): nominal={:.2} coverage={:.3} \
              ({}/{} covered, {} skipped)",
@@ -840,7 +1258,7 @@ impl CoverageTally {
             self.level,
             self.rate(),
             self.covered,
-            self.scored,
+            attempts,
             self.skipped
         );
         if self.record.is_some() {
@@ -854,11 +1272,11 @@ impl CoverageTally {
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
-        let total = self.scored + self.skipped;
-        assert!(self.scored > 0, "{}: no replicates scored", self.name);
+        let total = self.attempts();
+        assert!(total > 0, "{}: no replicates scored", self.name);
         assert!(
-            self.skipped * 20 <= total,
-            "{}: {} of {total} replicates skipped (cap 5%)",
+            self.skipped.saturating_mul(SKIP_CAP_DEN) <= total.saturating_mul(SKIP_CAP_NUM),
+            "{}: {} of {total} replicates skipped (cap {SKIP_CAP_NUM}/{SKIP_CAP_DEN})",
             self.name,
             self.skipped
         );
@@ -870,19 +1288,14 @@ impl CoverageTally {
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
+        self.finish();
         if smoke() {
             self.emit_smoke(true, "named_boundary");
             return;
         }
-        let total = self.scored + self.skipped;
-        assert!(self.scored > 0, "{}: no replicates scored", self.name);
-        assert!(
-            self.skipped * 20 <= total,
-            "{}: {} of {total} replicates skipped (cap 5%)",
-            self.name,
-            self.skipped
-        );
-        let mcse = coverage_mcse(self.scored, self.level);
+        self.check_skips();
+        let attempts = self.attempts();
+        let mcse = coverage_mcse(attempts, self.level);
         let (lo, hi) = ((measured - 3.0 * mcse).max(0.0), (measured + 3.0 * mcse).min(1.0));
         let rate = self.rate();
         eprintln!(
@@ -892,7 +1305,7 @@ impl CoverageTally {
             self.level,
             self.mean_length(),
             self.covered,
-            self.scored,
+            attempts,
             self.skipped
         );
         assert!(
@@ -901,7 +1314,7 @@ impl CoverageTally {
              around {measured:.3} ({}/{})",
             self.name,
             self.covered,
-            self.scored
+            attempts
         );
         self.emit_record(true, "named_boundary");
     }
@@ -924,7 +1337,11 @@ pub fn quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
     values.sort_by(f64::total_cmp);
     let last = (values.len() - 1) as f64;
     let lo_p = (1.0 - level) / 2.0;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the rounded index is clamped to [0, last], a valid non-negative index"
+    )]
     let at = |q: f64| values[(last * q).round().clamp(0.0, last) as usize];
     Some((at(lo_p), at(1.0 - lo_p)))
 }

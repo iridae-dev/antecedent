@@ -4,16 +4,17 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::many_single_char_names,
-    clippy::needless_range_loop,
-    clippy::too_many_lines
+#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
-use antecedent_kernels::norm_inv;
+use antecedent_kernels::{norm_inv, quantile_type7_sorted};
 
 /// Per-parameter MCMC diagnostics (Vehtari / Stan style).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,7 +151,13 @@ pub fn all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_para
         let mut moved = false;
         for p in 0..n_params {
             let first = sample_at(samples, c, 0, n_draws, n_params, p);
-            if (1..n_draws).any(|d| sample_at(samples, c, d, n_draws, n_params, p) != first) {
+            #[allow(
+                clippy::float_cmp,
+                reason = "a chain has moved iff any draw differs bitwise-in-value from its first draw"
+            )]
+            let differs =
+                (1..n_draws).any(|d| sample_at(samples, c, d, n_draws, n_params, p) != first);
+            if differs {
                 moved = true;
                 break;
             }
@@ -266,27 +273,8 @@ fn median_sorted(sorted: &[f64]) -> f64 {
 
 fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
     let mut sorted = x.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    (quantile_sorted(&sorted, q_lo), quantile_sorted(&sorted, q_hi))
-}
-
-fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return f64::NAN;
-    }
-    if n == 1 {
-        return sorted[0];
-    }
-    let pos = q * (n - 1) as f64;
-    let lo = pos.floor() as usize;
-    let hi = pos.ceil() as usize;
-    if lo == hi {
-        sorted[lo]
-    } else {
-        let w = pos - lo as f64;
-        sorted[lo] * (1.0 - w) + sorted[hi] * w
-    }
+    sorted.sort_by(f64::total_cmp);
+    (quantile_type7_sorted(&sorted, q_lo), quantile_type7_sorted(&sorted, q_hi))
 }
 
 /// Average ranks for ties, then Φ⁻¹((r − 3/8) / (S + 1/4)).
@@ -298,7 +286,12 @@ fn rank_normalize(x: &[f64]) -> Vec<f64> {
     let mut i = 0;
     while i < s {
         let mut j = i + 1;
-        while j < s && x[idx[j]] == x[idx[i]] {
+        #[allow(
+            clippy::float_cmp,
+            reason = "ties are groups of exactly equal draws, which share an average rank"
+        )]
+        let tied = |j: usize| x[idx[j]] == x[idx[i]];
+        while j < s && tied(j) {
             j += 1;
         }
         // Ranks are 1-based; average for ties.

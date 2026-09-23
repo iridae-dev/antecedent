@@ -175,7 +175,13 @@ def test_counterfactual_is_invariant_to_affine_rescaling_of_lever_parents(bayesi
     raw_effects = np.asarray(run(raw).unit_effects)
     std_effects = np.asarray(run(std).unit_effects)
     assert raw_effects == pytest.approx(std_effects, abs=1e-8)
-    expected = 0.047966 if bayesian else 0.048390
+    # 36a14c46 fixed fit_laplace_glm to use the coefficient prior's absolute precision
+    # (GaussianCoefficientPrior.variance is V0 in beta|sigma^2 ~ N(mean, sigma^2 diag(V0)); the
+    # GLM has no residual sigma^2, so absolute precision at sigma^2 = 1 is the correct prior
+    # strength) instead of the raw V0 precision. That shifts the Laplace-approximated posterior
+    # mode for the categorical "lever" mechanism's Bayesian refit, and hence the deterministic
+    # unit effects this seeded (seed=1) run reports.
+    expected = 0.04873661472022783 if bayesian else 0.048390
     assert float(raw_effects.mean()) == pytest.approx(expected, abs=5e-7)
 
 

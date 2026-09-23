@@ -10,6 +10,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, ParentBatch, evaluate_column};
 
+use crate::change_common::{UNIT_STREAM, stream_tag};
 use crate::error::AttributionError;
 use crate::prep::{require_input_components, require_shapley_config, resolve_outcome_dense};
 use crate::result::{ComputeBudget, UnitChangeResult};
@@ -25,7 +26,7 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 ///
 /// # Errors
 ///
-/// Size limits, abduction, or Shapley failures.
+/// Size limits, out-of-range `unit_rows`, abduction, or Shapley failures.
 pub fn unit_change(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -38,6 +39,15 @@ pub fn unit_change(
         Some(r) => r.to_vec(),
         None => (0..n_all).collect(),
     };
+    for &row in &rows {
+        if row >= n_all {
+            return Err(AttributionError::PopulationOutOfRange {
+                kind: "row",
+                index: row,
+                limit: n_all,
+            });
+        }
+    }
     if rows.len() > query.max_units {
         return Err(AttributionError::SizeLimit {
             kind: "units",
@@ -64,7 +74,7 @@ pub fn unit_change(
         parents.iter().copied().map(ComponentId::from_variable).collect();
 
     let engine = CounterfactualEngine::from_ref(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error)?;
+    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
 
     // Reference parent means.
     let mut parent_means = Vec::with_capacity(parents.len());
@@ -77,7 +87,8 @@ pub fn unit_change(
     let mut mean_phi = vec![0.0; players.len()];
     let mut budget = ComputeBudget::default();
     let mut cache_stats = crate::result::CacheStats::default();
-    let mut sum_se2 = 0.0;
+    // Per-player Σ_u se_{u,j}² over the units that reported a permutation standard error.
+    let mut sum_se2 = vec![0.0; players.len()];
     let mut n_se = 0usize;
 
     let approximation =
@@ -103,14 +114,20 @@ pub fn unit_change(
             ws: MechanismWorkspace::default(),
         };
 
-        let est = estimate_shapley(&players, approximation, &mut payoff, ctx)?;
+        // Each unit draws its own permutations. A shared seed would make every unit see the
+        // identical permutation sequence, so unit estimates would be positively correlated
+        // and the pooled standard error below (which assumes independence) badly optimistic.
+        let unit_config = (*approximation).with_seed(unit_seed(approximation.seed, row));
+        let est = estimate_shapley(&players, &unit_config, &mut payoff, ctx)?;
         budget.evaluations += est.budget.evaluations;
         budget.samples += est.budget.samples;
         cache_stats.hits += est.cache_stats.hits;
         cache_stats.misses += est.cache_stats.misses;
         cache_stats.saturated |= est.cache_stats.saturated;
-        if let Some(se) = est.monte_carlo_stderr {
-            sum_se2 += se * se;
+        if let Some(ses) = &est.component_mc_stderr {
+            for (acc, se) in sum_se2.iter_mut().zip(ses) {
+                *acc += se * se;
+            }
             n_se += 1;
         }
         for (j, v) in est.values.iter().enumerate() {
@@ -123,8 +140,9 @@ pub fn unit_change(
     for v in &mut mean_phi {
         *v /= nu;
     }
-    // SE of the mean of independent per-unit estimates: √(Σ se_u²) / n.
-    let mc_stderr = if n_se > 0 { Some(sum_se2.sqrt() / nu) } else { None };
+    // SE of each player's mean over independent per-unit estimates: √(Σ_u se_{u,j}²) / n.
+    let component_se: Option<Vec<f64>> = (n_se > 0).then(|| pooled_stderr(&sum_se2, nu));
+    let mc_stderr = component_se.as_ref().map(|se| se.iter().sum::<f64>() / se.len() as f64);
     cache_stats.entries = cache_stats.hits + cache_stats.misses;
 
     Ok(UnitChangeResult {
@@ -135,8 +153,21 @@ pub fn unit_change(
         mean_contributions: Arc::from(mean_phi),
         budget,
         monte_carlo_stderr: mc_stderr,
+        component_mc_stderr: component_se.map(Arc::from),
         cache_stats,
     })
+}
+
+/// Permutation seed of one unit: distinct rows get distinct streams (the map is a bijection
+/// of the row for a fixed base seed), so per-unit estimates are independent.
+fn unit_seed(base: u64, row: usize) -> u64 {
+    stream_tag(stream_tag(UNIT_STREAM, base), row as u64)
+}
+
+/// Standard error of each player's mean over `n_units` independent unit estimates, given
+/// `Σ_u se_{u,j}²` per player.
+fn pooled_stderr(sum_se2: &[f64], n_units: f64) -> Vec<f64> {
+    sum_se2.iter().map(|s| s.sqrt() / n_units).collect()
 }
 
 struct UnitPayoff<'a> {
@@ -254,5 +285,77 @@ mod tests {
             assert!((actual - expected).abs() < 1e-10, "actual={actual} expected={expected}");
         }
         assert!((result.mean_contributions[0] - fixture.unit_case.mean_contribution).abs() < 1e-10);
+    }
+
+    #[test]
+    fn units_draw_independent_permutation_streams() {
+        // Distinct rows → distinct seeds, for several base seeds: the estimates of two units
+        // cannot share permutations, which is what the pooled standard error assumes.
+        for base in [0u64, 1, 7, u64::MAX] {
+            let seeds: std::collections::HashSet<u64> =
+                (0..5_000usize).map(|row| unit_seed(base, row)).collect();
+            assert_eq!(seeds.len(), 5_000, "base seed {base}");
+            assert!(!seeds.contains(&base));
+        }
+        assert_ne!(unit_seed(1, 0), unit_seed(2, 0));
+    }
+
+    #[allow(clippy::float_cmp, reason = "a player with zero unit variance pools to exactly 0")]
+    #[test]
+    fn pooled_stderr_is_per_player_root_sum_of_squares_over_n() {
+        // Player 0: unit se 3 and 4 over 2 units → √(9 + 16)/2 = 2.5; player 1: 0.
+        let se = pooled_stderr(&[25.0, 0.0], 2.0);
+        assert!((se[0] - 2.5).abs() < 1e-15);
+        assert_eq!(se[1], 0.0);
+    }
+
+    /// `unit_rows` equal to `n` (first past the last valid index) must be a typed
+    /// [`AttributionError::PopulationOutOfRange`], never a panic on column index.
+    #[test]
+    fn unit_change_rejects_out_of_range_unit_row() {
+        let n = 8usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let yv: Vec<f64> = xv.iter().map(|x| 2.0 * x).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        // Bounds check runs before abduction / Shapley; an unfitted model is enough.
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let q = UnitChangeQuery::new(VariableId::from_raw(1), 20)
+            .with_unit_rows([n])
+            .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let err = unit_change(&model, &data, &q, &ExecutionContext::for_tests(1)).unwrap_err();
+        assert_eq!(err, AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n });
     }
 }

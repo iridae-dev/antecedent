@@ -1,4 +1,4 @@
-//! User-path jobs the 1.11 speed program measures.
+//! User-path jobs the speed program measures.
 //!
 //! Not a `hot_paths.md` merge blocker and not in `gate_release.sh` Criterion
 //! smoke. `--test` uses toy n so CI knows this compiles. Full 10⁴ / 10⁵
@@ -6,12 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    missing_docs,
-    clippy::cast_precision_loss,
-    clippy::too_many_lines,
-    clippy::many_single_char_names
-)]
+#![allow(missing_docs, clippy::too_many_lines)]
 
 use std::time::Instant;
 

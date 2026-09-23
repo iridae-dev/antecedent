@@ -25,12 +25,9 @@ import inspect
 from pathlib import Path
 from typing import Any
 
-import pytest
+from antecedent import _native
 
 from _repo_text import read_text
-
-pytest.importorskip("antecedent")
-from antecedent import _native
 
 _STUB = Path(_native.__file__).with_name("_native.pyi")
 
@@ -160,6 +157,17 @@ _PARAM_DEFAULT_EXEMPT[("analyze_temporal_response", "assumption_variables")] = (
     "renders as `...` (`Ellipsis`) rather than `[]`. The stub keeps the empty-list "
     "literal so callers see the licensed default."
 )
+
+_TRANSPORT_DEFAULT_REASON = (
+    "the Rust default is the named constant `transport_defaults::BOOTSTRAP` or "
+    "`transport_defaults::COVERAGE_LEVEL` (`python/src/lib.rs`), not a literal token in "
+    "the `#[pyo3(signature = ...)]` macro, so PyO3's auto text_signature rendering "
+    "reports it as `...` (`Ellipsis`) rather than `199` / `0.95`. The stub keeps the "
+    "literal defaults (matching the constants) as the more useful documentation."
+)
+for _fn in ("prepare_statistical_transport", "prepare_transport_grid"):
+    _PARAM_DEFAULT_EXEMPT[(_fn, "bootstrap")] = _TRANSPORT_DEFAULT_REASON
+    _PARAM_DEFAULT_EXEMPT[(_fn, "coverage_level")] = _TRANSPORT_DEFAULT_REASON
 
 # The functions Defect C fixed. The signature sweep below must actually compare these —
 # if introspection ever silently stopped covering them (e.g. by falling into

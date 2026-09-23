@@ -5,12 +5,13 @@
 
 #![allow(
     clippy::cast_lossless,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation,
     clippy::match_same_arms,
     clippy::needless_range_loop,
     clippy::too_many_lines
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::sync::Arc;
@@ -304,8 +305,11 @@ fn identified_pag_pin() -> serde_json::Value {
     .unwrap()
 }
 
+// A confounder triangle read as a MAG leaves `t -> y` invisible (nothing points
+// into `t` from outside `y`'s neighbourhood), so PAG responses are refused on
+// it; these cells need the fixture whose treatment edge has a visibility witness.
 fn uses_pag_response_curve(cell: &antecedent::SupportCell) -> bool {
-    cell.graph_class == "Pag" && cell.query == "ResponseCurve"
+    cell.graph_class == "Pag" && matches!(cell.query, "ResponseCurve" | "InterventionResponse")
 }
 
 fn pag_response_curve_fixture() -> (TabularData, Pag) {

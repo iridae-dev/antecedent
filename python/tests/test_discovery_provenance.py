@@ -21,11 +21,9 @@ Two things are covered here:
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.discovery import (
     LPCMCI,
     PC,

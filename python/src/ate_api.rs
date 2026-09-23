@@ -2321,12 +2321,7 @@ pub(crate) fn ate_result_from_analysis(
             .iter()
             .map(|r| format!("{:?}", r.assumption))
             .collect(),
-        support_diagnostics: result
-            .diagnostics
-            .iter()
-            .filter(|d| d.code.contains("support") || d.code.contains("overlap"))
-            .map(|d| d.message.to_string())
-            .collect(),
+        support_diagnostics: result.support_diagnostics().map(|d| d.message.to_string()).collect(),
         unit_effects: result.counterfactual.as_ref().map(|cf| cf.unit_effects.to_vec()),
         unit_effect_intervals: result
             .counterfactual

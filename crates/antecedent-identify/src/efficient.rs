@@ -16,11 +16,14 @@
 //! enumerated by increasing size, stopping at the first size class with a
 //! valid set, with ties broken by maximizing `|Z ∩ Pa(T)|` then lexicographic
 //! variable ids. The fallback keeps at most `max_results` valid sets; hitting
-//! that limit truncates collection rather than erroring.
+//! that limit truncates collection rather than erroring. Whether any valid set
+//! exists is settled first by one separation test on `An({T,Y}) \ forbidden`;
+//! that ancestral set is also the answer when the pool exceeds `max_candidates`
+//! or the examination budget runs out, valid but not minimum-cardinality.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names, clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -91,8 +94,7 @@ impl EfficientBackdoorIdentifier {
     ///
     /// # Errors
     ///
-    /// Unsupported query, unknown variables, or a candidate pool too large
-    /// for the exact fallback enumeration.
+    /// Unsupported query or unknown variables.
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -168,21 +170,53 @@ impl EfficientBackdoorIdentifier {
         let mut candidates: Vec<DenseNodeId> = candidates;
         let mut m = candidates.len();
         let cap = self.config.max_candidates;
+
+        // Existence is decided by one separation test: An({T,Y}) \ forbidden separates T from
+        // Y in G underbar T whenever any admissible set does (van der Zander, Liskiewicz &
+        // Textor 2014). If it fails no set exists and the size-ordered search is not needed;
+        // if it passes it is the certified fallback wherever the search cannot finish.
+        let constructive: Vec<DenseNodeId> = {
+            let mut an = BitSet::with_len(dag.node_count());
+            dag.ancestors_of(&[t, y], &mut an, &mut workspace.graph);
+            (0..dag.node_count())
+                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+                .filter(|id| an.contains(*id) && !forbidden.contains(*id))
+                .collect()
+        };
+        examined += 1;
+        if !is_backdoor_adjustment(&mutilated, t, y, &constructive, &mut workspace.dsep)? {
+            let mut assumptions = default_assumptions();
+            for record in &prepared.declared_assumptions().entries {
+                assumptions.push(record.clone());
+            }
+            let mut derivation = DerivationTrace::default();
+            derivation.push(
+                "backdoor.efficient",
+                "no valid adjustment set: the ancestral set An({T,Y}) minus forbidden does not \
+                 separate T from Y",
+            );
+            return Ok(IdentificationResult::not_identified(
+                query,
+                derivation,
+                assumptions,
+                IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
+            ));
+        }
         if m > cap {
-            candidates = {
-                let mut an = BitSet::with_len(dag.node_count());
-                dag.ancestors_of(&[t, y], &mut an, &mut workspace.graph);
-                (0..dag.node_count())
-                    .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-                    .filter(|id| an.contains(*id) && !forbidden.contains(*id))
-                    .collect()
-            };
+            candidates.clone_from(&constructive);
             m = candidates.len();
         }
         if m > cap {
-            return Err(IdentificationError::msg(format!(
-                "candidate set too large for exact efficient enumeration: {m} candidates > max_candidates={cap}"
-            )));
+            return Self::finish(
+                ate,
+                query,
+                prepared,
+                dag,
+                &[constructive],
+                examined,
+                "ancestral set (candidate pool over max_candidates; valid, not minimum-cardinality)",
+                false,
+            );
         }
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
@@ -229,37 +263,23 @@ impl EfficientBackdoorIdentifier {
             }
         }
 
-        if valid.is_empty() {
-            let mut assumptions = default_assumptions();
-            for record in &prepared.declared_assumptions().entries {
-                assumptions.push(record.clone());
-            }
-            let mut result = IdentificationResult::not_identified(
+        if valid.is_empty() && budget_exhausted {
+            // The budget stopped the search for a minimum-cardinality set, but the ancestral
+            // set is already known valid: identifiability is decided, the choice is not.
+            let mut result = Self::finish(
+                ate,
                 query,
-                {
-                    let mut d = DerivationTrace::default();
-                    d.push(
-                        "backdoor.efficient",
-                        if budget_exhausted {
-                            "examination budget exhausted before a valid set"
-                        } else {
-                            "no valid adjustment set"
-                        },
-                    );
-                    d
-                },
-                assumptions,
-                IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-            );
-            if budget_exhausted {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
-                    "identify.backdoor.search_bounded",
-                    antecedent_core::DiagnosticKind::Execution,
-                    antecedent_core::DiagnosticSeverity::Warning,
-                    "efficient backdoor search exhausted max_examinations; \
-                     NotIdentified is a search bound, not structural non-ID",
-                ));
-            }
+                prepared,
+                dag,
+                &[constructive],
+                examined,
+                "ancestral set (examination budget exhausted; valid, not minimum-cardinality)",
+                false,
+            )?;
+            result.diagnostics.push(crate::result::search_bounded_diagnostic(
+                crate::backdoor::BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
+                "efficient backdoor search exhausted max_examinations before it found a                  minimum-cardinality set; the returned set is valid but not minimal",
+            ));
             return Ok(result);
         }
 
@@ -502,6 +522,63 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(0)]);
         assert!(res.derivation.steps.iter().any(|s| s.detail.contains("min_cardinality")));
+    }
+
+    #[test]
+    fn no_admissible_set_is_a_proof_not_a_bounded_search() {
+        // T <- U -> Y with U forbidden, plus thirty measured confounders. The path through U
+        // cannot be blocked, so no set exists; two separation tests (the O-set, then the
+        // ancestral set) prove it without touching the 2^30 subsets.
+        let n_conf = 30u32;
+        let mut g = Dag::with_variables(3 + n_conf);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let u = DenseNodeId::from_raw(2);
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(u, y).unwrap();
+        for i in 0..n_conf {
+            let c = DenseNodeId::from_raw(3 + i);
+            g.insert_directed(c, t).unwrap();
+            g.insert_directed(c, y).unwrap();
+        }
+        let mut id = EfficientBackdoorIdentifier::new();
+        id.config.forbidden = Arc::from([VariableId::from_raw(2)]);
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(!crate::envelope::search_truncated(&res), "{:?}", res.diagnostics);
+        assert_eq!(res.performance.candidates_examined, 2);
+    }
+
+    #[test]
+    fn over_cap_pool_returns_the_ancestral_set_instead_of_erroring() {
+        // C2..C7 confound T and Y; C8 only causes Y and is forbidden, so the O-set is refused
+        // and the six-variable pool exceeds max_candidates = 2. The ancestral set is exactly
+        // the confounders.
+        let mut g = Dag::with_variables(9);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        for i in 2..=7 {
+            let c = DenseNodeId::from_raw(i);
+            g.insert_directed(c, DenseNodeId::from_raw(0)).unwrap();
+            g.insert_directed(c, DenseNodeId::from_raw(1)).unwrap();
+        }
+        g.insert_directed(DenseNodeId::from_raw(8), DenseNodeId::from_raw(1)).unwrap();
+        let mut id = EfficientBackdoorIdentifier::new().with_max_candidates(2);
+        id.config.forbidden = Arc::from([VariableId::from_raw(8)]);
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        let expected: Vec<VariableId> = (2..=7).map(VariableId::from_raw).collect();
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), expected.as_slice());
     }
 
     #[test]

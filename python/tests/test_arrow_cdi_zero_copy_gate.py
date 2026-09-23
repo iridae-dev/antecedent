@@ -8,7 +8,6 @@ from __future__ import annotations
 import pytest
 
 pytest.importorskip("pyarrow")
-pytest.importorskip("antecedent")
 
 import antecedent
 import pyarrow as pa

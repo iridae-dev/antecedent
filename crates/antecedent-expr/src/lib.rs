@@ -15,6 +15,15 @@
 
 pub mod estimand;
 pub mod eval;
+pub mod exact;
+mod exact_engine;
+pub mod exact_plan;
+pub use exact::{
+    DiscreteAxis, ExactDiscreteLaw, ExactLawError, ExactTransportData, LawOrigin, LawTolerance,
+};
+pub use exact_plan::{
+    ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactSupportRecord,
+};
 pub mod latex;
 pub mod pretty;
 pub mod provider;
@@ -28,6 +37,9 @@ pub use provider::{
 };
 pub use simplify::SimplifyError;
 
+mod scope;
+pub use scope::{LeafBinding, LeafSignature};
+
 use latex::latex_expr;
 use pretty::pretty_expr;
 
@@ -35,7 +47,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_core::{Value, VariableId};
+use antecedent_core::{RegimeId, Value, VariableId};
 
 /// Opaque expression node id.
 #[repr(transparent)]
@@ -95,12 +107,36 @@ impl InterventionSetId {
 }
 
 /// One hard intervention assignment in an interned set.
+///
+/// Symbolic coordinates (`do(V)` with unspecified level) use
+/// [`Value::symbolic_intervention`] in [`Self::value`], matching the wire
+/// form's `symbolic: bool`. A genuine non-finite float is never that mark.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct InterventionAssignment {
     /// Target variable.
     pub variable: VariableId,
-    /// Assigned value under `do(·)`.
+    /// Assigned value under `do(·)`, or the symbolic marker.
     pub value: Value,
+}
+
+impl InterventionAssignment {
+    /// Concrete hard intervention `do(variable = value)`.
+    #[must_use]
+    pub const fn concrete(variable: VariableId, value: Value) -> Self {
+        Self { variable, value }
+    }
+
+    /// Symbolic intervention coordinate `do(variable)` (level unspecified).
+    #[must_use]
+    pub fn symbolic(variable: VariableId) -> Self {
+        Self { variable, value: Value::symbolic_intervention() }
+    }
+
+    /// Whether this assignment is a symbolic (unspecified-level) coordinate.
+    #[must_use]
+    pub fn is_symbolic(&self) -> bool {
+        self.value.is_symbolic_intervention()
+    }
 }
 
 /// Contrast operator between two expressions.
@@ -138,6 +174,25 @@ impl OutcomeExprId {
     }
 }
 
+/// Interned population key id.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct PopulationKeyId(u32);
+
+impl PopulationKeyId {
+    /// Create from a raw index (deserialization).
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Raw index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
+
 /// Expression list id (product children).
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -170,6 +225,21 @@ pub enum ExprNode {
         intervention: InterventionSetId,
         /// Domain.
         domain: DomainRef,
+        /// Population this factor is labelled with. Empty is the default (single-study).
+        population: PopulationKeyId,
+        /// Catalog regime this leaf cites. `None` is an anonymous / single-study factor.
+        regime: Option<RegimeId>,
+    },
+    /// Intermediate kernel: a nested subexpression, not a supplied observational law.
+    Kernel {
+        /// Kernel body.
+        body: ExprId,
+        /// Kernel parameter coordinates. They remain free until explicitly marginalized.
+        bound: VarSetId,
+        /// Population this kernel is labelled with.
+        population: PopulationKeyId,
+        /// Catalog regime, if this kernel is bound to one.
+        regime: Option<RegimeId>,
     },
     /// Product of factors.
     Product(ExprListId),
@@ -212,13 +282,91 @@ pub enum ExprNode {
     },
 }
 
+/// Errors from constructing a tagged expression leaf.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ExprError {
+    /// A catalog regime's observational/experimental kind disagrees with [`DomainRef`].
+    RegimeDomainMismatch,
+    /// Substitution would capture a bound variable or conflict with an assignment.
+    CaptureOrConflict,
+    /// A required binding is absent.
+    MissingBinding,
+    /// Free variables of the expression disagree with the certified target.
+    FreeVariableMismatch,
+    /// Certificate leaf set does not match the lowered expression.
+    CertificateBindFailed,
+    /// A Wald IV functional needs exactly one instrument: the ratio conditions on a single
+    /// instrument, and substituting the treatment (no instrument) or dropping all but the
+    /// first (several) would label a different estimand as IV.
+    InvalidInstrumentSet,
+}
+
+impl fmt::Display for ExprError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RegimeDomainMismatch => {
+                write!(f, "regime kind disagrees with the distribution domain")
+            }
+            Self::CaptureOrConflict => write!(
+                f,
+                "substitution would capture a bound variable, or one intervention target was \
+                 given two different levels"
+            ),
+            Self::MissingBinding => write!(f, "required binding is absent"),
+            Self::FreeVariableMismatch => {
+                write!(f, "expression free variables disagree with the certified target")
+            }
+            Self::CertificateBindFailed => {
+                write!(f, "certificate does not bind the lowered expression")
+            }
+            Self::InvalidInstrumentSet => {
+                write!(f, "a Wald IV functional requires exactly one instrument")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ExprError {}
+
 /// Separate derivation metadata keyed by expression id.
+///
+/// Off the semantic hash: the same [`ExprId`] may carry different traces.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DerivationMeta {
-    /// Human-readable rule tag (e.g. `backdoor.adjustment`).
+    /// Named rule (e.g. `backdoor.adjustment`, `transport.sid.direct`).
     pub rule: Arc<str>,
-    /// Optional note.
+    /// Optional display note. Projection of the typed record, not an equality key.
     pub note: Option<Arc<str>>,
+    /// Input subproblem, when this node was derived from one.
+    pub input: Option<ExprId>,
+    /// Output subproblem (usually the node this metadata is attached to).
+    pub output: Option<ExprId>,
+    /// Optional graph operation tag (`mutilate`, `ancestry`, …).
+    pub graph_operation: Option<Arc<str>>,
+    /// Checked premises.
+    pub premises: Arc<[Arc<str>]>,
+    /// Evidence regimes this step depends on.
+    pub evidence: Arc<[RegimeId]>,
+    /// Parent derivation nodes.
+    pub parents: Arc<[ExprId]>,
+}
+
+impl DerivationMeta {
+    /// Rule-only metadata (existing builders).
+    #[must_use]
+    pub fn rule(rule: impl Into<Arc<str>>, note: Option<Arc<str>>) -> Self {
+        Self { rule: rule.into(), note, ..Self::default() }
+    }
+
+    /// Display projection of the typed record (not an equality key).
+    #[must_use]
+    pub fn pretty(&self) -> String {
+        match &self.note {
+            Some(note) => format!("{}: {note}", self.rule),
+            None => self.rule.to_string(),
+        }
+    }
 }
 
 /// Arena for causal expressions with interned variable sets.
@@ -241,6 +389,9 @@ pub struct CausalExprArena {
     empty_var_set_id: Option<VarSetId>,
     /// Cached id of the interned empty intervention set (see above).
     empty_intervention_set_id: Option<InterventionSetId>,
+    populations: Vec<Arc<str>>,
+    population_index: HashMap<Arc<str>, PopulationKeyId>,
+    empty_population_id: Option<PopulationKeyId>,
 }
 
 impl CausalExprArena {
@@ -267,32 +418,61 @@ impl CausalExprArena {
     }
 
     /// Intern a hard-intervention assignment set (sorted by variable id).
-    pub fn intern_intervention_assignments(
+    ///
+    /// Repeating an identical assignment is idempotent.
+    ///
+    /// # Errors
+    ///
+    /// [`ExprError::CaptureOrConflict`] when one variable is assigned two different levels: keeping
+    /// either would silently answer a different interventional query.
+    pub fn try_intern_intervention_assignments(
         &mut self,
         assignments: impl IntoIterator<Item = InterventionAssignment>,
-    ) -> InterventionSetId {
-        let mut v: Vec<InterventionAssignment> = assignments.into_iter().collect();
-        v.sort_by_key(|a| a.variable.raw());
-        v.dedup_by_key(|a| a.variable.raw());
+    ) -> Result<InterventionSetId, ExprError> {
+        let mut sorted: Vec<InterventionAssignment> = assignments.into_iter().collect();
+        sorted.sort_by_key(|a| a.variable.raw());
+        let mut v: Vec<InterventionAssignment> = Vec::with_capacity(sorted.len());
+        for a in sorted {
+            match v.last() {
+                Some(last) if last.variable == a.variable => {
+                    if last.value != a.value {
+                        return Err(ExprError::CaptureOrConflict);
+                    }
+                }
+                _ => v.push(a),
+            }
+        }
         if let Some(id) = self.intervention_index.get(v.as_slice()) {
-            return *id;
+            return Ok(*id);
         }
         let key: Arc<[InterventionAssignment]> = Arc::from(v);
         let id = InterventionSetId(u32::try_from(self.interventions.len()).expect("id"));
         self.interventions.push(Arc::clone(&key));
         self.intervention_index.insert(key, id);
-        id
+        Ok(id)
     }
 
-    /// Intern an intervention over variables only (value unspecified / placeholder).
+    /// Intern a hard-intervention assignment set whose targets are distinct by construction.
+    ///
+    /// # Panics
+    ///
+    /// If one variable is assigned two different levels; use
+    /// [`Self::try_intern_intervention_assignments`] for assignments that are not known to be
+    /// distinct.
+    pub fn intern_intervention_assignments(
+        &mut self,
+        assignments: impl IntoIterator<Item = InterventionAssignment>,
+    ) -> InterventionSetId {
+        self.try_intern_intervention_assignments(assignments)
+            .expect("intervention targets must not be assigned two different levels")
+    }
+
+    /// Intern an intervention over variables only (symbolic / unspecified level).
     pub fn intern_intervention_set(
         &mut self,
         vars: impl IntoIterator<Item = VariableId>,
     ) -> InterventionSetId {
-        self.intern_intervention_assignments(
-            vars.into_iter()
-                .map(|variable| InterventionAssignment { variable, value: Value::f64(f64::NAN) }),
-        )
+        self.intern_intervention_assignments(vars.into_iter().map(InterventionAssignment::symbolic))
     }
 
     /// Empty var set.
@@ -303,6 +483,103 @@ impl CausalExprArena {
         let id = self.intern_var_set([]);
         self.empty_var_set_id = Some(id);
         id
+    }
+
+    /// Intern a population key. The empty string is the default single-study label.
+    pub fn intern_population(&mut self, key: impl Into<Arc<str>>) -> PopulationKeyId {
+        let key = key.into();
+        if let Some(id) = self.population_index.get(&key) {
+            return *id;
+        }
+        let id = PopulationKeyId(u32::try_from(self.populations.len()).expect("population id"));
+        self.populations.push(Arc::clone(&key));
+        self.population_index.insert(key, id);
+        id
+    }
+
+    /// Empty / default population key.
+    pub fn empty_population(&mut self) -> PopulationKeyId {
+        if let Some(id) = self.empty_population_id {
+            return id;
+        }
+        let id = self.intern_population("");
+        self.empty_population_id = Some(id);
+        id
+    }
+
+    /// Borrow an interned population key.
+    #[must_use]
+    pub fn population(&self, id: PopulationKeyId) -> &str {
+        &self.populations[id.0 as usize]
+    }
+
+    /// Number of interned population keys (for serialization).
+    #[must_use]
+    pub fn population_count(&self) -> usize {
+        self.populations.len()
+    }
+
+    /// Hash-cons a default (single-study) distribution leaf.
+    pub fn intern_distribution(
+        &mut self,
+        variables: VarSetId,
+        conditioned_on: VarSetId,
+        intervention: InterventionSetId,
+        domain: DomainRef,
+    ) -> ExprId {
+        let population = self.empty_population();
+        self.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime: None,
+        })
+    }
+
+    /// Hash-cons a population- and regime-tagged distribution leaf.
+    ///
+    /// # Errors
+    ///
+    /// [`ExprError::RegimeDomainMismatch`] when `regime_kind` disagrees with `domain`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn intern_distribution_tagged(
+        &mut self,
+        variables: VarSetId,
+        conditioned_on: VarSetId,
+        intervention: InterventionSetId,
+        domain: DomainRef,
+        population: impl Into<Arc<str>>,
+        regime: Option<RegimeId>,
+        regime_kind: Option<DomainRef>,
+    ) -> Result<ExprId, ExprError> {
+        if let (Some(_), Some(kind)) = (regime, regime_kind) {
+            if kind != domain {
+                return Err(ExprError::RegimeDomainMismatch);
+            }
+        }
+        let population = self.intern_population(population);
+        Ok(self.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        }))
+    }
+
+    /// Hash-cons an intermediate kernel.
+    pub fn intern_kernel(
+        &mut self,
+        body: ExprId,
+        bound: VarSetId,
+        population: impl Into<Arc<str>>,
+        regime: Option<RegimeId>,
+    ) -> ExprId {
+        let population = self.intern_population(population);
+        self.intern(ExprNode::Kernel { body, bound, population, regime })
     }
 
     /// Empty intervention set.
@@ -363,6 +640,117 @@ impl CausalExprArena {
         id
     }
 
+    /// Copy the expression rooted at `root` in `source` into this arena and return its id here.
+    ///
+    /// Every interned table an expression refers to (variable sets, intervention sets, lists,
+    /// populations) is re-interned, so the copy is structurally equal to the original and
+    /// shares nodes with anything already in this arena. Derivation metadata of the copied
+    /// nodes comes along, with references to nodes outside the copy dropped.
+    ///
+    /// This is how functionals derived in separate arenas are listed in one result.
+    pub fn import(&mut self, source: &CausalExprArena, root: ExprId) -> ExprId {
+        // Children are interned before their parents, so ascending id order visits every
+        // node after the nodes it refers to.
+        let mut reachable = std::collections::BTreeSet::new();
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            if !reachable.insert(id) {
+                continue;
+            }
+            stack.extend(source.children_of(id));
+        }
+        let mut remap: HashMap<ExprId, ExprId> = HashMap::with_capacity(reachable.len());
+        for &id in &reachable {
+            let node = match source.node(id) {
+                ExprNode::Distribution {
+                    variables,
+                    conditioned_on,
+                    intervention,
+                    domain,
+                    population,
+                    regime,
+                } => ExprNode::Distribution {
+                    variables: self.import_var_set(source, *variables),
+                    conditioned_on: self.import_var_set(source, *conditioned_on),
+                    intervention: self.intern_intervention_assignments(
+                        source.intervention_assignments(*intervention).iter().cloned(),
+                    ),
+                    domain: *domain,
+                    population: self.intern_population(source.population(*population)),
+                    regime: *regime,
+                },
+                ExprNode::Kernel { body, bound, population, regime } => ExprNode::Kernel {
+                    body: remap[body],
+                    bound: self.import_var_set(source, *bound),
+                    population: self.intern_population(source.population(*population)),
+                    regime: *regime,
+                },
+                ExprNode::Product(list) => {
+                    let children: Vec<ExprId> =
+                        source.list(*list).iter().map(|c| remap[c]).collect();
+                    ExprNode::Product(self.intern_list(children))
+                }
+                ExprNode::SumOut { variables, expr } => ExprNode::SumOut {
+                    variables: self.import_var_set(source, *variables),
+                    expr: remap[expr],
+                },
+                ExprNode::IntegralOut { variables, expr } => ExprNode::IntegralOut {
+                    variables: self.import_var_set(source, *variables),
+                    expr: remap[expr],
+                },
+                ExprNode::Ratio { numerator, denominator } => {
+                    ExprNode::Ratio { numerator: remap[numerator], denominator: remap[denominator] }
+                }
+                ExprNode::Expectation { function, distribution } => {
+                    ExprNode::Expectation { function: *function, distribution: remap[distribution] }
+                }
+                ExprNode::Contrast { left, right, op } => {
+                    ExprNode::Contrast { left: remap[left], right: remap[right], op: *op }
+                }
+            };
+            remap.insert(id, self.intern(node));
+        }
+        for &id in &reachable {
+            let Some(meta) = source.derivation(id) else {
+                continue;
+            };
+            let mapped = |e: &Option<ExprId>| e.and_then(|e| remap.get(&e).copied());
+            let parents: Vec<ExprId> =
+                meta.parents.iter().filter_map(|p| remap.get(p).copied()).collect();
+            self.set_derivation_if_absent(
+                remap[&id],
+                DerivationMeta {
+                    rule: Arc::clone(&meta.rule),
+                    note: meta.note.clone(),
+                    input: mapped(&meta.input),
+                    output: mapped(&meta.output),
+                    graph_operation: meta.graph_operation.clone(),
+                    premises: Arc::clone(&meta.premises),
+                    evidence: Arc::clone(&meta.evidence),
+                    parents: Arc::from(parents),
+                },
+            );
+        }
+        remap[&root]
+    }
+
+    fn import_var_set(&mut self, source: &CausalExprArena, id: VarSetId) -> VarSetId {
+        self.intern_var_set(source.var_set(id).iter().copied())
+    }
+
+    /// Direct sub-expressions of a node.
+    fn children_of(&self, id: ExprId) -> Vec<ExprId> {
+        match self.node(id) {
+            ExprNode::Distribution { .. } => Vec::new(),
+            ExprNode::Kernel { body, .. } => vec![*body],
+            ExprNode::Product(list) => self.list(*list).to_vec(),
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => vec![*expr],
+            ExprNode::Ratio { numerator, denominator } => vec![*numerator, *denominator],
+            ExprNode::Expectation { distribution, .. } => vec![*distribution],
+            ExprNode::Contrast { left, right, .. } => vec![*left, *right],
+        }
+    }
+
     /// Attach derivation metadata (does not affect semantic equality).
     pub fn set_derivation(&mut self, id: ExprId, meta: DerivationMeta) {
         self.derivation.insert(id.0, meta);
@@ -377,7 +765,7 @@ impl CausalExprArena {
     ///
     /// # Errors
     ///
-    /// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds a variable absent from its
+    /// [`SimplifyError`] if a `SumOut`/`IntegralOut` binds any variable absent from its
     /// body's free variables — an ill-formed estimand. See [`SimplifyError`] docs.
     pub fn simplify(&mut self, root: ExprId) -> Result<ExprId, SimplifyError> {
         simplify::simplify(self, root)
@@ -440,10 +828,10 @@ impl CausalExprArena {
         let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
         self.set_derivation(
             contrast,
-            DerivationMeta {
-                rule: Arc::from("backdoor.adjustment"),
-                note: Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
-            },
+            DerivationMeta::rule(
+                "backdoor.adjustment",
+                Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
+            ),
         );
         contrast
     }
@@ -463,13 +851,13 @@ impl CausalExprArena {
         let mean = self.backdoor_potential_outcome(treatment, outcome, adjustment, level);
         self.set_derivation(
             mean,
-            DerivationMeta {
-                rule: Arc::from("backdoor.adjustment"),
-                note: Some(Arc::from(format!(
+            DerivationMeta::rule(
+                "backdoor.adjustment",
+                Some(Arc::from(format!(
                     "single-arm intervention mean, adjustment set size {}",
                     adjustment.len()
                 ))),
-            },
+            ),
         );
         mean
     }
@@ -490,18 +878,8 @@ impl CausalExprArena {
             value: level,
         }]);
 
-        let dist_body = self.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: z,
-            intervention: do_t,
-            domain: DomainRef::Interventional,
-        });
-        let z_marg = self.intern(ExprNode::Distribution {
-            variables: z,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist_body = self.intern_distribution(y, z, do_t, DomainRef::Interventional);
+        let z_marg = self.intern_distribution(z, empty, empty_i, DomainRef::Observational);
         let product = {
             let list = self.intern_list([dist_body, z_marg]);
             self.intern(ExprNode::Product(list))
@@ -530,10 +908,10 @@ impl CausalExprArena {
         let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
         self.set_derivation(
             contrast,
-            DerivationMeta {
-                rule: Arc::from("frontdoor"),
-                note: Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
-            },
+            DerivationMeta::rule(
+                "frontdoor",
+                Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
+            ),
         );
         contrast
     }
@@ -553,13 +931,13 @@ impl CausalExprArena {
         let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
         self.set_derivation(
             contrast,
-            DerivationMeta {
-                rule: Arc::from("temporal_mediation"),
-                note: Some(Arc::from(format!(
+            DerivationMeta::rule(
+                "temporal_mediation",
+                Some(Arc::from(format!(
                     "linear temporal mediation path-product; mediator set size {}",
                     mediators.len()
                 ))),
-            },
+            ),
         );
         contrast
     }
@@ -584,26 +962,11 @@ impl CausalExprArena {
 
         // P(m | t): observational under FD condition 2; treatment level bound so
         // the evaluator treats it as fixed (not free).
-        let m_given_t = self.intern(ExprNode::Distribution {
-            variables: m,
-            conditioned_on: t,
-            intervention: do_t,
-            domain: DomainRef::Observational,
-        });
+        let m_given_t = self.intern_distribution(m, t, do_t, DomainRef::Observational);
         // P(y | m, t').
-        let y_given_m_t = self.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: m_and_t,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let y_given_m_t = self.intern_distribution(y, m_and_t, empty_i, DomainRef::Observational);
         // P(t').
-        let t_marginal = self.intern(ExprNode::Distribution {
-            variables: t,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let t_marginal = self.intern_distribution(t, empty, empty_i, DomainRef::Observational);
         let inner_product = {
             let list = self.intern_list([y_given_m_t, t_marginal]);
             self.intern(ExprNode::Product(list))
@@ -620,11 +983,16 @@ impl CausalExprArena {
         })
     }
 
-    /// Build the Wald IV functional for binary instrument `Z`:
+    /// Build the Wald IV functional for one binary instrument `Z` coded `0`/`1`:
     /// `(E[Y|Z=1] − E[Y|Z=0]) / (E[T|Z=1] − E[T|Z=0])`.
     ///
-    /// `active` / `control` are recorded in derivation metadata (treatment contrast
-    /// scaling); the ratio itself conditions on instrument levels 1 and 0.
+    /// The ratio is the effect per unit of treatment. `active` / `control` are recorded in
+    /// derivation metadata; the estimator scales the per-unit effect by `active − control`.
+    ///
+    /// # Errors
+    ///
+    /// [`ExprError::InvalidInstrumentSet`] unless `instruments` holds exactly one variable that
+    /// differs from the treatment.
     pub fn iv_wald(
         &mut self,
         treatment: VariableId,
@@ -632,8 +1000,13 @@ impl CausalExprArena {
         instruments: &[VariableId],
         active: &Value,
         control: &Value,
-    ) -> ExprId {
-        let z = instruments.first().copied().unwrap_or(treatment);
+    ) -> Result<ExprId, ExprError> {
+        let &[z] = instruments else {
+            return Err(ExprError::InvalidInstrumentSet);
+        };
+        if z == treatment {
+            return Err(ExprError::InvalidInstrumentSet);
+        }
         let z1 = Value::f64(1.0);
         let z0 = Value::f64(0.0);
         let outcome_given_z1 = self.observational_conditional_mean(outcome, z, z1.clone());
@@ -653,15 +1026,76 @@ impl CausalExprArena {
         let ratio = self.intern(ExprNode::Ratio { numerator: num, denominator: den });
         self.set_derivation(
             ratio,
-            DerivationMeta {
-                rule: Arc::from("iv.wald"),
-                note: Some(Arc::from(format!(
-                    "Wald IV ratio using {} instrument(s); treatment contrast [{active:?}, {control:?}]",
-                    instruments.len()
+            DerivationMeta::rule(
+                "iv.wald",
+                Some(Arc::from(format!(
+                    "Wald IV ratio on instrument V{}; per-unit effect, scaled to the treatment \
+                     contrast [{active:?}, {control:?}] by the estimator",
+                    z.raw()
                 ))),
-            },
+            ),
         );
-        ratio
+        Ok(ratio)
+    }
+
+    /// Sharp regression-discontinuity functional: the effect for units at the cutoff,
+    /// `lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]`.
+    ///
+    /// With `T = 1{R ≥ c}` each one-sided limit is the boundary value at `R = c` of that
+    /// side's observational regression, so the contrast is written
+    /// `E[Y | T = active, R = c] − E[Y | T = control, R = c]`. The control-side cell has no
+    /// support at `R = c`; it denotes the continuous extension of `E[Y | T = control, R = r]`
+    /// to the cutoff. Nothing here is interventional and nothing averages over `R`: this is
+    /// not the unadjusted contrast `E[Y | T = active] − E[Y | T = control]`.
+    pub fn rd_sharp_local_effect(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        running: VariableId,
+        cutoff: f64,
+        active: Value,
+        control: Value,
+    ) -> ExprId {
+        let above = self.boundary_conditional_mean(outcome, treatment, active, running, cutoff);
+        let below = self.boundary_conditional_mean(outcome, treatment, control, running, cutoff);
+        let contrast = self.intern(ExprNode::Contrast {
+            left: above,
+            right: below,
+            op: ContrastOp::Difference,
+        });
+        self.set_derivation(
+            contrast,
+            DerivationMeta::rule(
+                "rd.sharp",
+                Some(Arc::from(format!(
+                    "difference of the one-sided limits of E[Y | R = r] at r = {cutoff}; each \
+                     side is the boundary value of that treatment arm's regression on R"
+                ))),
+            ),
+        );
+        contrast
+    }
+
+    /// Observational `E[outcome | arm = level, running = cutoff]`, both levels bound.
+    fn boundary_conditional_mean(
+        &mut self,
+        outcome: VariableId,
+        arm: VariableId,
+        level: Value,
+        running: VariableId,
+        cutoff: f64,
+    ) -> ExprId {
+        let y = self.intern_var_set([outcome]);
+        let given = self.intern_var_set([arm, running]);
+        let bind = self.intern_intervention_assignments([
+            InterventionAssignment { variable: arm, value: level },
+            InterventionAssignment { variable: running, value: Value::f64(cutoff) },
+        ]);
+        let dist = self.intern_distribution(y, given, bind, DomainRef::Observational);
+        self.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(outcome),
+            distribution: dist,
+        })
     }
 
     /// Observational `E[outcome | conditioner = level]`.
@@ -681,12 +1115,7 @@ impl CausalExprArena {
             variable: conditioner,
             value: level,
         }]);
-        let dist = self.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: z,
-            intervention: bind,
-            domain: DomainRef::Observational,
-        });
+        let dist = self.intern_distribution(y, z, bind, DomainRef::Observational);
         self.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(outcome),
             distribution: dist,
@@ -717,6 +1146,66 @@ mod tests {
     use super::*;
 
     #[test]
+    fn import_copies_a_functional_between_arenas_without_changing_it() {
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut source = CausalExprArena::new();
+        // Populate the source with unrelated nodes first so ids differ between arenas.
+        source.backdoor_ate(y, t, &[], Value::f64(5.0), Value::f64(4.0));
+        let ate = source.backdoor_ate(t, y, &[z], Value::f64(1.0), Value::f64(0.0));
+        let front = source.frontdoor_ate(t, y, &[z], Value::f64(1.0), Value::f64(0.0));
+
+        let mut target = CausalExprArena::new();
+        let existing = target.backdoor_ate(t, z, &[], Value::f64(1.0), Value::f64(0.0));
+        let copied = target.import(&source, ate);
+        let copied_front = target.import(&source, front);
+
+        assert_eq!(target.pretty(copied), source.pretty(ate));
+        assert_eq!(target.pretty(copied_front), source.pretty(front));
+        assert_ne!(copied, existing);
+        // Importing is idempotent: hash-consing returns the same node the second time.
+        assert_eq!(target.import(&source, ate), copied);
+        // The copy keeps the derivation rule of the root.
+        assert_eq!(target.derivation(copied).map(|m| m.rule.as_ref()), Some("backdoor.adjustment"));
+        // The source is untouched.
+        assert_eq!(source.pretty(ate), target.pretty(copied));
+    }
+
+    #[test]
+    fn rd_functional_is_the_boundary_contrast_not_the_unadjusted_one() {
+        let (t, y, r) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut a = CausalExprArena::new();
+        let rd = a.rd_sharp_local_effect(t, y, r, 0.5, Value::f64(1.0), Value::f64(0.0));
+        let naive = a.backdoor_ate(t, y, &[], Value::f64(1.0), Value::f64(0.0));
+        assert_ne!(rd, naive);
+        let ExprNode::Contrast { left, right, op: ContrastOp::Difference } = a.node(rd).clone()
+        else {
+            panic!("RD functional must be a difference");
+        };
+        assert_ne!(left, right);
+        for (side, level) in [(left, 1.0), (right, 0.0)] {
+            let ExprNode::Expectation { distribution, .. } = a.node(side).clone() else {
+                panic!("each side is a conditional mean");
+            };
+            let ExprNode::Distribution { variables, conditioned_on, intervention, domain, .. } =
+                a.node(distribution).clone()
+            else {
+                panic!("each side is one observational factor");
+            };
+            assert_eq!(domain, DomainRef::Observational);
+            assert_eq!(a.var_set(variables), &[y]);
+            // Conditions on the arm AND on the running variable at the cutoff.
+            assert_eq!(a.var_set(conditioned_on), &[t, r]);
+            let bound: Vec<(VariableId, Option<f64>)> = a
+                .intervention_assignments(intervention)
+                .iter()
+                .map(|b| (b.variable, b.value.as_f64()))
+                .collect();
+            assert!(bound.contains(&(t, Some(level))), "{bound:?}");
+            assert!(bound.contains(&(r, Some(0.5))), "{bound:?}");
+        }
+    }
+
+    #[test]
     fn var_sets_are_sorted_and_interned() {
         let mut a = CausalExprArena::new();
         let s1 = a.intern_var_set([VariableId::from_raw(2), VariableId::from_raw(1)]);
@@ -730,18 +1219,8 @@ mod tests {
         let mut a = CausalExprArena::new();
         let empty = a.empty_var_set();
         let empty_i = a.empty_intervention_set();
-        let n1 = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let n2 = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let n1 = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
+        let n2 = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
         assert_eq!(n1, n2);
         assert_eq!(a.len(), 1);
     }
@@ -809,13 +1288,15 @@ mod tests {
     #[test]
     fn iv_wald_is_ratio_of_instrument_contrasts() {
         let mut a = CausalExprArena::new();
-        let id = a.iv_wald(
-            VariableId::from_raw(0),
-            VariableId::from_raw(1),
-            &[VariableId::from_raw(2)],
-            &Value::f64(1.0),
-            &Value::f64(0.0),
-        );
+        let id = a
+            .iv_wald(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                &[VariableId::from_raw(2)],
+                &Value::f64(1.0),
+                &Value::f64(0.0),
+            )
+            .unwrap();
         let meta = a.derivation(id).unwrap();
         assert_eq!(&*meta.rule, "iv.wald");
         let ExprNode::Ratio { numerator, denominator } = a.node(id) else {
@@ -824,5 +1305,103 @@ mod tests {
         assert!(matches!(a.node(*numerator), ExprNode::Contrast { .. }));
         assert!(matches!(a.node(*denominator), ExprNode::Contrast { .. }));
         assert_ne!(*numerator, *denominator);
+    }
+
+    #[test]
+    fn existing_builders_keep_empty_population_identity() {
+        let mut a = CausalExprArena::new();
+        let left = a.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        let right = a.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        assert_eq!(left, right);
+        assert!(a.leaf_bindings(left).iter().all(|b| b.population.as_ref().is_empty()));
+    }
+
+    #[test]
+    fn substitute_rejects_missing_binding() {
+        let mut a = CausalExprArena::new();
+        let y = a.intern_var_set([VariableId::from_raw(1)]);
+        let empty = a.empty_var_set();
+        let empty_i = a.empty_intervention_set();
+        let id = a.intern_distribution(y, empty, empty_i, DomainRef::Observational);
+        let err =
+            a.substitute(id, &[(VariableId::from_raw(9), VariableId::from_raw(8))]).unwrap_err();
+        assert_eq!(err, ExprError::MissingBinding);
+    }
+
+    #[test]
+    fn identical_symbolic_intervention_sets_intern_to_same_id() {
+        let mut arena = CausalExprArena::new();
+        let t = VariableId::from_raw(0);
+        let z = VariableId::from_raw(2);
+        let a = arena.intern_intervention_set([t, z]);
+        let b = arena.intern_intervention_set([z, t]);
+        assert_eq!(a, b, "symbolic sets must hash-cons (NaN sentinel never did)");
+        let assignments = arena.intervention_assignments(a);
+        assert_eq!(assignments.len(), 2);
+        assert!(assignments.iter().all(InterventionAssignment::is_symbolic));
+        assert!(!assignments.iter().any(|x| matches!(
+            x.value,
+            Value::Float64(v) if v.is_nan()
+        )));
+    }
+
+    #[test]
+    fn iv_wald_refuses_missing_or_ambiguous_instruments() {
+        let (t, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut a = CausalExprArena::new();
+        let (one, zero) = (Value::f64(1.0), Value::f64(0.0));
+        // No instrument would otherwise fall back to the treatment: the naive contrast.
+        assert_eq!(a.iv_wald(t, y, &[], &one, &zero), Err(ExprError::InvalidInstrumentSet));
+        assert_eq!(a.iv_wald(t, y, &[t], &one, &zero), Err(ExprError::InvalidInstrumentSet));
+        // Several instruments would otherwise silently use only the first.
+        let two = [VariableId::from_raw(2), VariableId::from_raw(3)];
+        assert_eq!(a.iv_wald(t, y, &two, &one, &zero), Err(ExprError::InvalidInstrumentSet));
+        assert!(a.iv_wald(t, y, &two[..1], &one, &zero).is_ok());
+    }
+
+    #[test]
+    fn conflicting_intervention_levels_are_refused_not_dropped() {
+        let t = VariableId::from_raw(0);
+        let mut arena = CausalExprArena::new();
+        let at = |x: f64| InterventionAssignment::concrete(t, Value::f64(x));
+        assert_eq!(
+            arena.try_intern_intervention_assignments([at(1.0), at(0.0)]),
+            Err(ExprError::CaptureOrConflict)
+        );
+        // Repeating the same level is idempotent and hash-conses with the single assignment.
+        let once = arena.try_intern_intervention_assignments([at(1.0)]).unwrap();
+        let twice = arena.try_intern_intervention_assignments([at(1.0), at(1.0)]).unwrap();
+        assert_eq!(once, twice);
+        assert_eq!(arena.intervention_assignments(twice).len(), 1);
+    }
+
+    #[test]
+    fn observational_leaves_print_the_level_they_are_bound_to() {
+        // E[Y|Z=1] and E[Y|Z=0] in the Wald estimand must not print identically.
+        let mut a = CausalExprArena::new();
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let id = a.iv_wald(t, y, &[z], &Value::f64(1.0), &Value::f64(0.0)).unwrap();
+        let pretty = a.pretty(id);
+        assert!(pretty.contains("V1|V2=1") && pretty.contains("V1|V2=0"), "{pretty}");
+        let latex = a.latex(id);
+        assert!(latex.contains("V2=1") && latex.contains("V2=0"), "{latex}");
+    }
+
+    #[test]
+    fn compile_refuses_a_foreign_expression_id() {
+        let arena = CausalExprArena::new();
+        assert!(arena.compile(ExprId::from_raw(7)).is_err());
     }
 }

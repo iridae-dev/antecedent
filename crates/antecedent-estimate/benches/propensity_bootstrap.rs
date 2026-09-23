@@ -2,13 +2,13 @@
 //!
 //! Times `PropensityWeighting::fit` with bootstrap replicates enabled, refitting the
 //! propensity model each replicate while reusing `PropensityEstimationWorkspace` scratch.
-#![allow(missing_docs, clippy::cast_precision_loss, clippy::many_single_char_names)]
+#![allow(missing_docs)]
 
 use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
-    RoleHint, SmallRoleSet, ValueType, VariableId,
+    RoleHint, SmallRoleSet, StreamDomain, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -20,7 +20,8 @@ use antecedent_kernels::standard_normal;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn confounded_scm(n: usize) -> (TabularData, IdentifiedEstimand) {
-    let mut rng = ExecutionContext::for_tests(11).rng.stream(0x1234_u64);
+    let mut rng =
+        ExecutionContext::for_tests(11).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];

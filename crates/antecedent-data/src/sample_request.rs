@@ -5,7 +5,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -419,7 +425,7 @@ fn max_lag_in_request(request: &SampleRequest<'_>) -> u32 {
         .chain(request.z.iter())
         .map(|n| match n {
             NodeRef::Lagged { lag, .. } => lag.raw(),
-            NodeRef::Static(_) | NodeRef::Context { .. } => 0,
+            NodeRef::Static(_) | NodeRef::Unfolded { .. } | NodeRef::Context { .. } => 0,
         })
         .max()
         .unwrap_or(0)
@@ -431,6 +437,9 @@ fn node_to_prepared(node: NodeRef, role: u8) -> Result<PreparedColumn, DataError
             Ok(PreparedColumn { variable, lag: Lag::CONTEMPORANEOUS, role })
         }
         NodeRef::Lagged { variable, lag } => Ok(PreparedColumn { variable, lag, role }),
+        NodeRef::Unfolded { .. } => Err(DataError::InvalidArgument {
+            message: "SampleRequest cannot read an unfolded window slot; use a Lagged node".into(),
+        }),
         NodeRef::Context { variable, environment } => {
             if environment.is_some() {
                 return Err(DataError::InvalidArgument {
@@ -443,6 +452,10 @@ fn node_to_prepared(node: NodeRef, role: u8) -> Result<PreparedColumn, DataError
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "row indices are u32 by design throughout the resampling plans, and datasets are bounded below 2^32 rows"
+)]
 fn compile_inner(
     data: &impl TableView,
     lag_map: Option<Arc<LagMap>>,

@@ -12,11 +12,8 @@ decided from.
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 
 
 def _shifted_mechanism(n: int = 160, seed: int = 5):
@@ -53,3 +50,7 @@ def test_mechanism_change_detection_exposes_adjusted_p_value():
         assert d.adjusted_p_value >= d.p_value - 1e-12
         # `changed` is decided from the adjusted value, so the two must agree.
         assert "adjusted_p_value" in repr(d)
+        # The default mean-difference test has a closed-form null: no permutation
+        # resolution to report, but the fields must exist.
+        assert d.n_permutations is None
+        assert d.p_value_floor is None

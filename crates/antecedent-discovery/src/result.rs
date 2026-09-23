@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, Lag, VariableId};
+use antecedent_core::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, Lag, ParametricAssumption, VariableId,
+};
 use antecedent_graph::{
     TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
     TemporalPagReview,
@@ -185,3 +188,45 @@ pub type PagDiscoveryResult = DiscoveryResult<TemporalPag, TemporalPagReview>;
 
 /// Graph evidence specialized to a temporal PAG.
 pub type PagGraphEvidence = GraphEvidence<TemporalPag>;
+
+/// Build the assumption records implied by a discovery algorithm.
+///
+/// Records faithfulness and the causal Markov condition for every algorithm.
+/// Causal sufficiency is included only when the method assumes no latent
+/// confounders (PC, GES, NOTEARS, `LiNGAM`, PCMCI / PCMCI+ / J-PCMCI+). FCI,
+/// RFCI, and LPCMCI omit sufficiency but implement no selection-bias rules (Zhang R5–R7),
+/// so they record `NoSelectionBias`. `LiNGAM` additionally records non-Gaussian exogenous
+/// errors.
+#[must_use]
+pub(crate) fn discovery_assumptions(algorithm: &str, causal_sufficiency: bool) -> AssumptionSet {
+    let mut set = AssumptionSet::new();
+    set.push(algorithm_default(algorithm, Assumption::Faithfulness));
+    set.push(algorithm_default(algorithm, Assumption::CausalMarkov));
+    if causal_sufficiency {
+        set.push(algorithm_default(algorithm, Assumption::CausalSufficiency));
+    }
+    if matches!(algorithm, "fci" | "rfci" | "lpcmci") {
+        set.push(algorithm_default(algorithm, Assumption::NoSelectionBias));
+    }
+    if algorithm == "direct_lingam" {
+        set.push(algorithm_default(
+            algorithm,
+            Assumption::ParametricRestriction(ParametricAssumption {
+                id: Arc::from("non_gaussian_errors"),
+                description: Arc::from(
+                    "Independent non-Gaussian exogenous errors (DirectLiNGAM identifiability)",
+                ),
+            }),
+        ));
+    }
+    set
+}
+
+fn algorithm_default(algorithm: &str, assumption: Assumption) -> AssumptionRecord {
+    AssumptionRecord {
+        assumption,
+        source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(algorithm) },
+        scope: AssumptionScope::Discovery,
+        status: AssumptionStatus::Declared,
+    }
+}

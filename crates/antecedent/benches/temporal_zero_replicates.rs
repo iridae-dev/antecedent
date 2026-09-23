@@ -10,7 +10,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::cast_precision_loss)]
+#![allow(missing_docs)]
 
 use std::time::{Duration, Instant};
 
@@ -22,7 +22,7 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 /// Soft budget for the guarded Interactive cells at n = 20 000 (release build,
 /// Apple M1 Max): a few times the fixed values, and well under what an eager
 /// score scan costs there (the O(n^1.5) scan grows faster than the fit, so the
-/// guard sits where the two are far apart), so the regression 1.9.0 shipped
+/// guard sits where the two are far apart), so a quadratic scan regression
 /// trips it while machine noise does not.
 const INTERACTIVE_BUDGET: Duration = Duration::from_millis(5);
 const GUARDED_ROWS: usize = 20_000;
@@ -146,10 +146,24 @@ fn main() {
             let study = study(data, query(), tier);
             let best = time_min(&study, &ctx, if guard_only { 3 } else { repeats });
             println!("{cell}\t{:.3} ms", best.as_secs_f64() * 1e3);
-            assert!(
-                !guarded || best < INTERACTIVE_BUDGET,
-                "{cell} exceeded soft budget {INTERACTIVE_BUDGET:?}: {best:?}"
-            );
+            // The budget is calibrated against the optimized `[profile.bench]` build
+            // (`cargo bench -- --test`, the invocation `gate_release.sh` and
+            // `docs/hot_paths.md` use): this numeric hot path runs roughly an order of
+            // magnitude slower unoptimized, so a plain `cargo test` (dev/test profile,
+            // debug assertions on) would trip the guard on a build it was never measured
+            // against. Report the miss instead of failing a debug build.
+            if guarded && cfg!(debug_assertions) && best >= INTERACTIVE_BUDGET {
+                println!(
+                    "{cell} exceeded soft budget {INTERACTIVE_BUDGET:?} ({best:?}), but this is \
+                     an unoptimized debug build; the guard only fails under `cargo bench -- \
+                     --test` (or another build with debug_assertions off)"
+                );
+            } else {
+                assert!(
+                    !guarded || best < INTERACTIVE_BUDGET,
+                    "{cell} exceeded soft budget {INTERACTIVE_BUDGET:?}: {best:?}"
+                );
+            }
         }
     }
 }

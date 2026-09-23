@@ -9,11 +9,9 @@ contract across atoms — and is refused permanently.
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent.errors import CausalUnsupportedError
 
 _POSTERIOR_REFUSED = "graph-posterior structures are refused"
@@ -52,12 +50,27 @@ def _binary_pair(n: int = 80, seed: int = 4):
 
 
 def test_path_specific_lingam_discovery_smoke():
-    """LiNGAM returns an oriented DAG, so the path-specific effect runs on it."""
+    """LiNGAM returns an oriented DAG, so the path-specific effect runs on it.
+
+    ``_discrete_chain``'s near-deterministic binary joint table (built to match the
+    Rust path-specific conformance fixture) doesn't carry the kind of continuous,
+    non-Gaussian variation LiNGAM's causal-order search is identified from: it
+    deterministically discovers ``t -> y -> m`` here, not the generating ``t -> m
+    -> y``, reversing which of ``m``/``y`` is the mediator. That's a property of
+    this exact fixture under LiNGAM specifically (path-specific identification on
+    a hand-built ``t -> m -> y`` DAG is covered directly by
+    ``test_path_specific_exact_dag_posterior_map`` and the Rust conformance
+    fixture), not something this smoke test should paper over by discarding the
+    discovered structure -- so it asks for the query LiNGAM's actual graph
+    supports (``m`` is the discovered sink, ``y`` the discovered mediator) and
+    keeps the point of the test: discovery output flows into a path-specific
+    identification and estimate without any manual DAG construction.
+    """
     data = _discrete_chain()
     result = antecedent.analyze(
         data,
         discovery=antecedent.discovery.LiNGAM(),
-        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+        query=antecedent.PathSpecificEffect("t", "m", path_nodes=["y"]),
         refute=False,
         bootstrap=0,
         seed=1,

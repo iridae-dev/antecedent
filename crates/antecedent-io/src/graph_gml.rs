@@ -64,8 +64,10 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
     expect_char(&tokens, &mut i, '[')?;
 
     let mut directed: Option<bool> = None;
-    let mut order: Vec<String> = Vec::new();
-    let mut index: HashMap<String, u32> = HashMap::new();
+    // Edges reference node `id`; display names prefer `label` when present.
+    let mut id_order: Vec<String> = Vec::new();
+    let mut id_index: HashMap<String, u32> = HashMap::new();
+    let mut names: Vec<String> = Vec::new();
     let mut edges: Vec<(u32, u32)> = Vec::new();
 
     while i < tokens.len() {
@@ -93,9 +95,12 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
                     }
                 }
                 expect_char(&tokens, &mut i, ']')?;
-                let name =
-                    label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
-                graph_dot::intern(&name, &mut order, &mut index)?;
+                let id = id.ok_or_else(|| IoError::Convert("node missing id".into()))?;
+                let display = label.unwrap_or_else(|| id.clone());
+                let dense = graph_dot::intern(&id, &mut id_order, &mut id_index)?;
+                if dense as usize == names.len() {
+                    names.push(display);
+                }
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
                 i += 1;
@@ -114,8 +119,8 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
                 expect_char(&tokens, &mut i, ']')?;
                 let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
                 let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-                let from = graph_dot::intern(&s, &mut order, &mut index)?;
-                let to = graph_dot::intern(&t, &mut order, &mut index)?;
+                let from = gml_bind_id(&s, &mut id_order, &mut id_index, &mut names)?;
+                let to = gml_bind_id(&t, &mut id_order, &mut id_index, &mut names)?;
                 edges.push((from, to));
             }
             Tok::Ident(_) => {
@@ -134,12 +139,12 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
     if directed != Some(true) {
         return Err(IoError::Convert("GML graph must be directed 1".into()));
     }
-    if order.is_empty() {
+    if names.is_empty() {
         return Err(IoError::Convert("empty GML graph".into()));
     }
 
     // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
-    match graph_dot::remap_numeric_dense(&order, &edges)? {
+    match graph_dot::remap_numeric_dense(&names, &edges)? {
         // Dense id == numeric label in this case, so the label carries no
         // information beyond the dense index; fall back to index strings.
         Some(wire) => {
@@ -147,10 +152,26 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
             Ok((wire, names))
         }
         None => {
-            let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-            Ok((DagWire { node_count, edges }, order))
+            let node_count = u32::try_from(names.len()).map_err(|_| IoError::TooLarge)?;
+            Ok((DagWire { node_count, edges }, names))
         }
     }
+}
+
+/// Resolve an edge endpoint against node `id` keys, creating a phantom node
+/// named by that id when the endpoint was not declared.
+fn gml_bind_id(
+    id: &str,
+    id_order: &mut Vec<String>,
+    id_index: &mut HashMap<String, u32>,
+    names: &mut Vec<String>,
+) -> Result<u32, IoError> {
+    if let Some(&d) = id_index.get(id) {
+        return Ok(d);
+    }
+    let d = graph_dot::intern(id, id_order, id_index)?;
+    names.push(id.to_string());
+    Ok(d)
 }
 
 /// Emit GML from wire.
@@ -159,15 +180,27 @@ pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..wire.node_count {
         let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
+        let label = escape_gml_string(&label);
         out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
     }
     for &(a, b) in &wire.edges {
         let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
         let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
+        let (sa, sb) = (escape_gml_string(&sa), escape_gml_string(&sb));
         out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n  ]\n"));
     }
     out.push(']');
     out
+}
+
+/// GML strings cannot contain a raw `"`; the format's escapes are the HTML entities
+/// `&quot;` and `&amp;`.
+pub(crate) fn escape_gml_string(s: &str) -> String {
+    s.replace('&', "&amp;").replace('"', "&quot;")
+}
+
+fn unescape_gml_string(s: &str) -> String {
+    s.replace("&quot;", "\"").replace("&amp;", "&")
 }
 
 #[derive(Debug)]
@@ -203,7 +236,7 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
             if i >= bytes.len() {
                 return Err(IoError::Convert("unterminated GML string".into()));
             }
-            let s = String::from_utf8_lossy(&bytes[start..i]).into_owned();
+            let s = unescape_gml_string(&String::from_utf8_lossy(&bytes[start..i]));
             i += 1;
             out.push(Tok::String(s));
             continue;
@@ -324,6 +357,43 @@ mod tests {
         let out = dag_to_gml(&dag, Some(&["Z".into(), "X".into(), "Y".into()])).unwrap();
         let back = dag_from_gml(&out).unwrap();
         assert_eq!(back.node_count(), 3);
+    }
+
+    #[test]
+    fn networkx_style_gml_binds_edges_to_id_not_label() {
+        // NetworkX writes numeric `id` and string `label`; edges reference `id`.
+        let gml = r#"graph [
+  directed 1
+  node [ id 0 label "Z" ]
+  node [ id 1 label "X" ]
+  node [ id 2 label "Y" ]
+  edge [ source 0 target 1 ]
+]"#;
+        let (dag, names) = dag_with_names_from_gml(gml).unwrap();
+        assert_eq!(dag.node_count(), 3);
+        assert_eq!(names, vec!["Z".to_string(), "X".to_string(), "Y".to_string()]);
+        assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+        assert!(!dag.reaches(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn labels_with_quotes_and_ampersands_survive_a_round_trip() {
+        let dag = dag_from_gml(
+            "graph [ directed 1 node [ id 0 label \"a\" ] node [ id 1 label \"b\" ] \
+                              edge [ source 0 target 1 ] ]",
+        )
+        .unwrap();
+        let wire = crate::convert::dag_to_wire(&dag).unwrap();
+        let names = vec!["say \"hi\"".to_string(), "a&b".to_string()];
+        let gml = dag_wire_to_gml(&wire, Some(&names));
+        assert!(gml.contains("say &quot;hi&quot;"), "{gml}");
+        assert!(gml.contains("a&amp;b"), "{gml}");
+        let (back, back_names) = dag_with_names_from_gml(&gml).unwrap();
+        assert_eq!(back_names, names);
+        assert!(back.reaches(
+            antecedent_graph::DenseNodeId::from_raw(0),
+            antecedent_graph::DenseNodeId::from_raw(1)
+        ));
     }
 
     #[test]

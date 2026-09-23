@@ -53,6 +53,15 @@ pub enum DataError {
         /// Explanation.
         message: String,
     },
+    /// Observation weights are not a valid non-negative measure.
+    InvalidWeights {
+        /// Offending row, or `None` when the defect is the total (no positive mass).
+        index: Option<usize>,
+        /// Explanation.
+        reason: &'static str,
+    },
+    /// A cooperative cancellation was observed before the operation finished.
+    Cancelled,
     /// Underlying schema error.
     Schema(String),
 }
@@ -74,6 +83,11 @@ impl fmt::Display for DataError {
                 None => write!(f, "incomplete series: {message}"),
             },
             Self::InvalidArgument { message } => write!(f, "invalid argument: {message}"),
+            Self::InvalidWeights { index: Some(i), reason } => {
+                write!(f, "invalid weights: row {i} is {reason}")
+            }
+            Self::InvalidWeights { index: None, reason } => write!(f, "invalid weights: {reason}"),
+            Self::Cancelled => write!(f, "cancelled"),
             Self::Schema(msg) => write!(f, "schema error: {msg}"),
         }
     }

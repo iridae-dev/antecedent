@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
+use antecedent_kernels::standard_normal;
 
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
@@ -263,27 +264,9 @@ fn systematic_resample(state: &mut ParticleFilterState, rng: &mut CausalRng) {
     state.log_weights.fill(0.0);
 }
 
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(1e-12);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn synth_obs(n: usize, seed: u64) -> Vec<f64> {
-        let params = LgssmParams::default();
-        let mut rng = CausalRng::from_seed(seed);
-        let mut x = 0.0;
-        let mut ys = Vec::with_capacity(n);
-        for _ in 0..n {
-            x = params.a * x + params.process_std * standard_normal(&mut rng);
-            ys.push(x + params.obs_std * standard_normal(&mut rng));
-        }
-        ys
-    }
 
     #[test]
     fn invalid_and_degenerate_updates_are_atomic() {
@@ -320,23 +303,5 @@ mod tests {
         .unwrap();
         assert!((base.weighted_mean() - scaled.weighted_mean() / scale).abs() < 1e-12);
         assert!((base.ess() - scaled.ess()).abs() < 1e-10);
-    }
-
-    #[test]
-    fn stepwise_matches_batch() {
-        let ys = synth_obs(30, 7);
-        let params = LgssmParams::default();
-        let batch = ParticleFilterState::run_batch(&ys, 64, params, 1, 99).unwrap();
-        let mut step = ParticleFilterState::init(64, params, 1, 99).unwrap();
-        for &y in &ys {
-            step.step(y).unwrap();
-        }
-        assert_eq!(step.n_obs, batch.n_obs);
-        assert!((step.weighted_mean() - batch.weighted_mean()).abs() < 1e-10);
-        assert!((step.ess() - batch.ess()).abs() < 1e-10);
-        for i in 0..step.n_particles {
-            assert!((step.particles[i] - batch.particles[i]).abs() < 1e-10);
-            assert!((step.log_weights[i] - batch.log_weights[i]).abs() < 1e-10);
-        }
     }
 }

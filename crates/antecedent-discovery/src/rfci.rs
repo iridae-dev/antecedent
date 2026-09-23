@@ -7,46 +7,49 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::zero_sized_map_values
+#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::zero_sized_map_values)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, ExecutionContext, Lag, VariableId};
+use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Endpoint, Pag, PagReview};
 use antecedent_stats::{
-    CiBatchRequest, CiPreparationPlan, CiQuery, ConditionalIndependence, ConfidenceMethod,
-    FdrAdjustment, PartialCorrelation, PreparedCiTest,
+    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
+    PartialCorrelation, PreparedCiTest,
 };
 
 use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
+use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::discriminating_paths::{
-    discriminating_implies_collider, find_discriminating_paths_with_budget,
+    discriminating_implies_collider, find_discriminating_paths_for_edge,
 };
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::fci::{
-    StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state, record_sepset,
-};
-use crate::orientation::{OrientationError, OrientationState, RuleDelta};
-use crate::pc::{adjacent_vars, collect_float_columns, edge_key, sorted_edge_pairs};
+use crate::fci::{StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state};
+use crate::orientation::{OrientationState, RuleDelta};
+use crate::pc::{adjacent_vars, collect_float_columns, edge_key};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
-    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, PcSepsets, ScoredLink,
+    EvidenceSource, GraphEvidence, PcSepsets, discovery_assumptions,
 };
 use crate::rule_scheduling::{
     FciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
-    run_fci_orientation_to_fixed_point,
+    orient_collider_leg, orient_discriminated_collider, run_fci_orientation_to_fixed_point,
+    set_marks_oriented,
+};
+use crate::static_skeleton::{
+    StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton, skeleton_scored_links,
+    static_ci_test, static_edge_evidence,
 };
 
 /// Classic RFCI over tabular (non-temporal) data.
@@ -59,6 +62,8 @@ pub struct Rfci {
     /// Multiple-testing adjustment (`None` = off). Configured adjustments are refused until
     /// the complete adaptive CI family can be adjusted coherently.
     pub fdr: Option<FdrAdjustment>,
+    /// Per-edge bounds of the discriminating-path search.
+    pub discriminating_path_budget: DiscriminatingPathBudget,
 }
 
 impl std::fmt::Debug for Rfci {
@@ -67,6 +72,7 @@ impl std::fmt::Debug for Rfci {
             .field("constraints", &self.constraints)
             .field("ci", &"<dyn ConditionalIndependence>")
             .field("fdr", &self.fdr)
+            .field("discriminating_path_budget", &self.discriminating_path_budget)
             .finish()
     }
 }
@@ -91,7 +97,16 @@ impl Rfci {
             },
             ci: Arc::new(PartialCorrelation),
             fdr: None,
+            discriminating_path_budget: DiscriminatingPathBudget::default(),
         }
+    }
+
+    /// Per-edge bounds of the discriminating-path search. An edge that exhausts its budget
+    /// keeps its circle mark and is reported in a diagnostic; the run does not fail.
+    #[must_use]
+    pub fn with_discriminating_path_budget(mut self, budget: DiscriminatingPathBudget) -> Self {
+        self.discriminating_path_budget = budget;
+        self
     }
 
     /// Configure constraints.
@@ -144,6 +159,12 @@ impl Rfci {
                 "RFCI FDR is refused until adjustment covers adjacency, Lemma 3.1, discriminating-path, and sepset-minimization CI tests",
             ));
         }
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.ci,
+            self.constraints.significance,
+            self.constraints.alpha,
+            false,
+        )?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
                 message: "RFCI requires at least one variable",
@@ -175,161 +196,29 @@ impl Rfci {
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
-        let mut adj: HashMap<(u32, u32), ()> = HashMap::new();
-        let mut edge_scores: HashMap<(u32, u32), ScoredLink> = HashMap::new();
-        let mut sepsets: PcSepsets = PcSepsets::default();
-        let mut ci_tests: u64 = 0;
-        let mut iterations = Vec::new();
+        let skel = run_static_skeleton(
+            &StaticSkeletonInput {
+                ci: &*self.ci,
+                constraints: &self.constraints,
+                cols: &cols,
+                var_index: &var_index,
+                variables,
+                label: "rfci.pc.depth",
+            },
+            workspace,
+            ctx,
+        )?;
+        let mut scored = skeleton_scored_links(&skel);
+        let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
         let mut combo_scratch = Vec::new();
-
-        // --- Phase 1: PC-style adjacency (no Possible-D-Sep) ---
-        for i in 0..variables.len() {
-            for j in (i + 1)..variables.len() {
-                let a = variables[i];
-                let b = variables[j];
-                if self.static_forbidden(a, b) {
-                    continue;
-                }
-                adj.insert(edge_key(a, b), ());
-            }
-        }
-
-        let mut depth = 0usize;
-        loop {
-            let mut depth_tests = 0u64;
-            // See `sorted_edge_pairs` doc: this loop mutates `adj` (edges removed below),
-            // so traversal order must be deterministic for the skeleton to be reproducible.
-            let edges = sorted_edge_pairs(&adj);
-
-            for &(x, y) in &edges {
-                if !adj.contains_key(&edge_key(x, y)) {
-                    continue;
-                }
-                if self.static_required(x, y) {
-                    continue;
-                }
-                let neighbors_x = adjacent_vars(x, &adj, variables);
-                let neighbors_y = adjacent_vars(y, &adj, variables);
-                let mut cand_sets: Vec<Vec<VariableId>> = Vec::new();
-                let nx: Vec<VariableId> = neighbors_x.into_iter().filter(|&v| v != y).collect();
-                let ny: Vec<VariableId> = neighbors_y.into_iter().filter(|&v| v != x).collect();
-                if nx.len() >= depth {
-                    for_each_combination_vars(&nx, depth, &mut combo_scratch, |c| {
-                        cand_sets.push(c.to_vec());
-                        true
-                    });
-                }
-                if ny.len() >= depth {
-                    for_each_combination_vars(&ny, depth, &mut combo_scratch, |c| {
-                        cand_sets.push(c.to_vec());
-                        true
-                    });
-                }
-                cand_sets.sort_unstable();
-                cand_sets.dedup();
-
-                let mut independent = false;
-                // `weakest_dep_stat`/`weakest_dep_p` summarize a *retained* edge (no
-                // conditioning set separated x and y): they hold the statistic/p-value of
-                // whichever tested z gave the weakest evidence of dependence (max p), not
-                // whichever z happened to be tested last. That's the conservative summary
-                // to retain as edge evidence. If the loop instead finds a separating set, we
-                // report that test's own (stat, p) — the value that actually establishes
-                // independence — not the running max.
-                let mut weakest_dep_stat = f64::NAN;
-                let mut weakest_dep_p = f64::NAN;
-                let mut best_sep: Arc<[VariableId]> = Arc::from([]);
-
-                for z in &cand_sets {
-                    let (stat, p) = self.ci_test(&cols, &var_index, x, y, z, workspace, ctx)?;
-                    ci_tests += 1;
-                    depth_tests += 1;
-                    if p > alpha {
-                        independent = true;
-                        weakest_dep_stat = stat;
-                        weakest_dep_p = p;
-                        best_sep = Arc::from(z.as_slice());
-                        break;
-                    }
-                    if weakest_dep_p.is_nan() || p > weakest_dep_p {
-                        weakest_dep_stat = stat;
-                        weakest_dep_p = p;
-                    }
-                }
-
-                let key = edge_key(x, y);
-                if independent {
-                    adj.remove(&key);
-                    record_sepset(&mut sepsets, x, y, &best_sep);
-                } else if weakest_dep_p.is_finite() {
-                    let link = ScoredLink {
-                        link: LaggedLink {
-                            source: x,
-                            source_lag: Lag::CONTEMPORANEOUS,
-                            target: y,
-                            target_lag: Lag::CONTEMPORANEOUS,
-                        },
-                        statistic: weakest_dep_stat,
-                        p_value: weakest_dep_p,
-                        adjusted_p_value: None,
-                    };
-                    edge_scores
-                        .entry(key)
-                        .and_modify(|s| {
-                            if weakest_dep_p < s.p_value {
-                                *s = link;
-                            }
-                        })
-                        .or_insert(link);
-                }
-            }
-
-            iterations.push(DiscoveryIteration {
-                label: Arc::from(format!("rfci.pc.depth.{depth}")),
-                ci_tests: depth_tests,
-            });
-
-            depth += 1;
-            if depth > max_cond {
-                break;
-            }
-            let max_deg = adj
-                .keys()
-                .map(|&(lo, hi)| {
-                    let a = VariableId::from_raw(lo);
-                    let b = VariableId::from_raw(hi);
-                    let da = adjacent_vars(a, &adj, variables).len().saturating_sub(1);
-                    let db = adjacent_vars(b, &adj, variables).len().saturating_sub(1);
-                    da.max(db)
-                })
-                .max()
-                .unwrap_or(0);
-            if max_deg < depth {
-                break;
-            }
-        }
-
-        let mut scored: Vec<ScoredLink> = adj
-            .keys()
-            .map(|&(lo, hi)| {
-                let x = VariableId::from_raw(lo);
-                let y = VariableId::from_raw(hi);
-                edge_scores.get(&(lo, hi)).copied().unwrap_or(ScoredLink {
-                    link: LaggedLink {
-                        source: x,
-                        source_lag: Lag::CONTEMPORANEOUS,
-                        target: y,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    },
-                    statistic: 0.0,
-                    p_value: 0.0,
-                    adjusted_p_value: None,
-                })
-            })
-            .collect();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
+
+        let mut state = OrientationState {
+            discriminating_budget: self.discriminating_path_budget,
+            ..OrientationState::default()
+        };
 
         // --- Phase 2: Lemma 3.1 unshielded triples (no Possible-D-Sep) ---
         let mut lemma_tests = 0u64;
@@ -340,6 +229,7 @@ impl Rfci {
             &mut adj,
             &mut sepsets,
             &mut pag,
+            &mut state,
             &dense_of,
             workspace,
             ctx,
@@ -352,7 +242,6 @@ impl Rfci {
             ci_tests: lemma_tests,
         });
 
-        let mut state = OrientationState::default();
         load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
 
         // --- Phase 3: Zhang R1–R3 / R8–R10 + RFCI discriminating paths ---
@@ -391,6 +280,7 @@ impl Rfci {
                     &mut adj,
                     &mut sepsets,
                     &mut pag,
+                    &mut state,
                     &dense_of,
                     workspace,
                     ctx,
@@ -406,6 +296,16 @@ impl Rfci {
         }
 
         let mut diagnostics = Vec::new();
+        if !state.discriminating_skipped.is_empty() {
+            diagnostics.push(DiscoveryDiagnostic {
+                code: Arc::from("rfci.discriminating_path_budget"),
+                message: Arc::from(format!(
+                    "discriminating-path search exhausted its budget on {} edge(s); their circle \
+                     marks were left unresolved (sound, possibly incomplete)",
+                    state.discriminating_skipped.len()
+                )),
+            });
+        }
         if state.conflicts > 0 || orient_conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rfci.orientation_conflict"),
@@ -418,28 +318,7 @@ impl Rfci {
 
         scored.retain(|s| adj.contains_key(&edge_key(s.link.source, s.link.target)));
 
-        let edge_evidence: Vec<EdgeEvidence> = scored
-            .iter()
-            .map(|s| {
-                let sepset = sepsets
-                    .get(&(
-                        s.link.source,
-                        Lag::CONTEMPORANEOUS,
-                        s.link.target,
-                        Lag::CONTEMPORANEOUS,
-                    ))
-                    .cloned();
-                EdgeEvidence {
-                    link: s.link,
-                    statistic: Some(s.statistic),
-                    p_value: Some(s.p_value),
-                    adjusted_p_value: s.adjusted_p_value,
-                    interval: None,
-                    separating_set: sepset,
-                    provenance: Arc::from([Arc::from("rfci")]),
-                }
-            })
-            .collect();
+        let edge_evidence = static_edge_evidence(&scored, &sepsets, "rfci");
 
         let evidence = GraphEvidence {
             graph: pag.clone(),
@@ -456,7 +335,7 @@ impl Rfci {
                 "rfci",
                 format!("alpha={},max_cond={},fdr={}", alpha, max_cond, self.fdr.is_some()),
             ),
-            assumptions: AssumptionSet::default(),
+            assumptions: discovery_assumptions("rfci", false),
             iterations,
             diagnostics,
             performance: DiscoveryPerformanceRecord {
@@ -480,6 +359,7 @@ impl Rfci {
         adj: &mut HashMap<(u32, u32), ()>,
         sepsets: &mut PcSepsets,
         pag: &mut Pag,
+        state: &mut OrientationState,
         dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
@@ -527,7 +407,17 @@ impl Rfci {
             let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
 
             // a ⊥? b | sep(a,c)\{b}
-            let (_stat_ab, p_ab) = self.ci_test(cols, var_index, a, b, &cond, workspace, ctx)?;
+            let (_stat_ab, p_ab) = static_ci_test(
+                &*self.ci,
+                &self.constraints,
+                cols,
+                var_index,
+                a,
+                b,
+                &cond,
+                workspace,
+                ctx,
+            )?;
             tests += 1;
             if p_ab > alpha {
                 let minimal = self.minimize_sepset(
@@ -548,7 +438,17 @@ impl Rfci {
                 continue;
             }
 
-            let (_stat_bc, p_bc) = self.ci_test(cols, var_index, b, c, &cond, workspace, ctx)?;
+            let (_stat_bc, p_bc) = static_ci_test(
+                &*self.ci,
+                &self.constraints,
+                cols,
+                var_index,
+                b,
+                c,
+                &cond,
+                workspace,
+                ctx,
+            )?;
             tests += 1;
             if p_bc > alpha {
                 let minimal = self.minimize_sepset(
@@ -576,8 +476,9 @@ impl Rfci {
                 let bd = dense_of(b)?;
                 let cd = dense_of(c)?;
                 // a *→ b ←* c (keep far marks; set arrow at b).
-                orient_arrow_into(pag, ad, bd)?;
-                orient_arrow_into(pag, cd, bd)?;
+                let mut delta = RuleDelta::default();
+                orient_collider_leg(pag, state, &mut delta, ad, bd)?;
+                orient_collider_leg(pag, state, &mut delta, cd, bd)?;
             }
             let _ = combo_scratch;
         }
@@ -602,13 +503,22 @@ impl Rfci {
         ci_tests: &mut u64,
     ) -> Result<RuleDelta, DiscoveryError> {
         let mut delta = RuleDelta::default();
-        let (paths, truncated) = find_discriminating_paths_with_budget(pag, 64, 8);
-        if truncated {
-            return Err(DiscoveryError::from(OrientationError::SearchBudgetExhausted {
-                rule: "rfci.discriminating_path",
-                max_paths: 64,
-                max_len: 8,
-            }));
+        // Per-edge budgets: an edge whose search runs out keeps its circle (sound) and is
+        // recorded, instead of aborting the whole run.
+        let budget = state.discriminating_budget;
+        let mut paths = Vec::new();
+        for i in 0..pag.node_count() {
+            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            for (c, _at_b, at_c) in pag.neighbors(b) {
+                if !matches!(at_c, Endpoint::Circle) {
+                    continue;
+                }
+                let (found, truncated) = find_discriminating_paths_for_edge(pag, b, c, budget);
+                if truncated {
+                    state.discriminating_skipped.insert((c.raw(), b.raw()));
+                }
+                paths.extend(found);
+            }
         }
 
         for path in paths {
@@ -636,7 +546,17 @@ impl Rfci {
                         true
                     });
                     for z in &sets {
-                        let (_s, p) = self.ci_test(cols, var_index, u, v, z, workspace, ctx)?;
+                        let (_s, p) = static_ci_test(
+                            &*self.ci,
+                            &self.constraints,
+                            cols,
+                            var_index,
+                            u,
+                            v,
+                            z,
+                            workspace,
+                            ctx,
+                        )?;
                         *ci_tests += 1;
                         if p > alpha {
                             let minimal = self.minimize_sepset(
@@ -650,7 +570,7 @@ impl Rfci {
             }
 
             if let Some((u, v, minimal)) = remove {
-                if self.static_required(u, v) {
+                if self.constraints.static_required(u, v) {
                     continue;
                 }
                 let key = edge_key(u, v);
@@ -682,10 +602,7 @@ impl Rfci {
                 continue;
             }
             if collider {
-                if set_arrow_at(pag, state, &mut delta, c, d_k)? {
-                    delta.edges_changed += 1;
-                }
-                if set_arrow_at(pag, state, &mut delta, c, b)? {
+                if orient_discriminated_collider(pag, state, &mut delta, d_k, c, b)? {
                     delta.edges_changed += 1;
                 }
             } else if set_marks_oriented(
@@ -718,7 +635,7 @@ impl Rfci {
         queue: &mut VecDeque<(VariableId, VariableId, VariableId)>,
         pending: &mut HashSet<(u32, u32, u32)>,
     ) -> Result<(), DiscoveryError> {
-        if self.static_required(x, y) {
+        if self.constraints.static_required(x, y) {
             return Ok(());
         }
         let key = edge_key(x, y);
@@ -773,7 +690,17 @@ impl Rfci {
         while i < s.len() {
             let mut trial = s.clone();
             trial.remove(i);
-            let (_stat, p) = self.ci_test(cols, var_index, x, y, &trial, workspace, ctx)?;
+            let (_stat, p) = static_ci_test(
+                &*self.ci,
+                &self.constraints,
+                cols,
+                var_index,
+                x,
+                y,
+                &trial,
+                workspace,
+                ctx,
+            )?;
             *tests += 1;
             if p > alpha {
                 s = trial;
@@ -783,157 +710,12 @@ impl Rfci {
         }
         Ok(s)
     }
-
-    fn static_forbidden(&self, a: VariableId, b: VariableId) -> bool {
-        let link_ab = LaggedLink {
-            source: a,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: b,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        let link_ba = LaggedLink {
-            source: b,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: a,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        self.constraints.is_forbidden(link_ab) && self.constraints.is_forbidden(link_ba)
-    }
-
-    fn static_required(&self, a: VariableId, b: VariableId) -> bool {
-        let link_ab = LaggedLink {
-            source: a,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: b,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        let link_ba = LaggedLink {
-            source: b,
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: a,
-            target_lag: Lag::CONTEMPORANEOUS,
-        };
-        self.constraints.is_required(link_ab) || self.constraints.is_required(link_ba)
-    }
-
-    fn ci_test(
-        &self,
-        cols: &[&[f64]],
-        var_index: &HashMap<VariableId, usize>,
-        x: VariableId,
-        y: VariableId,
-        z: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<(f64, f64), DiscoveryError> {
-        let xi = *var_index.get(&x).ok_or_else(|| DiscoveryError::data_msg("missing x"))?;
-        let yi = *var_index.get(&y).ok_or_else(|| DiscoveryError::data_msg("missing y"))?;
-        workspace.z_flat.clear();
-        for &v in z {
-            let zi = *var_index.get(&v).ok_or_else(|| DiscoveryError::data_msg("missing z"))?;
-            workspace.z_flat.push(zi);
-        }
-        let prepared = workspace
-            .prepared_ci
-            .as_ref()
-            .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
-        let req = CiBatchRequest {
-            columns: cols,
-            queries: &queries,
-            z_flat: &workspace.z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
-        let result = out
-            .results
-            .into_iter()
-            .next()
-            .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
-        if !result.statistic.is_finite() || !result.p_value.is_finite() {
-            return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
-        }
-        Ok((result.statistic, result.p_value))
-    }
 }
 
 fn sepset_vars(sepsets: &PcSepsets, a: VariableId, b: VariableId) -> Option<Vec<VariableId>> {
     sepsets
         .get(&(a, Lag::CONTEMPORANEOUS, b, Lag::CONTEMPORANEOUS))
         .map(|s| s.iter().map(|(v, _)| *v).collect())
-}
-
-fn orient_arrow_into(
-    pag: &mut Pag,
-    from: DenseNodeId,
-    into: DenseNodeId,
-) -> Result<(), DiscoveryError> {
-    let Some(e) = pag.edge_between(from, into) else {
-        return Ok(());
-    };
-    let at_from = if e.a == from { e.at_a } else { e.at_b };
-    let at_into = if e.a == into { e.at_a } else { e.at_b };
-    if matches!(at_into, Endpoint::Arrow) {
-        return Ok(());
-    }
-    if e.a == from {
-        pag.set_marks(from, into, at_from, Endpoint::Arrow).map_err(DiscoveryError::from)?;
-    } else {
-        pag.set_marks(into, from, Endpoint::Arrow, at_from).map_err(DiscoveryError::from)?;
-    }
-    Ok(())
-}
-
-fn set_marks_oriented(
-    graph: &mut Pag,
-    state: &mut OrientationState,
-    delta: &mut RuleDelta,
-    a: DenseNodeId,
-    b: DenseNodeId,
-    at_a: Endpoint,
-    at_b: Endpoint,
-) -> Result<bool, OrientationError> {
-    let Some(e) = graph.edge_between(a, b) else {
-        return Err(OrientationError::msg("missing edge in set_marks_oriented"));
-    };
-    if matches!(e.at_a, Endpoint::Conflict) || matches!(e.at_b, Endpoint::Conflict) {
-        return Ok(false);
-    }
-    let result = if e.a == a {
-        graph.set_marks(a, b, at_a, at_b)
-    } else {
-        graph.set_marks(b, a, at_b, at_a)
-    };
-    match result {
-        Ok(()) => Ok(true),
-        Err(antecedent_graph::GraphError::Cycle { .. }) => {
-            state.record_conflict(delta, a, b, "cycle");
-            if graph.mark_conflict(a, b).is_ok() {
-                delta.edges_changed += 1;
-                delta.fixed_point = false;
-            }
-            Ok(false)
-        }
-        Err(err) => Err(OrientationError::from(err)),
-    }
-}
-
-fn set_arrow_at(
-    graph: &mut Pag,
-    state: &mut OrientationState,
-    delta: &mut RuleDelta,
-    at: DenseNodeId,
-    other: DenseNodeId,
-) -> Result<bool, OrientationError> {
-    let e = graph
-        .edge_between(at, other)
-        .ok_or(OrientationError::Precondition { message: "discriminating path missing edge" })?;
-    let at_other = if e.a == other { e.at_a } else { e.at_b };
-    set_marks_oriented(graph, state, delta, at, other, Endpoint::Arrow, at_other)
 }
 
 #[cfg(test)]

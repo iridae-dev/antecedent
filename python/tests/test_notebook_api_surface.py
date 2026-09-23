@@ -2,7 +2,7 @@
 
 The notebooks are the top of the funnel and are not executed by CI (they need
 matplotlib/pandas and a kernel). A deleted-or-moved name therefore survives in
-them silently: the 0.4.0 namespace freeze left a mid-cell
+them silently: a namespace freeze left a mid-cell
 `antecedent.discover_pc(...)` call behind that no gate caught, because import
 lines were checked and attribute accesses were not.
 
@@ -15,12 +15,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import antecedent
 import pytest
 
 from _repo_text import load_json
-
-pytest.importorskip("antecedent")
-import antecedent
 
 _NOTEBOOKS = sorted(
     (Path(__file__).resolve().parents[2] / "examples" / "notebooks").glob("*.ipynb")

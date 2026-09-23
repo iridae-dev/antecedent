@@ -1,6 +1,12 @@
 //! Conditional censoring survival with a Cox model and Breslow ties.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::many_single_char_names)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::float_cmp,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 use crate::{StatsError, chol_solve, cholesky_spd};
 
 /// Executed censoring-model fit. No outcome-regression uncertainty is implied.
@@ -26,6 +32,10 @@ fn invalid(message: &'static str) -> StatsError {
 /// Invalid inputs, singular information, nonconvergence, or observed-row survival
 /// below `survival_floor`. No marginal-KM fallback or coefficient regularization.
 #[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::float_cmp,
+    reason = "event indicators are validated as exactly 0.0 or 1.0 codes, so equality tests the coded value"
+)]
 pub fn cox_ipcw(
     time: &[f64],
     event: &[f64],
@@ -160,6 +170,10 @@ impl CoxScratch {
 }
 
 // Descending risk-set accumulation is O(n p²), including tied groups.
+#[allow(
+    clippy::float_cmp,
+    reason = "tie groups are runs of exactly equal observed values, so bitwise equality is the definition of a tie"
+)]
 fn evaluate(
     time: &[f64],
     event: &[f64],
@@ -241,6 +255,10 @@ mod tests {
         let beta: Vec<_> =
             pin["coefficients"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect();
         let atol = pin["atol"].as_f64().unwrap();
+        // `zip` truncates to the shorter side: pin the lengths so a short fit cannot pass.
+        assert_eq!(fit.coefficients.len(), beta.len());
+        assert_eq!(fit.survival_before.len(), nums("survival").len());
+        assert_eq!(fit.weights.len(), nums("weight").len());
         for (got, want) in fit
             .coefficients
             .iter()

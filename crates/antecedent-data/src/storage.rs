@@ -28,7 +28,8 @@ impl OwnedColumnarStorage {
     ///
     /// # Errors
     ///
-    /// Length mismatches, missing schema variables, or duplicate columns.
+    /// Length mismatches, missing schema variables, duplicate columns, or weights that
+    /// are not finite and non-negative with positive total over the analysis rows.
     pub fn try_new(
         schema: CausalSchema,
         columns: Vec<OwnedColumn>,
@@ -75,6 +76,7 @@ impl OwnedColumnarStorage {
                     context: "weights",
                 });
             }
+            validate_weights(w, analysis_mask.as_ref())?;
         }
         let content_digest = crate::content_identity::storage_digest(
             &columns,
@@ -133,6 +135,36 @@ impl OwnedColumnarStorage {
     }
 }
 
+/// Observation weights must be a finite, non-negative measure with positive
+/// total mass over the analysis rows; anything else makes weighted means and
+/// least squares meaningless (NaN, or sign-flipped contributions).
+fn validate_weights(
+    weights: &[f64],
+    analysis_mask: Option<&crate::column::ValidityBitmap>,
+) -> Result<(), DataError> {
+    let mut total = 0.0_f64;
+    let mut analysis_rows = 0usize;
+    for (i, &w) in weights.iter().enumerate() {
+        if !w.is_finite() {
+            return Err(DataError::InvalidWeights { index: Some(i), reason: "not finite" });
+        }
+        if w < 0.0 {
+            return Err(DataError::InvalidWeights { index: Some(i), reason: "negative" });
+        }
+        if analysis_mask.is_none_or(|m| m.is_valid(i)) {
+            total += w;
+            analysis_rows += 1;
+        }
+    }
+    if analysis_rows > 0 && (total <= 0.0 || !total.is_finite()) {
+        return Err(DataError::InvalidWeights {
+            index: None,
+            reason: "total weight over the analysis rows is not positive and finite",
+        });
+    }
+    Ok(())
+}
+
 impl TableView for OwnedColumnarStorage {
     fn schema(&self) -> &CausalSchema {
         &self.schema
@@ -147,5 +179,71 @@ impl TableView for OwnedColumnarStorage {
             .get(id.as_usize())
             .map(OwnedColumn::as_view)
             .ok_or(DataError::UnknownVariable { id })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{
+        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
+    };
+
+    use super::*;
+    use crate::column::{Float64Column, ValidityBitmap};
+
+    fn build(
+        weights: Vec<f64>,
+        mask: Option<ValidityBitmap>,
+    ) -> Result<OwnedColumnarStorage, DataError> {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "v0".to_owned(),
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let n = weights.len();
+        let col = OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(0),
+                Arc::from(vec![1.0; n]),
+                ValidityBitmap::all_valid(n),
+            )
+            .unwrap(),
+        );
+        OwnedColumnarStorage::try_new(schema, vec![col], mask, Some(Arc::from(weights)))
+    }
+
+    #[test]
+    fn weights_must_be_finite_and_non_negative() {
+        for (bad, reason) in [
+            (f64::NAN, "not finite"),
+            (f64::INFINITY, "not finite"),
+            (f64::NEG_INFINITY, "not finite"),
+            (-0.5, "negative"),
+        ] {
+            let err = build(vec![1.0, bad, 2.0], None).unwrap_err();
+            assert_eq!(err, DataError::InvalidWeights { index: Some(1), reason });
+        }
+    }
+
+    #[test]
+    fn weights_need_positive_mass_over_analysis_rows() {
+        assert!(matches!(
+            build(vec![0.0, 0.0, 0.0], None),
+            Err(DataError::InvalidWeights { index: None, .. })
+        ));
+        // Row 0 is the only analysis row (LSB-first) and it carries zero weight.
+        let mask = ValidityBitmap::from_bytes(vec![0b001u8], 3).unwrap();
+        assert!(matches!(
+            build(vec![0.0, 5.0, 5.0], Some(mask)),
+            Err(DataError::InvalidWeights { index: None, .. })
+        ));
+        // Zero weights on some rows are legitimate (Bayesian-bootstrap draws).
+        assert!(build(vec![0.0, 1.0, 3.0], None).is_ok());
     }
 }

@@ -132,12 +132,18 @@ impl WeightedGraphSamples {
         })
     }
 
-    /// Interactive stratified subsample: keep at most `max_identified` Identified
+    /// Interactive subsample: keep the `max_identified` highest-weight Identified
     /// graphs (plus all Unidentified), flipping leftover Identified flags to
     /// Unidentified so their mass is never silently dropped. The flag only
     /// excludes them from the mixture; callers report
     /// [`GraphEnvelopeSubsample::leftover_identified_mass`] as subsampled-out
     /// (not evaluated) mass, separate from genuinely unidentified mass.
+    ///
+    /// Retention is by posterior weight, so the kept set carries the most
+    /// identified mass any budget-sized subset can; a uniform subset would drop
+    /// a dominant graph as readily as a negligible one. Graphs of equal weight
+    /// are ordered by a uniform shuffle (`rng`), so ties are broken without
+    /// favouring enumeration order.
     ///
     /// Total weight is unchanged. Mixture draws use E[τ | identified-in-subset].
     ///
@@ -162,11 +168,10 @@ impl WeightedGraphSamples {
                 approximate: false,
             });
         }
-        // Fisher–Yates partial shuffle: first `max_identified` slots are the keep set.
-        for i in 0..max_identified {
-            let j = i + (rng.next_u64() as usize % (identified_idx.len() - i));
-            identified_idx.swap(i, j);
-        }
+        // Shuffle first so the stable weight-descending sort breaks ties uniformly;
+        // the first `max_identified` slots are then the keep set.
+        antecedent_kernels::shuffle(rng, &mut identified_idx);
+        identified_idx.sort_by(|&a, &b| self.weights[b].total_cmp(&self.weights[a]));
         let mut flags = self.identified.to_vec();
         let mut leftover = 0.0;
         for &i in &identified_idx[max_identified..] {
@@ -247,6 +252,47 @@ mod tests {
         let n_id =
             sub.graphs.identified.iter().filter(|f| **f == GraphIdentFlag::Identified).count();
         assert_eq!(n_id, 1);
+    }
+
+    #[test]
+    fn subsample_keeps_the_dominant_graphs_whatever_the_seed() {
+        // Weights [0.90, 0.01 x 10], all identified, budget 5: a uniform subset
+        // drops the 0.90 graph with probability 6/11; a weight-aware one never does.
+        let mut w = vec![0.90];
+        w.extend(std::iter::repeat_n(0.01, 10));
+        let g = WeightedGraphSamples::new(
+            w,
+            vec![GraphIdentFlag::Identified; 11],
+            (0..11).collect::<Vec<u64>>(),
+        )
+        .unwrap();
+        for seed in 0..64 {
+            let mut rng = CausalRng::from_seed(seed);
+            let sub = g.stratified_interactive_subsample(5, &mut rng).unwrap();
+            assert_eq!(sub.graphs.identified[0], GraphIdentFlag::Identified, "seed {seed}");
+            let kept =
+                sub.graphs.identified.iter().filter(|f| **f == GraphIdentFlag::Identified).count();
+            assert_eq!(kept, 5);
+            // Retained: 0.90 + 4 x 0.01; leftover: 6 x 0.01.
+            assert!((sub.leftover_identified_mass - 0.06).abs() < 1e-12);
+            assert!(sub.approximate);
+        }
+    }
+
+    #[test]
+    fn subsample_orders_by_weight_not_position() {
+        let g = WeightedGraphSamples::new(
+            vec![0.1, 0.4, 0.2, 0.3],
+            vec![GraphIdentFlag::Identified; 4],
+            vec![0, 1, 2, 3],
+        )
+        .unwrap();
+        let mut rng = CausalRng::from_seed(1);
+        let sub = g.stratified_interactive_subsample(2, &mut rng).unwrap();
+        let flags: Vec<bool> =
+            sub.graphs.identified.iter().map(|f| *f == GraphIdentFlag::Identified).collect();
+        assert_eq!(flags, vec![false, true, false, true]);
+        assert!((sub.leftover_identified_mass - 0.3).abs() < 1e-12);
     }
 }
 

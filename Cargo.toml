@@ -9,6 +9,8 @@ members = [
     "crates/antecedent-expr",
     "crates/antecedent-identify",
     "crates/antecedent-stats",
+    "crates/antecedent-learn",
+    "crates/antecedent-learn-burn",
     "crates/antecedent-prob",
     "crates/antecedent-estimate",
     "crates/antecedent-validate",
@@ -30,6 +32,7 @@ default-members = [
     "crates/antecedent-expr",
     "crates/antecedent-identify",
     "crates/antecedent-stats",
+    "crates/antecedent-learn",
     "crates/antecedent-prob",
     "crates/antecedent-estimate",
     "crates/antecedent-validate",
@@ -43,7 +46,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "1.11.0"
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -62,7 +65,7 @@ ciborium = "0.2"
 blake3 = "1"
 zstd = "0.13"
 memmap2 = "0.9"
-faer = "0.21"
+faer = "0.24"
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 arrow-buffer = { version = "54", default-features = false }
@@ -84,6 +87,15 @@ missing_panics_doc = "allow"
 # Pin suites use a tail `assert_boundary_at(...)` expression. Editing those
 # files would owe a remesure.
 semicolon_if_nothing_returned = "allow"
+# Numerical code converts counts and indices to f64 and names matrix/vector
+# quantities by short algebraic symbols (a, b, x, y, n, k); these three pedantic
+# lints fire on that idiom, not on defects, so they are allowed once here rather
+# than per file. The lints that can hide a real defect (`cast_possible_truncation`,
+# `cast_sign_loss`, `float_cmp`) stay warned and are allowed only where a reason
+# is written.
+cast_precision_loss = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
 
 # Numerical kernels stay optimized in `cargo test` debug builds. Library crates
 # that change in the 1.x working loop stay at opt-level 0 so incremental

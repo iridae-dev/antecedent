@@ -35,6 +35,7 @@ from .graph import (
     TemporalCpdag,
     TemporalDag,
     TemporalPag,
+    _discovery_variable_names,
     discovery_to_dag,
 )
 
@@ -64,13 +65,7 @@ def _result_to_graph(result: DiscoveryResult, algorithm_id: str) -> Dag | Cpdag 
     except ValueError:
         pass
 
-    names: list[str] = []
-    seen: set[str] = set()
-    for e in result.graph_edges:
-        for n in (e.source, e.target):
-            if n not in seen:
-                seen.add(n)
-                names.append(n)
+    names = _discovery_variable_names(result)
 
     if algorithm_id in ("fci", "rfci"):
         marked: list[tuple[str, str, str, str]] = [
@@ -97,20 +92,6 @@ def _result_to_graph(result: DiscoveryResult, algorithm_id: str) -> Dag | Cpdag 
     return Cpdag.from_directed_undirected(names, directed, undirected)
 
 
-def _temporal_names_from_graph_edges(result: DiscoveryResult) -> list[str]:
-    names: list[str] = []
-    seen: set[str] = set()
-    for e in result.graph_edges:
-        for n in (e.source, e.target):
-            if n not in seen:
-                seen.add(n)
-                names.append(n)
-    if not names:
-        cpdag_nodes = getattr(result, "cpdag_nodes", None)
-        names = list(cpdag_nodes) if cpdag_nodes else ["x", "y"]
-    return names
-
-
 def _plain_pcmci_temporal_dag(result: DiscoveryResult) -> TemporalDag:
     """Build a ``TemporalDag`` from a plain-PCMCI result's ``links``.
 
@@ -118,19 +99,11 @@ def _plain_pcmci_temporal_dag(result: DiscoveryResult) -> TemporalDag:
     ``python/src/discovery_api.rs``) — every retained link is already a
     directed, time-ordered edge, with no CPDAG/PAG-style mark to resolve.
     """
-    names: list[str] = []
-    seen: set[str] = set()
-    directed: list[tuple[str, int, str, int]] = []
-    for link in result.links:
-        for n in (link.source, link.target):
-            if n not in seen:
-                seen.add(n)
-                names.append(n)
-        directed.append((link.source, int(link.source_lag), link.target, int(link.target_lag)))
-
-    if not names:
-        cpdag_nodes = getattr(result, "cpdag_nodes", None)
-        names = list(cpdag_nodes) if cpdag_nodes else ["x", "y"]
+    names = _discovery_variable_names(result)
+    directed: list[tuple[str, int, str, int]] = [
+        (link.source, int(link.source_lag), link.target, int(link.target_lag))
+        for link in result.links
+    ]
 
     # TemporalDag is fully oriented by construction, matching PCMCI having no
     # CPDAG/PAG-style mark to resolve.
@@ -167,7 +140,7 @@ def _result_to_temporal_graph(
       there is nothing to gate here.
     """
     if algorithm_id == "lpcmci":
-        names = _temporal_names_from_graph_edges(result)
+        names = _discovery_variable_names(result)
         marked: list[tuple[str, int, str, int, str, str]] = [
             (e.source, int(e.source_lag), e.target, int(e.target_lag), e.at_source, e.at_target)
             for e in result.graph_edges
@@ -175,7 +148,7 @@ def _result_to_temporal_graph(
         return TemporalPag.from_marked_lagged_edges(names, marked)
 
     if algorithm_id == "pcmci+":
-        names = _temporal_names_from_graph_edges(result)
+        names = _discovery_variable_names(result)
         directed: list[tuple[str, int, str, int]] = []
         undirected: list[tuple[str, int, str, int]] = []
         for e in result.graph_edges:
@@ -263,37 +236,6 @@ class AcceptedGraph:
             graph = _result_to_graph(result, algo)
         return cls(graph, version=version, algorithm_id=algo)
 
-    @classmethod
-    def asserted(
-        cls,
-        graph: _GraphTypes,
-        *,
-        algorithm_id: str | None = None,
-        version: int = 1,
-    ) -> AcceptedGraph:
-        """Hold a hand-authored structure the caller is asserting — no discovery provenance.
-
-        The documented spelling for what :meth:`from_graph` does; ``from_graph``
-        stays as a thin alias (other call sites, including
-        ``discovery.Config.accept()``, still spell it that way).
-        """
-        return cls.from_graph(graph, algorithm_id=algorithm_id, version=version)
-
-    @classmethod
-    def accepted(
-        cls,
-        result: DiscoveryResult,
-        *,
-        algorithm_id: str,
-        version: int = 1,
-    ) -> AcceptedGraph:
-        """Accept a discovered structure the caller has reviewed.
-
-        The documented spelling for what :meth:`from_discovery` does;
-        ``from_discovery`` stays as a thin alias for existing callers.
-        """
-        return cls.from_discovery(result, algorithm_id=algorithm_id, version=version)
-
     def replace(
         self,
         graph: _GraphTypes,
@@ -326,13 +268,13 @@ class AcceptedGraph:
 
     @property
     def pending(self) -> tuple[PendingEdge, ...]:
-        """Edges still needing orientation review (undirected marks / PAG circles).
+        """Edges still needing orientation review (undirected, circle or conflict marks).
 
         Empty for a fully oriented graph (``Dag``, ``TemporalDag``, or a plain
         edge list — none of those can carry an unresolved mark by
         construction). For ``Cpdag``, each undirected pair is reported as
         ``PendingEdge(source, target, at_source="tail", at_target="tail")``.
-        For ``Pag``, each edge with a circle mark at either end is reported
+        For ``Pag``, each edge with a circle or conflict mark at either end is reported
         with its actual current marks (``at_source``/``at_target`` in
         ``{"tail", "arrow", "circle", "conflict"}``).
 
@@ -474,36 +416,6 @@ class AcceptedGraph:
     # for two is worse than no __eq__ at all.
 
 
-def _discovery_table(data: Any) -> Any:
-    """One table for a single-table discovery config.
-
-    Panel units and environments are pooled by row-concatenation — the same
-    preprocessing the native panel discovery entry points apply — and an event
-    frame discovers on its recorded columns.
-    """
-    from .data import EventFrame, MultiEnvFrame, PanelFrame
-
-    if isinstance(data, EventFrame):
-        return dict(zip(data.names, data.columns, strict=True))
-    partitions: list[list[Any]] | None = None
-    if isinstance(data, PanelFrame):
-        partitions = [list(cols) for cols in data.unit_columns]
-        names = list(data.names)
-    elif isinstance(data, MultiEnvFrame):
-        partitions = [list(cols) for cols in data.env_columns]
-        names = list(data.names)
-    elif isinstance(data, Sequence) and not isinstance(data, (str, bytes, Mapping)):
-        from ._data import as_multi_env_columns
-
-        names, partitions = as_multi_env_columns(list(data))
-    if partitions is None:
-        return data
-    import numpy as np
-
-    pooled = [np.concatenate([part[i] for part in partitions]) for i in range(len(names))]
-    return dict(zip(names, pooled, strict=True))
-
-
 def accept_discovery(
     config: _AnyDiscovery,
     data: Any,
@@ -585,7 +497,13 @@ def accept_discovery(
             names, env_columns = as_multi_env_columns(list(data))
         result = config.run(names, env_columns, seed=seed, threads=threads)
     else:
-        result = config.run(_discovery_table(data), seed=seed, threads=threads)
+        from ._coerce import discovery_table
+
+        result = config.run(
+            discovery_table(data, temporal=isinstance(config, (PCMCI, PCMCIPlus, LPCMCI))),
+            seed=seed,
+            threads=threads,
+        )
     accept = getattr(result, "accepted_graph", None)
     if accept is None:
         # A result that retained no review artifact (one rebuilt by a caller, or a
@@ -603,24 +521,34 @@ def _encode_graph(graph: _GraphTypes) -> tuple[str, Any]:
             "edges": [list(e) for e in graph.edges()],
         }
     if isinstance(graph, TemporalCpdag):
-        # Prefer oriented TemporalDag when possible; otherwise names + empty edges.
+        # A fully oriented TemporalCpdag reduces to a TemporalDag, which has a real
+        # edge accessor; an unoriented one does not (no to_json()/edges() on
+        # TemporalCpdag itself — see _pending_edges's identical refusal), so there is
+        # no way to serialize its undirected/conflict marks honestly. Refuse rather
+        # than emit the edgeless placeholder graph this used to fall back to.
         try:
             dag = graph.try_into_temporal_dag()
-            return "temporal_dag", {
-                "names": _temporal_names(dag),
-                "edges": [list(e) for e in dag.edges()],
-            }
-        except Exception:
-            return "temporal_cpdag", {
-                "names": [f"v{i}" for i in range(graph.node_count())],
-                "directed": [],
-                "undirected": [],
-            }
-    if isinstance(graph, TemporalPag):
-        return "temporal_pag", {
-            "names": [f"v{i}" for i in range(graph.node_count())],
-            "edges": [],
+        except Exception as exc:  # noqa: BLE001 — surfacing "can't serialize", not orientation
+            raise CausalUnsupportedError(
+                "TemporalCpdag has undirected or conflict marks but exposes no edge "
+                "accessor to serialize them from Python; to_json() refuses rather than "
+                "emit an edgeless graph with invented names. Orient it fully first "
+                "(so try_into_temporal_dag() succeeds), or hold the discovery result's "
+                "graph_edges directly for review"
+            ) from exc
+        return "temporal_dag", {
+            "names": _temporal_names(dag),
+            "edges": [list(e) for e in dag.edges()],
         }
+    if isinstance(graph, TemporalPag):
+        # TemporalPag exposes no edge accessor in the native layer at all (see
+        # _pending_edges's identical refusal), so none of its marks can be
+        # serialized; refuse rather than emit an edgeless graph with invented names.
+        raise CausalUnsupportedError(
+            "TemporalPag exposes no edge accessor in the native layer; to_json() "
+            "cannot serialize its marks and refuses rather than emit an edgeless "
+            "placeholder graph"
+        )
     if isinstance(graph, Dag):
         return "dag", {"nodes": list(graph.nodes()), "edges": [list(e) for e in graph.edges()]}
     if isinstance(graph, Cpdag):
@@ -727,7 +655,7 @@ def _pag_pending(graph: Pag) -> list[PendingEdge]:
             at_target=e["at_b"],
         )
         for e in edges
-        if e["at_a"] == "circle" or e["at_b"] == "circle"
+        if "circle" in (e["at_a"], e["at_b"]) or "conflict" in (e["at_a"], e["at_b"])
     ]
 
 
@@ -793,24 +721,28 @@ def _pending_edges(graph: _GraphTypes) -> tuple[PendingEdge, ...]:
     return ()
 
 
-def _find_cycle_edge(edges: Sequence[tuple[str, str]]) -> tuple[str, str] | None:
-    """DFS cycle detection; returns the back-edge that closes a cycle, else None."""
+def _find_cycle(edges: Sequence[tuple[str, str]]) -> list[tuple[str, str]] | None:
+    """DFS cycle detection; returns the edges of one directed cycle, else None."""
     adjacency: dict[str, list[str]] = {}
     for a, b in edges:
         adjacency.setdefault(a, []).append(b)
         adjacency.setdefault(b, [])
     WHITE, GRAY, BLACK = 0, 1, 2
     color: dict[str, int] = dict.fromkeys(adjacency, WHITE)
+    path: list[str] = []
 
-    def visit(node: str) -> tuple[str, str] | None:
+    def visit(node: str) -> list[tuple[str, str]] | None:
         color[node] = GRAY
+        path.append(node)
         for neighbor in adjacency[node]:
             if color[neighbor] == GRAY:
-                return (node, neighbor)
+                ring = [*path[path.index(neighbor) :], neighbor]
+                return list(zip(ring, ring[1:], strict=False))
             if color[neighbor] == WHITE:
                 found = visit(neighbor)
                 if found is not None:
                     return found
+        path.pop()
         color[node] = BLACK
         return None
 
@@ -860,11 +792,14 @@ def _review_cpdag(
             a, b = tuple(sorted(pair))
             new_undirected.append((a, b))
 
-    cycle_edge = _find_cycle_edge(new_directed)
-    if cycle_edge is not None:
-        raise CausalValueError(
-            f"orienting {cycle_edge[0]!r}->{cycle_edge[1]!r} would create a directed cycle"
-        )
+    cycle = _find_cycle(new_directed)
+    if cycle is not None:
+        # Name the orientations the caller supplied; the rest of the cycle is
+        # structure the CPDAG already fixed.
+        oriented = set(resolved.values())
+        culprits = [e for e in cycle if e in oriented] or cycle
+        named = ", ".join(f"{a!r}->{b!r}" for a, b in culprits)
+        raise CausalValueError(f"orienting {named} would create a directed cycle")
 
     names = list(graph.nodes())
     new_graph: _GraphTypes
@@ -884,8 +819,15 @@ def _review_pag(
     pending_pairs = {frozenset((e.source, e.target)) for e in _pag_pending(graph)}
 
     updates: dict[tuple[int, int], tuple[str, str]] = {}
+    reviewed: set[frozenset[str]] = set()
     for edge, mark in marks.items():
         src, tgt = edge
+        if frozenset((src, tgt)) in reviewed:
+            raise CausalValueError(
+                f"({src!r}, {tgt!r}) is marked twice (once in each direction); "
+                "give one mark per edge"
+            )
+        reviewed.add(frozenset((src, tgt)))
         if frozenset((src, tgt)) not in pending_pairs:
             raise CausalValueError(f"({src!r}, {tgt!r}) is not a pending edge on this Pag")
         if src not in index or tgt not in index:

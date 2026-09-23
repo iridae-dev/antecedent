@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _lag1_unit(n: int = 100, seed: int = 3):
@@ -71,3 +69,37 @@ def test_panel_pooled_rejects_rpcmci():
             seed=1,
             refute=False,
         )
+
+
+def _pooled(units):
+    names = list(units[0])
+    columns = [np.concatenate([u[n] for u in units]) for n in names]
+    return names, columns, [len(u[names[0]]) for u in units]
+
+
+def test_native_panel_pcmci_builds_lag_windows_inside_each_unit():
+    """The planted lag-one link is found from a panel of short units, and a wrong
+    ``unit_lengths`` (rows that do not add up) is a typed refusal, not a guess."""
+    from antecedent import _native
+
+    units = [_lag1_unit(n=40, seed=s) for s in range(10, 16)]
+    names, columns, lengths = _pooled(units)
+    result = _native.discover_pcmci(
+        names, columns, max_lag=1, alpha=0.05, fdr=False, seed=1, unit_lengths=lengths
+    )
+    links = {(link.source, link.source_lag, link.target) for link in result.links}
+    assert ("x", 1, "y") in links
+    with pytest.raises(antecedent.errors.CausalUnsupportedError) as info:
+        _native.discover_pcmci(names, columns, unit_lengths=[len(columns[0]) + 1])
+    assert info.value.reason_code == "invalid_argument"
+    with pytest.raises(antecedent.errors.CausalUnsupportedError) as info:
+        _native.discover_pcmci(
+            names, columns, unit_lengths=lengths, weights=[1.0] * len(columns[0])
+        )
+    assert info.value.reason_code == "option_not_applicable"
+
+
+def test_panel_dbn_posterior_pools_per_unit_rows():
+    panel = antecedent.data.panel([_lag1_unit(n=60, seed=s) for s in range(20, 24)])
+    posterior = antecedent.discovery.DbnPosterior(max_lag=1).run(panel, seed=1)
+    assert posterior.n_graphs >= 1

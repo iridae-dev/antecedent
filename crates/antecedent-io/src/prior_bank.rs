@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use antecedent_core::IdentificationStatus;
 use serde::{Deserialize, Serialize};
 
 use crate::container::{EncodedArtifact, SectionBytes, section_descriptor};
@@ -34,7 +35,7 @@ pub struct EstimandFingerprint {
     pub outcome: String,
     /// Lag / window / horizon coordinates of a temporal estimand (`None` = static).
     ///
-    /// Metadata written before 1.9 has no such field and decodes as `None`; a
+    /// Metadata without this field decodes as `None`; a
     /// temporal target then rejects it ([`CompatibilityRejectReason::TemporalCoordinatesMissing`])
     /// unless the source declares an explicit [`PriorMapping::NamedParameters`] bridge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -350,8 +351,8 @@ pub enum CompatibilityRejectReason {
         /// Error message.
         message: String,
     },
-    /// Temporal target, but the source carries no temporal coordinates (e.g. pre-1.9
-    /// metadata) and declares no explicit named mapping: its lag cannot be verified.
+    /// Temporal target, but the source carries no temporal coordinates
+    /// and declares no explicit named mapping: its lag cannot be verified.
     TemporalCoordinatesMissing {
         /// Target temporal coordinates.
         target: Box<TemporalCoordinates>,
@@ -591,11 +592,11 @@ fn identification_ok_for_prior(identification: &str, allow_unidentified: bool) -
         return true;
     }
     matches!(
-        identification,
-        "NonparametricallyIdentified"
-            | "nonparametrically_identified"
-            | "IdentifiedUnderParametricRestrictions"
-            | "identified_under_parametric_restrictions"
+        crate::analysis_wire::identification_status_from_any(identification),
+        Some(
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        )
     )
 }
 
@@ -930,11 +931,11 @@ mod tests {
         let n_q = quantities.len();
         let meta = CausalPosteriorWire {
             quantities,
-            n_draws: 2,
+            n_draws: 3,
             mean: vec![0.0; n_q],
             sd: vec![1.0; n_q],
-            q025: vec![-1.0; n_q],
-            q975: vec![1.0; n_q],
+            q025: vec![-0.95; n_q],
+            q975: vec![0.95; n_q],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,
@@ -944,7 +945,8 @@ mod tests {
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
         };
-        let draws = vec![0.0f64; n_q * 2];
+        // Draws (-1, 0, 1) per quantity: mean 0, sample SD 1, type-7 quantiles -0.95 / 0.95.
+        let draws = (0..n_q).flat_map(|_| [-1.0f64, 0.0, 1.0]).collect::<Vec<_>>();
         encode_posterior_artifact(&meta, &draws, artifact_id, "0.1.0").unwrap()
     }
 
@@ -1005,7 +1007,7 @@ mod tests {
                 "{reports:?}"
             );
         }
-        // Pre-1.9 metadata (no temporal field) onto a temporal target fails closed.
+        // Metadata with no temporal field onto a temporal target fails closed.
         let legacy = temporal_catalog(EstimandFingerprint::new("pulse", "t", "y"), None);
         let err = legacy.require_usable(&target).unwrap_err();
         assert!(err.to_string().contains("TemporalCoordinatesMissing"), "{err}");

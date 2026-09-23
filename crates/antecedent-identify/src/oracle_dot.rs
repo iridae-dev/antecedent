@@ -1,17 +1,20 @@
 //! Parse the frozen `graph_dot` strings recorded by the pinned external
 //! identify() baseline (see `parity/baselines/`).
 //!
-//! `Name[latent]` nodes are projected out: directed edges among observed nodes
-//! are kept, and each latent's observed children are joined by bidirected
-//! edges. This crate cannot depend on `antecedent-io` (cycle), so the dialect
-//! is parsed here rather than via `admg_from_dot`.
+//! `Name[latent]` nodes are projected out by [`antecedent_graph::latent_project`], so a
+//! latent with observed parents (`X -> L -> Y`) yields the directed edge `X -> Y` and a chain
+//! of latents (`U1 -> U2 -> {A, B}`) yields `A <-> B`. This crate cannot depend on
+//! `antecedent-io` (cycle), so the dialect is parsed here rather than via `admg_from_dot`.
+//!
+//! Compiled for tests and under the `test-util` feature only: every error is a panic, which
+//! suits frozen fixtures and not a library API.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use antecedent_core::VariableId;
-use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_graph::{Admg, Dag, DenseNodeId, latent_project};
 
 /// Observed-node intern table for a parsed oracle DOT string.
 #[derive(Debug)]
@@ -146,40 +149,28 @@ pub fn dag_from_oracle_dot(dot: &str) -> (Dag, OracleGraph) {
 
 /// Parse an oracle DOT into an ADMG, projecting `Name[latent]` nodes.
 ///
+/// Observed nodes keep their intern order as dense and variable ids; latents are appended
+/// after them for the projection only.
+///
 /// # Panics
 ///
 /// Panics if the DOT is malformed.
 #[must_use]
 pub fn admg_from_oracle_dot(dot: &str) -> (Admg, OracleGraph) {
     let parsed = parse(dot);
-    let n = u32::try_from(parsed.observed.len()).expect("node count fits u32");
-    let mut g = Admg::with_variables(n);
+    let mut latents: Vec<&String> = parsed.latents.iter().collect();
+    latents.sort_unstable();
+    let mut all = parsed.observed.clone();
+    all.extend(latents.into_iter().cloned());
+    let n = u32::try_from(all.len()).expect("node count fits u32");
+    let mut full = Dag::with_variables(n);
     for (from, to) in &parsed.directed {
-        if parsed.latents.contains(from) || parsed.latents.contains(to) {
-            continue;
-        }
-        g.insert_directed(dense(&parsed.observed, from), dense(&parsed.observed, to)).unwrap();
+        full.insert_directed(dense(&all, from), dense(&all, to)).unwrap();
     }
-
-    let mut children: HashMap<&str, Vec<&str>> = HashMap::new();
-    for (from, to) in &parsed.directed {
-        if parsed.latents.contains(from) && !parsed.latents.contains(to) {
-            children.entry(from.as_str()).or_default().push(to.as_str());
-        }
-    }
-    for obs_children in children.values_mut() {
-        obs_children.sort_unstable();
-        obs_children.dedup();
-        for i in 0..obs_children.len() {
-            for j in (i + 1)..obs_children.len() {
-                g.insert_bidirected(
-                    dense(&parsed.observed, obs_children[i]),
-                    dense(&parsed.observed, obs_children[j]),
-                )
-                .unwrap();
-            }
-        }
-    }
+    let observed: Vec<DenseNodeId> = (0..parsed.observed.len())
+        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32")))
+        .collect();
+    let g = latent_project(&full, &observed).expect("oracle DOT latent projection");
     (g, OracleGraph { names: parsed.observed })
 }
 
@@ -213,6 +204,34 @@ mod tests {
         assert!(g.children(t).contains(&y));
         assert!(g.bidirected_neighbors(t).contains(&y));
         assert!(g.bidirected_neighbors(y).contains(&t));
+    }
+
+    #[test]
+    fn latent_with_observed_parent_carries_the_directed_path() {
+        // X -> L -> Y with L latent: the projection has the directed edge X -> Y.
+        let (g, names) = admg_from_oracle_dot("digraph { x -> L; L -> y; L[latent]; }");
+        assert_eq!(names.observed(), ["x", "y"]);
+        let x = names.dense("x");
+        let y = names.dense("y");
+        assert!(g.children(x).contains(&y));
+        assert!(g.bidirected_neighbors(x).is_empty());
+    }
+
+    #[test]
+    fn latent_chain_confounds_its_observed_descendants() {
+        // U1 -> U2 -> {a, b}, both latent: a and b share a latent ancestor, so a <-> b,
+        // and the unrelated observed c stays unconfounded.
+        let (g, names) = admg_from_oracle_dot(
+            "digraph { U1[latent]; U2[latent]; U1 -> U2; U2 -> a; U2 -> b; c -> a; }",
+        );
+        assert_eq!(names.observed(), ["a", "b", "c"]);
+        let a = names.dense("a");
+        let b = names.dense("b");
+        let c = names.dense("c");
+        assert!(g.bidirected_neighbors(a).contains(&b));
+        assert!(g.bidirected_neighbors(b).contains(&a));
+        assert!(g.bidirected_neighbors(c).is_empty());
+        assert!(g.children(c).contains(&a));
     }
 
     #[test]

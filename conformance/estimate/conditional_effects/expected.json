@@ -1,11 +1,12 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "statsmodels",
     "versions": {"python": "3.12.7", "numpy": "2.1.3", "scipy": "1.14.1", "pandas": "2.2.3", "statsmodels": "0.14.4"},
     "installed_metadata_sha256": {"statsmodels": "1f93f27342fb62aef002c7f9ef6bf7f85a94bf7b99459176d156223c33238aaa"},
     "api": "statsmodels.api.OLS with [1,T,W,T*W]; exact delta-method contrast",
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_estimation_closure_oracle.py",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 --with pandas==2.2.3 --with statsmodels==0.14.4 python /tmp/antecedent_estimation_closure_oracle.py", "generator_retained": false,
     "generation_location": "temporary external harness; deleted after artifact import"
   },
   "data": {

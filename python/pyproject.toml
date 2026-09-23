@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "antecedent"
-version = "1.11.0"
+version = "2.0.0"
 description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dependencies = [
   "pydantic>=2.13.5",
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Information Analysis",
   "License :: OSI Approved :: MIT License",
@@ -35,10 +35,16 @@ Documentation = "https://antecedent.readthedocs.io/"
 "Release notes" = "https://github.com/iridae-dev/antecedent/blob/main/CHANGELOG.md"
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "ml-full", "ml-neural"]
 python-source = "."
 module-name = "antecedent._native"
 include = ["antecedent/py.typed"]
+# Local dev/test runs leave __pycache__ directories under antecedent/ (gitignored,
+# but still present on disk); python-source packaging has no source-control filter,
+# so without this exclude those stray, interpreter/version-specific .pyc files get
+# bundled into the wheel non-reproducibly and are rewritten by any consumer's
+# interpreter on first import, breaking byte-identical wheel-content verification.
+exclude = ["**/__pycache__/**"]
 # PEP 517/660 builds (including the editable rebuild uv triggers whenever this
 # file changes) default to Cargo's debug profile, which ships an unoptimized
 # faer/pulp and makes analyze_ate ~50x slower with bit-identical output.
@@ -59,6 +65,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# -rs lists every skip with its reason; the skip bound in tests/conftest.py fails
+# a session that mostly skips, which is what a broken native extension looks like.
+addopts = "--strict-markers -rs"
 
 [tool.coverage.run]
 source = ["antecedent"]
@@ -77,10 +86,17 @@ select = [
   "UP",  # pyupgrade
   "B",   # bugbear
   "SIM", # simplify
+  "PT011", # pytest.raises on a broad class must pin the message with match=
 ]
 ignore = [
   "E501", # line length handled by formatter / existing style
 ]
+
+[tool.ruff.lint.flake8-pytest-style]
+# A bare `pytest.raises(ValueError)` passes for any error of that class, including an
+# unrelated TypeError from a wrong keyword. Causal* refusals are pinned by asserting the
+# caught error's `reason_code` instead (tests/_refusal.py).
+raises-require-match-for = ["Exception", "ValueError", "TypeError"]
 
 [tool.ruff.lint.per-file-ignores]
 "antecedent/**/*.pyi" = [

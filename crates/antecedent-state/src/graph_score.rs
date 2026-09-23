@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::implicit_hasher, clippy::similar_names)]
+#![allow(clippy::implicit_hasher)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -54,6 +54,8 @@ pub struct GraphScoreData {
     pub n_vars: usize,
     /// Column-major `n_vars × n_rows` values.
     pub columns: Arc<[f64]>,
+    /// Content fingerprint (shape and every value's bits), fixed at construction.
+    fingerprint: u64,
 }
 
 impl GraphScoreData {
@@ -74,7 +76,15 @@ impl GraphScoreData {
                 n_vars
             )));
         }
-        Ok(Self { n_rows, n_vars, columns })
+        let fingerprint = content_fingerprint(n_rows, n_vars, &columns);
+        Ok(Self { n_rows, n_vars, columns, fingerprint })
+    }
+
+    /// Fingerprint of the shape and values; equal data always has equal fingerprints, and a
+    /// [`LocalScoreCache`] uses it to refuse scoring different data.
+    #[must_use]
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
     }
 
     fn col(&self, j: usize) -> &[f64] {
@@ -83,7 +93,29 @@ impl GraphScoreData {
     }
 }
 
+/// FNV-1a over the shape and the bit pattern of every value.
+fn content_fingerprint(n_rows: usize, n_vars: usize, columns: &[f64]) -> u64 {
+    const PRIME: u64 = 0x0000_0100_0000_01B3;
+    let mut h: u64 = 0xCBF2_9CE4_8422_2325;
+    let mut mix = |word: u64| {
+        for byte in word.to_le_bytes() {
+            h ^= u64::from(byte);
+            h = h.wrapping_mul(PRIME);
+        }
+    };
+    mix(n_rows as u64);
+    mix(n_vars as u64);
+    for v in columns {
+        mix(v.to_bits());
+    }
+    h
+}
+
 /// Local-score cache keyed by `(node, sorted parent set)`.
+///
+/// The cache binds to the first [`GraphScoreData`] it scores (by content fingerprint) and
+/// refuses any other data until [`Self::clear`]: a `(node, parents)` key says nothing about
+/// which rows the score was computed on.
 #[derive(Clone, Debug)]
 pub struct LocalScoreCache {
     /// Cache identity.
@@ -92,6 +124,10 @@ pub struct LocalScoreCache {
     entries: HashMap<u32, HashMap<Arc<[u32]>, f64>>,
     /// Current parent sets per node (graph state).
     parents: HashMap<u32, Arc<[u32]>>,
+    /// Fingerprint of the data the cached scores belong to.
+    bound_data: Option<u64>,
+    /// Sum of local scores under the current parent sets, maintained incrementally.
+    running_total: Option<f64>,
     /// Approximate retained bytes.
     pub bytes: u64,
     /// Retention policy.
@@ -106,21 +142,40 @@ impl LocalScoreCache {
             key,
             entries: HashMap::new(),
             parents: HashMap::new(),
+            bound_data: None,
+            running_total: None,
             bytes: 0,
             retention: RetentionPolicy::SufficientStatisticsOnly,
         }
     }
 
-    /// Clear all cached local scores and parent assignments.
+    /// Clear all cached local scores and parent assignments, and unbind from the data.
     pub fn clear(&mut self) {
         self.entries.clear();
         self.parents.clear();
+        self.bound_data = None;
+        self.running_total = None;
         self.bytes = 0;
     }
 
     /// Invalidate cached scores for one node.
     pub fn invalidate_node(&mut self, node: u32) {
         self.entries.remove(&node);
+        self.running_total = None;
+    }
+
+    /// Bind to `data` on first use; refuse different data afterwards.
+    fn bind(&mut self, data: &GraphScoreData) -> Result<(), StateError> {
+        match self.bound_data {
+            None => {
+                self.bound_data = Some(data.fingerprint);
+                Ok(())
+            }
+            Some(bound) if bound == data.fingerprint => Ok(()),
+            Some(_) => Err(StateError::StaleCache(
+                "local scores were computed on different data; call clear() first".into(),
+            )),
+        }
     }
 
     /// Current parent set for `node` (empty if unset).
@@ -136,17 +191,26 @@ impl LocalScoreCache {
     /// Score computation failures.
     pub fn score_graph(&mut self, data: &GraphScoreData) -> Result<f64, StateError> {
         let mut total = 0.0;
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "n_vars counts graph nodes, which are addressed by u32 node ids"
+        )]
         for node in 0..data.n_vars as u32 {
             total += self.local_score(data, node, &self.parents_of(node))?;
         }
+        self.running_total = Some(total);
         Ok(total)
     }
 
     /// Apply a parent-set op and return `(delta, new_total)` vs previous total.
     ///
+    /// Atomic: both local scores are computed before anything is committed, so an error
+    /// leaves the parent assignment and the running total untouched. The new total is the
+    /// old total plus the local delta, not a rescore of the whole graph.
+    ///
     /// # Errors
     ///
-    /// Unknown node / score failure.
+    /// Unknown node / score failure / data other than the cache's.
     pub fn delta_score(
         &mut self,
         data: &GraphScoreData,
@@ -160,10 +224,15 @@ impl LocalScoreCache {
         let old_parents = self.parents_of(node);
         let old_local = self.local_score(data, node, &old_parents)?;
         let new_local = self.local_score(data, node, &sorted)?;
-        self.parents.insert(node, Arc::clone(&sorted));
+        let old_total = match self.running_total {
+            Some(total) => total,
+            None => self.score_graph(data)?,
+        };
         let delta = new_local - old_local;
-        // Recompute total from current parent map (small n_vars in unit/conformance).
-        let new_total = self.score_graph(data)?;
+        let new_total = old_total + delta;
+        // Commit: nothing above can fail past this point.
+        self.parents.insert(node, sorted);
+        self.running_total = Some(new_total);
         Ok((delta, new_total))
     }
 
@@ -178,6 +247,7 @@ impl LocalScoreCache {
         node: u32,
         parents: &Arc<[u32]>,
     ) -> Result<f64, StateError> {
+        self.bind(data)?;
         if let Some(s) = self.entries.get(&node).and_then(|m| m.get(parents)).copied() {
             return Ok(s);
         }
@@ -215,25 +285,34 @@ fn gaussian_bic_local(
     let k = parents.len() + 1; // intercept
     let y = data.col(node as usize);
     let mut x = vec![0.0; n.saturating_mul(k)];
-    for r in 0..n {
-        x[r] = 1.0;
-        for (j, &p) in parents.iter().enumerate() {
-            if p as usize >= data.n_vars {
-                return Err(StateError::Shape(format!("parent {p} out of range")));
-            }
-            x[(j + 1) * n + r] = data.col(p as usize)[r];
+    x[..n].fill(1.0);
+    for (j, &p) in parents.iter().enumerate() {
+        if p as usize >= data.n_vars {
+            return Err(StateError::Shape(format!("parent {p} out of range")));
         }
+        x[(j + 1) * n..(j + 2) * n].copy_from_slice(data.col(p as usize));
     }
     let fit = FaerBackend
         .least_squares(&x, n, k, y, &mut LeastSquaresWorkspace::default())
         .map_err(|e| StateError::Numerical(format!("Gaussian BIC local fit: {e}")))?;
-    let sse = fit.rss;
-    let sigma2 = sse / n as f64;
+    bic_from_rss(fit.rss, n, k)
+}
+
+/// Gaussian BIC from the residual sum of squares of a `k`-parameter fit on `n` rows.
+///
+/// A zero RSS is a degenerate fit (a duplicated or deterministic column): the likelihood is
+/// unbounded, so there is no finite score to report. `+∞` would make the graph total `+∞`
+/// and the next edit's delta `∞ − ∞ = NaN`, and a search would treat the first such parent
+/// set as unbeatable; it is an error instead.
+fn bic_from_rss(rss: f64, n: usize, k: usize) -> Result<f64, StateError> {
+    let sigma2 = rss / n as f64;
     if !sigma2.is_finite() {
         return Err(StateError::Numerical("non-finite Gaussian BIC residual variance".into()));
     }
     if sigma2 <= 0.0 {
-        return Ok(f64::INFINITY);
+        return Err(StateError::Numerical(
+            "degenerate Gaussian BIC fit (zero residual variance)".into(),
+        ));
     }
     let n_f = n as f64;
     let k_f = k as f64;
@@ -251,6 +330,10 @@ pub fn full_graph_score(
     parents: &HashMap<u32, Arc<[u32]>>,
 ) -> Result<f64, StateError> {
     let mut total = 0.0;
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "n_vars counts graph nodes, which are addressed by u32 node ids"
+    )]
     for node in 0..data.n_vars as u32 {
         let pa = parents.get(&node).cloned().unwrap_or_else(|| Arc::from([]));
         total += match family {
@@ -277,6 +360,97 @@ mod tests {
             cols[2 * n + i] = x2;
         }
         GraphScoreData::new(n, 3, Arc::from(cols)).unwrap()
+    }
+
+    fn fresh_cache(data: &GraphScoreData) -> LocalScoreCache {
+        LocalScoreCache::new(GraphScoreCacheKey {
+            data_version: 1,
+            family: GraphScoreFamily::GaussianBic,
+            var_fingerprint: 3,
+            penalty_fingerprint: data.n_rows as u64,
+        })
+    }
+
+    /// A cache filled from one dataset must refuse another (the `(node, parents)` key says
+    /// nothing about which rows the score was computed on), accept equal data, and accept
+    /// new data after `clear()`.
+    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "a cache hit must return the stored score bit for bit, and a recompute on other data must differ exactly"
+    )]
+    fn cache_refuses_different_data() {
+        let a = chain_data();
+        let mut cache = fresh_cache(&a);
+        let parents: Arc<[u32]> = Arc::from([0u32]);
+        let s = cache.local_score(&a, 1, &parents).unwrap();
+
+        let mut cols = a.columns.to_vec();
+        cols[a.n_rows + 3] += 1.0; // perturb one value of x1
+        let b = GraphScoreData::new(a.n_rows, a.n_vars, Arc::from(cols)).unwrap();
+        assert_ne!(a.fingerprint(), b.fingerprint());
+        let err = cache.local_score(&b, 1, &parents).unwrap_err();
+        assert!(matches!(err, StateError::StaleCache(_)), "{err:?}");
+
+        // Rebuilt-equal data is the same data.
+        let same = GraphScoreData::new(a.n_rows, a.n_vars, Arc::clone(&a.columns)).unwrap();
+        assert_eq!(cache.local_score(&same, 1, &parents).unwrap(), s);
+
+        // After clear() the cache rebinds and the new data is scored on its own values.
+        cache.clear();
+        let fresh = cache.local_score(&b, 1, &parents).unwrap();
+        assert_eq!(fresh, gaussian_bic_local(&b, 1, &parents).unwrap());
+        assert_ne!(fresh, s);
+    }
+
+    /// A rejected edit leaves the graph state and the running total exactly as they were.
+    #[test]
+    fn failed_delta_is_atomic() {
+        let data = chain_data();
+        let mut cache = fresh_cache(&data);
+        let total0 = cache.score_graph(&data).unwrap();
+        let err = cache
+            .delta_score(&data, ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32, 9]) })
+            .unwrap_err();
+        assert!(matches!(err, StateError::Shape(_)), "{err:?}");
+        assert!(cache.parents_of(1).is_empty());
+        // The next valid edit's total is built on the untouched previous total.
+        let (delta, total) = cache
+            .delta_score(&data, ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32]) })
+            .unwrap();
+        assert!((total - (total0 + delta)).abs() < 1e-12);
+    }
+
+    /// The running total after a chain of edits equals a from-scratch rescore.
+    #[test]
+    fn running_total_tracks_full_rescore_across_edits() {
+        let data = chain_data();
+        let mut cache = fresh_cache(&data);
+        cache.score_graph(&data).unwrap();
+        let mut last = 0.0;
+        for (node, pa) in [(1u32, vec![0u32]), (2, vec![1]), (2, vec![0, 1]), (1, vec![])] {
+            let (_, total) = cache
+                .delta_score(&data, ParentSetOp::SetParents { node, parents: Arc::from(pa) })
+                .unwrap();
+            last = total;
+            let full =
+                full_graph_score(&data, GraphScoreFamily::GaussianBic, &cache.parents).unwrap();
+            assert!((total - full).abs() < 1e-9, "running={total} full={full}");
+        }
+        assert!(last.is_finite());
+    }
+
+    /// A zero-RSS fit has no finite Gaussian likelihood: error, never `+∞`. The finite branch
+    /// is pinned to the definition `−n/2 (1 + ln 2π + ln σ²) − k/2 ln n` at σ² = 0.1.
+    #[test]
+    fn degenerate_fit_is_an_error_not_infinity() {
+        let err = bic_from_rss(0.0, 10, 2).unwrap_err();
+        assert!(matches!(err, StateError::Numerical(_)), "{err:?}");
+        let got = bic_from_rss(1.0, 10, 2).unwrap();
+        let expected =
+            -5.0 * (1.0 + (2.0 * std::f64::consts::PI).ln() + 0.1_f64.ln()) - 1.0 * 10.0_f64.ln();
+        assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
     }
 
     #[test]

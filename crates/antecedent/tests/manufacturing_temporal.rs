@@ -4,8 +4,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent::AcceptedGraph;
@@ -1036,6 +1034,20 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     assert_eq!((set.lower[0], set.upper[0]), (lower, upper));
     let se = result.estimate.se_bootstrap.expect("mixture SE");
     assert!(se.is_finite() && se > 0.0);
+    // The shared-block mixture SE is a circular-block construction, not an iid bootstrap: the
+    // interval label (and the calibration record it keys) must say so.
+    assert_eq!(
+        result.estimate.block_family,
+        Some(antecedent_estimate::CircularBlockFamily::Mixture)
+    );
+    let binding = result.primary_interval_binding(false);
+    assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
+    assert_eq!(binding.dependence, "circular_block:mixture");
+    // The same replicate SD with no block family recorded models no serial correlation on a
+    // series; it is not the `iid` construction a calibration of exchangeable rows describes.
+    let mut unblocked = result.clone();
+    unblocked.estimate.block_family = None;
+    assert_eq!(unblocked.primary_interval_binding(false).dependence, "serial_unmodelled");
     match &result.mediation_grid.as_ref().unwrap().slices[0].uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
             requested,
@@ -1109,6 +1121,87 @@ fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
     assert_eq!(result.mediation_grid.as_ref().unwrap().slices.len(), 2);
     assert!(result.posterior.is_none());
     assert!(result.mediation.is_none());
+}
+
+/// Two atoms, both genuinely identified (no autoregressive / not-certified
+/// atom): the plain known-truth atom, and a second atom whose S(h) also needs
+/// the lagged mediator (`lagged_mediator`, the same construction as
+/// `manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate`).
+/// On a series too short to fit that atom's larger design, its estimation
+/// fails while identification did not: the failure must be counted as
+/// `unevaluable_mass`, not folded into `unidentified_mass`.
+#[test]
+fn manufacturing_dbn_posterior_bayesian_mediation_estimation_failure_is_not_unidentified_mass() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let c = pin["identified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let l = pin["identified_atom"]["lag_mask"].as_u64().unwrap();
+    // Lag-mask bit `from * 3 + to`: M_{t-1} -> Y_t is bit 5.
+    let lagged_mediator = l | (1 << 5);
+    let weights = [0.6, 0.4];
+    let zeros = vec![0.0; 9];
+    let gp = GraphPosterior::new(
+        3,
+        weights.to_vec(),
+        vec![c, c],
+        zeros.clone(),
+        zeros,
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("known_truth_mixtures"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0])
+    .unwrap()
+    .with_lag_masks(vec![l, lagged_mediator])
+    .unwrap()
+    .with_algorithm("known_truth_fixture");
+    // Short enough that the extra-regressor atom's design cannot be fit
+    // (n below its column count plus the usual estimability floor), while the
+    // plain atom's smaller design still can be.
+    let (series, q) = mediation_series(3);
+    let result = Study::series(series)
+        .graph_posterior(gp)
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(43))
+        .unwrap();
+    let post = result.posterior.as_ref().expect("mixture posterior");
+    let demotion = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.dbn_posterior.atom_demotion")
+        .expect("atom demotion diagnostic");
+    assert!(
+        demotion.message.contains("identify_unidentified=0"),
+        "both atoms are genuinely identified: {}",
+        demotion.message
+    );
+    assert!(
+        demotion.message.contains("estimate_demoted=1"),
+        "the lagged-mediator atom's estimation must fail on this short series: {}",
+        demotion.message
+    );
+    assert!(
+        post.unevaluable_mass > 0.0,
+        "an identified atom's estimation failure must be unevaluable_mass, not \
+         unidentified_mass: unidentified={} unevaluable={}",
+        post.unidentified_mass,
+        post.unevaluable_mass
+    );
+    assert!(
+        (post.unidentified_mass).abs() < 1e-12,
+        "no atom here is genuinely unidentified: unidentified={}",
+        post.unidentified_mass
+    );
+    assert_eq!(demotion.severity, antecedent_core::DiagnosticSeverity::Warning);
 }
 
 fn temporal_mean_curve(query: &TemporalEffectQuery) -> ResponseQuery {
@@ -1884,7 +1977,19 @@ fn assert_cheap_temporal_refuters(result: &antecedent::result::StudyResult) {
          NotApplicable for temporal unfolded designs, but that skip is now a diagnostic, \
          not a silent drop)"
     );
-    assert!(result.refutations[0].informative, "e-value must be informative here");
+    // `TemporalLinearAdjustment::fit_dependence_honest` (crates/antecedent-estimate/src/
+    // temporal_adjustment.rs) always sets `se_analytic = NaN` for a temporal estimate ("No
+    // analytic SE is calibrated here: the iid OLS SE ignores the dependence, and a Newey–West
+    // HAC SE ... under-covered in calibration") and only fills `se_bootstrap` when
+    // `bootstrap_replicates > 0`. This helper's callers build with `bootstrap_replicates(0)`,
+    // so the E-value's `usable_se` (crates/antecedent-validate/src/evalue.rs) has no SE to
+    // read and the confidence-limit E-value — hence `informative` — is always `false` here;
+    // it does not report a pass/fail either way, just the point E-value on `comparison`.
+    assert!(
+        !result.refutations[0].informative,
+        "no analytic SE exists for a temporal estimate and this suite runs no bootstrap \
+         replicates, so the E-value cannot be informative"
+    );
 }
 
 /// The `OverlapRefuter` skip `assert_cheap_temporal_refuters` documents must be visible
@@ -1944,17 +2049,23 @@ fn assert_cheap_temporal_overlap_skip_diagnostic(result: &antecedent::result::St
 /// instead of reusing the original.
 fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyResult) {
     let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+    // `full_effect()` (crates/antecedent-validate/src/suite.rs) runs `falsification_effect()`
+    // then `stability_effect()`; unobserved.common_cause and the sensitivity family are
+    // falsification checks, so they run before the stability group (placebo, random-common-
+    // cause, dummy-outcome, bootstrap, data-subset). Previously pinned with placebo/random-
+    // common-cause/unobserved-common-cause/dummy-outcome first, an order `full_effect()` has
+    // not produced since the falsification/stability split.
     assert_eq!(
         names,
         vec![
-            "placebo.treatment",
-            "random.common_cause",
             "unobserved.common_cause",
-            "dummy.outcome",
             "sensitivity.evalue",
             "sensitivity.linear",
             "sensitivity.partial_linear",
             "sensitivity.nonparametric",
+            "placebo.treatment",
+            "random.common_cause",
+            "dummy.outcome",
             "bootstrap.ci_coverage",
             "data.subset",
         ],

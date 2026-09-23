@@ -14,7 +14,7 @@ use crate::dsep::DSeparationWorkspace;
 use crate::error::GraphError;
 use crate::pag::Pag;
 use crate::types::{DenseNodeId, Endpoint};
-use crate::workspace::GraphWorkspace;
+use crate::workspace::{BitSet, GraphWorkspace};
 
 /// One circle-free completion of a PAG (MAG marks only).
 #[derive(Clone, Debug)]
@@ -287,8 +287,10 @@ pub fn is_maximal_ancestral_graph(g: &Pag) -> bool {
     // pair connected given every set.  Thus this is an exact inducing-path-free test.
     let admg = as_admg(g);
     let n = g.node_count();
-    let mut graph_ws = GraphWorkspace::default();
     let mut sep_ws = DSeparationWorkspace::default();
+    // Ancestor sets once per candidate: `An(x) ∪ An(y)` is then a word-wise OR.
+    let ancestors = ancestor_sets(&admg);
+    let mut union = BitSet::with_len(n);
     for i in 0..n {
         let x = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
         for j in (i + 1)..n {
@@ -296,21 +298,40 @@ pub fn is_maximal_ancestral_graph(g: &Pag) -> bool {
             if g.has_edge(x, y) {
                 continue;
             }
-            let separating: Vec<_> = (0..n)
-                .map(|k| DenseNodeId::from_raw(u32::try_from(k).expect("node fit")))
-                .filter(|&node| {
-                    node != x
-                        && node != y
-                        && (g.reaches_directed_with(&mut graph_ws, node, x)
-                            || g.reaches_directed_with(&mut graph_ws, node, y))
-                })
-                .collect();
+            union.clone_from(&ancestors[i]);
+            union.union_with(&ancestors[j]);
+            union.remove(x);
+            union.remove(y);
+            let separating = union.to_dense_ids();
             if !admg.is_m_separated(x, y, &separating, &mut sep_ws).expect("known nodes") {
                 return false;
             }
         }
     }
     true
+}
+
+/// `An(v)` for every node `v`: the nodes with a directed path into `v`, excluding `v` itself
+/// (the graph is acyclic). One topological sweep, `O(n · (n + e) / 64)`.
+fn ancestor_sets(admg: &Admg) -> Vec<BitSet> {
+    let n = admg.node_count();
+    let id = |i: usize| DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+    let mut ancestors: Vec<BitSet> = (0..n).map(|_| BitSet::with_len(n)).collect();
+    let mut pending: Vec<usize> = (0..n).map(|i| admg.parents(id(i)).len()).collect();
+    let mut ready: Vec<usize> = (0..n).filter(|&i| pending[i] == 0).collect();
+    while let Some(v) = ready.pop() {
+        let done = ancestors[v].clone();
+        for &c in admg.children(id(v)) {
+            let ci = c.as_usize();
+            ancestors[ci].union_with(&done);
+            ancestors[ci].insert(id(v));
+            pending[ci] -= 1;
+            if pending[ci] == 0 {
+                ready.push(ci);
+            }
+        }
+    }
+    ancestors
 }
 
 fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
@@ -348,7 +369,7 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
     true
 }
 
-fn as_admg(g: &Pag) -> Admg {
+pub(crate) fn as_admg(g: &Pag) -> Admg {
     let mut admg = Admg::with_variables(u32::try_from(g.node_count()).expect("node count fits"));
     for i in 0..g.node_count() {
         let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
@@ -439,9 +460,99 @@ pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::needless_range_loop,
+    reason = "test graphs have a handful of nodes, so node indices fit u32"
+)]
 mod tests {
     use super::*;
     use crate::pag::Pag;
+
+    /// Reference maximality test by per-pair reachability searches (the formulation the
+    /// ancestor-bitset version replaces): separating set `An({x,y}) \ {x,y}`.
+    fn maximal_by_reachability(g: &Pag) -> bool {
+        if !is_ancestral_orientation(g) {
+            return false;
+        }
+        let admg = as_admg(g);
+        let n = g.node_count();
+        let mut graph_ws = GraphWorkspace::default();
+        let mut sep_ws = DSeparationWorkspace::default();
+        for i in 0..n {
+            let x = DenseNodeId::from_raw(i as u32);
+            for j in (i + 1)..n {
+                let y = DenseNodeId::from_raw(j as u32);
+                if g.has_edge(x, y) {
+                    continue;
+                }
+                let separating: Vec<_> = (0..n)
+                    .map(|k| DenseNodeId::from_raw(k as u32))
+                    .filter(|&node| {
+                        node != x
+                            && node != y
+                            && (g.reaches_directed_with(&mut graph_ws, node, x)
+                                || g.reaches_directed_with(&mut graph_ws, node, y))
+                    })
+                    .collect();
+                if !admg.is_m_separated(x, y, &separating, &mut sep_ws).unwrap() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn ancestor_bitsets_match_reachability_and_maximality_on_random_mags() {
+        let mut state = 0xD1B5_4A32_D192_ED03_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as u32
+        };
+        let (mut maximal, mut non_maximal) = (0, 0);
+        for _ in 0..400 {
+            let n = 3 + (next() % 5) as usize;
+            let mut g = Pag::with_variables(n as u32);
+            for a in 0..n {
+                for b in (a + 1)..n {
+                    let (a_id, b_id) =
+                        (DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32));
+                    let _ = match next() % 5 {
+                        0 => g.insert_directed(a_id, b_id),
+                        1 => g.insert_directed(b_id, a_id),
+                        2 => g.insert_bidirected(a_id, b_id),
+                        _ => Ok(()),
+                    };
+                }
+            }
+            // Ancestor sets against Admg reachability (as_admg needs an ancestral graph).
+            if is_ancestral_orientation(&g) {
+                let admg = as_admg(&g);
+                let ancestors = ancestor_sets(&admg);
+                for v in 0..n {
+                    for u in 0..n {
+                        let (uid, vid) =
+                            (DenseNodeId::from_raw(u as u32), DenseNodeId::from_raw(v as u32));
+                        assert_eq!(ancestors[v].contains(uid), u != v && admg.reaches(uid, vid));
+                    }
+                }
+            }
+            let got = is_maximal_ancestral_graph(&g);
+            assert_eq!(got, maximal_by_reachability(&g));
+            if got {
+                maximal += 1;
+            } else {
+                non_maximal += 1;
+            }
+        }
+        // The comparison must exercise both outcomes.
+        assert!(maximal > 5 && non_maximal > 5, "maximal {maximal}, non-maximal {non_maximal}");
+    }
 
     #[test]
     fn respects_max_completions_bound() {
@@ -450,8 +561,11 @@ mod tests {
         let sampler = CompletionSampler::new(pag, 2).unwrap();
         assert_eq!(sampler.n_circle_sites(), 2);
         let collected: Vec<_> = sampler.collect();
-        assert!(collected.len() <= 2);
-        assert!(!collected.is_empty());
+        // o-o has exactly three MAG completions (->, <-, <->; tail-tail is outside the
+        // supported family), so the cap of 2 binds and the two lowest masks are yielded.
+        assert_eq!(collected.len(), 2);
+        assert_eq!(collected[0].index, 0);
+        assert_eq!(collected[1].index, 1);
         for c in &collected {
             assert!(is_mag_completion(&c.graph));
             let e =

@@ -1,5 +1,4 @@
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::too_many_lines,
@@ -7,6 +6,10 @@
     clippy::match_wildcard_for_single_variants,
     clippy::doc_markdown,
     clippy::map_unwrap_or
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 //! Sales spreadsheet E2E: Bayesian ATE → path → ITE + temporal pulse.
 //!
@@ -160,7 +163,8 @@ fn sales_temporal(n: usize, seed: u64) -> (TimeSeriesData, TemporalDag, Temporal
     (series, g, q)
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let (data, dag) = sales_static(400, 7);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(3));
 
@@ -225,4 +229,8 @@ fn main() -> Result<(), CausalError> {
 
     println!("sales_spreadsheet_e2e: ok");
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

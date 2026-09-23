@@ -480,7 +480,38 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let causal_query = CausalQuery::Response(query.clone());
+    // `estimate_admg_posterior_atom_response` reuses this atom's cached
+    // identification/estimand verbatim as the *first grid level's* claim (it
+    // only re-identifies per level from the second level on). A MeanCurve
+    // query identified whole produces one general.id estimand per grid
+    // level, and `select_estimand` then has no unique estimator match to
+    // pick among them (they all report the same method). Cache the first
+    // level's InterventionResponse claim instead, which is what downstream
+    // code actually consumes and — being a single intervention level — is
+    // exactly what `select_estimand` can disambiguate.
+    let causal_query = match &query.functional {
+        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+            let first_level = treatment
+                .grid
+                .values()
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+                .into_iter()
+                .next()
+                .ok_or_else(|| CausalError::Compile {
+                    message: "MeanCurve response requires a non-empty evaluation grid".into(),
+                })?;
+            let mut level_query = query.clone();
+            level_query.functional = antecedent_core::ResponseFunctional::InterventionResponse {
+                outcome: *outcome,
+                interventions: Arc::from([Intervention::set(
+                    treatment.variable,
+                    Value::f64(first_level),
+                )]),
+            };
+            CausalQuery::Response(level_query)
+        }
+        _ => CausalQuery::Response(query.clone()),
+    };
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
         (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
             let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
@@ -1082,6 +1113,7 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             &query.target_population,
             estimator_id,
             None,
+            single_step_dose(query).ok().flatten(),
         ) else {
             return Ok(DbnAtomOutcome::IdentifyFailed);
         };
@@ -1426,9 +1458,15 @@ impl PreparedModality {
 /// silent recompile. `analyze` / [`Study::run`] is sugar over identify →
 /// prepare → estimate.
 #[derive(Clone, Debug)]
-pub struct PreparedStudy {
+pub struct PreparedStudy<S = SampledPreparedState> {
+    pub(crate) state: S,
+}
+
+/// Retained state for sampled-data modalities of the common prepared handle.
+#[derive(Clone, Debug)]
+pub struct SampledPreparedState {
     /// Frozen analysis config (data slot replaced on each estimate). Read
-    /// through [`Self::study`]; mutate only through [`Self::study_mut`], which
+    /// through `PreparedStudy::study`; mutate only through `PreparedStudy::study_mut`, which
     /// drops the compiled program identities.
     analysis: Study,
     /// Data-independent contract layers, compiled once per handle state.
@@ -1444,6 +1482,18 @@ pub struct PreparedStudy {
     time_regularity: Option<antecedent_data::SamplingRegularity>,
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
+}
+
+impl std::ops::Deref for PreparedStudy {
+    type Target = SampledPreparedState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+impl std::ops::DerefMut for PreparedStudy {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
 }
 
 impl PreparedStudy {
@@ -1582,9 +1632,17 @@ impl PreparedStudy {
     }
 
     /// Frozen horizon-specific identification and its exact unfolded variable namespace.
+    ///
+    /// A `TemporalDag` prepare caches this directly. A DBN posterior or a TemporalCpdag/Pag
+    /// envelope caches a per-atom or per-completion result instead; this projects either
+    /// onto the same shape (see [`super::contract::full_temporal_identification`]), so an
+    /// exported `analysis_result` artifact validates its identification against the same
+    /// namespace the compiled contract already uses.
     #[must_use]
-    pub fn temporal_identification(&self) -> Option<&CachedTemporalIdentification> {
-        self.analysis.temporal_identification_cache.as_deref()
+    pub fn temporal_identification(
+        &self,
+    ) -> Option<std::borrow::Cow<'_, CachedTemporalIdentification>> {
+        super::contract::full_temporal_identification(&self.analysis)
     }
 
     /// Borrow the frozen schema fingerprint.
@@ -1596,13 +1654,13 @@ impl PreparedStudy {
     /// Matrix structure-source axis frozen at prepare.
     #[must_use]
     pub const fn structure_source(&self) -> crate::support::StructureSource {
-        self.analysis.structure_source()
+        self.state.analysis.structure_source()
     }
 
     /// Evidence contract frozen at prepare. `None` when the query is off-axis.
     #[must_use]
     pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
-        self.analysis.support_status()
+        self.state.analysis.support_status()
     }
 
     /// Borrow the ready physical plan retained from prepare.
@@ -1721,12 +1779,7 @@ impl PreparedStudy {
             .score_table
             .as_ref()
             .ok_or(CausalError::Unsupported { message: "missing frozen scores" })?;
-        let n_thresholds = {
-            let mut t: Vec<f64> = table.columns.iter().filter_map(|c| c.threshold).collect();
-            t.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            t.dedup_by(|a, b| *a == *b);
-            t.len()
-        };
+        let n_thresholds = table.distinct_threshold_count();
         let quantile = match &self.analysis.query {
             CausalQuery::AverageEffect(q) => q
                 .outcome_functional
@@ -1764,31 +1817,7 @@ impl PreparedStudy {
                 (c.value, c.se)
             }
             CausalQuery::Response(q) => {
-                let antecedent_core::ResponseFunctional::InterventionResponse {
-                    interventions, ..
-                } = &q.functional
-                else {
-                    return Err(CausalError::Unsupported {
-                        message: "retarget requires joint Set response",
-                    });
-                };
-                let mut arm = 0u32;
-                for (j, iv) in interventions.iter().enumerate() {
-                    let Intervention::Set { value, .. } = iv else {
-                        return Err(CausalError::Unsupported {
-                            message: "retarget requires Set interventions",
-                        });
-                    };
-                    let v = value.as_f64().ok_or(CausalError::Unsupported {
-                        message: "retarget requires numeric binary levels",
-                    })?;
-                    if (v != 0.0 && v != 1.0) || j >= 3 {
-                        return Err(CausalError::Unsupported {
-                            message: "retarget requires at most three binary coordinates",
-                        });
-                    }
-                    arm |= u32::from(v == 1.0) << j;
-                }
+                let arm = super::helpers::requested_joint_arm(q)?;
                 let col = table
                     .columns
                     .iter()
@@ -1848,7 +1877,7 @@ impl PreparedStudy {
             "estimate.aipw.crossfit_scores",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
-            "retarget averages the prepared cross-fitted φ table; it is not a residualized full-sample AIPW refit",
+            "retarget averages the prepared cross-fitted φ table; it is not a residualized full-sample AIPW refit, so it can differ from the estimator's own point value under uniform weights",
         ));
         diagnostics.push(antecedent_core::Diagnostic::new(
             "retarget.selection_assumption", antecedent_core::DiagnosticKind::Scientific,
@@ -1931,6 +1960,8 @@ impl PreparedStudy {
                     upper: result.estimate.ate
                         + crate::result::reported_se_interval_z() * result.estimate.se_analytic,
                     level: 0.95,
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    draws: None,
                 },
                 support: antecedent_core::SupportReport {
                     status: antecedent_core::SupportStatus::Supported,
@@ -2001,7 +2032,13 @@ impl PreparedStudy {
             .iter()
             .map(|validator| Arc::from(validator.name()))
             .collect();
-        let click_scores = click_analysis.prepare_score_table(ctx)?;
+        // Only a non-mean functional is read from the frozen scores; a mean click keeps
+        // the estimator's own value, so refitting the cross-fit table would be discarded.
+        let click_scores = if query_reads_score_table(&self.analysis.query) {
+            click_analysis.prepare_score_table(ctx)?
+        } else {
+            None
+        };
         overlay_prepared_score_functional(
             &self.analysis.query,
             click_scores.as_ref(),
@@ -2757,13 +2794,15 @@ impl Study {
         }
         let score_table = analysis.prepare_score_table(ctx)?;
         Ok(PreparedStudy {
-            analysis,
-            program_cache: std::sync::OnceLock::new(),
-            plan,
-            schema,
-            modality,
-            time_regularity,
-            score_table,
+            state: SampledPreparedState {
+                analysis,
+                program_cache: std::sync::OnceLock::new(),
+                plan,
+                schema,
+                modality,
+                time_regularity,
+                score_table,
+            },
         })
     }
 
@@ -2778,7 +2817,7 @@ impl Study {
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
             DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
-            identify_static_query_with_rd, select_estimand,
+            identify_static_query_with_rd, select_claim, select_estimand,
         };
         if matches!(self.query, CausalQuery::Counterfactual(_)) {
             let graph = self
@@ -2864,7 +2903,7 @@ impl Study {
                     &CausalQuery::AverageEffect(query.clone()),
                     rd,
                 )?;
-                let estimand = select_estimand(&identification, estimator_id)?;
+                let (identification, estimand) = select_claim(identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::Response(query) => {
@@ -2900,11 +2939,42 @@ impl Study {
                     let admg = self.graph.as_admg().ok_or_else(|| CausalError::Compile {
                         message: "ADMG prepare missing supplied graph".into(),
                     })?;
-                    let identification = identify_admg_query(
-                        identifier_id,
-                        admg,
-                        &CausalQuery::Response(query.clone()),
-                    )?;
+                    // `execute_admg_response` reuses this cache verbatim as the *first grid
+                    // level's* claim for a MeanCurve (it only re-identifies per level from the
+                    // second level on, mirroring the graph-posterior ADMG response cache). A
+                    // MeanCurve identified whole produces one general.id estimand per grid
+                    // level, and `select_estimand` then has no unique estimator match to pick
+                    // among them (they all report the same method). Cache the first level's
+                    // InterventionResponse claim instead, which is what downstream code
+                    // actually consumes and — being a single intervention level — is exactly
+                    // what `select_estimand` can disambiguate.
+                    let causal_query = match &query.functional {
+                        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+                            let first_level = treatment
+                                .grid
+                                .values()
+                                .map_err(|e| CausalError::Compile { message: e.to_string() })?
+                                .into_iter()
+                                .next()
+                                .ok_or_else(|| CausalError::Compile {
+                                    message: "MeanCurve response requires a non-empty evaluation \
+                                              grid"
+                                        .into(),
+                                })?;
+                            let mut level_query = query.clone();
+                            level_query.functional =
+                                antecedent_core::ResponseFunctional::InterventionResponse {
+                                    outcome: *outcome,
+                                    interventions: Arc::from([Intervention::set(
+                                        treatment.variable,
+                                        Value::f64(first_level),
+                                    )]),
+                                };
+                            CausalQuery::Response(level_query)
+                        }
+                        _ => CausalQuery::Response(query.clone()),
+                    };
+                    let identification = identify_admg_query(identifier_id, admg, &causal_query)?;
                     let estimand = select_estimand(&identification, estimator_id)?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
@@ -2961,7 +3031,7 @@ impl Study {
                 } else {
                     EstimatorId::ConditionalLinearAdjustment
                 };
-                let estimand = select_estimand(&identification, estimator_id)?;
+                let (identification, estimand) = select_claim(identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::PathSpecific(query) => {
@@ -3120,6 +3190,7 @@ impl Study {
                         EstimatorId::TemporalResponseGcomp
                     },
                     schedule.as_deref(),
+                    single_step_dose(query)?,
                 )?))
             }
             CausalQuery::TemporalEffect(query) => {
@@ -3238,8 +3309,9 @@ impl Study {
     /// Cross-fitted AIPW scores for retarget / exceedance / joint cells.
     pub(crate) fn prepare_score_table(
         &self,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<Option<ScoreTable>, CausalError> {
+        let fold_seed = ctx.rng.master_seed();
         let DataInput::Tabular(data) = &self.data else {
             return Ok(None);
         };
@@ -3300,6 +3372,7 @@ impl Study {
                 }
                 let estimand = cache.estimand.clone();
                 let mut problem = est.prepare(data, &estimand, query)?;
+                problem.fold_seed = fold_seed;
                 if let Some(shared) = self.shared_batch_design.as_ref() {
                     shared.apply_to_propensity(&mut problem)?;
                 }
@@ -3342,11 +3415,17 @@ impl Study {
                 if treatments.len() < 2 {
                     return Ok(None);
                 }
-                let est = CellSaturatedAipw::new();
+                let est = CellSaturatedAipw::new().with_fold_seed(fold_seed);
                 let continuous = self.continuous_cell.as_ref().map(|(variable, grid)| {
                     antecedent_estimate::ContinuousCellSpec { variable: *variable, grid }
                 });
-                let (fold_ids, design) = match self.shared_batch_design.as_ref() {
+                // Folds are deliberately not shared here: `fit_scores_with_assignment`
+                // leaves them unset so the cell path draws its own cell-stratified
+                // `crossfit_fold_plan` (keyed by `est.fold_seed`), reproducing the solo
+                // fold plan for this query's own cells bit-for-bit instead of a private,
+                // unstratified batch shuffle. See `SharedBatchDesign` docs.
+                let fold_ids: Option<Vec<u32>> = None;
+                let design = match self.shared_batch_design.as_ref() {
                     Some(shared) => {
                         let mut ids: Vec<_> = treatments
                             .iter()
@@ -3368,19 +3447,13 @@ impl Study {
                                 .collect::<Vec<_>>(),
                             Err(_) => Vec::new(),
                         };
-                        let folds = if row_index.is_empty() {
-                            None
-                        } else {
-                            Some(shared.folds_for(&row_index)?)
-                        };
-                        let design = if row_index.is_empty() {
+                        if row_index.is_empty() {
                             None
                         } else {
                             shared.design_for(&cache.estimand.adjustment_set, &row_index)?
-                        };
-                        (folds, design)
+                        }
                     }
-                    None => (None, None),
+                    None => None,
                 };
                 let table = est.fit_scores_with_assignment(
                     data,
@@ -3421,6 +3494,23 @@ fn score_table_treatment_col(analysis: &Study, table: &ScoreTable) -> Option<Vec
     Some(col)
 }
 
+/// Whether the query's outcome functional is computed from the frozen score table
+/// (exceedance, exceedance grid, quantile) rather than by the estimator itself.
+fn query_reads_score_table(query: &CausalQuery) -> bool {
+    let functional = match query {
+        CausalQuery::AverageEffect(q) => &q.outcome_functional,
+        CausalQuery::Response(q) => &q.outcome_functional,
+        CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
+        _ => return false,
+    };
+    matches!(
+        functional,
+        OutcomeFunctional::Exceedance(_)
+            | OutcomeFunctional::ExceedanceGrid(_)
+            | OutcomeFunctional::Quantile(_)
+    )
+}
+
 fn overlay_prepared_score_functional(
     query: &CausalQuery,
     table: Option<&ScoreTable>,
@@ -3434,20 +3524,15 @@ fn overlay_prepared_score_functional(
     {
         return Ok(());
     }
+    if !query_reads_score_table(query) {
+        return Ok(());
+    }
     let functional = match query {
         CausalQuery::AverageEffect(q) => &q.outcome_functional,
         CausalQuery::Response(q) => &q.outcome_functional,
         CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
         _ => return Ok(()),
     };
-    if !matches!(
-        functional,
-        OutcomeFunctional::Exceedance(_)
-            | OutcomeFunctional::ExceedanceGrid(_)
-            | OutcomeFunctional::Quantile(_)
-    ) {
-        return Ok(());
-    }
     let (estimate, diagnostics) = if let Some(tau) = functional.quantile_level() {
         if let CausalQuery::Response(q) = query {
             super::helpers::attach_joint_quantile_from_table(
@@ -3474,6 +3559,8 @@ fn overlay_prepared_score_functional(
                 upper: estimate.ate
                     + crate::result::reported_se_interval_z() * estimate.se_analytic,
                 level: 0.95,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             };
         }
     }
@@ -3483,18 +3570,36 @@ fn overlay_prepared_score_functional(
     Ok(())
 }
 
+/// Identification schedule of a sequence plan: `(variable, lag, optional level)` per step.
+type IdentificationSchedule = Vec<(antecedent_core::VariableId, i32, Option<f64>)>;
+
 fn sequence_identification_schedule(
     query: &antecedent_core::ResponseQuery,
-) -> Result<Option<Vec<(antecedent_core::VariableId, i32)>>, CausalError> {
+) -> Result<Option<IdentificationSchedule>, CausalError> {
     match antecedent_estimate::plan_from_response_query(query) {
-        Ok(Some(plan)) => Ok(plan
-            .mechanism_overlays()
-            .map(|overlays| overlays.iter().map(|o| (o.node.variable, o.node.offset)).collect())),
+        Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
+            let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+                message: "sequence schedule requires TemporalResponseSpec".into(),
+            })?;
+            Ok(Some(plan.identification_schedule(temporal)))
+        }
         Ok(_) => Ok(None),
         Err(error) => Err(CausalError::from(error)),
     }
 }
 
+/// Requested hard-set dose of a single-step temporal response, when it names one.
+pub(crate) fn single_step_dose(
+    query: &antecedent_core::ResponseQuery,
+) -> Result<Option<f64>, CausalError> {
+    match antecedent_estimate::plan_from_response_query(query) {
+        Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single { level, .. })) => Ok(level),
+        Ok(_) => Ok(None),
+        Err(error) => Err(CausalError::from(error)),
+    }
+}
+
+/// `dose` is the single-step active level (control stays at 0); `None` keeps the unit contrast.
 pub(crate) fn identify_temporal_response_horizons(
     graph: &TemporalDag,
     treatment: antecedent_core::VariableId,
@@ -3502,7 +3607,8 @@ pub(crate) fn identify_temporal_response_horizons(
     temporal: &TemporalResponseSpec,
     target_population: &TargetPopulation,
     estimator_id: crate::strategy_table::EstimatorId,
-    schedule: Option<&[(antecedent_core::VariableId, i32)]>,
+    schedule: Option<&[(antecedent_core::VariableId, i32, Option<f64>)]>,
+    dose: Option<f64>,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
     if temporal.horizons.is_empty() {
@@ -3512,8 +3618,8 @@ pub(crate) fn identify_temporal_response_horizons(
     }
     let origin =
         temporal.treatment_offset().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    let sequential =
-        schedule.is_some_and(|nodes| nodes.len() != 1 || nodes[0] != (treatment, origin));
+    let sequential = schedule
+        .is_some_and(|nodes| nodes.len() != 1 || (nodes[0].0, nodes[0].1) != (treatment, origin));
     let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
     for &horizon in temporal.horizons.iter() {
         let id_res = if sequential {
@@ -3534,7 +3640,7 @@ pub(crate) fn identify_temporal_response_horizons(
                 outcome,
                 policy: temporal.policy.clone(),
                 control: Intervention::set(treatment, Value::f64(0.0)),
-                active: Intervention::set(treatment, Value::f64(1.0)),
+                active: Intervention::set(treatment, Value::f64(dose.unwrap_or(1.0))),
                 horizon_steps: horizon,
                 max_history_lag: temporal.max_history_lag,
                 target_population: target_population.clone(),
@@ -3638,15 +3744,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Response(q)) if !q.is_temporal() => {
-            let codetermined = analysis
-                .tiered
-                .as_ref()
-                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined);
-            if !(matches!(
+            // An Admg is licensed for a joint response with or without a tiered background
+            // (the functional-effect estimator serves it), so no tier condition narrows it.
+            if !matches!(
                 analysis.graph.class(),
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg
-            ) || analysis.graph.class() == GraphClass::Admg && codetermined)
-            {
+            ) {
                 return Err(CausalError::Unsupported {
                     message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, Pag, \
                               or Admg (or CoDetermined joint cells)",
@@ -3806,8 +3909,25 @@ impl PreparedStudy {
 
 #[cfg(test)]
 mod tests {
-    use super::is_supplied_static_graph;
+    use super::{is_supplied_static_graph, query_reads_score_table};
     use crate::accepted::GraphClass;
+    use antecedent_core::{AverageEffectQuery, CausalQuery, OutcomeFunctional, VariableId};
+
+    /// A mean click keeps the estimator's own value, so refitting the cross-fit score table
+    /// for it would be discarded work; only exceedance, grid and quantile clicks read it.
+    #[test]
+    fn only_non_mean_functionals_read_the_frozen_score_table() {
+        let base = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        assert!(!query_reads_score_table(&CausalQuery::AverageEffect(base.clone())));
+        for functional in [
+            OutcomeFunctional::exceedance(0.5),
+            OutcomeFunctional::exceedance_grid(vec![0.0, 1.0]),
+            OutcomeFunctional::quantile(0.5),
+        ] {
+            let query = base.clone().with_outcome_functional(functional);
+            assert!(query_reads_score_table(&CausalQuery::AverageEffect(query)));
+        }
+    }
 
     #[test]
     fn supplied_static_graphs_only() {

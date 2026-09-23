@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::cast_precision_loss)]
+#![allow(clippy::needless_range_loop)]
 
 use antecedent_core::IdentifiedSet;
 

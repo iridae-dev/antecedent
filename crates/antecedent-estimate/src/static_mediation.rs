@@ -1,13 +1,18 @@
 //! Static additive-linear natural mediation on an identified DAG.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::cast_possible_truncation,
     clippy::needless_pass_by_value,
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::type_complexity
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 use crate::{
     EffectEstimate, EstimationError, HydrateMapping, OverlapPolicy, TemporalMediationEstimate,
@@ -40,6 +45,10 @@ use std::sync::Arc;
 /// # Errors
 /// Invalid query/data, unsupported population, singular regression, cancellation.
 #[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 pub fn estimate_static_mediation(
     data: &TabularData,
     graph: &Dag,
@@ -56,48 +65,17 @@ pub fn estimate_static_mediation(
             "static mediation requires AllObserved",
         ));
     }
-    let delta = crate::adjustment::intervention_f64(&query.active)?
-        - crate::adjustment::intervention_f64(&query.control)?;
-    let order = graph
-        .topological_order()
-        .ok_or_else(|| EstimationError::unsupported("mediation requires a DAG"))?;
-    let columns: Vec<_> = (0..graph.node_count())
-        .map(|i| data.float64_values(VariableId::from_raw(i as u32)))
-        .collect::<Result<_, _>>()?;
-    let extras: Vec<_> =
-        extra.iter().map(|&id| data.float64_values(id)).collect::<Result<_, _>>()?;
-    let validities: Vec<_> = (0..graph.node_count())
-        .map(|i| {
-            data.column(VariableId::from_raw(i as u32)).map(antecedent_data::ColumnView::validity)
-        })
-        .collect::<Result<_, _>>()?;
-    let rows: Vec<_> = (0..data.row_count())
-        .filter(|&r| {
-            data.storage().analysis_mask().is_none_or(|mask| mask.is_valid(r))
-                && validities.iter().all(|mask| mask.is_valid(r))
-                && columns.iter().chain(&extras).all(|c| c[r].is_finite())
-        })
-        .collect();
+    let MediationRows { delta, order, columns, extras, rows } =
+        MediationRows::new(data, graph, query, extra)?;
     let mut ls_ws = LeastSquaresWorkspace::default();
     let fit = |rows: &[usize],
                ls_ws: &mut LeastSquaresWorkspace|
      -> Result<(f64, f64), EstimationError> {
-        let mut total = vec![0.0; graph.node_count()];
-        let mut direct = total.clone();
-        for &node in &order {
+        propagate(graph, query, delta, &order, |i| {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::unsupported("static mediation cancelled"));
             }
-            let i = node.as_usize();
-            if i == query.treatment.as_usize() {
-                total[i] = delta;
-                direct[i] = delta;
-                continue;
-            }
             let parents = graph.parents(DenseNodeId::from_raw(i as u32));
-            if parents.is_empty() {
-                continue;
-            }
             let p = 1 + parents.len() + extras.len();
             if rows.len() <= p {
                 return Err(EstimationError::unsupported("insufficient complete mediation rows"));
@@ -114,21 +92,8 @@ pub fn estimate_static_mediation(
             if fitted.rank < p {
                 return Err(EstimationError::unsupported("singular static mediation regression"));
             }
-            let coefficients = fitted.coefficients;
-            total[i] = parents
-                .iter()
-                .enumerate()
-                .map(|(j, p)| coefficients[j + 1] * total[p.as_usize()])
-                .sum();
-            if !query.mediators.contains(&VariableId::from_raw(i as u32)) {
-                direct[i] = parents
-                    .iter()
-                    .enumerate()
-                    .map(|(j, p)| coefficients[j + 1] * direct[p.as_usize()])
-                    .sum();
-            }
-        }
-        Ok((total[query.outcome.as_usize()], direct[query.outcome.as_usize()]))
+            Ok(fitted.coefficients[1..=parents.len()].to_vec())
+        })
     };
     let contrast = |(total, direct): (f64, f64)| match query.contrast {
         MediationContrast::Total => total,
@@ -194,6 +159,29 @@ pub fn estimate_static_mediation(
     })
 }
 
+/// The restriction under which `total − direct` is the pure natural indirect effect.
+///
+/// Identification scope: the path-specific identifier certifies `E[Y(a0, M(a1))] − E[Y(a0)]`,
+/// and this estimator computes a different functional of the observed law, `total − direct`
+/// (the total natural indirect effect `E[Y(a1)] − E[Y(a1, M(a0))]`), that coincides with it
+/// only under this restriction.
+#[must_use]
+pub fn linear_no_interaction_restriction() -> antecedent_core::AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("mediation.linear_no_interaction"),
+            description: Arc::from(
+                "The natural direct and total effects are computed as products of additive linear parent-regression coefficients along direct and full paths, and the indirect estimate is their difference total - direct, the total natural indirect effect E[Y(a1)] - E[Y(a1, M(a0))], not by evaluating the pure natural indirect effect functional E[Y(a0, M(a1))] - E[Y(a0)] the identifier certifies. They coincide only if the structural mechanisms are additive and linear with no treatment-mediator interaction.",
+            ),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.mediation.linear"),
+        },
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    }
+}
+
 /// Mapped prior summaries hydrated independently onto each linear mechanism.
 #[derive(Clone, Copy, Debug)]
 pub struct MediationPriorBridge<'a> {
@@ -221,6 +209,10 @@ pub struct MediationPriorBridge<'a> {
 ///
 /// Same as [`estimate_static_mediation`], HMC composition, a shared prior, a
 /// mapping that binds no mechanism, or a non-finite posterior.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
 pub fn estimate_static_mediation_bayesian(
     data: &TabularData,
     graph: &Dag,
@@ -241,28 +233,8 @@ pub fn estimate_static_mediation_bayesian(
     }
     let point = estimate_static_mediation(data, graph, query, assumptions.clone(), 0, extra, ctx)?;
     query.validate()?;
-    let delta = crate::adjustment::intervention_f64(&query.active)?
-        - crate::adjustment::intervention_f64(&query.control)?;
-    let order = graph
-        .topological_order()
-        .ok_or_else(|| EstimationError::unsupported("mediation requires a DAG"))?;
-    let columns: Vec<_> = (0..graph.node_count())
-        .map(|i| data.float64_values(VariableId::from_raw(i as u32)))
-        .collect::<Result<_, _>>()?;
-    let extras: Vec<_> =
-        extra.iter().map(|&id| data.float64_values(id)).collect::<Result<_, _>>()?;
-    let validities: Vec<_> = (0..graph.node_count())
-        .map(|i| {
-            data.column(VariableId::from_raw(i as u32)).map(antecedent_data::ColumnView::validity)
-        })
-        .collect::<Result<_, _>>()?;
-    let rows: Vec<_> = (0..data.row_count())
-        .filter(|&r| {
-            data.storage().analysis_mask().is_none_or(|mask| mask.is_valid(r))
-                && validities.iter().all(|mask| mask.is_valid(r))
-                && columns.iter().chain(&extras).all(|c| c[r].is_finite())
-        })
-        .collect();
+    let MediationRows { delta, order, columns, extras, rows } =
+        MediationRows::new(data, graph, query, extra)?;
     let n = rows.len();
     let mut mechanisms = vec![None; graph.node_count()];
     let mut ws = crate::BayesianGCompWorkspace::default();
@@ -382,7 +354,7 @@ pub fn estimate_static_mediation_bayesian(
         for j in 0..parents.len() {
             parent_draws.push(coefficient_draws(&posterior, j + 1)?);
         }
-        mechanisms[i] = Some((parents.to_vec(), parent_draws));
+        mechanisms[i] = Some(parent_draws);
     }
     if let Some(MediationPriorBridge {
         mapping: HydrateMapping::NamedParameters { pairs }, ..
@@ -408,8 +380,17 @@ pub fn estimate_static_mediation_bayesian(
         if ctx.cancellation.is_cancelled() {
             return Err(EstimationError::unsupported("static mediation cancelled"));
         }
-        let (total, direct) =
-            compose_linear_natural(graph.node_count(), query, delta, &order, &mechanisms, draw)?;
+        let (total, direct) = propagate(graph, query, delta, &order, |i| {
+            mechanisms[i]
+                .iter()
+                .flatten()
+                .map(|coefs| {
+                    coefs.get(draw).copied().ok_or_else(|| {
+                        EstimationError::stats_msg("mediation mechanism draw is short")
+                    })
+                })
+                .collect()
+        })?;
         totals.push(total);
         directs.push(direct);
         mediated.push(total - direct);
@@ -484,6 +465,7 @@ pub fn estimate_static_mediation_bayesian(
     });
     let posterior = crate::CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification,
@@ -569,11 +551,10 @@ fn hydrate_mechanism_prior(
         bridge.source_contrast,
     ) {
         Ok(prior) => Ok(Some(prior)),
-        Err(err)
-            if matches!(bridge.mapping, HydrateMapping::IdenticalCoefficientSubspace)
-                && (err.to_string().contains("n_coef")
-                    || err.to_string().contains("dimension")
-                    || err.to_string().contains("expected n_coef")) =>
+        // A banked posterior of another shape does not bind this mechanism; every
+        // other failure is a real error.
+        Err(EstimationError::PriorDimensionMismatch { .. })
+            if matches!(bridge.mapping, HydrateMapping::IdenticalCoefficientSubspace) =>
         {
             Ok(None)
         }
@@ -600,15 +581,77 @@ fn coefficient_draws(
     Ok(posterior.draws.column(col)?.to_vec())
 }
 
-fn compose_linear_natural(
-    nodes: usize,
+/// Complete-case rows and column values both mediation estimators regress on.
+struct MediationRows {
+    /// Treatment contrast `active − control`.
+    delta: f64,
+    /// Topological order of the mediation DAG.
+    order: Vec<DenseNodeId>,
+    /// One value column per graph node.
+    columns: Vec<Vec<f64>>,
+    /// Extra adjustment columns entering every mechanism.
+    extras: Vec<Vec<f64>>,
+    /// Rows valid, unmasked, and finite in every node and extra column.
+    rows: Vec<usize>,
+}
+
+impl MediationRows {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
+    fn new(
+        data: &TabularData,
+        graph: &Dag,
+        query: &MediationQuery,
+        extra: &[VariableId],
+    ) -> Result<Self, EstimationError> {
+        let delta = crate::adjustment::intervention_f64(&query.active)?
+            - crate::adjustment::intervention_f64(&query.control)?;
+        let order = graph
+            .topological_order()
+            .ok_or_else(|| EstimationError::unsupported("mediation requires a DAG"))?;
+        let columns: Vec<_> = (0..graph.node_count())
+            .map(|i| data.float64_values(VariableId::from_raw(i as u32)))
+            .collect::<Result<_, _>>()?;
+        let extras: Vec<_> =
+            extra.iter().map(|&id| data.float64_values(id)).collect::<Result<_, _>>()?;
+        let validities: Vec<_> = (0..graph.node_count())
+            .map(|i| {
+                data.column(VariableId::from_raw(i as u32))
+                    .map(antecedent_data::ColumnView::validity)
+            })
+            .collect::<Result<_, _>>()?;
+        let rows: Vec<_> = (0..data.row_count())
+            .filter(|&r| {
+                data.storage().analysis_mask().is_none_or(|mask| mask.is_valid(r))
+                    && validities.iter().all(|mask| mask.is_valid(r))
+                    && columns.iter().chain(&extras).all(|c| c[r].is_finite())
+            })
+            .collect();
+        Ok(Self { delta, order, columns, extras, rows })
+    }
+}
+
+/// Total and mediator-blocked direct effects of the treatment contrast on the outcome.
+///
+/// Walks `order`; a node's total effect is `Σ_p β_p · total[p]` over its parents, and its
+/// direct effect the same sum over `direct` unless the node is a mediator (whose
+/// direct-path effect is blocked at zero). `betas(i)` returns node `i`'s parent
+/// coefficients, in parent order, for a node with parents. Frequentist and Bayesian
+/// mediation share this recursion so both describe the same estimand.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+)]
+fn propagate(
+    graph: &Dag,
     query: &MediationQuery,
     delta: f64,
     order: &[DenseNodeId],
-    mechanisms: &[Option<(Vec<DenseNodeId>, Vec<Vec<f64>>)>],
-    draw: usize,
+    mut betas: impl FnMut(usize) -> Result<Vec<f64>, EstimationError>,
 ) -> Result<(f64, f64), EstimationError> {
-    let mut total = vec![0.0; nodes];
+    let mut total = vec![0.0; graph.node_count()];
     let mut direct = total.clone();
     total[query.treatment.as_usize()] = delta;
     direct[query.treatment.as_usize()] = delta;
@@ -617,24 +660,14 @@ fn compose_linear_natural(
         if i == query.treatment.as_usize() {
             continue;
         }
-        let Some((parents, coefs)) = mechanisms[i].as_ref() else {
+        let parents = graph.parents(node);
+        if parents.is_empty() {
             continue;
-        };
-        let parent_total = parents.iter().enumerate().try_fold(0.0, |acc, (j, parent)| {
-            let beta = *coefs
-                .get(j)
-                .and_then(|c| c.get(draw))
-                .ok_or_else(|| EstimationError::stats_msg("mediation mechanism draw is short"))?;
-            Ok::<f64, EstimationError>(acc + beta * total[parent.as_usize()])
-        })?;
-        total[i] = parent_total;
+        }
+        let beta = betas(i)?;
+        total[i] = parents.iter().zip(&beta).map(|(p, b)| b * total[p.as_usize()]).sum();
         if !query.mediators.contains(&VariableId::from_raw(i as u32)) {
-            direct[i] = parents.iter().enumerate().try_fold(0.0, |acc, (j, parent)| {
-                let beta = *coefs.get(j).and_then(|c| c.get(draw)).ok_or_else(|| {
-                    EstimationError::stats_msg("mediation mechanism draw is short")
-                })?;
-                Ok::<f64, EstimationError>(acc + beta * direct[parent.as_usize()])
-            })?;
+            direct[i] = parents.iter().zip(&beta).map(|(p, b)| b * direct[p.as_usize()]).sum();
         }
     }
     Ok((total[query.outcome.as_usize()], direct[query.outcome.as_usize()]))
@@ -642,14 +675,70 @@ fn compose_linear_natural(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use super::*;
     use antecedent_core::{Intervention, Value};
+
+    fn coefficient_summary(n: usize) -> (Vec<PosteriorQuantityKind>, Vec<f64>, Vec<f64>) {
+        let mut kinds: Vec<_> =
+            (0..n).map(|index| PosteriorQuantityKind::Coefficient { index, name: None }).collect();
+        kinds.push(PosteriorQuantityKind::ResidualVariance);
+        (kinds, vec![0.5; n + 1], vec![0.1; n + 1])
+    }
+
+    #[test]
+    fn prior_of_another_shape_leaves_the_mechanism_unbound_but_other_errors_surface() {
+        let names: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
+        let mapping = HydrateMapping::IdenticalCoefficientSubspace;
+        // Three banked coefficients cannot describe a two-coefficient mechanism.
+        let (quantities, mean, sd) = coefficient_summary(3);
+        let bridge = MediationPriorBridge {
+            mapping: &mapping,
+            quantities: &quantities,
+            mean: &mean,
+            sd: &sd,
+            source_contrast: None,
+        };
+        assert!(hydrate_mechanism_prior(bridge, &names, Some(1), 1.0, true).unwrap().is_none());
+        // The matching shape binds.
+        let (quantities, mean, sd) = coefficient_summary(2);
+        let bridge = MediationPriorBridge {
+            mapping: &mapping,
+            quantities: &quantities,
+            mean: &mean,
+            sd: &sd,
+            source_contrast: None,
+        };
+        assert!(hydrate_mechanism_prior(bridge, &names, Some(1), 1.0, true).unwrap().is_some());
+        // A malformed artifact is an error, not an unbound mechanism.
+        let short_sd = [0.1];
+        let bridge = MediationPriorBridge {
+            mapping: &mapping,
+            quantities: &quantities,
+            mean: &mean,
+            sd: &short_sd,
+            source_contrast: None,
+        };
+        assert!(hydrate_mechanism_prior(bridge, &names, Some(1), 1.0, true).is_err());
+        // The mismatch is a typed variant carrying both counts.
+        let (quantities, ..) = coefficient_summary(3);
+        let err = crate::bayesian::hydrate_prior_from_quantity_summaries(
+            &quantities,
+            &[0.5; 4],
+            &[0.1; 4],
+            Some(2),
+        )
+        .unwrap_err();
+        assert_eq!(err, EstimationError::PriorDimensionMismatch { posterior: 3, design: 2 });
+    }
 
     /// `w`, `t` independent; `m = 0.6 t + 0.5 w + e`, `y = 0.4 t + 0.5 m + 0.7 w + e`.
     /// `w` confounds the mediator-outcome relation but not `t -> y`.
     #[allow(clippy::many_single_char_names)]
     fn confounded_mediator(n: usize) -> TabularData {
-        let mut rng = ExecutionContext::for_tests(5).rng.stream(0x0057_A71C);
+        let mut rng =
+            ExecutionContext::for_tests(5).rng.stream_for(StreamDomain::Estimate, 0x0057_A71C);
         let mut draw = || rng.next_f64() - 0.5;
         let (mut t, mut m, mut y, mut w) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {
@@ -677,8 +766,8 @@ mod tests {
 
     /// The static path regresses every node on its full graph parent set, so a
     /// mediator-outcome confounder that is a graph parent of `m` and `y` is
-    /// adjusted in both inference modes (the omission fixed on the temporal
-    /// path in 1.9 does not exist here). Dropping the `w` edges from the graph
+    /// adjusted in both inference modes (the temporal-path omission does not
+    /// exist here). Dropping the `w` edges from the graph
     /// reproduces the omitted-confounder bias, so the check is sensitive.
     #[test]
     fn mediator_outcome_confounder_is_adjusted_in_both_modes() {

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _lag1_series(n: int = 80, seed: int = 9):
@@ -21,7 +19,7 @@ def _lag1_series(n: int = 80, seed: int = 9):
 
 def test_discover_rpcmci_requires_regimes():
     data = _lag1_series()
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="regimes"):
         antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False).run(data)
 
 

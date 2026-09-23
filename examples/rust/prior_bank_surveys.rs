@@ -1,5 +1,4 @@
 #![allow(
-    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::too_many_lines,
@@ -7,6 +6,10 @@
     clippy::match_wildcard_for_single_variants,
     clippy::doc_markdown,
     clippy::map_unwrap_or
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 //! Survey prior bank: catalog → compose → analyze target.
 //!
@@ -126,7 +129,8 @@ fn fit_artifact(
     Ok((bytes, mean))
 }
 
-fn main() -> Result<(), CausalError> {
+/// Runs the example end to end; `main` calls it and the example test suite runs it.
+pub fn run() -> Result<(), CausalError> {
     let (data_a, dag, query) = survey(160, 1, 2.0);
     let (data_b, _, _) = survey(160, 2, 1.5);
     let (data_t, _, _) = survey(180, 3, 1.8);
@@ -263,4 +267,8 @@ fn main() -> Result<(), CausalError> {
     println!("target effect_mean={mean:.4} sd={sd:.4}");
     println!("alpha_sensitivity alphas={:?} means={:?}", sens.alphas, sens.effect_means);
     Ok(())
+}
+
+fn main() -> Result<(), CausalError> {
+    run()
 }

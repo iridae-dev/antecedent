@@ -42,9 +42,8 @@ pub enum IdentificationStatus {
     ///
     /// Exhaustive search with no set, or a certificate of non-ID, is the
     /// scientific case. A search that could not finish (candidate-family cap,
-    /// history bound) keeps this status for the 1.0 public-API / artifact
-    /// freeze — there is no third variant — and is marked by an Execution
-    /// diagnostic, not a scientific open-back-door.
+    /// history bound) keeps this status — there is no third variant — and is
+    /// marked by an Execution diagnostic, not a scientific open-back-door.
     NotIdentified,
 }
 
@@ -61,6 +60,22 @@ impl IdentificationStatus {
             Self::PartiallyIdentified => "partially_identified",
             Self::GraphDependent => "graph_dependent",
             Self::NotIdentified => "not_identified",
+        }
+    }
+
+    /// Evidential strength of the identification claim, larger is stronger.
+    ///
+    /// A derivation may keep or lower this rank but never raise it: a derived
+    /// claim cannot assert a stronger identification than the parents it came from.
+    #[must_use]
+    pub const fn strength_rank(self) -> u8 {
+        match self {
+            Self::NonparametricallyIdentified => 5,
+            Self::IdentifiedUnderParametricRestrictions => 4,
+            Self::IdentifiedUnderPriorRestrictions => 3,
+            Self::PartiallyIdentified => 2,
+            Self::GraphDependent => 1,
+            Self::NotIdentified => 0,
         }
     }
 }

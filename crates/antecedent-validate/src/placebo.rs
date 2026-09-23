@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -11,9 +17,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::shuffle;
 
 use crate::common::{
-    NoiseReplaceTarget, RefutationProblem, RefutationReport, complete_case_rows, float64_full,
-    linear_estimator_no_bootstrap, noise_replace_refute, refit_effect, replicate_p_value,
-    with_replaced_float,
+    NoiseReplaceTarget, RefutationProblem, RefutationReport, check_cancelled,
+    check_replicate_count, complete_case_rows, float64_full, linear_estimator_no_bootstrap,
+    noise_replace_refute, refit_effect, replicate_mean, replicate_p_value, with_replaced_float,
 };
 use crate::error::ValidationError;
 
@@ -28,12 +34,17 @@ pub enum PlaceboMode {
 }
 
 /// Replace treatment with independent noise or a permutation; expect ATE near zero.
+///
+/// Under the OLS / linear-adjustment estimators this refuter is gated to, the coefficient
+/// on an independent placebo treatment is asymptotically zero by construction, so the
+/// procedure cannot falsify a wrong causal claim. Reports set `informative: false`.
 #[derive(Clone, Debug)]
 pub struct PlaceboTreatment {
     /// Replicate count (each draw a fresh placebo treatment).
     pub replicates: u32,
     /// Pass if the placebo ATE distribution is consistent with zero at this significance
-    /// level (two-sided normal test on the replicates, `p >= alpha`).
+    /// level (two-sided normal test on the replicates, `p >= alpha`). Non-finite
+    /// replicates fail closed. A pass is not an informative falsification under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled to avoid nested pools).
     pub estimator: LinearAdjustmentAte,
@@ -93,11 +104,7 @@ impl PlaceboTreatment {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if self.replicates < 2 {
-            return Err(ValidationError::NotApplicable {
-                message: "placebo permute refuter requires replicates >= 2",
-            });
-        }
+        check_replicate_count(self.replicates)?;
         let treatment = problem.treatment();
         let factual = float64_full(problem.data, treatment)?;
         // Shuffle only the observed analysis population: invalid or masked payloads
@@ -112,6 +119,7 @@ impl PlaceboTreatment {
         let observed: Vec<f64> = eligible.iter().map(|&row| factual[row]).collect();
         let mut ates = Vec::with_capacity(self.replicates as usize);
         for r in 0..self.replicates {
+            check_cancelled(ctx)?;
             let mut perm = factual.clone();
             let mut rng = ctx.rng.stream(0xA7E0_0001_1000_u64.wrapping_add(u64::from(r)));
             let mut shuffled = observed.clone();
@@ -131,15 +139,17 @@ impl PlaceboTreatment {
             )?;
             ates.push(est.ate);
         }
-        let mean_ate = ates.iter().sum::<f64>() / f64::from(self.replicates);
-        let p_value = replicate_p_value(&ates, 0.0);
+        let mean_ate = replicate_mean(&ates);
+        let p_value = replicate_p_value(&ates, 0.0)?;
         let passed = p_value >= self.alpha;
         Ok(RefutationReport {
             refuter: Arc::from("placebo.treatment.permute"),
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
             comparison: p_value,
-            informative: true,
+            // Permuting T under OLS still yields ~0 coefficient when T ⊥ Y | Z in
+            // the fitted linear model; this is not a falsifier of the causal claim.
+            informative: false,
             passed,
             failure_condition: (!passed).then(|| {
                 Arc::from(format!(

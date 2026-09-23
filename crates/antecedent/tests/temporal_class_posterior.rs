@@ -3,10 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::float_cmp,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use antecedent::{
@@ -15,8 +14,8 @@ use antecedent::{
 };
 use antecedent_core::{
     ContinuousDomain, ExecutionContext, GridSpec, IdentificationStatus, Intervention,
-    MediationQuery, ResponseFunctional, ResponseQuery, TemporalEffectQuery, TemporalPolicy,
-    TemporalResponseSpec, Value, VariableId,
+    MediationQuery, ResponseFunctional, ResponseQuery, ResponseUncertainty, ResponseValue,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_discovery::{
@@ -876,6 +875,75 @@ fn run_response(
         .unwrap()
 }
 
+/// Near-flat coefficient prior, so each atom's posterior mean is its least-squares
+/// g-computation up to Monte Carlo error of the draws.
+fn flat_bayesian(draws: usize) -> InferenceMode {
+    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(draws).prior_scale(1000.0))
+}
+
+/// Every evaluated atom of the class-posterior response lies within tolerance of the
+/// closed-form structural level of `series()`'s law
+/// (`conformance/estimate/temporal_class_posterior_response_truth`):
+/// `E[y | do(t@-1 = x)] = 1.4 x + 0.6 mean(z) + mean(w)`, derived from the structural
+/// equation, not from the estimator's lag alignment. The posterior mixture of atoms that
+/// all identify this level is that level for any weights summing to one, so each atom is
+/// held to it (an atom that is an identified-set envelope must bracket-fit at both ends).
+/// The Bayesian tolerance adds four Monte Carlo standard errors of the atom's posterior
+/// mean, the SD read off its 95% credible band.
+fn assert_atoms_match_structural_truth(
+    result: &antecedent::StudyResult,
+    kind: &str,
+    label: &str,
+    draws: Option<u32>,
+) {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_posterior_response_truth/expected.json"
+    ))
+    .unwrap();
+    let level: Vec<f64> = truth["horizon_1"]["level"][kind]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let fixture_weight: f64 =
+        truth["posterior_weights"].as_array().unwrap().iter().map(|w| w.as_f64().unwrap()).sum();
+    let base = truth["tolerance"][if draws.is_some() { "bayesian_floor" } else { "frequentist" }]
+        .as_f64()
+        .unwrap();
+    let mixture = result.structural_response.as_ref().expect("class response mixture");
+    let total_weight: f64 = mixture.atoms.iter().map(|atom| atom.weight).sum();
+    assert!((total_weight - fixture_weight).abs() < 1e-12, "{label}: atom weights");
+    let mut checked = 0;
+    for atom in mixture.atoms.iter().filter(|atom| atom.value.is_some()) {
+        let bounds: Vec<(f64, f64)> = match atom.value.as_ref().unwrap() {
+            ResponseValue::Surface { mean, .. } => mean.iter().map(|&m| (m, m)).collect(),
+            ResponseValue::Envelope(envelope) => {
+                envelope.lower.iter().zip(envelope.upper.iter()).map(|(&l, &u)| (l, u)).collect()
+            }
+            other => panic!("{label}: unexpected atom value {other:?}"),
+        };
+        assert_eq!(bounds.len(), level.len(), "{label}: cells");
+        for (cell, &(lower, upper)) in bounds.iter().enumerate() {
+            let monte_carlo = match (draws, atom.response.as_ref().map(|r| &r.uncertainty)) {
+                (
+                    Some(n_draws),
+                    Some(ResponseUncertainty::PointwiseBand { lower: lo, upper: hi, .. }),
+                ) => 4.0 * ((hi[cell] - lo[cell]) / (2.0 * 1.96)) / f64::from(n_draws).sqrt(),
+                _ => 0.0,
+            };
+            let tolerance = base + monte_carlo;
+            assert!(
+                (lower - level[cell]).abs() < tolerance && (upper - level[cell]).abs() < tolerance,
+                "{label} cell {cell}: atom [{lower}, {upper}] vs closed-form level {} (tolerance {tolerance})",
+                level[cell]
+            );
+        }
+        checked += 1;
+    }
+    assert!(checked > 0, "{label}: no evaluated atom to check");
+}
+
 #[test]
 fn temporal_class_graph_posterior_response_mixes() {
     let identified = identified_lag_mask();
@@ -887,13 +955,18 @@ fn temporal_class_graph_posterior_response_mixes() {
         } else {
             class_posterior(kind, &[1.0], &[0], &[identified])
         };
-        for query in [mean_curve(), intervention_response()] {
-            for inference in [
-                InferenceMode::Frequentist,
-                InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)),
-            ] {
+        for (query_kind, query) in [("curve", mean_curve()), ("set", intervention_response())] {
+            for (inference, draws) in
+                [(InferenceMode::Frequentist, None), (flat_bayesian(400), Some(400))]
+            {
                 let result = run_response(gp.clone(), query.clone(), inference, RefuteSuite::None);
                 assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_atoms_match_structural_truth(
+                    &result,
+                    query_kind,
+                    &format!("{kind:?}/{query_kind}/{draws:?}"),
+                    draws,
+                );
                 assert!(result.response.is_some(), "{kind:?}");
                 let mixture = result.structural_response.as_ref().expect("class response mixture");
                 assert_eq!(mixture.weight_basis, StructuralWeightBasis::PosteriorProbability);
@@ -921,14 +994,19 @@ fn temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_
         } else {
             class_posterior(kind, &[1.0], &[0], &[identified])
         };
-        for inference in [
-            InferenceMode::Frequentist,
-            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)),
-        ] {
+        for (inference, draws) in
+            [(InferenceMode::Frequentist, None), (flat_bayesian(16), Some(16))]
+        {
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                 let result =
                     run_response(gp.clone(), intervention_response(), inference.clone(), suite);
                 assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{kind:?}");
+                assert_atoms_match_structural_truth(
+                    &result,
+                    "set",
+                    &format!("{kind:?}/set/{draws:?}/{suite:?}"),
+                    draws,
+                );
                 assert!(
                     !result.refutations.is_empty()
                         || result.diagnostics.iter().any(|d| {

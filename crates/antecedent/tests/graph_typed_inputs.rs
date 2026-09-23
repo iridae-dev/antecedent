@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
-
 use std::sync::Arc;
 
 use antecedent::prelude::*;
@@ -89,7 +87,8 @@ fn supplied_oriented_cpdag_runs_ate() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    // y = 0.5 z + 1.5 t with no noise: adjusting for z gives exactly 1.5; the crude contrast is 2.5.
+    assert!((result.estimate.ate - 1.5).abs() < 1e-6, "ATE {}", result.estimate.ate);
 }
 
 #[test]
@@ -107,7 +106,8 @@ fn supplied_admg_without_bidirected_coerces_to_dag() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    // y = 0.5 z + 1.5 t with no noise: adjusting for z gives exactly 1.5; the crude contrast is 2.5.
+    assert!((result.estimate.ate - 1.5).abs() < 1e-6, "ATE {}", result.estimate.ate);
 }
 
 #[test]

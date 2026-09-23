@@ -9,8 +9,8 @@ use antecedent_estimate::{
     TransportOverlapReport,
 };
 use antecedent_identify::{
-    NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
-    TransportIdentification,
+    MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
+    TransportFormula, TransportIdentification,
 };
 use antecedent_stats::{ExposureProbabilityMethod, RandomizationContrast};
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,9 @@ use crate::IoError;
 pub struct PopulationFactorWire {
     /// Population key.
     pub population: String,
+    /// Supplied evidence regime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regime: Option<u32>,
     /// Variables in the factor.
     pub variables: Vec<u32>,
     /// Conditioning variables.
@@ -65,9 +68,9 @@ pub struct TransportCertificateWire {
     pub premises: Vec<String>,
 }
 
-/// Scoped negative transport certificate wire form.
+/// Inconclusive transport certificate wire form; never an impossibility proof.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NonTransportableCertificateWire {
+pub struct NotCertifiedCertificateWire {
     /// Stable reason id.
     pub reason: String,
     /// Witness variables.
@@ -88,7 +91,10 @@ pub enum TransportIdentificationWire {
         certificate: TransportCertificateWire,
     },
     /// No implemented rule certified a formula; not a general impossibility claim.
-    NotCertified(NonTransportableCertificateWire),
+    NotCertified(NotCertifiedCertificateWire),
+    /// A required available source regime is absent. Additive in this slice:
+    /// existing `Transportable` / `NotCertified` artifacts still decode.
+    MissingEvidence(NotCertifiedCertificateWire),
 }
 
 /// Exposure-probability method wire form.
@@ -178,9 +184,16 @@ pub fn transport_identification_to_wire(
             }
         }
         TransportIdentification::NotCertified(certificate) => {
-            TransportIdentificationWire::NotCertified(NonTransportableCertificateWire {
+            TransportIdentificationWire::NotCertified(NotCertifiedCertificateWire {
                 reason: certificate.reason.to_string(),
                 witness: certificate.witness.iter().map(|id| id.raw()).collect(),
+                message: certificate.message.to_string(),
+            })
+        }
+        TransportIdentification::MissingEvidence(certificate) => {
+            TransportIdentificationWire::MissingEvidence(NotCertifiedCertificateWire {
+                reason: certificate.reason.to_string(),
+                witness: certificate.missing.iter().map(|id| id.raw()).collect(),
                 message: certificate.message.to_string(),
             })
         }
@@ -215,9 +228,22 @@ pub fn transport_identification_from_wire(
             }
         }
         TransportIdentificationWire::NotCertified(certificate) => {
-            TransportIdentification::NotCertified(NonTransportableCertificate {
+            TransportIdentification::NotCertified(NotCertifiedCertificate {
                 reason: Arc::from(certificate.reason.as_str()),
                 witness: certificate
+                    .witness
+                    .iter()
+                    .copied()
+                    .map(antecedent_core::VariableId::from_raw)
+                    .collect::<Vec<_>>()
+                    .into(),
+                message: Arc::from(certificate.message.as_str()),
+            })
+        }
+        TransportIdentificationWire::MissingEvidence(certificate) => {
+            TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
+                reason: Arc::from(certificate.reason.as_str()),
+                missing: certificate
                     .witness
                     .iter()
                     .copied()
@@ -288,6 +314,7 @@ pub fn transport_effect_from_wire(
 
 fn factor_to_wire(value: &PopulationFactor) -> PopulationFactorWire {
     PopulationFactorWire {
+        regime: value.regime.map(antecedent_core::RegimeId::raw),
         population: value.population.to_string(),
         variables: value.variables.iter().map(|id| id.raw()).collect(),
         conditioned_on: value.conditioned_on.iter().map(|id| id.raw()).collect(),
@@ -300,6 +327,7 @@ fn factor_from_wire(value: &PopulationFactorWire) -> PopulationFactor {
         values.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>().into()
     };
     PopulationFactor {
+        regime: value.regime.map(antecedent_core::RegimeId::from_raw),
         population: Arc::from(value.population.as_str()),
         variables: vars(&value.variables),
         conditioned_on: vars(&value.conditioned_on),
@@ -422,8 +450,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn missing_evidence_transport_round_trip_is_not_not_certified() {
+        let original = TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
+            reason: Arc::from("transport.source_experiment_missing"),
+            missing: Arc::from([antecedent_core::VariableId::from_raw(0)]),
+            message: Arc::from(
+                "the source experiment required by this transport query is unavailable",
+            ),
+        });
+        let bytes = crate::to_cbor(&transport_identification_to_wire(&original)).unwrap();
+        let wire: TransportIdentificationWire = crate::from_cbor(&bytes).unwrap();
+        assert!(matches!(wire, TransportIdentificationWire::MissingEvidence(_)));
+        assert_eq!(transport_identification_from_wire(&wire), original);
+        assert_ne!(original.outcome().kind.as_str(), "not_certified");
+    }
+
+    #[test]
     fn not_certified_transport_round_trip_preserves_scope() {
-        let original = TransportIdentification::NotCertified(NonTransportableCertificate {
+        let original = TransportIdentification::NotCertified(NotCertifiedCertificate {
             reason: Arc::from("transport.sid.multinode_c_component_not_implemented"),
             witness: Arc::from([antecedent_core::VariableId::from_raw(2)]),
             message: Arc::from("no non-transportability claim is made"),

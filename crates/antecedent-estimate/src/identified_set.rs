@@ -1,4 +1,4 @@
-//! Confidence and credible intervals for a finite identified set (1.9, C-3).
+//! Confidence and credible intervals for a finite identified set (C-3).
 //!
 //! A class-aware scalar effect with several identified completions has an
 //! identified set `{θ_g}` whose hull `[θ_l, θ_u] = [min_g θ_g, max_g θ_g]` is
@@ -53,8 +53,6 @@
 //! records it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::cast_precision_loss)]
 
 use antecedent_kernels::{norm_cdf, norm_inv};
 
@@ -138,16 +136,9 @@ fn selection_threshold(rows: usize) -> f64 {
     (rows.max(3) as f64).ln().sqrt().max(1.0)
 }
 
-fn sample_sd<I>(values: I) -> f64
-where
-    I: ExactSizeIterator<Item = f64> + Clone,
-{
-    let n = values.len();
-    if n < 2 {
-        return f64::NAN;
-    }
-    let mean = values.clone().sum::<f64>() / n as f64;
-    (values.map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt()
+/// Sample standard deviation of an iterator of draws (`NaN` below two draws).
+fn sample_sd(values: impl Iterator<Item = f64>) -> f64 {
+    antecedent_stats::sample_std(&values.collect::<Vec<_>>())
 }
 
 /// IM critical value: solve `Φ(c + r) − Φ(−c) = level` for `c ≥ 0` with
@@ -359,18 +350,12 @@ impl Selection {
     }
 }
 
-/// Linear-interpolated empirical quantile (type 7).
+/// Exchangeable-rank (type-6) quantile of posterior draws, so a finite-draw
+/// interval covers at its level; non-finite draws are ignored.
 fn quantile(values: &[f64], p: f64) -> f64 {
     let mut sorted: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
-    if sorted.is_empty() {
-        return f64::NAN;
-    }
     sorted.sort_by(f64::total_cmp);
-    let h = (sorted.len() - 1) as f64 * p.clamp(0.0, 1.0);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let (i, frac) = (h.floor() as usize, h - h.floor());
-    let next = sorted[(i + 1).min(sorted.len() - 1)];
-    sorted[i] + frac * (next - sorted[i])
+    antecedent_stats::quantile_sorted(&sorted, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 
 #[cfg(test)]
@@ -379,6 +364,19 @@ mod tests {
 
     fn column_sd(draws: &[Vec<f64>], g: usize) -> f64 {
         sample_sd(draws.iter().map(|d| d[g]))
+    }
+
+    #[test]
+    fn bound_quantile_is_exchangeable_rank_over_finite_draws_and_nan_when_empty() {
+        // ExchangeableRank: zero-based rank = clamp(p * (d + 1), 1, d) - 1. For d = 5,
+        // p = 0.9: p * (d + 1) = 5.4, clamped to d = 5, rank 4 (0-based) -> the top order
+        // statistic, 5.0. (Old pin 4.6 was the type-7 rank this call site no longer uses;
+        // `quantile` moved to ExchangeableRank, see the doc comment above.)
+        assert!((quantile(&[5.0, 1.0, 3.0, 2.0, 4.0], 0.9) - 5.0).abs() < 1e-12);
+        assert!(quantile(&[], 0.5).is_nan());
+        // A non-finite draw is removed to shrink the sample behind the quantile: with the
+        // NaN dropped, p = 1.0 over [1.0, 2.0] is the top order statistic, 2.0, not NaN.
+        assert!((quantile(&[1.0, 2.0, f64::NAN], 1.0) - 2.0).abs() < 1e-12);
     }
 
     #[test]
@@ -486,7 +484,10 @@ mod tests {
     fn posterior_draw_interval_is_equal_tailed_for_a_point() {
         let a: Vec<f64> = (0..1000).map(|k| f64::from(k) / 999.0).collect();
         let im = imbens_manski_posterior_draws(&[0.5], &[&a], 160, 0.9).unwrap();
-        assert!((im.lower - 0.05).abs() < 1e-9 && (im.upper - 0.95).abs() < 1e-9);
+        // Draws k/999 (k = 0..999) at exchangeable ranks p·1001 (one-based):
+        // value = (p·1001 − 1)/999 for tail probability p = 0.05 and 0.95.
+        let (lower, upper) = ((0.05 * 1001.0 - 1.0) / 999.0, (0.95 * 1001.0 - 1.0) / 999.0);
+        assert!((im.lower - lower).abs() < 1e-9 && (im.upper - upper).abs() < 1e-9);
         assert_eq!(im.method, IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile);
     }
 

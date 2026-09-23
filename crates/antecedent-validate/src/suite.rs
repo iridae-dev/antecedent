@@ -5,12 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::unused_self,
-    clippy::too_many_lines
-)]
+#![allow(clippy::unused_self, clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -236,17 +231,18 @@ impl ValidationSuite {
         Self::new().with(ValidatorId::Overlap)
     }
 
-    /// Falsifiers of the causal claim (placebo, dummy outcome, RCC, UCC, overlap, E-value,
-    /// sensitivity, Riesz). Does not include sampling-stability checks.
+    /// Falsifiers of the causal claim under the estimators they are gated to
+    /// (UCC, overlap, E-value, sensitivity, Riesz).
+    ///
+    /// Placebo, dummy-outcome, and random-common-cause are omitted: under the OLS /
+    /// linear-adjustment path they are gated to they have no power against a wrong
+    /// claim (`informative: false`) and live in [`Self::stability_effect`] instead.
     #[must_use]
     pub fn falsification_effect() -> Self {
         Self::new()
-            .with(ValidatorId::Placebo)
-            .with(ValidatorId::RandomCommonCause)
             .with(ValidatorId::UnobservedCommonCause)
             .with(ValidatorId::Overlap)
             .with(ValidatorId::OverlapRule)
-            .with(ValidatorId::DummyOutcome)
             .with(ValidatorId::EValue)
             .with(ValidatorId::LinearSensitivity)
             .with(ValidatorId::PartialLinearSensitivity)
@@ -255,9 +251,15 @@ impl ValidationSuite {
     }
 
     /// Stability / sampling-variability diagnostics (not claim falsifiers).
+    ///
+    /// Includes placebo, dummy-outcome, RCC, and data-subset: under OLS these are
+    /// orthogonal/near-null by construction and report `informative: false`.
     #[must_use]
     pub fn stability_effect() -> Self {
         Self::new()
+            .with(ValidatorId::Placebo)
+            .with(ValidatorId::RandomCommonCause)
+            .with(ValidatorId::DummyOutcome)
             .with(ValidatorId::Bootstrap)
             .with(ValidatorId::DataSubset)
             .with(ValidatorId::Graph)
@@ -694,8 +696,10 @@ impl ValidationSuite {
                 ))
             }
             ValidatorId::PriorSensitivity => {
-                let sens = PriorSensitivity::standard_grid();
-                let (summary, _posts) = sens.evaluate(
+                // The grid perturbs the prior the estimator fits with (a supplied or transferred
+                // prior gets its variance-multiplier grid, none the isotropic scale grid).
+                let sens = PriorSensitivity::for_estimator(bayes.estimator);
+                let (summary, _posts) = sens.evaluate_in_force(
                     bayes.estimator,
                     bayes.prepared,
                     bayes.identification,
@@ -901,8 +905,20 @@ mod tests {
         );
         let outcomes = ValidationSuite::full_effect().run(&problem, &mut ws, &ctx).unwrap();
         assert_eq!(outcomes.len(), 14);
+        // Every outcome is exactly one of report / skip / operational failure.
         let reports = ValidationSuite::reports_only(&outcomes);
-        assert!(reports.len() >= 10, "reports={}", reports.len());
+        let skipped = ValidationSuite::not_applicable_only(&outcomes);
+        let failed =
+            outcomes.iter().filter(|o| matches!(o, ValidationOutcome::Failed { .. })).count();
+        assert_eq!(reports.len() + skipped.len() + failed, 14);
+        // The noise-free toy leaves no residual outcome variation, so no finite confounder
+        // strength can explain the effect away: the E-value is infinite, not a finite artefact of
+        // the outcome's marginal spread.
+        let evalue = reports
+            .iter()
+            .find(|r| r.refuter.as_ref() == "sensitivity.evalue")
+            .expect("e-value report");
+        assert!(evalue.comparison.is_infinite(), "e-value={}", evalue.comparison);
     }
 
     #[test]
@@ -922,6 +938,43 @@ mod tests {
             ValidatorId::Riesz,
         ] {
             assert!(!ids.contains(&banned), "plugin_level_full must omit {banned:?}");
+        }
+    }
+
+    #[test]
+    fn falsification_effect_omits_ols_powerless_refuters() {
+        let ids = ValidationSuite::falsification_effect().validators;
+        for banned in [
+            ValidatorId::Placebo,
+            ValidatorId::RandomCommonCause,
+            ValidatorId::DummyOutcome,
+            ValidatorId::DataSubset,
+        ] {
+            assert!(
+                !ids.contains(&banned),
+                "falsification_effect must not include OLS-powerless {banned:?}"
+            );
+        }
+        let stability = ValidationSuite::stability_effect().validators;
+        for required in [
+            ValidatorId::Placebo,
+            ValidatorId::RandomCommonCause,
+            ValidatorId::DummyOutcome,
+            ValidatorId::DataSubset,
+        ] {
+            assert!(
+                stability.contains(&required),
+                "stability_effect must house OLS-powerless {required:?}"
+            );
+        }
+        // Real falsifiers stay in the falsification set.
+        for required in [
+            ValidatorId::UnobservedCommonCause,
+            ValidatorId::Overlap,
+            ValidatorId::EValue,
+            ValidatorId::Riesz,
+        ] {
+            assert!(ids.contains(&required), "falsification_effect must keep {required:?}");
         }
     }
 }

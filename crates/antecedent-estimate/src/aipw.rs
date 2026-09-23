@@ -16,12 +16,14 @@
 //! Positivity is mandatory — [`OverlapPolicy::ExplicitOverride`] is refused, matching the other
 //! propensity-based estimators in [`crate::propensity`].
 //!
-//! `AllObserved` iid fits (no trim, homoskedastic SE, no cluster/panel) use the
-//! same cross-fitted score table as `retarget`. ATT/ATC, trim, and clustered SE
-//! stay on the residualized full-sample path and do not export that table.
+//! Untrimmed `AllObserved` fits use the same cross-fitted score table as `retarget` for
+//! every SE kind, so the point estimate does not depend on which SE was requested; the
+//! table's covariance and simultaneous bands are exported only under the iid SE. ATT/ATC,
+//! trimmed, and predicate-target fits stay on the full-sample path and do not export that table.
 //!
-//! Analytic SEs on the residualized path correct ψ for parametric nuisances:
-//! ATE-type targets project ψ off the logistic scores; ATT/ATC use the
+//! Analytic SEs on the full-sample path correct ψ for parametric nuisances:
+//! ATE-type targets add the exact stacked-M terms for the logistic and the two arm OLS fits
+//! (valid under a misspecified propensity too); ATT/ATC use the
 //! centered efficient influence function `(N_i − τ·T_i)/π`. That function
 //! accounts for the estimated propensity and arm share only when *both*
 //! nuisance models are consistent: the ATT/ATC point estimate stays doubly
@@ -34,11 +36,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::similar_names,
-    clippy::needless_range_loop
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::borrow::Cow;
@@ -108,6 +112,29 @@ pub struct AipwAte {
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for [`AnalyticSeKind::PanelClusterHac`].
     pub panel_times: Option<Vec<i64>>,
+}
+
+/// Per-row influence of the control-to-treated score contrast: the plain score difference
+/// under uniform weights, otherwise the target-weighted centered difference.
+fn contrast_influence(
+    table: &crate::scores::ScoreTable,
+    weights: Option<&[f64]>,
+    contrast_value: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let n = table.n_rows as f64;
+    Ok(match weights {
+        Some(w) => {
+            let mass: f64 = w.iter().sum();
+            table
+                .column(0)?
+                .iter()
+                .zip(table.column(1)?)
+                .zip(w)
+                .map(|((&a, &b), &wi)| n * wi / mass * (b - a - contrast_value))
+                .collect()
+        }
+        None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
+    })
 }
 
 impl Default for AipwAte {
@@ -244,8 +271,53 @@ impl AipwAte {
     ///
     /// Target population other than ATE/ATT/ATC, empty treated/control arm, or GLM/OLS
     /// backend failure.
-    #[allow(clippy::too_many_lines)]
     pub fn fit(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let point = self.fit_point(problem, workspace, ctx, assumptions)?;
+        self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
+    /// uncertainty stage), without refitting the nuisance models. The resampling scheme is
+    /// the one the point fit's route implies: cross-fitted score-table refits for custom
+    /// weights and the untrimmed ATE, per-replicate nuisance refits otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap failure.
+    pub fn attach_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if self.bootstrap_replicates == 0 {
+            return Ok(point);
+        }
+        let boot = if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
+            let weights = problem
+                .target_weights
+                .as_deref()
+                .ok_or_else(|| EstimationError::data_msg("missing custom target weights"))?;
+            self.crossfit_bootstrap(problem, ctx, Some(weights))?
+        } else if matches!(problem.target_population, TargetPopulation::AllObserved)
+            && trim_of(problem.overlap).is_none()
+        {
+            self.crossfit_bootstrap(problem, ctx, None)?
+        } else {
+            self.bootstrap_se(problem, workspace, ctx)?
+        };
+        Ok(point.with_bootstrap(Some(boot)))
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn fit_point(
         &self,
         problem: &PreparedPropensityProblem,
         workspace: &mut AipwWorkspace,
@@ -270,10 +342,6 @@ impl AipwAte {
         }
         if matches!(problem.target_population, TargetPopulation::AllObserved)
             && trim_of(problem.overlap).is_none()
-            && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
-            && self.cluster_ids.is_none()
-            && self.multiway_ids.is_none()
-            && self.panel_times.is_none()
         {
             return self.fit_crossfit_scores(problem, ctx, assumptions, None, false);
         }
@@ -355,7 +423,21 @@ impl AipwAte {
             // projecting ψ off the logistic scores would remove genuine variance.
             center_population_psi(&mut workspace.psi, &t_used, &problem.target_population, ate);
         } else {
-            residualize_aipw_psi(&mut workspace.psi, &t_used, &e_used, &design_used, ncols)?;
+            let e_raw: Cow<'_, [f64]> = match &retained {
+                Some(idx) => Cow::Owned(gather(&model.fit.scores, idx)),
+                None => Cow::Borrowed(model.fit.scores.as_slice()),
+            };
+            let fit = AipwNuisanceFit {
+                treatment: &t_used,
+                outcome: &y_used,
+                e_used: &e_used,
+                e_raw: &e_raw,
+                mu0: &workspace.mu0,
+                mu1: &workspace.mu1,
+                design: &design_used,
+                ncols,
+            };
+            correct_aipw_psi_for_nuisances(&mut workspace.psi, &fit)?;
         }
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
@@ -366,11 +448,6 @@ impl AipwAte {
             self.panel_times.as_deref(),
             retained.as_deref(),
         )?;
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, workspace, ctx)?)
-        };
         let overlap_report = Some(crate::propensity::propensity_overlap_report(
             problem,
             &model.fit.scores,
@@ -380,7 +457,6 @@ impl AipwAte {
         let estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_se_kind(self.se_kind)
             .with_overlap_report(overlap_report)
-            .with_bootstrap(boot)
             .with_influence(Some(Arc::from(workspace.psi.as_slice())));
         Ok(estimate)
     }
@@ -415,63 +491,33 @@ impl AipwAte {
         weights: Option<&[f64]>,
         refuse_overlap: bool,
     ) -> Result<EffectEstimate, EstimationError> {
-        let build = |p: &PreparedPropensityProblem| {
-            crate::crossfit_aipw::build_binary_scores(
-                p,
-                p.treatment_id,
-                &[None],
-                crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
-                &self.glm_options,
-                self.backend,
-            )
-        };
-        let table = build(problem)?;
+        let seeded = Self::crossfit_problem(problem, ctx);
+        let problem = &seeded;
+        let table = self.crossfit_table(problem)?;
         let summary = table.summarize(weights)?;
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
-        let n = table.n_rows as f64;
-        let influence: Vec<f64> = match weights {
-            Some(w) => {
-                let mass: f64 = w.iter().sum();
-                table
-                    .column(0)?
-                    .iter()
-                    .zip(table.column(1)?)
-                    .zip(w)
-                    .map(|((&a, &b), &wi)| n * wi / mass * (b - a - contrast.value))
-                    .collect()
-            }
-            None => table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect(),
-        };
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
-                let mut p = problem.clone();
-                let mut design = Vec::new();
-                select_rows_colmajor(
-                    &problem.design_matrix,
-                    problem.nrows,
-                    problem.design_ncols,
-                    idx,
-                    &mut design,
-                );
-                p.design_matrix = design.into();
-                p.treatment = gather(&problem.treatment, idx).into();
-                p.outcome = gather(&problem.outcome, idx).into();
-                if let Some(w) = weights {
-                    p.target_weights = Some(gather(w, idx).into());
-                }
-                let Ok(t) = build(&p) else {
-                    return Ok(None);
-                };
-                let ss = t.summarize(p.target_weights.as_deref())?;
-                Ok(Some(ss.means[1] - ss.means[0]))
-            })?)
-        };
+        let iid_se = matches!(self.se_kind, AnalyticSeKind::Homoskedastic);
+        let influence = contrast_influence(&table, weights, contrast.value)?;
+        // The score table's covariance and simultaneous bands are iid objects; under a
+        // dependence-robust SE kind they would contradict `se_analytic`, so they are withheld
+        // rather than published at the wrong strength.
         let inference = table.inference(weights)?;
         if refuse_overlap && !inference.support.overlap_ok {
             return Err(EstimationError::unsupported("custom target weighted overlap failed"));
         }
+        let se_analytic = if iid_se {
+            contrast.se
+        } else {
+            crate::se::influence_se_kind(
+                self.se_kind,
+                &influence,
+                problem.nrows,
+                self.cluster_ids.as_deref(),
+                self.multiway_ids.as_deref(),
+                self.panel_times.as_deref(),
+                None,
+            )?
+        };
         let e_hat =
             table.columns.iter().position(|c| c.arm == 1 && c.threshold.is_none()).and_then(
                 |col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows),
@@ -485,14 +531,79 @@ impl AipwAte {
             )
         });
         let mut result =
-            EffectEstimate::new(contrast.value, contrast.se, assumptions, problem.overlap)
+            EffectEstimate::new(contrast.value, se_analytic, assumptions, problem.overlap)
+                .with_se_kind(self.se_kind)
                 .with_overlap_report(overlap_report)
-                .with_joint_covariance(Some(summary.covariance))
-                .with_bootstrap(boot)
+                .with_joint_covariance(iid_se.then_some(summary.covariance))
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
-        result.score_inference = Some(inference);
+        result.score_inference = iid_se.then_some(inference);
         Ok(result)
+    }
+
+    /// The recorded cross-fit seed must govern the fold plan, not only the learners.
+    fn crossfit_problem(
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> PreparedPropensityProblem {
+        let mut seeded = problem.clone();
+        seeded.fold_seed = ctx.rng.master_seed();
+        seeded
+    }
+
+    fn crossfit_table(
+        &self,
+        p: &PreparedPropensityProblem,
+    ) -> Result<crate::scores::ScoreTable, EstimationError> {
+        crate::crossfit_aipw::build_binary_scores(
+            p,
+            p.treatment_id,
+            &[None],
+            crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+            &self.glm_options,
+            self.backend,
+        )
+    }
+
+    /// Row-resample bootstrap of the cross-fitted contrast: each replicate rebuilds the score
+    /// table on the resampled rows. `weights` are the custom-target weights (`None` = uniform).
+    fn crossfit_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        weights: Option<&[f64]>,
+    ) -> Result<BootstrapSeResult, EstimationError> {
+        let seeded = Self::crossfit_problem(problem, ctx);
+        let problem = &seeded;
+        bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
+            let mut p = problem.clone();
+            let mut design = Vec::new();
+            select_rows_colmajor(
+                &problem.design_matrix,
+                problem.nrows,
+                problem.design_ncols,
+                idx,
+                &mut design,
+            );
+            p.design_matrix = design.into();
+            p.treatment = gather(&problem.treatment, idx).into();
+            p.outcome = gather(&problem.outcome, idx).into();
+            // Copies of one original row keep that row's identity (and shared fold), so
+            // no unit is both in a training set and in its own validation fold.
+            p.row_index = idx.iter().map(|&i| problem.row_index[i]).collect::<Vec<_>>().into();
+            p.fold_assignment = problem
+                .fold_assignment
+                .as_deref()
+                .map(|ids| idx.iter().map(|&i| ids[i]).collect::<Vec<_>>().into());
+            if let Some(w) = weights {
+                p.target_weights = Some(gather(w, idx).into());
+            }
+            let Ok(t) = self.crossfit_table(&p) else {
+                return Ok(None);
+            };
+            let ss = t.summarize(p.target_weights.as_deref())?;
+            Ok(Some(ss.means[1] - ss.means[0]))
+        })
     }
 
     fn bootstrap_se(
@@ -755,8 +866,8 @@ fn aipw_psi(
 /// `(N_i − τ·T_i) / π` (ATC: `(N_i − τ·(1−T_i)) / π₀`), which is the efficient
 /// DR influence function and needs no propensity-score projection when both
 /// nuisance models are consistent (with one misspecified it omits the
-/// nuisance-estimation terms, so the analytic SE is not doubly robust). Before 1.9
-/// the plug-in terms were used as the IF (dropping `−τ·T_i/π`) and then
+/// nuisance-estimation terms, so the analytic SE is not doubly robust). Using
+/// the plug-in terms as the IF (dropping `−τ·T_i/π`) and then
 /// projected off the logistic scores; at nominal 0.95 that measured 0.980 ATT /
 /// 0.863 ATC coverage (`calibration_coverage::aipw_at{t,c}_hc1_ci_coverage`).
 /// ATE / predicate targets already average over every row and are unchanged.
@@ -783,63 +894,98 @@ fn center_population_psi(
     }
 }
 
-/// Orthogonalize AIPW ψ against the propensity score so `se_analytic` is not
-/// conditional on ê as known. Outcome-model scores are already orthogonal to ψ
-/// when μ̂₀, μ̂₁ are OLS on the same sample. Singular Gram → refuse rather than skip.
-fn residualize_aipw_psi(
+/// Add the first-order terms for the *estimated* nuisances to the ATE score ψ, so that
+/// `se_analytic` is not conditional on ê, μ̂₀, μ̂₁ as known.
+///
+/// The estimator solves a stacked system: the logistic score `x(T−e)`, and per-arm OLS scores
+/// `T·x(Y−μ₁)`, `(1−T)·x(Y−μ₀)`. Each block contributes `Bᵀ I⁻¹ s_i` with `B` the mean
+/// derivative of ψ in that block's parameters (see [`crate::se::add_nuisance_correction`]):
+///
+/// ```text
+/// ∂ψ/∂γ  = −[T(Y−μ₁)(1−e)/e + (1−T)(Y−μ₀)e/(1−e)]·x      (0 where ê was clipped)
+/// ∂ψ/∂β₁ =  (1 − T/e)·x        ∂ψ/∂β₀ = −(1 − (1−T)/(1−e))·x
+/// ```
+///
+/// This is exact whether or not the propensity model is correct. The projection of ψ on the
+/// logistic score, used previously, equals the propensity term only under the information
+/// equality and, under a misspecified propensity with heterogeneous effects, removes real
+/// variance; the outcome-model terms vanish only when the propensity is correct. The logistic
+/// score uses the raw fitted `ê` (it sums to zero at the MLE), the derivative the clipped one.
+/// A singular block information matrix refuses rather than publishing an uncorrected SE.
+fn correct_aipw_psi_for_nuisances(
     psi: &mut [f64],
-    treatment: &[f64],
-    propensity: &[f64],
-    design_colmajor: &[f64],
-    ncols: usize,
+    fit: &AipwNuisanceFit<'_>,
 ) -> Result<(), EstimationError> {
     let n = psi.len();
-    if ncols == 0 || n < 2 || design_colmajor.len() < n * ncols {
+    if fit.ncols == 0 || n < 2 {
         return Ok(());
     }
-    let k = ncols;
-    let mut scores = vec![0.0; n * k];
+    let mut e_score = vec![0.0; n];
+    let mut e_info = vec![0.0; n];
+    let mut e_deriv = vec![0.0; n];
+    let mut b1_score = vec![0.0; n];
+    let mut b1_info = vec![0.0; n];
+    let mut b1_deriv = vec![0.0; n];
+    let mut b0_score = vec![0.0; n];
+    let mut b0_info = vec![0.0; n];
+    let mut b0_deriv = vec![0.0; n];
     for i in 0..n {
-        let e_resid = treatment[i] - propensity[i];
-        for c in 0..ncols {
-            scores[c * n + i] = design_colmajor[c * n + i] * e_resid;
-        }
+        let (t, y, e, raw) = (fit.treatment[i], fit.outcome[i], fit.e_used[i], fit.e_raw[i]);
+        let (r1, r0) = (y - fit.mu1[i], y - fit.mu0[i]);
+        e_score[i] = t - raw;
+        e_info[i] = raw * (1.0 - raw);
+        // Clipped rows do not depend on γ locally.
+        #[allow(
+            clippy::float_cmp,
+            reason = "e is either exactly the raw propensity or the clipped bound, so exact inequality detects a clipped row"
+        )]
+        let clipped = e != raw;
+        e_deriv[i] =
+            if clipped { 0.0 } else { -(t * r1 * (1.0 - e) / e + (1.0 - t) * r0 * e / (1.0 - e)) };
+        b1_score[i] = t * r1;
+        b1_info[i] = t;
+        b1_deriv[i] = 1.0 - t / e;
+        b0_score[i] = (1.0 - t) * r0;
+        b0_info[i] = 1.0 - t;
+        b0_deriv[i] = -(1.0 - (1.0 - t) / (1.0 - e));
     }
-    let nf = n as f64;
-    let mut gram = vec![0.0; k * k];
-    let mut rhs = vec![0.0; k];
-    for c in 0..k {
-        for i in 0..n {
-            rhs[c] += scores[c * n + i] * psi[i];
-        }
-        rhs[c] /= nf;
-        for d in 0..k {
-            let mut acc = 0.0;
-            for i in 0..n {
-                acc += scores[c * n + i] * scores[d * n + i];
-            }
-            gram[c * k + d] = acc / nf;
-        }
-    }
-    let Some(alpha) = crate::propensity::weighting::solve_symmetric_posdef(&mut gram, &mut rhs, k)
-    else {
-        return Err(EstimationError::stats_msg(
-            "singular AIPW nuisance-score Gram; refusing an uncorrected analytic SE",
-        ));
-    };
-    for i in 0..n {
-        let mut adj = 0.0;
-        for c in 0..k {
-            adj += scores[c * n + i] * alpha[c];
-        }
-        psi[i] -= adj;
+    let singular = "singular AIPW nuisance-score information; refusing an uncorrected analytic SE";
+    // Each block's derivative is a function of the data only, so the terms add independently.
+    for (score, info, deriv) in [
+        (&e_score, &e_info, &e_deriv),
+        (&b1_score, &b1_info, &b1_deriv),
+        (&b0_score, &b0_info, &b0_deriv),
+    ] {
+        crate::se::add_nuisance_correction(
+            psi, fit.design, fit.ncols, score, info, deriv, singular,
+        )?;
     }
     Ok(())
 }
 
+/// Rows and fitted nuisances behind an AIPW ATE score (aligned, length = retained rows).
+struct AipwNuisanceFit<'a> {
+    treatment: &'a [f64],
+    outcome: &'a [f64],
+    /// Clipped propensity used in ψ.
+    e_used: &'a [f64],
+    /// Raw fitted propensity (the logistic MLE's own scores).
+    e_raw: &'a [f64],
+    mu0: &'a [f64],
+    mu1: &'a [f64],
+    design: &'a [f64],
+    ncols: usize,
+}
+
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -864,7 +1010,8 @@ mod tests {
     }
 
     fn confounded_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
 
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
@@ -952,6 +1099,29 @@ mod tests {
         ExecutionContext::for_tests(7)
     }
 
+    /// The facade attaches the bootstrap to a replicate-free point fit; every AIPW route
+    /// (cross-fitted untrimmed ATE, trimmed/ATT nuisance refit) must publish the same estimate.
+    #[test]
+    fn aipw_attached_bootstrap_equals_the_one_shot_fit_on_every_route() {
+        let (data, estimand) = confounded_scm(400, 3);
+        let ate = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let att = ate.clone().with_target_population(TargetPopulation::Treated);
+        for query in [ate, att] {
+            let boot = AipwAte { bootstrap_replicates: 30, ..AipwAte::new() };
+            let prep = boot.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = AipwWorkspace::default();
+            let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            let point_only = AipwAte { bootstrap_replicates: 0, ..boot.clone() };
+            let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            assert!(point.se_bootstrap.is_none());
+            let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
+            assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
+            assert!(full.se_bootstrap.is_some());
+            assert_eq!(attached.se_bootstrap, full.se_bootstrap);
+            assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        }
+    }
+
     #[test]
     fn aipw_recovers_ate_two() {
         let (data, estimand) = confounded_scm(800, 1);
@@ -994,7 +1164,8 @@ mod tests {
     #[test]
     fn att_if_doubly_robust_under_mu1_misspecification() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(42).rng.stream(0xA11u64);
+        let mut rng =
+            ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Estimate, 0xA11u64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1041,7 +1212,8 @@ mod tests {
     #[test]
     fn atc_if_doubly_robust_under_mu0_misspecification() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(42).rng.stream(0xA7Cu64);
+        let mut rng =
+            ExecutionContext::for_tests(42).rng.stream_for(StreamDomain::Estimate, 0xA7Cu64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1073,7 +1245,8 @@ mod tests {
     #[test]
     fn atc_if_doubly_robust_under_propensity_misspecification() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(43).rng.stream(0xBEEFu64);
+        let mut rng =
+            ExecutionContext::for_tests(43).rng.stream_for(StreamDomain::Estimate, 0xBEEFu64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1105,7 +1278,8 @@ mod tests {
     #[test]
     fn atc_if_doubly_robust_when_both_correct() {
         let n = 4_000usize;
-        let mut rng = ExecutionContext::for_tests(44).rng.stream(0xCAFEu64);
+        let mut rng =
+            ExecutionContext::for_tests(44).rng.stream_for(StreamDomain::Estimate, 0xCAFEu64);
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
         let mut e = vec![0.0; n];
@@ -1197,5 +1371,88 @@ mod tests {
         let mut ws = AipwWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
+    }
+
+    /// Leave-one-out jackknife SE of the whole estimator (logistic + both OLS refit each time):
+    /// an SE that needs no influence-function algebra, so it is an independent yardstick.
+    fn jackknife_se(t: &[f64], y: &[f64], z: &[f64], est: &AipwAte) -> f64 {
+        let n = t.len();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut ws = AipwWorkspace::default();
+        let mut loo = Vec::with_capacity(n);
+        for drop in 0..n {
+            let keep = |v: &[f64]| -> Vec<f64> {
+                v.iter().enumerate().filter(|(i, _)| *i != drop).map(|(_, x)| *x).collect()
+            };
+            let (data, estimand) = build_dataset(keep(t), keep(y), keep(z));
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            loo.push(est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap().ate);
+        }
+        let mean = loo.iter().sum::<f64>() / n as f64;
+        let ss: f64 = loo.iter().map(|v| (v - mean).powi(2)).sum();
+        ((n as f64 - 1.0) / n as f64 * ss).sqrt()
+    }
+
+    #[test]
+    fn ate_analytic_se_matches_jackknife_under_misspecified_propensity() {
+        // True propensity depends on z²; the fitted logistic is linear in z (misspecified).
+        // Outcome per arm is linear in z (correct) with CATE 2 + 1.5 z, so the estimator is
+        // consistent for ATE = 2, E[∂ψ/∂γ] = 0, but E[(τ(Z)−τ)·Z(e₀−e*)] ≠ 0: projecting ψ
+        // off the logistic score would delete real variance. The stacked linearisation must
+        // agree with the delete-one jackknife of the full estimator.
+        let n = 300usize;
+        let mut rng = ExecutionContext::for_tests(61).rng.stream_for(StreamDomain::Estimate, 0x77);
+        let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            let zi = standard_normal(&mut rng);
+            let logit = -0.5 + 0.3 * zi + 1.2 * (zi * zi - 1.0);
+            let p = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = 2.0 * ti + zi + 1.5 * ti * zi + 0.5 * standard_normal(&mut rng);
+        }
+        // A trim below every score keeps all rows but routes through the full-sample path.
+        let est = AipwAte {
+            bootstrap_replicates: 0,
+            overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(1e-9) },
+            ..AipwAte::new()
+        };
+        let (data, estimand) = build_dataset(t.clone(), y.clone(), z.clone());
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let fit = est.fit(&prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new());
+        let fit = fit.unwrap();
+        let jk = jackknife_se(&t, &y, &z, &est);
+        let rel = (fit.se_analytic - jk).abs() / jk;
+        assert!(rel < 0.15, "analytic {} vs jackknife {jk}", fit.se_analytic);
+    }
+
+    #[test]
+    fn point_estimate_does_not_depend_on_the_requested_se_kind() {
+        let (data, estimand) = confounded_scm(400, 12);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut ws = AipwWorkspace::default();
+        let base = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let prep = base.prepare(&data, &estimand, &query).unwrap();
+        let iid = base.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let clusters: Vec<u32> = (0..400).map(|i| u32::try_from(i / 4).unwrap_or(0)).collect();
+        for est in [
+            AipwAte { se_kind: AnalyticSeKind::Hc1, ..base.clone() },
+            AipwAte {
+                se_kind: AnalyticSeKind::Cluster,
+                cluster_ids: Some(clusters.clone()),
+                ..base.clone()
+            },
+        ] {
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            assert_eq!(fit.ate.to_bits(), iid.ate.to_bits(), "{:?}", est.se_kind);
+            assert!(fit.score_table.is_some());
+            assert!(fit.joint_covariance.is_none() && fit.score_inference.is_none());
+        }
     }
 }

@@ -46,8 +46,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal, get_args
 
+from ._defaults import OMITTED
 from .errors import CausalValueError
 from .ids import Estimator
+from .learners import LearnerSpec, _learner_wire
 
 SeKind = Literal[
     "homoskedastic",
@@ -225,9 +227,9 @@ class Overlap:
 
     Every propensity-score estimator (``PropensityWeighting``,
     ``PropensityMatching``, ``PropensityStratification``, ``DistanceMatching``,
-    ``Aipw``) clips fitted propensities into ``[0.01, 0.99]`` and trims no unit
-    unless it is given an ``overlap``. ``clip`` bounds the propensities used in
-    the weights to ``[clip, 1 - clip]``; ``trim`` drops units whose propensity
+    ``Aipw``) applies the native default policy (``omitted_defaults()``:
+    clip at 0.01, no trim) unless it is given an ``overlap``. ``clip`` bounds the
+    propensities used in the weights to ``[clip, 1 - clip]``; ``trim`` drops units whose propensity
     lies outside ``[trim, 1 - trim]``, which also narrows the population the
     effect describes. ``None`` turns that operation off. Each bound lies in
     ``(0, 0.5)``.
@@ -238,8 +240,8 @@ class Overlap:
     ``scope_not_assessed``.
     """
 
-    clip: float | None = 0.01
-    trim: float | None = None
+    clip: float | None = OMITTED["overlap_clip"]
+    trim: float | None = OMITTED["overlap_trim"]
 
     def __post_init__(self) -> None:
         for name in ("clip", "trim"):
@@ -286,7 +288,7 @@ def _wire_se_common(
     shared by every estimator config that carries these fields.
 
     ``multiway_ids``/``panel_times`` default to ``None`` so callers whose dataclass has no
-    such field (``FrontdoorTwoStage``) can simply omit them rather than inventing values.
+    such field (``FrontdoorLinearTwoStage``) can simply omit them rather than inventing values.
     """
     out: dict[str, Any] = {}
     if bootstrap is not None:
@@ -521,7 +523,15 @@ class DistanceMatching:
 
 @dataclass(frozen=True, slots=True)
 class Aipw:
-    """``aipw`` — augmented inverse propensity weighting (doubly robust)."""
+    """``aipw`` — augmented inverse propensity weighting.
+
+    The point estimate is doubly robust: consistent when either the propensity or
+    the outcome model is. The analytic standard error (``se=...``) is not: it
+    corrects for parametric nuisances only, is not valid for flexible or
+    nonparametric nuisances, and for ATT/ATC is not robust to a misspecified
+    propensity or outcome model. The default inference is the bootstrap, which
+    refits the nuisance models on every resample.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -601,12 +611,20 @@ class GlmAdjustment:
 
 
 @dataclass(frozen=True, slots=True)
-class FrontdoorTwoStage:
-    """``frontdoor.two_stage`` — two-stage front-door estimator.
+class FrontdoorLinearTwoStage:
+    """``frontdoor.linear_two_stage`` — linear product-of-coefficients front-door estimator.
+
+    Multiplies OLS coefficients (``T -> M`` times ``M -> Y`` given ``T``) rather than
+    evaluating the front-door functional, so it is exact only when ``E[M|T]`` is linear
+    and ``E[Y|M,T]`` has no treatment-mediator interaction. The result is therefore
+    reported as identified under parametric restrictions, with
+    ``frontdoor.linear_path_product`` among its identification assumptions. For a
+    discrete treatment prefer
+    ``estimator="frontdoor.functional"``, which estimates the functional itself.
 
     No ``multiway_ids``/``panel_times`` fields: the Rust struct carries only
     ``cluster_ids`` (no multiway/panel SE machinery for this estimator) — matches
-    ``estimator_config.rs``'s ``ESTIMATOR_KEYS`` row for ``frontdoor.two_stage``,
+    ``estimator_config.rs``'s ``ESTIMATOR_KEYS`` row for ``frontdoor.linear_two_stage``,
     which likewise omits those two keys.
     """
 
@@ -621,7 +639,7 @@ class FrontdoorTwoStage:
 
     @property
     def estimator_id(self) -> str:
-        return str(Estimator.FRONTDOOR_TWO_STAGE)
+        return str(Estimator.FRONTDOOR_LINEAR_TWO_STAGE)
 
     def _wire(self) -> dict[str, Any]:
         return _omit_empty(
@@ -636,7 +654,17 @@ class FrontdoorTwoStage:
 
 @dataclass(frozen=True, slots=True)
 class IvWald:
-    """``iv.wald`` — single-instrument Wald IV estimator."""
+    """``iv.wald`` — single binary-instrument Wald ratio.
+
+    The ratio ``(E[Y|Z=1] - E[Y|Z=0]) / (E[T|Z=1] - E[T|Z=0])`` is the average
+    treatment effect only when the treatment's effect on the outcome is the same
+    constant, linear effect for every unit. When effects differ across units it is,
+    for a binary treatment and under monotonicity (no defiers), the local average
+    treatment effect for compliers, not the population average. The instrument
+    cannot tell which case holds; the result is reported as identified under
+    parametric restrictions and carries
+    ``iv.constant_linear_effect_or_monotonicity`` among its assumptions.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -673,7 +701,15 @@ class IvWald:
 
 @dataclass(frozen=True, slots=True)
 class Iv2Sls:
-    """``iv.2sls`` — two-stage least squares, multi-instrument IV estimator."""
+    """``iv.2sls`` — two-stage least squares with one or more instruments.
+
+    The coefficient on the instrumented treatment is the average treatment effect
+    only under a constant linear structural effect. With heterogeneous effects it
+    is an instrument-weighted average of complier effects (for one binary
+    instrument and a binary treatment, the complier local average treatment
+    effect under monotonicity), not the population average. The result carries
+    ``iv.constant_linear_effect_or_monotonicity`` among its assumptions.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -710,7 +746,22 @@ class Iv2Sls:
 
 @dataclass(frozen=True, slots=True)
 class SharpRd:
-    """``rd.sharp`` — sharp regression discontinuity.
+    """``rd.sharp`` — sharp regression discontinuity: the effect at the cutoff.
+
+    The estimand is the average effect for units at the cutoff,
+    ``lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]``. It is not the population
+    average effect and not the average over the bandwidth window. The result's
+    target population is ``local_at_cutoff`` (running variable and cutoff), and
+    the ``identify.rd.local_estimand`` diagnostic states that the population-wide
+    effect is not identified by the design.
+
+    The design is checked where it can be. The graph must make the running
+    variable the treatment's only parent, and the treatment column must equal
+    ``1{running_variable >= cutoff}`` on every complete row; a violation (for
+    example imperfect compliance) is refused with ``rd_assignment_not_sharp``
+    rather than reported as a treatment effect. Continuity of the potential
+    outcomes at the cutoff and no manipulation of the running variable are
+    recorded as assumptions and are not tested.
 
     Unlike every other config in this module, there is no meaningful
     all-defaults instance: ``rd.sharp`` cannot run without a running variable,
@@ -767,11 +818,125 @@ class SharpRd:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class DML:
+    """``dml`` — cross-fitted DML / AIPW."""
+
+    learner: LearnerSpec | str | None = None
+    outcome: LearnerSpec | str | None = None
+    treatment: LearnerSpec | str | None = None
+    score: str | None = None
+    folds: int | None = None
+    overlap: Overlap | None = None
+
+    def __post_init__(self) -> None:
+        if self.folds is not None and self.folds < 2:
+            raise ValueError(f"DML folds must be at least 2, got {self.folds!r}")
+        if self.score is not None and self.score not in {"aipw", "partially_linear"}:
+            raise ValueError(f"DML score must be 'aipw' or 'partially_linear', got {self.score!r}")
+
+    @property
+    def estimator_id(self) -> str:
+        return str(Estimator.DML)
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.learner is not None:
+            out["learner"] = _learner_wire(self.learner)
+        if self.outcome is not None:
+            out["outcome"] = _learner_wire(self.outcome)
+        if self.treatment is not None:
+            out["treatment"] = _learner_wire(self.treatment)
+        if self.score is not None:
+            out["score"] = self.score
+        if self.folds is not None:
+            out["folds"] = self.folds
+        out.update(_wire_overlap(self.overlap))
+        return _omit_empty(out)
+
+
+@dataclass(frozen=True, slots=True)
+class DRLearner:
+    """``dr.learner`` — cross-fitted CATE learner on the doubly robust score.
+
+    The doubly robust property is that of the score: the effect estimate is
+    consistent when either the propensity or the outcome nuisance is. It is a
+    property of the point estimate, not of any reported standard error.
+    """
+
+    learner: LearnerSpec | str | None = None
+    outcome: LearnerSpec | str | None = None
+    treatment: LearnerSpec | str | None = None
+    final_learner: LearnerSpec | str | None = None
+    folds: int | None = None
+    overlap: Overlap | None = None
+
+    def __post_init__(self) -> None:
+        if self.folds is not None and self.folds < 2:
+            raise ValueError(f"DRLearner folds must be at least 2, got {self.folds!r}")
+
+    @property
+    def estimator_id(self) -> str:
+        return str(Estimator.DR_LEARNER)
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.learner is not None:
+            out["learner"] = _learner_wire(self.learner)
+        if self.outcome is not None:
+            out["outcome"] = _learner_wire(self.outcome)
+        if self.treatment is not None:
+            out["treatment"] = _learner_wire(self.treatment)
+        if self.final_learner is not None:
+            out["final_learner"] = _learner_wire(self.final_learner)
+        if self.folds is not None:
+            out["folds"] = self.folds
+        out.update(_wire_overlap(self.overlap))
+        return _omit_empty(out)
+
+
+@dataclass(frozen=True, slots=True)
+class CausalForest:
+    """``causal.forest`` — honest causal-forest CATE."""
+
+    n_trees: int | None = None
+    min_leaf: int | None = None
+    max_depth: int | None = None
+    honesty: bool | None = None
+
+    def __post_init__(self) -> None:
+        if self.n_trees is not None and self.n_trees < 1:
+            raise ValueError(f"CausalForest n_trees must be at least 1, got {self.n_trees!r}")
+        if self.min_leaf is not None and self.min_leaf < 1:
+            raise ValueError(f"CausalForest min_leaf must be at least 1, got {self.min_leaf!r}")
+        if self.max_depth is not None and self.max_depth < 1:
+            raise ValueError(f"CausalForest max_depth must be at least 1, got {self.max_depth!r}")
+
+    @property
+    def estimator_id(self) -> str:
+        return str(Estimator.CAUSAL_FOREST)
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.n_trees is not None:
+            out["n_trees"] = self.n_trees
+        if self.min_leaf is not None:
+            out["min_leaf"] = self.min_leaf
+        if self.max_depth is not None:
+            out["max_depth"] = self.max_depth
+        if self.honesty is not None:
+            out["honesty"] = self.honesty
+        return _omit_empty(out)
+
+
 __all__ = [
     "Aipw",
+    "CausalForest",
+    "DML",
+    "DRLearner",
     "DistanceMatching",
     "FitKind",
-    "FrontdoorTwoStage",
+    "FrontdoorLinearTwoStage",
     "GlmAdjustment",
     "GlmFamilyName",
     "GlmOptions",

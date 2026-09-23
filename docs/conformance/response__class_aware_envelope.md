@@ -63,4 +63,4 @@ Consumer: `crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs`.
 
 ## Expected summary
 
-Top-level keys: `bayesian, case, columns, contingency_table, continuous, cpdag, grid, pag, query, schema_version` (10 fields).
+Top-level keys: `bayesian, case, columns, contingency_table, continuous, cpdag, grid, oracle, pag, query, schema_version` (11 fields).

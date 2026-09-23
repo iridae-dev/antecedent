@@ -10,17 +10,31 @@ use antecedent_core::{Value, VariableId};
 use crate::provider::{Assignment, DistributionProvider, EvalContext, EvalError, FactorSpec};
 use crate::{
     CausalExprArena, ContrastOp, DomainRef, ExprId, ExprNode, InterventionSetId, OutcomeExprId,
-    VarSetId,
+    PopulationKeyId, VarSetId,
 };
+use antecedent_core::RegimeId;
+
+/// A difference `l − r` no larger than this many machine epsilons of `|l| + |r|` is
+/// indistinguishable from zero: each term carries at least half an ulp of rounding error.
+const CANCELLATION_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
 /// One step in a compiled evaluation plan (child references are slot indices).
 #[derive(Clone, Debug)]
-enum EvalOp {
+pub(crate) enum EvalOp {
     Distribution {
         variables: VarSetId,
         conditioned_on: VarSetId,
         intervention: InterventionSetId,
         domain: DomainRef,
+        population: PopulationKeyId,
+        regime: Option<RegimeId>,
+    },
+    Kernel {
+        body: usize,
+        #[allow(dead_code)]
+        population: PopulationKeyId,
+        #[allow(dead_code)]
+        regime: Option<RegimeId>,
     },
     Product {
         children: Arc<[usize]>,
@@ -51,12 +65,16 @@ enum EvalOp {
 /// Topologically ordered compiled evaluator for repeated provider evaluation.
 #[derive(Clone, Debug)]
 pub struct CompiledEvaluator {
-    ops: Vec<EvalOp>,
+    pub(crate) ops: Vec<EvalOp>,
+    pub(crate) origins: Vec<ExprId>,
     /// Sorted, deduplicated free variables per slot. A static property of the
     /// plan, computed once at compile time; `Expectation` evaluation reads it
     /// on every call instead of re-deriving it per evaluation.
-    free_vars: Vec<Arc<[VariableId]>>,
-    root: usize,
+    pub(crate) free_vars: Vec<Arc<[VariableId]>>,
+    /// Sorted, deduplicated variables each slot is a density in; an `Expectation`
+    /// integrates over these only.
+    pub(crate) density_vars: Vec<Arc<[VariableId]>>,
+    pub(crate) root: usize,
 }
 
 impl CausalExprArena {
@@ -74,11 +92,19 @@ impl CompiledEvaluator {
     ///
     /// Continuous [`ExprNode::IntegralOut`] is supported (see [`CausalExprArena::compile`]).
     pub fn compile(arena: &CausalExprArena, root: ExprId) -> Result<Self, EvalError> {
+        if root.raw() as usize >= arena.len() {
+            return Err(EvalError::ProviderKind("expression id outside the arena"));
+        }
         let mut ops = Vec::new();
         let mut expr_to_slot = HashMap::new();
         let root_slot = compile_rec(arena, root, &mut ops, &mut expr_to_slot)?;
         let free_vars = compute_free_vars(&ops, arena);
-        Ok(Self { ops, free_vars, root: root_slot })
+        let mut origins = vec![root; ops.len()];
+        for (expression, slot) in expr_to_slot {
+            origins[slot] = ExprId::from_raw(expression);
+        }
+        let density_vars = compute_density_vars(&ops, arena);
+        Ok(Self { ops, origins, free_vars, density_vars, root: root_slot })
     }
 
     /// Evaluate once against a provider.
@@ -150,12 +176,34 @@ impl CompiledEvaluator {
         // Density / scalar under `env`. Expectations and contrasts are scalars;
         // other ops are densities in the free variables bound by `env`.
         match &self.ops[slot] {
-            EvalOp::Distribution { variables, conditioned_on, intervention, domain } => {
+            EvalOp::Distribution {
+                variables,
+                conditioned_on,
+                intervention,
+                domain,
+                population,
+                regime,
+            } => {
+                let original = arena.intervention_assignments(*intervention);
+                let mut assignments = std::borrow::Cow::Borrowed(original);
+                if original.iter().any(super::InterventionAssignment::is_symbolic) {
+                    for assignment in assignments.to_mut() {
+                        if assignment.is_symbolic() {
+                            assignment.value = env
+                                .get(assignment.variable)
+                                .filter(|v| v.as_f64().is_none_or(f64::is_finite))
+                                .cloned()
+                                .ok_or(EvalError::MissingBinding(assignment.variable))?;
+                        }
+                    }
+                }
                 let spec = FactorSpec {
                     variables: arena.var_set(*variables),
                     conditioned_on: arena.var_set(*conditioned_on),
-                    intervention: arena.intervention_assignments(*intervention),
+                    intervention: &assignments,
                     domain: *domain,
+                    population: arena.population(*population),
+                    regime: *regime,
                 };
                 // Interventions bind targets; bind them into the shared
                 // scratch assignment for the lookup, restored on exit.
@@ -166,6 +214,7 @@ impl CompiledEvaluator {
                     provider.probability(&spec, env, ctx)
                 })
             }
+            EvalOp::Kernel { body, .. } => self.eval_slot(arena, provider, ctx, env, *body),
             EvalOp::Product { children } => {
                 let mut prod = 1.0;
                 for &c in children.iter() {
@@ -181,14 +230,32 @@ impl CompiledEvaluator {
             }
             EvalOp::Ratio { numerator, denominator } => {
                 let num = self.eval_slot(arena, provider, ctx, env, *numerator)?;
-                let den = self.eval_slot(arena, provider, ctx, env, *denominator)?;
-                if den == 0.0 {
-                    return Err(EvalError::DivisionByZero);
+                let (den, cancellation_scale) =
+                    self.eval_denominator(arena, provider, ctx, env, *denominator)?;
+                // A denominator that is a difference of two terms is zero to working precision
+                // when the terms agree to rounding error: the residue is noise, and dividing by
+                // it returns a huge, meaningless estimate.
+                if den == 0.0 || den.abs() <= CANCELLATION_TOLERANCE * cancellation_scale {
+                    return Err(provider.zero_denominator(arena, self.origins[slot], env));
                 }
-                Ok(num / den)
+                let quotient = num / den;
+                if !quotient.is_finite() {
+                    return Err(EvalError::NonFiniteRatio);
+                }
+                Ok(quotient)
             }
             EvalOp::Expectation { function, distribution } => {
-                self.eval_expectation(arena, provider, ctx, env, function.variable(), *distribution)
+                with_scoped_bindings(env, [function.variable()], |env| {
+                    env.remove(function.variable());
+                    self.eval_expectation(
+                        arena,
+                        provider,
+                        ctx,
+                        env,
+                        function.variable(),
+                        *distribution,
+                    )
+                })
             }
             EvalOp::Contrast { left, right, op } => {
                 let l = self.eval_slot(arena, provider, ctx, env, *left)?;
@@ -198,6 +265,24 @@ impl CompiledEvaluator {
                 }
             }
         }
+    }
+
+    /// Denominator value and the magnitude its rounding error scales with: `|l| + |r|` for a
+    /// difference `l − r`, zero otherwise.
+    fn eval_denominator(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+        ctx: &EvalContext,
+        env: &mut Assignment,
+        slot: usize,
+    ) -> Result<(f64, f64), EvalError> {
+        if let EvalOp::Contrast { left, right, op: ContrastOp::Difference } = &self.ops[slot] {
+            let l = self.eval_slot(arena, provider, ctx, env, *left)?;
+            let r = self.eval_slot(arena, provider, ctx, env, *right)?;
+            return Ok((l - r, l.abs() + r.abs()));
+        }
+        Ok((self.eval_slot(arena, provider, ctx, env, slot)?, 0.0))
     }
 
     fn eval_sum_out(
@@ -292,7 +377,15 @@ impl CompiledEvaluator {
         // E[f | D] = Σ_{x ∈ support(free(D))} f(x) · dens(D, x)
         // Free variables per slot are precomputed at compile time; only the
         // env-dependent filtering happens per evaluation.
+        // Only variables the density is a density *in* are integrated. A free variable
+        // that occurs only behind a conditioning bar (or as a symbolic do-value) is a
+        // parameter of the expectation: summing over it is not a mean, so it must be bound.
         let free = &self.free_vars[distribution];
+        let random = &self.density_vars[distribution];
+        if let Some(parameter) = free.iter().find(|v| env.get(**v).is_none() && !random.contains(v))
+        {
+            return Err(EvalError::MissingBinding(*parameter));
+        }
         let mut enum_vars: Vec<VariableId> =
             free.iter().copied().filter(|v| env.get(*v).is_none()).collect();
         if !enum_vars.contains(&outcome_var) && env.get(outcome_var).is_none() {
@@ -338,7 +431,7 @@ impl CompiledEvaluator {
 /// observationally identical to the previous clone-per-row scheme, without the
 /// per-row `Assignment` clone. Restoration also runs on the error path so a
 /// failed inner evaluation leaves the scratch assignment as it found it.
-fn with_scoped_bindings<T>(
+pub(crate) fn with_scoped_bindings<T>(
     env: &mut Assignment,
     vars: impl IntoIterator<Item = VariableId>,
     f: impl FnOnce(&mut Assignment) -> Result<T, EvalError>,
@@ -367,8 +460,24 @@ fn compile_rec(
         return Ok(slot);
     }
     let op = match arena.node(id).clone() {
-        ExprNode::Distribution { variables, conditioned_on, intervention, domain } => {
-            EvalOp::Distribution { variables, conditioned_on, intervention, domain }
+        ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        } => EvalOp::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        },
+        ExprNode::Kernel { body, population, regime, .. } => {
+            let compiled = compile_rec(arena, body, ops, expr_to_slot)?;
+            EvalOp::Kernel { body: compiled, population, regime }
         }
         ExprNode::Product(list) => {
             let mut children = Vec::new();
@@ -406,6 +515,32 @@ fn compile_rec(
     Ok(slot)
 }
 
+/// Per-slot variables the slot is a density in (sorted, deduplicated): the `variables`
+/// position of its factors, less what is summed or integrated out. A ratio is a density in
+/// its numerator's variables. Expectations and contrasts are scalars.
+fn compute_density_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[VariableId]>> {
+    let mut out: Vec<Arc<[VariableId]>> = Vec::with_capacity(ops.len());
+    for op in ops {
+        let mut vars: Vec<VariableId> = match op {
+            EvalOp::Distribution { variables, .. } => arena.var_set(*variables).to_vec(),
+            EvalOp::Kernel { body, .. } => out[*body].to_vec(),
+            EvalOp::Product { children } => {
+                children.iter().flat_map(|&c| out[c].iter().copied()).collect()
+            }
+            EvalOp::SumOut { variables, body } | EvalOp::IntegralOut { variables, body } => {
+                let bound = arena.var_set(*variables);
+                out[*body].iter().copied().filter(|v| !bound.contains(v)).collect()
+            }
+            EvalOp::Ratio { numerator, .. } => out[*numerator].to_vec(),
+            EvalOp::Expectation { .. } | EvalOp::Contrast { .. } => Vec::new(),
+        };
+        vars.sort_by_key(|v| v.raw());
+        vars.dedup();
+        out.push(Arc::from(vars));
+    }
+    out
+}
+
 /// Per-slot free variables (sorted, deduplicated), computed once per compile.
 ///
 /// Slots are emitted post-order by `compile_rec`, so every child index is
@@ -422,12 +557,14 @@ fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Variab
                 let mut vars = arena.var_set(*variables).to_vec();
                 let bound = arena.intervention_assignments(*intervention);
                 for &v in arena.var_set(*conditioned_on) {
-                    if !bound.iter().any(|a| a.variable == v) {
+                    if !bound.iter().any(|a| a.variable == v && !a.is_symbolic()) {
                         vars.push(v);
                     }
                 }
+                vars.extend(bound.iter().filter(|a| a.is_symbolic()).map(|a| a.variable));
                 vars
             }
+            EvalOp::Kernel { body, .. } => out[*body].to_vec(),
             EvalOp::Product { children } => {
                 children.iter().flat_map(|&c| out[c].iter().copied()).collect()
             }
@@ -439,9 +576,7 @@ fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Variab
                 out[*numerator].iter().chain(out[*denominator].iter()).copied().collect()
             }
             EvalOp::Expectation { function, distribution } => {
-                let mut vars = out[*distribution].to_vec();
-                vars.push(function.variable());
-                vars
+                out[*distribution].iter().copied().filter(|v| *v != function.variable()).collect()
             }
             EvalOp::Contrast { left, right, .. } => {
                 out[*left].iter().chain(out[*right].iter()).copied().collect()
@@ -458,7 +593,7 @@ fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Variab
 mod tests {
     use super::*;
     use crate::provider::{EmpiricalTableProvider, PosteriorDrawProvider};
-    use crate::{InterventionAssignment, OutcomeExprId};
+    use crate::{InterventionAssignment, OutcomeExprId, SimplifyError};
     use antecedent_core::Value;
 
     fn v(id: u32) -> VariableId {
@@ -483,6 +618,8 @@ mod tests {
                 conditioned_on: &[],
                 intervention: &[],
                 domain: DomainRef::Observational,
+                population: "",
+                regime: None,
             };
             let assign = Assignment::from_pairs([(z, f(zval))]);
             p.insert_probability(&spec, &assign, prob).unwrap();
@@ -509,6 +646,8 @@ mod tests {
                         conditioned_on: &[z],
                         intervention: &interv,
                         domain: DomainRef::Interventional,
+                        population: "",
+                        regime: None,
                     };
                     let assign = Assignment::from_pairs([(y, f(yval)), (z, f(zlev))]);
                     p.insert_probability(&spec, &assign, prob).unwrap();
@@ -529,6 +668,35 @@ mod tests {
         let compiled = arena.compile(expr).unwrap();
         let ate = compiled.evaluate(&arena, &provider, &EvalContext::default()).unwrap();
         assert!((ate - 0.45).abs() < 1e-12, "ate={ate}");
+    }
+
+    /// `E[Y | do(T=1), z]` keeps `z` free. Evaluating it without a value for `z` must be
+    /// refused: enumerating `z` inside the expectation would return
+    /// `E[Y|do(1),z=0] + E[Y|do(1),z=1] = 1.4`, which is not a mean of anything.
+    #[test]
+    fn unbound_free_variable_is_refused_not_summed() {
+        let mut arena = CausalExprArena::new();
+        let (t, y, z) = (v(0), v(1), v(2));
+        let ys = arena.intern_var_set([y]);
+        let zs = arena.intern_var_set([z]);
+        let do_t = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t,
+            value: f(1.0),
+        }]);
+        let conditional = arena.intern_distribution(ys, zs, do_t, DomainRef::Interventional);
+        let expr = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: conditional,
+        });
+        let provider = backdoor_provider(t, y, z);
+        let compiled = arena.compile(expr).unwrap();
+        let ctx = EvalContext::default();
+        assert_eq!(compiled.evaluate(&arena, &provider, &ctx), Err(EvalError::MissingBinding(z)));
+        for (level, expected) in [(0.0, 0.8), (1.0, 0.6)] {
+            let env = Assignment::from_pairs([(z, f(level))]);
+            let value = compiled.evaluate_with(&arena, &provider, &ctx, &env).unwrap();
+            assert!((value - expected).abs() < 1e-12, "z={level}: {value}");
+        }
     }
 
     #[test]
@@ -552,6 +720,31 @@ mod tests {
             .unwrap();
         assert!((before - after).abs() < 1e-12, "before={before} after={after}");
         assert!((after - 0.45).abs() < 1e-12);
+    }
+
+    #[test]
+    fn variable_rename_preserves_dummy_eval() {
+        let mut arena = CausalExprArena::new();
+        let t = v(0);
+        let y = v(1);
+        let z = v(2);
+        let expr = arena.backdoor_ate(t, y, &[z], f(1.0), f(0.0));
+        let provider = backdoor_provider(t, y, z);
+        let original = arena
+            .compile(expr)
+            .unwrap()
+            .evaluate(&arena, &provider, &EvalContext::default())
+            .unwrap();
+        let y2 = v(7);
+        assert!(arena.substitute(expr, &[(y, y2)]).is_err());
+        let renamed = arena.backdoor_ate(t, y2, &[z], f(1.0), f(0.0));
+        let renamed_provider = backdoor_provider(t, y2, z);
+        let renamed_value = arena
+            .compile(renamed)
+            .unwrap()
+            .evaluate(&arena, &renamed_provider, &EvalContext::default())
+            .unwrap();
+        assert!((original - renamed_value).abs() < 1e-12);
     }
 
     /// Empty adjustment (second Z set): simplify must preserve numeric eval.
@@ -594,6 +787,8 @@ mod tests {
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         p.insert_probability(&empty_spec, &Assignment::from_pairs([]), 1.0).unwrap();
         for tlev in [0.0, 1.0] {
@@ -605,6 +800,8 @@ mod tests {
                     conditioned_on: &[],
                     intervention: &interv,
                     domain: DomainRef::Interventional,
+                    population: "",
+                    regime: None,
                 };
                 p.insert_probability(&spec, &Assignment::from_pairs([(y, f(yval))]), prob).unwrap();
             }
@@ -653,6 +850,8 @@ mod tests {
                 conditioned_on: &[],
                 intervention: &[],
                 domain: DomainRef::Observational,
+                population: "",
+                regime: None,
             };
             p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob).unwrap();
         }
@@ -665,6 +864,8 @@ mod tests {
                     conditioned_on: &[t],
                     intervention: &interv,
                     domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
                 };
                 p.insert_probability(
                     &spec,
@@ -683,6 +884,8 @@ mod tests {
                         conditioned_on: &[t, m],
                         intervention: &[],
                         domain: DomainRef::Observational,
+                        population: "",
+                        regime: None,
                     };
                     let assign = Assignment::from_pairs([(y, f(yval)), (m, f(mlev)), (t, f(tlev))]);
                     p.insert_probability(&spec, &assign, prob).unwrap();
@@ -714,6 +917,8 @@ mod tests {
                 conditioned_on: &[],
                 intervention: &[],
                 domain: DomainRef::Observational,
+                population: "",
+                regime: None,
             };
             p.insert_probability(&spec, &Assignment::from_pairs([(t, f(tval))]), prob).unwrap();
         }
@@ -728,6 +933,8 @@ mod tests {
                     conditioned_on: &[t],
                     intervention: &interv,
                     domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
                 };
                 p.insert_probability(
                     &spec,
@@ -749,6 +956,8 @@ mod tests {
                         conditioned_on: &[t, m],
                         intervention: &[],
                         domain: DomainRef::Observational,
+                        population: "",
+                        regime: None,
                     };
                     let assign = Assignment::from_pairs([(y, f(yval)), (m, f(mlev)), (t, f(tlev))]);
                     p.insert_probability(&spec, &assign, prob).unwrap();
@@ -780,12 +989,7 @@ mod tests {
         let empty_i = arena.empty_intervention_set();
         let z = v(0);
         let zset = arena.intern_var_set([z]);
-        let dist = arena.intern(ExprNode::Distribution {
-            variables: zset,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = arena.intern_distribution(zset, empty, empty_i, DomainRef::Observational);
         let sum = arena.intern(ExprNode::SumOut { variables: zset, expr: dist });
         let integ = arena.intern(ExprNode::IntegralOut { variables: zset, expr: dist });
 
@@ -797,6 +1001,8 @@ mod tests {
                 conditioned_on: &[],
                 intervention: &[],
                 domain: DomainRef::Observational,
+                population: "",
+                regime: None,
             };
             p.insert_probability(&spec, &Assignment::from_pairs([(z, f(zval))]), prob).unwrap();
         }
@@ -815,15 +1021,10 @@ mod tests {
         let empty_i = arena.empty_intervention_set();
         let x = v(0);
         let xset = arena.intern_var_set([x]);
-        let dist = arena.intern(ExprNode::Distribution {
-            variables: xset,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = arena.intern_distribution(xset, empty, empty_i, DomainRef::Observational);
         let integ = arena.intern(ExprNode::IntegralOut { variables: xset, expr: dist });
         let mut p = GaussianDensityProvider::new();
-        p.set_gaussian(x, 0.0, 1.0);
+        p.set_gaussian(x, 0.0, 1.0).unwrap();
         let mass =
             arena.compile(integ).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((mass - 1.0).abs() < 1e-6, "∫ φ = {mass}");
@@ -840,17 +1041,12 @@ mod tests {
         let xset = arena.intern_var_set([x]);
         let yset = arena.intern_var_set([y]);
         let both = arena.intern_var_set([x, y]);
-        let dist = arena.intern(ExprNode::Distribution {
-            variables: both,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = arena.intern_distribution(both, empty, empty_i, DomainRef::Observational);
         let inner = arena.intern(ExprNode::IntegralOut { variables: yset, expr: dist });
         let outer = arena.intern(ExprNode::IntegralOut { variables: xset, expr: inner });
         let mut p = GaussianDensityProvider::new();
-        p.set_gaussian(x, 1.0, 0.25);
-        p.set_gaussian(y, -0.5, 4.0);
+        p.set_gaussian(x, 1.0, 0.25).unwrap();
+        p.set_gaussian(y, -0.5, 4.0).unwrap();
         let mass =
             arena.compile(outer).unwrap().evaluate(&arena, &p, &EvalContext::default()).unwrap();
         assert!((mass - 1.0).abs() < 1e-5, "∬ φ = {mass}");
@@ -877,6 +1073,8 @@ mod tests {
                 conditioned_on: &[],
                 intervention: &[],
                 domain: DomainRef::Observational,
+                population: "",
+                regime: None,
             };
             draw1.insert_probability(&spec, &Assignment::from_pairs([(z, f(zval))]), prob).unwrap();
         }
@@ -891,6 +1089,8 @@ mod tests {
                         conditioned_on: &[z],
                         intervention: &interv,
                         domain: DomainRef::Interventional,
+                        population: "",
+                        regime: None,
                     };
                     draw1
                         .insert_probability(
@@ -925,12 +1125,7 @@ mod tests {
         let yset = arena.intern_var_set([y]);
         let empty = arena.empty_var_set();
         let empty_i = arena.empty_intervention_set();
-        let dist = arena.intern(ExprNode::Distribution {
-            variables: yset,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = arena.intern_distribution(yset, empty, empty_i, DomainRef::Observational);
         let exp = arena.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(y),
             distribution: dist,
@@ -943,6 +1138,8 @@ mod tests {
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         p.insert_probability(&spec, &Assignment::from_pairs([(y, f(0.0))]), 0.25).unwrap();
         p.insert_probability(&spec, &Assignment::from_pairs([(y, f(2.0))]), 0.75).unwrap();
@@ -988,18 +1185,8 @@ mod tests {
             variable: z,
             value: f(1.0),
         }]);
-        let shadowed = arena.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: zset,
-            intervention: do_z1,
-            domain: DomainRef::Observational,
-        });
-        let z_marginal = arena.intern(ExprNode::Distribution {
-            variables: zset,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let shadowed = arena.intern_distribution(empty, zset, do_z1, DomainRef::Observational);
+        let z_marginal = arena.intern_distribution(zset, empty, empty_i, DomainRef::Observational);
         let product = {
             let list = arena.intern_list([shadowed, z_marginal]);
             arena.intern(ExprNode::Product(list))
@@ -1014,6 +1201,8 @@ mod tests {
             conditioned_on: &[z],
             intervention: &interv,
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         p.insert_probability(&shadow_spec, &Assignment::from_pairs([(z, f(1.0))]), 2.0).unwrap();
         let marg_spec = FactorSpec {
@@ -1021,6 +1210,8 @@ mod tests {
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(0.0))]), 0.3).unwrap();
         p.insert_probability(&marg_spec, &Assignment::from_pairs([(z, f(1.0))]), 0.7).unwrap();
@@ -1042,12 +1233,7 @@ mod tests {
         let yset = arena.intern_var_set([y]);
         let zset = arena.intern_var_set([z]);
         let empty_i = arena.empty_intervention_set();
-        let dist = arena.intern(ExprNode::Distribution {
-            variables: yset,
-            conditioned_on: zset,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = arena.intern_distribution(yset, zset, empty_i, DomainRef::Observational);
         let exp = arena.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(y),
             distribution: dist,
@@ -1061,6 +1247,8 @@ mod tests {
             conditioned_on: &[z],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         for (yv, zv, prob) in [(0.0, 0.0, 0.25), (2.0, 0.0, 0.75), (0.0, 1.0, 1.0), (2.0, 1.0, 0.0)]
         {
@@ -1088,18 +1276,9 @@ mod tests {
         let empty_i = arena.empty_intervention_set();
         // Two vacuous (no free variables) factors, distinguished by domain so they
         // hash-cons to distinct nodes with independently settable probabilities.
-        let numerator = arena.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let denominator = arena.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Interventional,
-        });
+        let numerator = arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
+        let denominator =
+            arena.intern_distribution(empty, empty, empty_i, DomainRef::Interventional);
         let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
 
         let mut p = EmpiricalTableProvider::new();
@@ -1108,12 +1287,16 @@ mod tests {
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         let interv_spec = FactorSpec {
             variables: &[],
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Interventional,
+            population: "",
+            regime: None,
         };
         p.insert_probability(&obs_spec, &Assignment::from_pairs([]), 3.0).unwrap();
         p.insert_probability(&interv_spec, &Assignment::from_pairs([]), 0.0).unwrap();
@@ -1125,10 +1308,71 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, EvalError::DivisionByZero);
     }
+
+    /// A genuine `do(T=NaN)` must not alias the symbolic wildcard. Wrapped in
+    /// `SumOut(T, ·)`, a symbolic coordinate becomes `Σ_t E[Y|do(T=t)]`; a
+    /// concrete NaN must not evaluate to that sum.
     #[test]
-    fn simplification_preserves_overlapping_binding_multiplicity() {
-        // The inner x shadows the outer x: summing over outer (x,y)
-        // therefore counts each inner marginal twice. Unioning binders loses 2.
+    fn nan_intervention_does_not_sum_over_treatment_support() {
+        let mut arena = CausalExprArena::new();
+        let (t, y) = (v(0), v(1));
+        let mut p = EmpiricalTableProvider::new();
+        p.set_domain(t, [f(0.0), f(1.0)]);
+        p.set_domain(y, [f(0.0), f(1.0)]);
+        for (tlev, ey) in [(0.0, 0.2), (1.0, 0.8)] {
+            let interv = [InterventionAssignment { variable: t, value: f(tlev) }];
+            for (yval, prob) in [(1.0, ey), (0.0, 1.0 - ey)] {
+                let spec = FactorSpec {
+                    variables: &[y],
+                    conditioned_on: &[],
+                    intervention: &interv,
+                    domain: DomainRef::Interventional,
+                    population: "",
+                    regime: None,
+                };
+                let assign = Assignment::from_pairs([(y, f(yval))]);
+                p.insert_probability(&spec, &assign, prob).unwrap();
+            }
+        }
+
+        let ys = arena.intern_var_set([y]);
+        let ts = arena.intern_var_set([t]);
+        let empty = arena.empty_var_set();
+        let ctx = EvalContext::default();
+
+        // Σ_t E[Y|do(T=t)] via symbolic coordinate under SumOut.
+        let do_sym = arena.intern_intervention_set([t]);
+        let sym_dist = arena.intern_distribution(ys, empty, do_sym, DomainRef::Interventional);
+        let sym_mean = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: sym_dist,
+        });
+        let sym_sum = arena.intern(ExprNode::SumOut { variables: ts, expr: sym_mean });
+        let sum_over_t = arena.compile(sym_sum).unwrap().evaluate(&arena, &p, &ctx).unwrap();
+        assert!((sum_over_t - 1.0).abs() < 1e-12, "symbolic Σ_t E[Y|do(t)] = {sum_over_t}");
+
+        // Same SumOut shape with concrete NaN must not yield that sum.
+        let do_nan = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t,
+            value: f(f64::NAN),
+        }]);
+        assert!(!arena.intervention_assignments(do_nan)[0].is_symbolic());
+        let nan_dist = arena.intern_distribution(ys, empty, do_nan, DomainRef::Interventional);
+        let nan_mean = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(y),
+            distribution: nan_dist,
+        });
+        let nan_sum = arena.intern(ExprNode::SumOut { variables: ts, expr: nan_mean });
+        let nan_result = arena.compile(nan_sum).unwrap().evaluate(&arena, &p, &ctx);
+        assert_ne!(nan_result, Ok(sum_over_t), "NaN intervention aliased sum-over-T");
+        assert_eq!(nan_result, Err(EvalError::MissingTableEntry));
+    }
+
+    #[test]
+    fn literal_evaluation_counts_overlapping_binder_multiplicity_and_simplify_refuses() {
+        // The inner x shadows the outer x: summing over outer (x,y) counts each inner
+        // marginal twice, which is what the evaluator computes literally. Unioning the binders
+        // would erase that multiplicity, so simplification must refuse rather than merge.
         for integral in [false, true] {
             let mut arena = CausalExprArena::new();
             let empty = arena.empty_var_set();
@@ -1137,12 +1381,7 @@ mod tests {
             let y = v(1);
             let xset = arena.intern_var_set([x]);
             let xyset = arena.intern_var_set([x, y]);
-            let dist = arena.intern(ExprNode::Distribution {
-                variables: xyset,
-                conditioned_on: empty,
-                intervention: empty_i,
-                domain: DomainRef::Observational,
-            });
+            let dist = arena.intern_distribution(xyset, empty, empty_i, DomainRef::Observational);
             let inner = arena.intern(if integral {
                 ExprNode::IntegralOut { variables: xset, expr: dist }
             } else {
@@ -1153,7 +1392,14 @@ mod tests {
             } else {
                 ExprNode::SumOut { variables: xyset, expr: inner }
             });
-            let simplified = arena.simplify(root).unwrap();
+            // The outer x is entirely shadowed by the inner binder, so it is a dead binder:
+            // simplification refuses instead of merging it into a well-looking SumOut{x,y}.
+            let dead = if integral {
+                SimplifyError::DeadIntegralOut { variables: vec![x] }
+            } else {
+                SimplifyError::DeadSumOut { variables: vec![x] }
+            };
+            assert_eq!(arena.simplify(root), Err(dead));
             let mut provider = EmpiricalTableProvider::new();
             provider.set_domain(x, [f(0.0), f(1.0)]);
             provider.set_domain(y, [f(0.0), f(1.0)]);
@@ -1162,6 +1408,8 @@ mod tests {
                 conditioned_on: &[],
                 intervention: &[],
                 domain: DomainRef::Observational,
+                population: "",
+                regime: None,
             };
             for xv in [0.0, 1.0] {
                 for yv in [0.0, 1.0] {
@@ -1174,7 +1422,8 @@ mod tests {
                         .unwrap();
                 }
             }
-            for expr in [root, simplified] {
+            {
+                let expr = root;
                 let value = arena
                     .compile(expr)
                     .unwrap()
@@ -1190,18 +1439,8 @@ mod tests {
         let mut arena = CausalExprArena::new();
         let empty = arena.empty_var_set();
         let intervention = arena.empty_intervention_set();
-        let one = arena.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention,
-            domain: DomainRef::Observational,
-        });
-        let zero = arena.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention,
-            domain: DomainRef::Interventional,
-        });
+        let one = arena.intern_distribution(empty, empty, intervention, DomainRef::Observational);
+        let zero = arena.intern_distribution(empty, empty, intervention, DomainRef::Interventional);
         let inner = arena.intern(ExprNode::Ratio { numerator: one, denominator: zero });
         let outer = arena.intern(ExprNode::Ratio { numerator: one, denominator: inner });
         let simplified = arena.simplify(outer).unwrap();
@@ -1209,7 +1448,14 @@ mod tests {
         for (domain, value) in [(DomainRef::Observational, 1.0), (DomainRef::Interventional, 0.0)] {
             provider
                 .insert_probability(
-                    &FactorSpec { variables: &[], conditioned_on: &[], intervention: &[], domain },
+                    &FactorSpec {
+                        variables: &[],
+                        conditioned_on: &[],
+                        intervention: &[],
+                        domain,
+                        population: "",
+                        regime: None,
+                    },
                     &Assignment::new(),
                     value,
                 )
@@ -1221,5 +1467,82 @@ mod tests {
                 Err(EvalError::DivisionByZero)
             );
         }
+    }
+
+    /// Provider for the Wald functional over `t = v(0)`, `y = v(1)`, `z = v(2)` with binary
+    /// levels and the given conditional means `E[·|Z=z]`.
+    fn wald_provider(y_means: [f64; 2], t_means: [f64; 2]) -> EmpiricalTableProvider {
+        let (t, y, z) = (v(0), v(1), v(2));
+        let mut p = EmpiricalTableProvider::new();
+        for var in [t, y, z] {
+            p.set_domain(var, [f(0.0), f(1.0)]);
+        }
+        for (outcome, means) in [(y, y_means), (t, t_means)] {
+            for (level, mean) in [0.0, 1.0].into_iter().zip(means) {
+                let interv = [InterventionAssignment { variable: z, value: f(level) }];
+                let spec = FactorSpec {
+                    variables: &[outcome],
+                    conditioned_on: &[z],
+                    intervention: &interv,
+                    domain: DomainRef::Observational,
+                    population: "",
+                    regime: None,
+                };
+                for (value, prob) in [(1.0, mean), (0.0, 1.0 - mean)] {
+                    let assign = Assignment::from_pairs([(outcome, f(value)), (z, f(level))]);
+                    p.insert_probability(&spec, &assign, prob).unwrap();
+                }
+            }
+        }
+        p
+    }
+
+    #[test]
+    fn wald_ratio_of_a_cancelled_first_stage_is_a_zero_denominator() {
+        // E[T|Z=1] = 0.1 + 0.2 and E[T|Z=0] = 0.3 are equal in exact arithmetic (an irrelevant
+        // instrument); their floating-point difference is 5.55e-17. Dividing the reduced form
+        // 0.9 - 0.4 by that residue would return ~9e15 as an effect estimate.
+        let mut arena = CausalExprArena::new();
+        let wald = arena.iv_wald(v(0), v(1), &[v(2)], &f(1.0), &f(0.0)).unwrap();
+        let compiled = arena.compile(wald).unwrap();
+        let irrelevant = wald_provider([0.4, 0.9], [0.3, 0.1 + 0.2]);
+        assert_eq!(
+            compiled.evaluate(&arena, &irrelevant, &EvalContext::default()),
+            Err(EvalError::DivisionByZero)
+        );
+        // A genuine first stage of 0.5 gives the reduced form / first stage = 0.5 / 0.5.
+        let relevant = wald_provider([0.4, 0.9], [0.2, 0.7]);
+        let ratio = compiled.evaluate(&arena, &relevant, &EvalContext::default()).unwrap();
+        assert!((ratio - 1.0).abs() < 1e-12, "ratio={ratio}");
+    }
+
+    #[test]
+    fn ratio_that_overflows_is_an_error_not_infinity() {
+        // 3 / 5e-324 = inf. The denominator is nonzero, so only the quotient check catches it.
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let empty_i = arena.empty_intervention_set();
+        let numerator = arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
+        let denominator =
+            arena.intern_distribution(empty, empty, empty_i, DomainRef::Interventional);
+        let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
+        let mut p = EmpiricalTableProvider::new();
+        for (domain, value) in
+            [(DomainRef::Observational, 3.0), (DomainRef::Interventional, 5e-324)]
+        {
+            let spec = FactorSpec {
+                variables: &[],
+                conditioned_on: &[],
+                intervention: &[],
+                domain,
+                population: "",
+                regime: None,
+            };
+            p.insert_probability(&spec, &Assignment::new(), value).unwrap();
+        }
+        assert_eq!(
+            arena.compile(ratio).unwrap().evaluate(&arena, &p, &EvalContext::default()),
+            Err(EvalError::NonFiniteRatio)
+        );
     }
 }

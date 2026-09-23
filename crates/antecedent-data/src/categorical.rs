@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-
 use std::sync::Arc;
 
 use antecedent_core::CategoryDomainId;
@@ -122,6 +120,9 @@ pub struct CategoricalColumn {
     pub validity: ValidityBitmap,
     /// Domain.
     pub domain: Arc<CategoryDomain>,
+    /// Valid rows whose out-of-range code was rewritten to the domain's `Other` level
+    /// under [`UnknownCategoryPolicy::MapToOther`] (always 0 under `Fail`).
+    pub n_remapped_unknown: usize,
 }
 
 impl CategoricalColumn {
@@ -152,6 +153,7 @@ impl CategoricalColumn {
             message: "category domain too large for u32 codes".into(),
         })?;
         let mut remapped: Option<Vec<CategoryCode>> = None;
+        let mut n_remapped_unknown = 0usize;
         for (i, code) in codes.iter().enumerate() {
             if !validity.is_valid(i) {
                 continue;
@@ -166,12 +168,13 @@ impl CategoricalColumn {
                     UnknownCategoryPolicy::MapToOther { other } => {
                         // `other` is validated in-range at domain construction.
                         remapped.get_or_insert_with(|| codes.to_vec())[i] = other;
+                        n_remapped_unknown += 1;
                     }
                 }
             }
         }
         let codes = remapped.map_or(codes, Arc::from);
-        Ok(Self { id, codes, validity, domain })
+        Ok(Self { id, codes, validity, domain, n_remapped_unknown })
     }
 
     /// Row count.
@@ -343,45 +346,77 @@ pub fn compile_contrast_matrix(
                 });
             }
             // Orthogonal polynomial contrasts on equally spaced scores 1..=k
-            // (R's `contr.poly`): Vandermonde basis, then modified Gram-Schmidt
-            // of each degree against all lower degrees (including the constant),
-            // then unit-length normalization.
+            // (R's `contr.poly`), from the Stieltjes recurrence on centred
+            // scores. A raw Vandermonde basis loses orthogonality from about a
+            // dozen levels because its conditioning grows exponentially in k.
             let cols = k - 1;
-            let mut basis = vec![0.0; k * k];
-            for d in 0..k {
-                for r in 0..k {
-                    basis[r + d * k] = f64::from(
-                        u32::try_from(r).map_err(|_| DataError::InvalidArgument {
-                            message: "polynomial row index exceeds u32".into(),
-                        })? + 1,
-                    )
-                    .powi(i32::try_from(d).map_err(|_| {
-                        DataError::InvalidArgument {
-                            message: "polynomial degree does not fit i32".into(),
-                        }
-                    })?);
-                }
-            }
-            for d in 0..k {
-                for p in 0..d {
-                    // Lower columns are already unit-norm, so the projection
-                    // coefficient is a plain dot product.
-                    let dot: f64 = (0..k).map(|r| basis[r + d * k] * basis[r + p * k]).sum();
-                    for r in 0..k {
-                        basis[r + d * k] -= dot * basis[r + p * k];
-                    }
-                }
-                let norm: f64 = (0..k).map(|r| basis[r + d * k].powi(2)).sum::<f64>().sqrt();
-                if norm > 0.0 {
-                    for r in 0..k {
-                        basis[r + d * k] /= norm;
-                    }
-                }
-            }
+            let basis = orthonormal_polynomial_basis(k)?;
             // Drop the constant column: degrees 1..k-1.
             ContrastMatrix::try_new(k, cols, basis[k..].to_vec())
         }
     }
+}
+
+/// Column-major `k x k` orthonormal discrete-polynomial basis on the equally
+/// spaced scores `1..=k`: column `d` is the degree-`d` polynomial (positive
+/// leading coefficient); column 0 is the constant `1/sqrt(k)`.
+///
+/// Lanczos/Stieltjes recurrence `beta_{d+1} q_{d+1} = (x - alpha_d) q_d - beta_d q_{d-1}`
+/// on centred scores, with a full re-orthogonalisation sweep (twice is enough).
+/// The result is verified: `max |QᵀQ - I|` must stay below `1e-10`.
+fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
+    const ORTHOGONALITY_TOL: f64 = 1e-10;
+    let kf = k as f64;
+    let mean = (kf + 1.0) / 2.0;
+    let x: Vec<f64> = (0..k).map(|r| (r + 1) as f64 - mean).collect();
+    let mut basis = vec![0.0; k * k];
+    let inv_sqrt_k = 1.0 / kf.sqrt();
+    basis[..k].fill(inv_sqrt_k);
+    let mut beta_prev = 0.0;
+    for d in 0..k.saturating_sub(1) {
+        let mut v: Vec<f64> = (0..k).map(|r| x[r] * basis[r + d * k]).collect();
+        let alpha: f64 = (0..k).map(|r| v[r] * basis[r + d * k]).sum();
+        for r in 0..k {
+            v[r] -= alpha * basis[r + d * k];
+            if d > 0 {
+                v[r] -= beta_prev * basis[r + (d - 1) * k];
+            }
+        }
+        for _ in 0..2 {
+            for p in 0..=d {
+                let dot: f64 = (0..k).map(|r| v[r] * basis[r + p * k]).sum();
+                for r in 0..k {
+                    v[r] -= dot * basis[r + p * k];
+                }
+            }
+        }
+        let beta = v.iter().map(|e| e * e).sum::<f64>().sqrt();
+        if !beta.is_finite() || beta <= 0.0 {
+            return Err(DataError::InvalidArgument {
+                message: format!("polynomial contrasts are degenerate at degree {}", d + 1),
+            });
+        }
+        for r in 0..k {
+            basis[r + (d + 1) * k] = v[r] / beta;
+        }
+        beta_prev = beta;
+    }
+    let mut worst = 0.0_f64;
+    for i in 0..k {
+        for j in 0..=i {
+            let dot: f64 = (0..k).map(|r| basis[r + i * k] * basis[r + j * k]).sum();
+            let target = if i == j { 1.0 } else { 0.0 };
+            worst = worst.max((dot - target).abs());
+        }
+    }
+    if worst >= ORTHOGONALITY_TOL {
+        return Err(DataError::InvalidArgument {
+            message: format!(
+                "polynomial contrasts for {k} levels are not orthonormal (max deviation {worst:.2e})"
+            ),
+        });
+    }
+    Ok(basis)
 }
 
 #[cfg(test)]
@@ -501,6 +536,56 @@ mod tests {
     }
 
     #[test]
+    fn polynomial_matches_contr_poly_for_k4() {
+        // contr.poly(4): (-3,-1,1,3)/sqrt(20), (1,-1,-1,1)/2, (-1,3,-3,1)/sqrt(20).
+        let m = compile_contrast_matrix(&ordered_domain(4), &Contrast::Polynomial).unwrap();
+        let s20 = 20.0_f64.sqrt();
+        let expected = [
+            -3.0 / s20,
+            -1.0 / s20,
+            1.0 / s20,
+            3.0 / s20,
+            0.5,
+            -0.5,
+            -0.5,
+            0.5,
+            -1.0 / s20,
+            3.0 / s20,
+            -3.0 / s20,
+            1.0 / s20,
+        ];
+        for (got, want) in m.values.iter().zip(expected) {
+            assert!((got - want).abs() < 1e-13, "got {got}, want {want}");
+        }
+    }
+
+    #[test]
+    fn polynomial_stays_orthonormal_for_many_levels() {
+        // A raw Vandermonde + single Gram-Schmidt pass leaves cross-products of
+        // 0.4 at k = 20 and 0.7 at k = 25.
+        for k in [12usize, 20, 25, 40] {
+            let m = compile_contrast_matrix(&ordered_domain(k), &Contrast::Polynomial).unwrap();
+            assert_eq!((m.n_levels, m.n_columns), (k, k - 1));
+            for a in 0..m.n_columns {
+                let sum: f64 = (0..k).map(|r| m.values[r + a * k]).sum();
+                assert!(sum.abs() < 1e-11, "k={k} column {a} sum {sum}");
+                for b in 0..=a {
+                    let dot: f64 = (0..k).map(|r| m.values[r + a * k] * m.values[r + b * k]).sum();
+                    let want = if a == b { 1.0 } else { 0.0 };
+                    assert!((dot - want).abs() < 1e-11, "k={k} columns {a},{b} dot {dot}");
+                }
+            }
+            // Column 0 is the linear contrast: proportional to the centred scores.
+            let mean = (k as f64 + 1.0) / 2.0;
+            let ss: f64 = (1..=k).map(|r| (r as f64 - mean).powi(2)).sum::<f64>().sqrt();
+            for r in 0..k {
+                let want = ((r + 1) as f64 - mean) / ss;
+                assert!((m.values[r] - want).abs() < 1e-12, "k={k} row {r}");
+            }
+        }
+    }
+
+    #[test]
     fn map_to_other_remaps_out_of_range_codes() {
         let d = Arc::new(
             CategoryDomain::try_new(
@@ -530,6 +615,7 @@ mod tests {
         assert_eq!(col.codes[0], CategoryCode::from_raw(1));
         assert_eq!(col.codes[1], CategoryCode::from_raw(2));
         assert_eq!(col.codes[2], CategoryCode::from_raw(0));
+        assert_eq!(col.n_remapped_unknown, 1);
         // Every stored code now indexes the domain safely.
         assert!(col.codes.iter().all(|c| (c.raw() as usize) < col.domain.len()));
     }

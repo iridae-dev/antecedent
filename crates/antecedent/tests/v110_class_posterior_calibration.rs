@@ -1,14 +1,21 @@
-//! 1.10.1 coverage of CPDAG class graph-posterior ATE intervals.
+//! Coverage of CPDAG class graph-posterior ATE intervals.
 //!
-//! Two identified CPDAG posterior atoms share an empty backdoor adjustment on
-//! the `known_truth_mixtures` tabular DGP (`Y = 2T + 2Z ± 0.2`), so the scalar
-//! mixture is the direct effect 3.0 with a joint influence-function SE.
+//! Two identified CPDAG posterior atoms share an empty backdoor adjustment. Neither
+//! atom has an edge from `Z` into `T`, so the DGP is one in which that is true:
+//! `Y = 2T + 2Z ± 0.2` with `T` and `Z` independent fair draws. The empty-adjustment
+//! contrast is then the causal effect 2.0 (a `Z -> T` edge would make it the
+//! confounded contrast 2 + 2·(P(Z=1|T=1) − P(Z=1|T=0)), which is not the ATE),
+//! and the scalar mixture carries a joint influence-function SE.
 //!
 //! Ignored tests run via `scripts/gate_calibration.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 mod common;
 
@@ -20,14 +27,15 @@ use antecedent_discovery::{GraphPosteriorAtomKind, adjacency_mask_from_cpdag};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, n_sim, normal_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, map_replicates, n_sim,
+    normal_interval,
 };
 use common::calibration_bind::bind_all;
 
 const N: usize = 320;
 const LEVEL: f64 = 0.9;
 const WEIGHTS: [f64; 2] = [0.6, 0.4];
-const TRUTH: f64 = 3.0;
+const TRUTH: f64 = 2.0;
 
 const SEED_STRIDE: u64 = 7_919;
 const SEED_BASE: u64 = 0x110C_0000;
@@ -60,7 +68,7 @@ fn draw_data(seed: u64) -> TabularData {
         (Vec::with_capacity(rows), Vec::with_capacity(rows), Vec::with_capacity(rows));
     for _ in 0..rows {
         let zi = f64::from(u8::from(unif() < 0.5));
-        let ti = f64::from(u8::from(unif() < 0.25 + 0.5 * zi));
+        let ti = f64::from(u8::from(unif() < 0.5));
         let epsilon = if unif() < 0.5 { -0.2 } else { 0.2 };
         t.push(ti);
         z.push(zi);
@@ -124,13 +132,16 @@ fn class_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
     let key = RecordKey { test, dgp: "draw_data", interval: "analytic_se" };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
-    for r in 0..n_sim() {
-        let seed = SEED_BASE + u64::from(r) * SEED_STRIDE;
+    let runs = map_replicates(n_sim(), |r| {
+        let seed = SEED_BASE + r * SEED_STRIDE;
         let (study, result) = run(seed);
         if r == 0 {
             assert_shape(&result);
         }
-        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        (study, result)
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally, &mut reported], study, result);
         tally.record(
             normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90),
             TRUTH,

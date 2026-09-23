@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -341,6 +347,15 @@ impl Default for DiscoveryConstraints {
     }
 }
 
+fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink {
+    LaggedLink {
+        source,
+        source_lag: Lag::CONTEMPORANEOUS,
+        target,
+        target_lag: Lag::CONTEMPORANEOUS,
+    }
+}
+
 impl DiscoveryConstraints {
     /// Whether a link is forbidden by the explicit forbidden list, tiers, or
     /// Günther multi-dataset link assumptions.
@@ -355,6 +370,19 @@ impl DiscoveryConstraints {
     #[must_use]
     pub fn is_required(&self, link: LaggedLink) -> bool {
         self.required.iter().any(|r| *r == link)
+    }
+
+    /// Whether both directions of the contemporaneous pair `{a, b}` are forbidden, i.e. a static
+    /// (non-temporal) edge between them cannot exist.
+    #[must_use]
+    pub fn static_forbidden(&self, a: VariableId, b: VariableId) -> bool {
+        self.is_forbidden(contemp_link(a, b)) && self.is_forbidden(contemp_link(b, a))
+    }
+
+    /// Whether either direction of the contemporaneous pair `{a, b}` is required.
+    #[must_use]
+    pub fn static_required(&self, a: VariableId, b: VariableId) -> bool {
+        self.is_required(contemp_link(a, b)) || self.is_required(contemp_link(b, a))
     }
 
     /// Tier index of `v`, or `None` if tiers are unused / variable absent.
@@ -455,9 +483,9 @@ impl DiscoveryConstraints {
             let link = catalog.link_at(idx);
             let banned = self.is_forbidden(link);
             if banned {
-                forbidden.insert(DenseNodeId::from_raw(idx as u32));
+                forbidden.insert(DenseNodeId::from_raw(crate::indexing::dense_u32(idx)));
             } else {
-                candidates.insert(DenseNodeId::from_raw(idx as u32));
+                candidates.insert(DenseNodeId::from_raw(crate::indexing::dense_u32(idx)));
             }
             if self.is_required(link) {
                 if banned {
@@ -465,7 +493,7 @@ impl DiscoveryConstraints {
                         message: "required edge is forbidden after compilation",
                     });
                 }
-                required.insert(DenseNodeId::from_raw(idx as u32));
+                required.insert(DenseNodeId::from_raw(crate::indexing::dense_u32(idx)));
             }
         }
         Ok(CompiledConstraints { catalog, forbidden, required, candidates })
@@ -546,7 +574,7 @@ impl CandidateCatalog {
         let src_slot = rest / self.n_lags;
         LaggedLink {
             source: self.variables[src_slot],
-            source_lag: Lag::from_raw(self.min_lag + lag_slot as u32),
+            source_lag: Lag::from_raw(self.min_lag + crate::indexing::dense_u32(lag_slot)),
             target: self.variables[tgt_slot],
             target_lag: Lag::CONTEMPORANEOUS,
         }
@@ -570,17 +598,17 @@ impl CompiledConstraints {
     /// Whether the link is an allowed candidate.
     #[must_use]
     pub fn allows(&self, link: LaggedLink) -> bool {
-        self.catalog
-            .index_of(link)
-            .is_some_and(|i| self.candidates.contains(DenseNodeId::from_raw(i as u32)))
+        self.catalog.index_of(link).is_some_and(|i| {
+            self.candidates.contains(DenseNodeId::from_raw(crate::indexing::dense_u32(i)))
+        })
     }
 
     /// Whether the link is required.
     #[must_use]
     pub fn requires(&self, link: LaggedLink) -> bool {
-        self.catalog
-            .index_of(link)
-            .is_some_and(|i| self.required.contains(DenseNodeId::from_raw(i as u32)))
+        self.catalog.index_of(link).is_some_and(|i| {
+            self.required.contains(DenseNodeId::from_raw(crate::indexing::dense_u32(i)))
+        })
     }
 }
 

@@ -33,6 +33,7 @@ pub mod dag;
 pub mod dsep;
 pub mod error;
 pub mod marked_storage;
+mod mec_search;
 pub mod msep;
 pub mod named;
 pub mod overlay;
@@ -60,6 +61,7 @@ pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_membe
 pub use dag::{Dag, DagReview};
 pub use dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
 pub use error::GraphError;
+pub use msep::PagSeparation;
 pub use overlay::{DagView, GraphOverlay};
 pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};

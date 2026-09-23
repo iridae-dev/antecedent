@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
-pytest.importorskip("antecedent")
 import antecedent
+import numpy as np
 
 
 def test_discover_ges_screen_pc_smoke():

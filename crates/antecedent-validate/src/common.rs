@@ -64,7 +64,9 @@ pub struct RefutationReport {
     pub refuted_ate: f64,
     /// Scale-free comparison statistic. Replicate-based refuters store the two-sided
     /// p-value of the null value under the replicate distribution; sensitivity grids
-    /// store the robustness value; overlap/e-value checks store their own statistic.
+    /// store the simulated tipping partial R² (the "robustness value"; not the closed-form
+    /// Cinelli–Hazlett RV, see [`crate::sensitivity`]); overlap/e-value checks store their
+    /// own statistic.
     pub comparison: f64,
     /// Whether the check is informative for the estimator used.
     pub informative: bool,
@@ -539,6 +541,27 @@ pub(crate) struct DiagnosticPropensityColumns {
     pub treatment: Vec<f64>,
     /// Outcome column when requested.
     pub outcome: Option<Vec<f64>>,
+    /// Why the diagnostic logistic fit cannot be trusted as a propensity model, if it cannot.
+    pub defect: Option<&'static str>,
+}
+
+/// A diagnostic logistic fit that separated the arms or failed to converge is not a usable
+/// propensity model, and the ridge-regularized scores it returns shrink exactly the extreme
+/// values that are the evidence of a positivity violation. It is reported as the violation.
+pub(crate) fn propensity_fit_defect(glm: &antecedent_stats::GlmFit) -> Option<&'static str> {
+    if glm.separated {
+        Some(
+            "the diagnostic propensity model (quasi-)completely separates the treatment arms: \
+             the covariates almost perfectly predict treatment, a positivity violation",
+        )
+    } else if !glm.converged {
+        Some(
+            "the diagnostic propensity model did not converge, which happens under near-perfect \
+             prediction of treatment (a positivity violation) or a degenerate design",
+        )
+    } else {
+        None
+    }
 }
 
 /// Whether the complete treatment sample satisfies the binary 0/1 contract.
@@ -546,7 +569,10 @@ pub(crate) struct DiagnosticPropensityColumns {
 /// Classification uses the same complete-case mask as estimation (treatment,
 /// outcome, adjustment, modifiers). An empty remainder is not binary: `all()`
 /// on no rows would otherwise vacuously accept the logistic path.
-#[allow(clippy::float_cmp)]
+#[allow(
+    clippy::float_cmp,
+    reason = "a binary treatment is coded exactly 0.0 or 1.0; values merely near 0 or 1 are not binary"
+)]
 pub(crate) fn binary_treatment(problem: &RefutationProblem<'_>) -> Result<bool, ValidationError> {
     let mut ids = vec![problem.treatment(), problem.outcome()];
     ids.extend_from_slice(&problem.estimand.adjustment_set);
@@ -615,7 +641,16 @@ pub(crate) fn fit_diagnostic_propensity(
         glm_options,
     )
     .map_err(ValidationError::from)?;
-    Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome })
+    let defect = propensity_fit_defect(&fit.glm);
+    Ok(DiagnosticPropensityColumns { scores: fit.scores, treatment, outcome, defect })
+}
+
+/// An [`OverlapReport`] from a diagnostic propensity fit, with the fit's defect, if any.
+pub(crate) struct DiagnosticOverlap {
+    /// Report on the (possibly regularized) scores.
+    pub report: OverlapReport,
+    /// Separation / non-convergence of the diagnostic fit (see [`propensity_fit_defect`]).
+    pub defect: Option<&'static str>,
 }
 
 /// Build an [`OverlapReport`] from a diagnostic propensity fit, reusing a warmed
@@ -625,7 +660,7 @@ pub(crate) fn diagnostic_overlap_report_with(
     glm_options: &GlmOptions,
     policy: OverlapPolicy,
     propensity: &mut PropensityWorkspace,
-) -> Result<OverlapReport, ValidationError> {
+) -> Result<DiagnosticOverlap, ValidationError> {
     let cols = fit_diagnostic_propensity(problem, glm_options, false, propensity)?;
     // ATE IPW weights so ESS / extreme-weight fields are defined for the overlap refuter.
     let weights: Vec<f64> = cols
@@ -637,14 +672,17 @@ pub(crate) fn diagnostic_overlap_report_with(
             if t > 0.5 { 1.0 / p } else { 1.0 / (1.0 - p) }
         })
         .collect();
-    Ok(OverlapReport::from_propensities(
-        &cols.scores,
-        Some(&weights),
-        policy,
-        Some(&cols.treatment),
-        Some(IpwTarget::Ate),
-        None,
-    ))
+    Ok(DiagnosticOverlap {
+        report: OverlapReport::from_propensities(
+            &cols.scores,
+            Some(&weights),
+            policy,
+            Some(&cols.treatment),
+            Some(IpwTarget::Ate),
+            None,
+        ),
+        defect: cols.defect,
+    })
 }
 
 /// Linear adjustment with nested bootstrap disabled (refuters / sensitivity grids).
@@ -679,8 +717,11 @@ pub(crate) enum NoiseReplaceTarget {
 
 /// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
 ///
-/// Passes when the replicate ATE distribution is statistically consistent with zero
-/// (two-sided normal test, `p >= alpha`), so the verdict is invariant to outcome units.
+/// Under OLS / linear adjustment the coefficient on independent noise is asymptotically
+/// zero by construction, so this procedure has no power against a wrong causal claim.
+/// Reports are therefore `informative: false` (diagnostic only, not a falsifier).
+/// A non-finite replicate estimate is a failed computation, not evidence: it is a
+/// [`ValidationError`] (rendered `Failed` by the suite), never a verdict.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
@@ -694,11 +735,7 @@ pub(crate) fn noise_replace_refute(
     refuter_id: &'static str,
     failure_label: &'static str,
 ) -> Result<RefutationReport, ValidationError> {
-    if replicates < 2 {
-        return Err(ValidationError::NotApplicable {
-            message: "noise-replace refuter requires replicates >= 2",
-        });
-    }
+    check_replicate_count(replicates)?;
     let replace_id = match target {
         NoiseReplaceTarget::Treatment => problem.treatment(),
         NoiseReplaceTarget::Outcome => problem.outcome(),
@@ -706,6 +743,7 @@ pub(crate) fn noise_replace_refute(
     let n = problem.data.row_count();
     let mut ates = Vec::with_capacity(replicates as usize);
     for r in 0..replicates {
+        check_cancelled(ctx)?;
         let mut noise = vec![0.0; n];
         fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
         let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
@@ -713,14 +751,15 @@ pub(crate) fn noise_replace_refute(
         ates.push(est.ate);
     }
     let mean_ate = ates.iter().sum::<f64>() / f64::from(replicates);
-    let p_value = replicate_p_value(&ates, 0.0);
+    let p_value = replicate_p_value(&ates, 0.0)?;
     let passed = p_value >= alpha;
     Ok(RefutationReport {
         refuter: Arc::from(refuter_id),
         original_ate: problem.original.ate,
         refuted_ate: mean_ate,
         comparison: p_value,
-        informative: true,
+        // OLS recovery of ~0 under independent noise cannot falsify the claim.
+        informative: false,
         passed,
         failure_condition: (!passed).then(|| {
             Arc::from(format!(
@@ -739,33 +778,81 @@ pub(crate) fn noise_replace_refute(
 /// would make any tiny systematic bias refute at large R, which is the wrong operating
 /// characteristic for a placebo / dummy-outcome refuter. Degenerate spread compares
 /// means directly.
-pub(crate) fn replicate_p_value(samples: &[f64], hypothesized: f64) -> f64 {
+///
+/// # Errors
+///
+/// Fewer than two samples, or any non-finite sample or `hypothesized`. A replicate that
+/// is `NaN`/`±∞` means the refit itself broke; it must be neither a pass (`p = 1`) nor a
+/// refutation (`p = 0`), so the caller sees an operational failure instead of a verdict.
+pub(crate) fn replicate_p_value(
+    samples: &[f64],
+    hypothesized: f64,
+) -> Result<f64, ValidationError> {
     if samples.len() < 2 {
-        return 1.0;
+        return Err(ValidationError::NotApplicable {
+            message: "replicate p-value requires at least two replicates",
+        });
+    }
+    if !hypothesized.is_finite() || samples.iter().any(|x| !x.is_finite()) {
+        return Err(ValidationError::estimation_msg(
+            "non-finite replicate estimate: the refit did not produce a usable effect",
+        ));
     }
     #[allow(clippy::cast_precision_loss)]
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let sd = sample_sd(samples);
     let scale = mean.abs().max(hypothesized.abs()).max(1.0);
     if !sd.is_finite() {
-        return 1.0;
+        return Err(ValidationError::estimation_msg(
+            "non-finite replicate spread: the refit did not produce a usable effect",
+        ));
     }
     if sd <= 1e-12 * scale {
-        return if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 };
+        return Ok(if (hypothesized - mean).abs() <= 1e-9 * scale { 1.0 } else { 0.0 });
     }
     let z = (hypothesized - mean) / sd;
     if !z.is_finite() {
-        // Defense in depth rather than a live path: a non-finite `mean` drags
-        // `sample_sd` non-finite too, so the guard above already catches every
-        // way `z` is currently reachable as NaN/±inf. Kept so a future change to
-        // the spread guards cannot leak a NaN into a reported probability, and
-        // returning 1.0 matches the non-finite convention established above.
-        return 1.0;
+        return Err(ValidationError::estimation_msg(
+            "non-finite replicate z-score: the refit did not produce a usable effect",
+        ));
     }
     // `erfc` is guaranteed in [0, 2] for finite input, so `z.abs() >= 0` keeps this
     // in [0, 1] mathematically — clamp anyway since this value is documented as a
     // probability and defensive clamping is cheap.
-    erfc(z.abs() / std::f64::consts::SQRT_2).clamp(0.0, 1.0)
+    Ok(erfc(z.abs() / std::f64::consts::SQRT_2).clamp(0.0, 1.0))
+}
+
+/// Largest replicate count a refuter accepts. Per-replicate RNG streams are
+/// `base + r` with refuter bases `0x1000` apart at the closest (placebo Gaussian vs
+/// permute), so more replicates than this would alias two refuters' noise streams.
+pub(crate) const MAX_REFUTER_REPLICATES: u32 = 0x1000;
+
+/// Validate `2 ≤ replicates ≤ MAX_REFUTER_REPLICATES`.
+pub(crate) fn check_replicate_count(replicates: u32) -> Result<(), ValidationError> {
+    if replicates < 2 {
+        return Err(ValidationError::NotApplicable {
+            message: "replicate-based refuter requires replicates >= 2",
+        });
+    }
+    if replicates > MAX_REFUTER_REPLICATES {
+        return Err(ValidationError::NotApplicable {
+            message: "replicate-based refuter supports at most 4096 replicates \
+                      (per-replicate RNG streams would alias)",
+        });
+    }
+    Ok(())
+}
+
+/// Cooperative cancellation poll for replicate loops.
+pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ValidationError> {
+    if ctx.cancellation.is_cancelled() { Err(ValidationError::Cancelled) } else { Ok(()) }
+}
+
+/// Mean of the replicate estimates.
+pub(crate) fn replicate_mean(ates: &[f64]) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let n = ates.len() as f64;
+    ates.iter().sum::<f64>() / n
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
@@ -794,6 +881,32 @@ pub(crate) fn with_row_subset(
     }
     let mask = ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
     data.with_analysis_mask(mask).map_err(ValidationError::from)
+}
+
+/// The same-effect refit of the *unperturbed* problem: the centre a perturbation refuter
+/// compares its replicates against.
+///
+/// Refits always run the least-squares pipeline of [`refit_effect`], while `problem.original`
+/// may be a different estimator's number (a Bayesian posterior mean shrunk toward its prior,
+/// a conditional-effect scalar). Replicate spread is O(1/√n), the same order as that gap, so
+/// centring on the published estimate would make a check of *stability under perturbation*
+/// fail because of *estimator* differences. Centring on the full-sample refit compares like
+/// with like.
+pub(crate) fn full_sample_refit_ate(
+    problem: &RefutationProblem<'_>,
+    estimator: &LinearAdjustmentAte,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, ValidationError> {
+    let est =
+        refit_effect(problem, problem.data, problem.estimand, &[], estimator, workspace, ctx)?;
+    if est.ate.is_finite() {
+        Ok(est.ate)
+    } else {
+        Err(ValidationError::estimation_msg(
+            "non-finite full-sample refit effect: the refit did not produce a usable effect",
+        ))
+    }
 }
 
 /// Restrict a temporal series to one random contiguous window covering `keep_fraction` of
@@ -827,11 +940,21 @@ pub(crate) fn with_contiguous_row_window(
             message: "contiguous row window requires at least 2 rows",
         });
     }
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the floored product is at most the row count and `as` saturates negatives and NaN to 0; the result is clamped to 1..=n-1"
+    )]
     let window_len = (((n as f64) * keep_fraction).floor() as usize).clamp(1, n - 1);
     let span = n - window_len;
     let mut rng = ctx.rng.stream(stream_id);
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "next_f64 is in [0, 1), so the floored product is in [0, span]; it is non-negative and below the row count, then min-bounded to span"
+    )]
     let start = (rng.next_f64() * (span as f64 + 1.0)).floor() as usize;
     let start = start.min(span);
 
@@ -914,6 +1037,11 @@ pub(crate) fn with_resampled_rows(
     if keep.iter().all(|&k| k) {
         return Ok(out);
     }
+    out.with_analysis_mask(validity_from_flags(keep)?).map_err(ValidationError::from)
+}
+
+/// Validity bitmap with bit `i` set iff `keep[i]`.
+pub(crate) fn validity_from_flags(keep: &[bool]) -> Result<ValidityBitmap, ValidationError> {
     let n = keep.len();
     let mut bytes = vec![0u8; n.div_ceil(8)];
     for (i, &k) in keep.iter().enumerate() {
@@ -921,8 +1049,7 @@ pub(crate) fn with_resampled_rows(
             bytes[i / 8] |= 1 << (i % 8);
         }
     }
-    let mask = ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)?;
-    out.with_analysis_mask(mask).map_err(ValidationError::from)
+    ValidityBitmap::from_bytes(bytes, n).map_err(ValidationError::from)
 }
 
 /// Complete-case mask and the list of valid row indexes for `ids` (analysis mask included).
@@ -1003,33 +1130,60 @@ mod tests {
     use super::*;
 
     #[test]
-    fn replicate_p_value_zero_sd_matches_hypothesis_is_valid_probability() {
-        // All replicates identical (SD = 0) and equal to the hypothesized value:
-        // handled by the existing degenerate-spread guard, not the erfc path.
-        let samples = [1.5, 1.5, 1.5, 1.5];
-        let p = replicate_p_value(&samples, 1.5);
-        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
-        assert!(!p.is_nan(), "p_value must not be NaN");
+    #[allow(
+        clippy::float_cmp,
+        reason = "a zero-spread replicate set yields exactly p = 1 or p = 0 by construction, so exact equality is intended"
+    )]
+    fn replicate_p_value_zero_sd_matches_hypothesis_is_one() {
+        // All replicates identical (SD = 0) and equal to the hypothesized value.
+        let p = replicate_p_value(&[1.5, 1.5, 1.5, 1.5], 1.5).unwrap();
+        assert_eq!(p, 1.0);
     }
 
     #[test]
-    fn replicate_p_value_zero_sd_away_from_hypothesis_is_valid_probability() {
-        // All replicates identical (SD = 0) but away from the hypothesized value.
-        let samples = [1.5, 1.5, 1.5, 1.5];
-        let p = replicate_p_value(&samples, 0.0);
-        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
-        assert!(!p.is_nan(), "p_value must not be NaN");
+    #[allow(
+        clippy::float_cmp,
+        reason = "a zero-spread replicate set yields exactly p = 1 or p = 0 by construction, so exact equality is intended"
+    )]
+    fn replicate_p_value_zero_sd_away_from_hypothesis_is_zero() {
+        let p = replicate_p_value(&[1.5, 1.5, 1.5, 1.5], 0.0).unwrap();
+        assert_eq!(p, 0.0);
     }
 
     #[test]
-    fn replicate_p_value_nan_mean_does_not_propagate_nan() {
-        // A blown-up replicate (e.g. a failed refit) can leave NaN in the sample
-        // set; `mean`/`z` then become non-finite even though `sd` itself may
-        // still compare finite. The result must stay a valid probability
-        // (D2: unclamped/non-finite tail probability).
-        let samples = [1.0, 2.0, f64::NAN, 3.0];
-        let p = replicate_p_value(&samples, 0.0);
-        assert!((0.0..=1.0).contains(&p), "p_value {p} outside [0, 1]");
-        assert!(!p.is_nan(), "p_value must not be NaN");
+    fn replicate_p_value_matches_normal_tail_closed_form() {
+        // Samples {-1, 1}: mean 0, sample sd sqrt(2). Hypothesized 2 gives z = sqrt(2), and
+        // the two-sided normal tail is erfc(z / sqrt(2)) = erfc(1) = 0.157299207050285.
+        let p = replicate_p_value(&[-1.0, 1.0], 2.0).unwrap();
+        assert!((p - 0.157_299_207_050_285_13).abs() < 1e-12, "p={p}");
+    }
+
+    #[test]
+    fn replicate_p_value_refuses_a_non_finite_replicate() {
+        // A blown-up refit is neither a pass (p = 1) nor a refutation (p = 0): it is an
+        // operational failure the caller must see as an error.
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let err = replicate_p_value(&[1.0, 2.0, bad, 3.0], 0.0).unwrap_err();
+            assert!(matches!(err, ValidationError::Estimation(_)), "{err:?}");
+        }
+    }
+
+    #[test]
+    fn replicate_p_value_refuses_a_non_finite_hypothesis_or_too_few_samples() {
+        let samples = [1.0, 2.0, 3.0, 4.0];
+        assert!(replicate_p_value(&samples, f64::NAN).is_err());
+        assert!(replicate_p_value(&samples, f64::INFINITY).is_err());
+        assert!(matches!(
+            replicate_p_value(&[1.0], 0.0),
+            Err(ValidationError::NotApplicable { .. })
+        ));
+    }
+
+    #[test]
+    fn replicate_count_bounds_keep_refuter_streams_disjoint() {
+        assert!(check_replicate_count(1).is_err());
+        assert!(check_replicate_count(2).is_ok());
+        assert!(check_replicate_count(MAX_REFUTER_REPLICATES).is_ok());
+        assert!(check_replicate_count(MAX_REFUTER_REPLICATES + 1).is_err());
     }
 }

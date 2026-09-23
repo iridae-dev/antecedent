@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
+    from ..prediction import FittedEffectModel
     from .response import CausalResponseView
 
 from .._api import describe_refusal
@@ -343,6 +344,10 @@ class ResultAPI:
     @property
     def answer(self) -> Answer:
         """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
+        section = getattr(self, "transport", None)
+        detail = getattr(section, "unavailable", None) if section is not None else None
+        if detail:
+            return Answer("unavailable", detail=detail)
         limitation = getattr(self, "rendering_limitation", lambda: None)()
         bounds = _scalar_bounds(getattr(self, "structural_identified_set", None))
         if self._function_valued:
@@ -449,18 +454,7 @@ class ResultAPI:
                 value = getattr(self, name, None)
                 if value is not None:
                     uncertainty_payload[name.removeprefix("structural_")] = value
-        uncertainty_available = (
-            slots.uncertainty.available
-            or (uncertainty is not None and getattr(uncertainty, "kind", "none") != "none")
-            or (posterior is not None and getattr(posterior, "effect_sd", None) is not None)
-        )
-        if estimate is not None:
-            uncertainty_available |= any(
-                isinstance(v := getattr(estimate, name, None), (int, float)) and isfinite(v)
-                for name in ("se_analytic", "se_bootstrap")
-            )
         assumptions = getattr(self, "assumptions", None)
-        assumptions_available = slots.assumptions.available or assumptions is not None
         assumption_payload = dict(slots.assumptions.payload)
         if assumptions is not None:
             assumption_payload["assumptions"] = assumptions
@@ -479,26 +473,8 @@ class ResultAPI:
                 ident_payload,
             ),
             support=replace(slots.support, payload=support_payload),
-            uncertainty=SlotView(
-                uncertainty_available,
-                None if uncertainty_available else (slots.uncertainty.reason or "not_evaluated"),
-                slots.uncertainty.summary
-                if slots.uncertainty.available
-                else "execution_specific"
-                if uncertainty_available
-                else "unavailable",
-                uncertainty_payload,
-            ),
-            assumptions=SlotView(
-                assumptions_available,
-                None if assumptions_available else "not_retained",
-                slots.assumptions.summary
-                if slots.assumptions.available
-                else "retained"
-                if assumptions_available
-                else "unavailable",
-                assumption_payload,
-            ),
+            uncertainty=replace(slots.uncertainty, payload=uncertainty_payload),
+            assumptions=replace(slots.assumptions, payload=assumption_payload),
             answer=self.answer,
             calibration=(
                 CalibrationInfo.from_contract(contract)
@@ -540,10 +516,35 @@ class ResultAPI:
         if not isinstance(decoded.contract, Mapping):
             return replace(report, contract=None)
         section = dict(decoded.contract)
+        native = ReasoningSlots.from_result_section(section, decoded.payload)
+        # Availability is the executed contract's native decision, the same one
+        # `load(export()).inspect()` reports; the live report only adds payload.
+        report = replace(
+            report,
+            uncertainty=replace(
+                report.uncertainty,
+                available=native.uncertainty.available,
+                reason=native.uncertainty.reason,
+                summary=native.uncertainty.summary,
+            ),
+            assumptions=replace(
+                report.assumptions,
+                available=native.assumptions.available,
+                reason=native.assumptions.reason,
+                summary=native.assumptions.summary,
+            ),
+        )
         return replace(
             with_portable_evidence(report, portable_evidence(section, decoded.payload)),
             contract=section,
         )
+
+    @property
+    def fitted_model(self) -> FittedEffectModel:
+        """Verified portable CATE predictor for this exact retained execution."""
+        from ..prediction import FittedEffectModel
+
+        return FittedEffectModel.load(self.export())
 
     @describe_refusal
     def export(self, *, artifact_id: str = "analysis-result") -> bytes:

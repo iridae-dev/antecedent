@@ -7,13 +7,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import antecedent
 import numpy as np
-import pytest
 
 from _repo_text import load_json
-
-pytest.importorskip("antecedent")
-import antecedent
 
 FIXTURE = Path(__file__).resolve().parents[2] / "conformance" / "gates" / "arrow_copy_fixture.json"
 

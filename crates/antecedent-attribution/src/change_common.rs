@@ -4,8 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, VariableId};
-use antecedent_stats::gaussian_kl;
+use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, StreamDomain, VariableId};
+use antecedent_graph::DenseNodeId;
+use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_observational_into};
+use antecedent_stats::{gaussian_kl, mean_var};
 
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
@@ -42,6 +44,77 @@ impl ChangeOptions {
     #[must_use]
     pub const fn default_mean() -> Self {
         Self::new(DifferenceMeasure::MeanDiff, 2_000, 0)
+    }
+}
+
+/// Stream domain of the distribution-change coalition payoff.
+pub(crate) const DISTRIBUTION_STREAM: u64 = 0xDC01;
+/// Stream domain of the structure-change coalition payoff.
+pub(crate) const STRUCTURE_STREAM: u64 = 0x5C01;
+/// Stream domain of the per-unit Shapley permutation seeds.
+pub(crate) const UNIT_STREAM: u64 = 0x0117;
+
+/// Stream tag for `(domain, seed)`.
+///
+/// A `SplitMix64` finalizer over the seed shifted by the domain, so streams of different
+/// domains cannot alias through overlapping `domain ^ seed` / `domain + seed` ranges (a
+/// bare XOR maps `(DC, s ^ k)` onto `(SC, s)` for the constant `k = DC ^ SC`). For a fixed
+/// domain the map is a bijection of the seed, so distinct seeds keep distinct streams.
+#[must_use]
+pub(crate) fn stream_tag(domain: u64, seed: u64) -> u64 {
+    let mut z = seed.wrapping_add(domain.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Mean and (floored) variance of the outcome under `model`, from `n_samples` ancestral
+/// draws on the `(domain, seed)` attribution stream.
+///
+/// Every coalition of a change attribution uses the same stream, so coalition values share
+/// their exogenous noise (common random numbers) and differences between coalitions are
+/// not swamped by sampling noise. `buf` is reused across calls.
+pub(crate) fn sample_outcome_law(
+    model: &CompiledCausalModel,
+    outcome: DenseNodeId,
+    n_samples: usize,
+    stream: u64,
+    ctx: &ExecutionContext,
+    ws: &mut MechanismWorkspace,
+    buf: &mut Vec<f64>,
+) -> Result<(f64, f64), AttributionError> {
+    let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, stream);
+    let n_rows = n_samples.max(1);
+    let need = n_rows.saturating_mul(model.n_nodes());
+    if buf.len() < need {
+        buf.resize(need, 0.0);
+    }
+    sample_observational_into(model, n_rows, &mut rng, ws, &mut buf[..need], ctx)?;
+    let start = outcome.as_usize() * n_rows;
+    let (mu, var) = mean_var(&buf[start..start + n_rows]);
+    Ok((mu, var.max(1e-12)))
+}
+
+/// The outcome-summary change between two observed samples under `measure`
+/// (`comparison` relative to `baseline`), on the same scale as the coalition payoff:
+/// difference of means, difference of (population) variances, or
+/// `KL(N(μ_c, σ_c²) ‖ N(μ_b, σ_b²))` with the payoff's variance floor.
+pub(crate) fn observed_change(
+    measure: DifferenceMeasure,
+    baseline: &[f64],
+    comparison: &[f64],
+) -> Result<f64, AttributionError> {
+    if baseline.is_empty() || comparison.is_empty() {
+        return Err(AttributionError::invalid_input("observed change needs non-empty populations"));
+    }
+    let (mu_b, var_b) = mean_var(baseline);
+    let (mu_c, var_c) = mean_var(comparison);
+    match measure {
+        DifferenceMeasure::MeanDiff => Ok(mu_c - mu_b),
+        DifferenceMeasure::VarianceDiff => Ok(var_c - var_b),
+        DifferenceMeasure::GaussianKl => {
+            Ok(gaussian_kl(mu_c, var_c.max(1e-12), mu_b, var_b.max(1e-12))?)
+        }
     }
 }
 
@@ -181,51 +254,100 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     use crate::path::path_decompose;
     use crate::result::ComponentContribution;
 
-    // PathBased is a linear-Gaussian path decomposition, not Shapley. Per-player
-    // path products need not partition v(N)−v(∅) when ancestries nest, so shares
-    // are renormalized to the true total (efficiency). Truncation and nonlinear
-    // mechanisms are refused by `path_decompose`.
-    let _ = payoff;
-    let mut path_breakdown = Vec::new();
-    let mut contributions: Vec<ComponentContribution> = Vec::new();
+    // PathBased is the O(n) analogue of Shapley: instead of averaging each
+    // player's marginal contribution over every coalition (O(2^n) payoff
+    // evaluations), it uses only the two single-player coalitions v(∅) and
+    // v({i}) — the same baseline/comparison mechanism-swap `payoff` that
+    // `AllocationMethod::Shapley` uses on this call site. `v({i}) − v(∅)` is the
+    // effect of swapping *only* player i's mechanism from baseline to
+    // comparison; a player whose fitted mechanism is unchanged between the two
+    // populations therefore scores (near) exactly zero, regardless of how
+    // strong its paths to the outcome are — the defect this replaces.
+    //
+    // This is exact whenever mechanism shifts act additively on the payoff
+    // (e.g. `MeanDiff` on a linear-Gaussian model with no player sharing a
+    // descendant with another player); with interacting shifts the marginals
+    // need not already sum to `total_change`, so — exactly as the previous
+    // implementation did — they are rescaled to the measured total
+    // (efficiency), which corrects *scale* only: a truly unchanged player's
+    // zero marginal survives rescaling untouched as long as some other player
+    // actually moved.
+    //
+    // `path_decompose`'s static path-coefficient products are used only to
+    // split a player's already-correct total across its individual directed
+    // paths to the outcome for reporting; they never determine how much of the
+    // total change that player receives.
+    let v0 = payoff.value(0)?;
+    let mut raw_players = Vec::with_capacity(players.len());
+    for i in 0..players.len() {
+        let bit = 1u64 << i;
+        let v_i = payoff.value(bit)?;
+        raw_players.push(v_i - v0);
+    }
+
+    let mut player_paths = Vec::with_capacity(players.len());
     for &comp in players {
         let res = path_decompose(model, &[comp.variable()], outcome, 64, 16, ctx)?;
-        let player_sum: f64 = res.path_breakdown.iter().map(|p| p.contribution).sum();
+        player_paths.push(res.path_breakdown.to_vec());
+    }
+
+    let raw: f64 = raw_players.iter().sum();
+    let scale = path_efficiency_scale(raw, total_change)?;
+
+    let mut contributions: Vec<ComponentContribution> = Vec::with_capacity(players.len());
+    let mut path_breakdown = Vec::new();
+    let mut n_evaluations = players.len() as u64 + 1;
+    for (idx, &comp) in players.iter().enumerate() {
+        let mut contribution = raw_players[idx];
+        if let Some(scale) = scale {
+            contribution *= scale;
+        }
         contributions.push(ComponentContribution {
             component: comp,
-            contribution: player_sum,
+            contribution,
             stderr: None,
             ci_low: None,
             ci_high: None,
         });
-        path_breakdown.extend(res.path_breakdown.iter().cloned());
-    }
-    let raw: f64 = contributions.iter().map(|c| c.contribution).sum();
-    if let Some(scale) = path_efficiency_scale(raw, total_change)? {
-        for c in &mut contributions {
-            c.contribution *= scale;
+        // Apportion this player's mechanism-shift contribution across its
+        // paths using static path-coefficient shares — a reporting split
+        // only: it redistributes `contribution` among the player's paths and
+        // does not change the player's total or the grand total.
+        let paths = &player_paths[idx];
+        let path_raw_total: f64 = paths.iter().map(|p| p.contribution).sum();
+        for p in paths {
+            n_evaluations += 1;
+            let share = if path_raw_total.abs() > 1e-15 {
+                p.contribution / path_raw_total
+            } else if paths.is_empty() {
+                0.0
+            } else {
+                1.0 / paths.len() as f64
+            };
+            path_breakdown.push(crate::result::PathContribution {
+                path: Arc::clone(&p.path),
+                contribution: contribution * share,
+            });
         }
-        for p in &mut path_breakdown {
-            p.contribution *= scale;
-        }
     }
-    let n_paths = path_breakdown.len();
     Ok(ChangeAttributionResult {
         outcome,
         total_change,
+        observed_change: None,
         contributions: Arc::from(contributions),
         interactions: Arc::from([]),
         path_breakdown: Arc::from(path_breakdown),
         unidentified,
         graph_sensitivity: None,
         budget: crate::result::ComputeBudget {
-            evaluations: u64::try_from(n_paths).unwrap_or(u64::MAX),
+            evaluations: n_evaluations,
             samples: 0,
             exact_coalitions: 0,
         },
         monte_carlo_stderr: None,
         component_mc_stderr: None,
         cache_stats: crate::result::CacheStats::default(),
+        fit_uncertainty: None,
     })
 }
 
@@ -264,6 +386,7 @@ pub(crate) fn pack_change_result(
     ChangeAttributionResult {
         outcome,
         total_change,
+        observed_change: None,
         contributions,
         interactions,
         path_breakdown,
@@ -273,6 +396,7 @@ pub(crate) fn pack_change_result(
         monte_carlo_stderr: mc_stderr,
         component_mc_stderr: component_mc,
         cache_stats,
+        fit_uncertainty: None,
     }
 }
 
@@ -325,6 +449,49 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, AttributionError::UnknownPlayer);
+    }
+
+    #[test]
+    fn stream_tags_do_not_alias_across_domains_or_seeds() {
+        // A bare XOR of the domain constants maps (DISTRIBUTION, s ^ k) onto (STRUCTURE, s)
+        // for k = DC01 ^ 5C01.
+        let k = DISTRIBUTION_STREAM ^ STRUCTURE_STREAM;
+        for s in [0u64, 1, 5, 0x8000, u64::MAX] {
+            assert_ne!(
+                stream_tag(DISTRIBUTION_STREAM, s ^ k),
+                stream_tag(STRUCTURE_STREAM, s),
+                "seed {s:#x}"
+            );
+            assert_ne!(
+                stream_tag(DISTRIBUTION_STREAM, s.wrapping_add(0x8000)),
+                stream_tag(STRUCTURE_STREAM, s),
+                "seed {s:#x}"
+            );
+        }
+        // Distinct seeds within one domain stay distinct (bijection), including neighbours.
+        let tags: std::collections::HashSet<u64> =
+            (0..10_000u64).map(|s| stream_tag(UNIT_STREAM, s)).collect();
+        assert_eq!(tags.len(), 10_000);
+    }
+
+    #[test]
+    fn observed_change_matches_closed_forms() {
+        let base = [1.0, 2.0, 3.0]; // mean 2, population variance 2/3
+        let cmp = [2.0, 4.0, 6.0]; // mean 4, population variance 8/3
+        assert!(
+            (observed_change(DifferenceMeasure::MeanDiff, &base, &cmp).unwrap() - 2.0).abs()
+                < 1e-12
+        );
+        assert!(
+            (observed_change(DifferenceMeasure::VarianceDiff, &base, &cmp).unwrap() - 2.0).abs()
+                < 1e-12
+        );
+        // KL(N(4, 8/3) ‖ N(2, 2/3)) = ½ (σc²/σb² − 1 + ln(σb²/σc²) + (μc − μb)²/σb²)
+        //                          = ½ (4 − 1 + ln(1/4) + 4/(2/3)) = ½ (3 − ln 4 + 6).
+        let expected = 0.5 * (3.0 - 4.0_f64.ln() + 6.0);
+        let got = observed_change(DifferenceMeasure::GaussianKl, &base, &cmp).unwrap();
+        assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
+        assert!(observed_change(DifferenceMeasure::MeanDiff, &[], &cmp).is_err());
     }
 
     #[test]

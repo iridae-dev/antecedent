@@ -3,9 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
-    clippy::many_single_char_names
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::fs;
@@ -433,7 +432,7 @@ fn prediction_smoke_pin() {
         &policy,
     )
     .unwrap();
-    let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
+    let yhat = pred.predict_conditional(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
     let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
     assert!((mean - target).abs() < tol);
 }

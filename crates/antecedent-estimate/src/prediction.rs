@@ -1,15 +1,23 @@
-//! Temporal linear model prediction under interventions.
+//! Conditional (associational) prediction from a lagged linear regression.
 //!
-//! Fit a lagged linear SEM once, then batch-predict under `do()` without
-//! Python-per-horizon crossings.
+//! [`TemporalLinearPredictor`] regresses a target on caller-listed lagged columns and
+//! evaluates the fitted line with one variable's columns held at a level. There is no graph,
+//! no identification step and no adjustment, so the output is the conditional expectation
+//! `E[target_t | listed lags, variable = level]` under the linear fit. It equals an
+//! interventional mean only if the listed columns happen to be a valid adjustment set, the
+//! relation is linear, and no other listed column is a descendant of the held variable;
+//! none of that is checked here. Identified interventional quantities, with assumptions,
+//! support and uncertainty, come from the temporal analysis path of the `antecedent` facade.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::needless_range_loop,
-    clippy::similar_names
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -38,7 +46,8 @@ impl TemporalLinearPredictor {
     ///
     /// # Errors
     ///
-    /// Sample / OLS failures.
+    /// Sample / OLS failures, non-finite values, or a rank-deficient design (collinear or
+    /// constant lagged columns), which the least-squares backend refuses.
     pub fn fit(
         data: &TimeSeriesData,
         target: VariableId,
@@ -69,27 +78,42 @@ impl TemporalLinearPredictor {
             }
         }
         let mut ws = LeastSquaresWorkspace::default();
+        if y.iter().chain(design.iter()).any(|v| !v.is_finite()) {
+            return Err(EstimationError::data_msg(
+                "lagged linear predictor needs finite target and parent values",
+            ));
+        }
         let fit = FaerBackend
             .least_squares(&design, n, ncols, y, &mut ws)
             .map_err(EstimationError::from)?;
         Ok(Self { target, parents, coefficients: Arc::from(fit.coefficients), max_lag })
     }
 
-    /// Batch-predict under a hard intervention on one parent variable (all horizons).
+    /// Batch conditional prediction with one variable's columns held at `level`.
     ///
-    /// Sets every lag of `intervene_var` in the design to `level` and evaluates
-    /// the linear predictor on the same row geometry (no per-horizon data clone).
+    /// Sets every lag of `held_var` in the design to `level`, leaves every other column at its
+    /// observed value, and evaluates the fitted line on the same row geometry. This is a
+    /// conditional prediction, not `do(held_var = level)`: see the module docs.
     ///
     /// # Errors
     ///
-    /// Sample preparation failures.
-    pub fn predict_intervened(
+    /// Sample preparation failures, a non-finite `level`, or a `held_var` that is not one
+    /// of the fitted columns (the prediction would silently ignore it).
+    pub fn predict_conditional(
         &self,
         data: &TimeSeriesData,
-        intervene_var: VariableId,
+        held_var: VariableId,
         level: f64,
         policy: &KernelPolicy,
     ) -> Result<Arc<[f64]>, EstimationError> {
+        if !level.is_finite() {
+            return Err(EstimationError::data_msg("prediction level must be finite"));
+        }
+        if !self.parents.iter().any(|p| p.variable == held_var) {
+            return Err(EstimationError::data_msg(
+                "held variable is not one of the predictor's lagged columns",
+            ));
+        }
         let mut cols = Vec::with_capacity(1 + self.parents.len());
         cols.push(LaggedColumn { variable: self.target, lag: Lag::CONTEMPORANEOUS });
         cols.extend_from_slice(&self.parents);
@@ -103,8 +127,7 @@ impl TemporalLinearPredictor {
         for i in 0..n {
             let mut yhat = self.coefficients[0];
             for (p, parent) in self.parents.iter().enumerate() {
-                let x =
-                    if parent.variable == intervene_var { level } else { prep.column(1 + p)[i] };
+                let x = if parent.variable == held_var { level } else { prep.column(1 + p)[i] };
                 yhat += self.coefficients[1 + p] * x;
             }
             out[i] = yhat;
@@ -115,6 +138,8 @@ impl TemporalLinearPredictor {
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use antecedent_core::{
         CausalSchemaBuilder, KernelPolicy, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
         VariableId,
@@ -126,13 +151,12 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn intervene_and_predict_batch() {
-        let n = 80usize;
+    fn series(columns: Vec<(&str, Vec<f64>)>) -> TimeSeriesData {
+        let n = columns[0].1.len();
         let mut b = CausalSchemaBuilder::new();
-        for name in ["x", "y"] {
+        for (name, _) in &columns {
             b.add_variable(
-                name,
+                *name,
                 ValueType::Continuous,
                 SmallRoleSet::from_hint(RoleHint::Context),
                 None,
@@ -141,37 +165,102 @@ mod tests {
             )
             .unwrap();
         }
-        let schema = b.build().unwrap();
+        let cols = columns
+            .into_iter()
+            .enumerate()
+            .map(|(idx, (_, values))| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(idx as u32),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(b.build().unwrap(), cols, None, None).unwrap();
+        TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap()
+    }
+
+    fn lag1(variable: u32) -> LaggedColumn {
+        LaggedColumn { variable: VariableId::from_raw(variable), lag: Lag::from_raw(1) }
+    }
+
+    #[test]
+    fn conditional_prediction_is_not_the_interventional_mean_under_confounding() {
+        // U_t drives X_t and Y_{t+1}; X has no effect on Y, so E[Y | do(X=1)] = E[Y] = 0.
+        // The fitted predictor can only return the association E[Y_t | X_{t-1}=1] = 0.8.
+        let n = 20_000usize;
+        let mut rng = antecedent_core::ExecutionContext::for_tests(7)
+            .rng
+            .stream_for(StreamDomain::Estimate, 0x9ED1_u64);
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut u_prev = 0.0;
+        for t in 0..n {
+            let u = antecedent_kernels::standard_normal(&mut rng);
+            x[t] = u + 0.5 * antecedent_kernels::standard_normal(&mut rng);
+            y[t] = u_prev + 0.5 * antecedent_kernels::standard_normal(&mut rng);
+            u_prev = u;
+        }
+        let data = series(vec![("x", x), ("y", y)]);
+        let policy = KernelPolicy::default_policy();
+        let pred = TemporalLinearPredictor::fit(&data, VariableId::from_raw(1), [lag1(0)], &policy)
+            .unwrap();
+        let yhat = pred.predict_conditional(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
+        let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
+        assert!((mean - 0.8).abs() < 0.03, "conditional mean={mean}");
+    }
+
+    #[test]
+    fn fit_refuses_a_rank_deficient_design() {
+        let n = 60usize;
+        let x: Vec<f64> = (0..n).map(|t| (t as f64 * 0.7).sin()).collect();
+        let copy: Vec<f64> = x.iter().map(|v| 2.0 * v).collect();
+        let y: Vec<f64> = (0..n).map(|t| (t as f64 * 0.3).cos()).collect();
+        let data = series(vec![("x", x), ("y", y), ("x2", copy)]);
+        let policy = KernelPolicy::default_policy();
+        let err = TemporalLinearPredictor::fit(
+            &data,
+            VariableId::from_raw(1),
+            [lag1(0), lag1(2)],
+            &policy,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("rank"), "err={err}");
+    }
+
+    #[test]
+    fn prediction_refuses_a_non_finite_level_and_an_absent_column() {
+        let n = 40usize;
+        let x: Vec<f64> = (0..n).map(|t| (t as f64 * 0.7).sin()).collect();
+        let y: Vec<f64> = x.iter().map(|v| 2.0 * v + 0.1).collect();
+        let data = series(vec![("x", x), ("y", y)]);
+        let policy = KernelPolicy::default_policy();
+        let pred = TemporalLinearPredictor::fit(&data, VariableId::from_raw(1), [lag1(0)], &policy)
+            .unwrap();
+        let x_id = VariableId::from_raw(0);
+        assert!(pred.predict_conditional(&data, x_id, f64::NAN, &policy).is_err());
+        assert!(pred.predict_conditional(&data, x_id, f64::INFINITY, &policy).is_err());
+        // Holding a variable that is not in the design would silently change nothing.
+        assert!(pred.predict_conditional(&data, VariableId::from_raw(1), 1.0, &policy).is_err());
+    }
+
+    #[test]
+    fn conditional_prediction_batch() {
+        let n = 80usize;
         let mut x = vec![0.0; n];
         let mut y = vec![0.0; n];
         for t in 1..n {
             x[t] = 0.5 * x[t - 1] + 0.1;
             y[t] = 2.0 * x[t - 1] + 0.01;
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(x),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let data = TimeSeriesData::try_new(
-            storage,
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .unwrap();
+        let data = series(vec![("x", x), ("y", y)]);
         let policy = KernelPolicy::default_policy();
         let pred = TemporalLinearPredictor::fit(
             &data,
@@ -180,7 +269,7 @@ mod tests {
             &policy,
         )
         .unwrap();
-        let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
+        let yhat = pred.predict_conditional(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
         assert_eq!(yhat.len(), n - 1);
         let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
         assert!((mean - 2.0).abs() < 0.2);

@@ -23,7 +23,7 @@
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
 #   bash scripts/measure_calibration.sh --all          # every group
-#   bash scripts/measure_calibration.sh --jobs 6       # default: the core count
+#   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
 #   bash scripts/measure_calibration.sh --dry-run      # list the groups, rough duration
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -52,6 +52,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 if [[ -z "$JOBS" ]]; then
+  # One job per core: scripts/calibration_groups.py gives each job
+  # ceil(cores / jobs) worker threads (ANTECEDENT_CALIBRATION_THREADS), so the
+  # jobs share the machine instead of each taking all of it, and scheduling
+  # the many heterogeneous groups one per core packs it best.
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
 fi
 case "$JOBS" in ''|*[!0-9]*|0) echo "--jobs must be a positive integer, got '$JOBS'" >&2; exit 2 ;; esac
@@ -78,7 +82,8 @@ python3 scripts/calibration_groups.py run $ALL --jobs "$JOBS"
 # The logs describe HEAD_SHA only if nothing moved while the measurement ran.
 if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   echo "FAIL: HEAD or the working tree changed during the measurement; the logs describe"
-  echo "${HEAD_SHA}. Check it out cleanly and collect by hand:"
+  echo "${HEAD_SHA}. Check it out cleanly and collect by hand (the logs name their commit,"
+  echo "and the collector refuses them at any other):"
   if [[ -n "$ALL" ]]; then
     echo "  python3 scripts/collect_coverage_records.py"
   else

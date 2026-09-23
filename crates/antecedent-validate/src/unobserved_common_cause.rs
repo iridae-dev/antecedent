@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -11,10 +17,12 @@ use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, fill_gaussian, float64_full,
-    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, with_replaced_float,
+    RefutationProblem, RefutationReport, check_cancelled, check_replicate_count,
+    complete_case_rows, fill_gaussian, float64_full, linear_estimator_no_bootstrap, refit_effect,
+    with_replaced_float,
 };
 use crate::error::ValidationError;
+use crate::sensitivity::{residual_sd_pair_on_adjustment, temporal_residual_sd_pair};
 
 /// Perturb treatment and outcome with a shared simulated confounder `U`, refit **without**
 /// adding `U` to the adjustment set (it is "unobserved" by construction), and compare.
@@ -23,18 +31,31 @@ use crate::error::ValidationError;
 /// adjustment set to check it doesn't change the estimate — this refuter simulates a
 /// confounder the estimator never sees, checking how sensitive the ATE is to a confounder of
 /// the configured strength on treatment and outcome.
+///
+/// Strengths are in units of the *residual* SDs `SD(T | Z)` and `SD(Y | Z)` (`Z` the adjustment
+/// set), the variation left for a confounder to explain, not the marginal SDs (which include
+/// what `Z` already explains and would understate the confounder's relative size whenever `Z`
+/// predicts `T`). With `a = effect_on_treatment`, `b = effect_on_outcome` and `ρ` the
+/// partial correlation of `T` and `Y` given `Z`, the standardized slope moves from `ρ` to
+/// `(ρ + a·b) / (1 + a²)`, so the expected shift is `(a·b − ρ·a²) / (1 + a²)` of a residual-SD
+/// ratio. The verdict compares that shift with the effect itself: the check fails when a
+/// confounder of the configured strength moves the estimate by at least as much as the
+/// estimate's own magnitude (`std_delta_threshold = 1`).
 #[derive(Clone, Debug)]
 pub struct UnobservedCommonCause {
     /// Replicate count (fresh `U` draw per replicate).
     pub replicates: u32,
-    /// Simulated confounder's linear effect on treatment, in treatment-sd units per unit
-    /// of the standard-normal confounder.
+    /// Simulated confounder's linear effect on treatment, in residual treatment-SD units
+    /// (`SD(T | Z)`) per unit of the standard-normal confounder.
     pub effect_on_treatment: f64,
-    /// Simulated confounder's linear effect on outcome, in outcome-sd units per unit of
-    /// the standard-normal confounder.
+    /// Simulated confounder's linear effect on outcome, in residual outcome-SD units
+    /// (`SD(Y | Z)`) per unit of the standard-normal confounder.
     pub effect_on_outcome: f64,
-    /// Pass if the mean `|refuted_ate - original_ate|`, standardized by `sd(Y)/sd(T)`
-    /// times the absolute treatment contrast (the scale of an ATE), is below this threshold.
+    /// Pass if the mean `|refuted_ate - original_ate|`, as a multiple of the published
+    /// effect's own magnitude `|original_ate|` (floored at `1e-3` of the residual-SD scale of
+    /// an ATE, `SD(Y|Z)/SD(T|Z)` times the treatment contrast, so a null estimate is judged
+    /// against a small positive scale), is below this threshold. The default of 1 fails when
+    /// the simulated confounder can move the estimate by its whole size.
     pub std_delta_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -70,9 +91,14 @@ impl UnobservedCommonCause {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        if self.replicates == 0 {
+        check_replicate_count(self.replicates)?;
+        if !(self.effect_on_treatment.is_finite()
+            && self.effect_on_treatment >= 0.0
+            && self.effect_on_outcome.is_finite()
+            && self.effect_on_outcome >= 0.0)
+        {
             return Err(ValidationError::NotApplicable {
-                message: "unobserved common cause requires replicates > 0",
+                message: "unobserved common cause requires finite, non-negative effect strengths",
             });
         }
         if !problem.estimand.is_adjustment_shaped()
@@ -92,13 +118,23 @@ impl UnobservedCommonCause {
             ids.extend_from_slice(&problem.estimand.adjustment_set);
         }
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
-        let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?.max(1e-12);
-        let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?.max(1e-12);
+        let (sd_t, sd_y) = if problem.temporal.is_some() {
+            temporal_residual_sd_pair(problem)?
+        } else {
+            residual_sd_pair_on_adjustment(problem, problem.treatment(), problem.outcome(), &mask)?
+        };
+        if !(sd_t.is_finite() && sd_t > 0.0 && sd_y.is_finite() && sd_y > 0.0) {
+            return Err(ValidationError::NotApplicable {
+                message: "unobserved common cause requires positive, finite residual variation \
+                          in treatment and outcome",
+            });
+        }
         let (kt, ky) = (self.effect_on_treatment * sd_t, self.effect_on_outcome * sd_y);
         let mut u = vec![0.0; n];
         let mut sum_delta = 0.0;
         let mut sum_ate = 0.0;
         for r in 0..self.replicates {
+            check_cancelled(ctx)?;
             fill_gaussian(&mut u, ctx, 0xA7E0_0006_0000_u64.wrapping_add(u64::from(r)));
             let t: Vec<f64> = t0.iter().zip(&u).map(|(&t, &u)| t + kt * u).collect();
             let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + ky * u).collect();
@@ -113,6 +149,12 @@ impl UnobservedCommonCause {
                 workspace,
                 ctx,
             )?;
+            if !est.ate.is_finite() {
+                return Err(ValidationError::estimation_msg(
+                    "non-finite simulated-confounder refit effect: the refit did not produce a \
+                     usable effect",
+                ));
+            }
             sum_delta += (est.ate - problem.original.ate).abs();
             sum_ate += est.ate;
         }
@@ -122,7 +164,9 @@ impl UnobservedCommonCause {
             &problem.query.active,
             &problem.query.control,
         )?;
-        let std_delta = mean_delta / ((sd_y / sd_t) * treatment_delta.abs());
+        // The scale of an ATE in residual-SD units; the floor keeps a null estimate finite.
+        let ate_scale = (sd_y / sd_t) * treatment_delta.abs();
+        let std_delta = mean_delta / problem.original.ate.abs().max(1e-3 * ate_scale);
         let passed = std_delta < self.std_delta_threshold;
         Ok(RefutationReport {
             refuter: Arc::from("unobserved.common_cause"),

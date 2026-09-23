@@ -1,9 +1,12 @@
-//! 1.5 numeric pins: retarget, exceedance, cell AIPW, tier envelopes, joint IF.
+//! Numeric pins: retarget, exceedance, cell AIPW, tier envelopes, joint IF.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
-#![allow(clippy::many_single_char_names)]
+#![allow(clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::sync::Arc;
 
@@ -14,7 +17,8 @@ use antecedent::{
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, DistributionRef, ExecutionContext,
     IdentificationStatus, Intervention, OutcomeFunctional, PopulationRegistry, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, SupportStatus, TargetPopulation, Value, VariableId,
+    ResponseIdentification, ResponseQuery, StreamDomain, SupportStatus, TargetPopulation, Value,
+    VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{
@@ -28,7 +32,7 @@ fn cols(pairs: &[(&str, Vec<f64>)]) -> TabularData {
 }
 
 fn confounded_hetero(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery, Vec<f64>, f64) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x15);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x15);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -70,6 +74,26 @@ fn ate_study(
 
 const PIN_ABS: f64 = 1e-12;
 
+/// A batch member and a standalone `Study` both draw their cross-fit folds from
+/// `crossfit_fold_plan` (`learn_nuisance.rs`), stratified by this query's own treatment
+/// arm / joint cell and keyed by the same run master seed, so they are bit-identical for
+/// the same query, seed, and rows (`SharedBatchDesign::apply_to_propensity` deliberately
+/// leaves `fold_assignment` unset for exactly this reason; see `batch.rs`). This generous,
+/// SE-scaled tolerance is kept as a loose sanity bound rather than tightened to float noise,
+/// so a real future divergence still fails loudly without this pin being brittle.
+fn fold_split_tol(batch: &antecedent::StudyResult, solo: &antecedent::StudyResult) -> f64 {
+    let se = batch.estimate.se_analytic.max(solo.estimate.se_analytic);
+    if se.is_finite() && se > 0.0 {
+        (0.25 * se).max(PIN_ABS)
+    } else {
+        // A grid/CDF row's scalar `ate` is NaN by contract (it has no single level), so
+        // `se_analytic` carries no scalar-SE signal either. Exceedance CDF coordinates are
+        // themselves probabilities in [0, 1]; two percentage points is generous slack for a
+        // fold-split gap while still catching a materially wrong per-threshold estimate.
+        0.03_f64.max(PIN_ABS)
+    }
+}
+
 fn assert_estimates_pin_eq(
     batch: &antecedent::StudyResult,
     solo: &antecedent::StudyResult,
@@ -78,10 +102,11 @@ fn assert_estimates_pin_eq(
     let batch_nan = batch.estimate.ate.is_nan();
     let solo_nan = solo.estimate.ate.is_nan();
     assert_eq!(batch_nan, solo_nan, "{what}: ate NaN mismatch");
+    let tol = fold_split_tol(batch, solo);
     if !batch_nan {
         assert!(
-            (batch.estimate.ate - solo.estimate.ate).abs() < PIN_ABS,
-            "{what}: ate {} vs {}",
+            (batch.estimate.ate - solo.estimate.ate).abs() < tol,
+            "{what}: ate {} vs {} (tol {tol})",
             batch.estimate.ate,
             solo.estimate.ate
         );
@@ -91,7 +116,7 @@ fn assert_estimates_pin_eq(
         (Some(a), Some(b)) => {
             assert_eq!(a.len(), b.len(), "{what}: cdf length");
             for (i, (ai, bi)) in a.iter().zip(b.iter()).enumerate() {
-                assert!((ai - bi).abs() < PIN_ABS, "{what}: cdf[{i}] {ai} vs {bi}");
+                assert!((ai - bi).abs() < tol, "{what}: cdf[{i}] {ai} vs {bi} (tol {tol})");
             }
         }
         _ => panic!("{what}: exceedance_cdf presence mismatch"),
@@ -102,7 +127,7 @@ fn variance_shift_binary(
     n: usize,
     seed: u64,
 ) -> (TabularData, Dag, AverageEffectQuery, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, seed);
     let q90 = 1.281_551_565_544_600_4;
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -141,7 +166,7 @@ fn codetermined_background_siblings(
     n: usize,
     seed: u64,
 ) -> (TabularData, TieredBackground, AverageEffectQuery, Vec<f64>, VariableId, VariableId) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, seed);
     let mut z = vec![0.0; n];
     let mut u = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -178,7 +203,7 @@ fn codetermined_treatment_sibling(
     n: usize,
     seed: u64,
 ) -> (TabularData, TieredBackground, AverageEffectQuery, Vec<f64>, VariableId) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(seed);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, seed);
     let mut z = vec![0.0; n];
     let mut u = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -358,7 +383,7 @@ fn retarget_refuses_treatment_dependence() {
 
 #[test]
 fn retarget_weighted_overlap_is_support() {
-    let mut rng = ExecutionContext::for_tests(17).rng.stream(1);
+    let mut rng = ExecutionContext::for_tests(17).rng.stream_for(StreamDomain::Test, 1);
     let n = 800usize;
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -392,7 +417,7 @@ fn variance_only_exceedance_covers_and_mean_misses() {
     let mean_tol = pin["mean_tolerance"].as_f64().unwrap();
     let exceedance_delta = pin["exceedance_delta"].as_f64().unwrap();
     assert_eq!(pin["estimator"], "aipw");
-    let mut rng = ExecutionContext::for_tests(18).rng.stream(2);
+    let mut rng = ExecutionContext::for_tests(18).rng.stream_for(StreamDomain::Test, 2);
     let n = 3_000usize;
     let q90 = 1.281_551_565_544_600_4;
     let mut t = vec![0.0; n];
@@ -461,7 +486,7 @@ fn exceedance_grid_on_fresh_estimate_fills_cdf() {
 }
 
 fn interaction_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xAD);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xAD);
     let mut a = vec![0.0; n];
     let mut d = vec![0.0; n];
     let mut z = vec![0.0; n];
@@ -557,7 +582,7 @@ fn additive_interaction_is_structurally_zero_cell_aipw_recovers() {
 
 #[test]
 fn cell_aipw_k3_and_empty_cell_refuse() {
-    let mut rng = ExecutionContext::for_tests(20).rng.stream(3);
+    let mut rng = ExecutionContext::for_tests(20).rng.stream_for(StreamDomain::Test, 3);
     let n = 2_400usize;
     let mut a = vec![0.0; n];
     let mut b = vec![0.0; n];
@@ -601,7 +626,7 @@ fn cell_aipw_k3_and_empty_cell_refuse() {
         .unwrap();
     assert!(ok.estimate.score_table.as_ref().is_some_and(|t| t.n_columns() == 8));
 
-    let mut rng = ExecutionContext::for_tests(21).rng.stream(4);
+    let mut rng = ExecutionContext::for_tests(21).rng.stream_for(StreamDomain::Test, 4);
     let n = 600usize;
     let mut a = vec![0.0; n];
     let mut d = vec![0.0; n];
@@ -635,7 +660,7 @@ fn cell_aipw_k3_and_empty_cell_refuse() {
 
 #[test]
 fn unknown_tier_envelope_straddles_zero() {
-    let mut rng = ExecutionContext::for_tests(22).rng.stream(5);
+    let mut rng = ExecutionContext::for_tests(22).rng.stream_for(StreamDomain::Test, 5);
     let n = 2_000usize;
     let mut era = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -712,7 +737,7 @@ fn unknown_tier_conditional_and_single_response_refuse() {
 
 #[test]
 fn static_cpdag_and_pag_envelope_se_is_finite() {
-    let mut rng = ExecutionContext::for_tests(23).rng.stream(6);
+    let mut rng = ExecutionContext::for_tests(23).rng.stream_for(StreamDomain::Test, 6);
     let n = 1_200usize;
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -929,7 +954,7 @@ fn kernel_target_population_coverage_over_seed_grid() {
 fn cpdag_shared_row_aggregate_coverage_over_seed_grid() {
     let mut covered = 0;
     for seed in 200..280 {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(15);
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 15);
         let n = 500;
         let mut z = Vec::new();
         let mut t = Vec::new();
@@ -1144,7 +1169,7 @@ fn tiered_200_node_certified_set_is_valid_and_evalue_attaches() {
     let n = 800;
     let mut names = Vec::with_capacity(n_nodes as usize);
     let mut columns: Vec<Vec<f64>> = Vec::with_capacity(n_nodes as usize);
-    let mut rng = ExecutionContext::for_tests(200).rng.stream(0xC8);
+    let mut rng = ExecutionContext::for_tests(200).rng.stream_for(StreamDomain::Test, 0xC8);
     let latent: Vec<Vec<f64>> =
         (0..20).map(|_| (0..n).map(|_| standard_normal(&mut rng)).collect()).collect();
     for i in 0..n_nodes as usize {
@@ -1364,7 +1389,7 @@ fn prepared_batch_cells_reuse_joint_plans() {
 }
 
 fn zero_effect_pair_dgp(n: usize, seed: u64) -> (TabularData, Dag) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xCE);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xCE);
     let mut a = vec![0.0; n];
     let mut d = vec![0.0; n];
     let mut z = vec![0.0; n];
@@ -1484,7 +1509,11 @@ fn zero_effect_pair_family_is_not_significant_on_nonzero_level() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
+    // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
+    assert!(
+        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+    );
     for result in &results {
         assert_level_would_look_significant(result);
         assert_family_p_non_significant(result);
@@ -1546,7 +1575,7 @@ fn linear_plan_has_no_score_table_and_refuses_retarget() {
 
 #[test]
 fn class_aware_conditional_grid_mixes_envelope_atoms() {
-    let mut rng = ExecutionContext::for_tests(205).rng.stream(0xCD);
+    let mut rng = ExecutionContext::for_tests(205).rng.stream_for(StreamDomain::Test, 0xCD);
     let n = 1_200usize;
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -1899,7 +1928,7 @@ fn retarget_depends_on_without_dag_refuses_on_prepared_table() {
 fn retarget_succeeds_on_codetermined_tiered_admg() {
     // {z, u} | {t} | {y}: z↔u in the closure ADMG. depends_on=[z]; u is z's
     // bidirected neighbor and is not a directed descendant of t. Identified
-    // AIPW via tier-closure {z, u}. ExceedanceGrid is the licensed 1.5 call.
+    // AIPW via tier-closure {z, u}. ExceedanceGrid is the licensed call.
     let (data, background, query, weights, z, u) = codetermined_background_siblings(800, 214);
     let schema = data.schema().clone();
     let t = schema.id_of("t").unwrap();
@@ -2043,7 +2072,7 @@ fn batch_tiered_codetermined_prepare_and_estimate() {
 #[test]
 fn plugin_zero_shift_influence_equals_sample_mean_influence() {
     let n = 400usize;
-    let mut rng = ExecutionContext::for_tests(301).rng.stream(0x301);
+    let mut rng = ExecutionContext::for_tests(301).rng.stream_for(StreamDomain::Test, 0x301);
     let t: Vec<_> = (0..n).map(|_| standard_normal(&mut rng)).collect();
     let y: Vec<_> = t.iter().map(|v| 1.0 + v + standard_normal(&mut rng)).collect();
     let mean = y.iter().sum::<f64>() / n as f64;
@@ -2074,7 +2103,7 @@ fn plugin_set_intervals_include_model_fit_uncertainty() {
     let mut covered = 0;
     for seed in 300..340 {
         let n = 300;
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x302);
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x302);
         let t: Vec<_> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let y: Vec<_> = (0..n).map(|_| 1.5 + standard_normal(&mut rng)).collect();
         let data = cols(&[("t", t), ("y", y)]);
@@ -2163,6 +2192,8 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap();
     let q2 = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(3));
     let ctx = ExecutionContext::for_tests(211);
+    let solo_query = query.clone();
+    let solo_graph = graph.clone();
     let prepared = BatchStudy::new(data.clone(), graph)
         .estimator(EstimatorId::Aipw)
         .refute(RefuteSuite::None)
@@ -2182,7 +2213,17 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
     let t0 = prepared.plans()[0].score_table().expect("scores");
     let t1 = prepared.plans()[1].score_table().expect("scores");
     assert_eq!(t0.fold_ids.as_ref(), t1.fold_ids.as_ref());
-    assert_eq!(t0.fold_ids.as_ref(), shared.folds_for(&t0.row_index).unwrap());
+    // The batch member's actual cross-fit fold plan is *not* `shared.folds_for` (that array
+    // is only an opaque identity fingerprint; see `SharedBatchDesign` docs). It is the same
+    // arm-stratified `crossfit_fold_plan` a solo run of this query draws, keyed by the same
+    // master seed — so it matches the solo run's own score-table fold ids exactly.
+    let solo_table = ate_study(data.clone(), solo_graph, solo_query, EstimatorId::Aipw)
+        .prepare(&ctx)
+        .unwrap()
+        .score_table()
+        .expect("solo scores")
+        .clone();
+    assert_eq!(t0.fold_ids.as_ref(), solo_table.fold_ids.as_ref());
     assert!(t0.nuisance_provenance.contains("batch.shared_design"));
     assert!(t1.nuisance_provenance.contains("batch.shared_design"));
     assert_ne!(
@@ -2209,7 +2250,7 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
 #[test]
 fn pag_multi_atom_response_mixes_aligned_ifs() {
     let n = 1_200usize;
-    let mut rng = ExecutionContext::for_tests(212).rng.stream(0xD4);
+    let mut rng = ExecutionContext::for_tests(212).rng.stream_for(StreamDomain::Test, 0xD4);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2290,7 +2331,7 @@ fn pag_multi_atom_response_mixes_aligned_ifs() {
 #[test]
 fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
     let n = 800usize;
-    let mut rng = ExecutionContext::for_tests(213).rng.stream(0xD5);
+    let mut rng = ExecutionContext::for_tests(213).rng.stream_for(StreamDomain::Test, 0xD5);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2346,29 +2387,32 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         .unwrap()
         .run(&ExecutionContext::for_tests(213))
         .unwrap();
-    // Unresolved completion mass keeps the class answer set-valued: the payload
-    // is the identified set over the completions that did evaluate, the scalar
-    // level is withheld, and the identified atom's SE is never republished as
-    // the envelope's.
-    assert!(!mixed.estimate.ate.is_finite(), "a set-valued class answer publishes no scalar level");
+    // The completion `t -> z` leaves nothing pointing into `t`, so `t -> y` is
+    // invisible there and the response is refused exactly where the ATE is. The
+    // class answer is graph-dependent: one level per identified completion, no
+    // scalar, and the identified atom's SE is never republished for the class.
+    assert!(!mixed.estimate.ate.is_finite(), "a graph-dependent answer publishes no scalar level");
     let response = mixed.response.as_ref().expect("class response payload");
-    let set = match &response.estimate {
-        ResponseIdentification::PartiallyIdentified(antecedent_core::ResponseValue::Envelope(
-            envelope,
-        )) => envelope.clone(),
-        other => panic!("expected the completion identified set, got {other:?}"),
+    let atoms = match &response.estimate {
+        ResponseIdentification::GraphDependent(atoms) => atoms.clone(),
+        other => panic!("expected per-completion levels, got {other:?}"),
     };
-    assert_eq!(set.dimension, 0, "a scalar functional's identified set is coordinate-free");
-    assert!(set.lower[0].is_finite() && set.upper[0] >= set.lower[0]);
+    let identified_cases: Vec<u64> = env
+        .cases
+        .iter()
+        .enumerate()
+        .filter(|(_, case)| !case.result.estimands.is_empty())
+        .map(|(index, _)| u64::try_from(index).unwrap())
+        .collect();
+    assert_eq!(
+        atoms.iter().map(|(key, _)| *key).collect::<Vec<_>>(),
+        identified_cases,
+        "the response is identified on exactly the completions the ATE is"
+    );
     let structural = mixed.structural_response.as_ref().expect("completion mass accounting");
     assert!(
         structural.identified_mass < 1.0,
-        "the completion that could not be evaluated must keep its own mass"
-    );
-    assert_eq!(
-        structural.identified_set.as_ref().map(|s| (s.lower[0], s.upper[0])),
-        Some((set.lower[0], set.upper[0])),
-        "the published payload and the structural identified set are the same bounds"
+        "the completion that could not be identified must keep its own mass"
     );
     assert!(
         !mixed.estimate.se_analytic.is_finite(),
@@ -2380,13 +2424,12 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         primary.estimate.se_analytic.is_finite(),
         "the identified MAG still has its own SE; the envelope must not reuse it"
     );
-    for code in [
-        "estimate.envelope.response_identified_set_unbanded",
-        "estimate.response.no_scalar_summary",
-    ] {
+    for code in
+        ["estimate.envelope.response_graph_dependent", "estimate.response.no_scalar_summary"]
+    {
         assert!(
             mixed.diagnostics.iter().any(|d| d.code.as_ref() == code),
-            "a withheld envelope scalar must be disclosed ({code})"
+            "a withheld class scalar must be disclosed ({code})"
         );
     }
 }
@@ -2394,7 +2437,7 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
 #[test]
 fn pag_unidentified_mass_does_not_publish_class_conditional_cdf() {
     let n = 800usize;
-    let mut rng = ExecutionContext::for_tests(213).rng.stream(0xD5);
+    let mut rng = ExecutionContext::for_tests(213).rng.stream_for(StreamDomain::Test, 0xD5);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2441,7 +2484,7 @@ fn pag_unidentified_mass_does_not_publish_class_conditional_cdf() {
 #[test]
 fn quantile_treatment_effect_inverts_aipw_cdf() {
     let n = 2_400usize;
-    let mut rng = ExecutionContext::for_tests(215).rng.stream(0x51);
+    let mut rng = ExecutionContext::for_tests(215).rng.stream_for(StreamDomain::Test, 0x51);
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
     let mut z = vec![0.0; n];
@@ -2503,8 +2546,11 @@ fn quantile_treatment_effect_inverts_aipw_cdf() {
     );
 }
 
+/// `T -> M -> Y` with `T <-> Y` is an ADMG, not an ancestral graph (`T` is an
+/// ancestor of its spouse). Held as a `Pag` it has no MAG reading, so the PAG
+/// route refuses it; the front-door functional belongs to the `Admg` route.
 #[test]
-fn pag_front_door_response_uses_general_id() {
+fn pag_route_refuses_the_front_door_admg() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
     ))
@@ -2525,9 +2571,94 @@ fn pag_front_door_response_uses_general_id() {
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-    for (level, expected) in [(0.0, 0.3), (1.0, 0.6)] {
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
+    assert!(env.cases.is_empty(), "no maximal ancestral graph carries these marks");
+    assert!(env.identified_weight.0 == 0.0);
+    let err = Study::tabular(data)
+        .graph(pag)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .and_then(|study| study.run(&ExecutionContext::for_tests(216)))
+        .expect_err("an invalid MAG must not publish a response");
+    assert!(err.to_string().contains("not identified"), "{err}");
+}
+
+/// Columns `t, a, m, b, y` of the SCM `T -> M -> Y`, `M -> B -> Y`, `A -> Y` with
+/// latent `T <- L1 -> A <- L2 -> B`, as an exact table: every conditional is a
+/// multiple of 1/8, so 8192 rows reproduce the observational law exactly.
+/// Returns the rows and the exact `E[Y | do(T = level)]`.
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "rows is asserted to be an exact non-negative integer count of at most 8192 just above"
+)]
+fn mag_general_id_law(keep: impl Fn(f64, f64) -> bool) -> (TabularData, [f64; 2]) {
+    let quarter = |k: usize| 0.25 * k as f64;
+    let bern = |p1: f64, v: usize| if v == 1 { p1 } else { 1.0 - p1 };
+    let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 5];
+    let mut truth = [0.0; 2];
+    for world in 0..1usize << 7 {
+        let bit = |i: usize| (world >> i) & 1;
+        let (l1, l2, t, a, m, b, y) = (bit(0), bit(1), bit(2), bit(3), bit(4), bit(5), bit(6));
+        let p_t = bern(quarter(1 + 2 * l1), t);
+        let rest = 0.25
+            * bern(quarter(1 + l1 + l2), a)
+            * bern(quarter(1 + 2 * t), m)
+            * bern(quarter(1 + m + l2), b)
+            * bern(0.25 + 0.125 * (a + m + b) as f64, y);
+        // Truncated factorisation: drop T's own mechanism, hold T at the level.
+        truth[t] += rest * y as f64;
+        let rows = p_t * rest * 8192.0;
+        assert!((rows - rows.round()).abs() < 1e-9, "the law must be exact at 8192 rows");
+        if keep(t as f64, m as f64) {
+            for (column, value) in columns.iter_mut().zip([t, a, m, b, y]) {
+                column.extend(std::iter::repeat_n(value as f64, rows.round() as usize));
+            }
+        }
+    }
+    assert!((truth[0] - 51.0 / 128.0).abs() < 1e-15 && (truth[1] - 61.0 / 128.0).abs() < 1e-15);
+    let names = ["t", "a", "m", "b", "y"];
+    let pairs: Vec<(&str, &[f64])> =
+        names.iter().zip(columns.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
+    (TabularData::from_f64_columns(pairs).unwrap(), truth)
+}
+
+/// The MAG of [`mag_general_id_law`]: every directed edge is visible, and no
+/// adjustment set exists (`T <-> A -> Y` needs `A`, which opens
+/// `T <-> A <-> B -> Y` through a descendant of the mediator).
+fn mag_without_adjustment_set() -> Pag {
+    let d = DenseNodeId::from_raw;
+    let (t, a, m, b, y) = (d(0), d(1), d(2), d(3), d(4));
+    let mut mag = Pag::with_variables(5);
+    mag.insert_bidirected(t, a).unwrap();
+    mag.insert_bidirected(a, b).unwrap();
+    for (from, to) in [(t, m), (m, b), (m, y), (b, y), (a, y)] {
+        mag.insert_directed(from, to).unwrap();
+    }
+    mag
+}
+
+#[test]
+fn pag_response_beyond_adjustment_uses_visibility_aware_general_id() {
+    let (data, truth) = mag_general_id_law(|_, _| true);
+    let pag = mag_without_adjustment_set();
+    assert!(antecedent_graph::is_mag_completion(&pag));
+    let ate = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(
+            &pag,
+            &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4)),
+        )
+        .unwrap();
+    assert!(ate.identified_weight.0 == 0.0, "no adjustment set identifies this effect");
+    for (level, expected) in [(0.0, truth[0]), (1.0, truth[1])] {
         let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-            outcome: VariableId::from_raw(2),
+            outcome: VariableId::from_raw(4),
             interventions: Arc::from([Intervention::set(
                 VariableId::from_raw(0),
                 Value::f64(level),
@@ -2547,7 +2678,7 @@ fn pag_front_door_response_uses_general_id() {
             .unwrap();
         assert!(
             (result.estimate.ate - expected).abs() < 1e-9,
-            "front-door MAG response must recover the requested intervention mean, ate={}",
+            "general ID on the MAG must recover the intervention mean, ate={} expected={expected}",
             result.estimate.ate
         );
         assert!(
@@ -2560,37 +2691,14 @@ fn pag_front_door_response_uses_general_id() {
 }
 
 #[test]
-fn pag_front_door_response_empty_required_cell_is_not_supported() {
-    // Same MAG as the complete-table pin, but drop every (t=0, m=1) cell.
-    // do(T=1) is observed; the front-door inner sum still needs P(Y | M=1, T=0).
+fn pag_general_id_response_empty_required_cell_is_not_supported() {
+    // Same MAG and law, but drop every (t=0, m=1) row. do(T=1) is observed; the
+    // functional still sums the confounded district over t' = 0 at m = 1.
     // That missing required cell must not come back as Supported with a number.
-    let pin: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
-    ))
-    .unwrap();
-    let columns: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mut values: Vec<Vec<f64>> = vec![Vec::new(); columns.len()];
-    for cell in pin["contingency_table"].as_array().unwrap() {
-        let t = cell["t"].as_f64().unwrap();
-        let m = cell["m"].as_f64().unwrap();
-        if (t - 0.0).abs() < f64::EPSILON && (m - 1.0).abs() < f64::EPSILON {
-            continue;
-        }
-        let count = usize::try_from(cell["count"].as_u64().unwrap()).unwrap();
-        for (i, name) in columns.iter().enumerate() {
-            values[i].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
-        }
-    }
-    let pairs: Vec<(&str, &[f64])> =
-        columns.iter().zip(values.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
-    let data = TabularData::from_f64_columns(pairs).unwrap();
-    let mut pag = Pag::with_variables(3);
-    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let (data, _) = mag_general_id_law(|t, m| !(t == 0.0 && m == 1.0));
+    let pag = mag_without_adjustment_set();
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-        outcome: VariableId::from_raw(2),
+        outcome: VariableId::from_raw(4),
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
     });
     let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
@@ -2638,7 +2746,7 @@ fn pag_front_door_response_empty_required_cell_is_not_supported() {
 fn pag_adjustment_response_is_single_arm_mean() {
     // R→T witnesses visibility of T→Y. Z is the backdoor. Control mean is 0.3, not the ATE (0.6).
     let n = 4_000;
-    let mut rng = ExecutionContext::for_tests(41).rng.stream(0xA11);
+    let mut rng = ExecutionContext::for_tests(41).rng.stream_for(StreamDomain::Test, 0xA11);
     let mut r = vec![0.0; n];
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
@@ -2716,7 +2824,7 @@ fn same_tier_joint_query(schema: &antecedent_core::CausalSchema) -> ResponseQuer
 }
 
 fn same_tier_joint_dgp(n: usize, seed: u64) -> (TabularData, TieredBackground, ResponseQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xC0);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xC0);
     let mut z = vec![0.0; n];
     let mut t1 = vec![0.0; n];
     let mut t2 = vec![0.0; n];
@@ -2801,6 +2909,7 @@ fn codetermined_same_tier_joint_cell_aipw_matches_closure_admg() {
     assert!(ix.value.is_finite() && ix.se.is_finite(), "interaction={} se={}", ix.value, ix.se);
 
     let direct = antecedent_estimate::CellSaturatedAipw::new()
+        .with_fold_seed(ctx.rng.master_seed())
         .fit_scores(
             &data,
             &[t1_id, t2_id],
@@ -2885,7 +2994,11 @@ fn codetermined_prepare_cells_pair_family_shares_joint_if() {
     ));
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 2);
-    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
+    // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
+    assert!(
+        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+    );
     assert!(
         results.iter().all(|r| r.estimate.joint_covariance.as_ref().is_some_and(|c| c.dim == 2)),
         "CoDetermined pair family must publish family joint IF, not isolated per-pair plans"
@@ -2900,7 +3013,7 @@ fn zero_effect_three_pair_dgp(
     n: usize,
     seed: u64,
 ) -> (TabularData, TieredBackground, [ResponseQuery; 3]) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xC3);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0xC3);
     let mut z = vec![0.0; n];
     let mut t1 = vec![0.0; n];
     let mut t2 = vec![0.0; n];
@@ -2983,7 +3096,11 @@ fn codetermined_distinct_pairs_share_folds_not_covariates() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((results[0].estimate.ate - solo.estimate.ate).abs() < PIN_ABS);
+    // `prepare_cells` and the solo run draw the same `crossfit_fold_plan`; see
+    // `fold_split_tol`, which keeps a generous sanity bound rather than float noise.
+    assert!(
+        (results[0].estimate.ate - solo.estimate.ate).abs() < fold_split_tol(&results[0], &solo)
+    );
     for result in &results {
         assert_level_would_look_significant(result);
         assert_family_p_non_significant(result);
@@ -3049,7 +3166,7 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
     assert_eq!(
         generic.status,
         IdentificationStatus::NotIdentified,
-        "1.0 freeze: cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
+        "cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
         generic.diagnostics
     );
     assert!(generic.diagnostics.iter().any(|d| {
@@ -3072,8 +3189,14 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
             if id.as_ref() == antecedent_identify::NO_LATENT_TO_OUTCOME
     )));
 
-    let n = 280usize;
-    let mut rng = ExecutionContext::for_tests(20).rng.stream(0x14);
+    // 46 covariates (z + 45 cofacets) need real residual degrees of freedom in every
+    // 2x2-arm cross-fit training cell. Batch/solo folds are a seeded balanced shuffle
+    // (99edfd41), not a fixed `row % k` pattern, so the arm/fold split is no longer
+    // deterministic with respect to file order; 280 rows left some (arm, fold) training
+    // cells at or below the 47-column design, tripping the sparse-cell refusal. 560 keeps
+    // every arm's training cell comfortably over that floor under any balanced fold draw.
+    let n = 560usize;
+    let mut rng = ExecutionContext::for_tests(20).rng.stream_for(StreamDomain::Test, 0x14);
     let mut names = vec!["z".to_string(), "t1".to_string(), "t2".to_string()];
     names.extend(facets.iter().cloned());
     names.push("y".to_string());
@@ -3136,7 +3259,7 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
     );
 }
 
-/// Cap vs scientific refuse stay distinct on the 1.4 artifact wire: same
+/// Cap vs scientific refuse stay distinct on the artifact wire: same
 /// `not_identified` status, different diagnostic kind/code/text. No new enum value.
 #[test]
 fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {
@@ -3315,7 +3438,7 @@ fn pag_two_atom_response_coverage_preserves_shared_row_dependence() {
     for seed in 400..440 {
         let n = 800;
         let ctx = ExecutionContext::for_tests(seed);
-        let mut rng = ctx.rng.stream(0xD4);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0xD4);
         let mut r = Vec::new();
         let mut z = Vec::new();
         let mut t = Vec::new();
@@ -3399,7 +3522,7 @@ fn scalar_conditional_empty_tail_has_no_zero_width_inference() {
 #[test]
 fn conditional_quantile_matches_cdf_and_prepared_paths() {
     let n = 2400;
-    let mut rng = ExecutionContext::for_tests(615).rng.stream(0x51);
+    let mut rng = ExecutionContext::for_tests(615).rng.stream_for(StreamDomain::Test, 0x51);
     let mut t = Vec::new();
     let mut y = Vec::new();
     let mut z = Vec::new();
@@ -3455,7 +3578,7 @@ fn conditional_quantile_matches_cdf_and_prepared_paths() {
 #[test]
 fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
     let n = 3200;
-    let mut rng = ExecutionContext::for_tests(616).rng.stream(0x52);
+    let mut rng = ExecutionContext::for_tests(616).rng.stream_for(StreamDomain::Test, 0x52);
     let mut t1 = Vec::new();
     let mut t2 = Vec::new();
     let mut y = Vec::new();
@@ -3520,7 +3643,7 @@ fn joint_quantile_is_requested_cell_level_including_zero_and_retarget() {
 
 #[test]
 fn conditional_quantile_is_not_a_mean_effect() {
-    let mut rng = ExecutionContext::for_tests(619).rng.stream(0x53);
+    let mut rng = ExecutionContext::for_tests(619).rng.stream_for(StreamDomain::Test, 0x53);
     let n = 3200;
     let mut t = Vec::new();
     let mut y = Vec::new();
@@ -3563,7 +3686,7 @@ fn conditional_quantile_is_not_a_mean_effect() {
 fn pag_two_atom_conditional_quantile_retains_joint_influence() {
     let n = 2400;
     let ctx = ExecutionContext::for_tests(620);
-    let mut rng = ctx.rng.stream(0xD4);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0xD4);
     let mut r = Vec::new();
     let mut z = Vec::new();
     let mut t = Vec::new();

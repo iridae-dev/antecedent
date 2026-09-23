@@ -7,11 +7,17 @@ This fixture is the numeric companion to
 `T -> M -> Y` with `T <-> Y`, and freezes a fully enumerated binary empirical
 law.  There is no random data generation.
 
-For the table, `P(T=1)=0.5`, `P(M=1|T=0)=0.2`, and
-`P(M=1|T=1)=0.8`.  Averaging `P(Y=1|M,T)` over the observed treatment law gives
-`g(0)=0.2` and `g(1)=0.7`.  The front-door functional is therefore
+For the table (1000 rows), `P(T=1)=0.3`, `P(M=1|T=0)=0.2`, and
+`P(M=1|T=1)=0.8`.  `P(Y=1|M,T)` is `0.1, 0.5` at `M=0` and `0.6, 0.9` at `M=1`
+(for `T=0, 1`), so the mediator effect differs by arm.  Averaging over the
+observed treatment law gives `g(0)=0.7*0.1+0.3*0.5=0.22` and
+`g(1)=0.7*0.6+0.3*0.9=0.69`.  The front-door functional is therefore
 
-`[0.2*g(0) + 0.8*g(1)] - [0.8*g(0) + 0.2*g(1)] = 0.3`.
+`[0.2*g(0) + 0.8*g(1)] - [0.8*g(0) + 0.2*g(1)] = 0.6*0.47 = 0.282`.
+
+The table is deliberately unbalanced and interactive: weighting the inner sum
+uniformly over `T` instead of by `P(T)` gives `0.6*0.45 = 0.27`, and a linear
+product of coefficients gives neither, so both mistakes fail the `1e-12` pin.
 
 `crates/antecedent/tests/pag_admg_numeric_pins.rs` and
 `python/tests/test_pag_admg_numeric_pins.py` pin that number for explicit and

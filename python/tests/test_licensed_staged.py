@@ -5,13 +5,11 @@ from __future__ import annotations
 import math
 import pathlib
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import load_json
-
-pytest.importorskip("antecedent")
-import antecedent
 
 
 def _confounded(n: int = 240, seed: int = 19):
@@ -404,7 +402,22 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
             for view, label in ((fresh.validation, "fresh"), (click.validation, "click")):
                 names = [r.refuter for r in view.reports]
                 assert names == ["sensitivity.evalue"], f"{label}: {names}"
-                assert view.reports[0].informative, f"{label}: e-value must be informative"
+                # `TemporalDependenceAdjustmentEstimator::fit_dependence_honest`
+                # (`crates/antecedent-estimate/src/temporal_adjustment.rs`) always
+                # reports `se_analytic = NaN` for a lag-aligned temporal design: the
+                # iid OLS SE ignores the serial dependence and a same-bandwidth
+                # Newey-West HAC SE under-covered in calibration, so only
+                # `se_bootstrap` (the circular-block bootstrap, `bootstrap > 0`) is a
+                # usable SE here. Both `fresh` and `prepared` in this test run with
+                # `bootstrap = 0` (explicit above, and the interactive latency tier's
+                # own omitted-Pulse/Sustained-bootstrap default), so neither SE is
+                # usable and the E-value's confidence-limit component is undefined:
+                # `sensitivity.evalue`'s `informative` is correctly `False` here, not
+                # a defect (`crates/antecedent-validate/src/evalue.rs::usable_se`).
+                assert not view.reports[0].informative, (
+                    f"{label}: e-value has no usable SE at bootstrap=0 on a "
+                    "temporal design and must not claim to be informative"
+                )
 
 
 # `parity/support_licensed.toml` licenses `PulseEffect`/`SustainedEffect` ×

@@ -1,4 +1,4 @@
-"""Python-only semantic surface for the 0.5 causal-response primitives."""
+"""Python-only semantic surface for the causal-response primitives."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import dataclasses
 import antecedent
 import numpy as np
 import pytest
-from antecedent import interference, intervention, observation, transport
+from antecedent import interference, intervention, observation
 from antecedent._native import analyze_response_pag
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results import (
@@ -18,6 +18,7 @@ from antecedent.results import (
     SupportDiagnostic,
     SupportReport,
 )
+from antecedent.transport import advanced as transport
 
 
 def test_only_queries_are_reexported_at_root():
@@ -65,10 +66,12 @@ def test_stage_specs_are_frozen_and_keep_assumptions_separate():
         mechanism.latent = "changed"  # type: ignore[misc]
 
     diagram = transport.SelectionDiagram("trial", "target", ["age"])
-    assert transport.TransportQuery(antecedent.AverageEffect("a", "y"), diagram).diagram is diagram
+    query = transport.TransportQuery(antecedent.AverageEffect("a", "y"), diagram)
+    assert query.diagram.source == "trial"
+    assert list(query.diagram.selections) == ["age"]
 
     exposure = interference.NeighborFraction()
-    query = interference.InterferenceQuery(
+    interference_query = interference.InterferenceQuery(
         interference.BernoulliAssignment(0.5),
         exposure,
         interference.ExposureContrast(
@@ -77,7 +80,7 @@ def test_stage_specs_are_frozen_and_keep_assumptions_separate():
             interference.ExposureLevel(0.0, 1.0),
         ),
     )
-    assert query.exposure is exposure
+    assert type(interference_query.exposure) is interference.NeighborFraction
 
 
 def test_response_result_views_validate_shape_and_report_orthogonal_axes():
@@ -435,6 +438,7 @@ def test_response_simultaneous_band_is_public_and_requires_explicit_bandwidth():
         },
     )
     assert result.uncertainty.kind == "simultaneous"
+    assert result.uncertainty.interpretation == "confidence"
     assert result.uncertainty.replicates == 100
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr_simultaneous"
 
@@ -580,3 +584,6 @@ def test_response_refuses_discovery_and_runs_bayesian():
         inference=antecedent.Bayesian(backend="conjugate", n_draws=512),
     )
     assert np.asarray(result.response.values).flatten() == pytest.approx([1, 2], abs=0.1)
+    # Posterior draws publish credible bands, and the response says so.
+    assert result.uncertainty.kind == "pointwise"
+    assert result.uncertainty.interpretation == "credible"

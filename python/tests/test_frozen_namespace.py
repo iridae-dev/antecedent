@@ -1,9 +1,9 @@
 """The deliberate root namespace: ``antecedent.__all__`` is an explicit contract.
 
-``__init__.py`` keeps the root namespace deliberately small.  The 0.5 release
-explicitly reopened it for the causal-response queries while leaving their
-configuration and result helpers on stage modules.  This test spells out the
-resulting contract so future changes remain conscious.  Previously nothing
+``__init__.py`` keeps the root namespace deliberately small. Causal-response
+queries sit on the root while their configuration and result helpers stay on
+stage modules. This test spells out the resulting contract so future changes
+remain conscious. Previously nothing
 enforced that claim — ``test_notebook_api_surface.py`` only checked names the
 example notebooks happened to use. That gap is exactly how
 ``antecedent.estimators`` went missing from the deliberate-but-unlisted
@@ -19,13 +19,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import antecedent
 import numpy as np
 import pytest
 
 from _repo_text import read_text
-
-pytest.importorskip("antecedent")
-import antecedent
 
 # --- 1. The root `__all__` contract, spelled out in full. -------------------------
 
@@ -62,7 +60,6 @@ _EXPECTED_ALL = {
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
-    "TransportQuery",
     # Graphs (five graph classes)
     "Dag",
     "Cpdag",
@@ -122,9 +119,11 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "inference",
     "interference",
     "intervention",
+    "learners",
     "model",
     "observation",
     "population",
+    "prediction",
     "query",
     "results",
     "transport",
@@ -133,8 +132,8 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
 
 # The twelve root-exported stage modules are public surfaces too.  Freezing only
 # the package root would still let a refactor silently add or remove names from
-# ``antecedent.discovery`` (or any sibling) while the advertised 0.9 API freeze
-# continued to pass.  Keep these lists literal: changing one is an API decision.
+# ``antecedent.discovery`` (or any sibling) while the root freeze continued
+# to pass.  Keep these lists literal: changing one is an API decision.
 _EXPECTED_STAGE_ALL = {
     "attribution": {
         "AnomalyScores",

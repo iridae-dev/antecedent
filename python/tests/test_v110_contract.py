@@ -1,4 +1,4 @@
-"""1.10 contracts-first: identities and transformation preview."""
+"""Contracts-first: identities and transformation preview."""
 
 from __future__ import annotations
 

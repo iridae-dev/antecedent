@@ -19,7 +19,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, clippy::cast_possible_truncation, clippy::many_single_char_names)]
+#![allow(dead_code)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use antecedent_core::{
     CausalQuery, Lag, MediationContrast, MediationQuery, TemporalEffectQuery, TemporalPolicy,

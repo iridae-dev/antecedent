@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "ArviZ rank diagnostics and exact conjugate Gaussian targets",
     "version": "arviz 0.20.0, numpy 2.1.3, scipy 1.14.1",
     "generator": "temporary pinned Python environment and harness (deleted after artifact import)"

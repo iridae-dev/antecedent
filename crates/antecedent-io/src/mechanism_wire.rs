@@ -109,6 +109,10 @@ pub enum MechanismSlotWire {
         variance: f64,
         /// Noise std.
         noise_std: f64,
+        /// Prior mean the surface reverts to away from the training rows. Absent on
+        /// bundles written before it existed, where the surface reverted to zero.
+        #[serde(default)]
+        mean: f64,
         /// Training X row-major.
         x_train: Vec<f64>,
         /// `n_train`.
@@ -316,6 +320,7 @@ fn slot_to_wire(s: &MechanismSlot) -> Result<MechanismSlotWire, IoError> {
             length_scale,
             variance,
             noise_std,
+            mean,
             x_train,
             n_train,
             n_parents,
@@ -324,6 +329,7 @@ fn slot_to_wire(s: &MechanismSlot) -> Result<MechanismSlotWire, IoError> {
             length_scale: *length_scale,
             variance: *variance,
             noise_std: *noise_std,
+            mean: *mean,
             x_train: x_train.to_vec(),
             n_train: *n_train,
             n_parents: *n_parents,
@@ -410,6 +416,7 @@ fn slot_from_wire(s: &MechanismSlotWire) -> Result<MechanismSlot, IoError> {
             length_scale,
             variance,
             noise_std,
+            mean,
             x_train,
             n_train,
             n_parents,
@@ -418,6 +425,7 @@ fn slot_from_wire(s: &MechanismSlotWire) -> Result<MechanismSlot, IoError> {
             length_scale: *length_scale,
             variance: *variance,
             noise_std: *noise_std,
+            mean: *mean,
             x_train: Arc::from(x_train.as_slice()),
             n_train: *n_train,
             n_parents: *n_parents,

@@ -1,0 +1,440 @@
+//! Generic out-of-fold cross-fitting over [`DesignView`] row indices.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(clippy::needless_range_loop)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
+
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
+use antecedent_kernels::shuffled_fold_assignment;
+
+use crate::design::{DesignView, RowSelection, TargetView};
+use crate::error::LearnError;
+use crate::learner::{LearnerFactory, LearnerProvenance, PredictionTask};
+use crate::transform::TransformerFactory;
+
+/// Out-of-fold predictions for one nuisance.
+#[derive(Clone, Debug)]
+pub struct CrossFittedPrediction {
+    /// Predictions aligned with the design's **physical** rows.
+    pub predictions: Vec<f64>,
+    /// Fold id per physical row.
+    pub fold_assignment: Vec<u16>,
+    /// One provenance record per fold.
+    pub model_provenance: Vec<LearnerProvenance>,
+    /// Held-out loss diagnostics.
+    pub validation: NuisanceDiagnostics,
+}
+
+/// Held-out nuisance diagnostics. Unused fields stay `None`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NuisanceDiagnostics {
+    /// Task the diagnostics were computed for.
+    pub task: Option<PredictionTask>,
+    /// RMSE for regression.
+    pub rmse: Option<f64>,
+    /// Out-of-fold R² for regression.
+    pub r2: Option<f64>,
+    /// Mean log loss for binary probability.
+    pub logloss: Option<f64>,
+    /// Public spec name of the selected learner (Auto).
+    pub winner: Option<&'static str>,
+    /// OOF loss of the runner-up (Auto).
+    pub challenger_loss: Option<f64>,
+}
+
+/// Stream index of the fold shuffle within [`StreamDomain::Learner`].
+const FOLD_STREAM: u64 = 0xF01D;
+
+/// Assign each physical row to one of `folds` folds through a seeded shuffle.
+///
+/// Fold membership is *not* a function of row position: an `i % folds` rule makes any
+/// periodic or sorted row order (alternating treated/control exports, weekly data with
+/// seven folds) put whole classes into single folds, so a fold's training rows can miss
+/// a class entirely. With `strata`, rows of each stratum are dealt round-robin across the
+/// folds, so every training fold keeps each class that has at least `folds` members.
+///
+/// # Errors
+///
+/// Fewer than two folds, fewer rows than folds, or `strata` of the wrong length.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "folds is checked to be at most 2^16 above, so every fold index fits u16"
+)]
+pub fn assign_folds(
+    n_rows: usize,
+    folds: usize,
+    rng: &mut CausalRng,
+    strata: Option<&[u32]>,
+) -> Result<Vec<u16>, LearnError> {
+    if folds < 2 {
+        return Err(LearnError::Shape { message: "cross-fitting requires at least two folds" });
+    }
+    if folds > usize::from(u16::MAX) + 1 || n_rows > u32::MAX as usize {
+        return Err(LearnError::Shape {
+            message: "cross-fitting exceeds row or fold index capacity",
+        });
+    }
+    if n_rows < folds {
+        return Err(LearnError::Shape { message: "cross-fitting folds cannot exceed rows" });
+    }
+    if strata.is_some_and(|s| s.len() != n_rows) {
+        return Err(LearnError::Shape { message: "fold strata length != rows" });
+    }
+    Ok(shuffled_fold_assignment(rng, n_rows, folds, strata).into_iter().map(|f| f as u16).collect())
+}
+
+/// Class labels to stratify folds on: the 0/1 target of a probability task.
+#[allow(clippy::float_cmp)] // labels are coded exactly 0/1
+fn binary_strata(task: PredictionTask, y: &[f64]) -> Option<Vec<u32>> {
+    (task == PredictionTask::BinaryProbability && y.iter().all(|v| *v == 0.0 || *v == 1.0))
+        .then(|| y.iter().map(|&v| u32::from(v == 1.0)).collect())
+}
+
+/// Cross-fit `factory` on `x` / `y`. `y` is physical-aligned.
+///
+/// Train/valid sets are row-index views over `x`. Fold models are discarded.
+///
+/// # Errors
+///
+/// Shape, empty train/valid fold, transformer, or learner failure.
+pub fn cross_fit(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    folds: usize,
+    ctx: &ExecutionContext,
+    transformer: Option<&dyn TransformerFactory>,
+) -> Result<CrossFittedPrediction, LearnError> {
+    if x.row_selection().is_some() {
+        return Err(LearnError::Unsupported {
+            message: "cross_fit expects a physical design without a row selection",
+        });
+    }
+    let strata = binary_strata(factory.task(), y.values());
+    let mut fold_rng = ctx.rng.stream_for(StreamDomain::Learner, FOLD_STREAM);
+    let fold_assignment =
+        assign_folds(x.physical_nrows(), folds, &mut fold_rng, strata.as_deref())?;
+    cross_fit_with_folds(factory, x, y, fold_assignment, ctx, transformer)
+}
+
+/// [`cross_fit`] with a caller-supplied fold plan (one id in `0..folds` per physical row).
+///
+/// Every fold id in `0..max+1` must occur, so each fold has a validation set and a
+/// non-empty training complement.
+///
+/// # Errors
+///
+/// Shape mismatch, fewer than two folds, an empty fold, or learner failure.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fold ids are u16 and at most max + 1 <= 2^16 of them exist, so the fold index fits u16"
+)]
+pub fn cross_fit_with_folds(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    fold_assignment: Vec<u16>,
+    ctx: &ExecutionContext,
+    transformer: Option<&dyn TransformerFactory>,
+) -> Result<CrossFittedPrediction, LearnError> {
+    if x.row_selection().is_some() {
+        return Err(LearnError::Unsupported {
+            message: "cross_fit expects a physical design without a row selection",
+        });
+    }
+    let n = x.physical_nrows();
+    if y.len() != n {
+        return Err(LearnError::Shape { message: "target length != physical rows" });
+    }
+    if fold_assignment.len() != n || n == 0 || n > u32::MAX as usize {
+        return Err(LearnError::Shape { message: "fold plan length != physical rows" });
+    }
+    let folds = usize::from(*fold_assignment.iter().max().unwrap_or(&0)) + 1;
+    if folds < 2 || (0..folds).any(|f| !fold_assignment.iter().any(|v| usize::from(*v) == f)) {
+        return Err(LearnError::Shape {
+            message: "cross-fitting needs at least two non-empty folds",
+        });
+    }
+    let fold_results = ctx.map_indexed(folds, |fold, inner| {
+        fit_one_fold(factory, x, y, &fold_assignment, fold as u16, inner, transformer)
+    })?;
+
+    let mut predictions = vec![0.0; n];
+    let mut model_provenance = Vec::with_capacity(folds);
+    for result in fold_results {
+        model_provenance.push(result.provenance);
+        for (phys, pred) in result.valid_phys.into_iter().zip(result.preds) {
+            predictions[phys as usize] = pred;
+        }
+    }
+    let validation = diagnose(factory.task(), y.values(), &predictions);
+    Ok(CrossFittedPrediction { predictions, fold_assignment, model_provenance, validation })
+}
+
+struct FoldFit {
+    valid_phys: Vec<u32>,
+    preds: Vec<f64>,
+    provenance: LearnerProvenance,
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "cross_fit_with_folds rejects row counts above u32::MAX, so every row index fits u32"
+)]
+fn fit_one_fold(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    folds: &[u16],
+    fold: u16,
+    ctx: &ExecutionContext,
+    transformer: Option<&dyn TransformerFactory>,
+) -> Result<FoldFit, LearnError> {
+    let mut train = Vec::new();
+    let mut valid = Vec::new();
+    for (i, &f) in folds.iter().enumerate() {
+        let idx = i as u32;
+        if f == fold {
+            valid.push(idx);
+        } else {
+            train.push(idx);
+        }
+    }
+    if train.is_empty() || valid.is_empty() {
+        return Err(LearnError::Shape { message: "empty cross-fit train or valid fold" });
+    }
+    let train_view = x.with_rows(RowSelection::new(&train))?;
+    let valid_view = x.with_rows(RowSelection::new(&valid))?;
+    let (fitted, preds) = if let Some(tf) = transformer {
+        let xf = tf.fit(x, RowSelection::new(&train), ctx)?;
+        let (train_buf, tr, tc) = xf.transform(train_view, ctx)?;
+        let (valid_buf, vr, vc) = xf.transform(valid_view, ctx)?;
+        let train_x = DesignView::from_column_major(&train_buf, tr, tc)?;
+        let valid_x = DesignView::from_column_major(&valid_buf, vr, vc)?;
+        let train_y = gather_logical_target(y, &train)?;
+        let model = factory.fit(train_x, TargetView::new(&train_y), None, ctx)?;
+        let mut out = vec![0.0; vr];
+        model.predict(valid_x, &mut out, ctx)?;
+        (model, out)
+    } else {
+        let model = factory.fit(train_view, y, None, ctx)?;
+        let mut out = vec![0.0; valid_view.nrows()];
+        model.predict(valid_view, &mut out, ctx)?;
+        (model, out)
+    };
+    Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
+}
+
+fn gather_logical_target(y: TargetView<'_>, rows: &[u32]) -> Result<Vec<f64>, LearnError> {
+    let mut out = Vec::with_capacity(rows.len());
+    for &i in rows {
+        let idx = i as usize;
+        if idx >= y.len() {
+            return Err(LearnError::Shape { message: "fold index out of target" });
+        }
+        out.push(y.values()[idx]);
+    }
+    Ok(out)
+}
+
+/// Compute OOF diagnostics from physical-aligned predictions.
+#[must_use]
+pub fn diagnose(task: PredictionTask, y: &[f64], pred: &[f64]) -> NuisanceDiagnostics {
+    let n = y.len().min(pred.len());
+    if n == 0 {
+        return NuisanceDiagnostics { task: Some(task), ..NuisanceDiagnostics::default() };
+    }
+    match task {
+        PredictionTask::Regression => {
+            let mut sse = 0.0;
+            let mut mean = 0.0;
+            for i in 0..n {
+                let e = y[i] - pred[i];
+                sse += e * e;
+                mean += y[i];
+            }
+            mean /= n as f64;
+            let mut sst = 0.0;
+            for yi in y.iter().take(n) {
+                let d = yi - mean;
+                sst += d * d;
+            }
+            let rmse = (sse / n as f64).sqrt();
+            let r2 = if sst > 0.0 { Some(1.0 - sse / sst) } else { None };
+            NuisanceDiagnostics {
+                task: Some(task),
+                rmse: Some(rmse),
+                r2,
+                ..NuisanceDiagnostics::default()
+            }
+        }
+        PredictionTask::BinaryProbability => {
+            let mut logloss = 0.0;
+            for i in 0..n {
+                let p = pred[i].clamp(1e-9, 1.0 - 1e-9);
+                let yi = y[i].clamp(0.0, 1.0);
+                logloss -= yi * p.ln() + (1.0 - yi) * (1.0 - p).ln();
+            }
+            NuisanceDiagnostics {
+                task: Some(task),
+                logloss: Some(logloss / n as f64),
+                ..NuisanceDiagnostics::default()
+            }
+        }
+    }
+}
+
+/// Cross-fit a nuisance trained only on declared eligible rows, predicting all
+/// held-out rows. Fold assignment is shared across nuisance roles.
+/// # Errors
+/// Misaligned inputs, invalid folds, empty training roles, or provider failure.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "n is checked against u32::MAX above, so every row index fits u32"
+)]
+pub fn cross_fit_selected(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    fold_assignment: &[u16],
+    eligible: &[bool],
+    ctx: &ExecutionContext,
+) -> Result<CrossFittedPrediction, LearnError> {
+    let n = x.physical_nrows();
+    if x.row_selection().is_some()
+        || n == 0
+        || n > u32::MAX as usize
+        || y.len() != n
+        || fold_assignment.len() != n
+        || eligible.len() != n
+    {
+        return Err(LearnError::Shape { message: "misaligned selected cross-fit inputs" });
+    }
+    let folds = usize::from(*fold_assignment.iter().max().unwrap()) + 1;
+    if folds < 2 || (0..folds).any(|f| !fold_assignment.iter().any(|v| usize::from(*v) == f)) {
+        return Err(LearnError::Shape { message: "invalid selected cross-fit folds" });
+    }
+    let parts = ctx.map_indexed(folds, |fold, inner| {
+        let train: Vec<u32> = (0..n)
+            .filter(|i| eligible[*i] && usize::from(fold_assignment[*i]) != fold)
+            .map(|i| i as u32)
+            .collect();
+        let valid: Vec<u32> =
+            (0..n).filter(|i| usize::from(fold_assignment[*i]) == fold).map(|i| i as u32).collect();
+        if train.is_empty() {
+            return Err(LearnError::Shape { message: "empty training role in cross-fit fold" });
+        }
+        let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
+        let mut preds = vec![0.0; valid.len()];
+        fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
+        Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
+    })?;
+    let mut predictions = vec![0.0; n];
+    let mut model_provenance = Vec::new();
+    for part in parts {
+        model_provenance.push(part.provenance);
+        for (row, value) in part.valid_phys.into_iter().zip(part.preds) {
+            predictions[row as usize] = value;
+        }
+    }
+    let observed: Vec<_> =
+        y.values().iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
+    let predicted: Vec<_> =
+        predictions.iter().zip(eligible).filter_map(|(v, use_row)| use_row.then_some(*v)).collect();
+    Ok(CrossFittedPrediction {
+        validation: diagnose(factory.task(), &observed, &predicted),
+        predictions,
+        model_provenance,
+        fold_assignment: fold_assignment.to_vec(),
+    })
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::many_single_char_names,
+    reason = "this unit-test module compares floats that are copied, clamped or hand-set without rounding, so exact equality is intended"
+)]
+mod tests {
+    use super::*;
+    use crate::linear::LinearLearner;
+    use crate::transform::Identity;
+
+    #[test]
+    fn fold_ids_cannot_wrap() {
+        let mut rng = CausalRng::from_seed(1);
+        assert!(assign_folds(65_537, 65_537, &mut rng, None).is_err());
+        let folds = assign_folds(65_536, 65_536, &mut rng, None).unwrap();
+        assert_eq!(folds.iter().copied().max(), Some(u16::MAX));
+    }
+
+    /// Alternating treated/control rows with two folds: under `i % 2` fold 0 is all
+    /// treated and its propensity model trains on fold 1 = all controls (a single-class
+    /// target). The stratified shuffle puts both classes in every fold.
+    #[test]
+    fn alternating_binary_rows_keep_both_classes_in_every_fold() {
+        let n = 60usize;
+        let y: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let strata = binary_strata(PredictionTask::BinaryProbability, &y).unwrap();
+        let mut rng = CausalRng::from_seed(3);
+        let folds = assign_folds(n, 2, &mut rng, Some(&strata)).unwrap();
+        for fold in 0..2u16 {
+            let treated = (0..n).filter(|&i| folds[i] == fold && y[i] == 1.0).count();
+            let control = (0..n).filter(|&i| folds[i] == fold && y[i] == 0.0).count();
+            assert_eq!((treated, control), (15, 15), "fold {fold}");
+        }
+        // A regression task is not stratified.
+        assert!(binary_strata(PredictionTask::Regression, &y).is_none());
+    }
+
+    fn line(n: usize) -> (Vec<f64>, Vec<f64>) {
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            x[i] = 1.0;
+            x[n + i] = i as f64;
+            y[i] = 3.0 + 4.0 * (i as f64);
+        }
+        (x, y)
+    }
+
+    #[test]
+    fn oof_line_recovers_without_copying_x() {
+        let n = 12usize;
+        let (x, y) = line(n);
+        let ctx = ExecutionContext::for_tests(1);
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let oof = cross_fit(&LinearLearner, view, TargetView::new(&y), 4, &ctx, None).unwrap();
+        assert_eq!(oof.predictions.len(), n);
+        assert_eq!(oof.fold_assignment.len(), n);
+        for i in 0..n {
+            assert!((oof.predictions[i] - y[i]).abs() < 1e-8);
+        }
+        match view.storage() {
+            crate::DesignStorage::Dense(d) => assert_eq!(d.values().as_ptr(), x.as_ptr()),
+            crate::DesignStorage::SparseCsr(_) => panic!("dense"),
+        }
+        assert!(oof.validation.rmse.unwrap() < 1e-8);
+    }
+
+    #[test]
+    fn identity_transformer_does_not_change_oof() {
+        let n = 10usize;
+        let (x, y) = line(n);
+        let ctx = ExecutionContext::for_tests(1);
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let a = cross_fit(&LinearLearner, view, TargetView::new(&y), 5, &ctx, None).unwrap();
+        let b =
+            cross_fit(&LinearLearner, view, TargetView::new(&y), 5, &ctx, Some(&Identity)).unwrap();
+        for i in 0..n {
+            assert!((a.predictions[i] - b.predictions[i]).abs() < 1e-10);
+        }
+    }
+}

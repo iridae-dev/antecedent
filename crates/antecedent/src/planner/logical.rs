@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_truncation)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
+)]
 
 use std::sync::Arc;
 
@@ -791,6 +797,7 @@ fn validate_query_vars_in_temporal_nodes(
         // environment is attached; both name a variable the query may reference.
         let variable = match node {
             antecedent_graph::NodeRef::Lagged { variable, .. }
+            | antecedent_graph::NodeRef::Unfolded { variable, .. }
             | antecedent_graph::NodeRef::Context { variable, .. } => *variable,
             antecedent_graph::NodeRef::Static(v) => *v,
         };

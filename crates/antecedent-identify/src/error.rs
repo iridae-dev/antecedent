@@ -46,6 +46,19 @@ pub enum IdentificationError {
         /// Configured limit.
         limit: usize,
     },
+    /// The query is malformed (as opposed to well-formed but unsupported).
+    #[error("invalid query: {message}")]
+    InvalidQuery {
+        /// What the query's own validation reported.
+        message: String,
+    },
+    /// An internal invariant of an identification algorithm did not hold. This is a defect
+    /// in the library, never a statement about identifiability.
+    #[error("identification invariant violated: {message}")]
+    InvariantViolated {
+        /// Which invariant.
+        message: &'static str,
+    },
     /// Graph error.
     #[error(transparent)]
     Graph(#[from] GraphError),

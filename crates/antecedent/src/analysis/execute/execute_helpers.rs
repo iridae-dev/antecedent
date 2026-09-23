@@ -1,3 +1,5 @@
+use antecedent_core::StreamDomain;
+
 // Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -250,7 +252,7 @@ const SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT: usize = 16;
 /// Call this **after** resolving the shared envelope prior from the first
 /// identified atom in original order ([`resolve_envelope_prior_anchor`]), and
 /// **before** per-graph estimation so dropped atoms never pay a fit. Subsample
-/// must not move the prior anchor (0.6.0 semantics).
+/// must not move the prior anchor.
 pub(super) fn interactive_subsample_graphs_accounted(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
@@ -260,7 +262,7 @@ pub(super) fn interactive_subsample_graphs_accounted(
     if latency_mode != Some(LatencyMode::Interactive) {
         return Ok((graphs, InteractiveSubsampleDrop::default()));
     }
-    let mut rng = ctx.rng.stream(0xE11E_u64);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Execute, 0xE11E_u64);
     let sub = graphs
         .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -390,14 +392,15 @@ pub(super) fn envelope_mass_diagnostic(
     code: impl Into<Arc<str>>,
     posterior: &CausalPosterior,
 ) -> Diagnostic {
-    let message = if posterior.subsampled_out_mass > 0.0 {
-        format!(
-            "unidentified_mass={}, subsampled_out_mass={}",
-            posterior.unidentified_mass, posterior.subsampled_out_mass
-        )
-    } else {
-        format!("unidentified_mass={}", posterior.unidentified_mass)
-    };
+    let mut message = format!("unidentified_mass={}", posterior.unidentified_mass);
+    if posterior.unevaluable_mass > 0.0 {
+        // Distinct from unidentified_mass: this mass was identified but its
+        // estimation failed, which is a refusal, not a negative proof.
+        message.push_str(&format!(", unevaluable_mass={}", posterior.unevaluable_mass));
+    }
+    if posterior.subsampled_out_mass > 0.0 {
+        message.push_str(&format!(", subsampled_out_mass={}", posterior.subsampled_out_mass));
+    }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
         .with_fields(mass_fields(None, posterior.unidentified_mass))
 }
@@ -407,7 +410,7 @@ pub(super) fn envelope_mass_diagnostic(
 /// Call while preparing identified atoms in **original envelope order**, before
 /// Interactive stratified selection. Subsample must not change which design
 /// anchors the prior, and prepare eligibility must be established before
-/// selection (0.6.0 semantics).
+/// selection.
 pub(super) fn resolve_envelope_prior_anchor(
     cfg: &BayesianConfig,
     prep: &antecedent_estimate::PreparedBayesianProblem,
@@ -673,7 +676,6 @@ pub(super) fn attach_class_conditional_functional_grid(
     atoms: &[(f64, IdentifiedEstimand)],
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
-    let _ = ctx;
     let Some(thresholds) = super::helpers::conditional_thresholds(
         data,
         query,
@@ -685,7 +687,7 @@ pub(super) fn attach_class_conditional_functional_grid(
     if atoms.is_empty() {
         return Ok(estimate);
     }
-    let est = ConditionalLinearAdjustment::new();
+    let est = ConditionalLinearAdjustment::new().with_fold_seed(ctx.rng.master_seed());
     let y_orig = data.float64_values(query.inner.outcome).map_err(CausalError::from)?;
     let mut mixed_cdf = Vec::with_capacity(thresholds.len() * 2);
     let mut mixed_columns = Vec::with_capacity(thresholds.len() * 2);
@@ -1038,6 +1040,30 @@ pub(super) fn push_graph_posterior_structural_aggregation_diagnostic(
     );
 }
 
+/// How a functional estimate resolved variables its functional keeps free outside the
+/// query (a complete ID derivation can leave one, as on the napkin graph).
+fn free_variables_averaged(
+    identification: &IdentificationResult,
+    estimand: &IdentifiedEstimand,
+) -> Option<Diagnostic> {
+    let bound: Vec<VariableId> = match &identification.query {
+        CausalQuery::Distribution(query) => query
+            .outcomes
+            .iter()
+            .copied()
+            .chain(query.interventions.iter().filter_map(antecedent_core::Intervention::primary_variable))
+            .chain(query.conditioning.iter().copied())
+            .collect(),
+        _ => Vec::new(),
+    };
+    let free = antecedent_estimate::functional_free_variables(
+        &identification.arena,
+        estimand.functional,
+        &bound,
+    );
+    antecedent_estimate::free_variables_diagnostic(&free)
+}
+
 /// Fail-closed rank: larger means less identified. Never used to upgrade a status.
 fn identification_closedness(status: IdentificationStatus) -> u8 {
     match status {
@@ -1352,11 +1378,7 @@ pub(super) fn run_envelope_effect_refuters(
     if matches!(suite, RefuteSuite::None) && custom.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let mut order = Vec::new();
-    let mut by_refuter: std::collections::HashMap<
-        Arc<str>,
-        Vec<(f64, antecedent_validate::RefutationReport)>,
-    > = std::collections::HashMap::new();
+    let mut per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> = Vec::new();
     let mut na_weight: std::collections::HashMap<
         antecedent_validate::ValidatorId,
         (f64, Arc<str>),
@@ -1392,13 +1414,7 @@ pub(super) fn run_envelope_effect_refuters(
             custom,
             temporal,
         )?;
-        for report in ValidationSuite::reports_only(&outcomes) {
-            let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
-                order.push(Arc::clone(&report.refuter));
-                Vec::new()
-            });
-            bucket.push((atom.weight, report));
-        }
+        per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
         for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
             na_weight
                 .entry(validator)
@@ -1406,17 +1422,8 @@ pub(super) fn run_envelope_effect_refuters(
                 .or_insert((atom.weight, reason));
         }
     }
-    let mut reports = Vec::with_capacity(order.len());
-    for id in order {
-        let Some(items) = by_refuter.get(&id) else {
-            continue;
-        };
-        let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
-            items.iter().map(|(w, r)| (*w, r)).collect();
-        if let Some(mixed) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed) {
-            reports.push(mixed);
-        }
-    }
+    let (reports, coverage) = mix_atom_refutation_reports(&per_atom);
+    diagnostics.extend(coverage);
     if contributing > 0.0 {
         for (validator, (weight, reason)) in na_weight {
             if weight / contributing >= 1.0 - 1e-12 {
@@ -1438,6 +1445,64 @@ pub(super) fn run_envelope_effect_refuters(
         ),
     ));
     Ok((reports, diagnostics))
+}
+
+/// Mix per-atom refutation reports by refuter id (weights are envelope / graph-posterior mass).
+///
+/// A refuter that ran on only some of the contributing mass is mixed over the atoms that reported
+/// it, so its `passed` says nothing about the rest. The returned diagnostics name each such
+/// refuter with the mass it covered (`refute.envelope.partial_coverage`, Warning): a mixed
+/// "passed" is never left to read as covering atoms the refuter did not check.
+pub(super) fn mix_atom_refutation_reports(
+    per_atom: &[(f64, Vec<antecedent_validate::RefutationReport>)],
+) -> (Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>) {
+    let mut order: Vec<Arc<str>> = Vec::new();
+    let mut by_refuter: std::collections::HashMap<
+        Arc<str>,
+        Vec<(f64, &antecedent_validate::RefutationReport)>,
+    > = std::collections::HashMap::new();
+    let mut total_mass = 0.0;
+    for (weight, reports) in per_atom {
+        if *weight <= 0.0 {
+            continue;
+        }
+        total_mass += *weight;
+        for report in reports {
+            by_refuter
+                .entry(Arc::clone(&report.refuter))
+                .or_insert_with(|| {
+                    order.push(Arc::clone(&report.refuter));
+                    Vec::new()
+                })
+                .push((*weight, report));
+        }
+    }
+    let mut mixed = Vec::with_capacity(order.len());
+    let mut diagnostics = Vec::new();
+    for id in order {
+        let Some(items) = by_refuter.get(&id) else {
+            continue;
+        };
+        let Some(report) = antecedent_validate::RefutationReport::mixture_weighted(items) else {
+            continue;
+        };
+        let covered: f64 = items.iter().map(|(w, _)| *w).sum();
+        if total_mass > 0.0 && covered / total_mass < 1.0 - 1e-12 {
+            diagnostics.push(Diagnostic::new(
+                "refute.envelope.partial_coverage",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "refuter `{id}` ran on {:.6} of the contributing envelope mass; the other \
+                     atoms were not applicable or produced no report, so its mixed verdict does \
+                     not cover them",
+                    covered / total_mass
+                ),
+            ));
+        }
+        mixed.push(report);
+    }
+    (mixed, diagnostics)
 }
 
 /// Build a GCM / parametric-SCM estimand and identification result for `treatment`/`outcome`.
@@ -1463,23 +1528,18 @@ pub(crate) fn parametric_scm_identification(
     let y = arena.intern_var_set([outcome]);
     let do_t = arena.intern_intervention_set([treatment]);
     let empty = arena.empty_var_set();
-    let distribution = arena.intern(ExprNode::Distribution {
-        variables: y,
-        conditioned_on: empty,
-        intervention: do_t,
-        domain: DomainRef::Interventional,
-    });
+    let distribution = arena.intern_distribution(y, empty, do_t, DomainRef::Interventional);
     let functional = arena
         .intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution });
     arena.set_derivation(
         functional,
-        DerivationMeta {
-            rule: Arc::from("gcm.parametric"),
-            note: Some(Arc::from(format!(
+        DerivationMeta::rule(
+            "gcm.parametric",
+            Some(Arc::from(format!(
                 "parametric SCM: treatment={treatment:?} outcome={outcome:?}; no adjustment \
                  set (GCM does not identify via backdoor covariates)"
             ))),
-        },
+        ),
     );
     let estimand = IdentifiedEstimand::backdoor("gcm.parametric", Arc::from([]), functional);
     let mut assumptions = antecedent_core::AssumptionSet::default();
@@ -1694,7 +1754,10 @@ pub(super) fn class_structural_mixture<G>(
     // Exact comparisons on purpose: "every completion is identified" and "they
     // all agree" are exact facts about the mass that was summed and the values
     // that were compared, not measurements with a tolerance.
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "\"every completion is identified\" and \"they all agree\" are exact facts about summed masses and compared values, not measurements with a tolerance"
+    )]
     let facts = ClassMixtureFacts {
         total_weight: total,
         point_identified: identified_mass == 1.0
@@ -1760,12 +1823,29 @@ pub(super) fn envelope_to_identification_result_for<G>(
     envelope: &IdentificationEnvelope<G>,
     query: CausalQuery,
 ) -> IdentificationResult {
+    // Every case's estimands carry a `functional: ExprId` into *that case's own*
+    // `case.result.arena`, not a shared one. Each estimand copied into the combined
+    // result must have its functional re-homed into the combined `arena` via
+    // `CausalExprArena::import` (which re-interns the referenced subtree and returns
+    // its id here) — otherwise the copied `ExprId` indexes nothing in the empty arena
+    // this used to hand back, and every consumer that renders, evaluates, or encodes
+    // the functional (including the wire encoder's arena-bounds check) sees a
+    // dangling id.
+    let mut arena = CausalExprArena::new();
     let mut estimands = Vec::new();
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut diagnostics = Vec::new();
+    let mut first_identified_case_arena = None;
     for case in &envelope.cases {
         if identification_status_ok_for_case(case.result.status) {
-            estimands.extend(case.result.estimands.iter().cloned());
+            if first_identified_case_arena.is_none() {
+                first_identified_case_arena = Some(&case.result.arena);
+            }
+            for est in &case.result.estimands {
+                let mut est = est.clone();
+                est.functional = arena.import(&case.result.arena, est.functional);
+                estimands.push(est);
+            }
         }
         // Every case the envelope counts as identified mass carries its
         // assumptions, including one identified only under prior restrictions:
@@ -1786,14 +1866,21 @@ pub(super) fn envelope_to_identification_result_for<G>(
     }
     if let Some(inv) = &envelope.invariant {
         if estimands.is_empty() {
-            estimands.push(inv.clone());
+            // `IdentificationEnvelope::from_cases` sets `invariant` to a clone of
+            // the first identified case's first estimand, so its functional
+            // belongs to that same case's arena.
+            let mut inv = inv.clone();
+            if let Some(source_arena) = first_identified_case_arena {
+                inv.functional = arena.import(source_arena, inv.functional);
+            }
+            estimands.push(inv);
         }
     }
     IdentificationResult::from_parts(
         envelope.status,
         query,
         estimands,
-        CausalExprArena::new(),
+        arena,
         DerivationTrace::default(),
         assumptions,
         diagnostics,
@@ -1806,7 +1893,18 @@ pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
     admg.has_bidirected()
 }
 
-pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
+/// The directed part of an ADMG as a DAG.
+///
+/// Only an ADMG without bidirected edges is a DAG: dropping a bidirected edge would present a
+/// latent-confounded graph as causally sufficient, so it is refused here rather than left to
+/// every caller's pre-check.
+pub(super) fn admg_without_latents_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
+    if admg.has_bidirected() {
+        return Err(CausalError::Unsupported {
+            message: "an ADMG with bidirected edges (latent confounding) is not a DAG; \
+                      dropping them would assume causal sufficiency",
+        });
+    }
     let n = u32::try_from(admg.node_count())
         .map_err(|_| CausalError::Compile { message: "ADMG too large".into() })?;
     let mut dag = Dag::with_variables(n);
@@ -1818,6 +1916,24 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
         }
     }
     Ok(dag)
+}
+
+#[cfg(test)]
+mod admg_dag_coercion_tests {
+    use super::*;
+
+    #[test]
+    fn bidirected_edge_is_refused_and_directed_only_graph_converts() {
+        let mut admg = Admg::with_variables(3);
+        let (a, b, c) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        admg.insert_directed(a, b).unwrap();
+        admg.insert_directed(b, c).unwrap();
+        let dag = admg_without_latents_to_dag(&admg).unwrap();
+        assert!(dag.reaches(a, c));
+        admg.insert_bidirected(a, c).unwrap();
+        assert!(matches!(admg_without_latents_to_dag(&admg), Err(CausalError::Unsupported { .. })));
+    }
 }
 
 /// Copy inference notes from `sources` onto `target` (deduplicated), so a mixture or
@@ -1837,6 +1953,10 @@ pub(super) fn merge_posterior_notes<'a>(
 
 /// Result diagnostics derived from posterior inference notes.
 ///
+/// Notes are de-duplicated by text (an envelope mixture re-carries its atoms' notes), so the same
+/// text raised by several fits is one note here: the messages state that a condition occurred and
+/// never a count of fits, which the de-duplication cannot recover.
+///
 /// - `estimate.bayesian.temporal.dependence_correction`: the likelihood was tempered
 ///   for serial dependence (R-9); lists every fitted `κ̂`.
 /// - `estimate.bayesian.hmc_draw_floor`: the HMC draw floor raised the requested
@@ -1846,8 +1966,8 @@ pub(super) fn posterior_note_diagnostics<'a>(
 ) -> Vec<Diagnostic> {
     let mut kappas = Vec::new();
     let mut floors = Vec::new();
-    let mut capped = 0usize;
-    let mut inestimable = 0usize;
+    let mut capped = false;
+    let mut inestimable = false;
     let mut seen = std::collections::HashSet::new();
     for post in posteriors {
         for note in &post.diagnostics.notes {
@@ -1859,10 +1979,10 @@ pub(super) fn posterior_note_diagnostics<'a>(
                 kappas.push(kappa);
             }
             if antecedent_estimate::tempering_capped_from_notes(single) {
-                capped += 1;
+                capped = true;
             }
             if antecedent_estimate::tempering_inestimable_from_notes(single) {
-                inestimable += 1;
+                inestimable = true;
             }
             if let Some(floor) = antecedent_estimate::hmc_draw_floor_from_notes(single) {
                 floors.push(floor);
@@ -1882,34 +2002,30 @@ pub(super) fn posterior_note_diagnostics<'a>(
                  larger of the autoregressive-prewhitened Newey-West long-run-variance ratio of \
                  the targeted slope score (scaled by its squared fixed-b factor) and the \
                  autoregressive-residual variance ratio given the design (AR(1), plus a \
-                 BIC-selected AR(q) up to order 4), floored at 1 (kappa = [{list}] over {} \
-                 fit(s)); this corrects short-memory serial dependence in the outcome residual, \
-                 not long memory, heteroskedasticity or a misspecified mean",
-                kappas.len()
+                 BIC-selected AR(q) up to order 4), floored at 1 (kappa = [{list}], one entry \
+                 per distinct fitted tempering note); this corrects short-memory serial \
+                 dependence in the outcome residual, not long memory, heteroskedasticity or a \
+                 misspecified mean",
             ),
         ));
     }
-    if inestimable > 0 {
+    if inestimable {
         out.push(Diagnostic::new(
             "estimate.bayesian.temporal.tempering_inestimable",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
-            format!(
-                "long-run-variance tempering could not be estimated on {inestimable} fit(s) \
-                 (n < max(8, p+2)); the published credible interval is the iid posterior and \
-                 is likely too narrow"
-            ),
+            "long-run-variance tempering could not be estimated on at least one fit \
+                 (n < max(8, p+2)); the published credible interval for it is the iid posterior \
+                 and is likely too narrow".to_string(),
         ));
     }
-    if capped > 0 {
+    if capped {
         out.push(Diagnostic::new(
             "estimate.bayesian.temporal.tempering_capped",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
-            format!(
-                "long-run-variance tempering hit the n/(p+2) cap on {capped} fit(s); kappa is \
-                 known to be too small and the published credible interval is still too narrow"
-            ),
+            "long-run-variance tempering hit the n/(p+2) cap on at least one fit; kappa is \
+                 known to be too small and the published credible interval is still too narrow".to_string(),
         ));
     }
     if let Some(&(requested, used)) = floors.first() {
@@ -2135,6 +2251,15 @@ impl super::Study {
         }
         push_aipw_score_kind(&mut diagnostics, &mut seen, args.estimator_id, &args.estimate);
         push_grid_scalar_cleared(&mut diagnostics, &mut seen, &args.estimate);
+        if matches!(
+            args.estimator_id,
+            EstimatorId::FunctionalEffect | EstimatorId::FunctionalDistribution
+        ) {
+            if let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand)
+            {
+                push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
+            }
+        }
         let structural_posteriors = extras
             .structural_response
             .iter()
@@ -2288,7 +2413,7 @@ impl super::Study {
         {
             result.diagnostics.push(Diagnostic {
                 code: Arc::from("support.allowed_unlicensed"),
-                kind: DiagnosticKind::Scientific,
+                kind: DiagnosticKind::Support,
                 severity: DiagnosticSeverity::Warning,
                 message: Arc::from(
                     "this estimate executed an allowlisted cell; it is not a licensed claim",
@@ -2297,6 +2422,22 @@ impl super::Study {
                 fields: Arc::from([
                     (Arc::from("reason"), Arc::from(reason)),
                     (Arc::from("parent"), Arc::from(parent)),
+                ]),
+            });
+        }
+        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
+            result.diagnostics.push(Diagnostic {
+                code: Arc::from("latency.bootstrap_not_applied"),
+                kind: DiagnosticKind::Scientific,
+                severity: DiagnosticSeverity::Info,
+                message: Arc::from(format!(
+                    "the latency tier maps to {tier} bootstrap replicates, but the configured \
+                     estimator owns its replicate count; {configured} replicates ran"
+                )),
+                artifact_id: None,
+                fields: Arc::from([
+                    (Arc::from("tier_replicates"), Arc::from(tier.to_string())),
+                    (Arc::from("configured_replicates"), Arc::from(configured.to_string())),
                 ]),
             });
         }
@@ -2323,9 +2464,85 @@ impl super::Study {
 }
 
 /// Match the estimator failure policy without counting unattempted, cancelled
-/// replicates as fitting failures.
+/// replicates as fitting failures, and require enough successes to earn a
+/// nominal 0.95 band under the usual (B+1) order-statistic floor.
+///
+/// Cancellation that stops after two successes must not publish a 0.95 pointwise
+/// or simultaneous band: `bootstrap_has_enough_successes(2, attempted)` is false
+/// whenever `attempted > 2`, and also when `completed` is below
+/// [`PERCENTILE_95_BAND_MIN_SUCCESSES`]. Adaptive early-stop that actually reaches
+/// that floor with a majority of successes still passes.
 pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize) -> bool {
-    completed >= 2 && completed >= attempted.saturating_sub(completed)
+    completed >= PERCENTILE_95_BAND_MIN_SUCCESSES
+        && completed >= attempted.saturating_sub(completed)
+}
+
+/// Fewest successful replicates that may license a facade-published nominal 0.95
+/// pointwise / simultaneous band. Alias of [`crate::result::PERCENTILE_95_MIN_REPLICATES`].
+pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
+    crate::result::PERCENTILE_95_MIN_REPLICATES as usize;
+
+#[cfg(test)]
+mod bootstrap_success_floor_tests {
+    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
+
+    #[test]
+    fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {
+        assert!(!bootstrap_has_enough_successes(2, 2));
+        assert!(!bootstrap_has_enough_successes(2, 3));
+        assert!(!bootstrap_has_enough_successes(2, 199));
+        assert!(!bootstrap_has_enough_successes(2, PERCENTILE_95_BAND_MIN_SUCCESSES));
+    }
+
+    #[test]
+    fn completed_budget_at_earned_minimum_licenses_band() {
+        let min = PERCENTILE_95_BAND_MIN_SUCCESSES;
+        assert!(bootstrap_has_enough_successes(min, min));
+        assert!(!bootstrap_has_enough_successes(min - 1, min - 1));
+        // Majority-failure policy still binds above the floor.
+        assert!(!bootstrap_has_enough_successes(min, min * 2 + 1));
+        assert!(bootstrap_has_enough_successes(min, min * 2));
+    }
+}
+
+#[cfg(test)]
+mod refutation_mixture_coverage_tests {
+    use super::mix_atom_refutation_reports;
+    use antecedent_validate::RefutationReport;
+
+    fn report(id: &str, passed: bool) -> RefutationReport {
+        RefutationReport::new(id, 1.0, 1.0, 0.5, true, passed, None, 10)
+    }
+
+    #[test]
+    fn refuter_run_on_part_of_the_mass_reports_its_coverage() {
+        // Atom A (0.6) ran the placebo; atom B (0.4) had it not applicable. The mixed placebo
+        // "passed" covers 0.6 of the mass and the result must say so.
+        let per_atom = vec![(0.6, vec![report("placebo", true)]), (0.4, Vec::new())];
+        let (reports, diagnostics) = mix_atom_refutation_reports(&per_atom);
+        assert_eq!(reports.len(), 1);
+        assert!(reports[0].passed);
+        let partial: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.code.as_ref() == "refute.envelope.partial_coverage")
+            .collect();
+        assert_eq!(partial.len(), 1, "{diagnostics:?}");
+        assert!(partial[0].message.contains("`placebo`"), "{}", partial[0].message);
+        assert!(partial[0].message.contains("0.600000"), "{}", partial[0].message);
+    }
+
+    #[test]
+    fn fully_covering_refuter_and_zero_weight_atoms_raise_no_coverage_warning() {
+        let per_atom = vec![
+            (0.5, vec![report("placebo", true)]),
+            (0.5, vec![report("placebo", false)]),
+            (0.0, Vec::new()),
+        ];
+        let (reports, diagnostics) = mix_atom_refutation_reports(&per_atom);
+        assert_eq!(reports.len(), 1);
+        assert!(!reports[0].passed);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
 }
 
 // Aggregation consumes only effect draws. Keep each contributing model's

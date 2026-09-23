@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -265,7 +268,13 @@ fn latent_projection_msep() {
     let y = DenseNodeId::from_raw(2);
     dag.insert_directed(l, x).unwrap();
     dag.insert_directed(l, y).unwrap();
-    let _ = latent_project(&dag, &[x, y]).unwrap();
+    // The latent common cause `l` becomes a bidirected edge between the observed pair and
+    // leaves no directed edge, in the projected node numbering (x -> 0, y -> 1).
+    let projected = latent_project(&dag, &[x, y]).unwrap();
+    let (px, py) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+    assert!(projected.bidirected_neighbors(px).contains(&py), "x <-> y after projecting out l");
+    assert!(projected.bidirected_neighbors(py).contains(&px));
+    assert!(projected.children(px).is_empty() && projected.children(py).is_empty());
     assert!(expected["preserve_msep"].as_bool().unwrap());
     assert!(projection_preserves_msep_sample(&dag, &[x, y], &[(x, y, vec![])]).unwrap());
 }
@@ -299,6 +308,10 @@ fn completion_sampler_respects_bound() {
     pag.insert_circle_circle(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     pag.insert_circle_arrow(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     let max = 3usize;
+    // The bound truncates the enumeration exactly: with the cap lifted the sampler yields
+    // every completion, and the capped run yields min(total, max) of them (never zero).
+    let total = CompletionSampler::new(pag.clone(), 1_000).unwrap().count();
+    assert!(total >= 1, "the PAG has at least one completion");
     let n = CompletionSampler::new(pag, max).unwrap().count();
-    assert!(n <= max);
+    assert_eq!(n, total.min(max));
 }

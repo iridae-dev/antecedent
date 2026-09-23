@@ -4,13 +4,7 @@
 
 //! Builder types.
 
-#![allow(
-    clippy::similar_names,
-    clippy::too_many_lines,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
 use std::sync::Arc;
 
@@ -664,8 +658,14 @@ fn refuse_estimator_inference_mismatch(
                 }
                 EstimatorId::DistanceMatching if average => frequentist!("distance.matching"),
                 EstimatorId::Aipw if average => frequentist!("aipw"),
+                EstimatorId::Dml if average => frequentist!("dml"),
+                EstimatorId::DrLearner if average => frequentist!("dr.learner"),
+                EstimatorId::CausalForest if average => frequentist!("causal.forest"),
                 EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
-                EstimatorId::FrontDoorTwoStage if average => frequentist!("frontdoor.two_stage"),
+                EstimatorId::FrontDoorTwoStage if average => {
+                    frequentist!("frontdoor.linear_two_stage")
+                }
+                EstimatorId::FrontDoorFunctional if average => frequentist!("frontdoor.functional"),
                 EstimatorId::IvWald if average => frequentist!("iv.wald"),
                 EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
                 EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
@@ -1330,6 +1330,8 @@ impl StudyBuilder {
             (None, None) => return Err(CausalError::Missing { field: "graph" }),
         };
         let mut refute = self.refute;
+        let mut refute_default_downgrade: Option<RefuteSuite> = None;
+        let mut latency_bootstrap_not_applied: Option<(u32, u32)> = None;
         let mut bootstrap_replicates = self.bootstrap_replicates;
         let mut inference = self.inference;
         let latency_mode = self.latency_mode;
@@ -1350,12 +1352,18 @@ impl StudyBuilder {
             }
             inference = match inference {
                 InferenceMode::Bayesian(cfg) => {
+                    // A budget field wins, then a count the caller set on the config; only
+                    // a backend-default count is resized by the tier.
                     let draws = if self.n_draws_explicit {
                         self.compute_budget.n_draws.unwrap_or(cfg.n_draws)
+                    } else if cfg.n_draws_explicit {
+                        cfg.n_draws
                     } else {
                         resolved.n_draws
                     };
-                    InferenceMode::Bayesian(cfg.n_draws(draws))
+                    let mut cfg = cfg;
+                    cfg.n_draws = draws;
+                    InferenceMode::Bayesian(cfg)
                 }
                 InferenceMode::Frequentist => InferenceMode::Frequentist,
             };
@@ -1377,7 +1385,25 @@ impl StudyBuilder {
             }
         }
 
-        let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        let mut query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        // A sharp RD design identifies the effect for units at its cutoff and nothing
+        // else. A study that selects it while leaving the population at the default is
+        // retargeted to that population here, so the contract, the calibration key and
+        // the result all name the estimand that is actually identified; the
+        // identification diagnostics say that the population-wide effect was not.
+        if self.estimator == Some(EstimatorId::RdSharp)
+            || self.identifier == Some(crate::IdentifierId::RdSharp)
+        {
+            if let (Some(rd), CausalQuery::AverageEffect(average)) = (self.rd.as_ref(), &mut query)
+            {
+                if average.target_population == antecedent_core::TargetPopulation::AllObserved {
+                    average.target_population = antecedent_core::TargetPopulation::local_at_cutoff(
+                        rd.running_variable,
+                        rd.cutoff,
+                    );
+                }
+            }
+        }
         refuse_unsupported_likelihood(
             &query,
             &data,
@@ -1400,6 +1426,9 @@ impl StudyBuilder {
             // A configured estimator owns its replicate count (an explicit
             // builder count beside it is refused above). The study reports and
             // executes that same count instead of its own omitted default.
+            if latency_mode.is_some() && bootstrap_replicates != configured {
+                latency_bootstrap_not_applied = Some((bootstrap_replicates, configured));
+            }
             bootstrap_replicates = configured;
         }
         if !self.bootstrap_explicit && !omitted_bootstrap_resamples(&query, &inference) {
@@ -1496,10 +1525,16 @@ impl StudyBuilder {
                     message: "quantiles require Frequentist AllObserved AIPW AverageEffect, binary ConditionalEffect with one modifier, or cell-AIPW joint response; use prepare + retarget for score-table target weights",
                 });
             }
-            if self.refute != crate::RefuteSuite::None {
-                return Err(CausalError::Unsupported {
-                    message: "quantile functionals currently require refute=none; mean-effect refuters do not validate a quantile",
-                });
+            if refute != crate::RefuteSuite::None {
+                // An omitted suite is a default the study may drop; a suite the caller
+                // asked for (directly or through a validator budget) is refused.
+                if self.refute_explicit {
+                    return Err(CausalError::Unsupported {
+                        message: "quantile functionals currently require refute=none; mean-effect refuters do not validate a quantile",
+                    });
+                }
+                refute_default_downgrade = Some(refute);
+                refute = crate::RefuteSuite::None;
             }
         }
 
@@ -1688,8 +1723,7 @@ impl StudyBuilder {
             }
         }
 
-        let mut refute_default_downgrade: Option<RefuteSuite> = None;
-        if !self.refute_explicit {
+        if !self.refute_explicit && refute_default_downgrade.is_none() {
             let requested = crate::support::support_cell_named(
                 &query,
                 matrix_class,
@@ -1764,13 +1798,45 @@ impl StudyBuilder {
                 message: "class_prior requires an incomplete temporal graph class",
             });
         }
+        if !inspect_only {
+            crate::support::refuse_undeclared_off_axis(&query)?;
+        }
         let support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
-            if inspect_only {
-                Some(crate::support::classify(cell))
-            } else {
-                Some(crate::support::refuse_if_not_applicable(cell)?)
+            // Geometric n/a / refused still refuse the build (except inspect).
+            // Geometric licensed is reclassified once an estimator is known so
+            // matching / IV / RD / forest / two-stage front-door cannot inherit
+            // a license whose evidence never ran them.
+            match crate::support::classify(cell) {
+                crate::support::CellStatus::NotApplicable { .. }
+                | crate::support::CellStatus::Refused => {
+                    if inspect_only {
+                        Some(crate::support::classify(cell))
+                    } else {
+                        Some(crate::support::refuse_if_not_applicable(cell)?)
+                    }
+                }
+                crate::support::CellStatus::Licensed => {
+                    // `inference()` auto-binds `BayesianGcomp` for every static
+                    // AverageEffect, including classes whose compiler route is
+                    // identifier-native (`general.id` + `functional.effect` on
+                    // Admg). Only a caller-selected estimator (`estimator_spec`)
+                    // is classified as bound; otherwise the cell's
+                    // licensed_routes default is what will actually run.
+                    let estimator = if self.estimator_spec.is_some() {
+                        self.estimator
+                    } else {
+                        crate::support::licensed_route_estimator(cell).or(self.estimator)
+                    };
+                    match estimator {
+                        Some(est) => Some(crate::support::classify_estimator(cell, est)),
+                        None => Some(crate::support::CellStatus::Refused),
+                    }
+                }
+                crate::support::CellStatus::Allowlisted { .. } => {
+                    unreachable!("classify never returns Allowlisted")
+                }
             }
         } else {
             None
@@ -1848,6 +1914,7 @@ impl StudyBuilder {
             query,
             refute,
             refute_default_downgrade,
+            latency_bootstrap_not_applied,
             bootstrap_replicates,
             split: self.split,
             identifier: self.identifier,

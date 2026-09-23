@@ -20,10 +20,11 @@ root-exported stage modules are:
 ``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``, and
 ``antecedent.validation``.
 
-Fifteen narrower modules are reachable but deliberately outside ``__all__``:
+Seventeen narrower modules are reachable but deliberately outside ``__all__``:
 ``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``handoff``,
-``ids``, ``inference``, ``interference``, ``intervention``, ``model``,
-``observation``, ``population``, ``query``, ``results``, and ``transport``.
+``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
+``model``, ``observation``, ``population``, ``prediction``, ``query``,
+``results``, and ``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -39,7 +40,7 @@ from typing import NoReturn as _NoReturn
 
 # A debug-profile extension returns bit-identical estimates while running
 # ~50x slower, so nothing downstream would ever notice on its own. The flag
-# is absent from pre-0.5.1 builds; only an explicit `False` proves the
+# is absent unless compiled in; only an explicit `False` proves the
 # module was compiled without optimizations.
 from . import _native as _native_module
 
@@ -79,9 +80,11 @@ from . import ids as ids
 from . import inference as inference
 from . import interference as interference
 from . import intervention as intervention
+from . import learners as learners
 from . import model as model
 from . import observation as observation
 from . import population as population
+from . import prediction as prediction
 from . import query as query
 from . import results as results
 from . import transport as transport
@@ -95,9 +98,9 @@ from ._native import (
 )
 
 if getattr(_native_module, "__build_optimized__", True) is False:
-    import warnings
+    import warnings as _warnings
 
-    warnings.warn(
+    _warnings.warn(
         "antecedent._native was compiled in Cargo's debug profile; estimation "
         "runs ~50x slower than a release build (results are unaffected). "
         "Reinstall the package (e.g. `uv sync --reinstall-package antecedent` "
@@ -134,7 +137,6 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import Analysis, AnalysisResult
-from .transport import TransportQuery
 
 __all__ = [
     # Verbs
@@ -169,7 +171,6 @@ __all__ = [
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
-    "TransportQuery",
     # Graphs
     "Dag",
     "Cpdag",
@@ -206,18 +207,15 @@ __all__ = [
 try:
     from ._native import __version__ as __version__
 except ImportError:  # pragma: no cover - extension not built
-    # Derive from installed package metadata rather than hand-maintaining a
-    # literal here (which would silently go stale at every release this
-    # branch is actually exercised on). Falls back to a clearly-unknown
-    # sentinel — never a copied-and-forgotten version string — if the
-    # package metadata itself cannot be found (e.g. running from a source
-    # checkout with neither the extension built nor the package installed).
-    try:
-        from importlib.metadata import PackageNotFoundError, version
+    # Derive from installed package metadata rather than a hand-maintained literal;
+    # a clearly-unknown sentinel when even that is absent (a source checkout with
+    # neither the extension built nor the package installed).
+    from importlib import metadata as _metadata
 
-        __version__ = version("antecedent")
-    except PackageNotFoundError:
-        __version__ = "1.11.0"
+    try:
+        __version__ = _metadata.version("antecedent")
+    except _metadata.PackageNotFoundError:
+        __version__ = "2.0.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------
@@ -275,5 +273,12 @@ def __getattr__(name: str) -> _NoReturn:
             f"antecedent.{name}(...) was removed in 0.4.0; the target_* population "
             "builders moved to antecedent.population "
             "(e.g. antecedent.population.target_all())"
+        )
+    if name == "TransportQuery":
+        raise AttributeError(
+            "antecedent.TransportQuery was removed from the root in 2.0; the trial-IPW "
+            "query is antecedent.transport.advanced.TransportQuery, and the ordinary "
+            "question wrapper is antecedent.transport.Transport "
+            "(see docs/migrations/2.0-transport-day1.md)"
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

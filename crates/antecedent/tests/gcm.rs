@@ -3,9 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::many_single_char_names,
-    clippy::cast_possible_truncation
+    clippy::cast_possible_truncation,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
 use std::fs;
@@ -15,7 +14,7 @@ use std::sync::Arc;
 use antecedent::gcm::{
     AbductionMissingPolicy, CounterfactualEngine, CounterfactualWorld, KdeDoSampler, McmcDoSampler,
     MechanismWorkspace, WeightingDoSampler, anomaly_attribution, arrow_strengths,
-    counterfactual_ite, fit_gcm, sample_do, streaming_matches_retained,
+    counterfactual_ite, fit_gcm, sample_do,
 };
 use antecedent_core::{
     CausalRng, CausalSchemaBuilder, ExecutionContext, Intervention, MeasurementSpec, RoleHint,
@@ -254,7 +253,9 @@ fn gcm_cf_ite() {
     assert_eq!(format!("{:?}", ite.noise_inference), "Invertible");
 
     let engine = CounterfactualEngine::new(fitted.model);
-    let exo = engine.abduct(&data, AbductionMissingPolicy::Error).unwrap();
+    let exo = engine
+        .abduct(&data, AbductionMissingPolicy::Error, &ExecutionContext::for_tests(1))
+        .unwrap();
     let mut ws = MechanismWorkspace::default();
     let worlds = [CounterfactualWorld {
         unit_rows: None,
@@ -262,7 +263,11 @@ fn gcm_cf_ite() {
     }];
     let res =
         engine.predict(&exo, &worlds, &[VariableId::from_raw(1)], false, &mut ws, &ctx).unwrap();
-    assert!(streaming_matches_retained(&res, 0, DenseNodeId::from_raw(1)));
+    // The streaming mean equals the mean of the retained outcome column, read independently.
+    let o = DenseNodeId::from_raw(1);
+    let column = res.outcome_column(0, o).unwrap();
+    let retained = column.iter().sum::<f64>() / column.len() as f64;
+    assert!((res.streaming_outcome_mean(0, o) - retained).abs() < 1e-12);
     assert!(expected["streaming_equiv_retained"].as_bool().unwrap());
 }
 

@@ -9,6 +9,8 @@ pub struct SharedCircularBlockSe {
     pub se: f64,
     pub completed: u32,
     pub attempted: u32,
+    /// Cooperative cancellation stopped the shared block loop early.
+    pub cancelled: bool,
     /// Block length in series times.
     pub block_length: usize,
     /// Series times resampled (the window every atom can evaluate).
@@ -33,6 +35,7 @@ impl SharedCircularBlockSe {
             se: f64::NAN,
             completed: 0,
             attempted: 0,
+            cancelled: false,
             block_length: 0,
             rows: 0,
             effective_rows: f64::NAN,
@@ -44,12 +47,20 @@ impl SharedCircularBlockSe {
 
     /// Imbens–Manski interval for the identified set spanned by the atoms'
     /// point estimates `points` (atom order), from the same shared replicates.
+    ///
+    /// Withheld when the shared block was cancelled or when successes cannot
+    /// earn a nominal level under [`super::bootstrap_has_enough_successes`].
     pub fn identified_set_interval(
         &self,
         points: &[f64],
         level: f64,
     ) -> Option<antecedent_estimate::IdentifiedSetInterval> {
-        if !super::bootstrap_has_enough_successes(self.atom_draws.len(), self.attempted as usize) {
+        if self.cancelled
+            || !super::bootstrap_has_enough_successes(
+                self.atom_draws.len(),
+                self.attempted as usize,
+            )
+        {
             return None;
         }
         antecedent_estimate::imbens_manski_shared_replicates(
@@ -101,21 +112,26 @@ impl TemporalAtomDesign {
         let (prep, rows) = estimator
             .prepare_aligned(data, estimand, query, indexer, split, &ctx.kernel_policy)
             .map_err(CausalError::from)?;
-        let point = estimator
+        // The point fit's own OLS residuals give the nuisance scores: no second solve.
+        let (point, residuals) = estimator
             .inner
-            .fit_point(
+            .fit_point_with_ols_residuals(
                 &prep,
                 &mut EstimationWorkspace::default(),
                 antecedent_core::AssumptionSet::default(),
             )
             .map_err(CausalError::from)?;
-        let normal_scores = antecedent_estimate::normal_equation_scores(
+        // Without the nuisance scores the block length silently falls back to the
+        // influence-only rule, which under-sizes blocks for a persistent residual.
+        let residuals = residuals.ok_or_else(|| CausalError::Compile {
+            message: "normal-equation scores of the atom's regression could not be computed".into(),
+        })?;
+        let normal_scores = antecedent_estimate::normal_equation_scores_of_residuals(
             &prep.design.matrix,
             prep.design.nrows,
             prep.design.ncols,
-            &prep.design.outcome,
-        )
-        .unwrap_or_default();
+            &residuals,
+        );
         Ok(Self::Linear {
             prep: Box::new(prep),
             rows,
@@ -373,11 +389,14 @@ pub fn shared_circular_block_mixture_se_with_length(
     };
     let draws = antecedent_estimate::RowBlockDraws { kernel_bias, ..draws };
     let k = designs.len();
-    let se = draws.se_result(k).se.unwrap_or(f64::NAN);
+    // Cancelled shared blocks do not earn a nominal bootstrap SE even when the
+    // success floor is met; cancellation is not adaptive early-stop.
+    let se = if draws.cancelled { f64::NAN } else { draws.se_result(k).se.unwrap_or(f64::NAN) };
     SharedCircularBlockSe {
         se,
         completed: u32::try_from(draws.draws.len()).unwrap_or(u32::MAX),
         attempted: draws.attempted,
+        cancelled: draws.cancelled,
         block_length: draws.block_length,
         rows: draws.rows,
         effective_rows: f64::NAN,

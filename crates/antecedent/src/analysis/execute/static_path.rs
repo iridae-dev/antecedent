@@ -19,10 +19,10 @@ impl super::Study {
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
 
-        // rd.sharp has no graph-based identification step; dispatch to its
-        // own path before touching `graph`.
+        // rd.sharp identifies from the declared design, which the graph must agree
+        // with; it has no adjustment search, so it takes its own path.
         if matches!(estimator_id, EstimatorId::RdSharp) {
-            return self.execute_rd(data, query, physical, ctx);
+            return self.execute_rd(data, graph, query, physical, ctx);
         }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_bayesian(data, graph, query, physical, ctx);
@@ -56,8 +56,7 @@ impl super::Study {
                     &CausalQuery::AverageEffect(query.clone()),
                     rd,
                 )?;
-                let estimand = select_estimand(&identification, estimator_id)?;
-                Ok((identification, estimand))
+                select_claim(identification, estimator_id)
             })?;
         let assumptions = identification.required_assumptions.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
@@ -96,7 +95,7 @@ impl super::Study {
             &data_est,
             &estimand_est,
             &query_est,
-            assumptions.clone(),
+            assumptions,
             0, // point stage: no bootstrap
             self.overlap_policy,
             self.population_registry.as_ref(),
@@ -110,7 +109,28 @@ impl super::Study {
         );
 
         // Uncertainty: bootstrap fills (real work when replicates > 0).
-        let estimate = if self.bootstrap_replicates == 0 {
+        // IV and NN matching must not refill with the facade bootstrap: that
+        // bypasses the weak-instrument gate (Wald/2SLS) and publishes an
+        // Abadie–Imbens-invalid matching bootstrap SE. A configured estimator owns its
+        // replicate count and already ran it in the point fit, and the double-ML, DR-learner
+        // and causal-forest fits take no replicate count: refitting any of them here would
+        // reproduce the same estimate at the cost of a second full nuisance fit.
+        let skip_bootstrap_refill = self.bootstrap_replicates == 0
+            || self
+                .estimator_spec
+                .as_ref()
+                .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
+            || matches!(
+                estimator_id,
+                EstimatorId::IvWald
+                    | EstimatorId::Iv2Sls
+                    | EstimatorId::PropensityMatching
+                    | EstimatorId::DistanceMatching
+                    | EstimatorId::Dml
+                    | EstimatorId::DrLearner
+                    | EstimatorId::CausalForest
+            );
+        let estimate = if skip_bootstrap_refill {
             if ctx.cancellation.is_cancelled() {
                 clock.mark_cancelled();
                 point
@@ -134,17 +154,11 @@ impl super::Study {
                 point
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                // Reuse the caller's configured estimator when there is one, so the
-                // warm-workspace bootstrap path cannot silently diverge from the
-                // point-estimate path above.
-                let est = if let EstimatorSpec::LinearAdjustmentAte(cfg) = &estimator_spec {
-                    (**cfg).clone()
-                } else {
-                    let mut est = LinearAdjustmentAte::new();
-                    est.bootstrap_replicates = self.bootstrap_replicates;
-                    est.overlap = OverlapPolicy::ExplicitOverride;
-                    est
-                };
+                // A configured linear estimator never reaches here (it bootstrapped in the
+                // point fit), so this is the id-selected default the point stage also used.
+                let mut est = LinearAdjustmentAte::new();
+                est.bootstrap_replicates = self.bootstrap_replicates;
+                est.overlap = OverlapPolicy::ExplicitOverride;
                 let prep =
                     est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
                 let filled = est
@@ -163,7 +177,8 @@ impl super::Study {
                 filled
             }
         } else {
-            // Non-linear static estimators: re-run with bootstrap for uncertainty fills.
+            // Weighting, stratification, AIPW, GLM and front-door: their `fit` is the point fit
+            // plus `attach_bootstrap`, so the uncertainty stage reuses the point estimate.
             let cancelled_before = ctx.cancellation.is_cancelled();
             if cancelled_before {
                 clock.mark_cancelled();
@@ -173,12 +188,12 @@ impl super::Study {
                 point
             } else {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-                let filled = estimate_static_effect(
-                    &estimator_spec,
+                let filled = crate::strategy_table::attach_static_bootstrap(
+                    estimator_id,
                     &data_est,
                     &estimand_est,
                     &query_est,
-                    assumptions,
+                    point,
                     self.bootstrap_replicates,
                     self.overlap_policy,
                     self.population_registry.as_ref(),
@@ -248,6 +263,7 @@ impl super::Study {
             &mut extra_diagnostics,
             estimator_id,
             self,
+            ctx.rng.master_seed(),
         )?;
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
@@ -600,6 +616,7 @@ impl super::Study {
     pub(super) fn execute_rd(
         &self,
         data: &TabularData,
+        graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
@@ -616,10 +633,25 @@ impl super::Study {
             rd.cutoff,
             rd.bandwidth,
         ))
-        .identify(CausalQuery::AverageEffect(query.clone()))
+        .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
         .map_err(CausalError::from)?;
+        if matches!(identification.status, IdentificationStatus::NotIdentified) {
+            // Say why the design does not identify: the graph contradicts it, or the
+            // requested population is not the one at the cutoff.
+            let detail = identification
+                .diagnostics
+                .iter()
+                .find(|d| d.kind == antecedent_core::DiagnosticKind::Scientific)
+                .map_or_else(|| "sharp RD design".to_string(), |d| d.message.to_string());
+            return Err(CausalError::not_identified(identification.status, false, &detail));
+        }
         require_identified(&identification)?;
         let estimand = select_estimand(&identification, EstimatorId::RdSharp)?;
+        // The identified query names the population the design speaks for (units at the
+        // cutoff); estimation, refutation and the result all use that query.
+        let identified_query =
+            identification.average_effect().cloned().unwrap_or_else(|| query.clone());
+        let query = &identified_query;
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
@@ -688,9 +720,7 @@ impl super::Study {
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, &query.inner)?;
-                let estimand =
-                    select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
-                Ok((identification, estimand))
+                select_claim(identification, EstimatorId::ConditionalLinearAdjustment)
             })?;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
             data,
@@ -1091,9 +1121,7 @@ impl super::Study {
                     graph,
                     &CausalQuery::Mediation(query.clone()),
                 )?;
-                let estimand =
-                    select_estimand(&identification, EstimatorId::StaticMediationLinear)?;
-                Ok((identification, estimand))
+                select_claim(identification, EstimatorId::StaticMediationLinear)
             })?;
         if let InferenceMode::Bayesian(cfg) = &self.inference {
             if cfg.prior.is_some() || cfg.external_compose.is_some() {
@@ -1252,6 +1280,7 @@ impl super::Study {
             &mut extra_diagnostics,
             estimator_id,
             self,
+            ctx.rng.master_seed(),
         )?;
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_refuters(

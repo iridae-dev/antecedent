@@ -1,11 +1,12 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "enumeration",
     "project": "clean-room exact discrete-channel enumeration",
     "algorithm": "sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)]",
     "pin": "fixture-algorithm-v1",
     "python": "3.12.7",
-    "command": "python3 /tmp/antecedent_design_oracle.py",
+    "command": "python3 /tmp/antecedent_design_oracle.py", "generator_retained": false,
     "generation_location": "temporary external harness; deleted after artifact import",
     "dependencies": "Python standard library only"
   },
@@ -54,8 +55,8 @@
       "name": "sample_one",
       "candidate": "sample",
       "amount": 1,
-      "reliability": 0.05,
-      "expected_information_gain": 0.22862135572357684
+      "reliability": 0.0196078431372549,
+      "expected_information_gain": 0.3065672244603991
     },
     {
       "name": "sample_one_hundred",

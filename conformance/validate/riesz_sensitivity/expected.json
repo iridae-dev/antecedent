@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "closed_form_binary_ate_representer",
+    "kind": "closed_form",
+    "method": "closed_form_binary_ate_representer",
     "generator": "temporary NumPy clean-room harness (deleted after artifact import)",
     "formula": "alpha=T/pi-(1-T)/(1-pi); ipw=mean(alpha*Y); worst-case bias=delta*sd(Y)*sqrt(mean(alpha^2))."
   },

@@ -5,12 +5,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::similar_names,
-    clippy::too_many_arguments
+#![allow(clippy::too_many_arguments)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "test fixtures compare exact constants and index with small literals"
+    )
 )]
 
 use std::sync::Arc;
@@ -35,16 +37,17 @@ use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_kappa_from_notes,
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
+    tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::temporal_block::{
-    AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores,
+    AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores_of_residuals,
     testing_block_length,
 };
 use crate::temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
-use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std, solve_spd};
+use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std};
 
 /// Licensed temporal `InterventionResponse` overlay.
 #[derive(Clone, Debug, PartialEq)]
@@ -82,21 +85,27 @@ impl TemporalInterventionPlan {
             Self::Mechanisms { overlays } => Some(overlays.clone()),
         }
     }
-    /// Treatment nodes the identifier must cover.
+    /// Treatment nodes the identifier must cover, with the `Set` level actually
+    /// requested at each node (`None` for a Soft/shift step, which has no
+    /// fixed value).
     #[must_use]
-    pub fn identification_schedule(&self, spec: &TemporalResponseSpec) -> Vec<(VariableId, i32)> {
+    pub fn identification_schedule(
+        &self,
+        spec: &TemporalResponseSpec,
+    ) -> Vec<(VariableId, i32, Option<f64>)> {
         match self {
-            Self::Single { treatment, .. } => spec
+            Self::Single { treatment, level, .. } => spec
                 .policy
                 .active_offsets()
-                .map(|offsets| offsets.iter().map(|&offset| (*treatment, offset)).collect())
+                .map(|offsets| offsets.iter().map(|&offset| (*treatment, offset, *level)).collect())
                 .unwrap_or_default(),
-            Self::Sequential { overlays } => {
-                overlays.iter().map(|overlay| (overlay.variable, overlay.offset)).collect()
-            }
+            Self::Sequential { overlays } => overlays
+                .iter()
+                .map(|overlay| (overlay.variable, overlay.offset, overlay.level))
+                .collect(),
             Self::Mechanisms { overlays } => overlays
                 .iter()
-                .map(|overlay| (overlay.node.variable, overlay.node.offset))
+                .map(|overlay| (overlay.node.variable, overlay.node.offset, overlay.node.level))
                 .collect(),
         }
     }
@@ -340,14 +349,19 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
 /// bandwidth `ℓ`, whose testing-optimal bandwidth grows like `n^{1/2}` (Sun, Phillips &
 /// Jin 2008, Bartlett characteristic exponent `q = 1`), not like the MSE-optimal
 /// `n^{1/3}` used by the scalar temporal effect resamplers. A shorter block leaves an
-/// `O(1/ℓ)` kernel bias that no critical value repairs: with `ℓ = ceil(n^{1/3})` the
-/// 1.9 calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
+/// `O(1/ℓ)` kernel bias that no critical value repairs: with `ℓ = ceil(n^{1/3})`
+/// calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
 /// coverage of nominal 95% bands under AR(1) ρ = 0.5 residuals at n = 160. The
 /// estimation noise the longer block adds is carried by the fixed-b factor of
 /// [`block_dispersion_inflation`]; the kernel bias that remains at any licensed
 /// length on a persistent influence is carried by the per-cell factor of
-/// [`crate::temporal_response_dispersion::kernel_bias_factor`].
+/// [`crate::ar_kernel::kernel_bias_factor`].
 #[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "ceil(sqrt(n)) of a length is far below usize::MAX"
+)]
+#[allow(clippy::cast_sign_loss, reason = "the square root of a length is non-negative")]
 pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
     let root = (n as f64).sqrt().ceil() as usize;
     structural_span.max(root).min(n).max(1)
@@ -367,7 +381,7 @@ pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
 /// treatment column, say). The Bartlett kernel of the block still misses `O(1/ℓ)` of
 /// a persistent influence's long-run variance at any licensed length; each published
 /// cell's replicate deviations therefore also carry the parametric kernel-bias factor
-/// of [`crate::temporal_response_dispersion::kernel_bias_factor`]. Neither reading
+/// of [`crate::ar_kernel::kernel_bias_factor`]. Neither reading
 /// fires when a strongly persistent component is a small share of a score: with AR(1)
 /// ρ = 0.9 residuals under omitted iid treatment lags at n = 160 the residual's
 /// autocorrelations stay under the Politis–White significance threshold, the fitted
@@ -427,8 +441,8 @@ pub const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_
 /// [`RESPONSE_SHORT_SERIES_ROWS`] effective rows, so the band may under-cover.
 pub const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
 
-/// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are the 1.9
-/// calibration (`crates/antecedent/tests/v19_temporal_response_calibration.rs`, 400
+/// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are from
+/// `crates/antecedent/tests/v19_temporal_response_calibration.rs` (400
 /// replicates, nominal 95%).
 const PERSISTENCE_BOUNDARY_MESSAGE: &str = "circular blocks are max(span, ceil(sqrt(n))), \
      lengthened to ceil(b_PW·n^(1/6)) (at most n/3) when an estimating score is detectably \
@@ -716,6 +730,8 @@ impl SurfaceCells {
                 level: 0.95,
                 lower: Arc::from(band.lower.as_slice()),
                 upper: Arc::from(band.upper.as_slice()),
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
             }
         })
     }
@@ -831,6 +847,13 @@ fn block_bootstrap_assumption(
 /// Support diagnostic carrying the per-horizon tempering factor `κ̂_h` of
 /// `response.temporal.bayesian` (one value per requested horizon, in order).
 pub const TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC: &str = "response.temporal_bayesian.tempering";
+/// Warning code: at least one horizon's `κ̂` could not be estimated (`n` below
+/// `max(8, p+2)`); that horizon's posterior is the untempered iid fit.
+pub const TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE: &str =
+    "response.temporal_bayesian.tempering_inestimable";
+/// Warning code: at least one horizon's `κ̂` hit the `n/(p+2)` cap; the
+/// correction there is incomplete and the posterior is still too narrow.
+pub const TEMPORAL_BAYESIAN_TEMPERING_CAPPED: &str = "response.temporal_bayesian.tempering_capped";
 
 fn is_tempering_record(record: &AssumptionRecord) -> bool {
     matches!(
@@ -839,27 +862,82 @@ fn is_tempering_record(record: &AssumptionRecord) -> bool {
     )
 }
 
+/// One horizon's likelihood-tempering result, read off the posterior inference notes
+/// (see [`crate::serial_dependence::TemperingFactor`]) so a capped or inestimable
+/// factor cannot be dropped on the way to the response.
+#[derive(Clone, Copy, Debug)]
+struct HorizonTempering {
+    kappa: f64,
+    capped: bool,
+    inestimable: bool,
+}
+
+impl HorizonTempering {
+    fn from_notes(notes: &[Arc<str>]) -> Self {
+        Self {
+            kappa: tempering_kappa_from_notes(notes).unwrap_or(1.0),
+            capped: tempering_capped_from_notes(notes),
+            inestimable: tempering_inestimable_from_notes(notes),
+        }
+    }
+
+    /// `h=<horizon>: <kappa>` with a trailing ` capped` / ` inestimable` tag so the
+    /// per-horizon summary cannot silently drop either disclosure.
+    fn label(&self, horizon: u32) -> String {
+        let flag = if self.inestimable {
+            " inestimable"
+        } else if self.capped {
+            " capped"
+        } else {
+            ""
+        };
+        format!("h={horizon}: {:.4}{flag}", self.kappa)
+    }
+}
+
 /// One serial-dependence record for the whole surface (each horizon's fit records its own
 /// factor; only the first horizon's assumptions were ever forwarded).
-fn temporal_bayesian_tempering_assumption(horizons: &[u32], kappas: &[f64]) -> AssumptionRecord {
-    let per_horizon = horizons
-        .iter()
-        .zip(kappas)
-        .map(|(h, k)| format!("h={h}: {k:.4}"))
-        .collect::<Vec<_>>()
-        .join(", ");
+fn temporal_bayesian_tempering_assumption(
+    horizons: &[u32],
+    tempering: &[HorizonTempering],
+) -> AssumptionRecord {
+    let per_horizon =
+        horizons.iter().zip(tempering).map(|(&h, t)| t.label(h)).collect::<Vec<_>>().join(", ");
+    let any_capped = tempering.iter().any(|t| t.capped);
+    let any_inestimable = tempering.iter().any(|t| t.inestimable);
+    let caveat = match (any_inestimable, any_capped) {
+        (true, true) => {
+            "; a horizon marked inestimable keeps its untempered iid posterior (likely too \
+             narrow), and a horizon marked capped has an incomplete correction (still too \
+             narrow)"
+        }
+        (true, false) => {
+            "; a horizon marked inestimable keeps its untempered iid posterior, which is \
+             likely too narrow"
+        }
+        (false, true) => {
+            "; a horizon marked capped has an incomplete correction, so its posterior is \
+             still too narrow"
+        }
+        (false, false) => "",
+    };
     AssumptionRecord {
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from(DEPENDENCE_ASSUMPTION_ID),
             description: Arc::from(format!(
                 "generalized (power) posterior with a serial-dependence correction at every \
                  horizon: each horizon's Gaussian likelihood on time-ordered lag-aligned rows is \
-                 tempered by 1/kappa_h, kappa_h = the largest autoregressive-prewhitened (AR(1), plus a \
-                 BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's grid-cell level scores, floored at 1 \
-                 ({per_horizon}). At h >= 2 the unfolded regression omits intermediate \
-                 treatments and innovations, so its residuals are MA(h-1) whenever the outcome \
-                 or treatment is persistent; the prior keeps full weight; heteroskedasticity and \
-                 mean misspecification are not corrected"
+                 tempered by 1/kappa_h, kappa_h = the variance ratio of that horizon's driving \
+                 grid-cell-level combination under a REML-fitted autoregressive residual (BIC \
+                 order <= 4) given the design, times the residual-scale factor n/(n - tr(HR)) \
+                 for the rows the projection removes, times exp(tau^2/2) for the delta-method \
+                 spread of log kappa_h; bounded by three times the autoregressive-prewhitened \
+                 (AR(1), plus a BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of \
+                 the driving score, scaled by its squared fixed-b factor; floored at 1 and capped \
+                 at n/(p+2) ({per_horizon}){caveat}. At h >= 2 the unfolded regression omits \
+                 intermediate treatments and innovations, so its residuals are MA(h-1) whenever \
+                 the outcome or treatment is persistent; the prior keeps full weight; \
+                 heteroskedasticity and mean misspecification are not corrected"
             )),
         }),
         source: AssumptionSource::AlgorithmDefault {
@@ -1048,7 +1126,7 @@ impl TemporalResponseEstimator {
         let mut ranges = Vec::new();
         let mut horizons = Vec::new();
         let mut levels = Vec::new();
-        let mut tempering = Vec::new();
+        let mut tempering: Vec<HorizonTempering> = Vec::new();
         for (h, (&horizon_steps, &(estimand, indexer))) in
             temporal.horizons.iter().zip(identifications).enumerate()
         {
@@ -1122,7 +1200,7 @@ impl TemporalResponseEstimator {
                         .cloned(),
                 );
             }
-            tempering.push(tempering_kappa_from_notes(&posterior.diagnostics.notes).unwrap_or(1.0));
+            tempering.push(HorizonTempering::from_notes(&posterior.diagnostics.notes));
             if intervention.is_some() {
                 levels.push(grid[0]);
             }
@@ -1181,13 +1259,55 @@ impl TemporalResponseEstimator {
         );
         support.diagnostics.push(SupportDiagnostic {
             id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
-            values: Arc::from(tempering.clone()),
+            values: Arc::from(tempering.iter().map(|t| t.kappa).collect::<Vec<_>>()),
             detail: Arc::from(
                 "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
-                 largest autoregressive-prewhitened (AR(1), plus a BIC-selected AR(q <= 4)) \
-                 Newey-West long-run-variance ratio of the grid-cell level scores at that horizon, floored at 1",
+                 variance ratio of that horizon's driving grid-cell-level combination under a \
+                 REML-fitted autoregressive residual, scaled by the residual-scale and \
+                 delta-method spread factors, bounded by three times the prewhitened Newey-West \
+                 long-run-variance ratio of the driving score, floored at 1 and capped at \
+                 n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
+                 _inestimable disclose which horizons hit either bound)",
             ),
         });
+        let capped_horizons: Vec<u32> = temporal
+            .horizons
+            .iter()
+            .zip(&tempering)
+            .filter(|(_, t)| t.capped)
+            .map(|(&h, _)| h)
+            .collect();
+        let inestimable_horizons: Vec<u32> = temporal
+            .horizons
+            .iter()
+            .zip(&tempering)
+            .filter(|(_, t)| t.inestimable)
+            .map(|(&h, _)| h)
+            .collect();
+        if !inestimable_horizons.is_empty() {
+            support.warnings.push(Diagnostic::new(
+                TEMPORAL_BAYESIAN_TEMPERING_INESTIMABLE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the long-run-variance tempering factor could not be estimated at horizon(s) \
+                     {inestimable_horizons:?} (n below max(8, p+2)); those cells keep the \
+                     untempered iid posterior and their credible interval is likely too narrow"
+                ),
+            ));
+        }
+        if !capped_horizons.is_empty() {
+            support.warnings.push(Diagnostic::new(
+                TEMPORAL_BAYESIAN_TEMPERING_CAPPED,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the long-run-variance tempering factor hit the n/(p+2) cap at horizon(s) \
+                     {capped_horizons:?}; kappa is known to be too small there and the published \
+                     credible interval is still too narrow"
+                ),
+            ));
+        }
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.temporal_response.linear_additive"),
                 description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon, fit separately per horizon. Pointwise posterior intervals and the simultaneous credible band (support diagnostics response.simultaneous_band.*) are conditional on the observed adjustment and treatment distribution: they describe the level at the sample covariate average, not the population average. The simultaneous band pairs independent per-horizon draws, so across horizons it is a product-posterior band, not a joint horizon posterior.") }),
@@ -1206,6 +1326,8 @@ impl TemporalResponseEstimator {
                 level: 0.95,
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws: None,
             },
             support,
             assumptions,
@@ -1825,6 +1947,10 @@ struct FittedHorizon {
     column_means: Vec<f64>,
     /// Full-sample OLS residuals (length n).
     residuals: Vec<f64>,
+    /// Lower Cholesky factor of the Gram matrix `X'X` (`p × p`, row-major; `None` when it
+    /// is not positive definite). The Gram depends on the horizon's design only, so it is
+    /// factored once here and every cell's influence series solves against this copy.
+    gram_chol: Option<Vec<f64>>,
 }
 
 impl FittedHorizon {
@@ -1838,44 +1964,41 @@ impl FittedHorizon {
             .least_squares(&prepared.design.matrix, n, p, &prepared.design.outcome, ols_ws)
             .map_err(EstimationError::from)?;
         let column_means = design_column_means(&prepared.design);
-        Ok(Self { prepared, coefs: fit.coefficients, column_means, residuals: fit.residuals })
+        let gram = crate::util::gram(&prepared.design.matrix[..n * p], n, p);
+        let gram_chol = antecedent_stats::cholesky_spd(&gram, p);
+        Ok(Self {
+            prepared,
+            coefs: fit.coefficients,
+            column_means,
+            residuals: fit.residuals,
+            gram_chol,
+        })
     }
 
     fn treatment_mean(&self) -> f64 {
         self.column_means[TREATMENT_COL]
     }
 
-    /// Delta-method influence series of the level at `eval`: the row's weight in the
-    /// coefficient combination `c'β̂` (`c` = the column means with the treatment column
-    /// at the evaluated dose) times its residual, plus the centered design columns whose
-    /// sample means the level reads (every column but the treatment for a dose; every
-    /// column for a shift, whose level reads the treatment mean too), each weighted by
-    /// its coefficient. The circular-block variance of the level is asymptotically the
-    /// Bartlett long-run variance of this series at the block length. `None` when `X'X`
-    /// is singular.
+    /// Delta-method influence series of the level at `eval`. The regression contribution
+    /// is the usual OLS influence of `c'β̂` (`c` = the column means with the treatment
+    /// column at the evaluated dose): `n · x_t'(X'X)⁻¹ c · ê_t`. The contribution of the
+    /// estimated means is `coef' · (x_t − mean)` on the columns the level actually reads
+    /// (every column but the treatment for a dose; every column for a shift, whose level
+    /// reads the treatment mean too). Both terms are `O_p(1)`; the circular-block variance
+    /// of the level is asymptotically the Bartlett long-run variance of this series at the
+    /// block length. `None` when `X'X` is singular.
     fn level_influence(&self, eval: CellEval) -> Option<Vec<f64>> {
         let design = &self.prepared.design;
         let (n, p) = (design.nrows, design.ncols);
         let x = &design.matrix[..n * p];
-        let mut xtx = vec![0.0; p * p];
-        for a in 0..p {
-            for b in a..p {
-                let dot: f64 = x[a * n..(a + 1) * n]
-                    .iter()
-                    .zip(&x[b * n..(b + 1) * n])
-                    .map(|(u, v)| u * v)
-                    .sum();
-                xtx[a * p + b] = dot;
-                xtx[b * p + a] = dot;
-            }
-        }
         let mut direction = self.column_means.clone();
         direction[TREATMENT_COL] = match eval {
             CellEval::Dose(dose) => dose,
             CellEval::Shift(shift) => self.column_means[TREATMENT_COL] + shift,
         };
-        let v = solve_spd(&xtx, &direction, p)?;
+        let v = antecedent_stats::chol_solve(self.gram_chol.as_deref()?, p, &direction)?;
         let reads_treatment_mean = matches!(eval, CellEval::Shift(_));
+        let n_f = n as f64;
         Some(
             (0..n)
                 .map(|t| {
@@ -1884,7 +2007,7 @@ impl FittedHorizon {
                         .filter(|&k| k != TREATMENT_COL || reads_treatment_mean)
                         .map(|k| self.coefs[k] * (x[k * n + t] - self.column_means[k]))
                         .sum();
-                    weight * self.residuals[t] + means
+                    n_f * weight * self.residuals[t] + means
                 })
                 .collect(),
         )
@@ -1916,9 +2039,7 @@ fn horizon_scores(horizons: &[FittedHorizon]) -> Vec<Vec<f64>> {
     for fitted in horizons {
         let design = &fitted.prepared.design;
         let (n, p) = (design.nrows, design.ncols);
-        scores.extend(
-            normal_equation_scores(&design.matrix, n, p, &design.outcome).unwrap_or_default(),
-        );
+        scores.extend(normal_equation_scores_of_residuals(&design.matrix, n, p, &fitted.residuals));
         for (c, &mean) in fitted.column_means.iter().enumerate().skip(1) {
             scores.push(design.matrix[c * n..(c + 1) * n].iter().map(|x| x - mean).collect());
         }
@@ -2232,7 +2353,7 @@ fn intervention_support(
     if shifted_extrapolation {
         report.warnings.push(Diagnostic::new(
             "response.temporal.shift_distribution_extrapolative",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "the shifted treatment distribution extends beyond at least one horizon's observed treatment range",
         ));
@@ -2276,7 +2397,7 @@ fn assemble_temporal_support(
     if mixed {
         warnings.push(Diagnostic::new(
             "response.temporal.partial_horizon_support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "some requested (dose, horizon) cells sit outside that horizon's lag-aligned \
              treatment range; inspect support.point_status",
@@ -2284,7 +2405,7 @@ fn assemble_temporal_support(
     } else if status == SupportStatus::OutsideEmpiricalSupport {
         warnings.push(Diagnostic::new(
             "response.outside_empirical_support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "no requested (dose, horizon) cell sits inside that horizon's lag-aligned \
              treatment range",
@@ -3686,6 +3807,128 @@ mod tests {
         out
     }
 
+    fn fitted_horizon(
+        treatment: &[f64],
+        covariates: &[(VariableId, &[f64])],
+        outcome: &[f64],
+    ) -> FittedHorizon {
+        let design = CompiledDesign::linear_adjustment(treatment, covariates, outcome, &[])
+            .expect("balanced design");
+        let prepared = PreparedEstimationProblem {
+            design,
+            method: Arc::from("test"),
+            adjustment_set: Arc::from(covariates.iter().map(|(id, _)| *id).collect::<Vec<_>>()),
+            overlap: OverlapPolicy::ExplicitOverride,
+            treatment_delta: 1.0,
+            target_population: TargetPopulation::AllObserved,
+            treatment: Arc::from(treatment.to_vec()),
+            active: 1.0,
+            control: 0.0,
+        };
+        FittedHorizon::fit(prepared, &mut LeastSquaresWorkspace::default()).expect("OLS fit")
+    }
+
+    /// The level influence must be `O_p(1)` in every term: the OLS piece is
+    /// `n · x_t'(X'X)⁻¹ c · ê_t`, not the raw leverage weight. Without the `n`, a long
+    /// series makes the residual term ~`1/n` times the mean term, and duplicating every
+    /// row (same level, twice the rows) would shrink the residual contribution by 2.
+    #[test]
+    fn level_influence_is_op1_in_regression_and_mean_terms() {
+        // Intercept + treatment, Shift(0): level is ȳ, so the influence is exactly y_t − ȳ.
+        let n = 200usize;
+        let a: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| 2.0 + 3.0 * a[i] + if i % 2 == 0 { 0.5 } else { -0.5 }).collect();
+        let fitted = fitted_horizon(&a, &[], &y);
+        let psi = fitted.level_influence(CellEval::Shift(0.0)).unwrap();
+        let ybar = y.iter().sum::<f64>() / n as f64;
+        for t in 0..n {
+            assert!((psi[t] - (y[t] - ybar)).abs() < 1e-10, "t={t}: {} vs {}", psi[t], y[t] - ybar);
+        }
+
+        // One covariate, Dose(a): both contributions stay the same order on a long series.
+        let z_id = VariableId::from_raw(2);
+        let z: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let a2: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { 1.0 } else { -1.0 }).collect();
+        let y2: Vec<f64> = (0..n)
+            .map(|i| 1.0 + 2.0 * a2[i] + 4.0 * z[i] + 0.25 * ((i % 3) as f64 - 1.0))
+            .collect();
+        let fitted2 = fitted_horizon(&a2, &[(z_id, z.as_slice())], &y2);
+        let dose = 0.5;
+        let psi2 = fitted2.level_influence(CellEval::Dose(dose)).unwrap();
+        let means: Vec<f64> =
+            (0..n).map(|t| fitted2.coefs[2] * (z[t] - fitted2.column_means[2])).collect();
+        let reg: Vec<f64> = psi2.iter().zip(&means).map(|(p, m)| p - m).collect();
+        let rms = |v: &[f64]| (v.iter().map(|x| x * x).sum::<f64>() / v.len() as f64).sqrt();
+        let (r_reg, r_means) = (rms(&reg), rms(&means));
+        assert!(r_reg > 0.05 && r_means > 0.05, "reg={r_reg} means={r_means}");
+        let ratio = r_reg / r_means;
+        assert!(
+            (0.05..20.0).contains(&ratio),
+            "regression term must not be ~1/n times the mean term: ratio={ratio}"
+        );
+
+        // Repeat every row: level unchanged, n → 2n. Influence on matching rows must stay
+        // put (not shrink by 2 as a missing-n residual term would).
+        let a_rep: Vec<f64> = a2.iter().flat_map(|&x| [x, x]).collect();
+        let z_rep: Vec<f64> = z.iter().flat_map(|&x| [x, x]).collect();
+        let y_rep: Vec<f64> = y2.iter().flat_map(|&x| [x, x]).collect();
+        let fitted_rep = fitted_horizon(&a_rep, &[(z_id, z_rep.as_slice())], &y_rep);
+        let psi_rep = fitted_rep.level_influence(CellEval::Dose(dose)).unwrap();
+        for t in 0..n {
+            assert!(
+                (psi_rep[2 * t] - psi2[t]).abs() < 1e-8,
+                "row {t}: repeated {} vs original {}",
+                psi_rep[2 * t],
+                psi2[t]
+            );
+        }
+    }
+
+    /// The horizon caches one Gram matrix and reads its OLS residuals for the estimating
+    /// scores; both must equal the definitions (`x_a'x_b` and, by the normal equations,
+    /// `Σ_t x_tj ê_t = 0`).
+    #[test]
+    fn horizon_caches_gram_and_scores_use_the_held_residuals() {
+        let n = 60usize;
+        let z_id = VariableId::from_raw(2);
+        let a: Vec<f64> = (0..n).map(|i| ((i * 7 % 11) as f64) - 5.0).collect();
+        let z: Vec<f64> = (0..n).map(|i| ((i * 5 % 13) as f64) * 0.5 - 3.0).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 1.0 + 0.7 * a[i] - 0.4 * z[i] + 0.3 * ((i * 3 % 7) as f64 - 3.0))
+            .collect();
+        let fitted = fitted_horizon(&a, &[(z_id, z.as_slice())], &y);
+        let cols: [Vec<f64>; 3] = [vec![1.0; n], a.clone(), z.clone()];
+        // The cached factor reproduces the Gram matrix by definition (L times L-transpose
+        // equals x_a'x_b) and solves against it as a per-call factorization would.
+        let chol = fitted.gram_chol.as_ref().expect("the design is full rank");
+        let mut gram = [0.0; 9];
+        for r in 0..3 {
+            for c in 0..3 {
+                let dot: f64 = (0..n).map(|t| cols[r][t] * cols[c][t]).sum();
+                gram[r * 3 + c] = dot;
+                let llt: f64 = (0..3).map(|k| chol[r * 3 + k] * chol[c * 3 + k]).sum();
+                assert!((llt - dot).abs() < 1e-8 * (1.0 + dot.abs()), "gram[{r}][{c}]");
+            }
+        }
+        let rhs = [1.0, -2.0, 0.5];
+        let cached = antecedent_stats::chol_solve(chol, 3, &rhs).unwrap();
+        let direct = crate::util::solve_spd(&gram, &rhs, 3).unwrap();
+        for k in 0..3 {
+            assert!((cached[k] - direct[k]).abs() < 1e-10, "solve component {k}");
+        }
+        let scores = horizon_scores(std::slice::from_ref(&fitted));
+        // 3 normal-equation series, then the 2 centered non-intercept columns.
+        assert_eq!(scores.len(), 5);
+        for (j, series) in scores.iter().take(3).enumerate() {
+            let total: f64 = series.iter().sum();
+            assert!(total.abs() < 1e-8, "normal equation {j}: sum {total}");
+            for (t, &value) in series.iter().enumerate().take(n) {
+                assert!((value - cols[j][t] * fitted.residuals[t]).abs() < 1e-12);
+            }
+        }
+    }
+
     #[test]
     fn block_dispersion_inflation_is_the_fixed_b_ratio_times_hc1() {
         // 159 rows in blocks of 13, 3 coefficients: circular-Bartlett fixed-b ratio at
@@ -3740,5 +3983,35 @@ mod tests {
             (0..99).map(|r| vec![f64::from(r) - 49.0, 10.0 + f64::from(r) - 49.0]).collect();
         let floored = max_deviation_band(&center, &uniform, 0.95).unwrap();
         assert!((floored.critical - normal_ppf(0.975)).abs() < 1e-12, "{}", floored.critical);
+    }
+
+    #[test]
+    fn bayesian_tempering_assumption_discloses_capped_and_inestimable_horizons() {
+        let horizons = [1u32, 2u32, 3u32];
+        let tempering = vec![
+            HorizonTempering { kappa: 1.0, capped: false, inestimable: true },
+            HorizonTempering { kappa: 7.5, capped: true, inestimable: false },
+            HorizonTempering { kappa: 2.0, capped: false, inestimable: false },
+        ];
+        let record = temporal_bayesian_tempering_assumption(&horizons, &tempering);
+        let Assumption::ParametricRestriction(p) = &record.assumption else {
+            panic!("expected a parametric restriction");
+        };
+        let text = p.description.as_ref();
+        assert!(text.contains("h=1: 1.0000 inestimable"), "{text}");
+        assert!(text.contains("h=2: 7.5000 capped"), "{text}");
+        assert!(text.contains("h=3: 2.0000"), "{text}");
+        assert!(
+            text.contains("REML") && text.contains("n/(p+2)"),
+            "must describe the actual fitted formula (REML AR(q), capped at n/(p+2)): {text}"
+        );
+        assert!(
+            !text.contains(
+                "the largest autoregressive-prewhitened (AR(1), plus a \
+                 BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's \
+                 grid-cell level scores, floored at 1"
+            ),
+            "must not keep the wrong pre-REML formula text: {text}"
+        );
     }
 }

@@ -3,8 +3,9 @@
   "tolerance_class": "StableFloat",
   "atol_val": 0.35,
   "rtol_val": 0.15,
-  "atol_se": 0.25,
-  "rtol_se": 0.5,
+  "atol_se": 0.18,
+  "rtol_se": 0.1,
+  "se_tolerance_note": "Rejects an 8x SE relative to the pinned reference: |8r-r|=7r must exceed atol_se+rtol_se*|r|. Reference SEs (DoWhy/clean-room pins) span linear_regression 0.03858 through ipw_ate 0.2715; at the smallest, 7*0.03858=0.270 > 0.18+0.10*0.03858=0.184. The band still admits the honest Rust analytic SEs (largest pin gap is ipw_ate: Rust~0.105 vs ref 0.271, |delta|=0.166 <= 0.18+0.10*0.271=0.207).",
   "n": 800,
   "seed": 7,
   "clip": 0.01,
@@ -83,7 +84,7 @@
         "y",
         "m"
       ],
-      "scm": "U~N; t=U+noise; m=t+noise; y=2m+U+noise; U unobserved",
+      "scm": "U~N(0,1) unobserved; t=3+U+0.5N (uncentred); m=0.4t+0.5N; y=5m+U+0.5N; effect 0.4*5=2; generate_frontdoor.py (stdlib random.Random(7))",
       "method_ids": [
         "frontdoor"
       ]
@@ -128,8 +129,9 @@
     "frontdoor": {
       "method_name": "frontdoor.two_stage_regression",
       "target": "ate",
-      "val": 2.9613610010837883,
-      "se": 0.01314660798295739
+      "val": null,
+      "se": null,
+      "note": "not re-run: frontdoor.csv was re-cut with unequal path coefficients (0.4, 5) after the pinned baseline run, and the Rust estimate is asserted against true_ate, never against this block"
     }
   },
   "estimator_map": {
@@ -157,9 +159,9 @@
     },
     "frontdoor": {
       "identifier": "frontdoor",
-      "estimator": "frontdoor.two_stage",
+      "estimator": "frontdoor.linear_two_stage",
       "assert_against": "true_ate",
-      "note": "DoWhy frontdoor.two_stage uses naive product E[M|T]*E[Y|M]; assert Rust vs true_ate"
+      "note": "asserted against true_ate; with path coefficients 0.4 and 5 neither coefficient alone is within tolerance of 2"
     }
   },
   "generation": {
@@ -172,7 +174,7 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
     "note": "black-box execution only; AIPW is clean-room (econml excluded)"
   }
 }

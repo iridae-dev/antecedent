@@ -1,13 +1,13 @@
 //! Static data-generating processes measured by more than one calibration
 //! suite, and the structures they are measured on.
 //!
-//! The 1.9 suites (`v19_*_calibration`) and the 1.10 suites
-//! (`v110_calibration_*`) score the *same* laws at different levels and on
+//! The `v19_*_calibration` suites and the `v110_calibration_*` suites
+//! score the *same* laws at different levels and on
 //! different arms, so their coverage records are comparable only if the
 //! replicate data is literally the same. Copying a generator into the second
 //! suite makes that a convention; owning it here makes it a fact. A change to
 //! one of these laws now moves every record that cites it, which is the point:
-//! a silent divergence between the 1.9 and the 1.10 measurement of one cell is
+//! a silent divergence between the two measurements of one cell is
 //! exactly the failure worth removing.
 //!
 //! Every uniform draw goes through [`STREAM_TAG`] and every normal draw through
@@ -18,14 +18,14 @@
 
 // `t`, `y`, `z`, `m`, `c`, `u` are the variable names of the laws themselves,
 // the same ones the suites that used to carry these bodies allowed.
-#![allow(dead_code, clippy::many_single_char_names)]
+#![allow(dead_code)]
 
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag};
 
 use super::calibration::gaussian;
 
-/// Stream tag of every uniform draw in this module: the tag the 1.9 static
+/// Stream tag of every uniform draw in this module: the tag the `v19` static
 /// suite used, so folding these generators together changed no replicate.
 pub const STREAM_TAG: u64 = 0x0F0F_F0F0_1234_5678;
 
@@ -211,4 +211,98 @@ pub fn envelope_pag() -> Pag {
     g.insert_directed(d(3), d(1)).unwrap();
     g.insert_directed(d(5), d(1)).unwrap();
     g
+}
+
+// ------------------------------------------------------------------ boundary designs
+// Each law sits *outside* an estimator's comfort zone, and the calibration gate
+// records the measured coverage as a named boundary: a coverage figure here is
+// what the interval does under that stress, not a claim that it is calibrated.
+
+/// Weak first-stage IV (columns `t, y, z`): `z ∈ {0,1}`,
+/// `t = 0.15 z + u + 0.1 e`, `y = 2t + u + 0.1 e`. Stock–Yogo F is routinely
+/// below 10 at a few hundred rows — the regime a Wald SE must not claim.
+#[must_use]
+pub fn weak_iv_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = (i % 2) as f64;
+        let u = g();
+        t[i] = 0.15 * z[i] + u + 0.1 * g();
+        y[i] = 2.0 * t[i] + u + 0.1 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+/// Weak overlap (columns `t, y, z`): `z ~ N(0,1)`,
+/// `t ~ Bern(σ(−2.5 + 3.0 z))` so propensities crowd 0/1,
+/// `y = 2t + z + e`. ATE 2; IPW / matching weights are unstable.
+#[must_use]
+pub fn weak_overlap_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(-2.5 + 3.0 * z[i]));
+        y[i] = 2.0 * t[i] + z[i] + g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+/// Curved, heterogeneous sharp RD (columns `t, y, r`): running variable with
+/// density `2(r+1)/9` on `[−1, 2]` (`r = 3√u − 1`), baseline
+/// `1 + 0.5r + 0.8r² + r³`, effect `τ(r) = 2 + 6r`. Cutoff effect is 2; a
+/// conventional local-linear interval ignores the cubic bias.
+#[must_use]
+pub fn curved_rd_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut r) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        r[i] = 3.0 * u().sqrt() - 1.0;
+        t[i] = f64::from(r[i] >= 0.0);
+        y[i] = 1.0
+            + 0.5 * r[i]
+            + 0.8 * r[i] * r[i]
+            + r[i] * r[i] * r[i]
+            + t[i] * (2.0 + 6.0 * r[i])
+            + 0.3 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("r", &r)])
+}
+
+/// Heteroskedastic matching stress (columns `t, y, z`): logistic treatment in
+/// `z`, outcome `y = 2t + z + (0.3 + 1.2|z|)·e` so residual variance grows
+/// with the propensity score. Homoskedastic Abadie–Imbens SEs are wrong here.
+#[must_use]
+pub fn heteroskedastic_matching_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(0.8 * z[i]));
+        let s = 0.3 + 1.2 * z[i].abs();
+        y[i] = 2.0 * t[i] + z[i] + s * g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+/// Heterogeneous-effect matching design (columns `t, y, z`): `z ~ N(0,1)`,
+/// `t ~ Bern(σ(0.8 z))`, `y = z + (2 + z) t + 0.5 e`. The unit effect is
+/// `τ(z) = 2 + z`, so ATE is 2, ATT is `2 + E[z | T = 1]` and ATC is
+/// `2 − E[z | T = 1]`: the three matching targets differ, and a variance
+/// formula that ignores the spread of `τ` is wrong for each.
+#[must_use]
+pub fn heterogeneous_effect_matching_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(0.8 * z[i]));
+        y[i] = z[i] + (2.0 + z[i]) * t[i] + 0.5 * g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
 }
