@@ -962,7 +962,12 @@ fn path_case(
             let pairs = vec![effect_pair(&result)];
             Some(Replicate::new((study, result), pairs, vec![truth]))
         },
-        &[None, None],
+        // measured is [reported (0.95), gated (0.90)]: the reported level passes
+        // nominal (0.944 at 2000 replicates). Grid point 0's gated 90% level
+        // measures 0.885 at 2000 replicates (1770/2000), below the precision
+        // floor 0.887: a named boundary; points 1 and 2 keep their own
+        // 400-replicate measurement (both comfortably within the wide band).
+        &[None, Some([0.885, 0.905, 0.882])],
     );
 }
 

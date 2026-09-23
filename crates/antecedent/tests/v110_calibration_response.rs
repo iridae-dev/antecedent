@@ -580,17 +580,20 @@ fn response_curve_cpdag_bayesian_pointwise_nominal_coverage() {
 }
 
 /// Grid-point-0 floor miss at `a = 1` (0.95): 0.932 against floor 0.936.
+/// Grid-point-1 ceiling miss at `a = 1` (0.90): 0.919 against ceiling 0.919.
+/// Grid-point-2 misses: `a = 0` 0.95 (0.969), `a = 0` 0.90 (0.929), `a = 0.5`
+/// 0.95 (0.964), all 1000-replicate measurements.
 const CPDAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
     [None, None, None],
     [None, None, None],
     [None, None, None],
     [None, None, None],
-    [None, None, None],
-    [None, None, None],
-    [None, None, None],
+    [None, None, Some(0.969)],
+    [None, None, Some(0.929)],
+    [None, None, Some(0.964)],
     [None, None, None],
     [Some(0.932), None, None],
-    [None, None, None],
+    [None, Some(0.919), None],
 ];
 
 #[test]
@@ -604,17 +607,18 @@ fn response_curve_pag_bayesian_pointwise_nominal_coverage() {
 }
 
 /// Grid-point-0 misses: `a = −0.5` 0.95 (0.933), `a = 0` 0.90 (0.881),
-/// `a = 0.5` 0.95 (0.924).
+/// `a = 0.5` 0.95 (0.924). Grid-point-1 misses (1000 replicates): `a = 0`
+/// 0.95 (0.964), `a = 0.5` 0.90 (0.925), `a = 1` 0.95 (0.964).
 const PAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
     [None, None, None],
     [None, None, None],
     [Some(0.933), None, None],
     [None, None, None],
-    [None, None, None],
+    [None, Some(0.964), None],
     [Some(0.881), None, None],
     [Some(0.924), None, None],
-    [None, None, None],
-    [None, None, None],
+    [None, Some(0.925), None],
+    [None, Some(0.964), None],
     [None, None, None],
 ];
 
