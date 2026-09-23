@@ -753,6 +753,17 @@ fn class_response_cpdag_intervention_joint_if_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage() {
+    // Grid point 0's `a = -1` cell measures 0.883 at 2000 replicates (1767/2000),
+    // below the precision floor 0.887; grid point 2's `a = 1` cell measures 0.886
+    // (1773/2000), also below the floor: named boundaries, not band failures.
+    // GRID is [-1, -0.5, 0, 0.5, 1], matching `tallies`' order one for one.
+    const MEASURED: [[Option<f64>; GRID_POINTS]; 5] = [
+        [Some(0.883), None, None],
+        [None, None, None],
+        [None, None, None],
+        [None, None, None],
+        [Some(0.879), None, Some(0.886)],
+    ];
     // The band is configured at 90%, so no 95% level is reported beside it.
     let mut tallies = grid_tallies(RecordKey {
         test: "class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
@@ -783,17 +794,6 @@ fn class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage() {
             }
         }
     }
-    // Grid point 0's `a = -1` cell measures 0.883 at 2000 replicates (1767/2000),
-    // below the precision floor 0.887; grid point 2's `a = 1` cell measures 0.886
-    // (1773/2000), also below the floor: named boundaries, not band failures.
-    // GRID is [-1, -0.5, 0, 0.5, 1], matching `tallies`' order one for one.
-    const MEASURED: [[Option<f64>; GRID_POINTS]; 5] = [
-        [Some(0.883), None, None],
-        [None, None, None],
-        [None, None, None],
-        [None, None, None],
-        [Some(0.879), None, Some(0.886)],
-    ];
     let failures: Vec<String> = tallies
         .iter()
         .zip(MEASURED)

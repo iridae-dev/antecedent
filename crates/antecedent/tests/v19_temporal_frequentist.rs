@@ -98,8 +98,8 @@ struct Coverage {
     reported: Vec<CoverageTally>,
     /// A plain per-replicate flag counter, not a coverage record: `record`s an
     /// always-in-range interval when the warning fires and an always-out-of-range
-    /// one when it does not, purely to reuse CoverageTally's extension-safe
-    /// covered/attempts bookkeeping (see CoverageTally::persist). A raw `u32`
+    /// one when it does not, purely to reuse `CoverageTally`'s extension-safe
+    /// covered/attempts bookkeeping (see `CoverageTally::persist`). A raw `u32`
     /// counter here would only count an extending recheck's own new replicates
     /// while `n_sim()` reports the full count, undercounting the warning rate.
     warned: CoverageTally,
