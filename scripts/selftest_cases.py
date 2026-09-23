@@ -322,6 +322,7 @@ dgp = "{suite}::confounded_scm"
 test = "{suite}::linear_adjustment_analytic_ci_coverage"
 facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
 calibration_sha = "{"1" * 40}"
+surface_list_blob = "{"1" * 40}"
 """
 
 
