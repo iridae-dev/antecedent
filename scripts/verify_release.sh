@@ -40,8 +40,32 @@ verify_tag() {
 
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  run_id="$(gh run list --workflow ci.yml --commit "$sha" --status success \
+  # A publisher-only commit on top of a green main commit is the same release.
+  # Windows runs `run:` steps in PowerShell, so a workflow fix must be able to
+  # ship without another full CI of an unchanged product tree.
+  ci_sha="$sha"
+  run_id="$(gh run list --workflow ci.yml --commit "$ci_sha" --status success \
     --json databaseId --jq '.[0].databaseId // empty')"
+  if [[ -z "$run_id" ]]; then
+    local parent path publisher_only
+    parent="$(git rev-parse "$sha^1" 2>/dev/null || true)"
+    publisher_only=0
+    if [[ -n "$parent" ]]; then
+      publisher_only=1
+      while IFS= read -r path; do
+        [[ -z "$path" ]] && continue
+        case "$path" in
+          .github/workflows/*|scripts/verify_release.sh) ;;
+          *) publisher_only=0 ;;
+        esac
+      done < <(git diff --name-only "$parent" "$sha")
+    fi
+    if [[ "$publisher_only" -eq 1 ]]; then
+      ci_sha="$parent"
+      run_id="$(gh run list --workflow ci.yml --commit "$ci_sha" --status success \
+        --json databaseId --jq '.[0].databaseId // empty')"
+    fi
+  fi
   if [[ -z "$run_id" ]]; then
     fail "no successful ci run on $sha (gh run list --workflow ci.yml --commit $sha)"
   fi
@@ -50,7 +74,7 @@ verify_tag() {
   required="$(uv run --quiet --project python --only-group dev python scripts/ci_workflow.py required-jobs)"
   # shellcheck disable=SC2086
   uv run --quiet --project python --only-group dev python scripts/ci_workflow.py \
-    check-run "$tmp/run.json" --head-sha "$sha" $required
+    check-run "$tmp/run.json" --head-sha "$ci_sha" $required
   echo "verified: $sha is on main, tree is at $version, ci run $run_id is green"
 }
 

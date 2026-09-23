@@ -175,7 +175,10 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      # Windows jobs default to PowerShell, which expands $VERSION before bash
+      # starts and leaves the check with an empty version.
       - name: Committed version matches the tag
+        shell: bash
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: bash scripts/set_version.sh --check "$VERSION"
