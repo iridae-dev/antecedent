@@ -721,7 +721,7 @@ class FakeRepo(Repo):
 WAIVERS = ROOT / "parity" / "calibration_waivers.toml"
 WAIVER_ID = re.compile(r"[a-z0-9][a-z0-9._-]*")
 # Stored record fields that are bookkeeping, not measurement output.
-NOT_EMITTED = frozenset({"calibration_sha", "facets"})
+NOT_EMITTED = frozenset({"calibration_sha", "facets", "surface_list_blob"})
 LOG_DIR = ROOT / "target" / "calibration-records"
 REPLAY_DIR = ROOT / "target" / "calibration-replay"
 WAIVERS_HEADER = """\
