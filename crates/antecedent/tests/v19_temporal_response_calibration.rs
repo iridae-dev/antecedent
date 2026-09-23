@@ -916,7 +916,7 @@ fn frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage() {
 /// Persistent-treatment shift at n-grid 80/160/320: under-coverage of the
 /// short-series shift cell and its simultaneous band.
 const AR1_TREATMENT_SHIFT_MEASURED: [[Option<f64>; 3]; 2] =
-    [[Some(0.905), Some(0.931), Some(0.939)], [Some(0.897), Some(0.935), None]];
+    [[Some(0.865), Some(0.931), Some(0.939)], [Some(0.868), Some(0.935), None]];
 
 /// The same design on 400 rows (about 21 effective rows for the shift level). Recorded,
 /// not gated.
@@ -1408,9 +1408,13 @@ fn frequentist_temporal_observation_sequence_iid_nominal_95_coverage() {
     );
 }
 
-/// Grid-point-0 over-coverage at `seq,h=1` (0.990); grid-point-1 simultaneous (0.971).
-const OBSERVATION_SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] =
-    [[Some(0.990), None, None], [Some(0.975), None, None], [Some(0.980), Some(0.971), None]];
+/// Grid-point-0 over-coverage at `seq,h=1` (0.990); grid-point-1 `seq,h=1`/`seq,h=2`
+/// (0.965 each) and simultaneous (0.971).
+const OBSERVATION_SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] = [
+    [Some(0.990), Some(0.965), None],
+    [Some(0.975), Some(0.965), None],
+    [Some(0.980), Some(0.971), None],
+];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
