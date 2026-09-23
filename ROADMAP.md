@@ -6,7 +6,11 @@ bounded scientific contract and ends with an executable, calibrated, portable
 capability. A workstream may span releases; numbering below is dependency
 order, not a promise of 2.1, 2.2, or API compatibility. Preserve the 2.0
 gates. X4 binds statistical providers through `antecedent-learn`; do not
-invent a second ML stack.
+invent a second ML stack. Transport promotion is coverage-led: a new theorem,
+graph class, evidence mode, or inferential provider does not broaden the
+licensed surface until it has a named support row, executable positive and
+negative cases, and the calibration evidence appropriate to its published
+uncertainty.
 
 ## Contents
 
@@ -17,7 +21,36 @@ invent a second ML stack.
 - [X5 — Temporal transport](#x5--temporal-transport)
 - [X6 — Experiment planning from transport failures](#x6--experiment-planning-from-transport-failures)
 - [X7 — GPU acceleration for neural nuisance learning](#x7--gpu-acceleration-for-neural-nuisance-learning)
+- [X8 — Counterfactual coverage expansion](#x8--counterfactual-coverage-expansion)
+- [Transport coverage promotion matrix](#transport-coverage-promotion-matrix)
 - [Ordering and promotion rule](#ordering-and-promotion-rule)
+
+## Transport coverage promotion matrix
+
+2.0 licenses only the transport rows that have a certified identification
+route, a compatible prepared provider, and an evidenced uncertainty contract.
+2.x must make expansion observable rather than treating a new identifier or
+estimator as coverage by implication. Maintain a checked-in transport coverage
+matrix whose rows name, at minimum:
+
+- graph and selection class (starting with the existing fixed observed DAG
+  rows, then scoped semi-Markovian ADMG and selection-diagram rows);
+- source arrangement and intervention availability (single/multi-source,
+  complete/restricted experiment, and exact/empirical/learned evidence);
+- target query (mean effect, finite response grid, CATE where the theorem and
+  support permit it, then explicitly bounded temporal sequences);
+- statistical provider and uncertainty mode (exact finite law, empirical
+  plug-in/bootstrap, frequentist learned estimator, or a named Bayesian
+  posterior); and
+- outcome status: licensed, structurally unidentified, unsupported provider,
+  insufficient support, or bounded/unevaluated search. Never use an absent row
+  as evidence of either identification or non-transportability.
+
+Each promoted cell must point to its theorem/derivation scope, required source
+and target evidence, artifact fields, positive known-truth fixture, refusal or
+counterexample, and calibrated inferential fixture where it publishes an
+interval. Coverage reports must retain cells that fail preparation or
+calibration; they may not summarize only the successful estimators.
 
 ## X1 — Additional restricted-experiment settings
 
@@ -37,6 +70,10 @@ source cannot experiment on every variable? **Depends on:** T1–T4, T7.
       computational failures. An unavailable experiment is not a proof witness.
 - [ ] Execute identified restricted-experiment formulas with T4/T6 providers;
       add new provider support only with corresponding uncertainty evidence.
+- [ ] Add those restricted-experiment cells to the transport coverage matrix,
+      including their source-specific evidence and experiment-availability
+      requirements. An identification derivation alone does not license an
+      empirical, learned, or Bayesian execution row.
 
 **Exit evidence:** an effect recovered through a surrogate experiment when a
 direct treatment experiment is unavailable; a joint-experiment counterexample;
@@ -54,6 +91,12 @@ mechanism differences? **Depends on:** T3, T7–T9.
 - [ ] Define supplied graph/selection scenarios and their shared named variable
       coordinates. License explicit finite sets first; separately assess CPDAG/
       PAG completions and posterior inputs. Do not claim PAG-native transport ID.
+- [ ] Broaden fixed-graph transport one graph class at a time. First specify a
+      bounded semi-Markovian ADMG/latent-confounding contract and the exact
+      transport-identification theorem it implements; then add selection-diagram
+      variants only where their selection nodes and available studies map to
+      executable evidence. Do not inherit DAG transportability from an ADMG
+      projection, or mistake a graph-completion enumerator for PAG-native ID.
 - [ ] Identify and bind evidence per scenario. Distinguish identified,
       non-transportable, unsupported, and unevaluated scenarios under budgets.
 - [ ] Preserve unweighted structural envelopes versus weighted posterior
@@ -65,6 +108,9 @@ mechanism differences? **Depends on:** T3, T7–T9.
 - [ ] Report which mechanism invariances and graph features are necessary for
       the claim, including scenario-specific evidence needs. Do not label a
       scenario range a confidence interval or a sharp causal bound.
+- [ ] Promote each graph/scenario family into the transport coverage matrix only
+      after exact known-law checks, obstruction/refusal fixtures, and—when a
+      provider reports uncertainty—coverage for that graph/provider/query row.
 
 **Exit evidence:** a mixture with positive unidentified mass, an unweighted
 set with incompatible transport requirements, a budget-truncated set, and
@@ -118,6 +164,18 @@ through `antecedent-learn`.
 - [ ] Add broader sampling designs, linked/clustered studies, and model/posterior
       providers incrementally. Summary estimates alone are not arbitrary density
       providers. Retain evidence reuse and prior/data double-counting safeguards.
+- [ ] Add Bayesian transport as a named provider family, not as a posterior
+      wrapper around a frequentist transport point estimate. State the joint
+      source/target likelihood, graph and invariance assumptions, priors over
+      every transported mechanism, posterior predictive target, and draw-sharing
+      rules. Calibrate credible intervals and posterior decisions on known SCMs;
+      prior mass cannot turn a structurally unidentified transport query into an
+      identified one.
+- [ ] Extend learned transport beyond finite tables only through named
+      graph/provider/query rows: begin with one overlap-supported conditional
+      mean/effect target, then add response grids and heterogeneous targets when
+      their functional, nuisance diagnostics, and uncertainty all have distinct
+      evidence. A flexible learner is not a license for extrapolative transport.
 - [ ] Treat incomplete observation and heterogeneous measurement as separate
       identification/provider research contracts; no automatic schema matching
       or missing-data repair under a continuous estimator label.
@@ -221,6 +279,49 @@ provenance, and matches the CPU reference within the stated tolerance. Fixtures
 cover no compatible device, exhausted accelerator memory, cancellation, and a
 small workload where CPU correctly remains the selected or faster route.
 
+## X8 — Counterfactual coverage expansion
+
+**Question:** Which currently unsupported counterfactual query/graph/evidence
+cells can become executable without weakening cross-world, identification, or
+uncertainty claims? **Depends on:** the 2.0 counterfactual engine, T1–T9, and
+X2 where a counterfactual is transported rather than evaluated in one fixed
+population.
+
+- [ ] Publish and maintain a counterfactual coverage matrix with axes for query
+      family (unit-level, nested, path-specific, and temporal), graph class
+      (Markovian DAG, bounded semi-Markovian ADMG, and explicitly enumerated
+      uncertainty scenarios), evidence regime, execution mode, and uncertainty
+      status. Mark unsupported and structurally unidentified cells explicitly;
+      do not turn a missing implementation into a zero-probability event.
+- [ ] Open cells in dependency order: first named single-world and compatible
+      nested counterfactuals on fixed Markovian DAGs; then a bounded
+      counterfactual-ID/counterfactual-graph contract for latent-confounding
+      ADMGs; then finite-horizon temporal counterfactuals with shared unit
+      histories. Each step must state its completeness or deliberate
+      incompleteness boundary and return typed hedges/obstructions where known.
+- [ ] Keep abduction, action, and prediction semantically coupled. Posterior
+      draws, exact finite-law evaluation, and learned mechanisms must preserve
+      shared exogenous uncertainty across contrary-to-fact worlds; independently
+      resampling each world is not a counterfactual implementation.
+- [ ] Add Bayesian counterfactual rows only with a joint posterior over the SCM
+      mechanisms and latent/exogenous variables, explicit conditioning evidence,
+      and posterior predictive checks. A prior supplies uncertainty about a
+      specified SCM; it does not repair cross-world nonidentification.
+- [ ] Add transported counterfactuals only after their ordinary transport and
+      fixed-population counterfactual cells are licensed. Record the source/target
+      invariance assumptions and whether abduction is source, target, or joint;
+      do not compose two valid marginal APIs into an unproved cross-world claim.
+- [ ] For every newly opened cell, add exact SCM truth, an adversarial
+      nonidentification or violated-consistency fixture, artifact round-trip and
+      replay checks, and calibration for every reported frequentist interval or
+      Bayesian credible interval. Counterfactual coverage reports retain refused
+      and failed-calibration cells alongside passing ones.
+
+**Exit evidence:** a visibly expanded matrix with at least one newly licensed
+cell in each accepted graph/evidence tier; exact agreement with known SCM
+counterfactuals; typed refusal for a hedge or incompatible cross-world query;
+and calibrated uncertainty only for rows whose full inference path is covered.
+
 ## Ordering and promotion rule
 
 - [ ] Prioritize X1 and fixed-graph X3 to expand usable evidence and make
@@ -229,6 +330,14 @@ small workload where CPU correctly remains the selected or faster route.
       compose them only after their independent evidence gates pass.
 - [ ] Build X5 on finite discrete transport first. Begin X6 with structural
       experiment sufficiency before introducing probabilistic design objectives.
+- [ ] Use the transport coverage matrix as the release gate for X1, X2, X4, and
+      X5: prioritize additions that open a complete user-facing row (graph,
+      evidence, query, provider, and uncertainty), rather than accumulating
+      identifiers or estimators that cannot yet execute a licensed analysis.
+- [ ] Open X8 cells in the same way: a counterfactual feature is promotable only
+      when its matrix entry names the cross-world semantics, graph/evidence
+      scope, executable engine, refusals, artifact representation, and required
+      calibration—not when a neighboring factual or interventional row passes.
 - [ ] Start X7 only after a measured workload demonstrates that accelerator
       transfer and orchestration costs do not dominate the intended neural
       nuisance workloads. Keep it independent of X4's causal/statistical
