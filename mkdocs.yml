@@ -1,16 +1,18 @@
 # Narrative docs for Read the Docs / local `mkdocs serve`.
 # Python API: pdoc HTML merged into the RTD site at /python/ (see .readthedocs.yaml).
 # Rust API: docs.rs/antecedent.
-site_name: Antecedent
-site_description: Identification-first causal inference for Python and Rust — from causal structure through estimation, interventions, and counterfactuals under structural uncertainty
+site_name: Antecedent 2.0
+site_description: Stable 2.0 documentation for identification-first causal inference in Python and Rust
 site_url: https://antecedent.readthedocs.io/
 repo_url: https://github.com/iridae-dev/antecedent
-edit_uri: edit/main/docs/
+edit_uri: edit/2.0/docs/
 
 theme:
   name: material
   features:
     - content.code.copy
+    - navigation.sections
+    - navigation.top
     - navigation.footer
   palette:
     - scheme: default

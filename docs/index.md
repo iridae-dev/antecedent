@@ -6,6 +6,12 @@ answer means—its assumptions, identification status, empirical support,
 uncertainty, provenance, and limits—when the analysis is estimated, reused,
 combined, saved, transported, or consumed by other software.
 
+> **Antecedent 2.0 is the stable release.** Install it with
+> `python -m pip install --upgrade antecedent` (Python 3.11+), then begin with
+> the [Python quickstart](python-workflow.md). Read the
+> [2.0.0 release notes](release-notes/v2.0.0.md) when upgrading from an earlier
+> release.
+
 Most causal failures in software are semantic failures at boundaries. Read
 [the system model](system-model.md) first: it explains how Antecedent compiles
 declared knowledge into a causal contract and why a result is more than a

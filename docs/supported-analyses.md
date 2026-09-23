@@ -14,7 +14,7 @@ Start with the closest worked example, then check its exact settings:
 | Can I reuse earlier evidence? | [Prior bank](priors.md) | Compatibility of the source and target analyses |
 | Is the outcome censored or selected? | [Observation contract](observation-contract.md) | The mechanism and its separate identifying assumptions |
 | Can I transfer effects or model interference? | [Transport and interference](transport-interference.md) and `antecedent.transport.Transport` | Target, evidence, and the [support matrix](support-matrix.md); 1.11 names moved — see the [migration](migrations/2.0-transport-day1.md) |
-| Can I fit nuisance models with DML, DR-Learner, or a causal forest? | [Python package notes](../python/README.md) | The estimator is licensed for that graph, inference, and validation cell; a forest does not add a CATE interval that was not estimated |
+| Can I fit nuisance models with DML, DR-Learner, or a causal forest? | [Python package notes](https://github.com/iridae-dev/antecedent/blob/2.0/python/README.md) | The estimator is licensed for that graph, inference, and validation cell; a forest does not add a CATE interval that was not estimated |
 
 These are starting points, not permission to combine arbitrary options. The [full support matrix](support-matrix.md#licensed-cells) is the authoritative list. Its [refusal reasons](support-matrix.md#refusal-reasons) explain excluded combinations. `n/a` means the combination does not define a valid question.
 
