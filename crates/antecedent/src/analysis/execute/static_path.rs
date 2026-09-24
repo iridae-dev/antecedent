@@ -10,7 +10,7 @@ impl super::Study {
         graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
-        prepared_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
+        prepared_linear: Option<&super::super::prepared::CheckedLinearOperation>,
         prepared_aipw: Option<&super::super::prepared::CheckedAipwOperation>,
         prepared_frontdoor: Option<&super::super::prepared::CheckedFrontDoorOperation>,
         bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
@@ -130,18 +130,19 @@ impl super::Study {
                 EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
                 _ => None,
             };
+            let fitter = prepared_linear.map_or(fitter, |operation| Some(operation.fitter.clone()));
             fitter
                     .map(|fitter| {
                         let checked = match prepared_linear {
-                            Some(prepared) => {
-                                if prepared.source_functional() != estimand.functional
-                                    || prepared.target().adjustment_set != estimand.adjustment_set
+                            Some(operation) => {
+                                if operation.preparation.source_functional() != estimand.functional
+                                    || operation.preparation.target().adjustment_set != estimand.adjustment_set
                                 {
                                     return Err(CausalError::Compile {
                                         message: "prepared adjustment lowering disagrees with selected identification".into(),
                                     });
                                 }
-                                prepared.clone()
+                                operation.preparation.clone()
                             }
                             None => fitter.prepare_checked(data, &identification, 0)?,
                         };
@@ -277,7 +278,13 @@ impl super::Study {
                 }
             }
         } else if let Some((fitter, checked)) = &checked_linear {
-            if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)) {
+            if prepared_linear.is_some_and(|operation| operation.default_id)
+                || (prepared_linear.is_none()
+                    && matches!(
+                        estimator_spec,
+                        EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)
+                    ))
+            {
                 // The progressive default route reports a genuine point stage.
                 // Its bootstrap belongs to the uncertainty stage below, even
                 // though the checked receipt retains the same bound design.
@@ -368,11 +375,14 @@ impl super::Study {
         // reproduce the same estimate at the cost of a second full nuisance fit.
         let skip_bootstrap_refill = prepared_aipw.is_some()
             || prepared_frontdoor.is_some()
-            || self.bootstrap_replicates == 0
-            || self
-                .estimator_spec
-                .as_ref()
-                .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
+            || prepared_linear.is_some_and(|operation| !operation.default_id)
+            || prepared_linear.is_some_and(|operation| operation.fitter.bootstrap_replicates == 0)
+            || (prepared_linear.is_none() && self.bootstrap_replicates == 0)
+            || (prepared_linear.is_none()
+                && self
+                    .estimator_spec
+                    .as_ref()
+                    .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_))))
             || matches!(
                 estimator_id,
                 EstimatorId::IvWald
@@ -441,9 +451,12 @@ impl super::Study {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
                 // A configured linear estimator never reaches here (it bootstrapped in the
                 // point fit), so this is the id-selected default the point stage also used.
-                let mut est = LinearAdjustmentAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                est.overlap = OverlapPolicy::ExplicitOverride;
+                let mut est = prepared_linear
+                    .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
+                if prepared_linear.is_none() {
+                    est.bootstrap_replicates = self.bootstrap_replicates;
+                    est.overlap = OverlapPolicy::ExplicitOverride;
+                }
                 let prep = if let Some((_, checked)) = &checked_linear {
                     checked.problem().clone()
                 } else {
