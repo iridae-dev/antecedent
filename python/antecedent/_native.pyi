@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
+
+from .transport._impl import ZTransportSensitivityResult
 
 CiArg = str | Callable[..., Any] | None
 
@@ -3640,21 +3642,6 @@ class ZTransportProposalStage:
         max_depth: int = 256,
         memory_bytes: int | None = None,
     ) -> PreparedZTransportStage: ...
-
-class ZTransportSensitivityResult(TypedDict):
-    status: str
-    estimand: str
-    estimand: str
-    baseline: float
-    assumption_range: dict[str, float]
-    interval_interpretation: str
-    delta_domain: list[float]
-    decision_threshold: float | None
-    tipping_fraction: float | None
-    minimizing_outcome_by_stratum: list[int]
-    maximizing_outcome_by_stratum: list[int]
-    method: str
-    baseline_binding: dict[str, Any]
 
 class PreparedZTransportStage:
     def estimate(self) -> str: ...

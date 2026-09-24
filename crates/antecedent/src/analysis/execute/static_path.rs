@@ -210,7 +210,22 @@ impl super::Study {
         let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
         let mut iv_workspace = antecedent_estimate::TwoStageLeastSquaresWorkspace::default();
         let point = if let Some((fitter, checked)) = &checked_linear {
-            fitter.fit_checked(checked, &mut estimate_ws.linear, ctx).map_err(CausalError::from)?
+            if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)) {
+                // The progressive default route reports a genuine point stage.
+                // Its bootstrap belongs to the uncertainty stage below, even
+                // though the checked receipt retains the same bound design.
+                fitter
+                    .fit_point(
+                        checked.problem(),
+                        &mut estimate_ws.linear,
+                        checked.required_assumptions().clone(),
+                    )
+                    .map_err(CausalError::from)?
+            } else {
+                fitter
+                    .fit_checked(checked, &mut estimate_ws.linear, ctx)
+                    .map_err(CausalError::from)?
+            }
         } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
             fitter.fit_checked(checked, &mut frontdoor_workspace, ctx).map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_frontdoor_functional {
