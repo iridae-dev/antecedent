@@ -374,6 +374,7 @@ impl super::Study {
         graph: &Dag,
         query: &ResponseQuery,
         physical: &PhysicalExecutionPlan,
+        checked_curve: Option<&super::super::prepared::CheckedStaticResponseCurve>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
@@ -381,24 +382,42 @@ impl super::Study {
             physical.logical.record.identifier.as_deref().unwrap_or(DEFAULT_RESPONSE_IDENTIFIER);
         let estimator =
             physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_RESPONSE_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let checked_identity = checked_curve
+            .map(|plan| {
+                plan.checked_route(query).map(|(identification, estimand)| {
+                    let (identifier, estimator) = plan.procedure();
+                    (identification.clone(), estimand.clone(), identifier, estimator)
+                })
+            })
+            .transpose()?;
+        let identifier_id: IdentifierId = checked_identity
+            .as_ref()
+            .map(|(_, _, identifier, _)| *identifier)
+            .unwrap_or(identifier.parse()?);
+        let estimator_id: EstimatorId = checked_identity
+            .as_ref()
+            .map(|(_, _, _, estimator)| *estimator)
+            .unwrap_or(estimator.parse()?);
         let cell_aipw = matches!(estimator_id, EstimatorId::CellAipw);
 
         let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification = identify_static_query(
-                    identifier_id,
-                    graph,
-                    &CausalQuery::Response(query.clone()),
-                )?;
-                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "response identifier returned no estimand".into(),
-                    }
-                })?;
-                Ok((identification, estimand))
-            })?;
+            if let Some((identification, estimand, _, _)) = checked_identity {
+                (identification, estimand, true)
+            } else {
+                identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                    let identification = identify_static_query(
+                        identifier_id,
+                        graph,
+                        &CausalQuery::Response(query.clone()),
+                    )?;
+                    let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                        CausalError::Compile {
+                            message: "response identifier returned no estimand".into(),
+                        }
+                    })?;
+                    Ok((identification, estimand))
+                })?
+            };
         if identification
             .estimands
             .iter()

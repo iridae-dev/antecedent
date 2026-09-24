@@ -503,7 +503,7 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { unreachable!() };
-                self.execute_tabular_route(route, data, physical, None, None, None, ctx)
+                self.execute_tabular_route(route, data, physical, None, None, None, None, None, ctx)
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -593,6 +593,8 @@ impl super::Study {
         checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
         distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
+        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
+        checked_response_curve: Option<&super::super::prepared::CheckedStaticResponseCurve>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -609,6 +611,8 @@ impl super::Study {
             checked_linear,
             nested_counterfactual,
             distribution_operation,
+            bayesian_gcomp_operation,
+            checked_response_curve,
             ctx,
         )
     }
@@ -664,6 +668,8 @@ impl super::Study {
         checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
         distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
+        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
+        checked_response_curve: Option<&super::super::prepared::CheckedStaticResponseCurve>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
@@ -674,7 +680,7 @@ impl super::Study {
                         let graph = self.require_execute_dag(
                             "Response execute requires a supplied static DAG",
                         )?;
-                        self.execute_response(data, graph, q, physical, ctx)
+                        self.execute_response(data, graph, q, physical, checked_response_curve, ctx)
                     }
                     GraphClass::Cpdag | GraphClass::Pag => {
                         self.execute_class_response(data, q, physical, ctx)
@@ -699,7 +705,7 @@ impl super::Study {
                                      static DAG"
                                     .into(),
                             })?;
-                            self.execute_response(data, graph, q, physical, ctx)
+                            self.execute_response(data, graph, q, physical, None, ctx)
                         }
                     }
                     _ => Err(CausalError::Unsupported {
@@ -729,7 +735,15 @@ impl super::Study {
                     GraphClass::Dag => {
                         let graph =
                             self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                        self.execute_static(data, graph, q, physical, checked_linear, ctx)
+                        self.execute_static(
+                            data,
+                            graph,
+                            q,
+                            physical,
+                            checked_linear,
+                            bayesian_gcomp_operation,
+                            ctx,
+                        )
                     }
                     GraphClass::Cpdag => {
                         let cpdag = self
@@ -751,7 +765,15 @@ impl super::Study {
                                     "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
                                         .into(),
                             })?;
-                            self.execute_static(data, graph, q, physical, checked_linear, ctx)
+                            self.execute_static(
+                                data,
+                                graph,
+                                q,
+                                physical,
+                                checked_linear,
+                                bayesian_gcomp_operation,
+                                ctx,
+                            )
                         }
                     }
                     GraphClass::Pag => {

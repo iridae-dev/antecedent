@@ -10,6 +10,7 @@ impl super::Study {
         graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
+        checked_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
@@ -24,11 +25,24 @@ impl super::Study {
         // only (identifier, graph, query) — rd is never consulted on this path —
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
-        let (identification, estimand, identify_cached) =
+        if let Some(operation) = checked_operation {
+            if operation.query != *query
+                || !matches!(operation.inference, InferenceMode::Bayesian(_))
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared Bayesian g-computation binding changed after prepare".into(),
+                });
+            }
+        }
+        let (identification, estimand, identify_cached) = if let Some(operation) = checked_operation
+        {
+            (operation.identification.clone(), operation.estimand.clone(), true)
+        } else {
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
                 select_claim(identification, estimator_id)
-            })?;
+            })?
+        };
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -42,7 +56,8 @@ impl super::Study {
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let projected_cols = data_est.schema().len();
 
-        let cfg = match &self.inference {
+        let inference = checked_operation.map_or(&self.inference, |operation| &operation.inference);
+        let cfg = match inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::Unsupported {
