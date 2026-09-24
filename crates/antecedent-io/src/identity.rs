@@ -1477,6 +1477,38 @@ pub struct ProgramIdentityWire {
     /// independently replayed as checked linear executions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_linear_adjustment_lowering: Option<CheckedLinearAdjustmentLoweringWire>,
+    /// Ordered checked member programs for an ADMG mean response curve.
+    /// Older artifacts omit the grid family and cannot independently replay it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_functional_response_grid: Option<CheckedFunctionalResponseGridWire>,
+}
+
+/// Versioned checked member programs for a finite response curve.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedFunctionalResponseGridWire {
+    /// Grid-family wire format.
+    pub format: u16,
+    /// Intervened variable id.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Members in the exact target-grid order.
+    pub members: Vec<CheckedFunctionalResponseMemberWire>,
+}
+
+/// One checked response-curve intervention and its identified functional.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedFunctionalResponseMemberWire {
+    /// Intervention level bits, preserving exact IEEE-754 identity.
+    pub grid_value_bits: u64,
+    /// Exact one-level response query used to identify this member.
+    pub query: crate::CausalQueryWire,
+    /// Member-specific identification product.
+    pub identification: IdentificationProductWire,
+    /// Checked scalar functional evaluated for this member.
+    pub program: crate::FunctionalProgramWire,
 }
 
 /// Durable target, design, estimator, and uncertainty choice for a checked
