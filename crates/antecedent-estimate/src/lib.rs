@@ -84,7 +84,9 @@ pub use learned_trial::{
 mod fitted_effect;
 pub use fitted_effect::FittedEffect;
 
-pub use aipw::{AipwAte, AipwWorkspace};
+pub use aipw::{
+    AipwAte, AipwWorkspace, CheckedAipwLowering, CheckedAipwPreparation, CheckedAipwProcedure,
+};
 pub use antecedent_expr::EstimandMethod;
 pub use antecedent_learn::{
     ForestSpec, GbtSpec, LearnerProvenance, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
