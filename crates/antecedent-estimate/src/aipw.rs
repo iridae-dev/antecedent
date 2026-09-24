@@ -51,8 +51,12 @@ use std::sync::Arc;
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_expr::{
+    FactorRequirement, FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
+};
+use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmOptions, LeastSquaresWorkspace, PropensityWorkspace,
 };
@@ -85,6 +89,77 @@ pub struct AipwWorkspace {
     pub(crate) mu0: Vec<f64>,
     pub(crate) mu1: Vec<f64>,
     psi: Vec<f64>,
+}
+
+/// Licensed procedure retained by the checked frequentist AIPW ATE route.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CheckedAipwProcedure {
+    /// Logistic propensity and arm-specific OLS outcome nuisances with cross-fitted scores.
+    CrossFittedLogisticOls,
+}
+
+/// Selected target roles and numerical choices for checked AIPW execution.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedAipwLowering {
+    /// Source causal target root.
+    pub functional: antecedent_expr::ExprId,
+    /// Treatment role.
+    pub treatment: antecedent_core::VariableId,
+    /// Outcome role.
+    pub outcome: antecedent_core::VariableId,
+    /// Adjustment roles in selected-estimand order.
+    pub adjustment: Arc<[antecedent_core::VariableId]>,
+    /// Population whose mean contrast is estimated.
+    pub population: TargetPopulation,
+    /// Estimator procedure retained for execution.
+    pub procedure: CheckedAipwProcedure,
+    /// Cross-fit fold count.
+    pub folds: usize,
+    /// Analytic uncertainty method.
+    pub se_kind: AnalyticSeKind,
+    /// Bootstrap replicate count (zero disables bootstrap uncertainty).
+    pub bootstrap_replicates: u32,
+    /// Complete-case source row identities bound during preparation.
+    pub rows: Arc<[u32]>,
+}
+
+/// Checked AIPW preparation sealed to one identified ATE claim and data binding.
+#[derive(Clone, Debug)]
+pub struct CheckedAipwPreparation {
+    target: IdentifiedEstimand,
+    program: FunctionalProgram,
+    factor_requirements: Arc<[FactorRequirement]>,
+    lowering: CheckedAipwLowering,
+    query: AverageEffectQuery,
+    required_assumptions: AssumptionSet,
+    problem: PreparedPropensityProblem,
+}
+
+impl CheckedAipwPreparation {
+    /// Selected identified target.
+    pub fn target(&self) -> &IdentifiedEstimand {
+        &self.target
+    }
+    /// Checked owner of the selected causal functional.
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+    /// Checked provider requirements of the retained target program.
+    pub fn factor_requirements(&self) -> &[FactorRequirement] {
+        &self.factor_requirements
+    }
+    /// Retained typed procedure and role bindings.
+    pub fn lowering(&self) -> &CheckedAipwLowering {
+        &self.lowering
+    }
+    /// Selected identification assumptions.
+    pub fn required_assumptions(&self) -> &AssumptionSet {
+        &self.required_assumptions
+    }
+    /// Bound numerical design, including complete-case row identities.
+    pub fn problem(&self) -> &PreparedPropensityProblem {
+        &self.problem
+    }
 }
 
 /// Doubly robust (AIPW) ATE / ATT / ATC estimator.
@@ -262,6 +337,175 @@ impl AipwAte {
             self.overlap,
             self.population_registry.as_ref(),
         )
+    }
+
+    /// Prepare the licensed logistic/OLS AIPW route from one identified mean ATE claim.
+    ///
+    /// The receipt retains the selected functional, identification assumptions, semantic
+    /// roles, cross-fit procedure, uncertainty choices, and complete-case row identities.
+    /// This checked route currently covers the untrimmed `AllObserved` mean ATE.
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<CheckedAipwPreparation, EstimationError> {
+        let target = identification
+            .estimands
+            .get(estimand_index)
+            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
+        let claim = identification.claim(estimand_index).ok_or_else(|| {
+            EstimationError::data_msg("selected estimand has no identification claim")
+        })?;
+        if claim.status != IdentificationStatus::NonparametricallyIdentified {
+            return Err(EstimationError::data_msg(format!(
+                "checked AIPW requires a nonparametrically identified claim; got {}",
+                claim.status.as_str()
+            )));
+        }
+        let query = identification.average_effect().ok_or_else(|| {
+            EstimationError::data_msg("checked AIPW requires an average-effect query")
+        })?;
+        if !target.is_adjustment_shaped()
+            || !target.instruments.is_empty()
+            || !target.mediators.is_empty()
+        {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked AIPW requires a back-door adjustment target without instrument or mediator roles",
+            });
+        }
+        let mut adjustment = target.adjustment_set.to_vec();
+        adjustment.sort_unstable();
+        adjustment.dedup();
+        if adjustment.len() != target.adjustment_set.len()
+            || adjustment.contains(&query.treatment)
+            || adjustment.contains(&query.outcome)
+        {
+            return Err(EstimationError::data_msg(
+                "checked AIPW adjustment roles must be unique and exclude treatment and outcome",
+            ));
+        }
+        if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+            || query.target_population != TargetPopulation::AllObserved
+        {
+            return Err(EstimationError::unsupported(
+                "checked AIPW currently supports the AllObserved mean ATE",
+            ));
+        }
+        if crate::propensity::trim_of(self.overlap).is_some() {
+            return Err(EstimationError::unsupported(
+                "checked AIPW currently requires the untrimmed cross-fitted ATE procedure",
+            ));
+        }
+        let (active, control, _) =
+            crate::prepare::treatment_contrast(&query.active, &query.control)?;
+        if active != 1.0 || control != 0.0 {
+            return Err(EstimationError::unsupported(
+                "checked AIPW requires binary treatment arms active=1.0 and control=0.0",
+            ));
+        }
+        let mut arena = identification.arena.clone();
+        let expected = arena.backdoor_ate(
+            query.treatment,
+            query.outcome,
+            &target.adjustment_set,
+            antecedent_core::Value::f64(active),
+            antecedent_core::Value::f64(control),
+        );
+        if expected != target.functional {
+            return Err(EstimationError::data_msg(
+                "selected AIPW functional does not match treatment, outcome, arms, and adjustment roles",
+            ));
+        }
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let program = FunctionalProgram::new(
+            arena,
+            schema,
+            target.functional,
+            target.functional,
+            ProgramLimits::default(),
+        )
+        .map_err(|e| EstimationError::data_msg(format!("checked AIPW target program: {e}")))?;
+        let problem = self.prepare(data, target, query)?;
+        let factor_requirements = Arc::from(program.factor_requirements().to_vec());
+        let lowering = CheckedAipwLowering {
+            functional: target.functional,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            adjustment: Arc::clone(&target.adjustment_set),
+            population: query.target_population.clone(),
+            procedure: CheckedAipwProcedure::CrossFittedLogisticOls,
+            folds: crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+            se_kind: self.se_kind,
+            bootstrap_replicates: self.bootstrap_replicates,
+            rows: Arc::clone(&problem.row_index),
+        };
+        Ok(CheckedAipwPreparation {
+            target: target.clone(),
+            program,
+            factor_requirements,
+            lowering,
+            query: query.clone(),
+            required_assumptions: claim.required_assumptions.clone(),
+            problem,
+        })
+    }
+
+    /// Rebind a checked AIPW target to compatible data while retaining its selected procedure.
+    pub fn rebind_checked(
+        &self,
+        checked: &CheckedAipwPreparation,
+        data: &TabularData,
+    ) -> Result<CheckedAipwPreparation, EstimationError> {
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        if checked.program.schema() != &schema
+            || checked.program.mapping().source != checked.target.functional
+            || checked.program.mapping().executable != checked.target.functional
+            || checked.lowering.functional != checked.target.functional
+            || checked.lowering.treatment != checked.query.treatment
+            || checked.lowering.outcome != checked.query.outcome
+            || checked.lowering.adjustment != checked.target.adjustment_set
+            || checked.lowering.population != checked.query.target_population
+            || checked.lowering.procedure != CheckedAipwProcedure::CrossFittedLogisticOls
+            || checked.lowering.folds != crate::crossfit_aipw::DEFAULT_AIPW_FOLDS
+            || checked.lowering.se_kind != self.se_kind
+            || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+        {
+            return Err(EstimationError::data_msg(
+                "checked AIPW target, procedure, bindings, or semantic schema changed",
+            ));
+        }
+        let mut rebound = checked.clone();
+        rebound.problem = self.prepare(data, &checked.target, &checked.query)?;
+        rebound.lowering.rows = Arc::clone(&rebound.problem.row_index);
+        Ok(rebound)
+    }
+
+    /// Execute a checked AIPW preparation using its retained identification assumptions.
+    pub fn fit_checked(
+        &self,
+        checked: &CheckedAipwPreparation,
+        workspace: &mut AipwWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if checked.lowering.se_kind != self.se_kind
+            || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+        {
+            return Err(EstimationError::data_msg(
+                "AIPW estimator configuration differs from the checked procedure receipt",
+            ));
+        }
+        self.fit(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
     }
 
     /// Fit propensity + outcome nuisance models and compute the AIPW effect, with optional
@@ -997,6 +1241,9 @@ mod tests {
     };
     use antecedent_expr::ExprId;
     use antecedent_expr::IdentifiedEstimand;
+    use antecedent_identify::{
+        DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+    };
 
     use super::*;
     use crate::overlap::OverlapPolicy;
@@ -1093,6 +1340,69 @@ mod tests {
             ExprId::from_raw(0),
         );
         (TabularData::new(storage), estimand)
+    }
+
+    fn identified_aipw(data_estimand: &IdentifiedEstimand) -> IdentificationResult {
+        let query = antecedent_core::AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        );
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let functional = arena.backdoor_ate(
+            query.treatment,
+            query.outcome,
+            &[VariableId::from_raw(2)],
+            antecedent_core::Value::f64(1.0),
+            antecedent_core::Value::f64(0.0),
+        );
+        IdentificationResult::identified(
+            antecedent_core::CausalQuery::average_effect(query),
+            vec![IdentifiedEstimand::backdoor(
+                "backdoor.adjustment",
+                Arc::clone(&data_estimand.adjustment_set),
+                functional,
+            )],
+            arena,
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        )
+    }
+
+    #[test]
+    fn checked_aipw_executes_retained_target_and_rebinds_rows() {
+        let (data, estimand) = confounded_scm(2400, 9182);
+        let identification = identified_aipw(&estimand);
+        let estimator = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(checked.lowering().functional, checked.target().functional);
+        assert_eq!(checked.lowering().treatment, VariableId::from_raw(0));
+        assert_eq!(checked.lowering().outcome, VariableId::from_raw(1));
+        assert_eq!(checked.lowering().adjustment.as_ref(), &[VariableId::from_raw(2)]);
+        assert_eq!(checked.lowering().procedure, CheckedAipwProcedure::CrossFittedLogisticOls);
+        assert_eq!(checked.lowering().rows.as_ref(), checked.problem().row_index.as_ref());
+        let rebound = estimator.rebind_checked(&checked, &data).unwrap();
+        assert_eq!(rebound.program().mapping(), checked.program().mapping());
+        assert_eq!(rebound.lowering().rows.as_ref(), checked.lowering().rows.as_ref());
+
+        let mut workspace = AipwWorkspace::default();
+        let estimate = estimator
+            .fit_checked(&checked, &mut workspace, &ExecutionContext::for_tests(441))
+            .unwrap();
+        assert!((estimate.ate - 2.0).abs() < 0.15, "AIPW estimate {}", estimate.ate);
+    }
+
+    #[test]
+    fn checked_aipw_refuses_target_with_wrong_roles() {
+        let (data, estimand) = confounded_scm(300, 33);
+        let mut identification = identified_aipw(&estimand);
+        identification.estimands[0] = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(0)]),
+            identification.estimands[0].functional,
+        );
+        let estimator = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
+        assert!(estimator.prepare_checked(&data, &identification, 0).is_err());
     }
 
     fn ctx() -> ExecutionContext {
