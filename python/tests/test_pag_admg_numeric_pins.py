@@ -215,6 +215,29 @@ def test_admg_frontdoor_functional_effect_numeric_pin(
     assert fresh.posterior is click.posterior is None
 
 
+def test_admg_functional_effect_refresh_exports_replayable_law() -> None:
+    data = _expand_contingency(_ADMG_PIN)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=_admg(accepted=False),
+        query=_query(_ADMG_PIN),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    first = prepared.estimate(data, seed=1)
+    first_replay = antecedent.artifacts.accept(first.export())
+    assert first_replay["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "y": 1.0 - data["y"]}
+    refreshed = prepared.refresh(changed, seed=1)
+    assert refreshed.ate == pytest.approx(-first.ate, abs=1e-12)
+    replay = antecedent.artifacts.accept(refreshed.export())
+    assert replay["accepts_as_verified_program"] == "true"
+    assert replay["program"] == first_replay["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
 def test_pag_same_schema_refresh_reuses_identification() -> None:
     from test_mag_adjustment_visibility import _case
 

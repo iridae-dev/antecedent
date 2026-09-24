@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-python3 scripts/compiler_migration.py
+python3 scripts/compiler_migration.py --verify-progress
 if [[ "${1:-}" == "--release-gate" ]]; then
   exec python3 scripts/compiler_migration.py --release-gate
 fi

@@ -356,6 +356,7 @@ impl PreparedStudy {
             self.checked_frontdoor_linear(),
             self.checked_iv(),
             self.checked_linear_operation(),
+            self.checked_functional_effect_program(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -400,6 +401,7 @@ impl PreparedStudy {
                 if population.is_none() { self.checked_frontdoor_linear() } else { None },
                 if population.is_none() { self.checked_iv() } else { None },
                 if population.is_none() { self.checked_linear_operation() } else { None },
+                if population.is_none() { self.checked_functional_effect_program() } else { None },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -409,7 +411,10 @@ impl PreparedStudy {
         )?;
         let mut snapshot = snapshot;
         if let DataInput::Tabular(tabular) = data {
-            if let Some(laws) = self.distribution_factor_snapshot(tabular)? {
+            let laws = self
+                .distribution_factor_snapshot(tabular)?
+                .or(self.functional_effect_factor_snapshot(tabular)?);
+            if let Some(laws) = laws {
                 snapshot.distribution_factor_laws = Some(
                     antecedent_io::distribution_factor_laws_to_wire(&laws)
                         .map_err(|err| io_err(&err))?,
@@ -1125,6 +1130,7 @@ fn program_payloads_for(
     checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
     checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
     checked_linear: Option<&super::prepared::CheckedLinearOperation>,
+    checked_functional_effect: Option<&antecedent_expr::FunctionalProgram>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1137,6 +1143,7 @@ fn program_payloads_for(
         checked_frontdoor,
         checked_iv,
         checked_linear,
+        checked_functional_effect,
     )
 }
 
@@ -1149,7 +1156,10 @@ fn contract_payloads(
     let mut data_snapshot =
         data_snapshot_wire(&study.data, study.interference.as_ref(), &program.observation_digest)?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
-        if let Some(laws) = prepared.distribution_factor_snapshot(tabular)? {
+        let laws = prepared
+            .distribution_factor_snapshot(tabular)?
+            .or(prepared.functional_effect_factor_snapshot(tabular)?);
+        if let Some(laws) = laws {
             data_snapshot.distribution_factor_laws = Some(
                 antecedent_io::distribution_factor_laws_to_wire(&laws)
                     .map_err(|err| io_err(&err))?,
@@ -1169,6 +1179,7 @@ fn program_payloads(
     checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
     checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
     checked_linear: Option<&super::prepared::CheckedLinearOperation>,
+    checked_functional_effect: Option<&antecedent_expr::FunctionalProgram>,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1391,6 +1402,13 @@ fn program_payloads(
         .transpose()?;
     let functional_program = if resolved_estimator
         .and_then(|name| name.parse::<crate::EstimatorId>().ok())
+        == Some(crate::EstimatorId::FunctionalEffect)
+    {
+        checked_functional_effect
+            .map(antecedent_io::functional_program_to_wire)
+            .transpose()
+            .map_err(|err| io_err(&err))?
+    } else if resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok())
         == Some(crate::EstimatorId::FunctionalDistribution)
     {
         cached
@@ -1531,6 +1549,9 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .and_then(PreparedStudy::checked_linear_operation),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_functional_effect_program),
         )?),
     };
     let mut payloads = contract_payloads(program, study, prepared)?;

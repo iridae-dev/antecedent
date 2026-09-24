@@ -1,4 +1,4 @@
-//! Detached finite-discrete replay for checked distribution artifacts.
+//! Detached finite-discrete replay for checked functional artifacts.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -312,6 +312,123 @@ pub(crate) fn replay_distribution_atoms(
     Ok(())
 }
 
+/// Recompute a checked discrete scalar functional from its program and empirical factor laws.
+///
+/// The returned key names a stable refusal reason and is suitable for an independent
+/// consumer's dependency report.
+pub(crate) fn replay_functional_scalar(
+    query: &CausalQueryWire,
+    reported: Option<f64>,
+    program_wire: &FunctionalProgramWire,
+    laws: &DistributionFactorLawsWire,
+) -> Result<(), &'static str> {
+    if !matches!(query, CausalQueryWire::AverageEffect { .. } | CausalQueryWire::PathSpecific(_)) {
+        return Err("functional_effect.query_kind");
+    }
+    let reported = reported.ok_or("functional_effect.result")?;
+    if !reported.is_finite() {
+        return Err("functional_effect.result");
+    }
+    if laws.format != FACTOR_LAWS_FORMAT {
+        return Err("functional_effect.factor_laws_format");
+    }
+    if laws.provider != "empirical_table"
+        || laws.missing_row_policy != "joint_complete_case"
+        || laws.complete_case_rows == 0
+        || laws.source_rows < laws.complete_case_rows
+    {
+        return Err("functional_effect.provider_provenance");
+    }
+    let program =
+        functional_program_from_wire(program_wire, antecedent_expr::ProgramLimits::default())
+            .map_err(|_| "functional_effect.functional_program")?;
+    verify_scalar_requirements(&program, laws)?;
+    validate_law_size(laws).map_err(|_| "functional_effect.factor_laws_resource_limit")?;
+    let provider = provider_from_laws(laws).map_err(|reason| match reason {
+        "distribution.factor_normalization" => "functional_effect.factor_normalization",
+        _ => "functional_effect.factor_laws",
+    })?;
+    let free = program.free_variables();
+    let free_cells = support_cells(laws, free).map_err(|_| "functional_effect.factor_domains")?;
+    if free_cells.saturating_mul(program.arena().len().max(1)) > MAX_REPLAY_OPERATIONS {
+        return Err("functional_effect.replay_resource_limit");
+    }
+    let support = provider
+        .support(free, &EvalContext::default())
+        .map_err(|_| "functional_effect.free_variable_support")?;
+    let free_law =
+        (!free.is_empty()).then(|| FactorSpec::new(free, &[], &[], DomainRef::Observational));
+    let evaluator = program.compile().map_err(|_| "functional_effect.program_compile")?;
+    let mut weighted_sum = 0.0;
+    let mut total_weight = 0.0;
+    for row in support.iter() {
+        let assignment = Assignment::from_pairs(free.iter().copied().zip(row.iter().cloned()));
+        let weight = match &free_law {
+            Some(spec) => provider
+                .probability(spec, &assignment, &EvalContext::default())
+                .map_err(|_| "functional_effect.free_variable_law")?,
+            None => 1.0,
+        };
+        if !weight.is_finite() || weight < 0.0 {
+            return Err("functional_effect.free_variable_law");
+        }
+        if weight == 0.0 {
+            continue;
+        }
+        let value = evaluator
+            .evaluate_with(&provider, &EvalContext::default(), &assignment)
+            .map_err(|_| "functional_effect.expression_evaluation")?;
+        if !value.is_finite() {
+            return Err("functional_effect.non_finite_value");
+        }
+        weighted_sum += weight * value;
+        total_weight += weight;
+    }
+    if !total_weight.is_finite() || total_weight <= 0.0 {
+        return Err("functional_effect.zero_free_variable_mass");
+    }
+    let expected = weighted_sum / total_weight;
+    if !expected.is_finite() || (expected - reported).abs() > 1e-10 * (1.0 + expected.abs()) {
+        return Err("functional_effect.result_mismatch");
+    }
+    Ok(())
+}
+
+fn verify_scalar_requirements(
+    program: &FunctionalProgram,
+    laws: &DistributionFactorLawsWire,
+) -> Result<(), &'static str> {
+    let mut expected: Vec<_> =
+        program.factor_requirements().iter().map(key_from_requirement).collect();
+    let free: Vec<_> = program.free_variables().iter().map(|id| id.raw()).collect();
+    if !free.is_empty() {
+        expected.push(DistributionFactorKeyWire {
+            variables: free,
+            conditioned_on: Vec::new(),
+            intervention: Vec::new(),
+            domain: DistributionFactorDomainWire::Observational,
+            population: String::new(),
+            regime: None,
+        });
+    }
+    if expected != laws.requirements {
+        return Err("functional_effect.factor_requirements");
+    }
+    let mut unique = Vec::new();
+    for key in expected {
+        if !unique.contains(&key) {
+            unique.push(key);
+        }
+    }
+    if unique.len() != laws.factors.len()
+        || unique.iter().any(|key| !laws.factors.iter().any(|factor| &factor.key == key))
+        || laws.factors.iter().any(|factor| !unique.contains(&factor.key))
+    {
+        return Err("functional_effect.factor_law_coverage");
+    }
+    Ok(())
+}
+
 fn verify_requirements(
     program: &FunctionalProgram,
     query: &crate::InterventionalDistributionQueryWire,
@@ -612,6 +729,62 @@ mod tests {
         (query_wire, result, program_wire, laws)
     }
 
+    fn scalar_fixture() -> (CausalQueryWire, FunctionalProgramWire, DistributionFactorLawsWire) {
+        use antecedent_core::{AverageEffectQuery, CausalQuery};
+        use antecedent_expr::{ExprNode, OutcomeExprId};
+
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let mut arena = CausalExprArena::new();
+        let outcome_set = arena.intern_var_set([outcome]);
+        let empty = arena.empty_var_set();
+        let no_intervention = arena.empty_intervention_set();
+        let distribution = arena.intern_distribution(
+            outcome_set,
+            empty,
+            no_intervention,
+            DomainRef::Observational,
+        );
+        let root = arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(outcome),
+            distribution,
+        });
+        let schema = ProgramSchema::new([
+            (treatment, ProgramVariable { name: Arc::from("t") }),
+            (outcome, ProgramVariable { name: Arc::from("y") }),
+        ]);
+        let program =
+            FunctionalProgram::new(arena, schema, root, root, ProgramLimits::default()).unwrap();
+        let key = key_from_requirement(&program.factor_requirements()[0]);
+        let query = crate::causal_query_to_wire(&CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(treatment, outcome),
+        ))
+        .unwrap();
+        let laws = DistributionFactorLawsWire {
+            format: FACTOR_LAWS_FORMAT,
+            provider: "empirical_table".into(),
+            source_rows: 4,
+            complete_case_rows: 4,
+            missing_row_policy: "joint_complete_case".into(),
+            domains: vec![(1, vec![ValueWire::Float64(0.0), ValueWire::Float64(1.0)])],
+            requirements: vec![key.clone()],
+            factors: vec![DistributionFactorTableWire {
+                key,
+                rows: vec![
+                    DistributionFactorRowWire {
+                        values: vec![ValueWire::Float64(0.0)],
+                        probability: 0.25,
+                    },
+                    DistributionFactorRowWire {
+                        values: vec![ValueWire::Float64(1.0)],
+                        probability: 0.75,
+                    },
+                ],
+            }],
+        };
+        (query, crate::functional_program_to_wire(&program).unwrap(), laws)
+    }
+
     #[test]
     fn independent_replay_recomputes_distribution_atoms_from_factor_laws() {
         let (query, result, program, laws) = replay_fixture();
@@ -630,6 +803,78 @@ mod tests {
         assert_eq!(
             replay_distribution_atoms(&query, &result, &program, &changed_laws),
             Err("distribution.atom_replay_mismatch")
+        );
+    }
+
+    #[test]
+    fn functional_scalar_replay_recomputes_point_from_factor_laws() {
+        let (query, program, laws) = scalar_fixture();
+        replay_functional_scalar(&query, Some(0.75), &program, &laws).unwrap();
+        assert_eq!(
+            replay_functional_scalar(&query, Some(0.8), &program, &laws),
+            Err("functional_effect.result_mismatch")
+        );
+    }
+
+    #[test]
+    fn functional_scalar_replay_refuses_missing_or_aliased_laws() {
+        let (query, program, laws) = scalar_fixture();
+        let mut missing = laws.clone();
+        missing.factors.clear();
+        assert_eq!(
+            replay_functional_scalar(&query, Some(0.75), &program, &missing),
+            Err("functional_effect.factor_law_coverage")
+        );
+
+        let mut aliased = laws;
+        aliased.factors[0].key.variables = vec![0];
+        assert_eq!(
+            replay_functional_scalar(&query, Some(0.75), &program, &aliased),
+            Err("functional_effect.factor_law_coverage")
+        );
+    }
+
+    #[test]
+    fn functional_scalar_replay_binds_query_and_program_root() {
+        let (query, program, laws) = scalar_fixture();
+        let wrong_query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::Distribution(
+            antecedent_core::InterventionalDistributionQuery::new(
+                VariableId::from_raw(1),
+                [antecedent_core::Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+            ),
+        ))
+        .unwrap();
+        assert_eq!(
+            replay_functional_scalar(&wrong_query, Some(0.75), &program, &laws),
+            Err("functional_effect.query_kind")
+        );
+
+        let mut changed_root = program;
+        changed_root.executable = u32::MAX;
+        assert_eq!(
+            replay_functional_scalar(&query, Some(0.75), &changed_root, &laws),
+            Err("functional_effect.functional_program")
+        );
+    }
+
+    #[test]
+    fn functional_scalar_replay_refuses_resource_exhaustion_and_zero_mass() {
+        let (query, program, laws) = scalar_fixture();
+        let mut too_large = laws.clone();
+        too_large.domains[0].1 =
+            (0..=MAX_REPLAY_CELLS).map(|value| ValueWire::Int64(value as i64)).collect();
+        assert_eq!(
+            replay_functional_scalar(&query, Some(0.75), &program, &too_large),
+            Err("functional_effect.factor_laws_resource_limit")
+        );
+
+        let mut zero_mass = laws;
+        for row in &mut zero_mass.factors[0].rows {
+            row.probability = 0.0;
+        }
+        assert_eq!(
+            replay_functional_scalar(&query, Some(0.0), &program, &zero_mass),
+            Err("functional_effect.factor_normalization")
         );
     }
 }
