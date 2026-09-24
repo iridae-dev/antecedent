@@ -1,0 +1,6 @@
+{
+  "model": "joint Gaussian structural IV with fixed unit disturbance loading and known unit stage variances",
+  "true_structural_effect": 2.0,
+  "first_stage_f_threshold": 10.0,
+  "fixture": "antecedent::bayesian_iv_rd_staged::bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth"
+}

@@ -69,6 +69,7 @@ impl ExactLawWire {
         let build = match origin {
             LawOrigin::SuppliedExact | LawOrigin::LearnedPlugin => ExactDiscreteLaw::try_new,
             LawOrigin::EmpiricalPlugin => ExactDiscreteLaw::try_empirical,
+            LawOrigin::BayesianPosterior => ExactDiscreteLaw::try_bayesian_posterior,
         };
         let law = build(
             self.population.clone(),
@@ -102,5 +103,32 @@ impl ExactLawWire {
             (_, Some(_)) => Err(IoError::Convert("unexpected learned support metadata".into())),
             (_, None) => Ok(law),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::{Value, VariableId};
+    use std::sync::Arc;
+
+    #[test]
+    fn bayesian_posterior_origin_survives_exact_law_roundtrip() {
+        let law = ExactDiscreteLaw::try_bayesian_posterior(
+            "target",
+            RegimeId::from_raw(7),
+            [],
+            [DiscreteAxis {
+                variable: VariableId::from_raw(2),
+                values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+            }],
+            [0.3, 0.7],
+            "snapshot",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let decoded = ExactLawWire::from_law(&law).to_law().unwrap();
+        assert_eq!(decoded.origin(), LawOrigin::BayesianPosterior);
+        assert_eq!(decoded.probabilities(), law.probabilities());
     }
 }

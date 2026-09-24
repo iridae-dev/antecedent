@@ -249,10 +249,18 @@ pub enum EstimatorId {
     IvWald,
     /// Two-stage least squares.
     Iv2Sls,
+    /// Bayesian joint linear Gaussian IV with fixed unit disturbance loading.
+    BayesianIvJointLinear,
     /// Sharp local-linear RD.
     RdSharp,
+    /// Bayesian local-linear sharp RD with fixed bandwidth.
+    BayesianRdLocalLinear,
     /// Bayesian g-computation.
     BayesianGcomp,
+    /// Bayesian quadratic-basis g-computation with an explicit shrinkage prior.
+    BayesianBasisGcomp,
+    /// Cross-fitted orthogonal ATE with shared Bayesian-bootstrap nuisance refits.
+    BayesianRobustAte,
     /// Bayesian Gaussian interaction model, averaged over observed modifiers.
     BayesianConditional,
     /// Temporal linear adjustment.
@@ -293,8 +301,12 @@ pub enum EstimatorId {
     GcmFit,
     /// Dahabreh trial-to-target IPW (Direct / S-admissible standardize only).
     TransportTrialIpw,
+    /// Bayesian-bootstrap trial-to-target IPW conditional on supplied probabilities.
+    TransportTrialBayesianBootstrap,
     /// Horvitz–Thompson / Hájek exposure contrast under a known assignment design.
     InterferenceHtHajek,
+    /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
+    InterferenceBayesianGaussian,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
     /// Doubly robust CATE learner (DRLearner).
@@ -410,11 +422,23 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "2sls",
             provenance: ("estimate.iv", "estimate.two_stage_least_squares"),
         },
+        EstimatorId::BayesianIvJointLinear => EstimatorData {
+            name: "iv.bayesian_joint_linear",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_iv.joint_fixed_loading",
+            provenance: ("estimate.bayesian_iv", "estimate.bayesian_iv_joint_fixed_loading"),
+        },
         EstimatorId::RdSharp => EstimatorData {
             name: "rd.sharp",
             parallel_task_dimension: "bootstrap.replicate",
             kernel_label: "rd.local_linear",
             provenance: ("estimate.rd", "estimate.rd_sharp"),
+        },
+        EstimatorId::BayesianRdLocalLinear => EstimatorData {
+            name: "rd.bayesian_local_linear",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_rd.local_linear",
+            provenance: ("estimate.bayesian_rd", "estimate.bayesian_rd_local_linear"),
         },
         EstimatorId::BayesianConditional => EstimatorData {
             name: "conditional.bayesian",
@@ -427,6 +451,18 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "ols.faer",
             provenance: ("estimate.bayesian_gcomp", "estimate.bayesian_gcomp"),
+        },
+        EstimatorId::BayesianBasisGcomp => EstimatorData {
+            name: "bayesian.basis.gcomp",
+            parallel_task_dimension: "analysis",
+            kernel_label: "bayesian_basis_gcomp.quadratic_tz_z2",
+            provenance: ("estimate.bayesian_basis_gcomp", "estimate.bayesian_basis_gcomp"),
+        },
+        EstimatorId::BayesianRobustAte => EstimatorData {
+            name: "bayesian.robust_ate",
+            parallel_task_dimension: "bootstrap.draw",
+            kernel_label: "bayesian_bootstrap.aipw",
+            provenance: ("estimate.bayesian_robust_ate", "estimate.bayesian_robust_ate"),
         },
         EstimatorId::TemporalSequentialGcomp => EstimatorData {
             name: "temporal.sequential.gcomp",
@@ -551,11 +587,29 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "transport.trial_ipw",
             provenance: ("estimate.transport.trial_ipw", "estimate.transport.trial_ipw"),
         },
+        EstimatorId::TransportTrialBayesianBootstrap => EstimatorData {
+            name: "transport.trial_bayesian_bootstrap",
+            parallel_task_dimension: "analysis",
+            kernel_label: "transport.trial_bayesian_bootstrap",
+            provenance: (
+                "estimate.transport.trial_bayesian_bootstrap",
+                "estimate.transport.trial_bayesian_bootstrap",
+            ),
+        },
         EstimatorId::InterferenceHtHajek => EstimatorData {
             name: "interference.ht_hajek",
             parallel_task_dimension: "analysis",
             kernel_label: "interference.ht_hajek",
             provenance: ("estimate.interference.ht_hajek", "estimate.interference.ht_hajek"),
+        },
+        EstimatorId::InterferenceBayesianGaussian => EstimatorData {
+            name: "interference.bayesian_gaussian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.bayesian_gaussian",
+            provenance: (
+                "estimate.interference.bayesian_gaussian",
+                "estimate.interference.bayesian_gaussian",
+            ),
         },
         EstimatorId::Dml => EstimatorData {
             name: "dml",
@@ -749,6 +803,8 @@ pub fn validate_static_pair(
             | EstimatorId::DrLearner
             | EstimatorId::CausalForest
             | EstimatorId::BayesianGcomp
+            | EstimatorId::BayesianBasisGcomp
+            | EstimatorId::BayesianRobustAte
             | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment
     );
@@ -762,8 +818,11 @@ pub fn validate_static_pair(
             IdentifierId::Frontdoor,
             EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional,
         )
-        | (IdentifierId::Iv, EstimatorId::IvWald | EstimatorId::Iv2Sls)
-        | (IdentifierId::RdSharp, EstimatorId::RdSharp)
+        | (
+            IdentifierId::Iv,
+            EstimatorId::IvWald | EstimatorId::Iv2Sls | EstimatorId::BayesianIvJointLinear,
+        )
+        | (IdentifierId::RdSharp, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)
         | (
             IdentifierId::GeneralizedAdjustment,
             EstimatorId::LinearAdjustmentAte
@@ -777,8 +836,13 @@ pub fn validate_static_pair(
             | EstimatorId::DrLearner
             | EstimatorId::CausalForest
             | EstimatorId::BayesianGcomp
+            | EstimatorId::BayesianBasisGcomp
             | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment,
+        )
+        | (
+            IdentifierId::InterferenceDesign,
+            EstimatorId::InterferenceHtHajek | EstimatorId::InterferenceBayesianGaussian,
         )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
@@ -789,6 +853,8 @@ pub fn validate_static_pair(
                         | EstimatorId::FrontDoorFunctional
                         | EstimatorId::IvWald
                         | EstimatorId::Iv2Sls
+                        | EstimatorId::BayesianIvJointLinear
+                        | EstimatorId::BayesianRdLocalLinear
                 ) =>
         {
             true
@@ -894,6 +960,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::Aipw
         | EstimatorId::GlmAdjustment
         | EstimatorId::BayesianGcomp
+        | EstimatorId::BayesianBasisGcomp
         | EstimatorId::BayesianConditional
         | EstimatorId::ConditionalLinearAdjustment
         | EstimatorId::ResponseKennedyDr
@@ -908,8 +975,12 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {
             matches!(method, EstimandMethod::FrontDoor)
         }
-        EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
-        EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
+        EstimatorId::IvWald | EstimatorId::Iv2Sls | EstimatorId::BayesianIvJointLinear => {
+            matches!(method, EstimandMethod::Iv)
+        }
+        EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear => {
+            matches!(method, EstimandMethod::RdSharp)
+        }
         EstimatorId::TemporalLinearAdjustment
         | EstimatorId::BayesianTemporalGcomp
         | EstimatorId::TemporalSequentialGcomp => {
@@ -929,9 +1000,12 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::FunctionalEffect => {
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
-        EstimatorId::GcmFit | EstimatorId::TransportTrialIpw | EstimatorId::InterferenceHtHajek => {
-            false
-        }
+        EstimatorId::GcmFit
+        | EstimatorId::TransportTrialIpw
+        | EstimatorId::TransportTrialBayesianBootstrap
+        | EstimatorId::InterferenceHtHajek
+        | EstimatorId::InterferenceBayesianGaussian => false,
+        EstimatorId::BayesianRobustAte => method.is_backdoor_family(),
     }
 }
 

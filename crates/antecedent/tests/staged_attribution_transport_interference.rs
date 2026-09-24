@@ -4,12 +4,15 @@
 
 use std::sync::Arc;
 
-use antecedent::{CellStatus, InterferenceSpec, RefuteSuite, Study, TransportTrialSpec};
+use antecedent::{
+    BayesianConfig, CellStatus, InferenceMode, InterferenceSpec, RefuteSuite, Study,
+    TransportTrialSpec,
+};
 use antecedent_core::{
-    AnomalyAttributionQuery, AssignmentDesign, CausalQuery, ChangeAttributionQuery,
-    ContinuousDomain, ExposureLevel, ExposureMapping, GridSpec, IdentificationStatus,
-    InterferenceFunctional, InterferenceQuery, PopulationSelector, ResponseFunctional,
-    ResponseQuery, TransportQuery, VariableId,
+    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, CausalQuery,
+    ChangeAttributionQuery, ContinuousDomain, ExposureLevel, ExposureMapping, GridSpec,
+    IdentificationStatus, InterferenceFunctional, InterferenceQuery, PopulationSelector,
+    ResponseFunctional, ResponseQuery, ShapleyConfig, TransportQuery, VariableId,
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
@@ -105,6 +108,74 @@ fn change_attribution_known_truth() {
         change.total_change
     );
     assert!(change.total_change >= pin["change"]["total_change_min"].as_f64().unwrap());
+}
+
+#[test]
+fn bayesian_attribution_shared_row_weight_known_truth() {
+    let truth: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/staged_attribution/expected.json"
+    ))
+    .unwrap();
+    let (anomaly_data, anomaly_dag) = outlier_chain();
+    let anomaly = Study::tabular(anomaly_data.clone())
+        .graph(anomaly_dag)
+        .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+            [VariableId::from_raw(1)],
+            100,
+        )))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate(&anomaly_data, &ctx())
+        .unwrap();
+    let anomaly_posterior = anomaly.posterior.as_ref().expect("Bayesian anomaly score draws");
+    assert_eq!(anomaly_posterior.draws.n_draws, 24);
+    assert_eq!(anomaly_posterior.draws.schema.n_quantities(), 1);
+    assert!(anomaly_posterior.summaries.mean[0] > 0.0);
+    let y_scores = anomaly
+        .anomaly
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|scores| scores.target == VariableId::from_raw(1))
+        .unwrap();
+    let top_index = y_scores.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap().0;
+    assert_eq!(
+        y_scores.rows[top_index],
+        usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap(),
+    );
+    assert!(y_scores.scores[top_index] >= truth["anomaly"]["score_min"].as_f64().unwrap());
+    assert!(anomaly.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"));
+
+    let (change_data, change_dag) = two_period_chain();
+    let query = ChangeAttributionQuery::new(
+        VariableId::from_raw(1),
+        PopulationSelector::TimeRange { start: 0, end: 40 },
+        PopulationSelector::TimeRange { start: 40, end: 80 },
+    )
+    .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+    let change = Study::tabular(change_data.clone())
+        .graph(change_dag)
+        .query(CausalQuery::ChangeAttribution(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate(&change_data, &ctx())
+        .unwrap();
+    let posterior = change.posterior.as_ref().expect("Bayesian change attribution draws");
+    assert_eq!(posterior.draws.n_draws, 24);
+    let expected_change = truth["change"]["total_change"].as_f64().unwrap();
+    let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
+    assert!((posterior.summaries.mean[0] - expected_change).abs() < tolerance);
+    let component_means: f64 = posterior.summaries.mean[1..].iter().sum();
+    assert!((component_means - posterior.summaries.mean[0]).abs() < 1e-6);
+    assert!(change.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.bayesian"));
 }
 
 #[test]
@@ -212,6 +283,63 @@ fn interference_bernoulli_neighbor_count_known_truth() {
         .abs()
             <= atol
     );
+}
+
+#[test]
+fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/bayesian_interference/expected.json"
+    ))
+    .unwrap();
+    let outcomes: Vec<f64> =
+        fixture["outcomes"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let assignment: Vec<bool> =
+        fixture["assignment"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
+    let edges: Vec<NetworkEdge> = fixture["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|edge| NetworkEdge {
+            from: edge[0].as_u64().unwrap() as u32,
+            to: edge[1].as_u64().unwrap() as u32,
+            weight: 1.0,
+        })
+        .collect();
+    let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let network = NetworkData::try_new(units.clone(), edges).unwrap();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    let study = Study::tabular(units.clone())
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(query))
+        .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(20_000)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    let prepared = study.prepare(&ctx()).unwrap();
+    let result = prepared.estimate(&units, &ctx()).unwrap();
+    assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(
+        result.identification.status,
+        IdentificationStatus::IdentifiedUnderParametricRestrictions
+    );
+    assert_eq!(result.estimand.method.as_ref(), "interference.bayesian_gaussian");
+    assert!(result.posterior.is_some());
+    // The true model is y=2+3*own+4*neighbors, so the finite-network
+    // to-minus-from contrast is beta-gamma=-1.
+    let expected = fixture["expected_contrast"].as_f64().unwrap();
+    let tolerance = fixture["tolerance"].as_f64().unwrap();
+    assert!((result.estimate.ate - expected).abs() < tolerance);
+    assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "interference.fixed_network_gaussian_potential_outcomes")));
 }
 
 /// Prepare an interference study on two units with the conformance network.

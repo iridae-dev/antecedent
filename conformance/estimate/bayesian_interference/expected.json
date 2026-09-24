@@ -1,0 +1,10 @@
+{
+  "outcomes": [5.0, 6.0, 9.0, 10.0],
+  "assignment": [true, false, true, false],
+  "edges": [[0, 1], [0, 2], [0, 3], [2, 3]],
+  "from": { "own": 0.0, "neighbors": 1.0 },
+  "to": { "own": 1.0, "neighbors": 0.0 },
+  "expected_contrast": -1.0,
+  "tolerance": 0.08,
+  "model": "y = 2 + 3 * own + 4 * treated_neighbors; Gaussian variance 1"
+}

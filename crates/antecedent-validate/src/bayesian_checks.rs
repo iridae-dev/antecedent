@@ -2095,7 +2095,13 @@ mod tests {
             chi2 > SBC_CHI2_CRITICAL_9DF_P99,
             "fixture sanity: U-shaped ranks should trip the χ² statistic, got {chi2}"
         );
-        let report = SbcReport { ranks: Arc::from(ranks), mean_rank_frac, uniformity_stat: chi2 };
+        let report = SbcReport {
+            ranks: Arc::from(ranks),
+            mean_rank_frac,
+            uniformity_stat: chi2,
+            rank_draw_count: n_draws,
+            rank_bins: SBC_BINS,
+        };
         let sbc = SimulationBasedCalibration { n_reps, n_draws, seed: 0 };
         let rep = sbc.to_report(&report, 2.0);
         assert!(
@@ -2103,6 +2109,20 @@ mod tests {
             "SBC must fail on a U-shaped (non-uniform) rank distribution even though \
              mean_rank_frac={mean_rank_frac:.3} is in [0.35, 0.65]"
         );
+    }
+
+    #[test]
+    fn sbc_hmc_rank_uses_one_draw_per_independent_chain() {
+        let mut diagnostics = InferenceDiagnostics::analytic("hmc");
+        diagnostics.n_chains = Some(4);
+        diagnostics.ess_bulk_min = Some(5.0);
+        let states = [
+            0.0, 0.0, 0.0, 1.0, 10.0, 10.0, 10.0, 11.0, 20.0, 20.0, 20.0, 21.0, 30.0, 30.0, 30.0,
+            31.0,
+        ];
+        assert_eq!(sbc_rank_draws(&states, &diagnostics).unwrap(), [1.0, 11.0, 21.0, 31.0]);
+        diagnostics.n_chains = None;
+        assert!(sbc_rank_draws(&states, &diagnostics).is_err());
     }
 
     /// Calibration-gate tests for defect A: [`SimulationBasedCalibration`] and
@@ -2178,6 +2198,51 @@ mod tests {
                 "chi2={:.3} exceeds critical value {SBC_CHI2_CRITICAL_9DF_P99:.3}",
                 report.uniformity_stat
             );
+        }
+
+        #[test]
+        fn sbc_glm_families_rank_on_the_response_scale() {
+            use antecedent_prob::BayesLikelihood;
+            let (data, estimand, query) = toy();
+            let ctx = ExecutionContext::for_tests(17);
+            for (family, seed) in [
+                (BayesLikelihood::BernoulliLogit, 101),
+                (BayesLikelihood::BernoulliProbit, 102),
+                (BayesLikelihood::PoissonLog, 103),
+            ] {
+                let prior = PriorSet {
+                    specs: vec![PriorSpec::GaussianCoefficients(
+                        GaussianCoefficientPrior::isotropic(3, 0.15),
+                    )],
+                    contrast: None,
+                    categorical: Vec::new(),
+                    restrictions: Vec::new(),
+                };
+                let bayes = BayesianGComputationAte::new()
+                    .with_likelihood(family)
+                    .with_n_draws(99)
+                    .with_seed(seed);
+                let bayes = BayesianGComputationAte { prior: Some(prior), ..bayes };
+                let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+                let mut ws = BayesianGCompWorkspace::default();
+                let sbc = SimulationBasedCalibration { n_reps: 100, n_draws: 99, seed };
+                let report = sbc
+                    .check(
+                        &bayes,
+                        &prep,
+                        IdentificationStatus::NonparametricallyIdentified,
+                        &mut ws,
+                        &ctx,
+                    )
+                    .unwrap();
+                assert_eq!(report.ranks.len(), 100);
+                assert!(
+                    sbc.to_report(&report, 0.0).passed,
+                    "{family:?}: mean rank={:.3}, chi2={:.3}",
+                    report.mean_rank_frac,
+                    report.uniformity_stat
+                );
+            }
         }
 
         #[test]
@@ -2715,6 +2780,88 @@ mod tests {
         }
 
         #[test]
+        fn mcmc_publication_gate_checks_numeric_boundaries_and_missing_values() {
+            // The pinned oracle contract is a looser diagnostics-routing check
+            // (R-hat 1.05 / ESS 10); publication uses the library's documented
+            // stricter floor (R-hat 1.01 / ESS 100 per chain). Exercise the
+            // actual publication boundary numerically so a missing metric cannot
+            // silently become a pass.
+            let mut d = InferenceDiagnostics::analytic("hmc");
+            d.factorization = HessianFactorization::Mcmc;
+            d.converged = true;
+            d.n_chains = Some(4);
+            d.n_warmup = Some(100);
+            d.ess_bulk_min = Some(400.0);
+            d.ess_tail_min = Some(400.0);
+            d.rhat_max = Some(1.01);
+            d.n_postwarmup_divergences = Some(0);
+            d.mean_accept_prob = Some(0.8);
+            d.max_abs_delta_h = Some(0.1);
+            d.all_chains_moved = Some(true);
+            assert!(mcmc_report(&d, 0.0).unwrap().passed, "inclusive boundary must pass");
+
+            for (mutated, expected_clause) in [
+                (
+                    {
+                        let mut x = d.clone();
+                        x.rhat_max = Some(1.010_001);
+                        x
+                    },
+                    "split-R̂",
+                ),
+                (
+                    {
+                        let mut x = d.clone();
+                        x.ess_bulk_min = Some(399.999);
+                        x
+                    },
+                    "bulk ESS",
+                ),
+                (
+                    {
+                        let mut x = d.clone();
+                        x.ess_tail_min = None;
+                        x
+                    },
+                    "tail ESS",
+                ),
+                (
+                    {
+                        let mut x = d.clone();
+                        x.n_postwarmup_divergences = None;
+                        x
+                    },
+                    "divergences",
+                ),
+            ] {
+                let report = mcmc_report(&mutated, 0.0).unwrap();
+                assert!(!report.passed, "mutation should fail: {expected_clause}");
+                assert!(
+                    report.failure_condition.unwrap().contains(expected_clause),
+                    "failure should name {expected_clause}"
+                );
+            }
+        }
+
+        #[test]
+        fn pinned_external_diagnostics_thresholds_are_distinct_from_publication() {
+            let fixture: serde_json::Value = serde_json::from_str(include_str!(
+                "../../../conformance/validate/bayesian_checks/expected.json"
+            ))
+            .unwrap();
+            let oracle = &fixture["contracts"];
+            let oracle_rhat = oracle["mcmc_max_rhat"].as_f64().unwrap();
+            let oracle_ess = oracle["mcmc_min_bulk_ess"].as_f64().unwrap();
+            assert_eq!(oracle_rhat, 1.05);
+            assert_eq!(oracle_ess, 10.0);
+            // These oracle bounds define only whether ArviZ-style diagnostic
+            // values agree with the pinned external contract. The production
+            // publication gate remains 1.01 and 100 effective draws per chain.
+            assert!(1.05 <= oracle_rhat && 10.0 >= oracle_ess);
+            assert!(!(1.05 <= 1.01 && 10.0 >= 400.0));
+        }
+
+        #[test]
         fn prior_sensitivity_grid_follows_the_prior_in_force() {
             let (data, estimand, query) = toy();
             let plain = BayesianGComputationAte {
@@ -2757,6 +2904,64 @@ mod tests {
                     )
                     .is_err()
             );
+        }
+
+        #[test]
+        fn resolved_prior_sensitivity_matches_orthogonal_gaussian_posterior_means() {
+            // With balanced t in {-1, 1}, X'X = diag(100, 100) and
+            // X'y = (0, 200). A N(0, v) coefficient prior with known
+            // residual variance one gives E[beta_t | y] = 200/(100+1/v).
+            // The requested treatment contrast is 1 - (-1) = 2.
+            let n = 100usize;
+            let treatment: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { -1.0 } else { 1.0 }).collect();
+            let outcome: Vec<f64> = treatment.iter().map(|t| 2.0 * t).collect();
+            let design =
+                antecedent_stats::CompiledDesign::linear_adjustment(&treatment, &[], &outcome, &[])
+                    .unwrap();
+            let problem = PreparedBayesianProblem {
+                design,
+                method: Arc::from("backdoor.adjustment"),
+                adjustment_set: Arc::from([]),
+                active: 1.0,
+                control: -1.0,
+                overlap: antecedent_estimate::OverlapPolicy::ExplicitOverride,
+                coef_names: None,
+                unit_ids: None,
+                serial_dependence: SerialDependence::Iid,
+            };
+            let mut prior = PriorSet::new();
+            prior
+                .push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(2, 0.1)));
+            prior.push(PriorSpec::KnownResidualVariance(1.0));
+            let estimator = BayesianGComputationAte::conjugate()
+                .with_n_draws(200)
+                .with_seed(91)
+                .with_prior(prior);
+            let grid = PriorSensitivity {
+                variance_multipliers: Arc::from([0.25, 1.0, 4.0]),
+                scales: Arc::from([]),
+                alphas: Arc::from([]),
+                max_relative_range: 1.0,
+            };
+            let (summary, _) = grid
+                .evaluate_in_force(
+                    &estimator,
+                    &problem,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    &mut BayesianGCompWorkspace::default(),
+                    &ExecutionContext::for_tests(91),
+                )
+                .unwrap();
+            for (&multiplier, &observed) in
+                grid.variance_multipliers.iter().zip(summary.effect_means.iter())
+            {
+                let variance = 0.01 * multiplier;
+                let expected = 400.0 / (100.0 + 1.0 / variance);
+                assert!(
+                    (observed - expected).abs() < 0.12,
+                    "{multiplier}: {observed} vs {expected}"
+                );
+            }
         }
     }
 }
@@ -2829,19 +3034,24 @@ fn mcmc_report(d: &InferenceDiagnostics, ate: f64) -> Option<RefutationReport> {
 
 /// Simulation-based calibration ranks for a scalar posterior functional.
 ///
-/// For each replicate: draw `(σ², β)` from the prior the estimator fits with, simulate data, refit,
+/// For each replicate: draw model parameters from the prior the estimator fits with, simulate data, refit,
 /// and record the rank of the true effect among posterior draws of the primary effect. The rank
 /// theorem (Talts et al. 2018) needs the generating prior to be *exactly* the fitted prior and the
 /// posterior draws to be independent, so:
 ///
-/// - `σ²` is drawn from the estimator's residual-variance prior (fixed when known; a proper
+/// - For Gaussian outcomes, `σ²` is drawn from the estimator's residual-variance prior (fixed when known; a proper
 ///   inverse-gamma with finite mean otherwise) and `β | σ² ~ N(μ, σ² · diag(V0))` from its
 ///   coefficient prior, the conjugate convention of [`GaussianCoefficientPrior`]. A prior without
 ///   a finite-mean residual model (the weakly informative default) cannot be a generating prior
 ///   and is refused.
+/// - For Bernoulli and Poisson GLMs, coefficients are drawn from the fitted
+///   independent Gaussian prior and outcomes from the declared likelihood. The
+///   ranked effect is the empirical-covariate average on the response scale.
 /// - `n_draws + 1` must be a multiple of the 10 rank bins (e.g. 99), so every bin has equal prior
 ///   mass; at least 50 replicates are required so every bin expects at least five.
-/// - Backends whose draws are autocorrelated (a bulk ESS below the draw count) are refused.
+/// - For HMC, one post-warmup draw is retained from each independently seeded
+///   chain per replicate; within-chain autocorrelation cannot enter the rank.
+///   Other backends require independent draws.
 #[derive(Clone, Debug)]
 pub struct SimulationBasedCalibration {
     /// Number of SBC replicates (at least `5 ×` the rank bins, i.e. 50).
@@ -2902,6 +3112,43 @@ pub struct SbcReport {
     pub mean_rank_frac: f64,
     /// Chi² uniformity diagnostic on coarse bins (lower is better).
     pub uniformity_stat: f64,
+    /// Number of posterior draws compared with the generating effect in each rank.
+    pub rank_draw_count: usize,
+    /// Number of equal-probability rank bins in the uniformity diagnostic.
+    pub rank_bins: usize,
+}
+
+/// Select draws for an SBC rank without treating serial HMC states as independent.
+/// Native HMC stores its independent chains contiguously, so one draw from each
+/// chain gives conditionally independent posterior draws after warmup. Diagnostics
+/// have already passed the publication gate before this point.
+fn sbc_rank_draws(
+    draws: &[f64],
+    diagnostics: &InferenceDiagnostics,
+) -> Result<Vec<f64>, ValidationError> {
+    if let Some(chains) = diagnostics.n_chains {
+        let chains = chains as usize;
+        if chains != 4 || draws.len() % chains != 0 {
+            return Err(ValidationError::NotApplicable {
+                message: "HMC SBC requires four independent chains with equal retained lengths",
+            });
+        }
+        let per_chain = draws.len() / chains;
+        if per_chain == 0 {
+            return Err(ValidationError::NotApplicable {
+                message: "HMC SBC requires a retained draw in every chain",
+            });
+        }
+        return Ok((0..chains).map(|chain| draws[(chain + 1) * per_chain - 1]).collect());
+    }
+    if let Some(ess) = diagnostics.ess_bulk_min {
+        if !ess.is_finite() || ess < draws.len() as f64 {
+            return Err(ValidationError::NotApplicable {
+                message: "SBC needs independent draws or separate HMC chains; bulk ESS is below draw count",
+            });
+        }
+    }
+    Ok(draws.to_vec())
 }
 
 impl SimulationBasedCalibration {
@@ -2911,7 +3158,7 @@ impl SimulationBasedCalibration {
         Self { n_reps: n_reps.max(1), ..Self::default() }
     }
 
-    /// Run SBC: draw `(σ², β)` from the prior the estimator fits with, simulate `y` from the
+    /// Run SBC: draw parameters from the prior the estimator fits with, simulate `y` from the
     /// model under the fixed design matrix, refit the Bayesian g-computation estimator, and
     /// rank the true ATE among posterior effect draws.
     ///
@@ -2927,7 +3174,9 @@ impl SimulationBasedCalibration {
         workspace: &mut BayesianGCompWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<SbcReport, ValidationError> {
-        if (self.n_draws + 1) % SBC_BINS != 0 {
+        if estimator.backend != antecedent_estimate::BayesianBackendKind::Hmc
+            && (self.n_draws + 1) % SBC_BINS != 0
+        {
             return Err(ValidationError::NotApplicable {
                 message: "SBC requires n_draws + 1 to be a multiple of the 10 rank bins \
                           (e.g. 99), so every bin has equal prior mass",
@@ -2938,9 +3187,10 @@ impl SimulationBasedCalibration {
                 message: "SBC requires at least 50 replicates (five expected per rank bin)",
             });
         }
-        if estimator.glm_family() != GlmFamily::GaussianIdentity {
+        let family = estimator.glm_family();
+        if family == GlmFamily::NegativeBinomial {
             return Err(ValidationError::NotApplicable {
-                message: "SBC simulates Gaussian outcomes and applies to the Gaussian likelihood only",
+                message: "SBC does not have a declared negative-binomial generating law",
             });
         }
         let n = problem.design.nrows;
@@ -2958,40 +3208,77 @@ impl SimulationBasedCalibration {
                 "SBC: prior coefficient dimension mismatch",
             ));
         }
-        let variance = match GaussianVarianceModel::from_prior_set(&prior)
-            .map_err(|e| ValidationError::estimation_msg(e.to_string()))?
-        {
-            GaussianVarianceModel::Known { sigma2 } => GeneratingVariance::Known(sigma2),
-            // InvGamma(a, b) has a finite mean only for a > 1; without one no simulated
-            // dataset is a sensible draw from the prior.
-            GaussianVarianceModel::InvGamma { shape, scale } if shape > 1.0 => {
-                GeneratingVariance::InvGamma { shape, scale }
-            }
-            GaussianVarianceModel::InvGamma { .. } => {
-                return Err(ValidationError::NotApplicable {
-                    message: "SBC needs a residual-variance prior with a finite mean (inverse-gamma \
-                              shape > 1) or a known residual variance to simulate from; the weakly \
-                              informative default has neither",
-                });
-            }
+        let variance = if family == GlmFamily::GaussianIdentity {
+            Some(
+                match GaussianVarianceModel::from_prior_set(&prior)
+                    .map_err(|e| ValidationError::estimation_msg(e.to_string()))?
+                {
+                    GaussianVarianceModel::Known { sigma2 } => GeneratingVariance::Known(sigma2),
+                    GaussianVarianceModel::InvGamma { shape, scale } if shape > 1.0 => {
+                        GeneratingVariance::InvGamma { shape, scale }
+                    }
+                    GaussianVarianceModel::InvGamma { .. } => {
+                        return Err(ValidationError::NotApplicable {
+                            message: "SBC needs a residual-variance prior with a finite mean (inverse-gamma \
+                                  shape > 1) or a known residual variance to simulate from; the weakly \
+                                  informative default has neither",
+                        });
+                    }
+                },
+            )
+        } else {
+            None
         };
         let mut rng = CausalRng::from_seed(self.seed);
         let mut ranks = Vec::with_capacity(self.n_reps as usize);
+        let mut rank_draw_count = None;
         let mut est = estimator.clone();
         est.n_draws = self.n_draws;
 
         for rep in 0..self.n_reps {
-            let (sigma2, beta) = draw_generating_parameters(coefficients, variance, &mut rng);
+            let (sigma2, beta) = if let Some(variance) = variance {
+                draw_generating_parameters(coefficients, variance, &mut rng)
+            } else {
+                (
+                    1.0,
+                    coefficients
+                        .mean
+                        .iter()
+                        .zip(coefficients.variance.iter())
+                        .map(|(&mean, &variance)| {
+                            mean + variance.sqrt() * standard_normal(&mut rng)
+                        })
+                        .collect(),
+                )
+            };
             let sigma = sigma2.sqrt();
-            let true_effect = (problem.active - problem.control) * beta[t_col];
+            let mut true_effect = 0.0;
             let mut y_rep = vec![0.0; n];
             for r in 0..n {
                 let mut eta = 0.0;
                 for c in 0..p {
                     eta += problem.design.matrix[c * n + r] * beta[c];
                 }
-                y_rep[r] = eta + sigma * standard_normal(&mut rng);
+                let observed_t = problem.design.matrix[t_col * n + r];
+                let eta_base = eta - observed_t * beta[t_col];
+                true_effect += family.mean_from_eta(eta_base + problem.active * beta[t_col])
+                    - family.mean_from_eta(eta_base + problem.control * beta[t_col]);
+                let mean = family.mean_from_eta(eta);
+                if !mean.is_finite() || (family == GlmFamily::PoissonLog && mean > 1.0e4) {
+                    return Err(ValidationError::NotApplicable {
+                        message: "SBC generating prior produced an unsupported outcome mean",
+                    });
+                }
+                y_rep[r] = match family {
+                    GlmFamily::GaussianIdentity => mean + sigma * standard_normal(&mut rng),
+                    GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => {
+                        f64::from(rng.next_f64() < mean)
+                    }
+                    GlmFamily::PoissonLog => sample_poisson(mean, &mut rng),
+                    GlmFamily::NegativeBinomial => unreachable!(),
+                };
             }
+            true_effect /= n as f64;
             let mut sim_problem = problem.clone();
             let mut design = sim_problem.design.clone();
             design.outcome = Arc::from(y_rep);
@@ -3007,19 +3294,15 @@ impl SimulationBasedCalibration {
                 .draws
                 .column(col)
                 .map_err(|e| ValidationError::estimation_msg(format!("SBC draws: {e}")))?;
-            // The rank theorem needs independent posterior draws; an autocorrelated sampler
-            // makes the ranks non-uniform even when it is correct.
-            if let Some(ess) = post.diagnostics.ess_bulk_min {
-                if !ess.is_finite() || ess < draws.len() as f64 {
-                    return Err(ValidationError::estimation_msg(format!(
-                        "SBC requires independent posterior draws; the backend reports a bulk \
-                         ESS of {ess} for {} draws",
-                        draws.len()
-                    )));
-                }
+            let rank_draws = sbc_rank_draws(draws, &post.diagnostics)?;
+            if rank_draw_count.is_some_and(|count| count != rank_draws.len()) {
+                return Err(ValidationError::NotApplicable {
+                    message: "SBC refits returned differing numbers of independent rank draws",
+                });
             }
+            rank_draw_count = Some(rank_draws.len());
             let mut rank = 0u32;
-            for &d in draws {
+            for &d in &rank_draws {
                 if d < true_effect {
                     rank += 1;
                 }
@@ -3027,38 +3310,59 @@ impl SimulationBasedCalibration {
             ranks.push(rank);
         }
 
-        let n_d = self.n_draws.max(1) as f64;
+        let rank_draw_count = rank_draw_count.unwrap_or(self.n_draws);
+        let rank_bins = if estimator.backend == antecedent_estimate::BayesianBackendKind::Hmc {
+            rank_draw_count + 1
+        } else {
+            SBC_BINS
+        };
+        let n_d = rank_draw_count.max(1) as f64;
         let fracs: Vec<f64> = ranks.iter().map(|&r| f64::from(r) / n_d).collect();
         let mean_rank_frac =
             reduce_posterior_draws(&fracs, PosteriorReduceOp::Mean, &ctx.kernel_policy)
                 .unwrap_or(0.5);
-        let mut counts = vec![0.0; SBC_BINS];
+        let mut counts = vec![0.0; rank_bins];
         for &r in &ranks {
-            counts[sbc_bin(r, self.n_draws)] += 1.0;
+            let bin = if rank_bins == SBC_BINS {
+                sbc_bin(r, rank_draw_count)
+            } else {
+                ((r as usize) * rank_bins / (rank_draw_count + 1)).min(rank_bins - 1)
+            };
+            counts[bin] += 1.0;
         }
         // At least 5 expected per bin (enforced above), so no floor on the denominator.
-        let expected = f64::from(self.n_reps) / SBC_BINS as f64;
+        let expected = f64::from(self.n_reps) / rank_bins as f64;
         let mut chi2 = 0.0;
         for c in counts {
             let d = c - expected;
             chi2 += d * d / expected;
         }
-        Ok(SbcReport { ranks: Arc::from(ranks), mean_rank_frac, uniformity_stat: chi2 })
+        Ok(SbcReport {
+            ranks: Arc::from(ranks),
+            mean_rank_frac,
+            uniformity_stat: chi2,
+            rank_draw_count,
+            rank_bins,
+        })
     }
 
     /// Convert to a refutation report.
     ///
     /// Passes only when **both** hold:
     /// - the mean rank fraction is in `[0.35, 0.65]` (catches gross location bias), and
-    /// - the χ² uniformity statistic over the 10 rank bins is below
-    ///   `SBC_CHI2_CRITICAL_9DF_P99` (catches symmetric-about-0.5 U/M-shaped rank
+    /// - the χ² uniformity statistic over 10 independent-draw bins or five
+    ///   independent HMC-chain bins is below its 0.99 critical value (catches symmetric-about-0.5 U/M-shaped rank
     ///   distributions — overdispersed / underdispersed posteriors — that a mean-only
     ///   band cannot see because they average out to ≈0.5).
     #[must_use]
     pub fn to_report(&self, report: &SbcReport, original_ate: f64) -> RefutationReport {
         let mean_ok = (0.35..=0.65).contains(&report.mean_rank_frac);
-        let uniform_ok = report.uniformity_stat.is_finite()
-            && report.uniformity_stat <= SBC_CHI2_CRITICAL_9DF_P99;
+        let critical = if report.rank_bins == 5 {
+            SBC_CHI2_CRITICAL_4DF_P99
+        } else {
+            SBC_CHI2_CRITICAL_9DF_P99
+        };
+        let uniform_ok = report.uniformity_stat.is_finite() && report.uniformity_stat <= critical;
         let passed = mean_ok && uniform_ok;
         RefutationReport {
             refuter: Arc::from("sbc"),
@@ -3072,8 +3376,10 @@ impl SimulationBasedCalibration {
             } else if !mean_ok && !uniform_ok {
                 Some(Arc::from(format!(
                     "SBC mean rank frac {:.3} outside [0.35, 0.65] and χ²={:.3} exceeds critical \
-                     value {SBC_CHI2_CRITICAL_9DF_P99:.3} (9 df, p=0.99)",
-                    report.mean_rank_frac, report.uniformity_stat
+                     value {critical:.3} ({} df, p=0.99)",
+                    report.mean_rank_frac,
+                    report.uniformity_stat,
+                    report.rank_bins - 1
                 )))
             } else if !mean_ok {
                 Some(Arc::from(format!(
@@ -3083,9 +3389,11 @@ impl SimulationBasedCalibration {
             } else {
                 Some(Arc::from(format!(
                     "SBC rank distribution non-uniform: χ²={:.3} exceeds critical value \
-                     {SBC_CHI2_CRITICAL_9DF_P99:.3} (9 df, p=0.99); mean rank frac {:.3} looked \
+                     {critical:.3} ({} df, p=0.99); mean rank frac {:.3} looked \
                      fine but ranks are not uniformly distributed (U- or M-shaped)",
-                    report.uniformity_stat, report.mean_rank_frac
+                    report.uniformity_stat,
+                    report.rank_bins - 1,
+                    report.mean_rank_frac
                 )))
             },
             replicates: self.n_reps,
@@ -3100,6 +3408,8 @@ impl SimulationBasedCalibration {
 /// one-sided χ² goodness-of-fit critical value (e.g. Talts et al. 2018 §3 use the
 /// same chi-square uniformity diagnostic).
 const SBC_CHI2_CRITICAL_9DF_P99: f64 = 21.666;
+/// Chi² 0.99 quantile with four degrees of freedom (five chain-rank bins).
+const SBC_CHI2_CRITICAL_4DF_P99: f64 = 13.277;
 
 /// Posterior calibration on synthetic SCMs: known-ATE credible-interval coverage.
 #[derive(Clone, Debug)]

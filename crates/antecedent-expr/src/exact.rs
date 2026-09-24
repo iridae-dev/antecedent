@@ -22,6 +22,8 @@ pub enum LawOrigin {
     EmpiricalPlugin,
     /// Coherent learned finite law with retained empirical counts.
     LearnedPlugin,
+    /// Draw from a declared posterior law; zero cells are posterior outcomes, not structural zeros.
+    BayesianPosterior,
 }
 
 impl LawOrigin {
@@ -32,6 +34,7 @@ impl LawOrigin {
             Self::SuppliedExact => "supplied_exact",
             Self::EmpiricalPlugin => "empirical_plugin",
             Self::LearnedPlugin => "learned_plugin",
+            Self::BayesianPosterior => "bayesian_posterior",
         }
     }
 
@@ -42,6 +45,7 @@ impl LawOrigin {
             "supplied_exact" | "" => Some(Self::SuppliedExact),
             "empirical_plugin" => Some(Self::EmpiricalPlugin),
             "learned_plugin" => Some(Self::LearnedPlugin),
+            "bayesian_posterior" => Some(Self::BayesianPosterior),
             _ => None,
         }
     }
@@ -259,6 +263,31 @@ impl ExactDiscreteLaw {
             tolerance,
         )?;
         law.origin = LawOrigin::EmpiricalPlugin;
+        Ok(law)
+    }
+    /// Validated draw from an explicitly specified posterior law.
+    /// # Errors
+    /// Same validation as [`Self::try_new`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_bayesian_posterior(
+        population: impl Into<Arc<str>>,
+        regime: RegimeId,
+        interventions: impl Into<Arc<[InterventionAssignment]>>,
+        axes: impl Into<Arc<[DiscreteAxis]>>,
+        probabilities: impl Into<Arc<[f64]>>,
+        snapshot_identity: impl Into<Arc<str>>,
+        tolerance: LawTolerance,
+    ) -> Result<Self, ExactLawError> {
+        let mut law = Self::try_new(
+            population,
+            regime,
+            interventions,
+            axes,
+            probabilities,
+            snapshot_identity,
+            tolerance,
+        )?;
+        law.origin = LawOrigin::BayesianPosterior;
         Ok(law)
     }
     /// Mark a fitted law as model-based and retain its observed support.

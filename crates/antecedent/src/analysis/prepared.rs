@@ -2845,7 +2845,7 @@ impl Study {
         let estimator = plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
-        if matches!(estimator_id, EstimatorId::RdSharp) {
+        if matches!(estimator_id, EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear) {
             return Ok(None);
         }
         match &self.query {

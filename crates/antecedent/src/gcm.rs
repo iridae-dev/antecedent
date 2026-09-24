@@ -34,9 +34,9 @@ pub use antecedent_attribution::{
     DifferenceMeasure, DistributionChangeOptions, FeatureRelevance, MechanismChangeDetection,
     MechanismChangeMethod, PopulationDoContrast, RobustChangeOptions, RootCauseRank,
     StructureChangeOptions, UnitChangeResult, arrow_strengths, detect_mechanism_changes,
-    distribution_change, distribution_change_robust, feature_relevance, path_decompose,
-    population_do_contrast, root_cause_rank, score_anomalies, score_anomalies_with,
-    structure_change, unit_change,
+    distribution_change, distribution_change_robust, distribution_change_with_row_weights,
+    feature_relevance, path_decompose, population_do_contrast, root_cause_rank, score_anomalies,
+    score_anomalies_with, structure_change, unit_change,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,

@@ -638,6 +638,10 @@ fn refuse_estimator_inference_mismatch(
     match inference {
         InferenceMode::Frequentist => match estimator {
             EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
+            EstimatorId::BayesianBasisGcomp => bayesian!("bayesian.basis.gcomp"),
+            EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
+            EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
+            EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
             EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
             EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
             EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
@@ -674,6 +678,9 @@ fn refuse_estimator_inference_mismatch(
                 }
                 EstimatorId::CellAipw => frequentist!("cell.aipw"),
                 EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
+                EstimatorId::TransportTrialBayesianBootstrap => {
+                    bayesian!("transport.trial_bayesian_bootstrap")
+                }
                 EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
                 _ => Ok(()),
             }
@@ -751,21 +758,31 @@ fn refuse_unsupported_likelihood(
              Poisson likelihood fits under the isotropic prior_scale only"
         ));
     }
+    let supported_query = match query {
+        CausalQuery::AverageEffect(q) => {
+            matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+        }
+        CausalQuery::ConditionalEffect(q) => {
+            matches!(q.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+        }
+        CausalQuery::Response(q) => matches!(
+            q.functional,
+            antecedent_core::ResponseFunctional::MeanCurve { .. }
+                | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+        ),
+        _ => false,
+    };
     let licensed = matches!(data, DataInput::Tabular(_))
         && class == GraphClass::Dag
         && structure_fixed
-        && matches!(
-            query,
-            CausalQuery::AverageEffect(q)
-                if matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-        );
+        && supported_query;
     if licensed {
         return Ok(());
     }
     Err(crate::unsupported_reason!(
         "likelihood_not_supported",
         "a Bernoulli or Poisson likelihood is fitted by Bayesian g-computation of a tabular \
-         AverageEffect mean on one Dag only; this route fits a Gaussian identity-link model or \
+         AverageEffect or ConditionalEffect mean, or a static response level, on one Dag only; this route fits a Gaussian identity-link model or \
          mixes structures, so it refuses the likelihood rather than fit a different model than \
          the one declared"
     ))
@@ -1008,10 +1025,13 @@ impl StudyBuilder {
     pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
         let q = query.into();
         if self.estimator_spec.is_none()
-            && matches!(self.estimator, Some(EstimatorId::BayesianGcomp))
+            && matches!(
+                self.estimator,
+                Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
+            )
         {
             match &q {
-                CausalQuery::AverageEffect(_) => {}
+                CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_) => {}
                 CausalQuery::TemporalEffect(_) => {
                     self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
                 }
@@ -1191,7 +1211,10 @@ impl StudyBuilder {
     /// Temporal queries keep [`EstimatorId::TemporalLinearAdjustment`].
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
-        if matches!(mode, InferenceMode::Bayesian(_)) && self.estimator_spec.is_none() {
+        if matches!(mode, InferenceMode::Bayesian(_))
+            && self.estimator_spec.is_none()
+            && !matches!(self.estimator, Some(EstimatorId::BayesianBasisGcomp))
+        {
             match &self.query {
                 None | Some(CausalQuery::AverageEffect(_)) => {
                     self.estimator = Some(EstimatorId::BayesianGcomp);
@@ -1206,7 +1229,10 @@ impl StudyBuilder {
         }
         if matches!(mode, InferenceMode::Frequentist)
             && self.estimator_spec.is_none()
-            && self.estimator == Some(EstimatorId::BayesianGcomp)
+            && matches!(
+                self.estimator,
+                Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
+            )
         {
             self.estimator = None;
         }
@@ -1391,7 +1417,7 @@ impl StudyBuilder {
         // retargeted to that population here, so the contract, the calibration key and
         // the result all name the estimand that is actually identified; the
         // identification diagnostics say that the population-wide effect was not.
-        if self.estimator == Some(EstimatorId::RdSharp)
+        if matches!(self.estimator, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear))
             || self.identifier == Some(crate::IdentifierId::RdSharp)
         {
             if let (Some(rd), CausalQuery::AverageEffect(average)) = (self.rd.as_ref(), &mut query)
@@ -1712,7 +1738,15 @@ impl StudyBuilder {
                                         | antecedent_core::ResponseFunctional::MeanCurve { .. }
                                 )
                     );
-                if spec.id() != expected && !cell_aipw_ok && !admg_functional_ok {
+                let basis_gcomp_ok = spec.id() == EstimatorId::BayesianBasisGcomp
+                    && bayesian
+                    && graph_class == GraphClass::Dag
+                    && matches!(
+                        &query,
+                        CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)
+                    );
+                if spec.id() != expected && !cell_aipw_ok && !admg_functional_ok && !basis_gcomp_ok
+                {
                     return Err(crate::compile_reason!(
                         "strategy_incompatible",
                         "query and inference require estimator {}; got {}",
@@ -1841,6 +1875,23 @@ impl StudyBuilder {
         } else {
             None
         };
+
+        if !inspect_only
+            && matches!(
+                self.estimator,
+                Some(
+                    EstimatorId::BayesianIvJointLinear
+                        | EstimatorId::BayesianRdLocalLinear
+                        | EstimatorId::BayesianBasisGcomp
+                        | EstimatorId::BayesianRobustAte
+                )
+            )
+            && support_status != Some(crate::support::CellStatus::Licensed)
+        {
+            return Err(CausalError::Unsupported {
+                message: "selected Bayesian estimator is not licensed for this support cell",
+            });
+        }
 
         let (selection_diagram, transport_trial, interference) = match &query {
             CausalQuery::Transport(transport) => {

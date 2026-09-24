@@ -17,7 +17,9 @@ use antecedent_estimate::{
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
-use antecedent_io::transport_grid_wire::{SampleSummary, StatisticalOptionsWire};
+use antecedent_io::transport_grid_wire::{
+    BayesianTransportPosteriorWire, SampleSummary, StatisticalOptionsWire,
+};
 use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
@@ -28,6 +30,26 @@ use std::sync::Arc;
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
 use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
+
+fn is_bayesian_provider(estimator: antecedent_estimate::EmpiricalTableEstimator) -> bool {
+    matches!(
+        estimator,
+        antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap
+            | antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet
+    )
+}
+
+fn point_options(options: EmpiricalTableOptions) -> EmpiricalTableOptions {
+    if is_bayesian_provider(options.estimator) {
+        EmpiricalTableOptions {
+            estimator: antecedent_estimate::EmpiricalTableEstimator::Plugin,
+            bootstrap_replicates: 0,
+            ..options
+        }
+    } else {
+        options
+    }
+}
 
 /// Native retained statistical-transport state.
 #[derive(Clone, Debug)]
@@ -51,6 +73,7 @@ pub struct StatisticalPreparedState {
 #[derive(Clone, Debug)]
 pub struct StatisticalStudyResult {
     estimate: StatisticalTransportEstimate,
+    bayesian_estimate: Option<antecedent_estimate::BayesianStatisticalTransportEstimate>,
     identities: ExactStudyIdentities,
     reasoning: ReasoningView,
 }
@@ -65,6 +88,13 @@ impl StatisticalStudyResult {
     #[must_use]
     pub const fn estimate(&self) -> &StatisticalTransportEstimate {
         &self.estimate
+    }
+    /// Optional Bayesian posterior law summaries for Bayesian transport providers.
+    #[must_use]
+    pub const fn bayesian_estimate(
+        &self,
+    ) -> Option<&antecedent_estimate::BayesianStatisticalTransportEstimate> {
+        self.bayesian_estimate.as_ref()
     }
     /// Paired difference of means, preserving shared-sample covariance.
     /// # Errors
@@ -274,7 +304,8 @@ impl PreparedStudy<StatisticalPreparedState> {
             ctx,
         )
         .map_err(err)?;
-        let data = assemble_point_laws(&input, &functional, &options, ctx).map_err(err)?;
+        let point_options = point_options(options);
+        let data = assemble_point_laws(&input, &functional, &point_options, ctx).map_err(err)?;
         let samples =
             input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
         Self::build_fitted(
@@ -471,6 +502,9 @@ impl PreparedStudy<StatisticalPreparedState> {
     /// The estimator's own license rule: an earned percentile floor plus iid,
     /// unweighted, independent-study dependence for every estimated regime.
     fn licensed_interval(&self) -> bool {
+        if is_bayesian_provider(self.state.options.estimator) {
+            return false;
+        }
         self.state.options.bootstrap_replicates >= PERCENTILE_95_MIN_REPLICATES
             && !self.state.input.samples.is_empty()
             && antecedent_estimate::licensed_iid_dependence(
@@ -524,6 +558,8 @@ impl PreparedStudy<StatisticalPreparedState> {
                 antecedent_estimate::EmpiricalTableEstimator::Learned(_)
             ) {
                 "checked_transport; learned_categorical_plugin; uncalibrated"
+            } else if is_bayesian_provider(self.state.options.estimator) {
+                "checked_transport; finite_discrete_bayesian_posterior; unlicensed"
             } else if self.state.functional.derivation().sources().is_empty() {
                 TheoremScope::statistical_table_inspect_label()
             } else {
@@ -539,40 +575,44 @@ impl PreparedStudy<StatisticalPreparedState> {
         evaluated: bool,
         estimate: Option<&StatisticalTransportEstimate>,
     ) -> ReasoningView {
-        let uncertainty = match estimate {
-            Some(est) if est.uncertainty.is_some() && est.uncertainty_reason.is_none() => {
-                SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
-                    UncertaintySource::Sampling,
-                    "percentile_bootstrap",
-                    false,
-                )]))
+        let uncertainty = if is_bayesian_provider(self.state.options.estimator) {
+            SlotAvailability::unavailable("bayesian_transport_uncalibrated")
+        } else {
+            match estimate {
+                Some(est) if est.uncertainty.is_some() && est.uncertainty_reason.is_none() => {
+                    SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+                        UncertaintySource::Sampling,
+                        "percentile_bootstrap",
+                        false,
+                    )]))
+                }
+                Some(est) => SlotAvailability::unavailable(
+                    est.uncertainty_reason.as_deref().unwrap_or("uncertainty_unavailable"),
+                ),
+                None if self.licensed_interval() => {
+                    SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+                        UncertaintySource::Sampling,
+                        "percentile_bootstrap",
+                        false,
+                    )]))
+                }
+                None if self.state.input.samples.is_empty() => {
+                    SlotAvailability::unavailable("exact_supplied_law_no_sampling_uncertainty")
+                }
+                None if self.state.options.bootstrap_replicates == 0 => {
+                    SlotAvailability::unavailable("bootstrap_not_requested")
+                }
+                None if self.state.options.bootstrap_replicates < PERCENTILE_95_MIN_REPLICATES => {
+                    SlotAvailability::unavailable("insufficient_bootstrap_replicates")
+                }
+                None => SlotAvailability::unavailable(
+                    antecedent_estimate::dependence_refusal(
+                        self.state.functional.catalog(),
+                        &self.state.input.samples,
+                    )
+                    .unwrap_or("transport.unsupported_dependence"),
+                ),
             }
-            Some(est) => SlotAvailability::unavailable(
-                est.uncertainty_reason.as_deref().unwrap_or("uncertainty_unavailable"),
-            ),
-            None if self.licensed_interval() => {
-                SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
-                    UncertaintySource::Sampling,
-                    "percentile_bootstrap",
-                    false,
-                )]))
-            }
-            None if self.state.input.samples.is_empty() => {
-                SlotAvailability::unavailable("exact_supplied_law_no_sampling_uncertainty")
-            }
-            None if self.state.options.bootstrap_replicates == 0 => {
-                SlotAvailability::unavailable("bootstrap_not_requested")
-            }
-            None if self.state.options.bootstrap_replicates < PERCENTILE_95_MIN_REPLICATES => {
-                SlotAvailability::unavailable("insufficient_bootstrap_replicates")
-            }
-            None => SlotAvailability::unavailable(
-                antecedent_estimate::dependence_refusal(
-                    self.state.functional.catalog(),
-                    &self.state.input.samples,
-                )
-                .unwrap_or("transport.unsupported_dependence"),
-            ),
         };
         ReasoningView::new(
             SlotAvailability::Available(IdentificationSlot::identified_singleton(
@@ -580,16 +620,16 @@ impl PreparedStudy<StatisticalPreparedState> {
             )),
             SlotAvailability::Available(SupportSlot::new(
                 "stage_contract",
-                Some(Arc::from(
-                    if matches!(
-                        self.state.options.estimator,
-                        antecedent_estimate::EmpiricalTableEstimator::Learned(_)
-                    ) {
-                        "transport.learned_categorical"
-                    } else {
-                        "transport.empirical_table"
-                    },
-                )),
+                Some(Arc::from(if is_bayesian_provider(self.state.options.estimator) {
+                    self.state.options.estimator.as_str()
+                } else if matches!(
+                    self.state.options.estimator,
+                    antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+                ) {
+                    "transport.learned_categorical"
+                } else {
+                    "transport.empirical_table"
+                })),
                 if evaluated {
                     SlotAvailability::Available(Arc::from("empirical_factor_support_checked"))
                 } else {
@@ -603,7 +643,14 @@ impl PreparedStudy<StatisticalPreparedState> {
                 AssumptionSource::UserDeclared,
                 ObligationKind::Uncheckable,
                 AssumptionStatus::Untestable,
-                if matches!(
+                if is_bayesian_provider(self.state.options.estimator) {
+                    match self.state.options.estimator {
+                        antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap =>
+                            "Declared finite joint; Rubin Exp(1) row weights define a posterior on observed support only. Posterior intervals are exposed, but repeated-sampling calibration and support license are pending.",
+                        _ =>
+                            "Declared full categorical state space; each cell has a symmetric Dirichlet(1) prior. Posterior intervals are exposed, but repeated-sampling calibration and support license are pending.",
+                    }
+                } else if matches!(
                     self.state.options.estimator,
                     antecedent_estimate::EmpiricalTableEstimator::Learned(_)
                 ) {
@@ -653,13 +700,17 @@ impl PreparedStudy<StatisticalPreparedState> {
         }
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        if is_bayesian_provider(self.state.options.estimator) && !self.state.grid.is_empty() {
+            return Err(err("Bayesian transport treatment grids are not yet licensed"));
+        }
+        let point_options = point_options(self.state.options);
         let estimate = if self.state.grid.is_empty() {
             antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
                 &self.state.functional,
                 &self.state.input,
                 &[self.state.request.clone()],
                 self.state.limits,
-                &self.state.options,
+                &point_options,
                 &frozen_ctx,
                 &self.state.data,
             )
@@ -686,7 +737,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                 &self.state.input,
                 &requests,
                 self.state.limits,
-                &self.state.options,
+                &point_options,
                 &frozen_ctx,
                 &self.state.data,
             )
@@ -695,9 +746,43 @@ impl PreparedStudy<StatisticalPreparedState> {
         };
         let mut estimate = estimate;
         Self::withhold_unearned_percentile(&mut estimate, &self.state.options);
+        let bayesian_estimate = match self.state.options.estimator {
+            antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap => {
+                Some(
+                    antecedent_estimate::evaluate_bayesian_statistical_transport(
+                        &self.state.functional,
+                        &self.state.input,
+                        self.state.request.clone(),
+                        self.state.limits,
+                        antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
+                        self.state.options.posterior_draws,
+                        self.state.options.coverage_level,
+                        self.state.options.max_joint_cells,
+                        &frozen_ctx,
+                    )
+                    .map_err(err)?,
+                )
+            }
+            antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet => Some(
+                antecedent_estimate::evaluate_bayesian_statistical_transport(
+                    &self.state.functional,
+                    &self.state.input,
+                    self.state.request.clone(),
+                    self.state.limits,
+                    antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet,
+                    self.state.options.posterior_draws,
+                    self.state.options.coverage_level,
+                    self.state.options.max_joint_cells,
+                    &frozen_ctx,
+                )
+                .map_err(err)?,
+            ),
+            _ => None,
+        };
         Ok(StatisticalStudyResult {
             reasoning: self.reasoning(true, Some(&estimate)),
             estimate,
+            bayesian_estimate,
             identities: self.state.identities.clone(),
         })
     }
@@ -733,6 +818,9 @@ impl PreparedStudy<StatisticalPreparedState> {
         evaluated: Option<Vec<antecedent_expr::ExactDistribution>>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<(Self, StatisticalStudyResult)>, IoError> {
+        if is_bayesian_provider(self.state.options.estimator) {
+            return Err(err("Bayesian transport treatment grids are not yet licensed"));
+        }
         if self.state.loaded_only {
             return Err(err("transport.samples_not_embedded"));
         }
@@ -782,6 +870,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                     reasoning: prepared.reasoning(true, Some(&estimate)),
                     identities: prepared.state.identities.clone(),
                     estimate,
+                    bayesian_estimate: None,
                 };
                 Ok((prepared, result))
             })
@@ -892,8 +981,13 @@ impl PreparedStudy<StatisticalPreparedState> {
         if !self.preview_snapshot(&input)? {
             return Err(err("transport.reprepare_required"));
         }
-        let data = assemble_point_laws(&input, &self.state.functional, &self.state.options, ctx)
-            .map_err(err)?;
+        let data = assemble_point_laws(
+            &input,
+            &self.state.functional,
+            &point_options(self.state.options),
+            ctx,
+        )
+        .map_err(err)?;
         let catalog = rebind_snapshots(self.state.functional.catalog(), |regime| {
             data.laws()
                 .iter()
@@ -987,6 +1081,26 @@ impl PreparedStudy<StatisticalPreparedState> {
                 .collect(),
             probabilities: result.distribution().probabilities.to_vec(),
             uncertainty: result.estimate.uncertainty.as_ref().map(UncertaintyRowWire::from_row),
+            bayesian_posterior: result.bayesian_estimate.as_ref().map(|posterior| {
+                BayesianTransportPosteriorWire {
+                    estimator: posterior.estimator.to_string(),
+                    interval_method: posterior.interval_method.to_string(),
+                    draws_requested: posterior.draws_requested,
+                    draws_ok: posterior.draws_ok,
+                    draws_failed: posterior.draws_failed,
+                    probabilities: posterior
+                        .distributions
+                        .iter()
+                        .map(|distribution| distribution.probabilities.to_vec())
+                        .collect(),
+                    atom_intervals: posterior.atom_intervals.to_vec(),
+                    mean_intervals: posterior
+                        .mean_intervals
+                        .iter()
+                        .map(|(variable, lower, upper)| (variable.raw(), *lower, *upper))
+                        .collect(),
+                }
+            }),
             atom_intervals: result.estimate.atom_intervals.as_ref().map(|rows| rows.to_vec()),
             mean_intervals: result
                 .estimate
@@ -1085,12 +1199,24 @@ impl PreparedStudy<StatisticalPreparedState> {
         if atoms != wire.atoms || point.probabilities.as_ref() != wire.probabilities.as_slice() {
             return Err(err("transport artifact execution claim mismatch"));
         }
-        let estimate = validate_uncertainty(&wire, point, &prepared)?;
+        let estimate = validate_uncertainty(&wire, point.clone(), &prepared)?;
+        let bayesian_estimate = validate_bayesian_posterior(
+            wire.bayesian_posterior.as_ref(),
+            point,
+            wire.options.estimator.as_str(),
+            wire.options.posterior_draws,
+            wire.options.coverage_level,
+        )?;
         let reasoning = prepared.reasoning(true, Some(&estimate));
         if super::contract::reasoning_section(&reasoning) != wire.reasoning {
             return Err(err("transport artifact reasoning mismatch"));
         }
-        let result = StatisticalStudyResult { reasoning, estimate, identities: wire.identities };
+        let result = StatisticalStudyResult {
+            reasoning,
+            estimate,
+            identities: wire.identities,
+            bayesian_estimate,
+        };
         Ok((prepared, result))
     }
 }
@@ -1282,6 +1408,8 @@ struct StatisticalExecutionWire {
     atoms: Vec<Vec<ValueWire>>,
     probabilities: Vec<f64>,
     uncertainty: Option<UncertaintyRowWire>,
+    #[serde(default)]
+    bayesian_posterior: Option<BayesianTransportPosteriorWire>,
     atom_intervals: Option<Vec<(f64, f64)>>,
     mean_intervals: Option<Vec<(u32, f64, f64)>>,
     replicate_ids: Option<Vec<u32>>,
@@ -1384,6 +1512,8 @@ fn validate_uncertainty(
     let Some(row) = &wire.uncertainty else {
         let expected = if wire.samples.is_empty() {
             "exact_supplied_law_no_sampling_uncertainty"
+        } else if is_bayesian_provider(wire.options.to_options()?.estimator) {
+            "bootstrap_not_requested"
         } else if wire.options.bootstrap_replicates == 0 {
             "bootstrap_not_requested"
         } else {
@@ -1509,6 +1639,106 @@ fn validate_uncertainty(
     Ok(estimate)
 }
 
+fn validate_bayesian_posterior(
+    wire: Option<&BayesianTransportPosteriorWire>,
+    point: antecedent_expr::ExactDistribution,
+    estimator: &str,
+    requested: u32,
+    coverage: f64,
+) -> Result<Option<antecedent_estimate::BayesianStatisticalTransportEstimate>, IoError> {
+    let expected = matches!(
+        estimator,
+        antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
+            | antecedent_estimate::STATE_SPACE_DIRICHLET
+    );
+    let Some(wire) = wire else {
+        return if expected {
+            Err(err("Bayesian transport artifact lacks posterior draws"))
+        } else {
+            Ok(None)
+        };
+    };
+    if !expected
+        || wire.estimator != estimator
+        || wire.interval_method != antecedent_estimate::POSTERIOR_EQUAL_TAIL
+        || wire.draws_requested != requested
+        || wire.draws_ok < 2
+        || wire.draws_ok.checked_add(wire.draws_failed) != Some(wire.draws_requested)
+        || wire.probabilities.len() != wire.draws_ok as usize
+        || wire.probabilities.len().checked_mul(point.atoms.len()).is_none_or(|n| n > 10_000_000)
+    {
+        return Err(err("Bayesian transport artifact draw metadata mismatch"));
+    }
+    let mut distributions = Vec::with_capacity(wire.probabilities.len());
+    for probabilities in &wire.probabilities {
+        let mass: f64 = probabilities.iter().sum();
+        if probabilities.len() != point.atoms.len()
+            || probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
+            || !mass.is_finite()
+            || (mass - 1.0).abs() > 1e-10
+        {
+            return Err(err("Bayesian transport artifact has invalid draw law"));
+        }
+        distributions.push(antecedent_expr::ExactDistribution {
+            outcomes: point.outcomes.clone(),
+            atoms: point.atoms.clone(),
+            probabilities: probabilities.clone().into(),
+            support: point.support.clone(),
+        });
+    }
+    let mut atom_intervals = Vec::with_capacity(point.atoms.len());
+    for atom in 0..point.atoms.len() {
+        let mut values =
+            distributions.iter().map(|draw| draw.probabilities[atom]).collect::<Vec<_>>();
+        values.sort_by(f64::total_cmp);
+        atom_intervals.push(antecedent_stats::equal_tail_interval_sorted(
+            &values,
+            coverage,
+            antecedent_stats::QuantileRule::Interpolated,
+        ));
+    }
+    let mut mean_intervals = Vec::with_capacity(point.outcomes.len());
+    for outcome in point.outcomes.iter().copied() {
+        let mut values = distributions
+            .iter()
+            .map(|draw| draw.mean(outcome).map_err(err))
+            .collect::<Result<Vec<_>, _>>()?;
+        values.sort_by(f64::total_cmp);
+        let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+            &values,
+            coverage,
+            antecedent_stats::QuantileRule::Interpolated,
+        );
+        mean_intervals.push((outcome, lower, upper));
+    }
+    if !same_intervals(&atom_intervals, &wire.atom_intervals)
+        || mean_intervals.len() != wire.mean_intervals.len()
+        || mean_intervals.iter().zip(&wire.mean_intervals).any(|((v, lo, hi), (wv, wlo, whi))| {
+            v.raw() != *wv || lo.to_bits() != wlo.to_bits() || hi.to_bits() != whi.to_bits()
+        })
+    {
+        return Err(err("Bayesian transport artifact posterior summary mismatch"));
+    }
+    Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
+        estimator: Arc::from(wire.estimator.as_str()),
+        interval_method: Arc::from(wire.interval_method.as_str()),
+        distributions: distributions.into(),
+        atom_intervals: atom_intervals.into(),
+        mean_intervals: mean_intervals.into(),
+        draws_requested: wire.draws_requested,
+        draws_ok: wire.draws_ok,
+        draws_failed: wire.draws_failed,
+    }))
+}
+
+fn same_intervals(left: &[(f64, f64)], right: &[(f64, f64)]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(a, b)| a.0.to_bits() == b.0.to_bits() && a.1.to_bits() == b.1.to_bits())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1569,6 +1799,20 @@ mod tests {
         counts: [usize; 4],
         bootstrap_replicates: u32,
         dependence: DependenceGroup,
+    ) -> PreparedStudy<StatisticalPreparedState> {
+        prepared_with_options(
+            snapshot,
+            counts,
+            dependence,
+            EmpiricalTableOptions { bootstrap_replicates, ..EmpiricalTableOptions::default() },
+        )
+    }
+
+    fn prepared_with_options(
+        snapshot: &str,
+        counts: [usize; 4],
+        dependence: DependenceGroup,
+        options: EmpiricalTableOptions,
     ) -> PreparedStudy<StatisticalPreparedState> {
         let mut graph = Admg::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1641,7 +1885,7 @@ mod tests {
             },
             Assignment::from_pairs([(v(0), Value::Int64(1))]),
             ExactEvaluationLimits::default(),
-            EmpiricalTableOptions { bootstrap_replicates, ..EmpiricalTableOptions::default() },
+            options,
             &ctx,
         )
         .unwrap()
@@ -1674,6 +1918,44 @@ mod tests {
         let earned = prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES);
         assert!(earned.licensed_interval());
         assert!(earned.inspect().reasoning.uncertainty.is_available());
+    }
+
+    #[test]
+    fn bayesian_transport_posterior_survives_export_and_independent_consume() {
+        let study = prepared_with_options(
+            "bayesian",
+            [20, 5, 10, 15],
+            DependenceGroup::IndependentStudies,
+            EmpiricalTableOptions {
+                estimator: antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet,
+                posterior_draws: 16,
+                ..EmpiricalTableOptions::default()
+            },
+        );
+        let ctx = ExecutionContext::for_tests(7);
+        let result = study.estimate_retained(&ctx).unwrap();
+        let posterior = result.bayesian_estimate().expect("Bayesian posterior attached");
+        assert_eq!(posterior.draws_requested, 16);
+        assert_eq!(posterior.draws_ok, 16);
+        assert_eq!(posterior.estimator.as_ref(), antecedent_estimate::STATE_SPACE_DIRICHLET);
+        assert!(!result.reasoning().uncertainty.is_available());
+        assert!(matches!(
+            &result.reasoning().uncertainty,
+            SlotAvailability::Unavailable { reason } if reason.as_ref() == "bayesian_transport_uncalibrated"
+        ));
+
+        let artifact = study.export(&result).unwrap();
+        let (_consumed, replayed) = PreparedStudy::<StatisticalPreparedState>::consume(
+            &artifact,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(
+            replayed.bayesian_estimate().unwrap().distributions.len(),
+            posterior.distributions.len()
+        );
+        assert_eq!(replayed.bayesian_estimate().unwrap().mean_intervals, posterior.mean_intervals);
     }
 
     #[test]
