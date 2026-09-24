@@ -157,26 +157,7 @@ impl CheckedDistributionOperation {
         &self,
         data: &TabularData,
     ) -> Result<antecedent_estimate::PreparedFunctionalDistribution, CausalError> {
-        let rebound = antecedent_estimate::FunctionalDistribution::new().prepare(
-            data,
-            &self.query,
-            &self.prepared.estimand,
-            &self.prepared.arena,
-            self.prepared.assumptions.clone(),
-        )?;
-        let old_arena = antecedent_io::expr_arena_to_wire(self.prepared.program().arena())
-            .map_err(|err| CausalError::Compile { message: err.to_string() })?;
-        let new_arena = antecedent_io::expr_arena_to_wire(rebound.program().arena())
-            .map_err(|err| CausalError::Compile { message: err.to_string() })?;
-        if rebound.program().mapping() != self.prepared.program().mapping()
-            || new_arena != old_arena
-            || rebound.program().schema() != self.prepared.program().schema()
-        {
-            return Err(CausalError::Compile {
-                message: "prepared distribution program changed during data rebind".into(),
-            });
-        }
-        Ok(rebound)
+        self.prepared.rebind_checked(data).map_err(CausalError::from)
     }
 }
 
