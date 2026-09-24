@@ -255,7 +255,7 @@ def render() -> str:
     return "\n".join(rows)
 
 
-def validate(release_gate: bool = False) -> list[str]:
+def validate(release_gate: bool = False, verify_progress: bool = False) -> list[str]:
     issues: list[str] = []
     support, routes = load_registries()
     try:
@@ -348,7 +348,7 @@ def validate(release_gate: bool = False) -> list[str]:
             or row.get("execution_semantics") != "checked_plan"
         ):
             issues.append(f"{key}: 2.1 release blocked; checked plan execution independent of builders is not verified")
-    if release_gate and not issues:
+    if (release_gate or verify_progress) and not issues:
         run_route_evidence(inventory.values(), issues)
     return issues
 
@@ -438,10 +438,15 @@ def main() -> int:
     parser.add_argument("--write", action="store_true", help="regenerate the checked-in inventory")
     parser.add_argument("--release-gate", action="store_true", help="require every licensed route to be verified")
     parser.add_argument("--progress", action="store_true", help="show closure counts by execution family")
+    parser.add_argument(
+        "--verify-progress",
+        action="store_true",
+        help="execute every currently verified route's cited test without requiring full release closure",
+    )
     args = parser.parse_args()
     if args.write:
         INVENTORY.write_text(render())
-    issues = validate(args.release_gate)
+    issues = validate(args.release_gate, args.verify_progress)
     if issues:
         print("compiler migration gate failed:", file=sys.stderr)
         for issue in issues[:80]:
