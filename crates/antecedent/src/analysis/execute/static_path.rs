@@ -102,18 +102,44 @@ impl super::Study {
         // case (both set) at `build()` time, so there is nothing to reconcile here.
         let estimator_spec =
             self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
-        let point = estimate_static_effect(
-            &estimator_spec,
-            &data_est,
-            &estimand_est,
-            &query_est,
-            assumptions,
-            0, // point stage: no bootstrap
-            self.overlap_policy,
-            self.population_registry.as_ref(),
-            ctx,
-            &mut estimate_ws,
-        )?;
+        // Prepare against the original semantic variable IDs. Projection remaps tabular
+        // columns, while the identified expression still belongs to the original arena.
+        let checked_linear =
+            if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
+            {
+                let fitter = match &estimator_spec {
+                    EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
+                        Some(LinearAdjustmentAte::new())
+                    }
+                    EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
+                    _ => None,
+                };
+                fitter
+                    .map(|fitter| {
+                        let checked = fitter.prepare_checked(data, &identification, 0)?;
+                        Ok::<_, CausalError>((fitter, checked))
+                    })
+                    .transpose()?
+            } else {
+                None
+            };
+        let point = if let Some((fitter, checked)) = &checked_linear {
+            fitter.fit_checked(checked, &mut estimate_ws.linear, ctx).map_err(CausalError::from)?
+        } else {
+            estimate_static_effect(
+                &estimator_spec,
+                &data_est,
+                &estimand_est,
+                &query_est,
+                assumptions,
+                0, // point stage: no bootstrap
+                self.overlap_policy,
+                self.population_registry.as_ref(),
+                ctx,
+                &mut estimate_ws,
+            )?
+        };
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -171,8 +197,11 @@ impl super::Study {
                 let mut est = LinearAdjustmentAte::new();
                 est.bootstrap_replicates = self.bootstrap_replicates;
                 est.overlap = OverlapPolicy::ExplicitOverride;
-                let prep =
-                    est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
+                let prep = if let Some((_, checked)) = &checked_linear {
+                    checked.problem.clone()
+                } else {
+                    est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?
+                };
                 let filled = est
                     .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
                     .map_err(CausalError::from)?;
