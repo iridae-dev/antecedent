@@ -11,6 +11,7 @@ impl super::Study {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         prepared_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
+        prepared_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
         bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
@@ -234,6 +235,17 @@ impl super::Study {
                     .fit_checked(checked, &mut estimate_ws.linear, ctx)
                     .map_err(CausalError::from)?
             }
+        } else if let Some(checked) = prepared_aipw {
+            if checked.target().functional != estimand.functional
+                || checked.target().adjustment_set != estimand.adjustment_set
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared AIPW lowering disagrees with selected identification".into(),
+                });
+            }
+            super::super::prepared::checked_aipw_fitter(self)
+                .fit_checked(checked, &mut estimate_ws.aipw, ctx)
+                .map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
             fitter.fit_checked(checked, &mut frontdoor_workspace, ctx).map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_frontdoor_functional {
@@ -269,7 +281,8 @@ impl super::Study {
         // replicate count and already ran it in the point fit, and the double-ML, DR-learner
         // and causal-forest fits take no replicate count: refitting any of them here would
         // reproduce the same estimate at the cost of a second full nuisance fit.
-        let skip_bootstrap_refill = self.bootstrap_replicates == 0
+        let skip_bootstrap_refill = prepared_aipw.is_some()
+            || self.bootstrap_replicates == 0
             || self
                 .estimator_spec
                 .as_ref()

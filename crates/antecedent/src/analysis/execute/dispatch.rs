@@ -736,6 +736,7 @@ impl super::Study {
                             q,
                             physical,
                             execution.checked_linear(),
+                            execution.checked_aipw(),
                             execution.bayesian_gcomp(),
                             ctx,
                         )
@@ -766,6 +767,7 @@ impl super::Study {
                                 q,
                                 physical,
                                 execution.checked_linear(),
+                                execution.checked_aipw(),
                                 execution.bayesian_gcomp(),
                                 ctx,
                             )

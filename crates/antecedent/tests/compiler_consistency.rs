@@ -47,6 +47,35 @@ fn checked_adjustment_executes_after_builder_discard_and_refresh() {
     assert!((first.estimate.ate - second_refresh.estimate.ate).abs() < 1e-9);
 }
 
+#[test]
+fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
+    let ctx = ExecutionContext::for_tests(11);
+    let (data, dag, query) = confounded_scm(512, 73);
+    let builder = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0);
+    let study = builder.clone().build().unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    drop(builder);
+    drop(study);
+
+    let lowering = prepared.checked_aipw_ate().expect("checked AIPW lowering retained");
+    assert_eq!(lowering.program().mapping().source, lowering.target().functional);
+    assert_eq!(lowering.lowering().population, antecedent_core::TargetPopulation::AllObserved);
+    assert_eq!(lowering.lowering().rows.len(), 512);
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    assert!((first.estimate.ate - 2.0).abs() < 0.3);
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    assert!((refreshed.estimate.ate - first.estimate.ate).abs() < 1e-10);
+    assert_eq!(prepared.checked_aipw_ate().unwrap().lowering().rows.len(), 512);
+    let bytes = prepared.encode_contracted_result(&refreshed, "checked-aipw", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
+}
+
 /// Estimators that never run under the named inference mode on a static
 /// `AverageEffect`. Every other estimator either implements the requested
 /// mode or is refused for a different reason (identifier, query, data).
