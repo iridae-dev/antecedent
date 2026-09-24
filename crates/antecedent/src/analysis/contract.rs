@@ -53,7 +53,8 @@ use super::batch::PreparedBatch;
 use super::builder::DataInput;
 use super::execute::Study;
 use super::prepared::{
-    CachedTemporalHorizonIdentification, CachedTemporalIdentification, PreparedStudy,
+    CachedTemporalHorizonIdentification, CachedTemporalIdentification, CheckedProgramBinding,
+    PreparedStudy,
 };
 
 /// Immutable causal-contract companion. Not a second builder.
@@ -352,13 +353,7 @@ impl PreparedStudy {
         let compiled = Arc::new(program_payloads_for(
             self.study(),
             self.plan().logical.record.estimator.as_deref(),
-            self.checked_aipw_ate(),
-            self.checked_frontdoor_linear(),
-            self.checked_iv(),
-            self.checked_linear_operation(),
-            self.checked_functional_effect_program(),
-            self.checked_functional_effect_response_members(),
-            self.checked_nested_counterfactual_operation(),
+            self.checked_program_binding(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -399,20 +394,10 @@ impl PreparedStudy {
             Some(study) => Arc::new(program_payloads_for(
                 &study,
                 self.plan().logical.record.estimator.as_deref(),
-                if population.is_none() { self.checked_aipw_ate() } else { None },
-                if population.is_none() { self.checked_frontdoor_linear() } else { None },
-                if population.is_none() { self.checked_iv() } else { None },
-                if population.is_none() { self.checked_linear_operation() } else { None },
-                if population.is_none() { self.checked_functional_effect_program() } else { None },
                 if population.is_none() {
-                    self.checked_functional_effect_response_members()
+                    self.checked_program_binding()
                 } else {
-                    None
-                },
-                if population.is_none() {
-                    self.checked_nested_counterfactual_operation()
-                } else {
-                    None
+                    CheckedProgramBinding::None
                 },
             )?),
         };
@@ -1149,15 +1134,7 @@ struct ContractPayloads {
 fn program_payloads_for(
     study: &Study,
     resolved_estimator: Option<&str>,
-    checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
-    checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
-    checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
-    checked_linear: Option<&super::prepared::CheckedLinearOperation>,
-    checked_functional_effect: Option<&antecedent_expr::FunctionalProgram>,
-    checked_functional_response_members: Option<
-        &[super::prepared::CheckedFunctionalEffectResponseMember],
-    >,
-    checked_nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
+    binding: CheckedProgramBinding<'_>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1166,13 +1143,7 @@ fn program_payloads_for(
         cached,
         cached.is_some_and(identification_search_capped),
         resolved_estimator,
-        checked_aipw,
-        checked_frontdoor,
-        checked_iv,
-        checked_linear,
-        checked_functional_effect,
-        checked_functional_response_members,
-        checked_nested_counterfactual,
+        binding,
     )
 }
 
@@ -1328,16 +1299,81 @@ fn program_payloads(
     cached: Option<&IdentificationResult>,
     search_capped: bool,
     resolved_estimator: Option<&str>,
-    checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
-    checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
-    checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
-    checked_linear: Option<&super::prepared::CheckedLinearOperation>,
-    checked_functional_effect: Option<&antecedent_expr::FunctionalProgram>,
-    checked_functional_response_members: Option<
-        &[super::prepared::CheckedFunctionalEffectResponseMember],
-    >,
-    checked_nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
+    binding: CheckedProgramBinding<'_>,
 ) -> Result<ProgramPayloads, CausalError> {
+    let (
+        checked_aipw,
+        checked_frontdoor,
+        checked_iv,
+        checked_linear,
+        checked_functional_effect,
+        checked_functional_response_members,
+        checked_distribution,
+        checked_nested_counterfactual,
+    ) = match binding {
+        CheckedProgramBinding::None => (None, None, None, None, None, None, None, None),
+        CheckedProgramBinding::Aipw(x) => (Some(x), None, None, None, None, None, None, None),
+        CheckedProgramBinding::FrontDoor(x) => (None, Some(x), None, None, None, None, None, None),
+        CheckedProgramBinding::Iv(x) => (None, None, Some(x), None, None, None, None, None),
+        CheckedProgramBinding::Linear(x) => (None, None, None, Some(x), None, None, None, None),
+        CheckedProgramBinding::FunctionalEffect(x) => {
+            (None, None, None, None, Some(x), None, None, None)
+        }
+        CheckedProgramBinding::FunctionalResponse(x) => {
+            (None, None, None, None, None, Some(x), None, None)
+        }
+        CheckedProgramBinding::Distribution(x) => {
+            (None, None, None, None, None, None, Some(x), None)
+        }
+        CheckedProgramBinding::NestedCounterfactual(x) => {
+            (None, None, None, None, None, None, None, Some(x))
+        }
+    };
+    let selected = resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok());
+    let binding_matches = match binding {
+        CheckedProgramBinding::None => true,
+        CheckedProgramBinding::Aipw(_) => {
+            selected == Some(crate::EstimatorId::Aipw)
+                && matches!(study.query, CausalQuery::AverageEffect(_))
+        }
+        CheckedProgramBinding::FrontDoor(_) => {
+            selected == Some(crate::EstimatorId::FrontDoorTwoStage)
+                && matches!(study.query, CausalQuery::AverageEffect(_))
+        }
+        CheckedProgramBinding::Iv(_) => {
+            matches!(selected, Some(crate::EstimatorId::IvWald | crate::EstimatorId::Iv2Sls))
+                && matches!(study.query, CausalQuery::AverageEffect(_))
+        }
+        CheckedProgramBinding::Linear(_) => {
+            selected == Some(crate::EstimatorId::LinearAdjustmentAte)
+                && matches!(study.query, CausalQuery::AverageEffect(_))
+        }
+        CheckedProgramBinding::FunctionalEffect(_) => {
+            selected == Some(crate::EstimatorId::FunctionalEffect)
+                && matches!(
+                    study.query,
+                    CausalQuery::AverageEffect(_) | CausalQuery::PathSpecific(_)
+                )
+        }
+        CheckedProgramBinding::FunctionalResponse(_) => {
+            selected == Some(crate::EstimatorId::FunctionalEffect)
+                && matches!(study.query, CausalQuery::Response(_))
+        }
+        CheckedProgramBinding::Distribution(_) => {
+            selected == Some(crate::EstimatorId::FunctionalDistribution)
+                && matches!(study.query, CausalQuery::Distribution(_))
+        }
+        CheckedProgramBinding::NestedCounterfactual(_) => {
+            selected == Some(crate::EstimatorId::StaticMediationLinear)
+                && matches!(study.query, CausalQuery::NestedCounterfactual(_))
+        }
+    };
+    if !binding_matches {
+        return Err(CausalError::Compile {
+            message: "checked program binding disagrees with the selected estimator or query"
+                .into(),
+        });
+    }
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
         format: IDENTITY_FORMAT,
@@ -1568,33 +1604,40 @@ fn program_payloads(
     } else if resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok())
         == Some(crate::EstimatorId::FunctionalDistribution)
     {
-        cached
-            .map(|identification| {
-                let estimand = crate::strategy_table::select_estimand(
-                    identification,
-                    crate::EstimatorId::FunctionalDistribution,
-                )?;
-                let schema = data_schema(&study.data);
-                let program_schema = antecedent_expr::ProgramSchema::new(
-                    schema.variables().iter().map(|variable| {
-                        (
-                            variable.id,
-                            antecedent_expr::ProgramVariable { name: Arc::clone(&variable.name) },
-                        )
-                    }),
-                );
-                let root = estimand.functional;
-                let program = antecedent_expr::FunctionalProgram::new(
-                    identification.arena.clone(),
-                    program_schema,
-                    root,
-                    root,
-                    antecedent_expr::ProgramLimits::default(),
-                )
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                antecedent_io::functional_program_to_wire(&program).map_err(|error| io_err(&error))
-            })
-            .transpose()?
+        if let Some(program) = checked_distribution {
+            Some(antecedent_io::functional_program_to_wire(program).map_err(|err| io_err(&err))?)
+        } else {
+            cached
+                .map(|identification| {
+                    let estimand = crate::strategy_table::select_estimand(
+                        identification,
+                        crate::EstimatorId::FunctionalDistribution,
+                    )?;
+                    let schema = data_schema(&study.data);
+                    let program_schema = antecedent_expr::ProgramSchema::new(
+                        schema.variables().iter().map(|variable| {
+                            (
+                                variable.id,
+                                antecedent_expr::ProgramVariable {
+                                    name: Arc::clone(&variable.name),
+                                },
+                            )
+                        }),
+                    );
+                    let root = estimand.functional;
+                    let program = antecedent_expr::FunctionalProgram::new(
+                        identification.arena.clone(),
+                        program_schema,
+                        root,
+                        root,
+                        antecedent_expr::ProgramLimits::default(),
+                    )
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    antecedent_io::functional_program_to_wire(&program)
+                        .map_err(|error| io_err(&error))
+                })
+                .transpose()?
+        }
     } else {
         None
     };
@@ -1751,25 +1794,7 @@ fn compile_with_payloads(
             resolved_estimator.as_deref(),
             prepared
                 .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_aipw_ate),
-            prepared
-                .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_frontdoor_linear),
-            prepared
-                .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_iv),
-            prepared
-                .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_linear_operation),
-            prepared
-                .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_functional_effect_program),
-            prepared
-                .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_functional_effect_response_members),
-            prepared
-                .filter(|prepared| study.query == *prepared.query())
-                .and_then(PreparedStudy::checked_nested_counterfactual_operation),
+                .map_or(CheckedProgramBinding::None, PreparedStudy::checked_program_binding),
         )?),
     };
     let mut payloads = contract_payloads(program, study, prepared)?;
@@ -3801,6 +3826,8 @@ mod tests {
 mod frontdoor_artifact_tests {
     use std::sync::Arc;
 
+    use super::program_payloads_for;
+
     use antecedent_core::{
         AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
         SmallRoleSet, ValueType,
@@ -3811,7 +3838,10 @@ mod frontdoor_artifact_tests {
     use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage};
     use antecedent_graph::Dag;
 
-    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
+    use crate::{
+        CausalError, Study, analysis::builder::RefuteSuite,
+        analysis::prepared::CheckedProgramBinding, strategy_table::IdentifierId,
+    };
 
     fn fixture() -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -3884,6 +3914,12 @@ mod frontdoor_artifact_tests {
             .unwrap();
         let context = ExecutionContext::for_tests(901);
         let prepared = study.prepare(&context).unwrap();
+        let wrong_binding = program_payloads_for(
+            prepared.study(),
+            Some(crate::EstimatorId::Aipw.as_str()),
+            CheckedProgramBinding::FrontDoor(prepared.checked_frontdoor_linear().unwrap()),
+        );
+        assert!(matches!(wrong_binding, Err(CausalError::Compile { .. })));
         let result = prepared.estimate(&data, &context).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "frontdoor", &context).unwrap();
         let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
