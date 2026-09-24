@@ -146,6 +146,7 @@ impl ZTransportArtifactWire {
             interval_status: "no_interval_reported".into(),
         };
         wire.validate_shape()?;
+        validate_functional_program(program, functional)?;
         Ok(wire)
     }
 
@@ -245,13 +246,7 @@ impl ZTransportArtifactWire {
                         .into(),
                 ));
             }
-            let expected = expr_arena_to_wire(functional.arena())?;
-            let supplied = expr_arena_to_wire(program.arena())?;
-            if expected != supplied {
-                return Err(IoError::Convert(
-                    "z-transport functional program arena mismatch".into(),
-                ));
-            }
+            validate_functional_program(&program, &functional)?;
             program.compile().map_err(|error| IoError::Convert(error.to_string()))?;
         }
         let laws = wire.laws.iter().map(ExactLawWire::to_law).collect::<Result<Vec<_>, _>>()?;
@@ -289,4 +284,40 @@ impl ZTransportArtifactWire {
         }
         Ok((diagram, result))
     }
+}
+
+fn validate_functional_program(
+    program: &FunctionalProgram,
+    functional: &antecedent_identify::BoundZTransportFunctional,
+) -> Result<(), IoError> {
+    if program.mapping().source != functional.derivation().root()
+        || program.mapping().executable != functional.root()
+    {
+        return Err(IoError::Convert(
+            "z-transport program roots do not match checked formula".into(),
+        ));
+    }
+    if expr_arena_to_wire(program.arena())? != expr_arena_to_wire(functional.arena())? {
+        return Err(IoError::Convert(
+            "z-transport program arena does not match bound formula".into(),
+        ));
+    }
+    let expected = functional
+        .catalog()
+        .environments
+        .iter()
+        .flat_map(|environment| environment.variables.iter())
+        .map(|coordinate| (coordinate.variable.raw(), format!("v{}", coordinate.variable.raw())))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let supplied = program
+        .schema()
+        .variables()
+        .map(|(id, variable)| (id.raw(), variable.name.to_string()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if supplied != expected {
+        return Err(IoError::Convert(
+            "z-transport program schema does not match evidence catalog".into(),
+        ));
+    }
+    Ok(())
 }
