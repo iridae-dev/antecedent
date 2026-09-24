@@ -81,6 +81,32 @@ def _frontdoor(seed: int, n: int = 800) -> dict[str, np.ndarray]:
     return {"t": t, "m": m, "y": m + 0.4 * rng.normal(size=n)}
 
 
+def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
+    """The Python entry point retains the checked AIPW row binding across clicks."""
+    data = _static(27, 512)
+    graph = GRAPH
+    prepared = ant.prepare(
+        data,
+        graph=graph,
+        query=ant.AverageEffect("treatment", "outcome"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    first = prepared.estimate(data)
+    assert first.effect == pytest.approx(1.5, abs=0.3)
+    accepted = ant.artifacts.accept(first.export())
+    assert accepted["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "outcome": data["outcome"] + 0.75 * data["treatment"]}
+    refreshed = prepared.refresh(changed)
+    assert refreshed.effect == pytest.approx(first.effect + 0.75, abs=0.05)
+    accepted_refresh = ant.artifacts.accept(refreshed.export())
+    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    assert accepted_refresh["program"] == accepted["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
 # (name, data, graph, query, extra analyze kwargs)
 ESTIMATOR_ROUTES: list[tuple[str, Callable[[], Any], Any, Any, dict[str, Any]]] = [
     ("dag", lambda: _static(1), GRAPH, ant.AverageEffect("treatment", "outcome"), {}),
