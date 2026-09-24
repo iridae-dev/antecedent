@@ -18,6 +18,35 @@ fn bayesian() -> InferenceMode {
     InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16))
 }
 
+#[test]
+fn checked_adjustment_executes_after_builder_discard_and_refresh() {
+    let ctx = ExecutionContext::for_tests(1);
+    let (data, dag, query) = confounded_scm(512, 73);
+    let builder = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::LinearAdjustmentAte)
+        .bootstrap_replicates(0);
+    let study = builder.clone().build().unwrap();
+    let one_shot = study.run(&ctx).unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    drop(builder);
+    drop(study);
+
+    let plan = prepared.checked_linear_adjustment().expect("checked lowering retained");
+    assert_eq!(plan.source_functional(), plan.program().mapping().source);
+    assert_eq!(plan.executable_functional(), plan.program().mapping().executable);
+    assert_eq!(plan.lowering().population, antecedent_core::TargetPopulation::AllObserved);
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    assert!(prepared.checked_linear_adjustment().is_some());
+    let second_refresh = prepared.refresh(data, &ctx).unwrap();
+    assert!((first.estimate.ate - 2.0).abs() < 0.2);
+    assert!((first.estimate.ate - one_shot.estimate.ate).abs() < 1e-9);
+    assert!((first.estimate.ate - refreshed.estimate.ate).abs() < 1e-9);
+    assert!((first.estimate.ate - second_refresh.estimate.ate).abs() < 1e-9);
+}
+
 /// Estimators that never run under the named inference mode on a static
 /// `AverageEffect`. Every other estimator either implements the requested
 /// mode or is refused for a different reason (identifier, query, data).
