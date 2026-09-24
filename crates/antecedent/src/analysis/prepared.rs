@@ -144,6 +144,15 @@ impl CheckedBayesianGcompOperation {
     }
 }
 
+/// Selected checked linear front-door procedure and its bound numerical receipt.
+/// Keeping the fitter beside the receipt freezes uncertainty choices as well as
+/// the causal target across prepared clicks and refresh.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedFrontDoorOperation {
+    pub(crate) fitter: antecedent_estimate::FrontDoorTwoStage,
+    pub(crate) preparation: antecedent_estimate::CheckedFrontDoorPreparation,
+}
+
 impl CheckedDistributionOperation {
     pub(crate) fn query(&self) -> &InterventionalDistributionQuery {
         &self.query
@@ -1577,6 +1586,7 @@ pub(crate) enum PreparedExecution {
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(CheckedBayesianGcompOperation),
     StaticResponseCurve(CheckedStaticResponseCurve),
+    FrontDoorLinear(CheckedFrontDoorOperation),
 }
 
 impl PreparedExecution {
@@ -1601,6 +1611,9 @@ impl PreparedExecution {
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
         if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn frontdoor_linear(&self) -> Option<&CheckedFrontDoorOperation> {
+        if let Self::FrontDoorLinear(value) = self { Some(value) } else { None }
     }
 }
 
@@ -1676,6 +1689,14 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_aipw_ate(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
         self.execution.checked_aipw()
+    }
+
+    /// Checked linear two-stage front-door lowering retained by this handle.
+    #[must_use]
+    pub fn checked_frontdoor_linear(
+        &self,
+    ) -> Option<&antecedent_estimate::CheckedFrontDoorPreparation> {
+        self.execution.frontdoor_linear().map(|operation| &operation.preparation)
     }
 
     /// Checked functional program retained for a prepared distribution query.
@@ -2233,14 +2254,31 @@ impl PreparedStudy {
                 fitter.rebind_checked(checked, data).map_err(CausalError::from)
             })
             .transpose()?;
-        let execution = match (&self.execution, rebound_linear, rebound_aipw) {
-            (PreparedExecution::CheckedLinear(_), Some(rebound), _) => {
+        let rebound_frontdoor = self
+            .execution
+            .frontdoor_linear()
+            .map(|operation| {
+                operation
+                    .fitter
+                    .rebind_checked(&operation.preparation, data)
+                    .map(|preparation| CheckedFrontDoorOperation {
+                        fitter: operation.fitter.clone(),
+                        preparation,
+                    })
+                    .map_err(CausalError::from)
+            })
+            .transpose()?;
+        let execution = match (&self.execution, rebound_linear, rebound_aipw, rebound_frontdoor) {
+            (PreparedExecution::CheckedLinear(_), Some(rebound), _, _) => {
                 PreparedExecution::CheckedLinear(rebound)
             }
-            (PreparedExecution::CheckedAipw(_), _, Some(rebound)) => {
+            (PreparedExecution::CheckedAipw(_), _, Some(rebound), _) => {
                 PreparedExecution::CheckedAipw(rebound)
             }
-            (plan, _, _) => plan.clone(),
+            (PreparedExecution::FrontDoorLinear(_), _, _, Some(rebound)) => {
+                PreparedExecution::FrontDoorLinear(rebound)
+            }
+            (plan, _, _, _) => plan.clone(),
         };
         let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
@@ -3092,6 +3130,35 @@ impl Study {
             }
             _ => None,
         };
+        let checked_frontdoor_linear = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                GraphClass::Dag,
+                InferenceMode::Frequentist,
+            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::FrontDoorTwoStage.as_str()) =>
+            {
+                let fitter = match &analysis.estimator_spec {
+                    Some(crate::estimator_spec::EstimatorSpec::FrontDoorTwoStage(config)) => {
+                        (**config).clone()
+                    }
+                    _ => antecedent_estimate::FrontDoorTwoStage::new(),
+                };
+                let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+                Some(CheckedFrontDoorOperation { fitter, preparation })
+            }
+            _ => None,
+        };
         let distribution_operation =
             match (&self.data, &self.query, analysis.identification_cache.as_deref()) {
                 (DataInput::Tabular(data), CausalQuery::Distribution(query), Some(cache)) => {
@@ -3188,6 +3255,8 @@ impl Study {
             PreparedExecution::CheckedLinear(operation)
         } else if let Some(operation) = checked_aipw {
             PreparedExecution::CheckedAipw(operation)
+        } else if let Some(operation) = checked_frontdoor_linear {
+            PreparedExecution::FrontDoorLinear(operation)
         } else if let Some(operation) = nested_counterfactual {
             PreparedExecution::NestedCounterfactual(operation)
         } else if let Some(operation) = distribution_operation {
@@ -4591,3 +4660,124 @@ mod refresh_tests {
 #[cfg(test)]
 #[path = "dbn_mediation_cache_tests.rs"]
 mod dbn_mediation_cache_tests;
+
+#[cfg(test)]
+mod prepared_frontdoor_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage};
+    use antecedent_graph::Dag;
+
+    use crate::Study;
+    use crate::analysis::builder::RefuteSuite;
+    use crate::analysis::prepared::PreparedExecution;
+    use crate::strategy_table::IdentifierId;
+
+    fn data(outcome_shift: f64) -> TabularData {
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("m", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let treatment_id = schema.id_of("t").unwrap();
+        let outcome_id = schema.id_of("y").unwrap();
+        let mediator_id = schema.id_of("m").unwrap();
+        let n = 1_600;
+        let mut treatment = Vec::with_capacity(n);
+        let mut mediator = Vec::with_capacity(n);
+        let mut outcome = Vec::with_capacity(n);
+        for i in 0..(n / 2) {
+            let mediator_noise = ((i * 17 % 101) as f64 - 50.0) / 65.0;
+            let outcome_noise = ((i * 31 % 97) as f64 - 48.0) / 42.0;
+            for t in [0.0, 1.0] {
+                let m = 0.8 * t + mediator_noise;
+                treatment.push(t);
+                mediator.push(m);
+                outcome.push(outcome_shift + 2.0 * m + outcome_noise);
+            }
+        }
+        let columns = [(treatment_id, treatment), (outcome_id, outcome), (mediator_id, mediator)];
+        let columns = columns
+            .into_iter()
+            .map(|(id, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n))
+                        .unwrap(),
+                )
+            })
+            .collect();
+        TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+    }
+
+    fn study(data: TabularData, fitter: FrontDoorTwoStage) -> Study {
+        let graph = Dag::from_named_edges(data.schema(), &[("t", "m"), ("m", "y")]).unwrap();
+        let treatment = data.schema().id_of("t").unwrap();
+        let outcome = data.schema().id_of("y").unwrap();
+        Study::tabular(data)
+            .graph(graph)
+            .query(AverageEffectQuery::with_levels(treatment, outcome, 0.0, 1.0))
+            .identifier(IdentifierId::Frontdoor)
+            .estimator(fitter)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
+        let context = ExecutionContext::for_tests(91);
+        let fitter =
+            FrontDoorTwoStage::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1);
+        // `build` and `prepare` consume their builders; only the retained handle is used below.
+        let mut prepared = study(data(0.0), fitter.clone()).prepare(&context).unwrap();
+        let PreparedExecution::FrontDoorLinear(operation) = &prepared.execution else {
+            panic!("linear front-door must prepare a checked execution variant")
+        };
+        assert_eq!(operation.fitter.se_kind, AnalyticSeKind::Hc1);
+        assert_eq!(
+            operation.preparation.lowering().procedure,
+            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct
+        );
+        assert_eq!(
+            operation.preparation.program().mapping().source,
+            operation.preparation.target().functional
+        );
+
+        let first = prepared.estimate(&data(0.0), &context).unwrap();
+        assert!((first.estimate.ate - 1.6).abs() < 0.12, "estimate={}", first.estimate.ate);
+        assert_eq!(first.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+
+        let refreshed = prepared.refresh(data(0.35), &context).unwrap();
+        assert!((refreshed.estimate.ate - 1.6).abs() < 0.12, "estimate={}", refreshed.estimate.ate);
+        assert_eq!(refreshed.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+        assert!(matches!(prepared.execution, PreparedExecution::FrontDoorLinear(_)));
+
+        let treatment = prepared.schema.id_of("t").unwrap();
+        let outcome = prepared.schema.id_of("y").unwrap();
+        prepared.study_mut().query = CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
+            treatment, outcome, 0.0, 2.0,
+        ));
+        let error = prepared.estimate(&data(0.35), &context).unwrap_err();
+        assert!(error.to_string().contains("prepared front-door lowering"), "{error}");
+    }
+}
