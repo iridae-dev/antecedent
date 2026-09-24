@@ -739,6 +739,7 @@ impl super::Study {
                             execution.checked_aipw(),
                             execution.frontdoor_linear(),
                             execution.bayesian_gcomp(),
+                            execution.iv(),
                             ctx,
                         )
                     }
@@ -771,6 +772,7 @@ impl super::Study {
                                 execution.checked_aipw(),
                                 execution.frontdoor_linear(),
                                 execution.bayesian_gcomp(),
+                                execution.iv(),
                                 ctx,
                             )
                         }
