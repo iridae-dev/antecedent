@@ -88,6 +88,13 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
         problems = compiler_migration.validate_evidence_body(body, "every_licensed_cell_completes_the_compiler_path")
         self.assertTrue(any("explicitly discard its builder" in problem for problem in problems))
 
+    def test_builder_discard_evidence_accepts_plain_and_prefixed_names(self) -> None:
+        for discarded in ("drop(builder)", "drop(aipw_builder)", "del builder", "builder = None"):
+            body = f"{{ let plan = prepared.checked_plan(); {discarded}; prepared.estimate(); }}"
+            self.assertEqual(compiler_migration.validate_evidence_body(body, "route"), [])
+        body = "{ let plan = prepared.checked_plan(); drop(result); prepared.estimate(); }"
+        self.assertTrue(compiler_migration.validate_evidence_body(body, "route"))
+
 
 if __name__ == "__main__":
     unittest.main()

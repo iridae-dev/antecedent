@@ -360,10 +360,11 @@ def validate_route_evidence(test_path: str, assertion: str) -> list[str]:
 
 def validate_evidence_body(body: str, assertion: str) -> list[str]:
     """Require concrete source signals for builder discard, plan inspection, and execution."""
+    builder_name = r"(?:[A-Za-z_][A-Za-z0-9_]*)?builder[A-Za-z0-9_]*"
     discarded = (
-        re.search(r"\bdrop\s*\(\s*[A-Za-z_][A-Za-z0-9_]*builder[A-Za-z0-9_]*\s*\)", body, re.I)
-        or re.search(r"\bdel\s+[A-Za-z_][A-Za-z0-9_]*builder[A-Za-z0-9_]*\b", body, re.I)
-        or re.search(r"\b[A-Za-z_][A-Za-z0-9_]*builder[A-Za-z0-9_]*\s*=\s*None\b", body, re.I)
+        re.search(rf"\bdrop\s*\(\s*{builder_name}\s*\)", body, re.I)
+        or re.search(rf"\bdel\s+{builder_name}\b", body, re.I)
+        or re.search(rf"\b{builder_name}\s*=\s*None\b", body, re.I)
     )
     if not discarded:
         return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]
