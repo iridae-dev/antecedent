@@ -503,7 +503,7 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { unreachable!() };
-                self.execute_tabular_route(route, data, physical, None, None, ctx)
+                self.execute_tabular_route(route, data, physical, None, None, None, ctx)
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -592,6 +592,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
+        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -607,6 +608,7 @@ impl super::Study {
             physical,
             checked_linear,
             nested_counterfactual,
+            distribution_operation,
             ctx,
         )
     }
@@ -661,6 +663,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
+        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
@@ -776,6 +779,7 @@ impl super::Study {
                             super::static_path::DistributionGraph::Dag(graph),
                             q,
                             physical,
+                            distribution_operation,
                             ctx,
                         )
                     }
@@ -788,6 +792,7 @@ impl super::Study {
                             super::static_path::DistributionGraph::Admg(admg),
                             q,
                             physical,
+                            distribution_operation,
                             ctx,
                         )
                     }

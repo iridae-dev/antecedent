@@ -64,15 +64,14 @@ fn prepared_reestimate_matches_fresh_analyze() {
     assert_eq!(first.physical_plan.plan_id, fresh.physical_plan.plan_id);
     assert_eq!(second.physical_plan.plan_id, first.physical_plan.plan_id);
 
-    // Prepared clicks reuse prepare-time identification (observable, and only
-    // there): fresh runs must not carry the marker.
-    for result in [&first, &second] {
+    // One-shot linear adjustment now runs through the same prepared boundary,
+    // so all three executions reuse identification prepared before fitting.
+    for result in [&fresh, &first, &second] {
         assert!(
             result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
             "prepared estimate missing exec.identify.cached diagnostic"
         );
     }
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
 }
 
 #[test]
@@ -711,7 +710,19 @@ fn prepared_distribution_reestimate_matches_fresh() {
             .unwrap()
     };
     let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
-    let mut prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let builder = Study::tabular(data.clone())
+        .graph(dag)
+        .query(CausalQuery::Distribution(query))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None);
+    let study = builder.clone().build().unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    drop(builder);
+    drop(study);
+    let plan = prepared.checked_distribution_program().expect("retained distribution program");
+    assert_eq!(plan.mapping().source, plan.mapping().executable);
+    assert!(!plan.factor_requirements().is_empty());
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
@@ -1680,8 +1691,10 @@ fn claim_refuses_a_result_that_carries_no_execution_stamp() {
     let prepared = study.clone().prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
 
-    // A plain run was never executed under this (or any) prepared contract.
-    let unstamped = study.run(&ctx).unwrap();
+    // Direct low-level execute remains callable but does not carry a prepared
+    // contract stamp. One-shot run now prepares and stamps this route.
+    let low_level_plan = study.compile(&ctx).unwrap();
+    let unstamped = study.execute(&low_level_plan, &ctx).unwrap();
     match unstamped.claim(&contract, &ctx) {
         Err(antecedent::CausalError::Conflict { what, .. }) => assert_eq!(what, "result"),
         other => panic!("an unstamped result must not be sealed: {other:?}"),
