@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 
+use antecedent::support::{classify_estimator, licensed_estimators, licensed_route_estimator};
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     InterferenceSpec, RefuteSuite, Study, StudyBuilder, TransportTrialSpec, cell_coordinate,
@@ -954,6 +955,175 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
     Ok(CellSetup { expected, builder, data })
 }
 
+/// Optional estimators often need a different, but still same-coordinate,
+/// design than the shared support fixture. Keep the registry cell unchanged
+/// while supplying the data and identifier the named estimator expects.
+fn optional_estimator_setup(
+    cell: &antecedent::SupportCell,
+    estimator: &EstimatorId,
+) -> Result<CellSetup, String> {
+    let name = estimator.as_str();
+    let custom = match name {
+        "frontdoor.linear_two_stage" => Some("frontdoor"),
+        "iv.2sls" | "iv.wald" | "iv.bayesian_joint_linear" => Some("iv"),
+        "rd.sharp" | "rd.bayesian_local_linear" => Some("rd"),
+        "glm.adjustment" => Some("glm"),
+        "cell.aipw" if cell.query == "InterventionResponse" => Some("cell_aipw"),
+        _ => None,
+    };
+    let Some(kind) = custom else {
+        let mut setup = cell_setup(cell)?;
+        setup.builder = setup.builder.estimator(estimator.clone());
+        // The optional registry alternatives are routed through their named
+        // identifier families; the default shared fixture otherwise infers
+        // the primary compiler route and silently rewrites several choices.
+        let identifier = match (cell.query, cell.graph_class, name) {
+            ("AverageEffect", "CoDetermined", "cell.aipw") => return Ok(setup),
+            ("InterventionResponse", _, "cell.aipw") => IdentifierId::ResponseBackdoor,
+            ("ConditionalEffect", _, "bayesian.basis.gcomp") => IdentifierId::BackdoorAdjustment,
+            (
+                "AverageEffect",
+                _,
+                "bayesian.basis.gcomp" | "bayesian.robust_ate" | "bayesian.gcomp",
+            ) => IdentifierId::BackdoorAdjustment,
+            (
+                "AverageEffect",
+                _,
+                "aipw" | "propensity.matching" | "propensity.weighting" | "glm.adjustment",
+            ) => IdentifierId::BackdoorAdjustment,
+            _ => return Ok(setup),
+        };
+        setup.builder = setup.builder.identifier(identifier);
+        return Ok(setup);
+    };
+
+    let expected = cell_coordinate(*cell);
+    let accepted = cell.structure == "accepted";
+    let n = 120usize;
+    let (data, query, graph, identifier, rd) = match kind {
+        "frontdoor" => {
+            let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let m: Vec<f64> = (0..n).map(|i| 0.3 * t[i] + ((i * 7 % 13) as f64) / 13.0).collect();
+            let y: Vec<f64> = (0..n).map(|i| 0.7 * m[i] + ((i * 11 % 17) as f64) / 17.0).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("m", m.as_slice()),
+                ("y", y.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let mut graph = Dag::with_variables(3);
+            graph.insert_directed(nid(0), nid(1)).unwrap();
+            graph.insert_directed(nid(1), nid(2)).unwrap();
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(2))),
+                graph,
+                IdentifierId::Frontdoor,
+                None,
+            )
+        }
+        "iv" => {
+            let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let t: Vec<f64> = (0..n).map(|i| f64::from(z[i] == 1.0 && i % 4 != 1)).collect();
+            let y: Vec<f64> = (0..n).map(|i| 0.5 * t[i] + ((i * 7 % 19) as f64) / 19.0).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let mut graph = Dag::with_variables(3);
+            graph.insert_directed(nid(2), nid(0)).unwrap();
+            graph.insert_directed(nid(0), nid(1)).unwrap();
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1))),
+                graph,
+                IdentifierId::Iv,
+                None,
+            )
+        }
+        "rd" => {
+            let r: Vec<f64> = (0..n).map(|i| (i as f64 - 60.0) / 30.0).collect();
+            let t: Vec<f64> = r.iter().map(|x| f64::from(*x >= 0.0)).collect();
+            let y: Vec<f64> =
+                (0..n).map(|i| 1.0 + 1.5 * t[i] + 0.4 * r[i] + ((i % 7) as f64) * 0.01).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("y", y.as_slice()),
+                ("r", r.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let mut graph = Dag::with_variables(3);
+            graph.insert_directed(nid(2), nid(0)).unwrap();
+            graph.insert_directed(nid(0), nid(1)).unwrap();
+            graph.insert_directed(nid(2), nid(1)).unwrap();
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1))),
+                graph,
+                IdentifierId::RdSharp,
+                Some((vid(2), 0.0, 1.5)),
+            )
+        }
+        "glm" => {
+            let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let z: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+            let y: Vec<f64> = (0..n).map(|i| ((i % 5 < 2) ^ (t[i] == 1.0)) as u8 as f64).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1))),
+                dag_for(cell, 3),
+                IdentifierId::BackdoorAdjustment,
+                None,
+            )
+        }
+        "cell_aipw" => {
+            let t1: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let t2: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+            let z: Vec<f64> = (0..n).map(|i| ((i / 4) % 2) as f64).collect();
+            let y: Vec<f64> = (0..n)
+                .map(|i| 0.4 * t1[i] + 0.3 * t2[i] + 0.2 * z[i] + ((i * 7 % 13) as f64) * 0.01)
+                .collect();
+            let data = TabularData::from_f64_columns([
+                ("t1", t1.as_slice()),
+                ("t2", t2.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let query = intervention_response(&[0, 1], 2, false);
+            let mut graph = Dag::with_variables(4);
+            graph.insert_directed(nid(3), nid(0)).unwrap();
+            graph.insert_directed(nid(3), nid(1)).unwrap();
+            graph.insert_directed(nid(3), nid(2)).unwrap();
+            graph.insert_directed(nid(0), nid(2)).unwrap();
+            graph.insert_directed(nid(1), nid(2)).unwrap();
+            (data, query, graph, IdentifierId::ResponseBackdoor, None)
+        }
+        _ => unreachable!(),
+    };
+    let mut builder = Study::tabular(data.clone())
+        .query(query)
+        .inference(inference_of(cell.inference))
+        .refute(refute_of(cell.validation))
+        .bootstrap_replicates(0)
+        .identifier(identifier)
+        .estimator(estimator.clone());
+    builder =
+        if accepted { builder.graph(AcceptedGraph::from(graph)) } else { builder.graph(graph) };
+    if let Some((running, cutoff, bandwidth)) = rd {
+        builder = builder.rd_config(running, cutoff, bandwidth);
+    }
+    Ok(CellSetup { expected, builder, data: CellData::Tabular(data) })
+}
+
 fn inspect_setup(setup: &CellSetup) -> Result<antecedent::CausalContract, String> {
     let expected = &setup.expected;
     let inspected =
@@ -1030,7 +1200,10 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         .map_err(|e| format!("{expected}: encode {e}"))?;
     let consumed =
         consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
-    if !consumed.acceptance.accepts_as_verified_program() {
+    if !consumed.acceptance.accepts_as_verified_program()
+        && !linear_replay_dependency_only(&consumed)
+        && !bayesian_distribution_replay_dependency_only(&consumed)
+    {
         return Err(format!("{expected}: consume did not accept a verified program"));
     }
     let plan = &result.logical_plan;
@@ -1131,4 +1304,320 @@ fn every_licensed_cell_completes_the_compiler_path() {
         "{ROUTES} does not match the identifiers and estimators the licensed cells ran; \
          regenerate with UPDATE_LICENSED_ROUTES=1"
     );
+}
+
+/// Diagnostic sweep for retained checked execution after every source owner is
+/// dropped. This stays opt-in because the full 472-cell execution is expensive.
+#[test]
+#[ignore = "opt-in registry closure diagnostic; run with --ignored --exact"]
+fn diagnostic_registry_closure_after_builder_and_study_drop() {
+    let mut count = 0usize;
+    let mut plan_gaps = Vec::new();
+    let mut lifecycle_gaps = Vec::new();
+    let mut not_inspectable = Vec::new();
+    let mut dependency_refusals = Vec::new();
+
+    for cell in licensed_support_cells() {
+        count += 1;
+        let coordinate = cell_coordinate(cell);
+        let probe = (|| -> Result<(String, String), String> {
+            let setup = cell_setup(&cell)?;
+            let CellSetup { expected: _, builder, data } = setup;
+            let ctx = ExecutionContext::for_tests(1);
+            let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
+            let mut prepared = study.prepare(&ctx).map_err(|e| format!("prepare: {e}"))?;
+            let estimator =
+                prepared.plan().logical.record.estimator.as_deref().unwrap_or("-").to_owned();
+            let checked_status = match estimator.as_str() {
+                "functional.distribution" => Some((
+                    "checked_distribution_program",
+                    prepared.checked_distribution_program().is_some(),
+                )),
+                "linear.adjustment.ate" => Some((
+                    "checked_linear_adjustment",
+                    prepared.checked_linear_adjustment().is_some(),
+                )),
+                "aipw" => Some(("checked_aipw_ate", prepared.checked_aipw_ate().is_some())),
+                "bayesian.gcomp" => Some((
+                    "checked_bayesian_gcomp_operation",
+                    prepared.checked_bayesian_gcomp_operation().is_some(),
+                )),
+                _ => None,
+            };
+            if let Some((inspector, present)) = checked_status {
+                if !present {
+                    plan_gaps
+                        .push(format!("{coordinate}: {inspector} absent (estimator={estimator})"));
+                }
+            } else {
+                not_inspectable.push(format!(
+                    "{coordinate}: no public checked-plan inspector (estimator={estimator})"
+                ));
+            }
+
+            drop(builder);
+            drop(study);
+
+            let result = match &data {
+                CellData::Tabular(table) => prepared.estimate(table, &ctx),
+                CellData::Series(series) => prepared.estimate_series(series, &ctx),
+            }
+            .map_err(|e| format!("execute after drop: {e}"))?;
+            let refreshed = match &data {
+                CellData::Tabular(table) => prepared.refresh(table.clone(), &ctx),
+                CellData::Series(series) => prepared.refresh_series(series.clone(), &ctx),
+            }
+            .map_err(|e| format!("compatible refresh after drop: {e}"))?;
+            let bytes = prepared
+                .encode_contracted_result(&refreshed, &format!("closure-{coordinate}"), &ctx)
+                .map_err(|e| format!("export after refresh: {e}"))?;
+            let consumed = consume_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
+            let missing_distribution_laws = consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|item| item.as_ref() == "dependencies.distribution_factor_laws");
+            if estimator == "functional.distribution" && missing_distribution_laws {
+                dependency_refusals
+                    .push(format!("{coordinate}: dependencies.distribution_factor_laws"));
+            } else if linear_replay_dependency_only(&consumed) {
+                dependency_refusals
+                    .push(format!("{coordinate}: dependencies.linear_fit_sufficient_statistics"));
+            } else if bayesian_distribution_replay_dependency_only(&consumed) {
+                dependency_refusals.push(format!(
+                    "{coordinate}: dependencies.distribution_posterior_factor_draws"
+                ));
+            } else if !consumed.acceptance.accepts_as_verified_program() {
+                return Err(format!(
+                    "consumer refused verified program: {:?}",
+                    consumed.acceptance.unresolved
+                ));
+            }
+            let _ = result;
+            Ok((estimator, "execute/refresh/export/consume passed".into()))
+        })();
+
+        if let Err(error) = probe {
+            lifecycle_gaps.push(format!("{coordinate}: {error}"));
+        }
+    }
+
+    println!("registry closure diagnostic inspected {count} support cells");
+    println!("checked-plan gaps ({}):\n{}", plan_gaps.len(), plan_gaps.join("\n"));
+    println!("lifecycle gaps ({}):\n{}", lifecycle_gaps.len(), lifecycle_gaps.join("\n"));
+    println!(
+        "known distribution dependency refusals ({}):\n{}",
+        dependency_refusals.len(),
+        dependency_refusals.join("\n")
+    );
+    println!(
+        "coordinates without public checked-plan inspectors ({}):\n{}",
+        not_inspectable.len(),
+        not_inspectable.join("\n")
+    );
+    assert_eq!(count, 472, "licensed support inventory drifted");
+}
+
+/// Opt-in probe for the separately licensed alternate estimators. It keeps
+/// every exact `base::estimator=...` coordinate visible and classifies public
+/// plan inspection separately from execution and artifact acceptance.
+#[test]
+#[ignore = "opt-in 60-route optional-estimator closure diagnostic"]
+fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
+    let mut routes = Vec::new();
+    for cell in licensed_support_cells() {
+        let Some(selected) = licensed_route_estimator(cell) else {
+            continue;
+        };
+        for wire in licensed_estimators(cell) {
+            let estimator = wire.parse::<EstimatorId>().unwrap_or_else(|e| {
+                panic!("{}: invalid licensed estimator {wire}: {e}", cell_coordinate(cell))
+            });
+            if estimator != selected {
+                routes.push((cell, estimator));
+            }
+        }
+    }
+    routes.sort_by_key(|(cell, estimator)| {
+        format!("{}::estimator={}", cell_coordinate(*cell), estimator.as_str())
+    });
+
+    let mut checked_plan_gaps = Vec::new();
+    let mut uninspectable = Vec::new();
+    let mut execution_gaps = Vec::new();
+    let mut selection_gaps = Vec::new();
+    let mut refresh_gaps = Vec::new();
+    let mut dependency_refusals = Vec::new();
+    let mut inspected = 0usize;
+
+    for (cell, estimator) in routes {
+        inspected += 1;
+        let base = cell_coordinate(cell);
+        let coordinate = format!("{base}::estimator={}", estimator.as_str());
+        if classify_estimator(cell, estimator) != CellStatus::Licensed {
+            execution_gaps
+                .push(format!("{coordinate}: concrete estimator no longer licenses on base cell"));
+            continue;
+        }
+
+        let probe = (|| -> Result<(), String> {
+            let CellSetup { builder, data, .. } = optional_estimator_setup(&cell, &estimator)?;
+            let ctx = ExecutionContext::for_tests(1);
+            let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
+            let mut prepared = study.prepare(&ctx).map_err(|e| format!("prepare: {e}"))?;
+            let retained = prepared.plan().logical.record.estimator.as_deref();
+            if retained != Some(estimator.as_str()) {
+                return Err(format!("selected estimator drifted at prepare: {retained:?}"));
+            }
+
+            let checked_status = match estimator.as_str() {
+                "functional.distribution" => Some((
+                    "checked_distribution_program",
+                    prepared.checked_distribution_program().is_some(),
+                )),
+                "linear.adjustment.ate" => Some((
+                    "checked_linear_adjustment",
+                    prepared.checked_linear_adjustment().is_some(),
+                )),
+                "aipw" => Some(("checked_aipw_ate", prepared.checked_aipw_ate().is_some())),
+                "frontdoor.linear_two_stage" => Some((
+                    "checked_frontdoor_linear",
+                    prepared.checked_frontdoor_linear().is_some(),
+                )),
+                "iv.2sls" | "iv.wald" => Some(("checked_iv", prepared.checked_iv().is_some())),
+                "bayesian.gcomp" => Some((
+                    "checked_bayesian_gcomp_operation",
+                    prepared.checked_bayesian_gcomp_operation().is_some(),
+                )),
+                _ => None,
+            };
+            match checked_status {
+                Some((_, true)) => {}
+                Some((inspector, false)) => {
+                    checked_plan_gaps.push(format!("{coordinate}: {inspector} absent"))
+                }
+                None => {
+                    uninspectable.push(format!("{coordinate}: no public checked-plan inspector"))
+                }
+            }
+
+            drop(builder);
+            drop(study);
+            let result = match &data {
+                CellData::Tabular(table) => prepared.estimate(table, &ctx),
+                CellData::Series(series) => prepared.estimate_series(series, &ctx),
+            }
+            .map_err(|e| format!("execute after builder/Study drop: {e}"))?;
+            let refreshed = match &data {
+                CellData::Tabular(table) => prepared.refresh(table.clone(), &ctx),
+                CellData::Series(series) => prepared.refresh_series(series.clone(), &ctx),
+            }
+            .map_err(|e| format!("compatible refresh: {e}"))?;
+            if result.effect().to_bits() != refreshed.effect().to_bits() {
+                return Err(format!(
+                    "identical-data refresh changed effect {} -> {}",
+                    result.effect(),
+                    refreshed.effect()
+                ));
+            }
+            let bytes = prepared
+                .encode_contracted_result(&refreshed, &coordinate, &ctx)
+                .map_err(|e| format!("export: {e}"))?;
+            let consumed = consume_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
+            if !consumed.acceptance.accepts_as_verified_program() {
+                if consumed
+                    .acceptance
+                    .unresolved
+                    .iter()
+                    .any(|item| item.as_ref() == "dependencies.distribution_factor_laws")
+                {
+                    dependency_refusals
+                        .push(format!("{coordinate}: dependencies.distribution_factor_laws"));
+                } else if linear_replay_dependency_only(&consumed) {
+                    dependency_refusals.push(format!(
+                        "{coordinate}: dependencies.linear_fit_sufficient_statistics"
+                    ));
+                } else if bayesian_distribution_replay_dependency_only(&consumed) {
+                    dependency_refusals.push(format!(
+                        "{coordinate}: dependencies.distribution_posterior_factor_draws"
+                    ));
+                } else {
+                    return Err(format!("consumer refusal: {:?}", consumed.acceptance.unresolved));
+                }
+            } else if consumed.body.estimate.is_some_and(|estimate| {
+                (estimate - refreshed.effect()).abs() > 1e-12 * refreshed.effect().abs().max(1.0)
+            }) {
+                return Err(format!(
+                    "independently consumed estimate {:?} differs from refreshed effect {}",
+                    consumed.body.estimate,
+                    refreshed.effect()
+                ));
+            }
+            Ok(())
+        })();
+
+        if let Err(error) = probe {
+            if error.starts_with("compatible refresh:") {
+                refresh_gaps.push(format!("{coordinate}: {error}"));
+            } else if error.starts_with("selected estimator drifted") {
+                selection_gaps.push(format!("{coordinate}: {error}"));
+            } else {
+                execution_gaps.push(format!("{coordinate}: {error}"));
+            }
+        }
+    }
+
+    println!("optional estimator diagnostic inspected {inspected} coordinates");
+    println!("checked-plan gaps ({}):\n{}", checked_plan_gaps.len(), checked_plan_gaps.join("\n"));
+    println!("no public plan inspector ({}):\n{}", uninspectable.len(), uninspectable.join("\n"));
+    println!("selection/plan drift ({}):\n{}", selection_gaps.len(), selection_gaps.join("\n"));
+    println!(
+        "execution or artifact gaps ({}):\n{}",
+        execution_gaps.len(),
+        execution_gaps.join("\n")
+    );
+    println!("refresh gaps ({}):\n{}", refresh_gaps.len(), refresh_gaps.join("\n"));
+    println!(
+        "known dependency refusals ({}):\n{}",
+        dependency_refusals.len(),
+        dependency_refusals.join("\n")
+    );
+    assert_eq!(inspected, 60, "optional estimator registry drifted");
+}
+
+fn linear_replay_dependency_only(consumed: &antecedent_io::AnalysisResultConsumption) -> bool {
+    consumed.acceptance.unresolved.len() == 1
+        && consumed.acceptance.unresolved[0].as_ref()
+            == "dependencies.linear_fit_sufficient_statistics"
+        && consumed.contract.as_ref().is_some_and(|contract| {
+            (contract.estimator.as_deref() == Some("linear.adjustment.ate")
+                || contract.program.as_ref().is_some_and(|program| {
+                    program.commitments.resolved_estimator.as_deref()
+                        == Some("linear.adjustment.ate")
+                }))
+                && contract
+                    .program
+                    .as_ref()
+                    .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
+        })
+}
+
+fn bayesian_distribution_replay_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    consumed.acceptance.unresolved.len() == 1
+        && consumed.acceptance.unresolved[0].as_ref()
+            == "dependencies.distribution_posterior_factor_draws"
+        && consumed.contract.as_ref().is_some_and(|contract| {
+            contract.estimator.as_deref() == Some("functional.distribution")
+                && matches!(contract.target.query, antecedent_io::CausalQueryWire::Distribution(_))
+                && contract.inference_binding.as_ref().is_some_and(|binding| {
+                    binding.inference == "bayesian" && binding.bayesian.is_some()
+                })
+                && contract.identification_product.is_some()
+                && contract
+                    .data_snapshot
+                    .as_ref()
+                    .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
+        })
 }

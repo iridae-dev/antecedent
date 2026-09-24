@@ -129,7 +129,9 @@ class LoadedResult(ResultAPI):
         return answer_from_artifact(self.artifact.contract, self.artifact.payload)
 
     def inspect(self) -> InspectionReport:
-        if not self.acceptance.verified:
+        if not self.acceptance.verified and not (
+            self.acceptance.recognized and isinstance(self.artifact.contract, Mapping)
+        ):
             return as_inspection(
                 replace(
                     ReasoningSlots.from_contract({}),

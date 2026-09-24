@@ -16,6 +16,8 @@ pub mod contrast_wire;
 pub mod convert;
 pub mod coverage_records_data;
 pub mod discovery_wire;
+mod distribution_replay;
+pub use distribution_replay::distribution_factor_laws_to_wire;
 pub mod error;
 pub mod exact_law_wire;
 pub mod expr_wire;
@@ -51,13 +53,14 @@ pub mod wire;
 pub mod z_transport_artifact;
 
 pub use analysis_result_artifact::{
-    AnalysisResultHeader, AnalysisResultWire, IdentifiedSetIntervalMethodWire,
-    IdentifiedSetIntervalWire, MediationPosteriorSummaryWire, StructuralResponseAtomWire,
-    StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
-    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
-    UnitEffectIntervalsWire, UnitEffectsWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    identified_set_interval_from_wire, identified_set_interval_to_wire,
+    AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
+    IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterventionalDistributionWire,
+    MediationPosteriorSummaryWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
+    StructuralWeightBasisWire, TemporalIdentificationWire, TemporalMediationGridWire,
+    TemporalMediationSliceWire, TemporalMediationUncertaintyWire, UnitEffectIntervalsWire,
+    UnitEffectsWire, decode_analysis_result_artifact, encode_analysis_result_artifact,
+    encode_analysis_result_artifact_with_contract, identified_set_interval_from_wire,
+    identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, HedgeCertificateWire, IdentificationResultWire,
@@ -125,17 +128,19 @@ pub use graph_networkx::{
     dag_to_networkx_adjacency, dag_to_networkx_node_link,
 };
 pub use identity::{
-    AdaptiveBudgetWire, BayesianBindingWire, CheckedFrontDoorLoweringWire, ClaimIdentityWire,
-    ClassPriorIdentityWire, DataPartitionIdentityWire, DataSnapshotIdentityWire,
-    EstimatorConfigWire, EstimatorSpecWire, ExecutionIdentityWire, ExternalComposeIdentityWire,
-    ExternalPriorSourceIdentityWire, GlmOptionsWire, GraphIdentityWire, IdentificationEnvelopeWire,
-    IdentificationIdentityWire, IdentificationProductWire, InferenceBindingWire,
-    InferentialCommitmentsWire, InterferenceSnapshotWire, KernelPolicyWire,
-    ObservationIdentityWire, ObservationOptionsWire, OverlapPolicyWire, PayloadDigestWire,
-    PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
-    PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,
-    RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, SplitIdentityWire,
-    TargetIdentityWire, TargetWeightsIdentityWire, TemporalClassIdentityWire,
+    AdaptiveBudgetWire, BayesianBindingWire, CheckedFrontDoorLoweringWire,
+    CheckedLinearAdjustmentLoweringWire, ClaimIdentityWire, ClassPriorIdentityWire,
+    DataPartitionIdentityWire, DataSnapshotIdentityWire, DistributionFactorDomainWire,
+    DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorRowWire,
+    DistributionFactorTableWire, EstimatorConfigWire, EstimatorSpecWire, ExecutionIdentityWire,
+    ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire, GlmOptionsWire,
+    GraphIdentityWire, IdentificationEnvelopeWire, IdentificationIdentityWire,
+    IdentificationProductWire, InferenceBindingWire, InferentialCommitmentsWire,
+    InterferenceSnapshotWire, KernelPolicyWire, ObservationIdentityWire, ObservationOptionsWire,
+    OverlapPolicyWire, PayloadDigestWire, PosteriorAtomGraphWire, PosteriorAtomIdentityWire,
+    PriorMappingIdentityWire, PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire,
+    ROW_WEIGHTS_PAYLOAD, RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire,
+    SplitIdentityWire, TargetIdentityWire, TargetWeightsIdentityWire, TemporalClassIdentityWire,
     TransportIdentityWire, admg_identity, canonical_dag_wire, canonical_temporal_dag_wire,
     claim_digest, cpdag_identity, dag_identity, data_snapshot_digest, digest_canonical,
     digest_wire, executed_functional_labels, execution_digest, execution_identity_from_context,

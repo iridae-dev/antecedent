@@ -46,11 +46,12 @@ use antecedent_core::{
     Value, VariableId,
 };
 use antecedent_data::{DataError, DiscreteColumn, TableView, TabularData};
+use antecedent_expr::provider::EmpiricalProviderSnapshot;
 use antecedent_expr::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, DomainRef,
-    EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode, FactorSpec,
-    FunctionalProgram, IdentifiedEstimand, InterventionAssignment, ProgramEvaluator, ProgramLimits,
-    ProgramSchema, ProgramVariable,
+    EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode,
+    FactorRequirement, FactorSpec, FunctionalProgram, IdentifiedEstimand, InterventionAssignment,
+    ProgramEvaluator, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_prob::{
     InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
@@ -381,6 +382,32 @@ pub struct PreparedFunctionalDistribution {
     /// Interventional signatures used to rebuild the empirical provider.
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    /// Input row count for the currently bound provider snapshot.
+    source_rows: usize,
+}
+
+/// Provenance attached to a complete empirical factor-law snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmpiricalProviderProvenance {
+    /// Stable provider family name.
+    pub provider: &'static str,
+    /// Input rows before joint complete-case filtering.
+    pub source_rows: usize,
+    /// Rows shared by every factor in the provider.
+    pub complete_case_rows: usize,
+    /// Declared missing-row policy.
+    pub missing_row_policy: &'static str,
+}
+
+/// All empirical laws required to evaluate a prepared discrete functional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmpiricalDistributionFactorSnapshot {
+    /// Checked expression requirements plus the explicit free-variable weighting law.
+    pub requirements: Arc<[FactorRequirement]>,
+    /// Complete factor tables and referenced domains.
+    pub provider: EmpiricalProviderSnapshot,
+    /// Provider and row-selection provenance.
+    pub provenance: EmpiricalProviderProvenance,
 }
 
 impl PreparedFunctionalDistribution {
@@ -388,6 +415,35 @@ impl PreparedFunctionalDistribution {
     #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
         &self.program
+    }
+
+    /// Export every provider law needed for independent expression replay.
+    pub fn factor_snapshot(&self) -> Result<EmpiricalDistributionFactorSnapshot, EstimationError> {
+        let mut requirements = self.program.factor_requirements().to_vec();
+        if !self.free_variables.is_empty() {
+            requirements.push(FactorRequirement {
+                variables: Arc::clone(&self.free_variables),
+                conditioned_on: Arc::from([]),
+                intervention: Arc::from([]),
+                domain: DomainRef::Observational,
+                population: Arc::from(""),
+                regime: None,
+            });
+        }
+        let provider = self
+            .provider
+            .snapshot_factors(&requirements)
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        Ok(EmpiricalDistributionFactorSnapshot {
+            requirements: Arc::from(requirements),
+            provider,
+            provenance: EmpiricalProviderProvenance {
+                provider: "empirical_table",
+                source_rows: self.source_rows,
+                complete_case_rows: self.bootstrap_columns.n(),
+                missing_row_policy: "joint_complete_case",
+            },
+        })
     }
 
     /// Bind a compatible snapshot to the same target, evaluator, and procedure.
@@ -416,6 +472,7 @@ impl PreparedFunctionalDistribution {
         let mut rebound = self.clone();
         rebound.provider = provider;
         rebound.bootstrap_columns = columns;
+        rebound.source_rows = data.row_count();
         Ok(rebound)
     }
 }
@@ -609,6 +666,7 @@ impl FunctionalDistribution {
             bootstrap_columns: columns,
             bootstrap_factors: factor_specs,
             bootstrap_signatures: signatures,
+            source_rows: data.row_count(),
         })
     }
 
@@ -2018,6 +2076,18 @@ mod tests {
                 id_res.required_assumptions.clone(),
             )
             .unwrap();
+        let factor_snapshot = prepared.factor_snapshot().unwrap();
+        assert_eq!(factor_snapshot.provenance.provider, "empirical_table");
+        assert_eq!(factor_snapshot.provenance.source_rows, data.row_count());
+        assert_eq!(factor_snapshot.provenance.complete_case_rows, data.row_count());
+        assert_eq!(factor_snapshot.provenance.missing_row_policy, "joint_complete_case");
+        let covered_requirements: HashSet<usize> = factor_snapshot
+            .provider
+            .factors
+            .iter()
+            .flat_map(|factor| factor.requirement_indices.iter().copied())
+            .collect();
+        assert_eq!(covered_requirements.len(), factor_snapshot.requirements.len());
         let mut ews = FunctionalDistributionWorkspace::default();
         let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(0)).unwrap();
         let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();

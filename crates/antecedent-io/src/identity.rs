@@ -1235,6 +1235,10 @@ pub struct DataSnapshotIdentityWire {
     /// Interference network and assignment, when the study carries one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interference: Option<InterferenceSnapshotWire>,
+    /// Portable finite-discrete provider tables for checked distribution replay.
+    /// Bound to this data snapshot and absent on older artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distribution_factor_laws: Option<DistributionFactorLawsWire>,
 }
 
 /// Digest a data snapshot identity.
@@ -1468,6 +1472,124 @@ pub struct ProgramIdentityWire {
     /// Older artifacts omit it and cannot be independently verified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_iv_lowering: Option<crate::CheckedIvLoweringWire>,
+    /// Checked semantic lowering for prepared linear adjustment ATE routes.
+    /// Missing in older artifacts, which remain readable but cannot be
+    /// independently replayed as checked linear executions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_linear_adjustment_lowering: Option<CheckedLinearAdjustmentLoweringWire>,
+}
+
+/// Durable target, design, estimator, and uncertainty choice for a checked
+/// linear adjustment execution.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedLinearAdjustmentLoweringWire {
+    /// Wire format.
+    pub format: u16,
+    /// Source interventional target root.
+    pub functional: u32,
+    /// Executable observational adjustment root.
+    pub executable: u32,
+    /// Semantic variable roles.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Adjustment variables in design order.
+    pub adjustment: Vec<u32>,
+    /// Active intervention value bits.
+    pub active_bits: u64,
+    /// Control intervention value bits.
+    pub control_bits: u64,
+    /// Population binding.
+    pub population: crate::TargetPopulationWire,
+    /// Ordered design column roles (`intercept`, `treatment`, `covariate:<id>`).
+    pub design_columns: Vec<String>,
+    /// Fit family and parameter bits (`ols`, `ridge:<bits>`, `lasso:<bits>`, `huber:<bits>`).
+    pub fit_kind: String,
+    /// Numerical backend.
+    pub backend: String,
+    /// Selected analytic SE kind.
+    pub se_kind: String,
+    /// HAC lag, where the selected SE requires one.
+    pub se_lag: Option<u64>,
+    /// Bootstrap replicate count.
+    pub bootstrap_replicates: u32,
+    /// Resolved uncertainty method commitment.
+    pub interval_method: String,
+    /// Complete-case row count used by the prepared design.
+    pub complete_case_rows: u64,
+    /// Checked arena retaining both source and executable roots.
+    pub arena: crate::ExprArenaWire,
+}
+
+/// Factor domain for a portable finite-discrete law.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DistributionFactorDomainWire {
+    /// Observational source law.
+    Observational,
+    /// Interventional source law.
+    Interventional,
+}
+
+/// Exact identity of one provider factor table.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorKeyWire {
+    /// Factor variables in provider order.
+    pub variables: Vec<u32>,
+    /// Conditioning variables in provider order.
+    pub conditioned_on: Vec<u32>,
+    /// Concrete intervention assignments.
+    pub intervention: Vec<crate::expr_wire::InterventionAssignmentWire>,
+    /// Probability domain.
+    pub domain: DistributionFactorDomainWire,
+    /// Population identity; empty means the default study population.
+    pub population: String,
+    /// Regime identity, when evidence is regime-bound.
+    pub regime: Option<u32>,
+}
+
+/// One complete value row for a factor table, ordered as variables then conditioners.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorRowWire {
+    /// Joint assignment values in the factor key's declared variable order.
+    pub values: Vec<crate::ValueWire>,
+    /// Conditional probability mass.
+    pub probability: f64,
+}
+
+/// Complete factor table for one exact provider-factor identity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorTableWire {
+    /// Exact factor identity.
+    pub key: DistributionFactorKeyWire,
+    /// Complete joint support and probability rows.
+    pub rows: Vec<DistributionFactorRowWire>,
+}
+
+/// Versioned finite-discrete provider snapshot used for detached replay.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorLawsWire {
+    /// Wire format version.
+    pub format: u16,
+    /// Provider identity.
+    pub provider: String,
+    /// Source rows before complete-case filtering.
+    pub source_rows: u64,
+    /// Rows retained by the empirical provider.
+    pub complete_case_rows: u64,
+    /// Missing-row policy identifier.
+    pub missing_row_policy: String,
+    /// Complete finite domain for each semantic variable.
+    pub domains: Vec<(u32, Vec<crate::ValueWire>)>,
+    /// Exact factor requirements recorded by the checked estimator.
+    pub requirements: Vec<DistributionFactorKeyWire>,
+    /// Factor tables, including the optional free-variable weighting law.
+    pub factors: Vec<DistributionFactorTableWire>,
 }
 
 /// Durable checked lowering for the linear front-door path-product route.
@@ -2337,6 +2459,7 @@ mod tests {
                 },
             ],
             interference: None,
+            distribution_factor_laws: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);

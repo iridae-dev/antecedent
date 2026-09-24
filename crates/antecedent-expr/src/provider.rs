@@ -10,7 +10,7 @@ use std::sync::{Arc, PoisonError, RwLock};
 
 use antecedent_core::{RegimeId, Value, VariableId};
 
-use crate::{DomainRef, InterventionAssignment};
+use crate::{DomainRef, FactorRequirement, InterventionAssignment};
 
 /// Weighted quadrature nodes: assignment rows paired with integration weights.
 pub type QuadratureNodes = Arc<[(Arc<[Value]>, f64)]>;
@@ -474,6 +474,110 @@ pub struct EmpiricalTableProvider {
     support_cache: RwLock<HashMap<Vec<VariableId>, SupportRows>>,
 }
 
+/// One declared finite domain needed by a portable empirical factor snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DiscreteDomainSnapshot {
+    /// Semantic variable identity.
+    pub variable: VariableId,
+    /// Declared levels in provider order.
+    pub values: Arc<[Value]>,
+}
+
+/// One complete row of an empirical factor table.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmpiricalFactorRow {
+    /// Values ordered as factor variables, then conditioning variables.
+    pub values: Arc<[Value]>,
+    /// Probability mass for this assignment.
+    pub probability: f64,
+}
+
+/// Complete empirical probability table for one checked program factor.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmpiricalFactorTableSnapshot {
+    /// Positions of equivalent requirements in the checked program.
+    pub requirement_indices: Arc<[usize]>,
+    /// Variables whose joint law is tabulated.
+    pub variables: Arc<[VariableId]>,
+    /// Conditioning variables.
+    pub conditioned_on: Arc<[VariableId]>,
+    /// Hard intervention values.
+    pub intervention: Arc<[InterventionAssignment]>,
+    /// Observational or interventional law.
+    pub domain: DomainRef,
+    /// Population key; empty is the single-study population.
+    pub population: Arc<str>,
+    /// Regime key when the program factor cites one.
+    pub regime: Option<RegimeId>,
+    /// Complete cartesian table, including zero probability cells.
+    pub rows: Arc<[EmpiricalFactorRow]>,
+}
+
+/// Portable finite discrete tables and all domains they reference.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct EmpiricalProviderSnapshot {
+    /// Domains referenced by factors, sorted by semantic variable id.
+    pub domains: Arc<[DiscreteDomainSnapshot]>,
+    /// Deduplicated factor laws in first program-requirement order.
+    pub factors: Arc<[EmpiricalFactorTableSnapshot]>,
+}
+
+/// Failure to create or validate a complete factor-law snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ProviderSnapshotError {
+    /// The factor's value domain is absent or empty.
+    MissingDomain(VariableId),
+    /// The requested factor cell is absent from the provider.
+    MissingCell {
+        /// Position of the factor requirement.
+        factor: usize,
+    },
+    /// Snapshot expansion exceeded its explicit cell limit.
+    CellLimit {
+        /// Number of entries required to include the next factor.
+        requested: usize,
+        /// Maximum entries allowed for this snapshot.
+        limit: usize,
+    },
+    /// A probability was negative, non-finite, or greater than one.
+    InvalidProbability {
+        /// Position of the factor requirement.
+        factor: usize,
+    },
+    /// A conditional table does not sum to one for one conditioning assignment.
+    NotNormalized {
+        /// Position of the factor requirement.
+        factor: usize,
+    },
+    /// Snapshot contains duplicate, malformed, or unreferenced fields.
+    InvalidSnapshot(&'static str),
+}
+
+impl fmt::Display for ProviderSnapshotError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingDomain(variable) => write!(f, "missing domain for V{}", variable.raw()),
+            Self::MissingCell { factor } => write!(f, "factor {factor} has a missing table cell"),
+            Self::CellLimit { requested, limit } => {
+                write!(f, "snapshot requires {requested} cells; limit is {limit}")
+            }
+            Self::InvalidProbability { factor } => {
+                write!(f, "factor {factor} contains invalid probability mass")
+            }
+            Self::NotNormalized { factor } => {
+                write!(f, "factor {factor} is not normalized for a conditioning assignment")
+            }
+            Self::InvalidSnapshot(message) => f.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for ProviderSnapshotError {}
+
+/// Default maximum number of probability entries materialized per snapshot.
+pub const DEFAULT_FACTOR_SNAPSHOT_CELL_LIMIT: usize = 1_000_000;
+
 impl Clone for EmpiricalTableProvider {
     fn clone(&self) -> Self {
         Self {
@@ -525,6 +629,143 @@ impl EmpiricalTableProvider {
         self.tables.insert(key, probability);
         Ok(())
     }
+
+    /// Snapshot every cell required by `requirements` in portable finite-discrete form.
+    /// Equivalent full factor keys share one table and retain all requirement indices.
+    pub fn snapshot_factors(
+        &self,
+        requirements: &[FactorRequirement],
+    ) -> Result<EmpiricalProviderSnapshot, ProviderSnapshotError> {
+        self.snapshot_factors_with_limit(requirements, DEFAULT_FACTOR_SNAPSHOT_CELL_LIMIT)
+    }
+
+    /// As [`Self::snapshot_factors`], with an explicit cap on expanded cells.
+    pub fn snapshot_factors_with_limit(
+        &self,
+        requirements: &[FactorRequirement],
+        cell_limit: usize,
+    ) -> Result<EmpiricalProviderSnapshot, ProviderSnapshotError> {
+        let mut domains_by_id = std::collections::BTreeMap::<VariableId, Arc<[Value]>>::new();
+        let mut tables: Vec<EmpiricalFactorTableSnapshot> = Vec::new();
+        let mut total_cells = 0usize;
+        for (requirement_index, requirement) in requirements.iter().enumerate() {
+            let mut ids = requirement.variables.to_vec();
+            ids.extend(requirement.conditioned_on.iter().copied());
+            let mut unique = std::collections::HashSet::new();
+            if ids.iter().any(|id| !unique.insert(*id)) {
+                return Err(ProviderSnapshotError::InvalidSnapshot(
+                    "factor variables and conditioners must be unique and disjoint",
+                ));
+            }
+            let mut level_sets = Vec::with_capacity(ids.len());
+            for variable in &ids {
+                let values = self
+                    .domains
+                    .get(variable)
+                    .filter(|values| !values.is_empty())
+                    .ok_or(ProviderSnapshotError::MissingDomain(*variable))?;
+                domains_by_id.insert(*variable, Arc::clone(values));
+                level_sets.push(Arc::clone(values));
+            }
+            if let Some(existing) = tables.iter_mut().find(|table| {
+                table.variables.as_ref() == requirement.variables.as_ref()
+                    && table.conditioned_on.as_ref() == requirement.conditioned_on.as_ref()
+                    && table.intervention.as_ref() == requirement.intervention.as_ref()
+                    && table.domain == requirement.domain
+                    && table.population.as_ref() == requirement.population.as_ref()
+                    && table.regime == requirement.regime
+            }) {
+                let mut indices = existing.requirement_indices.to_vec();
+                indices.push(requirement_index);
+                existing.requirement_indices = Arc::from(indices);
+                continue;
+            }
+            let cell_count = level_sets
+                .iter()
+                .try_fold(1usize, |count, levels| count.checked_mul(levels.len()))
+                .ok_or(ProviderSnapshotError::CellLimit {
+                    requested: usize::MAX,
+                    limit: cell_limit,
+                })?;
+            total_cells =
+                total_cells.checked_add(cell_count).ok_or(ProviderSnapshotError::CellLimit {
+                    requested: usize::MAX,
+                    limit: cell_limit,
+                })?;
+            if total_cells > cell_limit {
+                return Err(ProviderSnapshotError::CellLimit {
+                    requested: total_cells,
+                    limit: cell_limit,
+                });
+            }
+
+            let spec = FactorSpec {
+                variables: &requirement.variables,
+                conditioned_on: &requirement.conditioned_on,
+                intervention: &requirement.intervention,
+                domain: requirement.domain,
+                population: &requirement.population,
+                regime: requirement.regime,
+            };
+            let value_rows = cartesian_values(&level_sets);
+            let mut rows = Vec::with_capacity(value_rows.len());
+            let mut conditional_sums = HashMap::<Vec<Value>, f64>::new();
+            for values in value_rows {
+                let assignment =
+                    Assignment::from_pairs(ids.iter().copied().zip(values.iter().cloned()));
+                let probability =
+                    self.probability(&spec, &assignment, &EvalContext::default()).map_err(
+                        |_| ProviderSnapshotError::MissingCell { factor: requirement_index },
+                    )?;
+                if !probability.is_finite() || !(0.0..=1.0).contains(&probability) {
+                    return Err(ProviderSnapshotError::InvalidProbability {
+                        factor: requirement_index,
+                    });
+                }
+                let split = requirement.variables.len();
+                *conditional_sums.entry(values[split..].to_vec()).or_default() += probability;
+                rows.push(EmpiricalFactorRow { values: Arc::from(values), probability });
+            }
+            if conditional_sums.values().any(|sum| (sum - 1.0).abs() > 1e-9) {
+                return Err(ProviderSnapshotError::NotNormalized { factor: requirement_index });
+            }
+            tables.push(EmpiricalFactorTableSnapshot {
+                requirement_indices: Arc::from([requirement_index]),
+                variables: Arc::clone(&requirement.variables),
+                conditioned_on: Arc::clone(&requirement.conditioned_on),
+                intervention: Arc::clone(&requirement.intervention),
+                domain: requirement.domain,
+                population: Arc::clone(&requirement.population),
+                regime: requirement.regime,
+                rows: Arc::from(rows),
+            });
+        }
+        Ok(EmpiricalProviderSnapshot {
+            domains: Arc::from(
+                domains_by_id
+                    .into_iter()
+                    .map(|(variable, values)| DiscreteDomainSnapshot { variable, values })
+                    .collect::<Vec<_>>(),
+            ),
+            factors: Arc::from(tables),
+        })
+    }
+}
+
+fn cartesian_values(level_sets: &[Arc<[Value]>]) -> Vec<Vec<Value>> {
+    let mut rows = vec![Vec::new()];
+    for levels in level_sets {
+        let mut next = Vec::with_capacity(rows.len().saturating_mul(levels.len()));
+        for prefix in &rows {
+            for value in levels.iter() {
+                let mut row = prefix.clone();
+                row.push(value.clone());
+                next.push(row);
+            }
+        }
+        rows = next;
+    }
+    rows
 }
 
 impl DistributionProvider for EmpiricalTableProvider {
@@ -846,6 +1087,81 @@ mod tests {
 
     fn f(x: f64) -> Value {
         Value::f64(x)
+    }
+
+    fn requirement(variables: &[VariableId], conditioned_on: &[VariableId]) -> FactorRequirement {
+        FactorRequirement {
+            variables: Arc::from(variables),
+            conditioned_on: Arc::from(conditioned_on),
+            intervention: Arc::from([]),
+            domain: DomainRef::Observational,
+            population: Arc::from(""),
+            regime: None,
+        }
+    }
+
+    #[test]
+    fn factor_snapshot_exports_complete_law_and_deduplicates_aliases() {
+        let mut provider = EmpiricalTableProvider::new();
+        let y = v(0);
+        provider.set_domain(y, [f(0.0), f(1.0)]);
+        let y_vars = [y];
+        let spec = FactorSpec::new(&y_vars, &[], &[], DomainRef::Observational);
+        for (value, probability) in [(0.0, 0.25), (1.0, 0.75)] {
+            provider
+                .insert_probability(&spec, &Assignment::from_pairs([(y, f(value))]), probability)
+                .unwrap();
+        }
+
+        let snapshot =
+            provider.snapshot_factors(&[requirement(&[y], &[]), requirement(&[y], &[])]).unwrap();
+        assert_eq!(snapshot.domains.len(), 1);
+        assert_eq!(snapshot.factors.len(), 1);
+        assert_eq!(snapshot.factors[0].requirement_indices.as_ref(), &[0, 1]);
+        assert_eq!(snapshot.factors[0].rows.len(), 2);
+        assert_eq!(snapshot.factors[0].rows[0].values.as_ref(), &[f(0.0)]);
+        assert_eq!(snapshot.factors[0].rows[0].probability, 0.25);
+        assert_eq!(snapshot.factors[0].rows[1].probability, 0.75);
+    }
+
+    #[test]
+    fn factor_snapshot_refuses_missing_conditional_cells_and_resource_overflow() {
+        let mut provider = EmpiricalTableProvider::new();
+        let x = v(0);
+        let y = v(1);
+        provider.set_domain(x, [f(0.0), f(1.0)]);
+        provider.set_domain(y, [f(0.0), f(1.0)]);
+        let y_vars = [y];
+        let x_conditioners = [x];
+        let spec = FactorSpec::new(&y_vars, &x_conditioners, &[], DomainRef::Observational);
+        for (x_value, y_value, probability) in [(0.0, 0.0, 0.5), (0.0, 1.0, 0.5), (1.0, 0.0, 0.2)] {
+            provider
+                .insert_probability(
+                    &spec,
+                    &Assignment::from_pairs([(x, f(x_value)), (y, f(y_value))]),
+                    probability,
+                )
+                .unwrap();
+        }
+        assert!(matches!(
+            provider.snapshot_factors(&[requirement(&[y], &[x])]),
+            Err(ProviderSnapshotError::MissingCell { factor: 0 })
+        ));
+
+        let complete = {
+            let mut p = EmpiricalTableProvider::new();
+            p.set_domain(y, [f(0.0), f(1.0)]);
+            let y_vars = [y];
+            let law = FactorSpec::new(&y_vars, &[], &[], DomainRef::Observational);
+            for value in [0.0, 1.0] {
+                p.insert_probability(&law, &Assignment::from_pairs([(y, f(value))]), 0.5).unwrap();
+            }
+            p
+        };
+        assert!(matches!(
+            complete.snapshot_factors_with_limit(&[requirement(&[y], &[])], 1),
+            Err(ProviderSnapshotError::CellLimit { requested: 2, limit: 1 })
+        ));
     }
 
     #[test]

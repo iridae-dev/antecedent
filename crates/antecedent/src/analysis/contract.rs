@@ -355,6 +355,7 @@ impl PreparedStudy {
             self.checked_aipw_ate(),
             self.checked_frontdoor_linear(),
             self.checked_iv(),
+            self.checked_linear_operation(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -398,6 +399,7 @@ impl PreparedStudy {
                 if population.is_none() { self.checked_aipw_ate() } else { None },
                 if population.is_none() { self.checked_frontdoor_linear() } else { None },
                 if population.is_none() { self.checked_iv() } else { None },
+                if population.is_none() { self.checked_linear_operation() } else { None },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -405,6 +407,15 @@ impl PreparedStudy {
             self.study().interference.as_ref(),
             &program.observation_digest,
         )?;
+        let mut snapshot = snapshot;
+        if let DataInput::Tabular(tabular) = data {
+            if let Some(laws) = self.distribution_factor_snapshot(tabular)? {
+                snapshot.distribution_factor_laws = Some(
+                    antecedent_io::distribution_factor_laws_to_wire(&laws)
+                        .map_err(|err| io_err(&err))?,
+                );
+            }
+        }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
         Ok(crate::result::ExecutedContract { identities: program.identities(snapshot), refute })
     }
@@ -1113,6 +1124,7 @@ fn program_payloads_for(
     checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
     checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
     checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
+    checked_linear: Option<&super::prepared::CheckedLinearOperation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1124,6 +1136,7 @@ fn program_payloads_for(
         checked_aipw,
         checked_frontdoor,
         checked_iv,
+        checked_linear,
     )
 }
 
@@ -1131,9 +1144,18 @@ fn program_payloads_for(
 fn contract_payloads(
     program: Arc<ProgramPayloads>,
     study: &Study,
+    prepared: Option<&PreparedStudy>,
 ) -> Result<ContractPayloads, CausalError> {
-    let data_snapshot =
+    let mut data_snapshot =
         data_snapshot_wire(&study.data, study.interference.as_ref(), &program.observation_digest)?;
+    if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
+        if let Some(laws) = prepared.distribution_factor_snapshot(tabular)? {
+            data_snapshot.distribution_factor_laws = Some(
+                antecedent_io::distribution_factor_laws_to_wire(&laws)
+                    .map_err(|err| io_err(&err))?,
+            );
+        }
+    }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
     Ok(ContractPayloads { identities: program.identities(snapshot_digest), program, data_snapshot })
 }
@@ -1146,6 +1168,7 @@ fn program_payloads(
     checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
     checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
     checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
+    checked_linear: Option<&super::prepared::CheckedLinearOperation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1296,6 +1319,76 @@ fn program_payloads(
             complete_case_rows: u64::try_from(checked.problem().nrows).unwrap_or(u64::MAX),
         }
     });
+    let checked_linear_adjustment_lowering = checked_linear
+        .filter(|_| resolved_estimator == Some("linear.adjustment.ate"))
+        .filter(|_| {
+            study.graph.class() == GraphClass::Dag
+                && matches!(
+                    study.structure_source,
+                    StructureSource::Explicit | StructureSource::Accepted
+                )
+                && matches!(study.inference, InferenceMode::Frequentist)
+        })
+        .map(|operation| {
+            let checked = &operation.preparation;
+            let lowering = checked.lowering();
+            let problem = checked.problem();
+            let fit_kind = match operation.fitter.fit_kind {
+                antecedent_estimate::LinearFitKind::Ols => "ols".to_string(),
+                antecedent_estimate::LinearFitKind::Ridge { lambda } => {
+                    format!("ridge:{:016x}", lambda.to_bits())
+                }
+                antecedent_estimate::LinearFitKind::Lasso { lambda } => {
+                    format!("lasso:{:016x}", lambda.to_bits())
+                }
+                antecedent_estimate::LinearFitKind::Huber { c } => {
+                    format!("huber:{:016x}", c.to_bits())
+                }
+            };
+            let design_columns = problem
+                .design
+                .columns
+                .iter()
+                .map(|column| match column.role {
+                    antecedent_stats::DesignColumnRole::Intercept => "intercept".to_string(),
+                    antecedent_stats::DesignColumnRole::Treatment => "treatment".to_string(),
+                    antecedent_stats::DesignColumnRole::Covariate(id) => {
+                        format!("covariate:{}", id.raw())
+                    }
+                })
+                .collect();
+            let se_kind = operation.fitter.se_kind;
+            commitments.se_kind = Some(se_kind.as_str().to_string());
+            Ok::<_, CausalError>(antecedent_io::CheckedLinearAdjustmentLoweringWire {
+                format: 1,
+                functional: lowering.source.raw(),
+                executable: lowering.executable.raw(),
+                treatment: lowering.treatment.raw(),
+                outcome: lowering.outcome.raw(),
+                adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
+                active_bits: lowering.active.to_bits(),
+                control_bits: lowering.control.to_bits(),
+                population: antecedent_io::TargetPopulationWire::from_domain(&lowering.population)
+                    .map_err(|error| io_err(&error))?,
+                design_columns,
+                fit_kind,
+                backend: "faer".into(),
+                se_kind: se_kind.as_str().into(),
+                se_lag: match se_kind {
+                    antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
+                    | antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => {
+                        Some(lag as u64)
+                    }
+                    _ => None,
+                },
+                bootstrap_replicates: operation.fitter.bootstrap_replicates,
+                interval_method: commitments.interval_method.clone(),
+                complete_case_rows: problem.design.nrows as u64,
+                arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
+                    .map_err(|error| io_err(&error))?,
+            })
+        })
+        .transpose()?;
     let functional_program = if resolved_estimator
         .and_then(|name| name.parse::<crate::EstimatorId>().ok())
         == Some(crate::EstimatorId::FunctionalDistribution)
@@ -1341,6 +1434,7 @@ fn program_payloads(
         checked_aipw_lowering,
         checked_frontdoor_lowering,
         checked_iv_lowering,
+        checked_linear_adjustment_lowering,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
@@ -1434,9 +1528,12 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .and_then(PreparedStudy::checked_iv),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_linear_operation),
         )?),
     };
-    let mut payloads = contract_payloads(program, study)?;
+    let mut payloads = contract_payloads(program, study, prepared)?;
     if prepared.is_none() {
         // Cheap inspection runs no identification: the program the prepared
         // handle compiles covers products that do not exist yet.
@@ -1561,6 +1658,7 @@ fn data_snapshot_wire(
         unit_count,
         partitions,
         interference: interference.map(super::contract_identity::interference_snapshot),
+        distribution_factor_laws: None,
     })
 }
 
@@ -2753,6 +2851,31 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         identification_variables,
         temporal_identification,
         estimate: executed_scalar(result),
+        interventional_distribution: result.distribution.as_ref().map(|distribution| {
+            antecedent_io::InterventionalDistributionWire {
+                atoms: distribution
+                    .atoms
+                    .iter()
+                    .map(|atom| antecedent_io::DistributionAtomWire {
+                        outcomes: atom
+                            .outcomes
+                            .iter()
+                            .map(|(variable, value)| {
+                                (variable.raw(), antecedent_io::ValueWire::from_value(value))
+                            })
+                            .collect(),
+                        conditioning: atom
+                            .conditioning
+                            .iter()
+                            .map(|(variable, value)| {
+                                (variable.raw(), antecedent_io::ValueWire::from_value(value))
+                            })
+                            .collect(),
+                        probability: atom.probability,
+                    })
+                    .collect(),
+            }
+        }),
         standard_error: published.standard_error,
         interval_lower: published.lower,
         interval_upper: published.upper,

@@ -1043,7 +1043,7 @@ pub(super) fn push_graph_posterior_structural_aggregation_diagnostic(
 
 /// How a functional estimate resolved variables its functional keeps free outside the
 /// query (a complete ID derivation can leave one, as on the napkin graph).
-fn free_variables_averaged(
+pub(super) fn free_variables_averaged(
     identification: &IdentificationResult,
     estimand: &IdentifiedEstimand,
 ) -> Option<Diagnostic> {
