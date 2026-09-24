@@ -24,15 +24,15 @@ ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-learn/ml-neural"]
 
 [dependencies]
-antecedent-graph = { version = "2.0.0", path = "../antecedent-graph" }
-antecedent-core = { version = "2.0.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.0.0", path = "../antecedent-data" }
-antecedent-expr = { version = "2.0.0", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.0.0", path = "../antecedent-identify" }
-antecedent-kernels = { version = "2.0.0", path = "../antecedent-kernels" }
-antecedent-learn = { version = "2.0.0", path = "../antecedent-learn" }
-antecedent-prob = { version = "2.0.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.0.0", path = "../antecedent-stats" }
+antecedent-graph = { version = "2.1.0", path = "../antecedent-graph" }
+antecedent-core = { version = "2.1.0", path = "../antecedent-core" }
+antecedent-data = { version = "2.1.0", path = "../antecedent-data" }
+antecedent-expr = { version = "2.1.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "2.1.0", path = "../antecedent-identify" }
+antecedent-kernels = { version = "2.1.0", path = "../antecedent-kernels" }
+antecedent-learn = { version = "2.1.0", path = "../antecedent-learn" }
+antecedent-prob = { version = "2.1.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.1.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
