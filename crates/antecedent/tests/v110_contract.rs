@@ -1158,6 +1158,47 @@ fn licensed_family_distribution_frequentist_consumes() {
             .iter()
             .any(|item| item.as_ref() == "program.functional_program")
     );
+    // A different *well-formed* expression is also invalid when it no longer
+    // names the selected identification product. Rehashing cannot repair that
+    // causal binding.
+    let mut forged = contract.clone();
+    let retained = forged.program.as_mut().unwrap().functional_program.as_mut().unwrap();
+    assert!(retained.arena.nodes.len() > 1);
+    let alternate = if retained.source == 0 { 1 } else { 0 };
+    retained.source = alternate;
+    retained.executable = alternate;
+    assert!(
+        antecedent_io::functional_program_from_wire(
+            retained,
+            antecedent_expr::ProgramLimits::default(),
+        )
+        .is_ok()
+    );
+    forged.identities.program =
+        *antecedent_io::program_digest(forged.program.as_ref().unwrap()).unwrap().as_bytes();
+    forged.seal = antecedent_io::contract_seal(
+        &forged.identities,
+        &forged.reasoning,
+        &forged.graph_class,
+        &forged.structure_source,
+        forged.identifier.as_deref(),
+        forged.estimator.as_deref(),
+    )
+    .unwrap();
+    let forged_bytes = rewrite_contract_section(
+        &consumed.body,
+        schema_names(&data),
+        "dist-f-valid-wrong-program",
+        &forged,
+    );
+    let forged = consume_analysis_result(&forged_bytes).unwrap();
+    assert!(
+        forged
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|item| item.as_ref() == "program.functional_binding")
+    );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()

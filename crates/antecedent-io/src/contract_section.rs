@@ -681,13 +681,40 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         Some(&contract.identities.program),
         program_digest,
     );
-    if let Some(program) =
-        contract.program.as_ref().and_then(|item| item.functional_program.as_ref())
-    {
+    let functional = contract.program.as_ref().and_then(|item| item.functional_program.as_ref());
+    if contract.estimator.as_deref() == Some("functional.distribution") && functional.is_none() {
+        // Older artifacts stay readable but cannot advertise a verified
+        // executable distribution without the program that was evaluated.
+        unresolved.push(Arc::from("program.functional_program"));
+    }
+    if let Some(program) = functional {
         if crate::functional_program_from_wire(program, antecedent_expr::ProgramLimits::default())
             .is_err()
         {
             unresolved.push(Arc::from("program.functional_program"));
+        }
+        let expected_variables: Vec<_> = contract
+            .target
+            .schema
+            .variables
+            .iter()
+            .map(|variable| (variable.id, variable.name.clone()))
+            .collect();
+        let matches_identification =
+            contract.identification_product.as_ref().is_some_and(|product| {
+                program.arena == product.arena
+                    && program.source == program.executable
+                    && product
+                        .estimands
+                        .iter()
+                        .any(|estimand| estimand.functional == program.source)
+            });
+        if contract.estimator.as_deref() != Some("functional.distribution")
+            || !matches!(contract.target.query, crate::CausalQueryWire::Distribution(_))
+            || program.variables != expected_variables
+            || !matches_identification
+        {
+            unresolved.push(Arc::from("program.functional_binding"));
         }
     }
     require_payload_digest(
