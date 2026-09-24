@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,6 +62,14 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
         self.assertGreater(len(pending), 0)
         blocked = {issue.split(": 2.1 release blocked", 1)[0] for issue in issues if "2.1 release blocked" in issue}
         self.assertTrue({row["coordinate"] for row in pending}.issubset(blocked))
+
+    def test_progress_gate_runs_verified_evidence_before_full_release_closure(self) -> None:
+        with patch.object(compiler_migration, "run_route_evidence") as run:
+            self.assertEqual(compiler_migration.validate(verify_progress=True), [])
+        run.assert_called_once()
+        rows = list(run.call_args.args[0])
+        self.assertTrue(any(row["migration_status"] == "verified" for row in rows))
+        self.assertTrue(any(row["migration_status"] != "verified" for row in rows))
 
     def test_route_classification_covers_each_execution_family(self) -> None:
         samples = [
