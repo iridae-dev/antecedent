@@ -74,7 +74,7 @@ result = identification.estimate(ant.transport.StatisticalTransportData(...))
 # missing regime samples leave the functional unavailable
 ```
 
-Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature. What comes after 2.0 is in the [2.x roadmap](ROADMAP.md).
+Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
 
 ## How Antecedent is built
 
@@ -102,9 +102,9 @@ algorithm exists ≠ this causal claim is licensed
 
 We believe this approach is critical when causal inference is built to exist beyond the notebook as part of composed software systems and agentic workflows.
 
-Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 463 licensed cells, 164 have no coverage measurement for their estimator and 4 report no interval (counts in the [support matrix](docs/support-matrix.md)).
+Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 471 licensed cells, 172 have no coverage measurement for their estimator and 4 report no interval (counts in the [support matrix](docs/support-matrix.md)).
 
-For the full 2.0 change summary and migration-impacting changes, read the [release notes](docs/release-notes/v2.0.0.md) and [changelog](CHANGELOG.md).
+For the 2.1.0 development summary, read the [release notes](docs/release-notes/v2.1.0.md) and [changelog](CHANGELOG.md).
 
 ## License
 

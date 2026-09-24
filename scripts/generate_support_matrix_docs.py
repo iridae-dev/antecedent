@@ -843,9 +843,9 @@ def cell_route_estimator(row: dict, routes: dict[str, dict]) -> str | None:
 def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
     """Estimator wire-ids whose evidence ran for this geometric cell.
 
-    Union of the licensed_routes compiler-plan estimator (when present) and
-    estimators implied by unambiguous tokens in this row's calibration record
-    ids. Never invent an estimator from limitations prose alone.
+    Union of the licensed_routes compiler-plan estimator, explicitly licensed
+    estimator ids on the evidence row, and estimators implied by unambiguous
+    calibration-record tokens. Never infer an estimator from limitations prose.
     """
     out: list[str] = []
     seen: set[str] = set()
@@ -858,6 +858,8 @@ def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
     route = cell_route_estimator(row, routes)
     if route is not None:
         add(route)
+    for wire in row.get("estimators") or []:
+        add(wire)
     for wire in estimators_from_calibration(list(row.get("calibration") or [])):
         add(wire)
     return out
@@ -937,7 +939,7 @@ pub struct LicensedCell {{
     pub validation: &'static str,
     /// Compiler-plan estimator from `parity/licensed_routes.toml`, when present.
     pub route_estimator: Option<&'static str>,
-    /// Union of the route estimator and calibration-token estimators for this cell.
+    /// Union of route, explicitly licensed, and calibration-token estimators.
     pub estimators: &'static [&'static str],
 }}
 

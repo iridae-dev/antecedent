@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0
+
+Development branch for Bayesian parity. Added model-scoped Bayesian support for attribution, trial transport, finite-network interference, and CPDAG/PAG class-posterior intervention response; expanded conditional and response posterior evaluation. New learned and specialist estimator contracts remain scoped to their implemented models and evidence.
+
 ## 2.0.0
 
 Antecedent 2.0.0 keeps the established `identify → estimate → inspect → refresh → export → consume` lifecycle across discovery, graph uncertainty, identification, estimation, validation, temporal and response analysis, Bayesian inference, attribution, design, state, and artifacts.
