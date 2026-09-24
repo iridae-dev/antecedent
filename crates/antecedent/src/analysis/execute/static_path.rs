@@ -12,6 +12,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         prepared_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         prepared_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
+        prepared_frontdoor: Option<&super::super::prepared::CheckedFrontDoorOperation>,
         bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
@@ -149,16 +150,20 @@ impl super::Study {
         } else {
             None
         };
-        let checked_frontdoor_linear = match &estimator_spec {
-            EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
-                let fitter = antecedent_estimate::FrontDoorTwoStage::new();
-                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+        let checked_frontdoor_linear = if prepared_frontdoor.is_some() {
+            None
+        } else {
+            match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
+                    let fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                EstimatorSpec::FrontDoorTwoStage(cfg) => {
+                    let fitter = (**cfg).clone();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                _ => None,
             }
-            EstimatorSpec::FrontDoorTwoStage(cfg) => {
-                let fitter = (**cfg).clone();
-                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
-            }
-            _ => None,
         };
         let checked_frontdoor_functional =
             if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::FrontDoorFunctional)) {
@@ -246,6 +251,32 @@ impl super::Study {
             super::super::prepared::checked_aipw_fitter(self)
                 .fit_checked(checked, &mut estimate_ws.aipw, ctx)
                 .map_err(CausalError::from)?
+        } else if let Some(operation) = prepared_frontdoor {
+            if operation.preparation.target().functional != estimand.functional
+                || operation.preparation.lowering().treatment != query.treatment
+                || operation.preparation.lowering().outcome != query.outcome
+                || operation.preparation.lowering().population != query.target_population
+                || !matches!(
+                    &query.active,
+                    antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment
+                            && value.as_f64() == Some(operation.preparation.lowering().active)
+                )
+                || !matches!(
+                    &query.control,
+                    antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment
+                            && value.as_f64() == Some(operation.preparation.lowering().control)
+                )
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared front-door lowering disagrees with selected identification or query".into(),
+                });
+            }
+            operation
+                .fitter
+                .fit_checked(&operation.preparation, &mut frontdoor_workspace, ctx)
+                .map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
             fitter.fit_checked(checked, &mut frontdoor_workspace, ctx).map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_frontdoor_functional {
@@ -282,6 +313,7 @@ impl super::Study {
         // and causal-forest fits take no replicate count: refitting any of them here would
         // reproduce the same estimate at the cost of a second full nuisance fit.
         let skip_bootstrap_refill = prepared_aipw.is_some()
+            || prepared_frontdoor.is_some()
             || self.bootstrap_replicates == 0
             || self
                 .estimator_spec
