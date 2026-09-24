@@ -631,6 +631,16 @@ fn assert_cached_only_on_prepared(
     }
 }
 
+fn assert_cached_on_one_shot_and_prepared(
+    one_shot: &antecedent::StudyResult,
+    prepared_clicks: &[&antecedent::StudyResult],
+) {
+    assert!(one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    for click in prepared_clicks {
+        assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    }
+}
+
 #[test]
 fn prepared_conditional_effect_reestimate_matches_fresh() {
     let (data, dag, query) = conditional_effect_fixture();
@@ -710,7 +720,7 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
-    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    assert_cached_on_one_shot_and_prepared(&fresh, &[&first, &second]);
     assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-path", "path_specific");
 }
 
@@ -770,7 +780,7 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     assert_eq!(second_dist.mean.to_bits(), fresh_dist.mean.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
-    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    assert_cached_on_one_shot_and_prepared(&fresh, &[&first, &second]);
     // Independent g-formula reference from the fixture counts:
     // P(z=0)=P(z=1)=1/2, P(y=1|t=1,z=0)=16/20, and
     // P(y=1|t=1,z=1)=21/35, so P(y=1|do(t=1))=0.7.
@@ -1540,7 +1550,7 @@ fn prepared_admg_distribution_reuses_identification() {
     let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(cached_count_dist(&fresh), 0);
+    assert_eq!(cached_count_dist(&fresh), 1);
     assert_eq!(cached_count_dist(&first), 1);
     assert_eq!(cached_count_dist(&second), 1);
     let fresh_dist = fresh.distribution.as_ref().expect("fresh ADMG distribution");

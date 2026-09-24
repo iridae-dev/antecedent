@@ -44,6 +44,7 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
         .refute(RefuteSuite::None);
     let study = builder.clone().build().unwrap();
     let ctx = ExecutionContext::for_tests(417);
+    let one_shot = study.run(&ctx).unwrap();
     let mut prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
@@ -52,6 +53,11 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     assert_eq!(retained.graph().node_count(), 3);
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert!((first.estimate.ate - 5.1).abs() < 0.001, "{}", first.estimate.ate);
+    assert_eq!(one_shot.estimate.ate.to_bits(), first.estimate.ate.to_bits());
+    assert_eq!(
+        one_shot.executed_contract.as_ref().unwrap().identities.program,
+        prepared.contract().unwrap().identities.program
+    );
 
     let shifted_y: Vec<f64> = y.iter().map(|value| value + 0.7).collect();
     let shifted = TabularData::from_f64_columns([

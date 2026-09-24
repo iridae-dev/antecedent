@@ -3092,6 +3092,20 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    /// Whether this prepared handle owns the complete operation for a family
+    /// whose one-shot facade must execute through preparation as well.
+    pub(crate) fn has_complete_program_operation(&self, query: &CausalQuery) -> bool {
+        matches!(
+            (&self.execution, query),
+            (PreparedExecution::Distribution(_), CausalQuery::Distribution(_))
+                | (PreparedExecution::PathSpecificEffect(_), CausalQuery::PathSpecific(_))
+                | (
+                    PreparedExecution::NestedCounterfactual(_),
+                    CausalQuery::NestedCounterfactual(_)
+                )
+        )
+    }
+
     /// Retained checked shared-exogenous natural direct effect operation.
     #[must_use]
     pub fn checked_nested_counterfactual_operation(
