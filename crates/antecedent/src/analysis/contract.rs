@@ -354,6 +354,7 @@ impl PreparedStudy {
             self.plan().logical.record.estimator.as_deref(),
             self.checked_aipw_ate(),
             self.checked_frontdoor_linear(),
+            self.checked_iv(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -396,6 +397,7 @@ impl PreparedStudy {
                 self.plan().logical.record.estimator.as_deref(),
                 if population.is_none() { self.checked_aipw_ate() } else { None },
                 if population.is_none() { self.checked_frontdoor_linear() } else { None },
+                if population.is_none() { self.checked_iv() } else { None },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -1110,6 +1112,7 @@ fn program_payloads_for(
     resolved_estimator: Option<&str>,
     checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
     checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
+    checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1120,6 +1123,7 @@ fn program_payloads_for(
         resolved_estimator,
         checked_aipw,
         checked_frontdoor,
+        checked_iv,
     )
 }
 
@@ -1141,6 +1145,7 @@ fn program_payloads(
     resolved_estimator: Option<&str>,
     checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
     checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
+    checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1259,6 +1264,38 @@ fn program_payloads(
                 })
             })
             .transpose()?;
+    let checked_iv_lowering = checked_iv.map(|checked| {
+        let lowering = checked.lowering();
+        commitments.se_kind = Some(lowering.se_kind.as_str().to_string());
+        let procedure = match lowering.procedure {
+            antecedent_estimate::CheckedIvProcedure::Wald => "wald",
+            antecedent_estimate::CheckedIvProcedure::TwoStageLeastSquares => {
+                "two_stage_least_squares"
+            }
+        };
+        let weak_instrument_uncertainty =
+            if lowering.se_kind == antecedent_estimate::AnalyticSeKind::Homoskedastic {
+                "anderson_rubin_if_weak"
+            } else {
+                "withheld_non_homoskedastic"
+            };
+        antecedent_io::CheckedIvLoweringWire {
+            format: 1,
+            functional: lowering.functional.raw(),
+            treatment: lowering.treatment.raw(),
+            outcome: lowering.outcome.raw(),
+            instrument: lowering.instruments.first().map_or(u32::MAX, |id| id.raw()),
+            adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
+            active_bits: lowering.active.to_bits(),
+            control_bits: lowering.control.to_bits(),
+            instrument_active_bits: lowering.instrument_active.to_bits(),
+            instrument_control_bits: lowering.instrument_control.to_bits(),
+            procedure: procedure.into(),
+            se_kind: lowering.se_kind.as_str().into(),
+            weak_instrument_uncertainty: weak_instrument_uncertainty.into(),
+            complete_case_rows: u64::try_from(checked.problem().nrows).unwrap_or(u64::MAX),
+        }
+    });
     let functional_program = if resolved_estimator
         .and_then(|name| name.parse::<crate::EstimatorId>().ok())
         == Some(crate::EstimatorId::FunctionalDistribution)
@@ -1303,6 +1340,7 @@ fn program_payloads(
         functional_program,
         checked_aipw_lowering,
         checked_frontdoor_lowering,
+        checked_iv_lowering,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
@@ -1393,6 +1431,9 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .and_then(PreparedStudy::checked_frontdoor_linear),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_iv),
         )?),
     };
     let mut payloads = contract_payloads(program, study)?;
@@ -3546,5 +3587,167 @@ mod frontdoor_artifact_tests {
             "{:?}",
             consumed.acceptance.unresolved
         );
+    }
+}
+
+#[cfg(test)]
+mod checked_iv_artifact_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::{TwoStageLeastSquares, WaldIv};
+    use antecedent_graph::Dag;
+
+    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
+
+    fn fixture() -> TabularData {
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("z", RoleHint::InstrumentCandidate),
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let ids =
+            [schema.id_of("z").unwrap(), schema.id_of("t").unwrap(), schema.id_of("y").unwrap()];
+        let n = 160;
+        let z = (0..n).map(|i| if i % 2 == 0 { 1.0 } else { 0.0 }).collect::<Vec<_>>();
+        let t = z.clone();
+        let y =
+            (0..n).map(|i| 2.0 * t[i] + ((i * 17 % 31) as f64 - 15.0) / 20.0).collect::<Vec<_>>();
+        let columns = [z, t, y]
+            .into_iter()
+            .zip(ids)
+            .map(|(values, id)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n))
+                        .unwrap(),
+                )
+            })
+            .collect();
+        TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+    }
+
+    fn tamper_procedure(bytes: &[u8]) -> Vec<u8> {
+        let (artifact, _header, body) =
+            antecedent_io::decode_analysis_result_artifact(bytes).unwrap();
+        let mut contract =
+            antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+        let lowering = contract.program.as_mut().unwrap().checked_iv_lowering.as_mut().unwrap();
+        lowering.procedure = if lowering.procedure == "wald" {
+            "two_stage_least_squares".into()
+        } else {
+            "wald".into()
+        };
+        let digest = antecedent_io::program_digest(contract.program.as_ref().unwrap()).unwrap();
+        contract.identities.program = *digest.as_bytes();
+        contract.seal = antecedent_io::contract_seal(
+            &contract.identities,
+            &contract.reasoning,
+            &contract.graph_class,
+            &contract.structure_source,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )
+        .unwrap();
+        let claim = contract.claim.as_mut().unwrap();
+        let result_digest = antecedent_io::result_digest(&body).unwrap();
+        claim.claim_id = *antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+            contract.seal,
+            claim,
+            result_digest,
+        ))
+        .unwrap()
+        .as_bytes();
+        let payload = antecedent_io::to_cbor(&contract).unwrap();
+        let (descriptor, section) = antecedent_io::pack_section(
+            antecedent_io::CONTRACT_SECTION,
+            "application/cbor",
+            payload,
+            antecedent_io::CompressPolicy::Auto,
+        );
+        let mut artifact = artifact;
+        let index = artifact
+            .manifest
+            .sections
+            .iter()
+            .position(|item| item.id == antecedent_io::CONTRACT_SECTION)
+            .unwrap();
+        artifact.manifest.sections[index] = descriptor;
+        artifact.sections[index] = section;
+        let mut out = Vec::new();
+        artifact.write_to(&mut out).unwrap();
+        out
+    }
+
+    #[test]
+    fn checked_wald_and_binary_2sls_artifacts_verify_and_rehashed_procedure_tampering_fails() {
+        let data = fixture();
+        let graph = Dag::from_named_edges(data.schema(), &[("z", "t"), ("t", "y")]).unwrap();
+        let query = AverageEffectQuery::binary_ate(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+        );
+        for (estimator, expected) in [(0, "wald"), (1, "two_stage_least_squares")] {
+            let study = Study::tabular(data.clone())
+                .graph(graph.clone())
+                .query(query.clone())
+                .identifier(IdentifierId::Iv)
+                .estimator(if estimator == 0 {
+                    crate::EstimatorSpec::from(WaldIv::new().with_bootstrap_replicates(0))
+                } else {
+                    crate::EstimatorSpec::from(
+                        TwoStageLeastSquares::new().with_bootstrap_replicates(0),
+                    )
+                })
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap();
+            let context = ExecutionContext::for_tests(903 + estimator as u64);
+            let prepared = study.prepare(&context).unwrap();
+            let result = prepared.estimate(&data, &context).unwrap();
+            let bytes = prepared.encode_contracted_result(&result, "iv", &context).unwrap();
+            let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            assert!(
+                intact.acceptance.accepts_as_verified_program(),
+                "{expected}: {:?}",
+                intact.acceptance.unresolved
+            );
+            let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+            let contract =
+                antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+            assert_eq!(contract.program.unwrap().checked_iv_lowering.unwrap().procedure, expected);
+            let tampered = tamper_procedure(&bytes);
+            let consumed = antecedent_io::consume_analysis_result(&tampered).unwrap();
+            assert!(
+                !consumed.acceptance.accepts_as_verified_program(),
+                "{expected}: {:?}",
+                consumed.acceptance.unresolved
+            );
+            assert!(
+                consumed
+                    .acceptance
+                    .unresolved
+                    .iter()
+                    .any(|item| item.as_ref() == "program.checked_iv_binding")
+            );
+        }
     }
 }
