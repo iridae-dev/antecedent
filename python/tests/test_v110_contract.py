@@ -383,7 +383,9 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
     encoded = retargeted.export()
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
-    assert artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
+    acceptance = artifacts.accept(encoded)
+    assert acceptance["accepts_as_verified_program"] == "false"
+    assert "program.checked_aipw_lowering" in acceptance["unresolved"]
     section = loaded.contract
     carried = section["target_weights"]
     assert np.array_equal(np.asarray(carried["values"], dtype=float), weights)
