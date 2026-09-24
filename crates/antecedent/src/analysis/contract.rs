@@ -3392,3 +3392,159 @@ mod tests {
         assert!(slot.search_capped);
     }
 }
+
+#[cfg(test)]
+mod frontdoor_artifact_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage};
+    use antecedent_graph::Dag;
+
+    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
+
+    fn fixture() -> TabularData {
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("m", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let ids =
+            [schema.id_of("t").unwrap(), schema.id_of("y").unwrap(), schema.id_of("m").unwrap()];
+        let n = 160;
+        let mut treatment = Vec::with_capacity(n);
+        let mut mediator = Vec::with_capacity(n);
+        let mut outcome = Vec::with_capacity(n);
+        for i in 0..(n / 2) {
+            let mediator_noise = ((i * 17 % 101) as f64 - 50.0) / 65.0;
+            let outcome_noise = ((i * 31 % 97) as f64 - 48.0) / 42.0;
+            for t in [0.0, 1.0] {
+                treatment.push(t);
+                mediator.push(0.8 * t + mediator_noise);
+                outcome.push(2.0 * (0.8 * t + mediator_noise) + outcome_noise);
+            }
+        }
+        let columns = [treatment, outcome, mediator]
+            .into_iter()
+            .zip(ids)
+            .map(|(values, id)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n))
+                        .unwrap(),
+                )
+            })
+            .collect();
+        TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+    }
+
+    #[test]
+    fn rehashed_frontdoor_procedure_tampering_is_refused_semantically() {
+        let data = fixture();
+        let graph = Dag::from_named_edges(data.schema(), &[("t", "m"), ("m", "y")]).unwrap();
+        let query = AverageEffectQuery::with_levels(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+            0.0,
+            1.0,
+        );
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(query)
+            .identifier(IdentifierId::Frontdoor)
+            .estimator(
+                FrontDoorTwoStage::new()
+                    .with_bootstrap_replicates(0)
+                    .with_se_kind(AnalyticSeKind::Hc1),
+            )
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let context = ExecutionContext::for_tests(901);
+        let prepared = study.prepare(&context).unwrap();
+        let result = prepared.estimate(&data, &context).unwrap();
+        let bytes = prepared.encode_contracted_result(&result, "frontdoor", &context).unwrap();
+        let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        assert!(
+            intact.acceptance.accepts_as_verified_program(),
+            "{:?}",
+            intact.acceptance.unresolved
+        );
+
+        let (artifact, _header, body) =
+            antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+        let mut contract =
+            antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+        let lowering =
+            contract.program.as_mut().unwrap().checked_frontdoor_lowering.as_mut().unwrap();
+        lowering.procedure = "frontdoor_functional".into();
+        let program_digest =
+            antecedent_io::program_digest(contract.program.as_ref().unwrap()).unwrap();
+        contract.identities.program = *program_digest.as_bytes();
+        contract.seal = antecedent_io::contract_seal(
+            &contract.identities,
+            &contract.reasoning,
+            &contract.graph_class,
+            &contract.structure_source,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )
+        .unwrap();
+        let claim = contract.claim.as_mut().unwrap();
+        let result_digest = antecedent_io::result_digest(&body).unwrap();
+        claim.claim_id = *antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+            contract.seal,
+            claim,
+            result_digest,
+        ))
+        .unwrap()
+        .as_bytes();
+        let payload = antecedent_io::to_cbor(&contract).unwrap();
+        let (descriptor, section) = antecedent_io::pack_section(
+            antecedent_io::CONTRACT_SECTION,
+            "application/cbor",
+            payload,
+            antecedent_io::CompressPolicy::Auto,
+        );
+        let mut tampered = artifact;
+        let section_index = tampered
+            .manifest
+            .sections
+            .iter()
+            .position(|descriptor| descriptor.id == antecedent_io::CONTRACT_SECTION)
+            .unwrap();
+        tampered.manifest.sections[section_index] = descriptor;
+        tampered.sections[section_index] = section;
+        let mut tampered_bytes = Vec::new();
+        tampered.write_to(&mut tampered_bytes).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&tampered_bytes).unwrap();
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|item| item.as_ref() == "program.frontdoor_binding"),
+            "{:?}",
+            consumed.acceptance.unresolved
+        );
+    }
+}
