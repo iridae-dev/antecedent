@@ -517,7 +517,7 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
             contract.format
         )));
     }
-    let unresolved = verify_stored_payloads(contract);
+    let unresolved = producer_encoding_unresolved(contract, verify_stored_payloads(contract));
     if !unresolved.is_empty() {
         return Err(IoError::Convert(format!(
             "contract payloads do not rehash: {}",
@@ -623,6 +623,33 @@ pub fn verify_contract_against_body(
             unresolved.push(Arc::from("identities.execution"));
         }
         verify_claim_calibration(contract, claim, &mut unresolved);
+    }
+    unresolved
+}
+
+/// Producer validation permits AIPW exports that lack the new checked lowering or row binding.
+/// Independent consumption still receives the unfiltered dependency refusals from
+/// [`verify_contract_against_body`]. Any malformed payload that is present remains fatal.
+pub(crate) fn verify_contract_for_encoding(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+) -> Vec<Arc<str>> {
+    producer_encoding_unresolved(contract, verify_contract_against_body(header, body, contract))
+}
+
+fn producer_encoding_unresolved(
+    contract: &AnalysisResultContractWire,
+    mut unresolved: Vec<Arc<str>>,
+) -> Vec<Arc<str>> {
+    if contract.estimator.as_deref() != Some("aipw") || contract.program.is_none() {
+        return unresolved;
+    }
+    if contract.program.as_ref().is_some_and(|program| program.checked_aipw_lowering.is_none()) {
+        unresolved.retain(|key| key.as_ref() != "program.checked_aipw_lowering");
+    }
+    if contract.checked_aipw_rows.is_none() && contract.identities.checked_aipw_rows.is_none() {
+        unresolved.retain(|key| key.as_ref() != "checked_aipw.row_binding");
     }
     unresolved
 }
@@ -910,7 +937,6 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
         contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
     if contract.estimator.as_deref() == Some("aipw") && lowering.is_none() {
         unresolved.push(Arc::from("program.checked_aipw_lowering"));
-        unresolved.push(Arc::from("checked_aipw.row_binding"));
         return;
     }
     let Some(lowering) = lowering else { return };
@@ -2365,12 +2391,15 @@ mod tests {
         let program = contract.program.as_mut().unwrap();
         program.commitments.estimator = Some("aipw".into());
         program.commitments.resolved_estimator = Some("aipw".into());
+        contract.claim = None;
+        contract.execution = None;
+        contract.identities.execution = None;
         contract.identities.program =
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
 
-        let consumed =
-            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        let bytes = to_bytes(&body, names, Some(&contract));
+        let consumed = consume_analysis_result(&bytes).unwrap();
         assert_eq!(consumed.body, body);
         assert!(
             consumed
@@ -2413,6 +2442,15 @@ mod tests {
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
 
+        assert!(
+            encode_analysis_result_artifact_with_contract(
+                &body,
+                names.clone(),
+                "tampered-aipw-lowering",
+                Some(&contract),
+            )
+            .is_err()
+        );
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(
@@ -2456,6 +2494,15 @@ mod tests {
         contract.identities.checked_aipw_rows = Some([0; 32]);
         seal_claim(&mut contract, &body);
 
+        assert!(
+            encode_analysis_result_artifact_with_contract(
+                &body,
+                names.clone(),
+                "tampered-aipw-rows",
+                Some(&contract),
+            )
+            .is_err()
+        );
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(
