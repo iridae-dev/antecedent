@@ -16,11 +16,16 @@ SPEC.loader.exec_module(compiler_migration)
 class CompilerMigrationInventoryTests(unittest.TestCase):
     def test_all_licensed_coordinates_are_classified_and_current(self) -> None:
         support, routes = compiler_migration.load_registries()
+        optional_routes = compiler_migration.optional_estimator_routes(support, routes)
         stage_routes = compiler_migration.load_transport_stage_routes()
         self.assertEqual(support.keys(), routes.keys())
         self.assertEqual(compiler_migration.validate(), [])
         manifest = compiler_migration.tomllib.loads(compiler_migration.INVENTORY.read_text())
-        self.assertEqual(len(manifest["route"]), len(routes) + len(stage_routes))
+        self.assertEqual(len(manifest["route"]), len(routes) + len(optional_routes) + len(stage_routes))
+        self.assertEqual(
+            len(optional_routes),
+            sum(len(cell["estimators"]) - 1 for cell in support.values()),
+        )
         for row in manifest["route"]:
             self.assertIn(row["kind"], compiler_migration.KINDS)
             self.assertIn(row["migration_status"], compiler_migration.MIGRATION_STATES)
@@ -31,6 +36,10 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
             if row.get("source_registry") == "parity/transport_stages.toml":
                 self.assertEqual(row["migration_status"], "pending")
         self.assertEqual(len(stage_routes), 21)
+        self.assertIn(
+            "AverageEffect:Dag:explicit:Frequentist:none::estimator=iv.2sls",
+            {row["coordinate"] for row in manifest["route"]},
+        )
         self.assertNotIn(
             "transport-stage:antecedent_estimate.evaluate_exact_z_transport",
             {row["coordinate"] for row in manifest["route"]},

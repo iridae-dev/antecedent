@@ -68,6 +68,33 @@ def load_registries() -> tuple[dict[str, dict], dict[str, dict]]:
     return support, routes
 
 
+def optional_estimator_routes(support: dict[str, dict], routes: dict[str, dict]) -> dict[str, dict]:
+    """Each additionally licensed estimator is a distinct execution path.
+
+    The route registry names the default selected estimator. The support axis
+    licenses other high-level estimator choices on that same coordinate, whose
+    identifier is resolved only during preparation. They must not inherit the
+    default route's compiler evidence.
+    """
+    out: dict[str, dict] = {}
+    for base, cell in support.items():
+        selected = routes[base]["estimator"]
+        choices = cell.get("estimators", [])
+        if len(choices) != len(set(choices)) or selected not in choices:
+            raise ValueError(f"{base}: invalid licensed estimator axis")
+        for estimator in choices:
+            if estimator == selected:
+                continue
+            key = f"{base}::estimator={estimator}"
+            out[key] = {
+                "coordinate": key,
+                "base_coordinate": base,
+                "identifier": "selected_at_preparation",
+                "estimator": estimator,
+            }
+    return out
+
+
 def load_transport_stage_routes() -> dict[str, dict]:
     """Public stage routes are licensed separately from the analyze Cartesian matrix."""
     rows = tomllib.loads(TRANSPORT_STAGES.read_text()).get("routes", [])
@@ -102,6 +129,7 @@ def classify_transport_stage(route: dict) -> tuple[str, str]:
 
 def render() -> str:
     support, routes = load_registries()
+    optional_routes = optional_estimator_routes(support, routes)
     stage_routes = load_transport_stage_routes()
     try:
         previous_rows = tomllib.loads(INVENTORY.read_text()).get("route", [])
@@ -155,6 +183,42 @@ def render() -> str:
                 f'evidence_test = "{prior["evidence_test"]}"',
                 f'evidence_assertion = "{prior["evidence_assertion"]}"',
             ]
+    for key in sorted(optional_routes):
+        route = optional_routes[key]
+        kind, reason = classify(route)
+        prior = previous.get(key, {})
+        same_route = (
+            prior.get("base_coordinate") == route["base_coordinate"]
+            and prior.get("estimator") == route["estimator"]
+            and prior.get("kind") == kind
+            and prior.get("classification_reason") == reason
+        )
+        status = prior.get("migration_status", "pending") if same_route else "pending"
+        checked = prior.get("checked_execution", "unverified") if same_route else "unverified"
+        builder_independent = prior.get("builder_independent", "unverified") if same_route else "unverified"
+        semantics = prior.get("execution_semantics", "unverified") if same_route else "unverified"
+        rows.extend([
+            "[[route]]",
+            f'coordinate = "{key}"',
+            'source_registry = "parity/support_licensed.toml"',
+            f'base_coordinate = "{route["base_coordinate"]}"',
+            f'query = "{key.split(":", 1)[0]}"',
+            'identifier = "selected_at_preparation"',
+            f'estimator = "{route["estimator"]}"',
+            f'kind = "{kind}"',
+            f'classification_reason = "{reason}"',
+            f'migration_status = "{status}"',
+            f'checked_execution = "{checked}"',
+            f'builder_independent = "{builder_independent}"',
+            f'execution_semantics = "{semantics}"',
+            "",
+        ])
+        if same_route and prior.get("evidence_test") and prior.get("evidence_assertion"):
+            insert_at = len(rows) - 1
+            rows[insert_at:insert_at] = [
+                f'evidence_test = "{prior["evidence_test"]}"',
+                f'evidence_assertion = "{prior["evidence_assertion"]}"',
+            ]
     for key in sorted(stage_routes):
         route = stage_routes[key]
         kind, reason = classify_transport_stage(route)
@@ -200,7 +264,8 @@ def validate(release_gate: bool = False) -> list[str]:
     inventory_rows = manifest.get("route", [])
     inventory = {row.get("coordinate"): row for row in inventory_rows}
     stage_routes = load_transport_stage_routes()
-    expected_inventory_keys = routes.keys() | stage_routes.keys()
+    optional_routes = optional_estimator_routes(support, routes)
+    expected_inventory_keys = routes.keys() | optional_routes.keys() | stage_routes.keys()
     if len(inventory) != len(inventory_rows):
         issues.append("compiler inventory contains duplicate coordinates")
     if support.keys() != routes.keys():
@@ -211,13 +276,14 @@ def validate(release_gate: bool = False) -> list[str]:
             f"stale={sorted(inventory.keys() - expected_inventory_keys)[:8]}"
         )
     route_checks = {key: (route, "analyze") for key, route in routes.items()}
+    route_checks.update({key: (route, "optional_estimator") for key, route in optional_routes.items()})
     route_checks.update({key: (route, "transport_stage") for key, route in stage_routes.items()})
     for key, (route, source) in route_checks.items():
         row = inventory.get(key)
         if row is None:
             continue
         try:
-            if source == "analyze":
+            if source in {"analyze", "optional_estimator"}:
                 expected_kind, expected_reason = classify(route)
             else:
                 expected_kind, expected_reason = classify_transport_stage(route)
@@ -228,9 +294,14 @@ def validate(release_gate: bool = False) -> list[str]:
             issues.append(f"{key}: missing, unknown, or incorrect route classification")
         if row.get("classification_reason") != expected_reason:
             issues.append(f"{key}: classification mapping/reason drift; regenerate inventory")
-        if source == "analyze":
+        if source in {"analyze", "optional_estimator"}:
             if row.get("identifier") != route.get("identifier") or row.get("estimator") != route.get("estimator"):
                 issues.append(f"{key}: identifier or estimator drift; regenerate inventory")
+            if source == "optional_estimator" and (
+                row.get("base_coordinate") != route["base_coordinate"]
+                or row.get("source_registry") != "parity/support_licensed.toml"
+            ):
+                issues.append(f"{key}: optional estimator source drift; regenerate inventory")
         else:
             if row.get("route") != route.get("route") or row.get("stage") != route.get("stage"):
                 issues.append(f"{key}: public transport stage route drift; regenerate inventory")
