@@ -4,8 +4,9 @@
 
 use antecedent_core::{RegimeId, Value, VariableId};
 use antecedent_expr::{
-    CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, InterventionAssignment,
-    InterventionSetId, OutcomeExprId, VarSetId,
+    CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, FunctionalProgram,
+    InterventionAssignment, InterventionSetId, OutcomeExprId, ProgramLimits, ProgramSchema,
+    ProgramVariable, VarSetId,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -27,6 +28,55 @@ pub struct ExprArenaWire {
     pub lists: Vec<Vec<u32>>,
     /// Expression nodes in id order.
     pub nodes: Vec<ExprNodeWire>,
+}
+
+/// Complete checked functional program wire record.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FunctionalProgramWire {
+    /// Owned expression arena.
+    pub arena: ExprArenaWire,
+    /// Source root.
+    pub source: u32,
+    /// Executable root.
+    pub executable: u32,
+    /// Semantic variable names keyed by stable variable id.
+    #[serde(default)]
+    pub variables: Vec<(u32, String)>,
+}
+
+/// Encode a functional program while preserving its distinct roots and schema.
+pub fn functional_program_to_wire(
+    program: &FunctionalProgram,
+) -> Result<FunctionalProgramWire, IoError> {
+    Ok(FunctionalProgramWire {
+        arena: expr_arena_to_wire(program.arena())?,
+        source: program.mapping().source.raw(),
+        executable: program.mapping().executable.raw(),
+        variables: program
+            .schema()
+            .variables()
+            .map(|(id, value)| (id.raw(), value.name.to_string()))
+            .collect(),
+    })
+}
+
+/// Decode, structurally verify, and bound a functional program.
+pub fn functional_program_from_wire(
+    wire: &FunctionalProgramWire,
+    limits: ProgramLimits,
+) -> Result<FunctionalProgram, IoError> {
+    let arena = expr_arena_from_wire(&wire.arena)?;
+    let schema = ProgramSchema::new(wire.variables.iter().map(|(id, name)| {
+        (VariableId::from_raw(*id), ProgramVariable { name: Arc::from(name.as_str()) })
+    }));
+    FunctionalProgram::new(
+        arena,
+        schema,
+        ExprId::from_raw(wire.source),
+        ExprId::from_raw(wire.executable),
+        limits,
+    )
+    .map_err(|e| IoError::Convert(format!("invalid functional program: {e}")))
 }
 
 /// Durable derivation step, separate from expression algebraic identity.
@@ -425,6 +475,29 @@ mod tests {
     use super::*;
     use antecedent_core::RegimeId;
     use antecedent_expr::ExprNode;
+
+    #[test]
+    fn checked_program_wire_round_trip_revalidates_structure() {
+        use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
+        let mut arena = CausalExprArena::new();
+        let y = VariableId::from_raw(1);
+        let vars = arena.intern_var_set([y]);
+        let conditioning = arena.empty_var_set();
+        let intervention = arena.empty_intervention_set();
+        let root =
+            arena.intern_distribution(vars, conditioning, intervention, DomainRef::Observational);
+        let schema = ProgramSchema::new([(y, ProgramVariable { name: Arc::from("outcome") })]);
+        let program =
+            FunctionalProgram::new(arena, schema, root, root, ProgramLimits::default()).unwrap();
+        let wire = functional_program_to_wire(&program).unwrap();
+        let loaded = functional_program_from_wire(&wire, ProgramLimits::default()).unwrap();
+        assert_eq!(loaded.mapping(), program.mapping());
+        assert_eq!(loaded.schema().variable(y).unwrap().name.as_ref(), "outcome");
+        assert_eq!(loaded.factor_requirements(), program.factor_requirements());
+        let mut invalid = wire;
+        invalid.executable = u32::MAX;
+        assert!(functional_program_from_wire(&invalid, ProgramLimits::default()).is_err());
+    }
 
     #[test]
     fn nested_kernel_round_trip_preserves_numerical_value() {
