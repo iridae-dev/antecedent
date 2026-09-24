@@ -860,6 +860,21 @@ impl CheckedStaticResponseCurve {
     }
 }
 
+/// Read-only inspection of a retained checked derivative-response plan.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedDerivativeResponseInfo {
+    /// Exact response functional and evaluation coordinates.
+    pub query: ResponseQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Adjustment variables retained by the checked target.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Maximum derivative coordinates the operation may materialize.
+    pub max_derivative_cells: usize,
+}
+
 /// Checked binding for the prepared static Bayesian mean ATE g-computation row.
 /// It keeps the original query, selected identification claim and inference
 /// configuration together so estimate clicks cannot silently select another row.
@@ -1129,6 +1144,105 @@ pub(crate) struct CheckedLinearOperation {
     structure_source: crate::support::StructureSource,
     population_registry: Option<antecedent_core::PopulationRegistry>,
     custom_validator_names: Arc<[Arc<str>]>,
+}
+
+/// Immutable result-construction context retained with a checked static operation.
+struct CheckedStaticResultMetadata<'a> {
+    source_query: &'a CausalQuery,
+    query: &'a AverageEffectQuery,
+    identification: &'a IdentificationResult,
+    estimand: &'a IdentifiedEstimand,
+    identifier: crate::strategy_table::IdentifierId,
+    estimator: crate::strategy_table::EstimatorId,
+    physical: &'a PhysicalExecutionPlan,
+    graph_class: GraphClass,
+    graph_version: u32,
+    support_status: Option<crate::support::CellStatus>,
+    structure_source: crate::support::StructureSource,
+    population_registry: Option<&'a antecedent_core::PopulationRegistry>,
+    latency_mode: Option<super::latency::LatencyMode>,
+    refute: RefuteSuite,
+    custom_validator_names: &'a [Arc<str>],
+}
+
+/// Retained GLM adjustment target, selected configuration, and compiled design.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedGlmAdjustmentOperation {
+    source_query: CausalQuery,
+    query: AverageEffectQuery,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identifier: crate::strategy_table::IdentifierId,
+    estimator: crate::strategy_table::EstimatorId,
+    physical: PhysicalExecutionPlan,
+    fitter: antecedent_estimate::GlmAdjustmentAte,
+    preparation: antecedent_estimate::PreparedGlmProblem,
+    inference: InferenceMode,
+    refute: RefuteSuite,
+    graph_class: GraphClass,
+    graph_version: u32,
+    support_status: Option<crate::support::CellStatus>,
+    structure_source: crate::support::StructureSource,
+    population_registry: Option<antecedent_core::PopulationRegistry>,
+    latency_mode: Option<super::latency::LatencyMode>,
+    custom_validator_names: Arc<[Arc<str>]>,
+}
+
+impl CheckedGlmAdjustmentOperation {
+    fn sealed_for_direct_execution(&self) -> bool {
+        self.graph_class == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && self.estimator == crate::strategy_table::EstimatorId::GlmAdjustment
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+    }
+
+    fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        let preparation =
+            self.fitter.prepare(data, &self.estimand, &self.query).map_err(CausalError::from)?;
+        let mut rebound = self.clone();
+        rebound.preparation = preparation;
+        Ok(rebound)
+    }
+}
+
+/// Retained sharp-RD target, design geometry, and local-linear fit.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedRdOperation {
+    source_query: AverageEffectQuery,
+    query: AverageEffectQuery,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identifier: crate::strategy_table::IdentifierId,
+    estimator: crate::strategy_table::EstimatorId,
+    physical: PhysicalExecutionPlan,
+    fitter: antecedent_estimate::SharpRegressionDiscontinuity,
+    preparation: antecedent_estimate::CheckedRdPreparation,
+    inference: InferenceMode,
+    refute: RefuteSuite,
+    graph_class: GraphClass,
+    graph_version: u32,
+    support_status: Option<crate::support::CellStatus>,
+    structure_source: crate::support::StructureSource,
+    population_registry: Option<antecedent_core::PopulationRegistry>,
+    latency_mode: Option<super::latency::LatencyMode>,
+    custom_validator_names: Arc<[Arc<str>]>,
+}
+
+impl CheckedRdOperation {
+    fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        let preparation = self
+            .fitter
+            .prepare_checked(data, &self.identification, 0)
+            .map_err(CausalError::from)?;
+        let mut rebound = self.clone();
+        rebound.preparation = preparation;
+        Ok(rebound)
+    }
 }
 
 impl CheckedLinearOperation {
@@ -2970,8 +3084,12 @@ pub(crate) enum PreparedExecution {
     PathSpecificEffect(CheckedPathSpecificEffectOperation),
     AdmgResponseCurve(CheckedAdmgResponseCurveOperation),
     CheckedLinear(CheckedLinearOperation),
+    CheckedGlmAdjustment(CheckedGlmAdjustmentOperation),
+    CheckedRd(CheckedRdOperation),
     CheckedAipw(CheckedAipwOperation),
+    Counterfactual(crate::gcm::CheckedCounterfactualOperation),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
+    DerivativeResponse(super::execute::CheckedDerivativeResponseOperation),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(CheckedBayesianGcompOperation),
     StaticResponseCurve(CheckedStaticResponseCurve),
@@ -3004,6 +3122,7 @@ impl PreparedExecution {
             }
             Self::Iv(operation) => CheckedProgramBinding::Iv(operation.preparation()),
             Self::CheckedLinear(operation) => CheckedProgramBinding::Linear(operation),
+            Self::CheckedGlmAdjustment(_) | Self::CheckedRd(_) => CheckedProgramBinding::None,
             Self::FunctionalEffect(operation) => {
                 CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
             }
@@ -3019,9 +3138,11 @@ impl PreparedExecution {
             Self::NestedCounterfactual(operation) => {
                 CheckedProgramBinding::NestedCounterfactual(operation)
             }
-            Self::LegacyStudyDispatch | Self::BayesianGcomp(_) | Self::StaticResponseCurve(_) => {
-                CheckedProgramBinding::None
-            }
+            Self::LegacyStudyDispatch
+            | Self::Counterfactual(_)
+            | Self::DerivativeResponse(_)
+            | Self::BayesianGcomp(_)
+            | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -3032,6 +3153,10 @@ impl PreparedExecution {
     fn rebind_for_dispatch(&self, data: &TabularData) -> Result<Self, CausalError> {
         match self {
             Self::CheckedLinear(operation) => Ok(Self::CheckedLinear(operation.rebind(data)?)),
+            Self::CheckedGlmAdjustment(operation) => {
+                Ok(Self::CheckedGlmAdjustment(operation.rebind(data)?))
+            }
+            Self::CheckedRd(operation) => Ok(Self::CheckedRd(operation.rebind(data)?)),
             Self::CheckedAipw(operation) => Ok(Self::CheckedAipw(operation.rebind(data)?)),
             Self::FrontDoorLinear(operation) => Ok(Self::FrontDoorLinear(operation.rebind(data)?)),
             Self::Iv(operation) => Ok(Self::Iv(operation.rebind(data)?)),
@@ -3141,6 +3266,34 @@ impl PreparedStudy {
         self.execution.program_binding()
     }
 
+    /// Retained GLM target design for the checked DAG adjustment route.
+    #[must_use]
+    pub fn checked_glm_adjustment(&self) -> Option<&antecedent_estimate::PreparedGlmProblem> {
+        if let PreparedExecution::CheckedGlmAdjustment(operation) = &self.execution {
+            Some(&operation.preparation)
+        } else {
+            None
+        }
+    }
+
+    /// Retained local boundary and design for the checked sharp RD route.
+    #[must_use]
+    pub fn checked_rd_preparation(&self) -> Option<&antecedent_estimate::CheckedRdPreparation> {
+        if let PreparedExecution::CheckedRd(operation) = &self.execution {
+            Some(&operation.preparation)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn has_sealed_glm_operation(&self) -> bool {
+        matches!(&self.execution, PreparedExecution::CheckedGlmAdjustment(op) if op.sealed_for_direct_execution())
+    }
+
+    pub(crate) fn has_checked_rd_operation(&self) -> bool {
+        matches!(&self.execution, PreparedExecution::CheckedRd(_))
+    }
+
     /// Whether this prepared handle owns the complete operation for a family
     /// whose one-shot facade must execute through preparation as well.
     pub(crate) fn has_complete_program_operation(&self, query: &CausalQuery) -> bool {
@@ -3190,6 +3343,44 @@ impl PreparedStudy {
         self.execution
             .aipw_operation()
             .is_some_and(CheckedAipwOperation::sealed_for_direct_execution)
+    }
+
+    pub(crate) fn has_checked_counterfactual_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::Counterfactual(_))
+    }
+
+    /// The retained graph and cross-world target for a checked counterfactual route.
+    #[must_use]
+    pub fn checked_counterfactual_operation(
+        &self,
+    ) -> Option<&crate::gcm::CheckedCounterfactualOperation> {
+        if let PreparedExecution::Counterfactual(operation) = &self.execution {
+            Some(operation)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn has_checked_derivative_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::DerivativeResponse(_))
+    }
+
+    /// Read-only view of the checked static derivative-response route, when
+    /// preparation retained one.
+    #[must_use]
+    pub fn checked_derivative_response_info(&self) -> Option<CheckedDerivativeResponseInfo> {
+        let PreparedExecution::DerivativeResponse(operation) = &self.execution else {
+            return None;
+        };
+        let (_, estimand) = operation.target();
+        let (identifier, estimator) = operation.procedure();
+        Some(CheckedDerivativeResponseInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            max_derivative_cells: operation.max_derivative_cells(),
+        })
     }
 
     /// Checked linear two-stage front-door lowering retained by this handle.
@@ -3475,6 +3666,139 @@ impl PreparedStudy {
         )
     }
 
+    fn execute_checked_glm(
+        &self,
+        data: &TabularData,
+        operation: &CheckedGlmAdjustmentOperation,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if operation.query != *operation.identification.average_effect().unwrap_or(&operation.query)
+            || operation.estimand.functional
+                != operation
+                    .identification
+                    .estimands
+                    .first()
+                    .map_or(operation.estimand.functional, |e| e.functional)
+            || operation.estimator != crate::strategy_table::EstimatorId::GlmAdjustment
+            || operation.physical.logical.record.estimator.as_deref()
+                != Some(crate::strategy_table::EstimatorId::GlmAdjustment.as_str())
+            || operation.physical.logical.record.identifier.as_deref()
+                != Some(operation.identifier.as_str())
+            || operation.preparation.method != operation.estimand.method
+            || operation.preparation.adjustment_set != operation.estimand.adjustment_set
+            || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
+            || self.analysis.query != CausalQuery::AverageEffect(operation.query.clone())
+            || self.analysis.refute != operation.refute
+        {
+            return Err(CausalError::Compile {
+                message: "retained GLM operation no longer matches its checked target or estimator"
+                    .into(),
+            });
+        }
+        let mut workspace = antecedent_estimate::GlmAdjustmentWorkspace::default();
+        let estimate = operation
+            .fitter
+            .fit(
+                &operation.preparation,
+                &mut workspace,
+                ctx,
+                operation.identification.required_assumptions.clone(),
+            )
+            .map_err(CausalError::from)?;
+        self.assemble_checked_operation_effect(
+            data,
+            CheckedStaticResultMetadata {
+                source_query: &operation.source_query,
+                query: &operation.query,
+                identification: &operation.identification,
+                estimand: &operation.estimand,
+                identifier: operation.identifier,
+                estimator: operation.estimator,
+                physical: &operation.physical,
+                graph_class: operation.graph_class,
+                graph_version: operation.graph_version,
+                support_status: operation.support_status,
+                structure_source: operation.structure_source,
+                population_registry: operation.population_registry.as_ref(),
+                latency_mode: operation.latency_mode,
+                refute: operation.refute,
+                custom_validator_names: &operation.custom_validator_names,
+            },
+            estimate,
+            Some(operation.fitter.bootstrap_replicates),
+            started,
+            ctx,
+        )
+    }
+
+    fn execute_checked_rd(
+        &self,
+        data: &TabularData,
+        operation: &CheckedRdOperation,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let lowering = operation.preparation.lowering();
+        if operation.estimator != crate::strategy_table::EstimatorId::RdSharp
+            || operation.identifier != crate::strategy_table::IdentifierId::RdSharp
+            || operation.physical.logical.record.estimator.as_deref()
+                != Some(crate::strategy_table::EstimatorId::RdSharp.as_str())
+            || operation.physical.logical.record.identifier.as_deref()
+                != Some(crate::strategy_table::IdentifierId::RdSharp.as_str())
+            || operation.graph_class != GraphClass::Dag
+            || !matches!(
+                operation.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            || !matches!(operation.inference, InferenceMode::Frequentist)
+            || lowering.functional != operation.estimand.functional
+            || lowering.treatment != operation.query.treatment
+            || lowering.outcome != operation.query.outcome
+            || operation.preparation.target().functional != operation.estimand.functional
+            || !matches!(operation.query.outcome_functional, OutcomeFunctional::Mean)
+            || self.analysis.query != CausalQuery::AverageEffect(operation.source_query.clone())
+            || self.analysis.refute != operation.refute
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "retained sharp-RD operation no longer matches its checked target or design"
+                        .into(),
+            });
+        }
+        let mut workspace = antecedent_estimate::RdWorkspace::default();
+        let estimate = operation
+            .fitter
+            .fit_checked(&operation.preparation, &mut workspace, ctx)
+            .map_err(CausalError::from)?;
+        let source_query = CausalQuery::AverageEffect(operation.source_query.clone());
+        self.assemble_checked_operation_effect(
+            data,
+            CheckedStaticResultMetadata {
+                source_query: &source_query,
+                query: &operation.query,
+                identification: &operation.identification,
+                estimand: &operation.estimand,
+                identifier: operation.identifier,
+                estimator: operation.estimator,
+                physical: &operation.physical,
+                graph_class: operation.graph_class,
+                graph_version: operation.graph_version,
+                support_status: operation.support_status,
+                structure_source: operation.structure_source,
+                population_registry: operation.population_registry.as_ref(),
+                latency_mode: operation.latency_mode,
+                refute: operation.refute,
+                custom_validator_names: &operation.custom_validator_names,
+            },
+            estimate,
+            Some(operation.fitter.bootstrap_replicates),
+            started,
+            ctx,
+        )
+    }
+
     fn checked_static_target(
         &self,
     ) -> Result<(AverageEffectQuery, IdentificationResult, IdentifiedEstimand), CausalError> {
@@ -3600,6 +3924,109 @@ impl PreparedStudy {
             .iter()
             .map(|validator| Arc::from(validator.name()))
             .collect();
+        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        Ok(result)
+    }
+
+    fn assemble_checked_operation_effect(
+        &self,
+        data: &TabularData,
+        metadata: CheckedStaticResultMetadata<'_>,
+        estimate: EffectEstimate,
+        bootstrap_requested: Option<u32>,
+        started: Instant,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let cancelled = estimate.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+        let (refutations, mut extra_diagnostics) =
+            if cancelled || metadata.refute == RefuteSuite::None {
+                (Vec::new(), Vec::new())
+            } else {
+                let mut workspace = EstimationWorkspace::default();
+                let mut propensity = antecedent_stats::PropensityWorkspace::default();
+                let (reports, diagnostics) = run_refuters(
+                    data,
+                    metadata.estimand,
+                    metadata.query,
+                    &estimate,
+                    &mut workspace,
+                    Some(&mut propensity),
+                    ctx,
+                    metadata.refute,
+                    metadata.estimator.as_str(),
+                    &[],
+                    None,
+                )?;
+                (reports, diagnostics)
+            };
+        let mut diagnostics = metadata.identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(estimate.overlap));
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "exec.identify.cached",
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Info,
+            "identification reused from the checked prepared operation",
+        ));
+        diagnostics.append(&mut extra_diagnostics);
+        let bootstrap_ok = estimate.bootstrap_replicates_ok;
+        let early_stopped = estimate.bootstrap_early_stopped;
+        let (identify_artifact, identify_operation) =
+            crate::strategy_table::identify_provenance_step(metadata.identifier);
+        let (estimate_artifact, estimate_operation) =
+            crate::strategy_table::estimate_provenance_step(metadata.estimator);
+        let provenance = provenance_pair(
+            (
+                identify_artifact,
+                identify_operation,
+                &[],
+                &metadata.identification.required_assumptions,
+            ),
+            (estimate_artifact, estimate_operation, &[identify_artifact], &estimate.assumptions),
+        );
+        let mut result = assemble_result(AssembleArgs {
+            logical: &metadata.physical.logical.record,
+            physical: &metadata.physical.record,
+            identification: metadata.identification.clone(),
+            estimand: metadata.estimand.clone(),
+            estimate,
+            distribution: None,
+            posterior: None,
+            mediation: None,
+            mediation_grid: None,
+            counterfactual: None,
+            anomaly: None,
+            change_attribution: None,
+            mechanism_change: None,
+            unit_change: None,
+            refutations,
+            diagnostics,
+            provenance,
+            treatment: metadata.query.treatment,
+            outcome: metadata.query.outcome,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: metadata.latency_mode.map(|mode| Arc::from(mode.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: bootstrap_requested,
+            bootstrap_replicates_ok: bootstrap_ok,
+            n_draws: None,
+            cancelled,
+            early_stopped,
+            bayesian: false,
+        });
+        result.certificate = Some(crate::result::AnalysisIdentification {
+            identification: crate::Identification::Point {
+                result: metadata.identification.clone(),
+                temporal_indexer: None,
+                strategy: metadata.identifier,
+                structure_version: metadata.graph_version,
+            },
+            query: metadata.source_query.clone(),
+            graph_class: metadata.graph_class,
+        });
+        result.support_status = metadata.support_status;
+        result.structure_source = metadata.structure_source;
+        result.population_registry = metadata.population_registry.cloned();
+        result.custom_validator_names = metadata.custom_validator_names.to_vec();
         super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
         Ok(result)
     }
@@ -4179,6 +4606,29 @@ impl PreparedStudy {
             let result = self.execute_checked_iv(data, &rebound, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::Counterfactual(operation) = &self.execution {
+            let result =
+                self.analysis.execute_counterfactual_checked(data, &self.plan, ctx, operation)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::DerivativeResponse(operation) = &self.execution {
+            let result = self
+                .analysis
+                .execute_checked_derivative_response(data, &self.plan, ctx, operation)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::CheckedGlmAdjustment(operation) = &self.execution {
+            if operation.sealed_for_direct_execution() {
+                let rebound = operation.rebind(data)?;
+                let result = self.execute_checked_glm(data, &rebound, ctx)?;
+                return self.stamp(&DataInput::Tabular(data.clone()), result);
+            }
+        }
+        if let PreparedExecution::CheckedRd(operation) = &self.execution {
+            let rebound = operation.rebind(data)?;
+            let result = self.execute_checked_rd(data, &rebound, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.interference =
@@ -4724,6 +5174,19 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
         let plan = self.compile(ctx)?;
+        let counterfactual = match (&self.graph, &self.query) {
+            (_, CausalQuery::Counterfactual(query)) => {
+                let graph = self
+                    .graph
+                    .as_dag()
+                    .ok_or(CausalError::Unsupported { message: "counterfactual requires Dag" })?;
+                Some(crate::gcm::CheckedCounterfactualOperation::compile(
+                    graph.clone(),
+                    query.clone(),
+                )?)
+            }
+            _ => None,
+        };
         let nested_counterfactual = match (&self.graph, &self.query) {
             (_, CausalQuery::NestedCounterfactual(query)) => {
                 let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
@@ -5052,6 +5515,178 @@ impl Study {
                             .custom_validators
                             .iter()
                             .map(|validator| Arc::from(validator.name()))
+                            .collect::<Vec<_>>(),
+                    ),
+                })
+            }
+            _ => None,
+        };
+        let checked_glm = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                GraphClass::Dag,
+                InferenceMode::Frequentist,
+            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && !matches!(query.active, Intervention::Set { variable, .. } if variable != query.treatment)
+                && !matches!(query.control, Intervention::Set { variable, .. } if variable != query.treatment)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::GlmAdjustment.as_str())
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                ) =>
+            {
+                let mut fitter = match &analysis.estimator_spec {
+                    Some(crate::estimator_spec::EstimatorSpec::GlmAdjustment(config)) => {
+                        (**config).clone()
+                    }
+                    _ => {
+                        let mut fitter = antecedent_estimate::GlmAdjustmentAte::new();
+                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                        fitter.population_registry = analysis.population_registry.clone();
+                        fitter
+                    }
+                };
+                if fitter.population_registry.is_none() {
+                    fitter.population_registry = analysis.population_registry.clone();
+                }
+                let preparation = fitter.prepare(data, &cache.estimand, query)?;
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER)
+                    .parse()?;
+                let estimator = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ESTIMATOR)
+                    .parse()?;
+                Some(CheckedGlmAdjustmentOperation {
+                    source_query: CausalQuery::AverageEffect(query.clone()),
+                    query: query.clone(),
+                    identification: cache.identification.clone(),
+                    estimand: cache.estimand.clone(),
+                    identifier,
+                    estimator,
+                    physical: plan.clone(),
+                    fitter,
+                    preparation,
+                    inference: analysis.inference.clone(),
+                    refute: analysis.refute,
+                    graph_class: analysis.graph.class(),
+                    graph_version: analysis.graph.version(),
+                    support_status: analysis.support_status,
+                    structure_source: analysis.structure_source,
+                    population_registry: analysis.population_registry.clone(),
+                    latency_mode: analysis.latency_mode,
+                    custom_validator_names: Arc::from(
+                        analysis
+                            .custom_validators
+                            .iter()
+                            .map(|v| Arc::from(v.name()))
+                            .collect::<Vec<_>>(),
+                    ),
+                })
+            }
+            _ => None,
+        };
+        let checked_rd = match (
+            &self.data,
+            &self.query,
+            analysis.graph.as_dag(),
+            analysis.rd,
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(graph),
+                Some(config),
+                InferenceMode::Frequentist,
+            ) if plan.logical.record.estimator.as_deref()
+                == Some(crate::strategy_table::EstimatorId::RdSharp.as_str())
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                ) =>
+            {
+                let identification = antecedent_identify::SharpRdIdentifier::new(
+                    antecedent_identify::SharpRdConfig::new(
+                        config.running_variable,
+                        config.cutoff,
+                        config.bandwidth,
+                    ),
+                )
+                .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
+                .map_err(CausalError::from)?;
+                crate::strategy_table::require_identified(&identification)?;
+                let estimand = crate::strategy_table::select_estimand(
+                    &identification,
+                    crate::strategy_table::EstimatorId::RdSharp,
+                )?;
+                let identified_query =
+                    identification.average_effect().cloned().unwrap_or_else(|| query.clone());
+                let mut fitter = antecedent_estimate::SharpRegressionDiscontinuity::new(
+                    config.running_variable,
+                    config.cutoff,
+                    config.bandwidth,
+                );
+                fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                fitter.se_kind = config.se_kind;
+                let preparation = fitter.prepare_checked(data, &identification, 0)?;
+                let identifier = crate::strategy_table::IdentifierId::RdSharp;
+                let estimator = crate::strategy_table::EstimatorId::RdSharp;
+                Some(CheckedRdOperation {
+                    source_query: query.clone(),
+                    query: identified_query,
+                    identification,
+                    estimand,
+                    identifier,
+                    estimator,
+                    physical: plan.clone(),
+                    fitter,
+                    preparation,
+                    inference: analysis.inference.clone(),
+                    refute: analysis.refute,
+                    graph_class: analysis.graph.class(),
+                    graph_version: analysis.graph.version(),
+                    support_status: analysis.support_status,
+                    structure_source: analysis.structure_source,
+                    population_registry: analysis.population_registry.clone(),
+                    latency_mode: analysis.latency_mode,
+                    custom_validator_names: Arc::from(
+                        analysis
+                            .custom_validators
+                            .iter()
+                            .map(|v| Arc::from(v.name()))
                             .collect::<Vec<_>>(),
                     ),
                 })
@@ -5579,6 +6214,57 @@ impl Study {
             }
             _ => None,
         };
+        let derivative_response_operation = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.refute == RefuteSuite::None
+                    && analysis.custom_validators.is_empty()
+                    && matches!(analysis.inference, InferenceMode::Frequentist)
+                    && query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::PointDerivative { .. }
+                            | antecedent_core::ResponseFunctional::AverageDerivative { .. }
+                            | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+                            | antecedent_core::ResponseFunctional::Jacobian { .. }
+                    ) =>
+            {
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)
+                    .parse()?;
+                let estimator = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
+                    .parse()?;
+                Some(super::execute::CheckedDerivativeResponseOperation::checked(
+                    analysis.graph.as_dag().expect("checked Dag response"),
+                    query,
+                    &cache.identification,
+                    &cache.estimand,
+                    identifier,
+                    estimator,
+                    analysis.inference.clone(),
+                    analysis.response_options.clone().unwrap_or_default(),
+                )?)
+            }
+            _ => None,
+        };
         let checked_response_curve = match (
             &self.data,
             &self.query,
@@ -5633,14 +6319,22 @@ impl Study {
         let score_table = analysis.prepare_score_table(ctx)?;
         let execution = if let Some(operation) = checked_linear {
             PreparedExecution::CheckedLinear(operation)
+        } else if let Some(operation) = checked_glm {
+            PreparedExecution::CheckedGlmAdjustment(operation)
+        } else if let Some(operation) = checked_rd {
+            PreparedExecution::CheckedRd(operation)
         } else if let Some(operation) = checked_aipw {
             PreparedExecution::CheckedAipw(operation)
         } else if let Some(operation) = checked_frontdoor_linear {
             PreparedExecution::FrontDoorLinear(operation)
         } else if let Some(operation) = checked_iv {
             PreparedExecution::Iv(operation)
+        } else if let Some(operation) = counterfactual {
+            PreparedExecution::Counterfactual(operation)
         } else if let Some(operation) = nested_counterfactual {
             PreparedExecution::NestedCounterfactual(operation)
+        } else if let Some(operation) = derivative_response_operation {
+            PreparedExecution::DerivativeResponse(operation)
         } else if let Some(operation) = distribution_operation {
             PreparedExecution::Distribution(operation)
         } else if let Some(operation) = functional_effect_operation {
@@ -6825,7 +7519,9 @@ mod checked_static_operation_tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
     };
     use antecedent_estimate::AipwAte;
+    use antecedent_estimate::GlmAdjustmentAte;
     use antecedent_graph::Dag;
+    use antecedent_stats::GlmFamily;
 
     use super::PreparedExecution;
     use crate::Study;
@@ -6982,6 +7678,114 @@ mod checked_static_operation_tests {
             .unwrap();
         let with_bootstrap_result = with_bootstrap.estimate(&data, &context).unwrap();
         assert!(with_bootstrap_result.estimate.se_bootstrap.is_some());
+    }
+
+    #[test]
+    fn checked_glm_adjustment_survives_builder_drop_and_refresh() {
+        let data = data();
+        let graph =
+            Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+        let query = AverageEffectQuery::with_levels(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+            0.0,
+            1.0,
+        );
+        let mut fitter = GlmAdjustmentAte::new().with_family(GlmFamily::GaussianIdentity);
+        fitter.bootstrap_replicates = 0;
+        let context = ExecutionContext::for_tests(28);
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(query)
+            .estimator(fitter)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let mut prepared = study.prepare(&context).unwrap();
+        drop(study);
+        let PreparedExecution::CheckedGlmAdjustment(operation) = &prepared.execution else {
+            panic!("expected checked GLM operation")
+        };
+        assert_eq!(operation.estimator, EstimatorId::GlmAdjustment);
+        let first = prepared.estimate(&data, &context).unwrap();
+        assert!((first.effect() - 2.0).abs() < 0.2);
+        let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+        assert!((refreshed.effect() - first.effect()).abs() < 1e-10);
+    }
+
+    #[test]
+    fn checked_rd_retains_cutoff_target_and_bandwidth_on_refresh() {
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("r", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let n = 200usize;
+        let r: Vec<f64> = (0..n).map(|i| (i as f64 - 99.5) / 100.0).collect();
+        let t: Vec<f64> = r.iter().map(|&v| f64::from(v >= 0.0)).collect();
+        let y: Vec<f64> = r.iter().zip(&t).map(|(&v, &ti)| 1.0 + 0.4 * v + 2.0 * ti).collect();
+        let columns = [("t", t), ("y", y), ("r", r)]
+            .into_iter()
+            .map(|(name, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        schema.id_of(name).unwrap(),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let graph =
+            Dag::from_named_edges(data.schema(), &[("r", "t"), ("r", "y"), ("t", "y")]).unwrap();
+        let query = AverageEffectQuery::binary_ate(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+        );
+        let context = ExecutionContext::for_tests(29);
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(query)
+            .identifier(crate::strategy_table::IdentifierId::RdSharp)
+            .estimator(EstimatorId::RdSharp)
+            .rd_config(data.schema().id_of("r").unwrap(), 0.0, 0.8)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let mut prepared = study.prepare(&context).unwrap();
+        drop(study);
+        let PreparedExecution::CheckedRd(operation) = &prepared.execution else {
+            panic!("expected checked RD operation")
+        };
+        assert_eq!(operation.preparation.lowering().bandwidth, 0.8);
+        let first = prepared.estimate(&data, &context).unwrap();
+        assert!((first.effect() - 2.0).abs() < 1e-10);
+        assert_eq!(
+            first.identification.average_effect().unwrap().target_population,
+            antecedent_core::TargetPopulation::local_at_cutoff(
+                data.schema().id_of("r").unwrap(),
+                0.0
+            )
+        );
+        let refreshed = prepared.refresh(data, &context).unwrap();
+        assert!((refreshed.effect() - first.effect()).abs() < 1e-10);
     }
 }
 

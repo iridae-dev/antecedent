@@ -113,7 +113,7 @@ conformance_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
 conformance_assertion = "four_node_branch_conformance_has_no_unchecked_obstructions"
 limits = "Complete classical single-source experimental family only; budget exhaustion is inconclusive. No arbitrary finite-catalog or combined-source completeness. The implementation is enumerated on ordered four-node ADMGs with the treatment a root and a single treatment and outcome (negatives verified as s-hedges, positives not evaluated there) and checked numerically against latent-SCM truth on every three-node selection graph with the treatment at v(0) or v(1) and on chosen four- and six-node families; multiple outcomes and larger general graphs are not enumerated."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_classical_negative_is_scoped_to_selected_source"
+evidence_assertion = "test_classical_checked_program_and_catalog_proof_survive_graph_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.evaluate_exact"
@@ -168,7 +168,7 @@ guarantee = "sound_incomplete"
 reference = "https://arxiv.org/abs/1309.6842"
 limits = "Graph-specific Python identification only: W→Z→X→Y, W→Y, W↔Y, Z↔Y, Z↔X with no selection targets. Other bounded graph cases remain NotCertified."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_z_transport_prepared_native_route_matches_independent_truth"
+evidence_assertion = "test_z_transport_identification_proof_and_binding_survive_query_disposal"
 
 [[routes]]
 route = "antecedent.transport.advanced.ZTransportStage.prepare_exact"
@@ -179,9 +179,9 @@ evidence = "complete_joint_source_do_z_family_and_bound_provider_snapshot"
 functional = "target_interventional_outcome_distribution"
 observation = "exact_law_or_empirical_plugin_joint_table"
 guarantee = "checked_graph_specific_prepared_point_route"
-limits = "Preparation compiles exact or empirical plugin tables against the checked zTR proof. It does not provide a portable artifact or independent replay."
+limits = "Preparation compiles exact or empirical plugin tables against the checked zTR proof. Point artifacts are independently recomputed without fetching data; no sampling interval is reported."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_z_transport_prepared_native_route_matches_independent_truth"
+evidence_assertion = "test_z_transport_identification_proof_and_binding_survive_query_disposal"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedZTransportStage.estimate_refresh"
@@ -213,7 +213,7 @@ functional = "target_interventional_distribution"
 guarantee = "sound_incomplete"
 limits = "Exact-law contract only; no sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_catalog_diagnostics_distinguish_missing_evidence_and_future_experiments"
+evidence_assertion = "test_classical_checked_program_and_catalog_proof_survive_graph_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.prepare_exact"
@@ -225,7 +225,7 @@ functional = "target_interventional_distribution"
 guarantee = "immutable_authority_atomic_refresh_and_identity_invalidation"
 limits = "Exact-law contract only; no sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_common_prepared_lifecycle_export_consume_atomic_refresh"
+evidence_assertion = "test_checked_exact_transport_execution_survives_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.consume_exact"
@@ -237,7 +237,7 @@ functional = "target_interventional_distribution"
 guarantee = "independently_checked_embedded_exact_law_claim"
 limits = "Exact-law contract only; no sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_result_reasoning_and_export_retain_native_authority_after_display_edits"
+evidence_assertion = "test_checked_exact_transport_execution_survives_builder_disposal"
 
 [[routes]]
 route = "transport.exact_table_evaluate"

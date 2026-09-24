@@ -12,8 +12,30 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let operation =
+            crate::gcm::CheckedCounterfactualOperation::compile(graph.clone(), query.clone())?;
+        self.execute_counterfactual_checked(data, physical, ctx, &operation)
+    }
+
+    pub(crate) fn execute_counterfactual_checked(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        operation: &crate::gcm::CheckedCounterfactualOperation,
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let query = operation.query();
+        let graph = operation.graph();
+        if !matches!(&self.query, CausalQuery::Counterfactual(current)
+            if self.graph.as_dag().is_some_and(|current_graph| operation.matches(current_graph, current)))
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "retained checked counterfactual operation no longer matches its query or graph"
+                        .into(),
+            });
+        }
         let (treatment, active, control) = binary_cf_interventions(query)?;
         let outcome = query.outcomes[0];
         let (identification, estimand, identify_cached) =
@@ -36,11 +58,10 @@ impl super::Study {
                 });
             }
         }
-        let fitted = fit_gcm_counterfactual(graph.clone(), data)?;
+        let (fitted, ite) = operation.execute(data, ctx)?;
         let assignments = format!("{:?}", fitted.assignments);
         let mechanism_assignments = fitted.assignments.clone();
         let base_model = fitted.model.clone();
-        let ite = counterfactual_ite(fitted.model, data, treatment, outcome, active, control, ctx)?;
         let (estimate, posterior, ite) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             let n_draws = bayesian_draw_count(&self.inference)?;
             let n_units = ite.unit_effects.len();

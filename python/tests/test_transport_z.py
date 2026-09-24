@@ -143,6 +143,69 @@ def test_z_transport_estimate_refresh_executes_retained_program_after_builder_di
     assert refreshed_consumer["probabilities"] == pytest.approx(refreshed["probabilities"])
 
 
+def test_z_transport_identification_proof_and_binding_survive_query_disposal():
+    names = ["w", "z", "x", "y"]
+    graph = Admg.from_edges(
+        names,
+        [("w", "z"), ("z", "x"), ("x", "y"), ("w", "y")],
+        [("w", "y"), ("z", "y"), ("z", "x")],
+    )
+    query = transport.ZTransportQuery(
+        transport.SelectionDiagram("source", "target", []),
+        outcomes=["y"],
+        treatments=["x"],
+        controllable=["z"],
+        experiment_assignment={"z": 0.0},
+    )
+    stage = transport.identify_z_transport(graph=graph, query=query)
+    assert stage.outcome == "identified"
+    builder = stage
+    del graph, query
+
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    regimes = tuple(
+        transport.EvidenceRegime(
+            f"do_z_{value}", "source", kind="experimental", interventions=["z"],
+            intervention_values={"z": float(value)}, measured=names,
+        )
+        for value in (0, 1)
+    )
+    catalog = transport.EvidenceCatalog(
+        environments=(transport.Environment("source", coordinates),),
+        regimes=regimes,
+        bindings=tuple(
+            transport.RegimeBinding(
+                regime.id, f"snapshot_{regime.id}", schema_names=names,
+                sampling="independent", dependence="independent_studies",
+            )
+            for regime in regimes
+        ),
+    )
+    plan = builder.inspect_proof(catalog)
+    assert plan["rules"]
+    assert plan["factors"]
+    assert all(factor["supplied_by"] is not None for factor in plan["factors"])
+
+    # Keep only the identified stage, checked catalog, and laws after this point.
+    laws = (transport.ExactDiscreteLaw(
+        "source", "do_z_0", (("w", (0.0, 1.0)), ("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.15, 0.10, 0.10, 0.15, 0.15, 0.10, 0.10, 0.15),
+        "snapshot_do_z_0", interventions=(("z", 0.0),),
+    ),)
+    prepared = builder.prepare_exact(catalog, laws, {"x": 0.0})
+    del builder, stage
+    result = json.loads(prepared.estimate())
+    assert result["status"] == "available"
+    assert sum(p for atom, p in zip(result["atoms"], result["probabilities"], strict=True)
+               if atom == [1.0]) == pytest.approx(0.4)
+    prepared.refresh(laws)
+    assert json.loads(prepared.estimate())["probabilities"] == pytest.approx(
+        result["probabilities"]
+    )
+    replay = json.loads(transport.consume_z_transport_artifact(prepared.export()))
+    assert replay["probabilities"] == pytest.approx(result["probabilities"])
+
+
 def test_z_transport_stage_refuses_unregistered_selection_graph():
     graph = Admg.from_edges(
         ["w", "z", "x", "y"],

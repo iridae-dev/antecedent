@@ -58,8 +58,7 @@ pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
     anomaly_attribution_with, attribute_distribution_change, attribute_unit_change,
-    counterfactual_ite, fit_gcm, fit_gcm_counterfactual, map_mechanism_fit,
-    mechanism_change_detection,
+    counterfactual_ite, fit_gcm, map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
@@ -288,6 +287,7 @@ mod identified_set_diagnostics;
 mod pag_path;
 mod panel_path;
 mod response_path;
+pub(crate) use response_path::CheckedDerivativeResponseOperation;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;

@@ -19,9 +19,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, MechanismChangeQuery, NestedCounterfactualQuery,
-    PathSpecificEffectQuery, TargetPopulation, UnitChangeQuery, Value, VariableId,
+    AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, CounterfactualQuery,
+    ExecutionContext, Intervention, InterventionalDistributionQuery, MechanismChangeQuery,
+    NestedCounterfactualQuery, PathSpecificEffectQuery, TargetPopulation, UnitChangeQuery, Value,
+    VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::Dag;
@@ -93,6 +94,106 @@ pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGc
         .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
         .map_err(map_mechanism_fit)?;
     Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+}
+
+/// Frozen single-intervention ITE target and mechanism-fitting procedure.
+/// The licensed high-level counterfactual route uses heterogeneity-capable
+/// mechanism selection and shared abducted disturbances for both worlds.
+#[derive(Clone, Debug)]
+pub struct CheckedCounterfactualOperation {
+    graph: Dag,
+    query: CounterfactualQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+}
+
+impl CheckedCounterfactualOperation {
+    /// Check and freeze the currently licensed one-outcome, one-hard-set ITE.
+    pub(crate) fn compile(graph: Dag, query: CounterfactualQuery) -> Result<Self, CausalError> {
+        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        if query.allow_nested || query.outcomes.len() != 1 || query.interventions.len() != 1 {
+            return Err(CausalError::Unsupported {
+                message: "Study counterfactual path currently supports a single hard intervention for ITE (use gcm helpers for multi-world predict)",
+            });
+        }
+        let Intervention::Set { variable: treatment, value } = &query.interventions[0] else {
+            return Err(CausalError::Unsupported {
+                message: "Study counterfactual path requires a hard Set intervention",
+            });
+        };
+        let Intervention::Set { variable: control_variable, value: control_value } = &query.control
+        else {
+            return Err(CausalError::Unsupported {
+                message: "Study counterfactual path requires a hard Set control intervention",
+            });
+        };
+        if treatment != control_variable {
+            return Err(CausalError::Compile {
+                message: "counterfactual control targets a different treatment".into(),
+            });
+        }
+        let active = value.as_f64().ok_or_else(|| CausalError::Compile {
+            message: "counterfactual intervention value must be f64".into(),
+        })?;
+        let control = control_value.as_f64().ok_or_else(|| CausalError::Compile {
+            message: "counterfactual control value must be f64".into(),
+        })?;
+        if !active.is_finite() || !control.is_finite() {
+            return Err(CausalError::Unsupported {
+                message: "counterfactual treatment levels must be finite",
+            });
+        }
+        let treatment = *treatment;
+        let outcome = query.outcomes[0];
+        if usize::try_from(treatment.raw()).map_or(true, |id| id >= graph.node_count())
+            || usize::try_from(outcome.raw()).map_or(true, |id| id >= graph.node_count())
+        {
+            return Err(CausalError::Compile {
+                message: "counterfactual target variable is absent from the graph".into(),
+            });
+        }
+        Ok(Self { graph, query, treatment, outcome, active, control })
+    }
+
+    /// The frozen semantic target.
+    #[must_use]
+    pub const fn query(&self) -> &CounterfactualQuery {
+        &self.query
+    }
+
+    /// The frozen graph and mechanism assignment scope.
+    #[must_use]
+    pub const fn graph(&self) -> &Dag {
+        &self.graph
+    }
+
+    pub(crate) fn matches(&self, graph: &Dag, query: &CounterfactualQuery) -> bool {
+        self.query == *query
+            && graph.node_count() == self.graph.node_count()
+            && graph.nodes() == self.graph.nodes()
+            && graph.edges().eq(self.graph.edges())
+    }
+
+    /// Fit mechanisms under the frozen graph, then abduct once for both worlds.
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(FittedGcm, IteResult), CausalError> {
+        let fitted = fit_gcm_counterfactual(self.graph.clone(), data)?;
+        let ite = counterfactual_ite(
+            fitted.model.clone(),
+            data,
+            self.treatment,
+            self.outcome,
+            self.active,
+            self.control,
+            ctx,
+        )?;
+        Ok((fitted, ite))
+    }
 }
 
 /// Evaluate a natural direct effect with one abducted exogenous table shared by
@@ -585,8 +686,44 @@ mod tests {
         SmallRoleSet, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
-    use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
+    use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TableView};
     use antecedent_graph::DenseNodeId;
+
+    #[test]
+    fn checked_counterfactual_freezes_worlds_and_rejects_changed_target() {
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let query =
+            CounterfactualQuery::new(outcome, vec![Intervention::set(treatment, Value::f64(1.0))]);
+        let operation =
+            CheckedCounterfactualOperation::compile(graph.clone(), query.clone()).unwrap();
+        assert!(operation.matches(&graph, &query));
+        assert!(!operation.matches(&graph, &query.clone().with_control_level(-1.0)));
+        assert_eq!(operation.query(), &query);
+
+        let invalid = CounterfactualQuery::new(
+            outcome,
+            vec![Intervention::set(treatment, Value::f64(f64::INFINITY))],
+        );
+        assert!(CheckedCounterfactualOperation::compile(graph, invalid).is_err());
+    }
+
+    #[test]
+    fn checked_counterfactual_executes_from_frozen_worlds_against_linear_truth() {
+        let (_, data) = chain_xy(50);
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query = CounterfactualQuery::new(
+            VariableId::from_raw(1),
+            vec![Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+        );
+        let operation = CheckedCounterfactualOperation::compile(graph, query).unwrap();
+        let (_, ite) = operation.execute(&data, &ExecutionContext::for_tests(3)).unwrap();
+        assert!((ite.mean_ite - 2.0).abs() < 0.1, "mean_ite={}", ite.mean_ite);
+        assert_eq!(ite.unit_effects.len(), data.row_count());
+    }
 
     #[test]
     fn nested_operation_refuses_world_level_mismatch() {

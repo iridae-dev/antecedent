@@ -954,6 +954,51 @@ impl super::Study {
     ///
     /// Compile / execute failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::Response(query)
+                if query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && matches!(query.functional,
+                        antecedent_core::ResponseFunctional::PointDerivative { .. }
+                        | antecedent_core::ResponseFunctional::AverageDerivative { .. }
+                        | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+                        | antecedent_core::ResponseFunctional::Jacobian { .. }))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_derivative_response_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot derivative response did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(self.query, CausalQuery::Counterfactual(_))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_counterfactual_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot counterfactual route did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         // These families have a complete retained expression or model operation.
         // The one-shot facade must use that operation too, so it cannot silently
         // recover its meaning from the ordinary Study dispatcher.
@@ -1006,6 +1051,57 @@ impl super::Study {
                     return Err(CausalError::Compile {
                         message:
                             "one-shot AIPW route did not retain its complete checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        // Checked GLM adjustment and sharp-RD operations retain the selected
+        // target and fitted design through the prepared facade.
+        let selected_estimator =
+            self.estimator.or_else(|| self.estimator_spec.as_ref().map(crate::EstimatorSpec::id));
+        let checked_glm = selected_estimator == Some(EstimatorId::GlmAdjustment)
+            && self.graph.class() == GraphClass::Dag
+            && self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && matches!(
+                &self.query,
+                CausalQuery::AverageEffect(query)
+                    if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            );
+        let checked_rd = selected_estimator == Some(EstimatorId::RdSharp)
+            && self.rd.is_some()
+            && self.graph.class() == GraphClass::Dag
+            && self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::AverageEffect(_));
+        if checked_glm || checked_rd {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                let selected = if checked_glm {
+                    prepared.has_sealed_glm_operation()
+                } else {
+                    prepared.has_checked_rd_operation()
+                };
+                if !selected {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot static estimator route did not retain its checked operation"
                                 .into(),
                     });
                 }

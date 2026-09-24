@@ -653,6 +653,35 @@ pub fn verify_contract_against_body(
     if contract.target.query != body.query {
         unresolved.push(Arc::from("body.query"));
     }
+    // These prepared routes execute from retained model or estimator operations,
+    // but their current result wires do not carry a portable operation and its
+    // fitted data dependencies. Keep the artifact readable and name the missing
+    // dependency instead of silently treating a checked in-process run as
+    // independently replayable.
+    let resolved_estimator = contract
+        .program
+        .as_ref()
+        .and_then(|program| program.commitments.resolved_estimator.as_deref())
+        .or(contract.estimator.as_deref());
+    match resolved_estimator {
+        Some("glm.adjustment") => {
+            unresolved.push(Arc::from("dependencies.checked_glm_operation"));
+        }
+        Some("rd.sharp") => {
+            unresolved.push(Arc::from("dependencies.checked_rd_operation"));
+        }
+        Some("response.kennedy_dr" | "response.riesz_ade" | "response.gam_derivative")
+            if matches!(contract.target.query, CausalQueryWire::Response(_)) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_derivative_response_operation"));
+        }
+        Some("gcm.fit" | "gcm.fit.bayesian")
+            if matches!(contract.target.query, CausalQueryWire::Counterfactual { .. }) =>
+        {
+            unresolved.push(Arc::from("dependencies.fitted_counterfactual_mechanisms"));
+        }
+        _ => {}
+    }
     if contract.estimator.as_deref() == Some("functional.distribution")
         && body.interventional_distribution.is_none()
     {
@@ -896,9 +925,10 @@ pub fn verify_contract_against_body(
     unresolved
 }
 
-/// Producer validation permits AIPW exports that lack the new checked lowering or row binding.
-/// Independent consumption still receives the unfiltered dependency refusals from
-/// [`verify_contract_against_body`]. Any malformed payload that is present remains fatal.
+/// Producer validation permits readable exports with explicitly unavailable
+/// replay dependencies. Independent consumption receives the unfiltered
+/// refusals from [`verify_contract_against_body`]. A malformed present payload
+/// remains fatal.
 pub(crate) fn verify_contract_for_encoding(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
@@ -911,6 +941,15 @@ fn producer_encoding_unresolved(
     contract: &AnalysisResultContractWire,
     mut unresolved: Vec<Arc<str>>,
 ) -> Vec<Arc<str>> {
+    unresolved.retain(|key| {
+        !matches!(
+            key.as_ref(),
+            "dependencies.checked_glm_operation"
+                | "dependencies.checked_rd_operation"
+                | "dependencies.checked_derivative_response_operation"
+                | "dependencies.fitted_counterfactual_mechanisms"
+        )
+    });
     // Preserve portable structural artifacts while making the missing replay
     // input explicit to independent consumers.
     if contract.estimator.as_deref() == Some("functional.distribution") {
