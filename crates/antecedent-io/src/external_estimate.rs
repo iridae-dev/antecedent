@@ -351,6 +351,7 @@ fn receipt_contract(
         execution: None,
         score_reuse: None,
         target_weights: None,
+        checked_aipw_rows: None,
     };
     let seal = contract_seal(
         &identities,
@@ -392,6 +393,7 @@ fn receipt_contract(
         execution: None,
         score_reuse: None,
         target_weights: None,
+        checked_aipw_rows: None,
     })
 }
 
