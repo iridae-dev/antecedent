@@ -96,6 +96,10 @@ def test_bayesian_response_band_has_portable_uncertainty_source(query):
 def test_static_dag_families_preserve_cpdag_compatibility(query, accepted):
     values = data()
     values["m"] = values["t"] + np.sin(np.arange(len(values["t"])))
+    if isinstance(query, ant.InterventionalDistribution):
+        # The functional-distribution estimator has a finite discrete support
+        # contract. Keep this graph-class compatibility fixture inside it.
+        values = {name: (column > np.median(column)).astype(float) for name, column in values.items()}
     for complete in (True, False):
         graph = ant.Cpdag.from_directed_undirected(
             ["t", "y", "m"],
