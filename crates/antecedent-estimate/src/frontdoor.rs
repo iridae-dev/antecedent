@@ -547,6 +547,24 @@ impl FrontDoorTwoStage {
         )
     }
 
+    /// Rebind a checked linear path-product preparation to compatible data.
+    ///
+    /// The selected target and linear path-product procedure remain fixed; only complete-case
+    /// rows and their physical columns are rebuilt. A preparation for the functional estimator
+    /// is refused.
+    pub fn rebind_checked(
+        &self,
+        checked: &CheckedFrontDoorPreparation,
+        data: &TabularData,
+    ) -> Result<CheckedFrontDoorPreparation, EstimationError> {
+        if checked.lowering.procedure != CheckedFrontDoorProcedure::LinearPathProduct {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked front-door receipt was prepared for the functional estimator",
+            });
+        }
+        checked.rebind(data)
+    }
+
     /// Fit the path-sum product-of-coefficients estimator, with optional bootstrap.
     ///
     /// # Errors
@@ -1262,6 +1280,12 @@ pub(crate) mod tests {
         let functional_checked =
             functional_estimator.prepare_checked(&data, &identification, 0).unwrap();
         assert_eq!(functional_checked.lowering().procedure, CheckedFrontDoorProcedure::Functional);
+        let (refreshed_data, _) = frontdoor_scm(8_000, 29);
+        let functional_rebound =
+            functional_estimator.rebind_checked(&functional_checked, &refreshed_data).unwrap();
+        assert_eq!(functional_rebound.target().functional, functional_checked.target().functional);
+        assert_eq!(functional_rebound.lowering().procedure, CheckedFrontDoorProcedure::Functional);
+        assert_eq!(functional_rebound.problem().nrows, 8_000);
         let mut assumptions = AssumptionSet::new();
         assumptions.push(linear_path_product_restriction());
         let identification = IdentificationResult::identified_under_parametric_restrictions(
@@ -1282,10 +1306,17 @@ pub(crate) mod tests {
         }));
         let mut workspace = FrontDoorWorkspace::default();
         let effect = estimator.fit_checked(&checked, &mut workspace, &ctx()).unwrap();
-        let rebound = checked.rebind(&data).unwrap();
+        let rebound = estimator.rebind_checked(&checked, &refreshed_data).unwrap();
         let rebound_effect = estimator.fit_checked(&rebound, &mut workspace, &ctx()).unwrap();
-        assert_eq!(effect.ate.to_bits(), rebound_effect.ate.to_bits());
         assert!((effect.ate - 6.0).abs() < 0.35, "ate={}", effect.ate);
+        assert!((rebound_effect.ate - 6.0).abs() < 0.35, "rebound ate={}", rebound_effect.ate);
+        assert_eq!(rebound.target().functional, checked.target().functional);
+        assert_eq!(rebound.lowering().procedure, CheckedFrontDoorProcedure::LinearPathProduct);
+        let mut changed_roles = checked.clone();
+        changed_roles.lowering.mediators = Arc::from([VariableId::from_raw(1)]);
+        assert!(estimator.rebind_checked(&changed_roles, &refreshed_data).is_err());
+        assert!(functional_estimator.rebind_checked(&checked, &refreshed_data).is_err());
+        assert!(estimator.rebind_checked(&functional_checked, &refreshed_data).is_err());
     }
 
     #[test]
