@@ -11,7 +11,7 @@ impl super::Study {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         prepared_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
-        prepared_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
+        prepared_aipw: Option<&super::super::prepared::CheckedAipwOperation>,
         prepared_frontdoor: Option<&super::super::prepared::CheckedFrontDoorOperation>,
         bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
         prepared_iv: Option<&super::super::prepared::CheckedIvOperation>,
@@ -293,16 +293,17 @@ impl super::Study {
                     .fit_checked(checked, &mut estimate_ws.linear, ctx)
                     .map_err(CausalError::from)?
             }
-        } else if let Some(checked) = prepared_aipw {
-            if checked.target().functional != estimand.functional
-                || checked.target().adjustment_set != estimand.adjustment_set
+        } else if let Some(operation) = prepared_aipw {
+            if operation.preparation.target().functional != estimand.functional
+                || operation.preparation.target().adjustment_set != estimand.adjustment_set
             {
                 return Err(CausalError::Compile {
                     message: "prepared AIPW lowering disagrees with selected identification".into(),
                 });
             }
-            super::super::prepared::checked_aipw_fitter(self)
-                .fit_checked(checked, &mut estimate_ws.aipw, ctx)
+            operation
+                .fitter
+                .fit_checked(&operation.preparation, &mut estimate_ws.aipw, ctx)
                 .map_err(CausalError::from)?
         } else if let Some(operation) = prepared_frontdoor {
             if operation.preparation.target().functional != estimand.functional
