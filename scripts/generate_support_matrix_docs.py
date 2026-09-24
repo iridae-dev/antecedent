@@ -489,18 +489,14 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
 def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> None:
     """Replace the marked licensed block in the *current* release notes.
 
-    Fails if the live markers are missing, if a historical notes file still
-    has live markers, or if this workspace version is already a git tag —
-    bump the version and put live markers on the new notes file first.
+    Fails if the live markers are missing, or if a historical notes file still
+    has live markers. A git tag for this version freezes the notes: regeneration
+    is a no-op when the marked block already matches, and a refusal when it
+    would change. Bump the version and put live markers on the new notes file
+    before editing a shipped cut.
     """
     version = documentation_release_version()
     assert_historical_notes_are_frozen(version)
-    if git_tag_exists(version):
-        raise SystemExit(
-            f"git tag v{version} already exists; refusing to regenerate "
-            f"{RELEASE_NOTES.relative_to(ROOT)}. Bump the workspace version "
-            "and add live generated markers on the new notes file first."
-        )
     text = RELEASE_NOTES.read_text()
     if RN_BEGIN not in text or RN_END not in text:
         raise SystemExit(
@@ -519,7 +515,16 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END
     head, rest = text.split(RN_BEGIN, 1)
     _, tail = rest.split(RN_END, 1)
-    RELEASE_NOTES.write_text(head + block + tail)
+    updated = head + block + tail
+    if git_tag_exists(version):
+        if updated == text:
+            return
+        raise SystemExit(
+            f"git tag v{version} already exists; refusing to regenerate "
+            f"{RELEASE_NOTES.relative_to(ROOT)}. Bump the workspace version "
+            "and add live generated markers on the new notes file first."
+        )
+    RELEASE_NOTES.write_text(updated)
 
 
 COVERAGE_STR_FIELDS = (
