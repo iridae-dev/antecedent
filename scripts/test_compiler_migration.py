@@ -95,6 +95,26 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
         body = "{ let plan = prepared.checked_plan(); drop(result); prepared.estimate(); }"
         self.assertTrue(compiler_migration.validate_evidence_body(body, "route"))
 
+    def test_status_cannot_claim_closure_without_all_three_execution_receipts(self) -> None:
+        original = compiler_migration.INVENTORY
+        row = original.read_text()
+        key = 'InterventionalDistribution:Dag:explicit:Frequentist:none'
+        start = row.index(f'coordinate = "{key}"')
+        end = row.find('[[route]]', start)
+        end = len(row) if end < 0 else end
+        chunk = row[start:end].replace('migration_status = "in_progress"', 'migration_status = "verified"')
+        self.assertNotEqual(chunk, row[start:end])
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as directory:
+            temporary = Path(directory) / 'compiler_migration.toml'
+            temporary.write_text(row[:start] + chunk + row[end:])
+            compiler_migration.INVENTORY = temporary
+            try:
+                issues = compiler_migration.validate()
+            finally:
+                compiler_migration.INVENTORY = original
+        self.assertTrue(any(key in issue and 'requires checked execution' in issue for issue in issues))
+
 
 if __name__ == "__main__":
     unittest.main()
