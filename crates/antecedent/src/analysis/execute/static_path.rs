@@ -14,6 +14,7 @@ impl super::Study {
         prepared_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
         prepared_frontdoor: Option<&super::super::prepared::CheckedFrontDoorOperation>,
         bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
+        prepared_iv: Option<&super::super::prepared::CheckedIvOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
@@ -172,16 +173,20 @@ impl super::Study {
             } else {
                 None
             };
-        let checked_wald = match &estimator_spec {
-            EstimatorSpec::Default(EstimatorId::IvWald) => {
-                let fitter = antecedent_estimate::WaldIv::new();
-                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+        let checked_wald = if prepared_iv.is_some() {
+            None
+        } else {
+            match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::IvWald) => {
+                    let fitter = antecedent_estimate::WaldIv::new();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                EstimatorSpec::IvWald(cfg) => {
+                    let fitter = (**cfg).clone();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                _ => None,
             }
-            EstimatorSpec::IvWald(cfg) => {
-                let fitter = (**cfg).clone();
-                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
-            }
-            _ => None,
         };
         // Route the supported single binary-instrument slice through the checked IV
         // receipt. The generic 2SLS estimator still supports multiple/continuous
@@ -192,7 +197,7 @@ impl super::Study {
                 && target.mediators.is_empty()
                 && target.adjustment_set.is_empty()
         });
-        let checked_2sls = if !checked_iv_roles_supported {
+        let checked_2sls = if prepared_iv.is_some() || !checked_iv_roles_supported {
             None
         } else {
             match &estimator_spec {
@@ -223,7 +228,55 @@ impl super::Study {
         };
         let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
         let mut iv_workspace = antecedent_estimate::TwoStageLeastSquaresWorkspace::default();
-        let point = if let Some((fitter, checked)) = &checked_linear {
+        let point = if let Some(operation) = prepared_iv {
+            let (preparation, procedure) = match operation {
+                super::super::prepared::CheckedIvOperation::Wald { preparation, .. } => {
+                    (preparation, "Wald")
+                }
+                super::super::prepared::CheckedIvOperation::TwoSls { preparation, .. } => {
+                    (preparation, "2SLS")
+                }
+            };
+            let lowering = preparation.lowering();
+            let query_active = match &query.active {
+                antecedent_core::Intervention::Set { variable, value }
+                    if *variable == query.treatment =>
+                {
+                    value.as_f64()
+                }
+                _ => None,
+            };
+            let query_control = match &query.control {
+                antecedent_core::Intervention::Set { variable, value }
+                    if *variable == query.treatment =>
+                {
+                    value.as_f64()
+                }
+                _ => None,
+            };
+            if preparation.target().functional != estimand.functional
+                || lowering.treatment != query.treatment
+                || lowering.outcome != query.outcome
+                || lowering.active != query_active.unwrap_or(f64::NAN)
+                || lowering.control != query_control.unwrap_or(f64::NAN)
+            {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "prepared IV {procedure} lowering disagrees with selected identification or query"
+                    ),
+                });
+            }
+            match operation {
+                super::super::prepared::CheckedIvOperation::Wald { fitter, preparation } => {
+                    fitter.fit_checked(preparation, ctx).map_err(CausalError::from)?
+                }
+                super::super::prepared::CheckedIvOperation::TwoSls { fitter, preparation } => {
+                    fitter
+                        .fit_checked(preparation, &mut iv_workspace, ctx)
+                        .map_err(CausalError::from)?
+                }
+            }
+        } else if let Some((fitter, checked)) = &checked_linear {
             if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)) {
                 // The progressive default route reports a genuine point stage.
                 // Its bootstrap belongs to the uncertainty stage below, even

@@ -153,6 +153,18 @@ pub(crate) struct CheckedFrontDoorOperation {
     pub(crate) preparation: antecedent_estimate::CheckedFrontDoorPreparation,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) enum CheckedIvOperation {
+    Wald {
+        fitter: antecedent_estimate::WaldIv,
+        preparation: antecedent_estimate::CheckedIvPreparation,
+    },
+    TwoSls {
+        fitter: antecedent_estimate::TwoStageLeastSquares,
+        preparation: antecedent_estimate::CheckedIvPreparation,
+    },
+}
+
 impl CheckedDistributionOperation {
     pub(crate) fn query(&self) -> &InterventionalDistributionQuery {
         &self.query
@@ -1587,6 +1599,7 @@ pub(crate) enum PreparedExecution {
     BayesianGcomp(CheckedBayesianGcompOperation),
     StaticResponseCurve(CheckedStaticResponseCurve),
     FrontDoorLinear(CheckedFrontDoorOperation),
+    Iv(CheckedIvOperation),
 }
 
 impl PreparedExecution {
@@ -1614,6 +1627,9 @@ impl PreparedExecution {
     }
     pub(crate) fn frontdoor_linear(&self) -> Option<&CheckedFrontDoorOperation> {
         if let Self::FrontDoorLinear(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn iv(&self) -> Option<&CheckedIvOperation> {
+        if let Self::Iv(value) = self { Some(value) } else { None }
     }
 }
 
@@ -2268,18 +2284,42 @@ impl PreparedStudy {
                     .map_err(CausalError::from)
             })
             .transpose()?;
-        let execution = match (&self.execution, rebound_linear, rebound_aipw, rebound_frontdoor) {
-            (PreparedExecution::CheckedLinear(_), Some(rebound), _, _) => {
-                PreparedExecution::CheckedLinear(rebound)
-            }
-            (PreparedExecution::CheckedAipw(_), _, Some(rebound), _) => {
-                PreparedExecution::CheckedAipw(rebound)
-            }
-            (PreparedExecution::FrontDoorLinear(_), _, _, Some(rebound)) => {
-                PreparedExecution::FrontDoorLinear(rebound)
-            }
-            (plan, _, _, _) => plan.clone(),
-        };
+        let rebound_iv = self
+            .execution
+            .iv()
+            .map(|operation| match operation {
+                CheckedIvOperation::Wald { fitter, preparation } => fitter
+                    .rebind_checked(preparation, data)
+                    .map(|preparation| CheckedIvOperation::Wald {
+                        fitter: fitter.clone(),
+                        preparation,
+                    })
+                    .map_err(CausalError::from),
+                CheckedIvOperation::TwoSls { fitter, preparation } => fitter
+                    .rebind_checked(preparation, data)
+                    .map(|preparation| CheckedIvOperation::TwoSls {
+                        fitter: fitter.clone(),
+                        preparation,
+                    })
+                    .map_err(CausalError::from),
+            })
+            .transpose()?;
+        let execution =
+            match (&self.execution, rebound_linear, rebound_aipw, rebound_frontdoor, rebound_iv) {
+                (PreparedExecution::CheckedLinear(_), Some(rebound), _, _, _) => {
+                    PreparedExecution::CheckedLinear(rebound)
+                }
+                (PreparedExecution::CheckedAipw(_), _, Some(rebound), _, _) => {
+                    PreparedExecution::CheckedAipw(rebound)
+                }
+                (PreparedExecution::FrontDoorLinear(_), _, _, Some(rebound), _) => {
+                    PreparedExecution::FrontDoorLinear(rebound)
+                }
+                (PreparedExecution::Iv(_), _, _, _, Some(rebound)) => {
+                    PreparedExecution::Iv(rebound)
+                }
+                (plan, _, _, _, _) => plan.clone(),
+            };
         let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
         // record which refutation reports are caller-attested. Without the names,
@@ -3159,6 +3199,76 @@ impl Study {
             }
             _ => None,
         };
+        let checked_iv = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(_),
+                Some(cache),
+                GraphClass::Dag,
+                InferenceMode::Frequentist,
+            ) => {
+                let estimator = plan.logical.record.estimator.as_deref().unwrap_or("");
+                match (&analysis.estimator_spec, estimator) {
+                    (Some(crate::estimator_spec::EstimatorSpec::IvWald(cfg)), "iv.wald") => {
+                        Some(CheckedIvOperation::Wald {
+                            fitter: (**cfg).clone(),
+                            preparation: (**cfg).prepare_checked(data, &cache.identification, 0)?,
+                        })
+                    }
+                    (None, "iv.wald")
+                    | (
+                        Some(crate::estimator_spec::EstimatorSpec::Default(
+                            crate::EstimatorId::IvWald,
+                        )),
+                        "iv.wald",
+                    ) => {
+                        let fitter = antecedent_estimate::WaldIv::new();
+                        let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+                        Some(CheckedIvOperation::Wald { fitter, preparation })
+                    }
+                    (Some(crate::estimator_spec::EstimatorSpec::Iv2Sls(cfg)), "iv.2sls") => {
+                        match (**cfg).prepare_checked(data, &cache.identification, 0) {
+                            Ok(preparation) => Some(CheckedIvOperation::TwoSls {
+                                fitter: (**cfg).clone(),
+                                preparation,
+                            }),
+                            Err(antecedent_estimate::EstimationError::Unsupported {
+                                message:
+                                    "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                            }) => None,
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                    (None, "iv.2sls")
+                    | (
+                        Some(crate::estimator_spec::EstimatorSpec::Default(
+                            crate::EstimatorId::Iv2Sls,
+                        )),
+                        "iv.2sls",
+                    ) => {
+                        let fitter = antecedent_estimate::TwoStageLeastSquares::new();
+                        match fitter.prepare_checked(data, &cache.identification, 0) {
+                            Ok(preparation) => {
+                                Some(CheckedIvOperation::TwoSls { fitter, preparation })
+                            }
+                            Err(antecedent_estimate::EstimationError::Unsupported {
+                                message:
+                                    "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                            }) => None,
+                            Err(error) => return Err(error.into()),
+                        }
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
         let distribution_operation =
             match (&self.data, &self.query, analysis.identification_cache.as_deref()) {
                 (DataInput::Tabular(data), CausalQuery::Distribution(query), Some(cache)) => {
@@ -3257,6 +3367,8 @@ impl Study {
             PreparedExecution::CheckedAipw(operation)
         } else if let Some(operation) = checked_frontdoor_linear {
             PreparedExecution::FrontDoorLinear(operation)
+        } else if let Some(operation) = checked_iv {
+            PreparedExecution::Iv(operation)
         } else if let Some(operation) = nested_counterfactual {
             PreparedExecution::NestedCounterfactual(operation)
         } else if let Some(operation) = distribution_operation {
@@ -4540,6 +4652,148 @@ mod checked_response_curve_tests {
         prepared.study_mut().query = changed.into();
         let err = prepared.estimate(&data(0.2), &context).unwrap_err();
         assert!(err.to_string().contains("response curve query or grid changed"));
+    }
+}
+
+#[cfg(test)]
+mod checked_iv_prepared_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::{AnalyticSeKind, TwoStageLeastSquares, WaldIv};
+    use antecedent_graph::Dag;
+
+    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
+
+    use super::{CheckedIvOperation, PreparedExecution};
+
+    fn data(shift: f64) -> TabularData {
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("z", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let ids =
+            [schema.id_of("t").unwrap(), schema.id_of("y").unwrap(), schema.id_of("z").unwrap()];
+        let n = 1_600;
+        let mut t = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut z = Vec::with_capacity(n);
+        for i in 0..n {
+            let zi = (i % 2) as f64;
+            let u = ((i * 37 % 101) as f64 - 50.0) / 30.0;
+            let ti = 0.6 * zi + u;
+            z.push(zi);
+            t.push(ti);
+            y.push(shift + 2.0 * ti + u);
+        }
+        let columns = [t, y, z]
+            .into_iter()
+            .zip(ids)
+            .map(|(values, id)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n))
+                        .unwrap(),
+                )
+            })
+            .collect();
+        TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+    }
+
+    fn study(
+        data: TabularData,
+        estimator: impl Into<crate::estimator_spec::EstimatorSpec>,
+    ) -> Study {
+        let graph = Dag::from_named_edges(data.schema(), &[("z", "t"), ("t", "y")]).unwrap();
+        Study::tabular(data)
+            .graph(graph)
+            .query(AverageEffectQuery::with_levels(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                0.0,
+                1.0,
+            ))
+            .identifier(IdentifierId::Auto)
+            .estimator(estimator)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn checked_iv_survives_builder_drop_and_refresh_with_selected_fitter() {
+        let context = ExecutionContext::for_tests(74);
+        for (fitter, is_wald) in [
+            (study(data(0.0), WaldIv::new().with_se_kind(AnalyticSeKind::Hc1)), true),
+            (
+                study(data(0.0), TwoStageLeastSquares::new().with_se_kind(AnalyticSeKind::Hc1)),
+                false,
+            ),
+        ] {
+            let mut prepared = fitter.prepare(&context).unwrap();
+            match &prepared.execution {
+                PreparedExecution::Iv(CheckedIvOperation::Wald { fitter, preparation })
+                    if is_wald =>
+                {
+                    assert_eq!(fitter.se_kind, AnalyticSeKind::Hc1);
+                    assert_eq!(
+                        preparation.lowering().procedure,
+                        antecedent_estimate::CheckedIvProcedure::Wald
+                    );
+                }
+                PreparedExecution::Iv(CheckedIvOperation::TwoSls { fitter, preparation })
+                    if !is_wald =>
+                {
+                    assert_eq!(fitter.se_kind, AnalyticSeKind::Hc1);
+                    assert_eq!(
+                        preparation.lowering().procedure,
+                        antecedent_estimate::CheckedIvProcedure::TwoStageLeastSquares
+                    );
+                }
+                other => panic!("expected retained checked IV operation, got {other:?}"),
+            }
+            let result = prepared.estimate(&data(0.0), &context).unwrap();
+            assert!((result.estimate.ate - 2.0).abs() < 0.15, "estimate={}", result.estimate.ate);
+            assert_eq!(result.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+            let refreshed = prepared.refresh(data(0.4), &context).unwrap();
+            assert!(
+                (refreshed.estimate.ate - 2.0).abs() < 0.15,
+                "estimate={}",
+                refreshed.estimate.ate
+            );
+            assert_eq!(refreshed.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+            assert!(matches!(prepared.execution, PreparedExecution::Iv(_)));
+            prepared.study_mut().query =
+                crate::CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
+                    VariableId::from_raw(0),
+                    VariableId::from_raw(1),
+                    0.0,
+                    2.0,
+                ));
+            assert!(
+                prepared.estimate(&data(0.0), &context).is_err(),
+                "changed contrast must be refused"
+            );
+        }
     }
 }
 
