@@ -572,6 +572,84 @@ pub fn verify_contract_against_body(
     contract: &AnalysisResultContractWire,
 ) -> Vec<Arc<str>> {
     let mut unresolved = verify_stored_payloads(contract);
+    if contract.program.as_ref().is_some_and(|program| {
+        [
+            program.functional_program.is_some(),
+            program.checked_aipw_lowering.is_some(),
+            program.checked_frontdoor_lowering.is_some(),
+            program.checked_iv_lowering.is_some(),
+            program.checked_linear_adjustment_lowering.is_some(),
+            program.checked_functional_response_grid.is_some(),
+            program.checked_nested_counterfactual.is_some(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count()
+            > 1
+    }) {
+        unresolved.push(Arc::from("program.checked_payload_conflict"));
+    }
+    if let Some(program) = contract.program.as_ref() {
+        let estimator_matches = |expected: &[&str]| {
+            contract
+                .estimator
+                .as_deref()
+                .into_iter()
+                .chain(program.commitments.resolved_estimator.as_deref())
+                .all(|name| expected.contains(&name))
+                && (contract.estimator.is_some()
+                    || program.commitments.resolved_estimator.is_some())
+        };
+        let average_effect = matches!(contract.target.query, CausalQueryWire::AverageEffect { .. });
+        if program.functional_program.is_some()
+            && !((estimator_matches(&["functional.effect"])
+                && matches!(
+                    contract.target.query,
+                    CausalQueryWire::AverageEffect { .. } | CausalQueryWire::PathSpecific(_)
+                ))
+                || (estimator_matches(&["functional.distribution"])
+                    && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
+        {
+            unresolved.push(Arc::from("program.functional_program.target"));
+        }
+        for (present, matches, reason) in [
+            (
+                program.checked_aipw_lowering.is_some(),
+                average_effect && estimator_matches(&["aipw"]),
+                "program.checked_aipw_lowering.target",
+            ),
+            (
+                program.checked_frontdoor_lowering.is_some(),
+                average_effect && estimator_matches(&["frontdoor.linear_two_stage"]),
+                "program.checked_frontdoor_lowering.target",
+            ),
+            (
+                program.checked_iv_lowering.is_some(),
+                average_effect && estimator_matches(&["iv.wald", "iv.2sls"]),
+                "program.checked_iv_lowering.target",
+            ),
+            (
+                program.checked_linear_adjustment_lowering.is_some(),
+                average_effect && estimator_matches(&["linear.adjustment.ate"]),
+                "program.checked_linear_adjustment_lowering.target",
+            ),
+            (
+                program.checked_functional_response_grid.is_some(),
+                is_response_functional_effect_contract(contract),
+                "program.checked_functional_response_grid.target",
+            ),
+            (
+                program.checked_nested_counterfactual.is_some(),
+                matches!(contract.target.query, CausalQueryWire::NestedCounterfactual { .. })
+                    && estimator_matches(&["mediation.linear"]),
+                "program.checked_nested_counterfactual.target",
+            ),
+        ] {
+            if present && !matches {
+                unresolved.push(Arc::from(reason));
+            }
+        }
+    }
     if contract.target.query != body.query {
         unresolved.push(Arc::from("body.query"));
     }
@@ -3482,6 +3560,72 @@ mod tests {
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+    }
+
+    #[test]
+    fn rehashed_contract_with_two_checked_execution_products_is_refused() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        let program = contract.program.as_mut().unwrap();
+        program.checked_functional_response_grid = Some(crate::CheckedFunctionalResponseGridWire {
+            format: 1,
+            treatment: 0,
+            outcome: 1,
+            members: Vec::new(),
+        });
+        program.checked_nested_counterfactual = Some(crate::CheckedNestedCounterfactualWire {
+            format: 1,
+            treatment: 0,
+            mediator: 1,
+            outcome: 2,
+            control_bits: 0.0f64.to_bits(),
+            active_bits: 1.0f64.to_bits(),
+            model: "linear_gaussian".into(),
+            procedure: "shared_exogenous".into(),
+        });
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| reason.as_ref() == "program.checked_payload_conflict")
+        );
+    }
+
+    #[test]
+    fn rehashed_contract_with_one_checked_product_for_wrong_target_is_refused() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        let program = contract.program.as_mut().unwrap();
+        program.checked_nested_counterfactual = Some(crate::CheckedNestedCounterfactualWire {
+            format: 1,
+            treatment: 0,
+            mediator: 1,
+            outcome: 2,
+            control_bits: 0.0f64.to_bits(),
+            active_bits: 1.0f64.to_bits(),
+            model: "linear_gaussian".into(),
+            procedure: "shared_exogenous".into(),
+        });
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| reason.as_ref() == "program.checked_nested_counterfactual.target")
+        );
     }
 
     #[test]

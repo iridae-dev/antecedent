@@ -2979,7 +2979,52 @@ pub(crate) enum PreparedExecution {
     Iv(CheckedIvOperation),
 }
 
+/// Exactly one checked product may supply a prepared result contract. This is
+/// deliberately a sum type: passing seven independent optional receipts to
+/// contract construction could describe a procedure no prepared plan selected.
+#[derive(Clone, Copy)]
+pub(crate) enum CheckedProgramBinding<'a> {
+    None,
+    Aipw(&'a antecedent_estimate::CheckedAipwPreparation),
+    FrontDoor(&'a antecedent_estimate::CheckedFrontDoorPreparation),
+    Iv(&'a antecedent_estimate::CheckedIvPreparation),
+    Linear(&'a CheckedLinearOperation),
+    FunctionalEffect(&'a antecedent_expr::FunctionalProgram),
+    FunctionalResponse(&'a [CheckedFunctionalEffectResponseMember]),
+    Distribution(&'a antecedent_expr::FunctionalProgram),
+    NestedCounterfactual(&'a crate::gcm::NestedCounterfactualOperation),
+}
+
 impl PreparedExecution {
+    pub(crate) fn program_binding(&self) -> CheckedProgramBinding<'_> {
+        match self {
+            Self::CheckedAipw(operation) => CheckedProgramBinding::Aipw(&operation.preparation),
+            Self::FrontDoorLinear(operation) => {
+                CheckedProgramBinding::FrontDoor(&operation.preparation)
+            }
+            Self::Iv(operation) => CheckedProgramBinding::Iv(operation.preparation()),
+            Self::CheckedLinear(operation) => CheckedProgramBinding::Linear(operation),
+            Self::FunctionalEffect(operation) => {
+                CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
+            }
+            Self::PathSpecificEffect(operation) => {
+                CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
+            }
+            Self::AdmgResponseCurve(operation) => {
+                CheckedProgramBinding::FunctionalResponse(&operation.members)
+            }
+            Self::Distribution(operation) => {
+                CheckedProgramBinding::Distribution(operation.prepared.program())
+            }
+            Self::NestedCounterfactual(operation) => {
+                CheckedProgramBinding::NestedCounterfactual(operation)
+            }
+            Self::LegacyStudyDispatch | Self::BayesianGcomp(_) | Self::StaticResponseCurve(_) => {
+                CheckedProgramBinding::None
+            }
+        }
+    }
+
     /// Rebind only the checked receipts that still execute through the shared
     /// tabular dispatcher. Direct operations own their rebind at execution.
     /// Keeping the variant selection here prevents a refreshed receipt from
@@ -3092,6 +3137,10 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    pub(crate) fn checked_program_binding(&self) -> CheckedProgramBinding<'_> {
+        self.execution.program_binding()
+    }
+
     /// Whether this prepared handle owns the complete operation for a family
     /// whose one-shot facade must execute through preparation as well.
     pub(crate) fn has_complete_program_operation(&self, query: &CausalQuery) -> bool {
@@ -3131,15 +3180,16 @@ impl PreparedStudy {
         self.execution.checked_linear()
     }
 
-    /// Retain the complete checked linear adjustment operation for portable contracts.
-    pub(crate) fn checked_linear_operation(&self) -> Option<&CheckedLinearOperation> {
-        self.execution.linear_operation()
-    }
-
     /// Checked AIPW lowering retained for the supported back-door mean ATE.
     #[must_use]
     pub fn checked_aipw_ate(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
         self.execution.checked_aipw()
+    }
+
+    pub(crate) fn has_sealed_aipw_operation(&self) -> bool {
+        self.execution
+            .aipw_operation()
+            .is_some_and(CheckedAipwOperation::sealed_for_direct_execution)
     }
 
     /// Checked linear two-stage front-door lowering retained by this handle.
@@ -7559,7 +7609,7 @@ mod prepared_frontdoor_tests {
             treatment, outcome, 0.0, 2.0,
         ));
         let error = prepared.estimate(&data(0.35), &context).unwrap_err();
-        assert!(error.to_string().contains("prepared front-door lowering"), "{error}");
+        assert!(error.to_string().contains("retained checked front-door operation"), "{error}");
     }
 
     #[test]

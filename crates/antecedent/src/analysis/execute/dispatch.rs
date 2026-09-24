@@ -974,6 +974,44 @@ impl super::Study {
                 return prepared.estimate(data, ctx);
             }
         }
+        // AIPW's licensed checked operation is complete for the binary,
+        // all-observed mean ATE on a supplied DAG. Route only that exact
+        // selection through preparation; nearby estimators keep legacy dispatch.
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && (self.estimator == Some(EstimatorId::Aipw)
+                || (self.estimator.is_none()
+                    && matches!(
+                        &self.estimator_spec,
+                        Some(crate::estimator_spec::EstimatorSpec::Default(EstimatorId::Aipw))
+                            | Some(crate::estimator_spec::EstimatorSpec::Aipw(_))
+                    )))
+            && matches!(
+                &self.query,
+                CausalQuery::AverageEffect(query)
+                    if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                        && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
+                        && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
+                            if *variable == query.treatment && value.as_f64() == Some(1.0))
+                        && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
+                            if *variable == query.treatment && value.as_f64() == Some(0.0))
+            )
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_sealed_aipw_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot AIPW route did not retain its complete checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.
