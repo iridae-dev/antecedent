@@ -150,6 +150,8 @@ pub struct CheckedFrontDoorPreparation {
     factor_requirements: Arc<[FactorRequirement]>,
     /// Typed functional and role correspondence.
     lowering: CheckedFrontDoorLowering,
+    /// Query whose arm, population, and outcome semantics were checked.
+    query: AverageEffectQuery,
     /// Selected identification assumptions.
     required_assumptions: AssumptionSet,
     /// Prepared physical data.
@@ -157,6 +159,40 @@ pub struct CheckedFrontDoorPreparation {
 }
 
 impl CheckedFrontDoorPreparation {
+    /// Rebuild only the numerical design for data with the same semantic schema.
+    ///
+    /// The causal target, proof-derived root, and typed procedure stay frozen.
+    pub fn rebind(&self, data: &TabularData) -> Result<Self, EstimationError> {
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let (active, control) =
+            (intervention_f64(&self.query.active)?, intervention_f64(&self.query.control)?);
+        let mapping = self.program.mapping();
+        if self.program.schema() != &schema
+            || mapping.source != self.target.functional
+            || mapping.executable != self.lowering.executable
+            || self.lowering.functional != self.target.functional
+            || self.lowering.treatment != self.query.treatment
+            || self.lowering.outcome != self.query.outcome
+            || self.lowering.mediators != self.target.mediators
+            || self.lowering.population != self.query.target_population
+            || self.lowering.active != active
+            || self.lowering.control != control
+        {
+            return Err(EstimationError::data_msg(
+                "checked front-door target, query, lowering, or semantic schema changed",
+            ));
+        }
+        let mut rebound = self.clone();
+        rebound.problem =
+            prepare_frontdoor_problem(data, &self.target, &self.query, self.problem.overlap)?;
+        Ok(rebound)
+    }
+
     /// Selected front-door target.
     pub fn target(&self) -> &IdentifiedEstimand {
         &self.target
@@ -290,6 +326,7 @@ pub(crate) fn prepare_frontdoor_checked(
             population: query.target_population.clone(),
             procedure,
         },
+        query: query.clone(),
         required_assumptions: claim.required_assumptions.clone(),
         problem,
     })
@@ -1245,6 +1282,9 @@ pub(crate) mod tests {
         }));
         let mut workspace = FrontDoorWorkspace::default();
         let effect = estimator.fit_checked(&checked, &mut workspace, &ctx()).unwrap();
+        let rebound = checked.rebind(&data).unwrap();
+        let rebound_effect = estimator.fit_checked(&rebound, &mut workspace, &ctx()).unwrap();
+        assert_eq!(effect.ate.to_bits(), rebound_effect.ate.to_bits());
         assert!((effect.ate - 6.0).abs() < 0.35, "ate={}", effect.ate);
     }
 
