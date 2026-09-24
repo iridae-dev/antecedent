@@ -392,10 +392,17 @@ def validate_evidence_body(body: str, assertion: str) -> list[str]:
 
 
 def run_route_evidence(rows, issues: list[str]) -> None:
-    """Execute each distinct verified evidence test on the 2.1 release gate."""
+    """Execute verified evidence once per test target, isolating failures afterward.
+
+    The static citation check has already resolved each named test. Running an
+    entire Cargo target executes every cited test in that target while avoiding
+    a new test process for every registry coordinate. Python node IDs can be
+    passed to one pytest process for the same project.
+    """
     import test_evidence
 
     seen: set[tuple[str, str]] = set()
+    batches: dict[tuple[str, ...], list[tuple[str, str, str]]] = {}
     for row in rows:
         if row.get("migration_status") != "verified":
             continue
@@ -410,11 +417,8 @@ def run_route_evidence(rows, issues: list[str]) -> None:
                 issues.append(f"{row['coordinate']}: evidence test could not be resolved: {'; '.join(problems)}")
                 continue
             rel = path.resolve().relative_to((ROOT / "python").resolve())
-            command = [
-                "uv", "run", "--quiet", "--project", ".", "pytest", "-q",
-                "-p", "no:cacheprovider", f"{rel}::{key[1]}",
-            ]
-            cwd = ROOT / "python"
+            batch_key = ("python",)
+            test_name = f"{rel}::{key[1]}"
         else:
             target_root = test_evidence.target_root(path)
             if target_root is None:
@@ -425,12 +429,38 @@ def run_route_evidence(rows, issues: list[str]) -> None:
             if problems or full_name is None:
                 issues.append(f"{row['coordinate']}: evidence test could not be resolved: {'; '.join(problems)}")
                 continue
-            command = ["cargo", "test", "-q", "-p", crate, *target, "--", full_name, "--exact"]
+            batch_key = ("rust", crate, *target)
+            test_name = full_name
+        batches.setdefault(batch_key, []).append((row["coordinate"], key[0], test_name))
+
+    for batch_key, members in batches.items():
+        if batch_key[0] == "python":
+            command = ["uv", "run", "--quiet", "--project", ".", "pytest", "-q",
+                       "-p", "no:cacheprovider", *(name for _, _, name in members)]
+            cwd = ROOT / "python"
+        else:
+            command = ["cargo", "test", "-q", "-p", batch_key[1], *batch_key[2:]]
             cwd = ROOT
         result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
         if result.returncode:
             detail = (result.stdout + result.stderr)[-2500:]
-            issues.append(f"{row['coordinate']}: evidence test failed ({' '.join(command)}):\n{detail}")
+            # A failed batch must not obscure which licensed coordinate failed.
+            # Re-run only its cited members with exact filters for attribution.
+            isolated_failures = 0
+            for coordinate, _path, name in members:
+                if batch_key[0] == "python":
+                    exact = ["uv", "run", "--quiet", "--project", ".", "pytest", "-q",
+                             "-p", "no:cacheprovider", name]
+                else:
+                    exact = ["cargo", "test", "-q", "-p", batch_key[1], *batch_key[2:],
+                             "--", name, "--exact"]
+                isolated = subprocess.run(exact, cwd=cwd, capture_output=True, text=True)
+                if isolated.returncode:
+                    isolated_failures += 1
+                    isolated_detail = (isolated.stdout + isolated.stderr)[-2500:]
+                    issues.append(f"{coordinate}: evidence test failed ({' '.join(exact)}):\n{isolated_detail}")
+            if not isolated_failures:
+                issues.append(f"evidence target failed outside cited tests ({' '.join(command)}):\n{detail}")
 
 
 def main() -> int:

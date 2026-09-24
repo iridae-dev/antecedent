@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch
@@ -105,6 +106,53 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
     def test_checked_functional_evaluate_exact_is_executable_evidence(self) -> None:
         body = "{ let program = reload_lowered_program(target); del builder; program.evaluate_exact(); }"
         self.assertEqual(compiler_migration.validate_evidence_body(body, "route"), [])
+
+    def test_progress_evidence_batches_targets_without_losing_citations(self) -> None:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import test_evidence
+
+        rows = [
+            {"coordinate": "rust-a", "migration_status": "verified", "evidence_test":
+             "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "evidence_assertion": "one"},
+            {"coordinate": "rust-b", "migration_status": "verified", "evidence_test":
+             "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "evidence_assertion": "two"},
+            {"coordinate": "python-a", "migration_status": "verified", "evidence_test":
+             "python/tests/test_transport_exact.py", "evidence_assertion": "test_one"},
+            {"coordinate": "python-b", "migration_status": "verified", "evidence_test":
+             "python/tests/test_transport_z.py", "evidence_assertion": "test_two"},
+        ]
+        with (patch.object(test_evidence, "target_root", return_value=(Path("unused"), "antecedent", ["--test", "linear_adjustment_route_evidence"])),
+              patch.object(test_evidence, "resolve_rust_test", side_effect=[("one", []), ("two", [])]),
+              patch.object(test_evidence, "resolve_python_test", return_value=[]),
+              patch.object(compiler_migration.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run):
+            issues: list[str] = []
+            compiler_migration.run_route_evidence(rows, issues)
+        self.assertEqual(issues, [])
+        self.assertEqual(run.call_count, 2)
+        cargo = run.call_args_list[0].args[0]
+        pytest = run.call_args_list[1].args[0]
+        self.assertEqual(cargo, ["cargo", "test", "-q", "-p", "antecedent", "--test", "linear_adjustment_route_evidence"])
+        self.assertIn("tests/test_transport_exact.py::test_one", pytest)
+        self.assertIn("tests/test_transport_z.py::test_two", pytest)
+
+    def test_failed_batch_isolates_the_cited_coordinate(self) -> None:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import test_evidence
+
+        rows = [
+            {"coordinate": name, "migration_status": "verified", "evidence_test":
+             "crates/antecedent/tests/linear_adjustment_route_evidence.rs", "evidence_assertion": name}
+            for name in ("one", "two")
+        ]
+        outcomes = [subprocess.CompletedProcess([], code, "", "failed") for code in (1, 1, 0)]
+        with (patch.object(test_evidence, "target_root", return_value=(Path("unused"), "antecedent", ["--test", "linear_adjustment_route_evidence"])),
+              patch.object(test_evidence, "resolve_rust_test", side_effect=[("one", []), ("two", [])]),
+              patch.object(compiler_migration.subprocess, "run", side_effect=outcomes) as run):
+            issues: list[str] = []
+            compiler_migration.run_route_evidence(rows, issues)
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(len(issues), 1)
+        self.assertTrue(issues[0].startswith("one: evidence test failed"))
 
     def test_status_cannot_claim_closure_without_all_three_execution_receipts(self) -> None:
         original = compiler_migration.INVENTORY
