@@ -145,10 +145,16 @@ def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
     result_artifact = artifacts.loads(prepared.export_artifact(payload="result"))
     assert result_artifact.payload["estimate"] == pytest.approx(result.effect)
     assert prepared.evidence_status == "licensed"
+    checked_receipt = artifacts.accept(result.export())
+    assert checked_receipt["accepts_as_verified_program"] == "true"
+    assert checked_receipt["unresolved"] == ""
 
     refreshed_data = {"x": x, "m": m + 0.2, "y": y + 0.7}
     refreshed = prepared.refresh(refreshed_data)
     assert refreshed.effect == pytest.approx(result.effect, abs=1e-8)
+    refreshed_receipt = artifacts.accept(refreshed.export())
+    assert refreshed_receipt["accepts_as_verified_program"] == "true"
+    assert refreshed_receipt["program"] == checked_receipt["program"]
 
 
 @pytest.mark.parametrize(

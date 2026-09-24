@@ -102,7 +102,7 @@ pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGc
 /// The operation fixes the graph, cross-world target roles, treatment levels,
 /// and shared-exogenous execution procedure at preparation time.
 #[derive(Clone, Debug)]
-pub(crate) struct NestedCounterfactualOperation {
+pub struct NestedCounterfactualOperation {
     graph: Dag,
     query: NestedCounterfactualQuery,
     mediation_query: antecedent_core::MediationQuery,
@@ -113,6 +113,18 @@ pub(crate) struct NestedCounterfactualOperation {
 }
 
 impl NestedCounterfactualOperation {
+    /// The frozen cross-world query and treatment levels.
+    #[must_use]
+    pub const fn query(&self) -> &NestedCounterfactualQuery {
+        &self.query
+    }
+
+    /// The three-node Markovian mediation graph required by this operation.
+    #[must_use]
+    pub const fn graph(&self) -> &Dag {
+        &self.graph
+    }
+
     pub(crate) fn compile(
         graph: Dag,
         query: NestedCounterfactualQuery,

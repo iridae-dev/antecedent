@@ -1239,6 +1239,25 @@ pub struct DataSnapshotIdentityWire {
     /// functional replay. Bound to this data snapshot and absent on older artifacts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub distribution_factor_laws: Option<DistributionFactorLawsWire>,
+    /// Portable outcome-regression moments for the checked linear-Gaussian
+    /// natural direct effect. Older artifacts omit them and remain readable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nested_counterfactual_fit: Option<NestedCounterfactualFitWire>,
+}
+
+/// Sufficient statistics for the ordered design `[intercept, treatment, mediator]`.
+/// These are bound to the data snapshot, rather than the causal program.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct NestedCounterfactualFitWire {
+    /// Wire format.
+    pub format: u16,
+    /// Number of complete rows used by the outcome regression.
+    pub complete_case_rows: u64,
+    /// Row-major `X'X` for the three design columns.
+    pub gram: [f64; 9],
+    /// `X'Y` in design order.
+    pub outcome_cross: [f64; 3],
 }
 
 /// Digest a data snapshot identity.
@@ -1481,6 +1500,31 @@ pub struct ProgramIdentityWire {
     /// Older artifacts omit the grid family and cannot independently replay it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_functional_response_grid: Option<CheckedFunctionalResponseGridWire>,
+    /// Checked linear-Gaussian shared-exogenous natural direct effect operation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_nested_counterfactual: Option<CheckedNestedCounterfactualWire>,
+}
+
+/// Fixed three-node Markovian natural direct effect procedure.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedNestedCounterfactualWire {
+    /// Wire format.
+    pub format: u16,
+    /// Semantic variable roles, never remapped to design-column indices.
+    pub treatment: u32,
+    /// Mediator variable id.
+    pub mediator: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// IEEE-754 treatment levels.
+    pub control_bits: u64,
+    /// Active treatment level, as IEEE-754 bits.
+    pub active_bits: u64,
+    /// Explicit model and cross-world procedure identity.
+    pub model: String,
+    /// Shared-exogenous nested-world procedure name.
+    pub procedure: String,
 }
 
 /// Versioned checked member programs for a finite response curve.
@@ -2492,6 +2536,7 @@ mod tests {
             ],
             interference: None,
             distribution_factor_laws: None,
+            nested_counterfactual_fit: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);

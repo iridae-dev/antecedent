@@ -3078,6 +3078,14 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    /// Retained checked shared-exogenous natural direct effect operation.
+    #[must_use]
+    pub fn checked_nested_counterfactual_operation(
+        &self,
+    ) -> Option<&crate::gcm::NestedCounterfactualOperation> {
+        self.execution.nested_counterfactual()
+    }
+
     /// Checked Bayesian g-computation receipt for a static mean ATE, when this
     /// prepared handle uses that licensed route.
     #[must_use]
