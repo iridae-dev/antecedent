@@ -74,6 +74,14 @@ def _iv(seed: int, n: int = 800) -> dict[str, np.ndarray]:
     return {"t": t, "y": 1.5 * t + u + 0.3 * rng.normal(size=n), "z": z}
 
 
+def _binary_iv(seed: int, n: int = 1_200) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = (rng.uniform(size=n) < 0.5).astype(float)
+    u = rng.normal(size=n)
+    t = (1.6 * z + 0.4 * u + 0.2 * rng.normal(size=n) > 0.9).astype(float)
+    return {"t": t, "y": 1.5 * t + u + 0.2 * rng.normal(size=n), "z": z}
+
+
 def _frontdoor(seed: int, n: int = 800) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
     t = (rng.uniform(size=n) < 0.5).astype(float)
@@ -125,6 +133,35 @@ def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> No
     assert accepted["accepts_as_verified_program"] == "true"
 
     changed = {**data, "y": data["y"] + 0.4}
+    refreshed = prepared.refresh(changed)
+    assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
+    accepted_refresh = ant.artifacts.accept(refreshed.export())
+    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    assert accepted_refresh["program"] == accepted["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
+@pytest.mark.parametrize("estimator", ["iv.wald", "iv.2sls"])
+def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
+    estimator: str,
+) -> None:
+    """Both checked binary-IV procedures retain their identity across Python clicks."""
+    data = _binary_iv(41)
+    prepared = ant.prepare(
+        data,
+        graph=[("z", "t"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        identifier="iv",
+        estimator=estimator,
+        refute="none",
+        bootstrap=0,
+    )
+    first = prepared.estimate(data)
+    assert first.effect == pytest.approx(1.5, abs=0.35)
+    accepted = ant.artifacts.accept(first.export())
+    assert accepted["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "y": data["y"] + 0.5}
     refreshed = prepared.refresh(changed)
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
     accepted_refresh = ant.artifacts.accept(refreshed.export())
