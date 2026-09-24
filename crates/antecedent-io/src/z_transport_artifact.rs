@@ -2,13 +2,19 @@
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
-    expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire},
+    expr_wire::{
+        ExprArenaWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
+        functional_program_from_wire, functional_program_to_wire,
+    },
     query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire,
     wire::AdmgWire,
 };
 use antecedent_core::{ExecutionContext, InterventionAssignment, VariableId};
-use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::{
+    Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData, FunctionalProgram,
+    ProgramLimits,
+};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ZTransportDerivation, ZTransportDerivationRecord, ZTransportQuery, bind_z_transport_catalog,
@@ -34,6 +40,9 @@ pub struct ZTransportArtifactWire {
     pub proof: ZTransportDerivationRecord,
     /// Expression nodes produced by the checked derivation.
     pub expression: ExprArenaWire,
+    /// Owned, structurally checked provider-bound program. Missing only in legacy v1 artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program: Option<FunctionalProgramWire>,
     /// Evidence catalog binding factor authority.
     pub catalog: EvidenceCatalogWire,
     /// Joint source and target laws with provider snapshots.
@@ -91,6 +100,7 @@ impl ZTransportArtifactWire {
         request: &Assignment,
         limits: ExactEvaluationLimits,
         result: &ExactDistribution,
+        program: &FunctionalProgram,
     ) -> Result<Self, IoError> {
         let edge_wire = admg_to_wire(diagram.causal_graph())?;
         let query = functional.derivation().query();
@@ -120,6 +130,7 @@ impl ZTransportArtifactWire {
             },
             proof: functional.derivation().to_record(),
             expression: expr_arena_to_wire(functional.derivation().arena())?,
+            program: Some(functional_program_to_wire(program)?),
             catalog: EvidenceCatalogWire::from_catalog(functional.catalog()),
             laws: data.laws().iter().map(ExactLawWire::from_law).collect(),
             max_support_rows: data.max_support_rows(),
@@ -223,6 +234,26 @@ impl ZTransportArtifactWire {
         let catalog = wire.catalog.to_catalog()?;
         let functional = bind_z_transport_catalog(&diagram, &query, &proof, &catalog)
             .map_err(|e| IoError::Convert(e.to_string()))?;
+        if let Some(program_wire) = &wire.program {
+            let program = functional_program_from_wire(program_wire, ProgramLimits::default())?;
+            if program.mapping().source != proof.root()
+                || program.mapping().executable != functional.root()
+                || program.arena().len() != functional.arena().len()
+            {
+                return Err(IoError::Convert(
+                    "z-transport functional program does not match checked proof and binding"
+                        .into(),
+                ));
+            }
+            let expected = expr_arena_to_wire(functional.arena())?;
+            let supplied = expr_arena_to_wire(program.arena())?;
+            if expected != supplied {
+                return Err(IoError::Convert(
+                    "z-transport functional program arena mismatch".into(),
+                ));
+            }
+            program.compile().map_err(|error| IoError::Convert(error.to_string()))?;
+        }
         let laws = wire.laws.iter().map(ExactLawWire::to_law).collect::<Result<Vec<_>, _>>()?;
         let data = ExactTransportData::try_new(laws, wire.max_support_rows)
             .map_err(|e| IoError::Convert(e.to_string()))?;
