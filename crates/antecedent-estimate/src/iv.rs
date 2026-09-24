@@ -128,6 +128,8 @@ pub struct CheckedIvLowering {
     pub instrument_control: f64,
     /// Procedure selected by the estimator.
     pub procedure: CheckedIvProcedure,
+    /// Weak-instrument uncertainty method selected by the estimator.
+    pub se_kind: AnalyticSeKind,
 }
 
 /// Checked IV preparation carrying its justification, expression program, and physical data.
@@ -158,9 +160,20 @@ impl CheckedIvPreparation {
         );
         let active = intervention_f64(&self.query.active)?;
         let control = intervention_f64(&self.query.control)?;
+        let mut arena = self.outcome_program().arena().clone();
+        let expected_functional = arena
+            .iv_wald(
+                self.query.treatment,
+                self.query.outcome,
+                &self.target.instruments,
+                &Value::f64(active),
+                &Value::f64(control),
+            )
+            .map_err(|e| EstimationError::data_msg(format!("invalid retained IV roles: {e}")))?;
         if self.outcome_program().schema() != &schema
             || self.treatment_program().schema() != &schema
             || self.lowering.functional != self.target.functional
+            || expected_functional != self.target.functional
             || self.lowering.treatment != self.query.treatment
             || self.lowering.outcome != self.query.outcome
             || self.lowering.instruments != self.target.instruments
@@ -169,6 +182,10 @@ impl CheckedIvPreparation {
             || self.lowering.control != control
             || self.lowering.instrument_active != 1.0
             || self.lowering.instrument_control != 0.0
+            || self.problem.method.as_ref() != "iv"
+            || self.problem.instruments != self.target.instruments
+            || self.problem.adjustment_set != self.target.adjustment_set
+            || self.problem.treatment_delta != active - control
         {
             return Err(EstimationError::data_msg(
                 "checked IV target, query, lowering, or semantic schema changed",
@@ -225,6 +242,7 @@ fn prepare_iv_checked(
     estimand_index: usize,
     overlap: OverlapPolicy,
     procedure: CheckedIvProcedure,
+    se_kind: AnalyticSeKind,
 ) -> Result<CheckedIvPreparation, EstimationError> {
     let target = identification
         .estimands
@@ -348,6 +366,7 @@ fn prepare_iv_checked(
             instrument_active: 1.0,
             instrument_control: 0.0,
             procedure,
+            se_kind,
         },
         query: query.clone(),
         required_assumptions: claim.required_assumptions.clone(),
@@ -573,7 +592,31 @@ impl WaldIv {
             estimand_index,
             self.overlap,
             CheckedIvProcedure::Wald,
+            self.se_kind,
         )
+    }
+
+    /// Rebind a checked Wald preparation to data with the same semantic schema and IV roles.
+    ///
+    /// The checked Wald operation, contrast, binary instrument contract, uncertainty method,
+    /// and retained identification assumptions are preserved. Only physical row and column
+    /// bindings are rebuilt.
+    pub fn rebind_checked(
+        &self,
+        checked: &CheckedIvPreparation,
+        data: &TabularData,
+    ) -> Result<CheckedIvPreparation, EstimationError> {
+        if checked.lowering.procedure != CheckedIvProcedure::Wald
+            || checked.lowering.se_kind != self.se_kind
+            || checked.problem.overlap != self.overlap
+            || checked.target.instruments.len() != 1
+            || !checked.target.adjustment_set.is_empty()
+        {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked IV receipt does not match the Wald procedure and contract",
+            });
+        }
+        checked.rebind(data)
     }
 
     /// Fit a sealed Wald preparation with its retained identification assumptions.
@@ -582,7 +625,10 @@ impl WaldIv {
         checked: &CheckedIvPreparation,
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, EstimationError> {
-        if checked.lowering.procedure != CheckedIvProcedure::Wald {
+        if checked.lowering.procedure != CheckedIvProcedure::Wald
+            || checked.lowering.se_kind != self.se_kind
+            || checked.problem.overlap != self.overlap
+        {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "checked IV receipt was prepared for two-stage least squares",
             });
@@ -959,7 +1005,29 @@ impl TwoStageLeastSquares {
             estimand_index,
             self.overlap,
             CheckedIvProcedure::TwoStageLeastSquares,
+            self.se_kind,
         )
+    }
+
+    /// Rebind a checked binary-instrument 2SLS preparation to compatible data.
+    ///
+    /// The target roles, 2SLS procedure, binary instrument premise, uncertainty method, and
+    /// weak-instrument diagnostic contract remain fixed. Only physical row and column bindings
+    /// are rebuilt.
+    pub fn rebind_checked(
+        &self,
+        checked: &CheckedIvPreparation,
+        data: &TabularData,
+    ) -> Result<CheckedIvPreparation, EstimationError> {
+        if checked.lowering.procedure != CheckedIvProcedure::TwoStageLeastSquares
+            || checked.lowering.se_kind != self.se_kind
+            || checked.problem.overlap != self.overlap
+        {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked IV receipt does not match the 2SLS procedure and contract",
+            });
+        }
+        checked.rebind(data)
     }
 
     /// Fit a sealed two-stage least-squares preparation with retained assumptions.
@@ -969,7 +1037,10 @@ impl TwoStageLeastSquares {
         workspace: &mut TwoStageLeastSquaresWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, EstimationError> {
-        if checked.lowering.procedure != CheckedIvProcedure::TwoStageLeastSquares {
+        if checked.lowering.procedure != CheckedIvProcedure::TwoStageLeastSquares
+            || checked.lowering.se_kind != self.se_kind
+            || checked.problem.overlap != self.overlap
+        {
             return Err(EstimationError::IncompatibleEstimand {
                 message: "checked IV receipt was prepared for the Wald estimator",
             });
@@ -1283,17 +1354,45 @@ mod tests {
         let result = estimator
             .fit_checked(&checked, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
             .unwrap();
-        let rebound = checked.rebind(&data).unwrap();
+        let (refreshed_data, _) = binary_iv_scm(20_000, 32);
+        let rebound = estimator.rebind_checked(&checked, &refreshed_data).unwrap();
         let rebound_result = estimator
             .fit_checked(&rebound, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
             .unwrap();
-        assert_eq!(result.ate.to_bits(), rebound_result.ate.to_bits());
+        assert_eq!(checked.target.functional, rebound.target.functional);
+        assert_eq!(checked.lowering.procedure, rebound.lowering.procedure);
+        assert_eq!(checked.lowering.se_kind, rebound.lowering.se_kind);
+        assert_eq!(rebound.problem.nrows, 20_000);
         assert!((result.ate - 2.0).abs() < 0.08, "estimate={}", result.ate);
+        assert!((rebound_result.ate - 2.0).abs() < 0.08, "rebound={}", rebound_result.ate);
 
         let wald = WaldIv::new().with_bootstrap_replicates(0);
         let wald_checked = wald.prepare_checked(&data, &identification, 0).unwrap();
         let wald_result = wald.fit_checked(&wald_checked, &ctx()).unwrap();
         assert!((wald_result.ate - 2.0).abs() < 0.2, "Wald={}", wald_result.ate);
+        let (wald_refresh, _) = binary_iv_scm(20_000, 33);
+        let wald_rebound = wald.rebind_checked(&wald_checked, &wald_refresh).unwrap();
+        let wald_rebound_result = wald.fit_checked(&wald_rebound, &ctx()).unwrap();
+        assert_eq!(wald_checked.target.functional, wald_rebound.target.functional);
+        assert_eq!(wald_checked.lowering.procedure, wald_rebound.lowering.procedure);
+        assert!((wald_rebound_result.ate - 2.0).abs() < 0.2);
+
+        let mut changed_roles = checked.clone();
+        changed_roles.lowering.outcome = VariableId::from_raw(2);
+        assert!(estimator.rebind_checked(&changed_roles, &refreshed_data).is_err());
+        assert!(wald.rebind_checked(&checked, &refreshed_data).is_err());
+        assert!(estimator.rebind_checked(&wald_checked, &refreshed_data).is_err());
+
+        let robust = TwoStageLeastSquares::new().with_se_kind(AnalyticSeKind::Hc1);
+        assert!(robust.rebind_checked(&checked, &refreshed_data).is_err());
+
+        let changed_schema = TabularData::from_f64_columns([
+            ("renamed_t", &[0.0, 1.0][..]),
+            ("y", &[0.0, 2.0][..]),
+            ("z", &[0.0, 1.0][..]),
+        ])
+        .unwrap();
+        assert!(estimator.rebind_checked(&checked, &changed_schema).is_err());
 
         let mut tampered = checked_result(query());
         tampered.estimands[0].instruments = Arc::from([VariableId::from_raw(1)]);
@@ -1370,6 +1469,28 @@ mod tests {
             strong_diag.f_statistic,
             weak_diag.f_statistic
         );
+    }
+
+    #[test]
+    fn checked_two_sls_rebind_preserves_weak_instrument_diagnostics() {
+        let (data, _) = weak_binary_iv_scm(2_000, 41);
+        let identification = checked_result(query());
+        let estimator = TwoStageLeastSquares::new().with_bootstrap_replicates(0);
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+
+        let (refreshed_data, _) = weak_binary_iv_scm(2_000, 42);
+        let rebound = estimator.rebind_checked(&checked, &refreshed_data).unwrap();
+        assert_eq!(rebound.lowering.procedure, CheckedIvProcedure::TwoStageLeastSquares);
+        assert_eq!(rebound.lowering.se_kind, AnalyticSeKind::Homoskedastic);
+
+        let result = estimator
+            .fit_checked(&rebound, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
+            .unwrap();
+        let diagnostics = result.first_stage_diagnostics.expect("2SLS reports first stage");
+        assert!(diagnostics.f_statistic < 10.0, "F={}", diagnostics.f_statistic);
+        assert!(diagnostics.anderson_rubin.is_some() || diagnostics.uncertainty_withheld.is_some());
+        assert!(result.se_bootstrap.is_none());
+        assert!(!result.se_analytic.is_finite());
     }
 
     #[test]
