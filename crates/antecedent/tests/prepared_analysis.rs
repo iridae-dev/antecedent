@@ -711,7 +711,7 @@ fn prepared_distribution_reestimate_matches_fresh() {
             .unwrap()
     };
     let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
-    let prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let mut prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
@@ -724,7 +724,22 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
-    assert!((first_dist.mean - 0.7).abs() < 0.08);
+    // Independent g-formula reference from the fixture counts:
+    // P(z=0)=P(z=1)=1/2, P(y=1|t=1,z=0)=16/20, and
+    // P(y=1|t=1,z=1)=21/35, so P(y=1|do(t=1))=0.7.
+    assert!((first_dist.mean - 0.7).abs() < 1e-12);
+    let true_atom = first_dist
+        .atoms
+        .iter()
+        .find(|atom| {
+            atom.outcomes.iter().any(|(variable, value)| {
+                *variable == VariableId::from_raw(1) && *value == Value::f64(1.0)
+            })
+        })
+        .expect("true outcome atom");
+    assert!((true_atom.probability - 0.7).abs() < 1e-12);
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    assert!((refreshed.distribution.as_ref().unwrap().mean - 0.7).abs() < 1e-12);
     assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-dist", "distribution");
 }
 
