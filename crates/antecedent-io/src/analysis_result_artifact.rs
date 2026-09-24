@@ -481,7 +481,8 @@ pub fn encode_analysis_result_artifact_with_contract(
     if let Some(contract) = contract {
         crate::validate_contract_section(contract)?;
         let header = AnalysisResultHeader { variable_names: variable_names.clone() };
-        let unresolved = crate::verify_contract_against_body(&header, result, contract);
+        let unresolved =
+            crate::contract_section::verify_contract_for_encoding(&header, result, contract);
         if !unresolved.is_empty() {
             return Err(IoError::Convert(format!(
                 "contract does not verify against analysis_result body: {}",
