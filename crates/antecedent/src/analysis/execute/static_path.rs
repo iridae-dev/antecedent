@@ -11,6 +11,7 @@ impl super::Study {
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         prepared_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
+        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
@@ -32,7 +33,14 @@ impl super::Study {
             return self.execute_bayesian_rd(data, graph, query, physical, ctx);
         }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self.execute_bayesian(data, graph, query, physical, ctx);
+            return self.execute_bayesian(
+                data,
+                graph,
+                query,
+                physical,
+                bayesian_gcomp_operation,
+                ctx,
+            );
         }
         if matches!(estimator_id, EstimatorId::BayesianBasisGcomp) {
             return self.execute_bayesian_basis(data, graph, query, physical, ctx);
@@ -909,7 +917,7 @@ impl super::Study {
             return self.execute_bayesian_basis(data, graph, &query.inner, physical, ctx);
         }
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            return self.execute_bayesian(data, graph, &query.inner, physical, ctx);
+            return self.execute_bayesian(data, graph, &query.inner, physical, None, ctx);
         }
         let started = Instant::now();
         let (identifier, _) = self.resolve_conditional_pair();

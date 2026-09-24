@@ -49,6 +49,10 @@ fn prepared_reestimate_matches_fresh_analyze() {
     let fresh = build_analysis(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
 
     let prepared = build_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
+    assert!(
+        prepared.checked_bayesian_gcomp_operation().is_none(),
+        "frequentist mean ATE must not claim the Bayesian g-computation route"
+    );
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
@@ -221,10 +225,18 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
 
     let fresh =
         build_bayesian_analysis(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
-    let prepared = build_bayesian_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let study = build_bayesian_analysis(data.clone(), dag, query.clone());
+    let prepared = study.prepare(&ctx).unwrap();
+    drop(study);
+    let checked = prepared
+        .checked_bayesian_gcomp_operation()
+        .expect("static Bayesian mean ATE retains its checked route receipt");
+    assert_eq!(checked.query(), &query);
     let first = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(checked.estimand().adjustment_set, first.estimand.adjustment_set);
 
     assert!(first.estimate.ate.is_finite());
+    assert!((first.estimate.ate - 2.0).abs() < 0.5, "ate={}", first.estimate.ate);
     // Bit-identical ATE and posterior summaries between the prepared click and
     // a fresh, un-prepared run: identification caching must not perturb the
     // downstream Bayesian fit (same prep, prior, draws, seed).

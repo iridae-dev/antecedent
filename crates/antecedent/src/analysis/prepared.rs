@@ -65,6 +65,85 @@ pub(crate) struct CheckedDistributionOperation {
     prepared: antecedent_estimate::PreparedFunctionalDistribution,
 }
 
+/// Retained checked family plan for a static DAG, complete observation mean curve.
+/// The grid is copied into the plan so execution can detect query tampering before
+/// handing the frozen estimand to the response estimator.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedStaticResponseCurve {
+    query: ResponseQuery,
+    grid: Arc<[f64]>,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identifier: crate::strategy_table::IdentifierId,
+    estimator: crate::strategy_table::EstimatorId,
+}
+
+impl CheckedStaticResponseCurve {
+    pub(crate) fn checked_route(
+        &self,
+        query: &ResponseQuery,
+    ) -> Result<(&IdentificationResult, &IdentifiedEstimand), CausalError> {
+        let values = match &query.functional {
+            antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } => treatment
+                .grid
+                .values()
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+            _ => Vec::new(),
+        };
+        if query != &self.query || values.as_slice() != self.grid.as_ref() {
+            return Err(CausalError::Compile {
+                message: "prepared response curve query or grid changed; re-prepare the study"
+                    .into(),
+            });
+        }
+        let _procedure = (self.identifier, self.estimator);
+        Ok((&self.identification, &self.estimand))
+    }
+
+    pub(crate) const fn procedure(
+        &self,
+    ) -> (crate::strategy_table::IdentifierId, crate::strategy_table::EstimatorId) {
+        (self.identifier, self.estimator)
+    }
+}
+
+/// Checked binding for the prepared static Bayesian mean ATE g-computation row.
+/// It keeps the original query, selected identification claim and inference
+/// configuration together so estimate clicks cannot silently select another row.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianGcompOperation {
+    pub(crate) query: AverageEffectQuery,
+    pub(crate) identification: IdentificationResult,
+    pub(crate) estimand: IdentifiedEstimand,
+    pub(crate) inference: InferenceMode,
+}
+
+impl CheckedBayesianGcompOperation {
+    /// Query retained by the checked Bayesian g-computation route.
+    #[must_use]
+    pub fn query(&self) -> &AverageEffectQuery {
+        &self.query
+    }
+
+    /// Selected identification claim retained for this query.
+    #[must_use]
+    pub fn identification(&self) -> &IdentificationResult {
+        &self.identification
+    }
+
+    /// Selected causal target retained for this query.
+    #[must_use]
+    pub fn estimand(&self) -> &IdentifiedEstimand {
+        &self.estimand
+    }
+
+    /// Bayesian prior and inference configuration bound at prepare time.
+    #[must_use]
+    pub fn inference(&self) -> &InferenceMode {
+        &self.inference
+    }
+}
+
 impl CheckedDistributionOperation {
     pub(crate) fn query(&self) -> &InterventionalDistributionQuery {
         &self.query
@@ -1529,6 +1608,10 @@ pub struct SampledPreparedState {
     nested_counterfactual: Option<crate::gcm::NestedCounterfactualOperation>,
     /// Checked functional-distribution program retained through estimate and refresh.
     distribution_operation: Option<CheckedDistributionOperation>,
+    /// Checked static-DAG mean-curve family plan.
+    checked_response_curve: Option<CheckedStaticResponseCurve>,
+    /// Checked query / identification / prior configuration for static Bayesian mean ATE.
+    bayesian_gcomp_operation: Option<CheckedBayesianGcompOperation>,
 }
 
 impl std::ops::Deref for PreparedStudy {
@@ -1544,6 +1627,12 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    /// Checked Bayesian g-computation receipt for a static mean ATE, when this
+    /// prepared handle uses that licensed route.
+    #[must_use]
+    pub fn checked_bayesian_gcomp_operation(&self) -> Option<&CheckedBayesianGcompOperation> {
+        self.bayesian_gcomp_operation.as_ref()
+    }
     /// Checked linear adjustment lowering retained by this prepared handle.
     ///
     /// `None` means this route has not migrated to the checked adjustment path;
@@ -2106,6 +2195,8 @@ impl PreparedStudy {
             rebound_linear.as_ref(),
             self.nested_counterfactual.as_ref(),
             self.distribution_operation.as_ref(),
+            self.bayesian_gcomp_operation.as_ref(),
+            self.checked_response_curve.as_ref(),
             ctx,
         )?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
@@ -2149,7 +2240,9 @@ impl PreparedStudy {
         // generic Study refresh route would rederive an unchecked preparation.
         let checked_result = (self.checked_linear.is_some()
             || self.nested_counterfactual.is_some()
-            || self.distribution_operation.is_some())
+            || self.distribution_operation.is_some()
+            || self.checked_response_curve.is_some()
+            || self.bayesian_gcomp_operation.is_some())
         .then(|| self.estimate(&data, ctx))
         .transpose()?;
         let mut refreshed = self.analysis.clone();
@@ -2163,7 +2256,7 @@ impl PreparedStudy {
         refreshed.data = DataInput::Tabular(data);
         if let Some(result) = checked_result {
             self.replace_study(refreshed);
-            self.score_table = None; // the checked route is a mean ATE
+            self.score_table = None; // checked routes carry their own refreshed estimate state
             return Ok(result);
         }
         let mut result = refreshed.execute(&self.plan, ctx)?;
@@ -2939,6 +3032,83 @@ impl Study {
                 }
                 _ => None,
             };
+        let bayesian_gcomp_operation = match (
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            &analysis.inference,
+            analysis.graph.class(),
+            plan.logical.record.estimator.as_deref(),
+        ) {
+            (
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                InferenceMode::Bayesian(_),
+                GraphClass::Dag,
+                Some(estimator),
+            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && estimator == crate::strategy_table::EstimatorId::BayesianGcomp.as_str() =>
+            {
+                Some(CheckedBayesianGcompOperation {
+                    query: query.clone(),
+                    identification: cache.identification.clone(),
+                    estimand: cache.estimand.clone(),
+                    inference: analysis.inference.clone(),
+                })
+            }
+            _ => None,
+        };
+        let checked_response_curve = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+                if query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == TargetPopulation::AllObserved
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    )
+                    && matches!(analysis.inference, InferenceMode::Frequentist)
+                    && plan
+                        .logical
+                        .record
+                        .identifier
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)
+                        == crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER
+                    && plan
+                        .logical
+                        .record
+                        .estimator
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
+                        == crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR =>
+            {
+                let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =
+                    &query.functional
+                else {
+                    unreachable!()
+                };
+                Some(CheckedStaticResponseCurve {
+                    query: query.clone(),
+                    grid: Arc::from(
+                        treatment
+                            .grid
+                            .values()
+                            .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                    ),
+                    identification: cache.identification.clone(),
+                    estimand: cache.estimand.clone(),
+                    identifier: crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID,
+                    estimator: crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR_ID,
+                })
+            }
+            _ => None,
+        };
         let score_table = analysis.prepare_score_table(ctx)?;
         Ok(PreparedStudy {
             state: SampledPreparedState {
@@ -2952,6 +3122,8 @@ impl Study {
                 checked_linear,
                 nested_counterfactual,
                 distribution_operation,
+                checked_response_curve,
+                bayesian_gcomp_operation,
             },
         })
     }
@@ -4096,6 +4268,123 @@ mod tests {
         assert!(!is_supplied_static_graph(GraphClass::TemporalDag));
         assert!(!is_supplied_static_graph(GraphClass::TemporalCpdag));
         assert!(!is_supplied_static_graph(GraphClass::TemporalPag));
+    }
+}
+
+#[cfg(test)]
+mod checked_response_curve_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec, MeasurementSpec,
+        ResponseFunctional, ResponseQuery, RoleHint, SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+    };
+    use antecedent_graph::Dag;
+
+    use super::Study;
+
+    fn data(shift: f64) -> TabularData {
+        let mut schema = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("x", RoleHint::Context),
+            ("a", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            schema
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = schema.build().unwrap();
+        let n = 120;
+        let x: Vec<_> = (0..n).map(|i| (i as f64 * 0.13).sin()).collect();
+        let a: Vec<_> = (0..n).map(|i| 0.6 * x[i] + (i as f64 * 0.31).cos()).collect();
+        let y: Vec<_> = (0..n)
+            .map(|i| shift + 1.7 * a[i] + 0.8 * x[i] + (i as f64 * 0.23).sin() * 0.1)
+            .collect();
+        let cols = [x, a, y]
+            .into_iter()
+            .enumerate()
+            .map(|(i, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(i as u32),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap())
+    }
+
+    fn study(data: TabularData, grid: &[f64]) -> Study {
+        let graph =
+            Dag::from_named_edges(data.schema(), &[("x", "a"), ("x", "y"), ("a", "y")]).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(2),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(1),
+                GridSpec::Values(Arc::from(grid)),
+            ),
+        });
+        Study::tabular(data)
+            .graph(graph)
+            .query(query)
+            .bootstrap_replicates(0)
+            .refute(super::super::builder::RefuteSuite::None)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn prepared_curve_refresh_matches_independent_numeric_estimate() {
+        let grid = [-0.5, 0.0, 0.5];
+        let context = ExecutionContext::for_tests(17);
+        let mut prepared = study(data(0.0), &grid).prepare(&context).unwrap();
+        let refreshed = data(0.4);
+        let actual = prepared.refresh(refreshed.clone(), &context).unwrap().response.unwrap();
+        let expected = study(refreshed, &grid).run(&context).unwrap().response.unwrap();
+        assert_eq!(actual, expected);
+        let antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Surface { mean, .. },
+        ) = actual.estimate
+        else {
+            panic!("expected a point-identified curve")
+        };
+        for (&dose, &estimate) in grid.iter().zip(mean.iter()) {
+            let truth = 0.4 + 1.7 * dose;
+            assert!(
+                (estimate - truth).abs() < 0.15,
+                "dose={dose}: estimate={estimate}, truth={truth}"
+            );
+        }
+    }
+
+    #[test]
+    fn prepared_curve_refuses_a_tampered_grid() {
+        let context = ExecutionContext::for_tests(17);
+        let mut prepared = study(data(0.0), &[-0.5, 0.0, 0.5]).prepare(&context).unwrap();
+        let changed = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(2),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(1),
+                GridSpec::Values(Arc::from([-0.5, 0.25, 0.5])),
+            ),
+        });
+        prepared.study_mut().query = changed.into();
+        let err = prepared.estimate(&data(0.2), &context).unwrap_err();
+        assert!(err.to_string().contains("response curve query or grid changed"));
     }
 }
 
