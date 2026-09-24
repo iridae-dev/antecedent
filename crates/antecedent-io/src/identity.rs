@@ -1456,6 +1456,10 @@ pub struct ProgramIdentityWire {
     /// Omitted by older artifacts and by other estimators.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub functional_program: Option<crate::FunctionalProgramWire>,
+    /// Checked AIPW semantic lowering (target roles and procedure choices).
+    /// Data-dependent complete-case rows are carried separately by the contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_aipw_lowering: Option<crate::CheckedAipwLoweringWire>,
 }
 
 /// Digest a program identity.

@@ -70,6 +70,9 @@ pub struct ContractIdentitiesWire {
     /// references it, and the seal covers it like every other identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_weights: Option<[u8; 32]>,
+    /// Identity of the checked AIPW row binding, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_aipw_rows: Option<[u8; 32]>,
 }
 
 /// Row weights of a retarget, carried with the identity they bind so a
@@ -104,8 +107,57 @@ impl TryFrom<&ContractIdentities> for ContractIdentitiesWire {
             execution: None,
             score_reuse: None,
             target_weights: None,
+            checked_aipw_rows: None,
         })
     }
+}
+
+/// Semantic choices retained by the checked AIPW lowering.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckedAipwLoweringWire {
+    /// Lowering payload format.
+    pub format: u16,
+    /// Selected causal functional expression id.
+    pub functional: u32,
+    /// Treatment variable id.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Adjustment variable ids in selected-estimand order.
+    pub adjustment: Vec<u32>,
+    /// Target population name (`all_observed` for this checked route).
+    pub population: String,
+    /// Licensed procedure (`cross_fitted_logistic_ols`).
+    pub procedure: String,
+    /// Cross-fitting folds.
+    pub folds: u64,
+    /// Analytic standard-error kind.
+    pub se_kind: String,
+    /// Lag for lagged analytic standard-error methods, when applicable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub se_lag: Option<u64>,
+    /// Bootstrap replicate count (zero means disabled).
+    pub bootstrap_replicates: u32,
+}
+
+/// Data-dependent complete-case rows bound to a checked AIPW lowering.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckedAipwRowsWire {
+    /// Row-binding payload format.
+    pub format: u16,
+    /// Source row ids retained by the checked estimator, in source order.
+    pub rows: Vec<u32>,
+    /// Data snapshot identity these rows came from.
+    pub data_snapshot: [u8; 32],
+}
+
+/// Hash a checked AIPW row binding for inclusion in contract identities.
+///
+/// # Errors
+///
+/// CBOR encoding failure.
+pub fn checked_aipw_rows_digest(rows: &CheckedAipwRowsWire) -> Result<[u8; 32], IoError> {
+    Ok(payload_digest("analysis_result.checked_aipw_rows", &to_cbor(rows)?))
 }
 
 /// Optional slot: exactly one of `value` or `unavailable` is required.
@@ -413,6 +465,9 @@ pub struct AnalysisResultContractWire {
     /// Row weights and their identity, for a row-weight retarget.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_weights: Option<TargetWeightsSectionWire>,
+    /// Data-dependent row binding for checked AIPW, when retained.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_aipw_rows: Option<CheckedAipwRowsWire>,
 }
 
 /// Independent consumption of a composite analysis-result artifact.
@@ -717,6 +772,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
             unresolved.push(Arc::from("program.functional_binding"));
         }
     }
+    verify_checked_aipw(contract, &mut unresolved);
     require_payload_digest(
         &mut unresolved,
         "identities.inference_binding",
@@ -775,6 +831,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         contract.data_snapshot.as_ref().map(|item| item.observation),
         Some(&contract.identities.observation),
     );
+    verify_checked_aipw_rows(contract, &mut unresolved);
     verify_layer_links(contract, &mut unresolved);
     match contract_seal_of(contract) {
         Ok(seal) if seal == contract.seal => {}
@@ -845,6 +902,151 @@ fn verify_layer_links(contract: &AnalysisResultContractWire, unresolved: &mut Ve
                 unresolved.push(Arc::from("program.commitments.prior_required"));
             }
         }
+    }
+}
+
+fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+    let lowering =
+        contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
+    if contract.estimator.as_deref() == Some("aipw") && lowering.is_none() {
+        unresolved.push(Arc::from("program.checked_aipw_lowering"));
+        unresolved.push(Arc::from("checked_aipw.row_binding"));
+        return;
+    }
+    let Some(lowering) = lowering else { return };
+    let valid_format = lowering.format == 1;
+    let valid_method = matches!(
+        lowering.se_kind.as_str(),
+        "homoskedastic"
+            | "hc0"
+            | "hc1"
+            | "hc2"
+            | "hc3"
+            | "cluster"
+            | "multiway"
+            | "newey_west"
+            | "panel_cluster_hac"
+    );
+    let lag_valid = matches!(lowering.se_kind.as_str(), "newey_west" | "panel_cluster_hac")
+        == lowering.se_lag.is_some();
+    if !valid_format || !valid_method || !lag_valid || lowering.folds != 5 {
+        unresolved.push(Arc::from("program.checked_aipw_lowering"));
+    }
+    if contract.estimator.as_deref() != Some("aipw") {
+        unresolved.push(Arc::from("program.checked_aipw_binding"));
+    }
+    let commitments = contract.program.as_ref().map(|program| &program.commitments);
+    if commitments.is_none_or(|commitments| {
+        commitments.inference != "frequentist"
+            || commitments.prior_required
+            || commitments.se_kind.as_deref() != Some(lowering.se_kind.as_str())
+            || commitments.interval_method
+                != if lowering.bootstrap_replicates > 0 { "bootstrap_se" } else { "analytic_se" }
+    }) {
+        unresolved.push(Arc::from("program.checked_aipw_uncertainty"));
+    }
+    if contract.inference_binding.as_ref().is_none_or(|binding| {
+        let choices_match = match binding.estimator_spec.as_ref() {
+            Some(crate::EstimatorSpecWire::Aipw(config)) => {
+                config.bootstrap_replicates == lowering.bootstrap_replicates
+                    && config.se_kind.as_deref() == Some(lowering.se_kind.as_str())
+                    && matches!(
+                        config.overlap,
+                        crate::OverlapPolicyWire::RequireDiagnostics { trim_bits: None, .. }
+                    )
+            }
+            Some(crate::EstimatorSpecWire::Default(estimator)) if estimator == "aipw" => {
+                lowering.se_kind == "homoskedastic"
+                    && binding.bootstrap_replicates == lowering.bootstrap_replicates
+            }
+            None => binding.bootstrap_replicates == lowering.bootstrap_replicates,
+            _ => false,
+        };
+        binding.inference != "frequentist" || binding.bayesian.is_some() || !choices_match
+    }) {
+        unresolved.push(Arc::from("program.checked_aipw_uncertainty"));
+    }
+    let query_matches = match &contract.target.query {
+        crate::CausalQueryWire::AverageEffect {
+            treatment,
+            outcome,
+            control,
+            active,
+            target_population: crate::TargetPopulationWire::AllObserved,
+            outcome_functional: crate::query_wire::OutcomeFunctionalWire::Mean,
+            effect_modifiers,
+        } => {
+            *treatment == lowering.treatment
+                && *outcome == lowering.outcome
+                && effect_modifiers.is_empty()
+                && is_set_value(control, lowering.treatment, 0.0)
+                && is_set_value(active, lowering.treatment, 1.0)
+                && lowering.population == "all_observed"
+        }
+        _ => false,
+    };
+    let estimand_matches = contract.identification_product.as_ref().is_some_and(|product| {
+        product.arena.nodes.get(lowering.functional as usize).is_some()
+            && product.estimands.iter().any(|estimand| {
+                estimand.functional == lowering.functional
+                    && estimand.adjustment_set == lowering.adjustment
+                    && estimand.instruments.is_empty()
+                    && estimand.mediators.is_empty()
+            })
+    });
+    let adjustments_unique =
+        lowering.adjustment.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
+            == lowering.adjustment.len()
+            && !lowering.adjustment.contains(&lowering.treatment)
+            && !lowering.adjustment.contains(&lowering.outcome);
+    if !query_matches
+        || !estimand_matches
+        || !adjustments_unique
+        || lowering.procedure != "cross_fitted_logistic_ols"
+    {
+        unresolved.push(Arc::from("program.checked_aipw_binding"));
+    }
+}
+
+fn is_set_value(intervention: &crate::InterventionWire, variable: u32, value: f64) -> bool {
+    matches!(intervention,
+        crate::InterventionWire::Set { variable: actual, value: crate::ValueWire::Float64(actual_value) }
+            if *actual == variable && actual_value.to_bits() == value.to_bits())
+}
+
+fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+    let row_binding = contract.checked_aipw_rows.as_ref();
+    if row_binding.is_some() != contract.identities.checked_aipw_rows.is_some() {
+        unresolved.push(Arc::from("checked_aipw.row_binding"));
+        return;
+    }
+    let Some(row_binding) = row_binding else {
+        if contract.estimator.as_deref() == Some("aipw")
+            || contract
+                .program
+                .as_ref()
+                .is_some_and(|program| program.checked_aipw_lowering.is_some())
+        {
+            unresolved.push(Arc::from("checked_aipw.row_binding"));
+        }
+        return;
+    };
+    let digest_matches = checked_aipw_rows_digest(row_binding)
+        .is_ok_and(|digest| Some(digest) == contract.identities.checked_aipw_rows);
+    let snapshot_matches = row_binding.data_snapshot == contract.identities.data_snapshot
+        && contract.data_snapshot.as_ref().is_some_and(|snapshot| {
+            row_binding.rows.len() as u64 <= snapshot.row_count
+                && row_binding.rows.iter().all(|row| u64::from(*row) < snapshot.row_count)
+        });
+    let ordered_unique =
+        !row_binding.rows.is_empty() && row_binding.rows.windows(2).all(|pair| pair[0] < pair[1]);
+    if row_binding.format != 1
+        || !digest_matches
+        || !snapshot_matches
+        || !ordered_unique
+        || contract.estimator.as_deref() != Some("aipw")
+    {
+        unresolved.push(Arc::from("checked_aipw.row_binding"));
     }
 }
 
@@ -1692,6 +1894,7 @@ mod tests {
             completion_budget: None,
             commitments,
             functional_program: None,
+            checked_aipw_lowering: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {
@@ -1738,6 +1941,7 @@ mod tests {
             execution: Some(*execution_digest.as_bytes()),
             score_reuse: None,
             target_weights: None,
+            checked_aipw_rows: None,
         };
         let mut contract = AnalysisResultContractWire {
             format: CONTRACT_SECTION_FORMAT,
@@ -1791,6 +1995,7 @@ mod tests {
             execution: Some(execution),
             score_reuse: None,
             target_weights: None,
+            checked_aipw_rows: None,
         };
         let claim = ClaimSectionWire {
             claim_id: [0; 32],
@@ -2150,6 +2355,116 @@ mod tests {
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+    }
+
+    #[test]
+    fn legacy_aipw_contract_is_readable_with_executable_dependency_refusal() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("aipw".into());
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = Some("aipw".into());
+        program.commitments.resolved_estimator = Some("aipw".into());
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert_eq!(consumed.body, body);
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "program.checked_aipw_lowering" })
+        );
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
+        );
+    }
+
+    #[test]
+    fn rehashed_checked_aipw_with_invalid_fold_count_is_refused() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("aipw".into());
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = Some("aipw".into());
+        program.commitments.resolved_estimator = Some("aipw".into());
+        program.checked_aipw_lowering = Some(CheckedAipwLoweringWire {
+            format: 1,
+            functional: 0,
+            treatment: 0,
+            outcome: 1,
+            adjustment: Vec::new(),
+            population: "all_observed".into(),
+            procedure: "cross_fitted_logistic_ols".into(),
+            folds: 0,
+            se_kind: "hc1".into(),
+            se_lag: None,
+            bootstrap_replicates: 0,
+        });
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "program.checked_aipw_lowering" })
+        );
+    }
+
+    #[test]
+    fn checked_aipw_rows_require_the_sealed_snapshot_digest() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("aipw".into());
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = Some("aipw".into());
+        program.commitments.resolved_estimator = Some("aipw".into());
+        program.checked_aipw_lowering = Some(CheckedAipwLoweringWire {
+            format: 1,
+            functional: 0,
+            treatment: 0,
+            outcome: 1,
+            adjustment: Vec::new(),
+            population: "all_observed".into(),
+            procedure: "cross_fitted_logistic_ols".into(),
+            folds: 5,
+            se_kind: "hc1".into(),
+            se_lag: None,
+            bootstrap_replicates: 0,
+        });
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        let row_binding = CheckedAipwRowsWire {
+            format: 1,
+            rows: vec![0, 2, 4, 6],
+            data_snapshot: contract.identities.data_snapshot,
+        };
+        contract.checked_aipw_rows = Some(row_binding);
+        contract.identities.checked_aipw_rows = Some([0; 32]);
+        seal_claim(&mut contract, &body);
+
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
+        );
     }
 
     #[test]

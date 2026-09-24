@@ -80,11 +80,12 @@ pub use contract_section::TargetWeightsSectionWire;
 pub use contract_section::{
     AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
     AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
-    ClaimDomainsWire, ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire,
-    IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
-    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim, claim_domains,
-    claim_kind_name, consume_analysis_result, contract_seal, decode_analysis_result_contract,
-    digest_hex, project_claim_host, project_lossy_scalar, result_digest, support_empirical,
+    CheckedAipwLoweringWire, CheckedAipwRowsWire, ClaimDomainsWire, ClaimHostProjection,
+    ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire, ObligationSectionWire,
+    ReasoningSectionWire, SlotSectionWire, SupportSlotWire, UncertaintyComponentWire,
+    UncertaintySlotWire, accept_claim, checked_aipw_rows_digest, claim_domains, claim_kind_name,
+    consume_analysis_result, contract_seal, decode_analysis_result_contract, digest_hex,
+    project_claim_host, project_lossy_scalar, result_digest, support_empirical,
     validate_contract_section, validate_mixture_masses, verify_contract_against_body,
     weight_basis_name,
 };
