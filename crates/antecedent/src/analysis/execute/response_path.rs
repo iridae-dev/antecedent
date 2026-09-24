@@ -2,6 +2,436 @@
 
 use super::*;
 
+/// Sealed static derivative response plan. It retains the scientific query,
+/// identification claim, adjustment basis, selected estimator, and inference
+/// procedure together so execution cannot reconstruct a different derivative
+/// from a method string after preparation.
+///
+/// This operation covers the six scalar/vector derivative functionals. Response
+/// curves and intervention levels retain their own checked family plans.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedDerivativeResponseOperation {
+    graph: Dag,
+    graph_signature: (usize, Arc<[(u32, u32)]>),
+    query: ResponseQuery,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
+    fitter: ContinuousResponseEstimator,
+    inference: InferenceMode,
+    max_derivative_cells: usize,
+}
+
+impl CheckedDerivativeResponseOperation {
+    /// Bind a derivative query to its exact identified expression and selected
+    /// numerical procedure. The caller supplies the planner's selected IDs;
+    /// this constructor verifies those IDs against the functional itself.
+    pub(crate) fn checked(
+        graph: &Dag,
+        query: &ResponseQuery,
+        identification: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+        identifier: IdentifierId,
+        estimator: EstimatorId,
+        inference: InferenceMode,
+        options: antecedent_estimate::ContinuousResponseOptions,
+    ) -> Result<Self, CausalError> {
+        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let expected_estimator = match &query.functional {
+            ResponseFunctional::PointDerivative { .. } => EstimatorId::ResponseKennedyDr,
+            ResponseFunctional::AverageDerivative { .. } => EstimatorId::ResponseRieszAde,
+            ResponseFunctional::DirectionalDerivative { .. }
+            | ResponseFunctional::Jacobian { .. } => EstimatorId::ResponseGamDerivative,
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "checked derivative operation requires a derivative response functional",
+                });
+            }
+        };
+        let outcome_ids = query.functional.outcome_ids();
+        let treatment_ids = query.functional.treatment_ids();
+        let max_derivative_cells =
+            outcome_ids.len().checked_mul(treatment_ids.len()).ok_or_else(|| {
+                CausalError::Compile { message: "derivative response cell count overflow".into() }
+            })?;
+        // Bound materialized values even if a future query version admits more
+        // outcome-treatment coordinates. At one million cells the unavoidable
+        // f64 result/lower/upper arrays remain in the same memory class as the
+        // existing response-grid materialization ceiling.
+        const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
+        if max_derivative_cells == 0 || max_derivative_cells > MAX_DERIVATIVE_CELLS {
+            return Err(CausalError::Unsupported {
+                message: "checked derivative response exceeds the 1000000-cell materialization limit",
+            });
+        }
+        if query.temporal.is_some()
+            || query.observation != ObservationSpec::Complete
+            || estimator != expected_estimator
+            || identification.query != CausalQuery::Response(query.clone())
+            || identification.status != IdentificationStatus::NonparametricallyIdentified
+            || identification.estimands.is_empty()
+            || identification.estimands.first().is_none_or(|candidate| {
+                candidate.method != estimand.method
+                    || candidate.adjustment_set != estimand.adjustment_set
+                    || candidate.instruments != estimand.instruments
+                    || candidate.mediators != estimand.mediators
+                    || candidate.functional != estimand.functional
+                    || candidate.rd_design != estimand.rd_design
+            })
+            || !matches!(
+                estimand.method_kind().ok(),
+                Some(EstimandMethod::BackdoorAdjustment | EstimandMethod::BackdoorEfficient)
+            )
+            || identification
+                .estimands
+                .iter()
+                .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
+            || estimand.instruments.len() > 0
+            || estimand.mediators.len() > 0
+        {
+            return Err(CausalError::Compile {
+                message: "derivative response query, identification, estimand, or estimator do not form one checked static adjustment route".into(),
+            });
+        }
+        let fitter = ContinuousResponseEstimator {
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            options,
+        };
+        Ok(Self {
+            graph: graph.clone(),
+            graph_signature: dag_signature(graph),
+            query: query.clone(),
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+            identifier,
+            estimator,
+            fitter,
+            inference,
+            max_derivative_cells,
+        })
+    }
+
+    /// Retained query used for execution and artifact inspection.
+    pub(crate) fn query(&self) -> &ResponseQuery {
+        &self.query
+    }
+
+    /// The graph whose identification claim this operation retains.
+    pub(crate) fn graph(&self) -> &Dag {
+        &self.graph
+    }
+
+    /// Verify that execution still uses the graph fixed at preparation.
+    pub(crate) fn matches_graph(&self, graph: &Dag) -> bool {
+        dag_signature(graph) == self.graph_signature
+    }
+
+    /// Checked identification result and expression target.
+    pub(crate) fn target(&self) -> (&IdentificationResult, &IdentifiedEstimand) {
+        (&self.identification, &self.estimand)
+    }
+
+    /// Selected estimator and identifier identities.
+    pub(crate) const fn procedure(&self) -> (IdentifierId, EstimatorId) {
+        (self.identifier, self.estimator)
+    }
+
+    /// Maximum materialized derivative coordinates for this operation.
+    pub(crate) const fn max_derivative_cells(&self) -> usize {
+        self.max_derivative_cells
+    }
+
+    /// Execute only the retained target and procedure. This is the common point
+    /// at which frequentist and Bayesian derivative procedures diverge.
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalResponse, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let identification_status = self.identification.status;
+        let assumptions = self.identification.required_assumptions.clone();
+        let response = match &self.inference {
+            InferenceMode::Frequentist => self
+                .fitter
+                .estimate_identified(data, &self.query, identification_status, assumptions)
+                .map_err(CausalError::from)?,
+            InferenceMode::Bayesian(config) => {
+                let mut estimator = bayesian_gcomp(config, ctx);
+                estimator.prior.clone_from(&config.prior);
+                self.fitter
+                    .estimate_bayesian(
+                        data,
+                        &self.query,
+                        identification_status,
+                        assumptions,
+                        &estimator,
+                        ctx,
+                    )
+                    .map_err(CausalError::from)?
+            }
+        };
+        if response.estimand != self.query.functional {
+            return Err(CausalError::Compile {
+                message: "derivative estimator returned a response for a different functional"
+                    .into(),
+            });
+        }
+        Ok(response)
+    }
+}
+
+fn dag_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
+    let mut edges = graph
+        .edges()
+        .filter_map(|edge| edge.parent_child())
+        .map(|(parent, child)| (parent.raw(), child.raw()))
+        .collect::<Vec<_>>();
+    edges.sort_unstable();
+    (graph.node_count(), edges.into())
+}
+
+impl super::Study {
+    /// Execute a retained derivative-response operation without consulting the
+    /// study query, estimator string, or a fresh identification pass.
+    pub(crate) fn execute_checked_derivative_response(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        operation: &CheckedDerivativeResponseOperation,
+    ) -> Result<StudyResult, CausalError> {
+        if self.query != CausalQuery::Response(operation.query().clone())
+            || self.graph.as_dag().is_none_or(|graph| !operation.matches_graph(graph))
+        {
+            return Err(CausalError::Compile {
+                message: "prepared derivative operation no longer matches the study query or graph"
+                    .into(),
+            });
+        }
+        let started = Instant::now();
+        let response = operation.execute(data, ctx)?;
+        let (identification, estimand) = operation.target();
+        let (treatment, outcome) = response_primary_pair(&operation.query().functional)?;
+        let (scalar, standard_error) = response_scalar_summary(&response);
+        let estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let (identifier_id, estimator_id) = operation.procedure();
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(identify_cached_diagnostic());
+        if !scalar.is_finite() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.no_scalar_summary",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "this response is function-valued; the scalar effect summary is not applicable and the result is carried by the response payload",
+            ));
+        }
+        diagnostics.extend(response.support.warnings.iter().cloned());
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+            estimate,
+            identifier_id,
+            estimator_id,
+            treatment,
+            outcome,
+            identify_cached: true,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: ctx.cancellation.is_cancelled(),
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    Arc::clone(&response.provenance_id),
+                    Arc::clone(&response.provenance_id),
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            },
+        }))
+    }
+}
+
+#[cfg(test)]
+mod checked_derivative_operation_tests {
+    use super::*;
+    use antecedent_core::{DerivativeScale, ResponseFunctional};
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    #[test]
+    fn sealed_point_derivative_matches_independent_linear_truth_and_binds_query() {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let functional = ResponseFunctional::PointDerivative {
+            outcome,
+            treatment,
+            at: 0.25,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        };
+        let query = ResponseQuery::new(functional);
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let identifier = crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID;
+        let identification = crate::strategy_table::identify_static_query(
+            identifier,
+            &graph,
+            &CausalQuery::Response(query.clone()),
+        )
+        .unwrap();
+        let estimand = identification.estimands.first().unwrap().clone();
+        let estimator = EstimatorId::ResponseKennedyDr;
+        let options = antecedent_estimate::ContinuousResponseOptions {
+            bandwidth: Some(0.35),
+            ..Default::default()
+        };
+        let operation = CheckedDerivativeResponseOperation::checked(
+            &graph,
+            &query,
+            &identification,
+            &estimand,
+            identifier,
+            estimator,
+            InferenceMode::Frequentist,
+            options.clone(),
+        )
+        .unwrap();
+
+        let a: Vec<_> = (0..401).map(|i| -2.0 + f64::from(i) / 100.0).collect();
+        let y: Vec<_> = a.iter().map(|a| 7.0 + 2.5 * a).collect();
+        let data =
+            TabularData::from_f64_columns([("a", a.as_slice()), ("y", y.as_slice())]).unwrap();
+        let response = operation.execute(&data, &ExecutionContext::for_tests(9)).unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(estimate)) =
+            response.estimate
+        else {
+            panic!("expected a point-identified scalar derivative")
+        };
+        assert!((estimate - 2.5).abs() < 0.08, "estimated derivative {estimate}");
+        assert_eq!(operation.query(), &query);
+        assert!(operation.matches_graph(&graph));
+        assert!(!operation.matches_graph(&Dag::with_variables(2)));
+        assert_eq!(operation.target().1.functional, estimand.functional);
+        assert_eq!(operation.procedure(), (identifier, estimator));
+        assert_eq!(operation.max_derivative_cells(), 1);
+
+        let changed = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome,
+            treatment,
+            at: 0.75,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        });
+        assert!(
+            CheckedDerivativeResponseOperation::checked(
+                &graph,
+                &changed,
+                &identification,
+                &estimand,
+                identifier,
+                estimator,
+                InferenceMode::Frequentist,
+                options.clone(),
+            )
+            .is_err()
+        );
+
+        assert!(
+            CheckedDerivativeResponseOperation::checked(
+                &graph,
+                &query,
+                &identification,
+                &estimand,
+                identifier,
+                EstimatorId::ResponseRieszAde,
+                InferenceMode::Frequentist,
+                options.clone(),
+            )
+            .is_err()
+        );
+
+        let altered_target = IdentifiedEstimand::new(
+            estimand.method.clone(),
+            Arc::clone(&estimand.adjustment_set),
+            Arc::clone(&estimand.instruments),
+            Arc::clone(&estimand.mediators),
+            antecedent_expr::ExprId::from_raw(u32::MAX),
+            estimand.rd_design,
+        );
+        assert!(
+            CheckedDerivativeResponseOperation::checked(
+                &graph,
+                &query,
+                &identification,
+                &altered_target,
+                identifier,
+                estimator,
+                InferenceMode::Frequentist,
+                options,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn derivative_plan_refuses_materialization_over_resource_ceiling() {
+        let outcomes: Arc<[VariableId]> = (0..1_001).map(VariableId::from_raw).collect();
+        let treatments: Arc<[VariableId]> = (1_001..2_002).map(VariableId::from_raw).collect();
+        let at: Arc<[f64]> = vec![0.0; treatments.len()].into();
+        let query = ResponseQuery::new(ResponseFunctional::Jacobian {
+            outcomes,
+            treatments,
+            at,
+            scale: antecedent_core::DerivativeScale::Identity,
+        });
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let identifier = crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID;
+        let identification = crate::strategy_table::identify_static_query(
+            identifier,
+            &graph,
+            &CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+                outcome: VariableId::from_raw(1),
+                treatment: VariableId::from_raw(0),
+                at: 0.0,
+                order: 1,
+                scale: antecedent_core::DerivativeScale::Identity,
+            })),
+        )
+        .unwrap();
+        let estimand = identification.estimands.first().unwrap();
+        let error = CheckedDerivativeResponseOperation::checked(
+            &graph,
+            &query,
+            &identification,
+            estimand,
+            identifier,
+            EstimatorId::ResponseGamDerivative,
+            InferenceMode::Frequentist,
+            antecedent_estimate::ContinuousResponseOptions::default(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("1000000-cell materialization limit"));
+    }
+}
+
 impl super::Study {
     pub(super) fn execute_graph_posterior_response(
         &self,

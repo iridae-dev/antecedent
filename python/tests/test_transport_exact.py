@@ -177,13 +177,14 @@ def test_checked_exact_transport_execution_survives_builder_disposal():
     )
     program = identification.formula
     assert program
-    del builder
+    del builder, graph_builder
     prepared = transport.prepare_exact(
         identification,
         catalog,
         transport.ExactTransportData((law,)),
         at={"x": 1.0},
     )
+    del identification
     retained_plan = prepared.inspect()
     assert retained_plan.identification.available
     result = prepared.estimate()
@@ -335,6 +336,8 @@ def test_catalog_standardization_uses_only_supplied_target_covariate_marginal():
         outcomes=["y"],
         treatments=["x"],
     )
+    builder = identified
+    del graph
     catalog = transport.EvidenceCatalog(
         regimes=[
             transport.EvidenceRegime(
@@ -521,6 +524,46 @@ def test_checked_proof_graph_names_factor_binding_failure():
     assert view["factors"]
     assert any(leaf["binding_failure"] for leaf in view["factors"])
     assert all(leaf["supplied_by"] is None for leaf in view["factors"])
+
+
+def test_classical_checked_program_and_catalog_proof_survive_graph_builder_disposal():
+    """Identification owns a checked expression and a proof of its factor bindings."""
+    graph = Admg.from_edges(["x", "y"], [("x", "y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    builder = identified
+    del graph
+    catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("obs", "target", measured=["x", "y"])],
+    )
+    proof = transport.inspect_proof_graph(builder, catalog)
+    assert proof["steps"]
+    assert proof["factors"]
+    assert all(leaf["supplied_by"] == 0 for leaf in proof["factors"])
+    report = transport.inspect_catalog(builder, catalog)
+    assert report["outcome"] == "identified"
+    assert report["missing_factors"] == []
+    program = builder.formula
+    assert program is not None
+
+    # The native checked derivation and executable wire are retained independently
+    # of the graph/query objects used to ask for identification.
+    data = transport.ExactTransportData(
+        (transport.ExactDiscreteLaw(
+            "target", "obs", (("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+            (0.4, 0.1, 0.15, 0.35), "proof-bound-law",
+        ),)
+    )
+    prepared = transport.prepare_exact(builder, catalog, data, at={"x": 1.0})
+    del builder, identified
+    assert prepared.estimate().probabilities == pytest.approx((0.3, 0.7))
+    assert transport.consume_exact(prepared.export()).estimate().probabilities == pytest.approx(
+        (0.3, 0.7)
+    )
 
 
 def test_hypothetical_catalog_delta_does_not_change_supplied_evidence():
