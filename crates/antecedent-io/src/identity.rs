@@ -1452,6 +1452,10 @@ pub struct ProgramIdentityWire {
     pub completion_budget: Option<u64>,
     /// Licensed inferential commitments.
     pub commitments: InferentialCommitmentsWire,
+    /// Retained checked program for high-level functional-distribution results.
+    /// Omitted by older artifacts and by other estimators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functional_program: Option<crate::FunctionalProgramWire>,
 }
 
 /// Digest a program identity.
