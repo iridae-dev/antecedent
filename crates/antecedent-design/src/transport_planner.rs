@@ -19,6 +19,51 @@ use thiserror::Error;
 
 use crate::{CandidateDesign, DesignCost};
 
+/// Check that a declared study action can produce every regime in its delta.
+///
+/// This guards against a planner claiming sufficiency from catalog rows that its
+/// stated intervention or measurement action could not have collected.
+fn validate_candidate_delta(
+    candidate: &TransportEvidenceCandidate,
+) -> Result<(), TransportPlanningError> {
+    if candidate.delta.proposed_regimes.is_empty() {
+        return Err(TransportPlanningError::InvalidSpec(
+            "candidate delta must contain at least one proposed regime".into(),
+        ));
+    }
+    for regime in candidate.delta.proposed_regimes.iter() {
+        let matches = match &candidate.design {
+            CandidateDesign::Intervene(plan) => {
+                regime.kind == antecedent_core::RegimeKind::Experimental
+                    && same_variables(&plan.targets, &regime.interventions)
+            }
+            CandidateDesign::Measure(plan) => {
+                regime.kind == antecedent_core::RegimeKind::Observational
+                    && regime.interventions.is_empty()
+                    && plan.variables.iter().all(|variable| regime.measured.contains(variable))
+            }
+            CandidateDesign::ObserveEnvironment(_) | CandidateDesign::IncreaseSamplingRate(_) => {
+                false
+            }
+        };
+        if !matches {
+            return Err(TransportPlanningError::InvalidSpec(format!(
+                "candidate {} design does not produce proposed regime {}",
+                candidate.id,
+                regime.id.raw()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn same_variables(
+    left: &[antecedent_core::VariableId],
+    right: &[antecedent_core::VariableId],
+) -> bool {
+    left.len() == right.len() && left.iter().all(|variable| right.contains(variable))
+}
+
 /// One feasible, caller-declared transport evidence addition and its cost.
 #[derive(Clone, Debug)]
 pub struct TransportEvidenceCandidate {
@@ -246,7 +291,7 @@ fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, antecedent_io::Io
     Ok(blake3::hash(&bytes).to_hex().to_string())
 }
 
-fn candidate_design_record(design: &CandidateDesign) -> CandidateDesignRecord {
+pub(crate) fn candidate_design_record(design: &CandidateDesign) -> CandidateDesignRecord {
     match design {
         CandidateDesign::Measure(plan) => CandidateDesignRecord {
             kind: "measure".into(),
@@ -326,6 +371,7 @@ pub fn plan_transport_evidence(
         }
         // Validate the delta even when it falls beyond the evaluation cap.
         candidate.delta.preview_catalog(base_catalog)?;
+        validate_candidate_delta(candidate)?;
     }
 
     let count = spec.max_evaluated.min(spec.candidates.len());
@@ -568,6 +614,30 @@ mod tests {
             &TransportPlanSpec {
                 candidates: vec![],
                 max_evaluated: 0,
+                identification_limits: SidLimits::default(),
+            },
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(matches!(error, TransportPlanningError::InvalidSpec(_)));
+    }
+
+    #[test]
+    fn candidate_design_must_match_its_proposed_regime() {
+        let (diagram, query, catalog, x) = fixture();
+        let mut bad = candidate(&catalog, x, "bad", &[VariableId::from_raw(1)], 1.0);
+        bad.design = crate::CandidateDesign::Measure(crate::MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(1)]),
+            cost: bad.cost,
+            tag: 0,
+        });
+        let error = plan_transport_evidence(
+            &diagram,
+            &query,
+            &catalog,
+            &TransportPlanSpec {
+                candidates: vec![bad],
+                max_evaluated: 1,
                 identification_limits: SidLimits::default(),
             },
             &antecedent_core::ExecutionContext::for_tests(1),

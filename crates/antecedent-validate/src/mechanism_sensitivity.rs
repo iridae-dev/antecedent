@@ -16,10 +16,12 @@ use std::{
 };
 
 use antecedent_core::{EvidenceKind, RegimeId, VariableId};
+use antecedent_expr::ExactTransportData;
 use antecedent_expr::ExprNode;
 use antecedent_graph::{DenseNodeId, NodeRef, SelectionDiagram};
 use antecedent_identify::{
-    BoundTransportFunctional, ClassicalTransportQuery, SidLimits, verify_classical_transport,
+    BoundTransportFunctional, BoundZTransportFunctional, ClassicalTransportQuery, SidLimits,
+    verify_classical_transport, verify_z_transport_derivation,
 };
 
 /// Inputs for discrete outcome-kernel contamination on a fixed graph.
@@ -181,6 +183,221 @@ pub struct FixedGraphMechanismSensitivityResult {
     pub assumptions: Vec<String>,
     /// Baseline, exact assumption range, tipping point, and optimization witness.
     pub response: DiscreteKernelSensitivityResult,
+}
+
+/// Auditable result for outcome-kernel contamination of the checked z formula.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ZTransportMechanismSensitivityResult {
+    /// Stable identity of the checked derivation's inputs.
+    pub query_binding: String,
+    /// Provider snapshot used by the baseline formula.
+    pub provider_snapshot: String,
+    /// Source law regime used by the formula.
+    pub source_regime: RegimeId,
+    /// Baseline, exact range, tipping point, and witnesses.
+    pub response: DiscreteKernelSensitivityResult,
+}
+
+/// Refusal from the narrow z outcome-kernel sensitivity contract.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ZTransportSensitivityError {
+    /// Proof does not independently verify against the supplied diagram.
+    InvalidProof,
+    /// Formula is not a checked outcome conditional times its shared parent marginal.
+    IncompatibleFormula,
+    /// Exact source provider does not match the formula's population, regime, world, or snapshot.
+    ProviderMismatch,
+    /// Outcome, treatment, or shared parent has unsupported finite numeric support.
+    UnsupportedDomain,
+    /// Source law cannot supply every outcome kernel stratum.
+    IncompleteKernel,
+    /// Contamination fraction or response threshold is invalid.
+    InvalidSensitivity(DiscreteKernelSensitivityError),
+}
+
+impl fmt::Display for ZTransportSensitivityError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::InvalidProof => "z-transport derivation failed independent verification",
+            Self::IncompatibleFormula => {
+                "z formula does not expose one shared outcome-kernel factor"
+            }
+            Self::ProviderMismatch => {
+                "source provider does not match the checked z formula binding"
+            }
+            Self::UnsupportedDomain => {
+                "z sensitivity requires finite numeric outcome and binary treatment domains"
+            }
+            Self::IncompleteKernel => "source law has an empty outcome-kernel stratum",
+            Self::InvalidSensitivity(error) => return write!(f, "{error}"),
+        })
+    }
+}
+impl std::error::Error for ZTransportSensitivityError {}
+
+/// Evaluate the checked z formula under a single coherent outcome-kernel contamination.
+///
+/// The compatible formula is `sum_w P_source(Y | w, X, do(Z)) P_source(w | do(Z))`.
+/// The same conditional kernel is used to form both treatment arms. The returned
+/// range is an assumption range over replacement outcome distributions.
+pub fn z_transport_mechanism_sensitivity(
+    diagram: &SelectionDiagram,
+    functional: &BoundZTransportFunctional,
+    data: &ExactTransportData,
+    max_fraction: f64,
+    decision_threshold: Option<f64>,
+    _ctx: &antecedent_core::ExecutionContext,
+) -> Result<ZTransportMechanismSensitivityResult, ZTransportSensitivityError> {
+    let derivation = functional.derivation();
+    let query = derivation.query();
+    verify_z_transport_derivation(diagram, query, derivation)
+        .map_err(|_| ZTransportSensitivityError::InvalidProof)?;
+
+    let arena = functional.arena();
+    let ExprNode::SumOut { expr, .. } = arena.node(functional.root()) else {
+        return Err(ZTransportSensitivityError::IncompatibleFormula);
+    };
+    let ExprNode::Product(factors) = arena.node(*expr) else {
+        return Err(ZTransportSensitivityError::IncompatibleFormula);
+    };
+    let leaves = arena.list(*factors);
+    if leaves.len() != 2 {
+        return Err(ZTransportSensitivityError::IncompatibleFormula);
+    }
+    let mut outcome_leaf = None;
+    let mut parent_leaf = None;
+    for id in leaves {
+        let ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            population,
+            regime,
+            ..
+        } = arena.node(*id)
+        else {
+            return Err(ZTransportSensitivityError::IncompatibleFormula);
+        };
+        let mut formula_interventions = arena.intervention_set(*intervention);
+        let mut query_interventions =
+            query.experiment_assignment.iter().map(|a| a.variable).collect::<Vec<_>>();
+        formula_interventions.sort_unstable();
+        query_interventions.sort_unstable();
+        if *regime != Some(functional.regime())
+            || arena.population(*population) != query.source.as_ref()
+            || formula_interventions != query_interventions
+        {
+            return Err(ZTransportSensitivityError::IncompatibleFormula);
+        }
+        let vars = arena.var_set(*variables);
+        let cond = arena.var_set(*conditioned_on);
+        if vars == query.outcomes.as_ref()
+            && query.treatments.iter().all(|v| cond.contains(v))
+            && cond.contains(&derivation.confounder())
+        {
+            outcome_leaf = Some(*id);
+        } else if vars == [derivation.confounder()] && cond.is_empty() {
+            parent_leaf = Some(*id);
+        } else {
+            return Err(ZTransportSensitivityError::IncompatibleFormula);
+        }
+    }
+    if outcome_leaf.is_none()
+        || parent_leaf.is_none()
+        || query.outcomes.len() != 1
+        || query.treatments.len() != 1
+    {
+        return Err(ZTransportSensitivityError::IncompatibleFormula);
+    }
+
+    let law = data
+        .laws()
+        .iter()
+        .find(|law| {
+            law.population() == query.source.as_ref()
+                && law.regime() == functional.regime()
+                && law.interventions().len() == query.experiment_assignment.len()
+                && query.experiment_assignment.iter().all(|expected| {
+                    law.interventions().iter().any(|actual| {
+                        actual.variable == expected.variable && actual.value == expected.value
+                    })
+                })
+        })
+        .ok_or(ZTransportSensitivityError::ProviderMismatch)?;
+    if !functional.catalog().bindings.iter().any(|binding| {
+        binding.regime == law.regime()
+            && binding.snapshot_identity.as_ref() == law.snapshot_identity()
+    }) {
+        return Err(ZTransportSensitivityError::ProviderMismatch);
+    }
+    let y = query.outcomes[0];
+    let x = query.treatments[0];
+    let w = derivation.confounder();
+    let axis_pos = |variable| law.axes().iter().position(|axis| axis.variable == variable);
+    let (yi, xi, wi) = (axis_pos(y), axis_pos(x), axis_pos(w));
+    let (yi, xi, wi) = (
+        yi.ok_or(ZTransportSensitivityError::ProviderMismatch)?,
+        xi.ok_or(ZTransportSensitivityError::ProviderMismatch)?,
+        wi.ok_or(ZTransportSensitivityError::ProviderMismatch)?,
+    );
+    let y_values = law.axes()[yi]
+        .values
+        .iter()
+        .map(|v| v.as_f64())
+        .collect::<Option<Vec<_>>>()
+        .ok_or(ZTransportSensitivityError::UnsupportedDomain)?;
+    let x_levels = law.axes()[xi].values.len();
+    let w_levels = law.axes()[wi].values.len();
+    if x_levels != 2
+        || w_levels == 0
+        || y_values.is_empty()
+        || law.snapshot_identity().trim().is_empty()
+    {
+        return Err(ZTransportSensitivityError::UnsupportedDomain);
+    }
+    let dims: Vec<usize> = law.axes().iter().map(|a| a.values.len()).collect();
+    let strides: Vec<usize> = (0..dims.len()).map(|i| dims[i + 1..].iter().product()).collect();
+    let mut kernels = Vec::with_capacity(w_levels * 2);
+    let mut weights = Vec::with_capacity(w_levels * 2);
+    for wl in 0..w_levels {
+        let mut parent_mass = 0.0;
+        for row in 0..law.probabilities().len() {
+            if (row / strides[wi]) % dims[wi] == wl {
+                parent_mass += law.probabilities()[row];
+            }
+        }
+        for xl in 0..2 {
+            let mut joint = vec![0.0; y_values.len()];
+            let mut mass = 0.0;
+            for row in 0..law.probabilities().len() {
+                if (row / strides[wi]) % dims[wi] == wl && (row / strides[xi]) % dims[xi] == xl {
+                    let yl = (row / strides[yi]) % dims[yi];
+                    joint[yl] += law.probabilities()[row];
+                    mass += law.probabilities()[row];
+                }
+            }
+            if mass <= 0.0 {
+                return Err(ZTransportSensitivityError::IncompleteKernel);
+            }
+            kernels.push(joint.into_iter().map(|p| p / mass).collect());
+            weights.push(parent_mass * if xl == 0 { -1.0 } else { 1.0 });
+        }
+    }
+    let response = DiscreteKernelSensitivity {
+        source_kernel: kernels,
+        outcome_values: y_values,
+        stratum_contrast_weights: weights,
+        max_fraction,
+        decision_threshold,
+    }
+    .evaluate()
+    .map_err(ZTransportSensitivityError::InvalidSensitivity)?;
+    Ok(ZTransportMechanismSensitivityResult {
+        query_binding: format!("{}:{}:{}", query.source, query.target, functional.root().raw()),
+        provider_snapshot: law.snapshot_identity().to_owned(),
+        source_regime: functional.regime(),
+        response,
+    })
 }
 
 /// Typed refusal for the fixed-graph sensitivity route.
@@ -687,7 +904,10 @@ mod tests {
         VariableCoordinate, VariableDomain,
     };
     use antecedent_graph::{Admg, DenseNodeId};
-    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
+    use antecedent_identify::{
+        CatalogTransportResult, ZTransportQuery, bind_z_transport_catalog,
+        identify_catalog_transport, identify_z_transport_surrogate,
+    };
     use std::sync::Arc;
 
     fn fixture(max_fraction: f64, threshold: Option<f64>) -> DiscreteKernelSensitivity {
@@ -722,6 +942,128 @@ mod tests {
         assert_eq!(broad.receipt.minimizing_outcome_by_stratum, vec![0, 1]);
         assert_eq!(broad.receipt.maximizing_outcome_by_stratum, vec![1, 0]);
         assert!(broad.tipping_fraction.is_some_and(|d| d <= 0.6));
+    }
+
+    #[test]
+    fn checked_z_formula_sensitivity_binds_its_provider_and_delta_domain() {
+        use antecedent_expr::{
+            DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance,
+        };
+        let (w, z, x, y) = (
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        );
+        let mut graph = Admg::with_variables(4);
+        for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        for (a, b) in [(0, 3), (1, 3), (1, 2)] {
+            graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([y]),
+            treatments: Arc::from([x]),
+            controllable: Arc::from([z]),
+            experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                variable: z,
+                value: antecedent_core::Value::Bool(false),
+            }]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let antecedent_identify::ZTransportResult::Identified(proof) =
+            identify_z_transport_surrogate(&diagram, &query).unwrap()
+        else {
+            panic!("expected checked z formula")
+        };
+        let variables = [w, z, x, y];
+        let env = antecedent_core::Environment::try_new(
+            "source",
+            variables.map(|variable| VariableCoordinate {
+                variable,
+                domain: VariableDomain::Binary,
+                unit: None,
+            }),
+            Arc::<[VariableId]>::from([]),
+        )
+        .unwrap();
+        let measured: Arc<[VariableId]> = Arc::from(variables);
+        let regimes = [false, true].map(|level| {
+            antecedent_core::EvidenceRegime::try_new(
+                RegimeId::from_raw(u32::from(level)),
+                RegimeKind::Experimental,
+                EvidenceKind::Available,
+                [z],
+                [antecedent_core::InterventionAssignment {
+                    variable: z,
+                    value: antecedent_core::Value::Bool(level),
+                }],
+                Arc::clone(&measured),
+                "source",
+                antecedent_core::DistributionAvailability::Joint,
+            )
+            .unwrap()
+        });
+        let bindings = [false, true].map(|level| RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(u32::from(level)),
+            snapshot_identity: Arc::from(if level { "z-true" } else { "source-snapshot" }),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        });
+        let catalog = EvidenceCatalog::try_new([env], regimes, bindings, None).unwrap();
+        let functional = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+        let mut probabilities = Vec::with_capacity(8);
+        for row in 0..8 {
+            let xl = (row / 2) % 2;
+            let yl = row % 2;
+            probabilities.push(0.25 * if yl == xl { 0.7 } else { 0.3 });
+        }
+        let law = ExactDiscreteLaw::try_new(
+            "source",
+            RegimeId::from_raw(0),
+            [InterventionAssignment::concrete(z, antecedent_core::Value::Bool(false))],
+            [w, x, y].map(|variable| DiscreteAxis {
+                variable,
+                values: Arc::from([
+                    antecedent_core::Value::Bool(false),
+                    antecedent_core::Value::Bool(true),
+                ]),
+            }),
+            probabilities,
+            "source-snapshot",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([law], 32).unwrap();
+        let baseline = z_transport_mechanism_sensitivity(
+            &diagram,
+            &functional,
+            &data,
+            0.0,
+            None,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!((baseline.response.baseline - 0.4).abs() < 1e-12);
+        assert_eq!(baseline.response.minimum, baseline.response.baseline);
+        assert_eq!(baseline.response.maximum, baseline.response.baseline);
+        assert_eq!(baseline.provider_snapshot, "source-snapshot");
+        let tipping = z_transport_mechanism_sensitivity(
+            &diagram,
+            &functional,
+            &data,
+            0.0,
+            Some(baseline.response.baseline),
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert_eq!(tipping.response.tipping_fraction, Some(0.0));
     }
 
     #[test]

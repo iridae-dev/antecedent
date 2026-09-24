@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -3608,9 +3608,59 @@ class ZTransportStage:
         max_support_rows: int = 1_000_000,
         memory_bytes: int | None = None,
     ) -> PreparedZTransportStage: ...
+    def prepare_empirical(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int = 1_000_000,
+        memory_bytes: int | None = None,
+    ) -> PreparedZTransportStage: ...
+    def plan_evidence(
+        self, catalog: Any, candidates: list[Any], failure_snapshot: bytes | None = None
+    ) -> tuple[str, list[ZTransportProposalStage]]: ...
+    def failure_snapshot(self, catalog: Any) -> bytes: ...
+    def inspect_proof(self, catalog: Any) -> dict[str, Any]: ...
+
+class ZTransportProposalStage:
+    def export(self) -> bytes: ...
+    def replay(self) -> None: ...
+    def receive(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        provider_snapshot: str,
+        *,
+        empirical: bool = False,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        memory_bytes: int | None = None,
+    ) -> PreparedZTransportStage: ...
+
+class ZTransportSensitivityResult(TypedDict):
+    status: str
+    estimand: str
+    estimand: str
+    baseline: float
+    assumption_range: dict[str, float]
+    interval_interpretation: str
+    delta_domain: list[float]
+    decision_threshold: float | None
+    tipping_fraction: float | None
+    minimizing_outcome_by_stratum: list[int]
+    maximizing_outcome_by_stratum: list[int]
+    method: str
+    baseline_binding: dict[str, Any]
 
 class PreparedZTransportStage:
     def estimate(self) -> str: ...
+    def export(self) -> bytes: ...
+    def mechanism_sensitivity(self, max_fraction: float, decision_threshold: float | None = None) -> ZTransportSensitivityResult: ...
+    def export_sensitivity(self, max_fraction: float, decision_threshold: float | None = None) -> bytes: ...
     def refresh(self, laws: Any) -> None: ...
     @property
     def interval_type(self) -> str: ...
@@ -3625,6 +3675,9 @@ def identify_z_transport_stage(
     controllable: list[str],
     experiment_assignment: dict[str, float],
 ) -> ZTransportStage: ...
+def consume_z_transport_artifact(artifact: bytes) -> str: ...
+def consume_z_transport_sensitivity_artifact(artifact: bytes) -> ZTransportSensitivityResult: ...
+def replay_z_transport_proposal(artifact: bytes) -> None: ...
 def consume_exact_transport(
     bytes: bytes,
     *,

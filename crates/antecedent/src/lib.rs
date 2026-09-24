@@ -90,6 +90,7 @@ pub use analysis::{
     SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
     StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
     StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec, ZTransportResult,
+    ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};

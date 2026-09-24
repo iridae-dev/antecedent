@@ -18,9 +18,14 @@ if TYPE_CHECKING:
 import numpy as np
 
 from .._defaults import OMITTED
+from .._native import consume_z_transport_artifact as _consume_z_transport_artifact
+from .._native import (
+    consume_z_transport_sensitivity_artifact as _consume_z_transport_sensitivity_artifact,
+)
 from .._native import estimate_trial_transport as _estimate_trial_transport
 from .._native import identify_transport as _identify_transport
 from .._native import identify_z_transport_stage as _identify_z_transport_stage
+from .._native import replay_z_transport_proposal as _replay_z_transport_proposal
 from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .._transport_results import (
     TransportContrast,
@@ -80,10 +85,11 @@ class SelectionDiagram:
 
 @dataclass(frozen=True, slots=True)
 class ZTransportQuery:
-    """Query for the currently registered graph-specific z-transport route.
+    """Query for the bounded single-source discrete z-transport route.
 
-    ``experiment_assignment`` supplies the concrete source ``do(Z=z)`` law used
-    by the checked specialization. Other diagrams remain ``not_certified``.
+    The declared controllable variables and their concrete experiment values
+    bound the source interventions available to the theorem search. Unsupported
+    domains and inputs remain explicitly refused.
     """
 
     diagram: SelectionDiagram
@@ -111,6 +117,23 @@ class ZTransportQuery:
         object.__setattr__(
             self, "experiment_assignment", MappingProxyType(dict(self.experiment_assignment))
         )
+
+
+class ZTransportSensitivityResult(TypedDict):
+    """Exact assumption range from discrete outcome-kernel contamination."""
+
+    status: str
+    estimand: str
+    baseline: float
+    assumption_range: dict[str, float]
+    delta_domain: list[float]
+    decision_threshold: float | None
+    tipping_fraction: float | None
+    minimizing_outcome_by_stratum: list[int]
+    maximizing_outcome_by_stratum: list[int]
+    interval_interpretation: str
+    method: str
+    baseline_binding: dict[str, Any]
 
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
@@ -365,6 +388,41 @@ class EvidenceCatalogDelta:
             bindings=base.bindings,
             target_sampling=base.target_sampling,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ZTransportCandidate:
+    """One proposed zTR study and its hypothetical catalog additions.
+
+    ``catalog`` is the full hypothetical catalog, retaining the base entries
+    and adding proposed regimes for this candidate. A verified proposal is
+    returned only when its declared design can produce a checked,
+    bound formula against the frozen failure snapshot.
+    """
+
+    id: str
+    catalog: EvidenceCatalog
+    design_kind: Literal["intervene", "measure"]
+    targets: Sequence[str] = ()
+    measured: Sequence[str] = ()
+    cost: float = 0.0
+    sample_budget: int = 0
+    recruitment_sampling: str = "independent"
+    feasibility_constraints: Sequence[str] = ()
+    tag: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.id.strip():
+            raise CausalValueError("candidate id must be non-empty")
+        if self.design_kind not in ("intervene", "measure"):
+            raise CausalValueError("design_kind must be 'intervene' or 'measure'")
+        if not math.isfinite(self.cost) or self.cost < 0 or self.sample_budget < 0:
+            raise CausalValueError("candidate cost and sample budget must be non-negative")
+        if not any(regime.evidence_kind == "proposed" for regime in self.catalog.regimes):
+            raise CausalValueError("candidate catalog must add proposed regimes")
+        object.__setattr__(self, "targets", tuple(self.targets))
+        object.__setattr__(self, "measured", tuple(self.measured))
+        object.__setattr__(self, "feasibility_constraints", tuple(self.feasibility_constraints))
 
 
 @dataclass(frozen=True, slots=True)
@@ -674,11 +732,13 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
 
 
 def identify_z_transport(*, graph: Admg, query: ZTransportQuery) -> Any:
-    """Create a native zTR stage for the one currently registered graph case.
+    """Create a native stage for bounded single-source z-transport search.
 
-    The returned stage exposes ``outcome`` and ``reason``. On an identified
-    result, call ``prepare_exact(catalog, laws, assignments)`` to obtain an
-    independently prepared point-only execution. Other graphs remain refused.
+    The returned stage exposes ``outcome`` and ``reason``. Positive formulas
+    are checked before binding evidence; a negative search is not treated as a
+    theorem obstruction unless the complete experimental-family premises hold.
+    On an identified result, call ``prepare_exact`` or ``prepare_empirical``
+    to obtain a point-only execution.
     """
     if not isinstance(graph, Admg):
         raise CausalTypeError("transport.identify_z_transport requires graph=Admg(...)")
@@ -694,6 +754,51 @@ def identify_z_transport(*, graph: Admg, query: ZTransportQuery) -> Any:
         list(query.controllable),
         dict(query.experiment_assignment),
     )
+
+
+def consume_z_transport_artifact(artifact: bytes) -> str:
+    """Independently verify and recompute an exported point-only zTR result."""
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("artifact must be bytes")
+    return _consume_z_transport_artifact(artifact)
+
+
+def plan_z_transport_evidence(
+    stage: Any,
+    catalog: EvidenceCatalog,
+    candidates: Sequence[ZTransportCandidate],
+    *,
+    failure_snapshot: bytes | None = None,
+) -> tuple[dict[str, Any], tuple[Any, ...]]:
+    """Assess candidates against a stage's frozen failure and catalog.
+
+    Passing ``failure_snapshot`` reuses an exported snapshot and verifies that
+    it exactly matches this stage and catalog before planning.
+    """
+    import json
+
+    if not hasattr(stage, "plan_evidence"):
+        raise CausalTypeError("stage must be returned by identify_z_transport")
+    if failure_snapshot is not None and not isinstance(failure_snapshot, bytes):
+        raise CausalTypeError("failure_snapshot must be bytes")
+    report, proposals = stage.plan_evidence(
+        catalog, list(candidates), failure_snapshot
+    )
+    return json.loads(report), tuple(proposals)
+
+
+def consume_z_transport_sensitivity_artifact(artifact: bytes) -> ZTransportSensitivityResult:
+    """Independently verify and recompute a portable zTR sensitivity range."""
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("artifact must be bytes")
+    return _consume_z_transport_sensitivity_artifact(artifact)
+
+
+def replay_z_transport_proposal(artifact: bytes) -> None:
+    """Independently replay a portable hypothetical zTR study proposal."""
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("proposal artifact must be bytes")
+    _replay_z_transport_proposal(artifact)
 
 
 def reload_lowered_expression(
@@ -806,12 +911,18 @@ __all__ = [
     "TransportOverlapReport",
     "TransportQuery",
     "ZTransportQuery",
+    "ZTransportCandidate",
+    "ZTransportSensitivityResult",
     "TrialTransportEstimate",
     "VariableCoordinate",
     "VariableDomainName",
     "estimate_trial_effect",
     "identify",
     "identify_z_transport",
+    "consume_z_transport_artifact",
+    "plan_z_transport_evidence",
+    "consume_z_transport_sensitivity_artifact",
+    "replay_z_transport_proposal",
 ]
 
 

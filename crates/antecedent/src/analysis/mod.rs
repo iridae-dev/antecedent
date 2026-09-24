@@ -14,6 +14,7 @@ mod learned_trial;
 mod statistical;
 mod transport_grid;
 mod z_transport;
+mod z_transport_sensitivity_artifact;
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
@@ -27,7 +28,8 @@ pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,
 };
-pub use z_transport::{PreparedZTransport, ZTransportResult};
+pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_artifact};
+pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod helpers;
 mod latency;
 mod prepared;

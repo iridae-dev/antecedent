@@ -28,6 +28,7 @@ pub mod preposterior;
 pub mod ranker;
 pub mod result;
 pub mod transport_planner;
+pub mod z_transport_planner;
 
 pub use candidate::{
     CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
@@ -51,4 +52,11 @@ pub use transport_planner::{
     TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
     TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,
     plan_transport_evidence,
+};
+pub use z_transport_planner::{
+    ZTransportArrival, ZTransportCandidateAssessment, ZTransportCandidateOutcome,
+    ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportFailureStatus,
+    ZTransportPlanResult, ZTransportPlanningError, ZTransportProposal, ZTransportProposalWire,
+    ZTransportQueryWire, plan_z_transport_evidence, propose_z_transport_evidence,
+    snapshot_z_transport_failure, validate_z_transport_candidate,
 };

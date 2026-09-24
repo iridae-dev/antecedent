@@ -4,6 +4,8 @@
 
 Development branch for Bayesian parity. Added model-scoped Bayesian support for attribution, trial transport, finite-network interference, and CPDAG/PAG class-posterior intervention response; expanded conditional and response posterior evaluation. New learned and specialist estimator contracts remain scoped to their implemented models and evidence.
 
+The evidence-to-decision work in this branch adds a portable restricted-experiment failure snapshot, checked hypothetical study proposals, and arrival validation against actual catalog evidence and provider identity. The registered surrogate route accepts a sufficient joint source margin and executes exact or empirical point estimates through Rust and Python; a separate versioned artifact lets an independent consumer recheck the proof, catalog, laws, and point result. A direct joint source-exchange case carries both intervention values, while a recursive search can certify further positive formulas. One checked classical s-hedge under complete actual evidence provides a stronger-family obstruction. Compatible outcome-kernel contamination reports an assumption range, witnesses, and tipping fraction with independent replay. The complete bounded TRz negative decision remains open, so the 2.1 release candidate is pending further evidence work. No interval is claimed for these point routes.
+
 ## 2.0.0
 
 Antecedent 2.0.0 keeps the established `identify → estimate → inspect → refresh → export → consume` lifecycle across discovery, graph uncertainty, identification, estimation, validation, temporal and response analysis, Bayesian inference, attribution, design, state, and artifacts.

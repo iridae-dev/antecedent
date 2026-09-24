@@ -35,6 +35,7 @@ antecedent-prob = { path = "../crates/antecedent-prob" }
 antecedent-expr = { path = "../crates/antecedent-expr" }
 antecedent-graph = { path = "../crates/antecedent-graph" }
 antecedent-identify = { path = "../crates/antecedent-identify" }
+antecedent-design = { path = "../crates/antecedent-design" }
 antecedent-model = { path = "../crates/antecedent-model" }
 antecedent-attribution = { path = "../crates/antecedent-attribution" }
 antecedent-stats = { path = "../crates/antecedent-stats" }
@@ -43,7 +44,7 @@ antecedent-discovery = { path = "../crates/antecedent-discovery" }
 # Concrete estimator structs for the `estimator_config=` parser; the
 # `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
 antecedent-estimate = { path = "../crates/antecedent-estimate" }
-pyo3 = { workspace = true }
+pyo3 = { workspace = true, features = ["multiple-pymethods"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 numpy = { workspace = true }
