@@ -7,10 +7,12 @@ use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, TheoremScope};
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
+    FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{BoundZTransportFunctional, verify_z_transport_derivation};
 use antecedent_io::IoError;
+use std::sync::Arc;
 
 use super::transport_common::err;
 
@@ -19,6 +21,7 @@ use super::transport_common::err;
 pub struct PreparedZTransport {
     diagram: SelectionDiagram,
     functional: BoundZTransportFunctional,
+    program: FunctionalProgram,
     data: ExactTransportData,
     request: Assignment,
     limits: ExactEvaluationLimits,
@@ -53,6 +56,7 @@ impl ZTransportResult {
             &prepared.request,
             prepared.limits,
             &self.distribution,
+            &prepared.program,
         )?;
         wire.export()
     }
@@ -99,9 +103,11 @@ impl PreparedZTransport {
             ctx,
         )
         .map_err(err)?;
+        let program = checked_program(&self.functional)?;
         Ok(Self {
             diagram: self.diagram.clone(),
             functional: self.functional.clone(),
+            program,
             data,
             request: self.request.clone(),
             limits: self.limits,
@@ -115,11 +121,44 @@ impl PreparedZTransport {
         &self.functional
     }
 
+    /// Checked owner for the provider-bound executable expression.
+    #[must_use]
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+
     /// Retained providers for explicit refresh or inspection.
     #[must_use]
     pub fn data(&self) -> &ExactTransportData {
         &self.data
     }
+}
+
+fn checked_program(functional: &BoundZTransportFunctional) -> Result<FunctionalProgram, IoError> {
+    let variables = functional
+        .catalog()
+        .environments
+        .iter()
+        .flat_map(|environment| environment.variables.iter())
+        .map(|coordinate| {
+            (
+                coordinate.variable,
+                ProgramVariable { name: Arc::from(format!("v{}", coordinate.variable.raw())) },
+            )
+        })
+        .collect::<Vec<_>>();
+    let program = FunctionalProgram::new(
+        functional.arena().clone(),
+        ProgramSchema::new(variables),
+        functional.derivation().root(),
+        functional.root(),
+        ProgramLimits::default(),
+    )
+    .map_err(|error| err(format!("z_transport.functional_program: {error}")))?;
+    program
+        .compile()
+        .map_err(|error| err(format!("z_transport.functional_program_compile: {error}")))?;
+    Ok(program)
 }
 
 impl StudyBuilder {
@@ -150,7 +189,8 @@ impl StudyBuilder {
             ctx,
         )
         .map_err(err)?;
-        Ok(PreparedZTransport { diagram, functional, data, request, limits, plan })
+        let program = checked_program(&functional)?;
+        Ok(PreparedZTransport { diagram, functional, program, data, request, limits, plan })
     }
 
     /// Prepare an empirical plugin evaluation, requiring every retained law to
@@ -319,6 +359,11 @@ mod tests {
                 )
             }
             .unwrap();
+            assert_eq!(
+                prepared.program().mapping().source,
+                prepared.functional().derivation().root()
+            );
+            assert_eq!(prepared.program().mapping().executable, prepared.functional().root());
             let result = prepared.estimate(&ExecutionContext::for_tests(7)).unwrap();
             let true_mass = result
                 .distribution()
@@ -350,6 +395,17 @@ mod tests {
             assert!(
                 consume_z_transport_artifact(
                     &forged_proof.export().unwrap(),
+                    &ExecutionContext::for_tests(8),
+                )
+                .is_err()
+            );
+            let mut forged_program: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
+                antecedent_io::from_cbor(&artifact).unwrap();
+            let program = forged_program.program.as_mut().unwrap();
+            program.executable = program.executable.wrapping_add(1);
+            assert!(
+                consume_z_transport_artifact(
+                    &forged_program.export().unwrap(),
                     &ExecutionContext::for_tests(8),
                 )
                 .is_err()
