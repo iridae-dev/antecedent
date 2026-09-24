@@ -48,6 +48,12 @@ bash scripts/gate_hot_path_baselines.sh
 echo "== public support matrix =="
 bash scripts/gate_support_matrix.sh
 
+# Every licensed high-level route must run from a retained checked program or
+# complete typed operation before 2.1 can be released. The migration inventory
+# is deliberately incomplete while this prerequisite is being implemented.
+echo "== checked causal program migration =="
+bash scripts/gate_compiler_migration.sh --release-gate
+
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
