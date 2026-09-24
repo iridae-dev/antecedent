@@ -799,6 +799,23 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
             unresolved.push(Arc::from("program.functional_binding"));
         }
     }
+    let frontdoor =
+        contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
+    if (contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
+        || contract
+            .program
+            .as_ref()
+            .and_then(|item| item.commitments.resolved_estimator.as_deref())
+            == Some("frontdoor.linear_two_stage"))
+        && frontdoor.is_none()
+    {
+        unresolved.push(Arc::from("program.checked_frontdoor_lowering"));
+    }
+    if let Some(frontdoor) = frontdoor {
+        if !verify_frontdoor_lowering(contract, frontdoor) {
+            unresolved.push(Arc::from("program.frontdoor_binding"));
+        }
+    }
     verify_checked_aipw(contract, &mut unresolved);
     require_payload_digest(
         &mut unresolved,
@@ -865,6 +882,150 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         _ => unresolved.push(Arc::from("contract.seal")),
     }
     unresolved
+}
+
+fn verify_frontdoor_lowering(
+    contract: &AnalysisResultContractWire,
+    lowering: &crate::CheckedFrontDoorLoweringWire,
+) -> bool {
+    let Some(product) = contract.identification_product.as_ref() else { return false };
+    let Some(program) = contract.program.as_ref() else { return false };
+    let Some(estimand) = product.estimands.iter().find(|estimand| {
+        estimand.functional == lowering.functional
+            && estimand.mediators == lowering.mediators
+            && estimand.method == "front_door"
+    }) else {
+        return false;
+    };
+    let target_matches = match &contract.target.query {
+        crate::CausalQueryWire::AverageEffect {
+            treatment,
+            outcome,
+            active,
+            control,
+            outcome_functional,
+            ..
+        } => {
+            *treatment == lowering.treatment
+                && *outcome == lowering.outcome
+                && intervention_bits(active, *treatment) == Some(lowering.active_bits)
+                && intervention_bits(control, *treatment) == Some(lowering.control_bits)
+                && matches!(outcome_functional, crate::query_wire::OutcomeFunctionalWire::Mean)
+        }
+        _ => false,
+    };
+    let expected_variables: Vec<_> = contract
+        .target
+        .schema
+        .variables
+        .iter()
+        .map(|variable| (variable.id, variable.name.clone()))
+        .collect();
+    let program_valid = crate::functional_program_from_wire(
+        &crate::FunctionalProgramWire {
+            arena: lowering.arena.clone(),
+            source: lowering.functional,
+            executable: lowering.executable,
+            variables: expected_variables,
+        },
+        antecedent_expr::ProgramLimits::default(),
+    )
+    .is_ok();
+    let lowering_matches_frontdoor = (|| {
+        let mut arena = crate::expr_arena_from_wire(&product.arena).ok()?;
+        let treatment = antecedent_core::VariableId::from_raw(lowering.treatment);
+        let outcome = antecedent_core::VariableId::from_raw(lowering.outcome);
+        let mediators = lowering
+            .mediators
+            .iter()
+            .copied()
+            .map(antecedent_core::VariableId::from_raw)
+            .collect::<Vec<_>>();
+        let source = arena.frontdoor_ate(
+            treatment,
+            outcome,
+            &mediators,
+            antecedent_core::Value::Float64(f64::from_bits(lowering.active_bits)),
+            antecedent_core::Value::Float64(f64::from_bits(lowering.control_bits)),
+        );
+        let executable = frontdoor_observational_root(&mut arena, treatment, outcome, &mediators);
+        Some(source.raw() == lowering.functional && executable.raw() == lowering.executable)
+    })()
+    .unwrap_or(false);
+    let uncertainty_matches = lowering.uncertainty
+        == format!(
+            "{}:{}",
+            program.commitments.interval_method,
+            program.commitments.se_kind.as_deref().unwrap_or("unspecified")
+        );
+    let overlap_matches =
+        contract.inference_binding.as_ref().and_then(|binding| binding.overlap_policy.as_deref())
+            == Some(lowering.overlap.as_str());
+    let assumption_present = product.required_assumptions.iter().any(|assumption| {
+        matches!(&assumption.assumption,
+            crate::trace::AssumptionTagWire::ParametricRestriction { id, .. }
+                if id == "frontdoor.linear_path_product")
+    });
+    target_matches
+        && program_valid
+        && lowering_matches_frontdoor
+        && lowering.arena == product.arena
+        && lowering.format == 1
+        && lowering.procedure == "linear_path_product"
+        && contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
+        && program.commitments.resolved_estimator.as_deref() == Some("frontdoor.linear_two_stage")
+        && uncertainty_matches
+        && overlap_matches
+        && lowering.complete_case_rows > 0
+        && !lowering.mediators.is_empty()
+        && lowering.treatment != lowering.outcome
+        && lowering.mediators.iter().all(|id| *id != lowering.treatment && *id != lowering.outcome)
+        && assumption_present
+        && estimand.method == "front_door"
+}
+
+fn frontdoor_observational_root(
+    arena: &mut antecedent_expr::CausalExprArena,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+    mediators: &[antecedent_core::VariableId],
+) -> antecedent_expr::ExprId {
+    use antecedent_expr::{DomainRef, ExprNode, OutcomeExprId};
+
+    let m = arena.intern_var_set(mediators.iter().copied());
+    let y = arena.intern_var_set([outcome]);
+    let t = arena.intern_var_set([treatment]);
+    let m_and_t = arena.intern_var_set(mediators.iter().copied().chain([treatment]));
+    let empty = arena.empty_var_set();
+    let no_bindings = arena.empty_intervention_set();
+    let m_given_t = arena.intern_distribution(m, t, no_bindings, DomainRef::Observational);
+    let y_given_m_t = arena.intern_distribution(y, m_and_t, no_bindings, DomainRef::Observational);
+    let t_marginal = arena.intern_distribution(t, empty, no_bindings, DomainRef::Observational);
+    let inner_factors = arena.intern_list([y_given_m_t, t_marginal]);
+    let inner_product = arena.intern(ExprNode::Product(inner_factors));
+    let inner_sum = arena.intern(ExprNode::SumOut { variables: t, expr: inner_product });
+    let outer_factors = arena.intern_list([m_given_t, inner_sum]);
+    let outer_product = arena.intern(ExprNode::Product(outer_factors));
+    let outer_sum = arena.intern(ExprNode::SumOut { variables: m, expr: outer_product });
+    arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution: outer_sum,
+    })
+}
+
+fn intervention_bits(wire: &crate::query_wire::InterventionWire, variable: u32) -> Option<u64> {
+    match wire {
+        crate::query_wire::InterventionWire::Set { variable: target, value }
+            if *target == variable =>
+        {
+            match value {
+                crate::query_wire::ValueWire::Float64(value) => Some(value.to_bits()),
+                crate::query_wire::ValueWire::Int64(value) => Some((*value as f64).to_bits()),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Cross-layer references: every layer must describe the same question,
@@ -1921,6 +2082,7 @@ mod tests {
             commitments,
             functional_program: None,
             checked_aipw_lowering: None,
+            checked_frontdoor_lowering: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {
@@ -2524,6 +2686,36 @@ mod tests {
         let unresolved = unresolved_after(&body, &names, &contract);
         assert!(
             unresolved.iter().any(|item| item == "program.commitments.prior_required"),
+            "{unresolved:?}"
+        );
+    }
+
+    #[test]
+    fn older_linear_frontdoor_program_is_readable_but_unverified() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("frontdoor.linear_two_stage".into());
+        contract.program.as_mut().unwrap().commitments.estimator =
+            Some("frontdoor.linear_two_stage".into());
+        contract.program.as_mut().unwrap().commitments.resolved_estimator =
+            Some("frontdoor.linear_two_stage".into());
+        contract.program.as_mut().unwrap().checked_frontdoor_lowering = None;
+        // Recompute the program identity and seal to isolate the missing
+        // semantic payload from ordinary integrity failures.
+        let program = contract.program.as_ref().unwrap();
+        contract.identities.program = *program_digest(program).unwrap().as_bytes();
+        contract.seal = contract_seal(
+            &contract.identities,
+            &contract.reasoning,
+            &contract.graph_class,
+            &contract.structure_source,
+            contract.identifier.as_deref(),
+            contract.estimator.as_deref(),
+        )
+        .unwrap();
+        let unresolved = unresolved_after(&body, &names, &contract);
+        assert!(
+            unresolved.iter().any(|item| item == "program.checked_frontdoor_lowering"),
             "{unresolved:?}"
         );
     }
