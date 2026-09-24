@@ -60,12 +60,15 @@ pub struct ProgramMapping {
 pub struct ProgramLimits {
     /// Maximum nodes in the arena.
     pub max_nodes: usize,
-    /// Maximum total variable-set and intervention entries.
+    /// Maximum total entries across interned sets, interventions, expression lists,
+    /// populations, and schema variables.
     pub max_table_entries: usize,
+    /// Maximum expression dependency depth, including product children.
+    pub max_depth: usize,
 }
 impl Default for ProgramLimits {
     fn default() -> Self {
-        Self { max_nodes: 1_000_000, max_table_entries: 4_000_000 }
+        Self { max_nodes: 100_000, max_table_entries: 1_000_000, max_depth: 512 }
     }
 }
 
@@ -131,7 +134,7 @@ impl FunctionalProgram {
         if arena.len() > limits.max_nodes {
             return Err(ProgramError::Limit("nodes"));
         }
-        if arena.var_set_count().saturating_add(arena.intervention_set_count())
+        if arena.table_entry_count().saturating_add(schema.variables.len())
             > limits.max_table_entries
         {
             return Err(ProgramError::Limit("tables"));
@@ -142,7 +145,7 @@ impl FunctionalProgram {
         if schema.duplicate_ids {
             return Err(ProgramError::DuplicateSchemaVariable);
         }
-        validate_arena(&arena, &schema)?;
+        validate_arena(&arena, &schema, limits.max_depth)?;
         let mapping = ProgramMapping { source, executable };
         let compiled =
             arena.compile(executable).map_err(|_| ProgramError::InvalidReference("executable"))?;
@@ -209,10 +212,16 @@ impl ProgramEvaluator {
     }
 }
 
-fn validate_arena(a: &CausalExprArena, schema: &ProgramSchema) -> Result<(), ProgramError> {
+fn validate_arena(
+    a: &CausalExprArena,
+    schema: &ProgramSchema,
+    max_depth: usize,
+) -> Result<(), ProgramError> {
+    let mut depths = vec![0usize; a.len()];
     for i in 0..a.len() {
         let n = a.node(ExprId::from_raw(i as u32));
         let valid_expr = |id: ExprId| (id.raw() as usize) < i;
+        let mut child_depth = 0usize;
         match n {
             ExprNode::Distribution {
                 variables, conditioned_on, intervention, population, ..
@@ -229,6 +238,7 @@ fn validate_arena(a: &CausalExprArena, schema: &ProgramSchema) -> Result<(), Pro
                 if !valid_expr(*body) {
                     return Err(ProgramError::InvalidReference("kernel body"));
                 }
+                child_depth = depths[body.raw() as usize];
                 if bound.raw() as usize >= a.var_set_count()
                     || population.raw() as usize >= a.population_count()
                 {
@@ -245,30 +255,42 @@ fn validate_arena(a: &CausalExprArena, schema: &ProgramSchema) -> Result<(), Pro
                 if a.list(*list).iter().any(|id| id.raw() as usize >= i) {
                     return Err(ProgramError::InvalidReference("forward product child"));
                 }
+                child_depth =
+                    a.list(*list).iter().map(|id| depths[id.raw() as usize]).max().unwrap_or(0);
             }
             ExprNode::SumOut { variables, expr } | ExprNode::IntegralOut { variables, expr } => {
                 if !valid_expr(*expr) || variables.raw() as usize >= a.var_set_count() {
                     return Err(ProgramError::InvalidReference("marginalization"));
                 }
+                child_depth = depths[expr.raw() as usize];
                 check_variables(a.var_set(*variables).iter().copied(), schema)?;
             }
             ExprNode::Ratio { numerator, denominator } => {
                 if !valid_expr(*numerator) || !valid_expr(*denominator) {
                     return Err(ProgramError::InvalidReference("ratio"));
                 }
+                child_depth =
+                    depths[numerator.raw() as usize].max(depths[denominator.raw() as usize]);
             }
             ExprNode::Expectation { function, distribution } => {
                 if !valid_expr(*distribution) {
                     return Err(ProgramError::InvalidReference("expectation"));
                 }
+                child_depth = depths[distribution.raw() as usize];
                 check_variables([function.variable()], schema)?;
             }
             ExprNode::Contrast { left, right, .. } => {
                 if !valid_expr(*left) || !valid_expr(*right) {
                     return Err(ProgramError::InvalidReference("contrast"));
                 }
+                child_depth = depths[left.raw() as usize].max(depths[right.raw() as usize]);
             }
         }
+        let depth = child_depth.saturating_add(1);
+        if depth > max_depth {
+            return Err(ProgramError::Limit("depth"));
+        }
+        depths[i] = depth;
     }
     Ok(())
 }
@@ -361,16 +383,29 @@ mod tests {
 
     #[test]
     fn checked_program_owns_roots_and_requirements() {
-        let (arena, root) = distribution_arena();
-        let schema = ProgramSchema::new([(
-            VariableId::from_raw(1),
-            ProgramVariable { name: Arc::from("outcome") },
-        )]);
+        let (mut arena, source) = distribution_arena();
+        let x = VariableId::from_raw(0);
+        let executable_variables = arena.intern_var_set([x]);
+        let empty = arena.empty_var_set();
+        let no_intervention = arena.empty_intervention_set();
+        let executable = arena.intern_distribution(
+            executable_variables,
+            empty,
+            no_intervention,
+            DomainRef::Interventional,
+        );
+        let schema = ProgramSchema::new([
+            (VariableId::from_raw(1), ProgramVariable { name: Arc::from("outcome") }),
+            (x, ProgramVariable { name: Arc::from("treatment") }),
+        ]);
         let program =
-            FunctionalProgram::new(arena, schema, root, root, ProgramLimits::default()).unwrap();
-        assert_eq!(program.mapping(), ProgramMapping { source: root, executable: root });
+            FunctionalProgram::new(arena, schema, source, executable, ProgramLimits::default())
+                .unwrap();
+        assert_eq!(program.mapping(), ProgramMapping { source, executable });
         assert_eq!(program.factor_requirements().len(), 1);
-        assert!(program.free_variables().contains(&VariableId::from_raw(1)));
+        assert!(program.free_variables().contains(&x));
+        assert!(!program.free_variables().contains(&VariableId::from_raw(1)));
+        assert_eq!(program.factor_requirements()[0].domain, DomainRef::Interventional);
         assert!(program.compile().is_ok());
     }
 
@@ -423,5 +458,69 @@ mod tests {
             FunctionalProgram::new(cyclic, schema, parent, parent, ProgramLimits::default()),
             Err(ProgramError::InvalidReference("kernel body"))
         ));
+    }
+
+    #[test]
+    fn rejects_duplicate_schema_and_resource_limit_overruns() {
+        let (arena, root) = distribution_arena();
+        let duplicate = ProgramSchema::new([
+            (VariableId::from_raw(1), ProgramVariable { name: Arc::from("first") }),
+            (VariableId::from_raw(1), ProgramVariable { name: Arc::from("second") }),
+        ]);
+        assert_eq!(
+            FunctionalProgram::new(arena.clone(), duplicate, root, root, ProgramLimits::default())
+                .unwrap_err(),
+            ProgramError::DuplicateSchemaVariable
+        );
+        let schema = ProgramSchema::new([(
+            VariableId::from_raw(1),
+            ProgramVariable { name: Arc::from("outcome") },
+        )]);
+        assert_eq!(
+            FunctionalProgram::new(
+                arena.clone(),
+                schema.clone(),
+                root,
+                root,
+                ProgramLimits { max_nodes: 10, max_table_entries: 1, max_depth: 10 },
+            )
+            .unwrap_err(),
+            ProgramError::Limit("tables")
+        );
+        assert_eq!(
+            FunctionalProgram::new(
+                arena,
+                schema,
+                root,
+                root,
+                ProgramLimits { max_nodes: 10, max_table_entries: 10, max_depth: 0 },
+            )
+            .unwrap_err(),
+            ProgramError::Limit("depth")
+        );
+    }
+
+    #[test]
+    fn bounds_dependency_depth_before_recursive_compilation() {
+        let (mut arena, mut root) = distribution_arena();
+        let empty = arena.empty_var_set();
+        for _ in 0..4 {
+            root = arena.intern_kernel(root, empty, "", None);
+        }
+        let schema = ProgramSchema::new([(
+            VariableId::from_raw(1),
+            ProgramVariable { name: Arc::from("outcome") },
+        )]);
+        assert_eq!(
+            FunctionalProgram::new(
+                arena,
+                schema,
+                root,
+                root,
+                ProgramLimits { max_nodes: 10, max_table_entries: 20, max_depth: 3 },
+            )
+            .unwrap_err(),
+            ProgramError::Limit("depth")
+        );
     }
 }
