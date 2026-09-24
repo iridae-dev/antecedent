@@ -213,6 +213,32 @@ inferences = ["Bayesian"]
 reason = "Graph-posterior mediation mixtures are not staged; the licensed MediationEffect cells are Frequentist or Bayesian explicit or accepted Dag."
 
 [[closed]]
+queries = ["NestedCounterfactualEffect"]
+graph_classes = ["Admg", "Cpdag", "Pag"]
+reason = "NestedCounterfactualEffect requires the supplied fixed static Dag."
+
+[[closed]]
+queries = ["NestedCounterfactualEffect"]
+graph_classes = ["Dag"]
+structures = ["accepted", "graph_posterior"]
+reason = "NestedCounterfactualEffect requires an explicitly supplied Dag; accepted and graph-posterior structures are not licensed."
+
+[[closed]]
+queries = ["NestedCounterfactualEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+inferences = ["Bayesian"]
+reason = "NestedCounterfactualEffect is licensed only for the compatible Frequentist linear-Gaussian SCM; Bayesian SCM inference is not licensed."
+
+[[closed]]
+queries = ["NestedCounterfactualEffect"]
+graph_classes = ["Dag"]
+structures = ["explicit"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "NestedCounterfactualEffect has no compatible cheap/full cross-world refuter suite."
+
+[[closed]]
 queries = ["Counterfactual"]
 graph_classes = ["Dag"]
 structures = ["graph_posterior"]

@@ -5,7 +5,7 @@ use antecedent::estimate::validate_static_pair;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CounterfactualQuery, ExecutionContext, Intervention, MediationContrast,
-    MediationQuery, Value, VariableId,
+    MediationQuery, NestedCounterfactualQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -107,6 +107,74 @@ fn static_kinds_known_truth() {
     assert!(result.physical_plan.kernels.iter().any(|(name, _)| name.as_ref() == "gcm.aap"));
     assert!(validate_static_pair(IdentifierId::BackdoorAdjustment, EstimatorId::GcmFit).is_err());
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+}
+
+#[test]
+fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/nested_counterfactual/expected.json"
+    ))
+    .unwrap();
+    let a: Vec<_> = (0..300).map(|i| (i as f64 * 0.37).sin()).collect();
+    let m: Vec<_> = a.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
+    let y: Vec<_> = a
+        .iter()
+        .zip(&m)
+        .enumerate()
+        .map(|(i, (x, m))| 1.7 * x + 4.0 * m + (i as f64 * 0.23).sin() * 0.01)
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("x", a.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut dag = Dag::with_variables(3);
+    for (s, t) in [(0, 1), (0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+    }
+    let query = NestedCounterfactualQuery::with_levels(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        VariableId::from_raw(2),
+        -1.0,
+        2.0,
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(41);
+    let study = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(CausalQuery::NestedCounterfactual(query))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    let result = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
+    assert!((result.estimate.ate - expected).abs() < 1e-3, "{:?}", result.estimate);
+    assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
+    assert!(result.interval.is_none(), "this route is point-only until separately calibrated");
+
+    // A well-formed but incompatible DAG is refused with the stable cross-world reason.
+    let mut incompatible = Dag::with_variables(4);
+    for (s, t) in [(0, 1), (0, 2), (1, 2)] {
+        incompatible.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+    }
+    let extra_data = TabularData::from_f64_columns([
+        ("x", a.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+        ("z", a.as_slice()),
+    ])
+    .unwrap();
+    let err = Study::tabular(extra_data.clone())
+        .graph(incompatible)
+        .query(CausalQuery::NestedCounterfactual(query))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap_err();
+    assert!(err.to_string().contains("cross_world_not_identified"), "{err}");
 }
 
 fn naive_ols_slope(a: &[f64], y: &[f64]) -> f64 {

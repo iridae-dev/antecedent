@@ -94,6 +94,38 @@ fn counterfactual_and_anomaly_queries() {
 }
 
 #[test]
+fn nested_counterfactual_query_requires_distinct_roles_and_levels() {
+    let q = NestedCounterfactualQuery::with_levels(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        VariableId::from_raw(2),
+        -1.0,
+        2.0,
+    )
+    .unwrap();
+    assert_eq!(q.as_mediation_query().contrast, MediationContrast::NaturalDirect);
+    CausalQuery::NestedCounterfactual(q).validate().unwrap();
+    assert!(
+        NestedCounterfactualQuery::new(
+            VariableId::from_raw(0),
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+        )
+        .is_err()
+    );
+    assert!(
+        NestedCounterfactualQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            0.0,
+            0.0,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn change_attribution_query_validates() {
     let y = VariableId::from_raw(2);
     let q = ChangeAttributionQuery::new(

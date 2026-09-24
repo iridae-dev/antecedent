@@ -210,6 +210,7 @@ pub use transport_interference_wire::{
     transport_effect_from_wire, transport_effect_to_wire, transport_identification_from_wire,
     transport_identification_to_wire,
 };
+pub use transport_proof::{TransportFactorView, TransportProofStepView, TransportProofView};
 pub use wire::{
     AdmgWire, ArtifactKind, CpdagWire, DagWire, EndpointWire, FormatVersion, MarkedEdgeWire,
     MeasurementSpecWire, PagWire, ProvenanceWire, SchemaWire, SchemaWireV01, SectionDescriptor,

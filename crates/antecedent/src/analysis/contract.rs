@@ -1923,6 +1923,7 @@ fn functional_label(query: &CausalQuery) -> String {
             };
             format!("{contrast}.{}", population(&q.target_population))
         }
+        CausalQuery::NestedCounterfactual(_) => "natural_direct_shared_exogenous".into(),
         CausalQuery::TemporalEffect(q) => format!(
             "{}.h{}.{}",
             policy(&q.policy),

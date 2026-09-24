@@ -181,7 +181,12 @@ def test_every_population_scoped_class_has_the_field() -> None:
         ant.DirectionalDerivative,
         ant.ResponseJacobian,
     }
-    unscoped = {ant.Counterfactual, ant.AnomalyAttribution, ant.ChangeAttribution}
+    unscoped = {
+        ant.Counterfactual,
+        ant.NestedCounterfactual,
+        ant.AnomalyAttribution,
+        ant.ChangeAttribution,
+    }
     for cls in scoped:
         field = {f.name: f for f in fields(cls)}["target_population"]
         assert field.default is None and field.kw_only, cls.__name__

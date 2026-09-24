@@ -299,6 +299,10 @@ pub enum EstimatorId {
     TemporalResponseGcomp,
     /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
     GcmFit,
+    /// Bayesian-bootstrap anomaly attribution under a fitted GCM.
+    GcmFitBayesian,
+    /// Bayesian-bootstrap distribution-change attribution under a fitted GCM.
+    GcmAttributionBayesian,
     /// Dahabreh trial-to-target IPW (Direct / S-admissible standardize only).
     TransportTrialIpw,
     /// Bayesian-bootstrap trial-to-target IPW conditional on supplied probabilities.
@@ -580,6 +584,18 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "gcm.aap",
             provenance: ("estimate.gcm.fit", "estimate.gcm.fit"),
+        },
+        EstimatorId::GcmFitBayesian => EstimatorData {
+            name: "gcm.fit.bayesian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "gcm.attribution.bayesian",
+            provenance: ("estimate.gcm.fit.bayesian", "estimate.gcm.fit.bayesian"),
+        },
+        EstimatorId::GcmAttributionBayesian => EstimatorData {
+            name: "gcm.attribution.bayesian",
+            parallel_task_dimension: "analysis",
+            kernel_label: "gcm.attribution.bayesian",
+            provenance: ("estimate.gcm.attribution.bayesian", "estimate.gcm.attribution.bayesian"),
         },
         EstimatorId::TransportTrialIpw => EstimatorData {
             name: "transport.trial_ipw",
@@ -1001,6 +1017,8 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
         EstimatorId::GcmFit
+        | EstimatorId::GcmFitBayesian
+        | EstimatorId::GcmAttributionBayesian
         | EstimatorId::TransportTrialIpw
         | EstimatorId::TransportTrialBayesianBootstrap
         | EstimatorId::InterferenceHtHajek

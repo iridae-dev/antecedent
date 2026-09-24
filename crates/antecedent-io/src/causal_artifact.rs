@@ -454,6 +454,9 @@ pub(crate) fn validate_query_ids(
             }
             Ok(())
         }
+        Q::NestedCounterfactual { treatment, mediator, outcome, .. } => {
+            validate_ids([*treatment, *mediator, *outcome], variable_count)
+        }
         Q::AnomalyAttribution { targets, .. } | Q::MechanismChange { targets, .. } => {
             validate_ids(targets.iter().copied(), variable_count)
         }

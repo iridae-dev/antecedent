@@ -27,9 +27,9 @@ use antecedent_core::{
     DerivativeScale, DerivativeWeighting, ExecutionContext, ExposureLevel, ExposureMapping,
     GridSpec, InterferenceFunctional, InterferenceQuery, Intervention,
     InterventionalDistributionQuery, Lag, MediationContrast, MediationQuery,
-    PathSpecificEffectQuery, PopulationSelector, ResponseFunctional, ResponseQuery,
-    SlotAvailability, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransformIntent,
-    TransportQuery, Value, VariableId,
+    NestedCounterfactualQuery, PathSpecificEffectQuery, PopulationSelector, ResponseFunctional,
+    ResponseQuery, SlotAvailability, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
+    TransformIntent, TransportQuery, Value, VariableId,
 };
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
@@ -192,7 +192,7 @@ fn mediation_dag() -> Dag {
 
 fn dag_for(cell: &antecedent::SupportCell, n: u32) -> Dag {
     match cell.query {
-        "MediationEffect" | "PathSpecificEffect" => mediation_dag(),
+        "MediationEffect" | "PathSpecificEffect" | "NestedCounterfactualEffect" => mediation_dag(),
         "AverageDerivative"
         | "PointDerivative"
         | "Elasticity"
@@ -537,6 +537,9 @@ fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
             )
             .with_control_level(0.0),
         ),
+        "NestedCounterfactualEffect" => CausalQuery::NestedCounterfactual(
+            NestedCounterfactualQuery::new(vid(0), vid(1), vid(2)).unwrap(),
+        ),
         "InterventionalDistribution" => {
             CausalQuery::Distribution(InterventionalDistributionQuery::new(
                 vid(1),
@@ -718,7 +721,23 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         };
         (Study::series(series.clone()), CellData::Series(series))
     } else {
-        let table = if uses_pag_response_curve(cell) {
+        let table = if cell.query == "NestedCounterfactualEffect" {
+            let x: Vec<f64> = (0..300).map(|i| (i as f64 * 0.37).sin()).collect();
+            let m: Vec<f64> =
+                x.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
+            let y: Vec<f64> = x
+                .iter()
+                .zip(&m)
+                .enumerate()
+                .map(|(i, (x, m))| 1.7 * x + 4.0 * m + (i as f64 * 0.23).sin() * 0.01)
+                .collect();
+            TabularData::from_f64_columns([
+                ("x", x.as_slice()),
+                ("m", m.as_slice()),
+                ("y", y.as_slice()),
+            ])
+            .unwrap()
+        } else if uses_pag_response_curve(cell) {
             pag_response_curve_fixture().0
         } else if uses_pag_envelope(cell) {
             pag_envelope_fixture().0
@@ -926,7 +945,9 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
             .map(|i| NetworkEdge { from: i as u32, to: ((i + 1) % n_units) as u32, weight: 1.0 })
             .collect();
         let network = NetworkData::try_new(units, edges).map_err(|e| format!("{expected}: {e}"))?;
-        let assignment: Arc<[bool]> = (0..n_units).map(|i| i % 2 == 0).collect();
+        // The repeated 1100 pattern supplies all own/neighbor exposure pairs.
+        // Alternation makes the two regressors perfectly collinear.
+        let assignment: Arc<[bool]> = (0..n_units).map(|i| i % 4 < 2).collect();
         builder = builder.interference(InterferenceSpec { network, assignment });
     }
 
@@ -1053,7 +1074,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 471, "licensed inventory drifted");
+    assert_eq!(n, 472, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1092,7 +1113,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 471, "licensed inventory drifted");
+    assert_eq!(n, 472, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",

@@ -4895,6 +4895,22 @@ fn record_for(
     })
 }
 
+/// A matching historical record is calibrated only while its measured facets
+/// still attest this tree. The branch can be tested before its next deliberate
+/// calibration run without turning a stale record into a coverage claim.
+fn assert_measured_record_status(
+    status: &str,
+    reason: Option<&str>,
+    record: &antecedent_io::coverage_records_data::CoverageRecord,
+) {
+    if antecedent_io::calibration::record_attests_current_code(record) {
+        assert_eq!(status, "calibrated");
+    } else {
+        assert_eq!(status, "scope_not_assessed");
+        assert_eq!(reason, Some("coverage_record_not_attesting"));
+    }
+}
+
 fn calibration_of(
     prepared: &antecedent::PreparedStudy,
     result: &StudyResult,
@@ -4941,7 +4957,7 @@ fn calibration_slot_is_calibrated_inside_record_scope() {
         record_for(basis).unwrap_or_else(|| panic!("no coverage record measures {:#?}", basis.key));
     assert!(!record.boundary, "{} is a boundary record", record.id);
     let claim = calibration_of(&prepared, &result, &ctx);
-    assert_eq!(claim.status.as_ref(), "calibrated", "{claim:#?}");
+    assert_measured_record_status(claim.status.as_ref(), claim.reason.as_deref(), record);
     assert_eq!(claim.record_id.as_deref(), Some(record.id));
     assert_eq!(claim.calibration_sha.as_deref(), Some(record.calibration_sha));
     assert_eq!(claim.observed, Some(record.observed));
@@ -5122,7 +5138,14 @@ fn calibration_slot_is_not_calibrated_with_fewer_posterior_draws_than_measured()
     let ctx = ExecutionContext::for_tests(23);
     let (measured, data) = gcomp_measured_study(500, 400, 23);
     let calibrated = calibration_of(&measured, &measured.estimate(&data, &ctx).unwrap(), &ctx);
-    assert_eq!(calibrated.status.as_ref(), "calibrated", "{calibrated:#?}");
+    let contract = measured.contract().unwrap();
+    let result = measured.estimate(&data, &ctx).unwrap();
+    let basis = &result.calibration_bases(&contract).unwrap()[0];
+    assert_measured_record_status(
+        calibrated.status.as_ref(),
+        calibrated.reason.as_deref(),
+        record_for(basis).unwrap(),
+    );
 
     let (few, data) = gcomp_measured_study(500, 4, 23);
     let claim = calibration_of(&few, &few.estimate(&data, &ctx).unwrap(), &ctx);
@@ -5193,7 +5216,7 @@ fn calibration_slot_is_not_calibrated_with_fewer_bootstrap_replicates_than_measu
         record_for(basis).unwrap_or_else(|| panic!("no coverage record measures {:#?}", basis.key));
     assert!(record.replicates_min >= 2, "{} measured no replicate floor", record.id);
     let calibrated = calibration_of(&measured, &result, &ctx);
-    assert_eq!(calibrated.status.as_ref(), "calibrated", "{calibrated:#?}");
+    assert_measured_record_status(calibrated.status.as_ref(), calibrated.reason.as_deref(), record);
 
     let (few, data) = mediation_measured_study(400, 2, 24);
     let claim = calibration_of(&few, &few.estimate(&data, &ctx).unwrap(), &ctx);
@@ -5276,10 +5299,11 @@ fn partially_identified_answers_are_not_calibrated_against_point_records() {
         "the registry must measure this construction: {:?}",
         basis.key
     );
-    assert_eq!(
-        antecedent_io::calibration::calibration_slot(&basis).status,
-        "calibrated",
-        "the point-identified execution is the measured construction"
+    let point_slot = antecedent_io::calibration::calibration_slot(&basis);
+    assert_measured_record_status(
+        &point_slot.status,
+        point_slot.reason.as_deref(),
+        record_for(&basis).unwrap(),
     );
     basis.key.identification = "partial".into();
     basis.scope.unidentified_mass = 0.5;
@@ -5300,7 +5324,12 @@ fn calibration_slot_only_matches_the_level_it_measured() {
         "the registry must measure the construction this study builds: {:?}",
         basis.key
     );
-    assert_eq!(antecedent_io::calibration::calibration_slot(&basis).status, "calibrated");
+    let point_slot = antecedent_io::calibration::calibration_slot(&basis);
+    assert_measured_record_status(
+        &point_slot.status,
+        point_slot.reason.as_deref(),
+        record_for(&basis).unwrap(),
+    );
     basis.key.level = 0.99;
     let other = antecedent_io::calibration::calibration_slot(&basis);
     assert_ne!(other.status, "calibrated");

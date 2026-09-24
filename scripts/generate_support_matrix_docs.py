@@ -407,6 +407,11 @@ def calibration_summary(cells: list[dict]) -> str:
     not_measured = sum(
         1 for c in cells if c.get("calibration_reason") == "estimator_grid_not_measured"
     )
+    gap_coordinates = {
+        (c["query"], c["graph_class"], c["structure"], c["inference"])
+        for c in cells
+        if c.get("calibration_reason") == "estimator_grid_not_measured"
+    }
     no_interval = sum(
         1 for c in cells if c.get("calibration_reason") == "no_interval_reported"
     )
@@ -418,7 +423,8 @@ def calibration_summary(cells: list[dict]) -> str:
         )
     return (
         f"Interval calibration of the {total} licensed cells: {recorded} cite coverage "
-        f"records; {not_measured} have no coverage measurement for their estimator "
+        f"records; {not_measured} across {len(gap_coordinates)} distinct coordinates have no "
+        "coverage measurement for their estimator "
         f"(`estimator_grid_not_measured`); {no_interval} report no interval "
         "(`no_interval_reported`). A licensed cell therefore does not imply that its "
         "interval coverage was measured, and cited records do not by themselves make "

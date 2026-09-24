@@ -21,6 +21,8 @@ pub enum TheoremFamily {
     /// Later z- / limited-experiment contracts. Named so they cannot inherit
     /// classical sID completeness by accident.
     LimitedExperiment,
+    /// Single-source z-transportability (experiments on a declared controllable set).
+    ZTransportability,
 }
 
 impl TheoremFamily {
@@ -32,6 +34,7 @@ impl TheoremFamily {
             Self::MetaSid => "meta_sid",
             Self::FiniteCatalogSearch => "finite_catalog_search",
             Self::LimitedExperiment => "limited_experiment",
+            Self::ZTransportability => "z_transportability",
         }
     }
 }
@@ -259,6 +262,36 @@ impl TheoremScope {
             version: Arc::from("meta-sid-pmlr31-2013-figure5-v1"),
         };
         scope
+    }
+
+    /// Bounded single-source z-transportability research scope.
+    ///
+    /// The current graph-specific implementation is sound but incomplete even
+    /// within six observed and two controllable variables. Evidence binding
+    /// is a separate execution step.
+    #[must_use]
+    pub fn z_transportability() -> Self {
+        Self {
+            family: TheoremFamily::ZTransportability,
+            reference: TheoremReference {
+                citation: Arc::from(
+                    "Lee & Honavar, Causal Transportability of Experiments on Controllable Subsets of Variables: z-Transportability, UAI 2013, arXiv:1309.6842",
+                ),
+                version: Arc::from("lee-honavar-sidz-uai2013-bounded-v1"),
+            },
+            graph_assumptions: GraphAssumptionSet::SemiMarkovianSelectionAdmg,
+            observed: Arc::from([]),
+            allowed_experiments: ExperimentFamily::TheoremExperiments,
+            distribution_family: TransportDistributionFamily::FiniteExactTables,
+            query_scope: TransportQueryScope::TargetInterventionalResponse,
+            // Do not advertise theorem completeness until the bounded sIDz
+            // search and its independent proof checker are wired together.
+            outcome_guarantees: OutcomeGuarantee::SoundIncomplete,
+            computation_limits: ComputationLimits {
+                max_standardizer_candidates: 20,
+                multi_node_c_component_recursion: true,
+            },
+        }
     }
 
     /// Durable inspect token used by exact-law preparation.

@@ -1540,37 +1540,38 @@ impl PyPreparedAnalysis {
         let data = TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), empty)))
             .map_err(py_err)?;
         let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let query = if kind == "mediation" || kind == "counterfactual" {
-            if treatments.len() != 1 || outcomes.len() != 1 {
-                return Err(PyValueError::new_err("one treatment/outcome required"));
-            }
-            static_kind_query(
-                data.schema(),
-                kind,
-                &treatments[0],
-                &outcomes[0],
-                &mediators,
-                contrast,
-                control_level,
-                active_level,
-            )?
-        } else {
-            let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
-            let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
-            CausalQuery::Response(ResponseQuery::new(build_functional(
-                kind,
-                &ts,
-                &ys,
-                None,
-                at,
-                direction,
-                None,
-                None,
-                order,
-                crate::response_api::parse_scale(scale)?,
-                crate::response_api::parse_weighting(weighting)?,
-            )?))
-        };
+        let query =
+            if kind == "mediation" || kind == "counterfactual" || kind == "nested_counterfactual" {
+                if treatments.len() != 1 || outcomes.len() != 1 {
+                    return Err(PyValueError::new_err("one treatment/outcome required"));
+                }
+                static_kind_query(
+                    data.schema(),
+                    kind,
+                    &treatments[0],
+                    &outcomes[0],
+                    &mediators,
+                    contrast,
+                    control_level,
+                    active_level,
+                )?
+            } else {
+                let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
+                let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+                CausalQuery::Response(ResponseQuery::new(build_functional(
+                    kind,
+                    &ts,
+                    &ys,
+                    None,
+                    at,
+                    direction,
+                    None,
+                    None,
+                    order,
+                    crate::response_api::parse_scale(scale)?,
+                    crate::response_api::parse_weighting(weighting)?,
+                )?))
+            };
         let id = antecedent::identify_dag(&dag, &query).map_err(py_err)?;
         let adjustment = id
             .estimands()
@@ -1605,7 +1606,7 @@ impl PyPreparedAnalysis {
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
-        if kind == "counterfactual" {
+        if kind == "counterfactual" || kind == "nested_counterfactual" {
             opts.refuse_prior_transfer("a counterfactual query")?;
         }
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -3499,6 +3500,9 @@ impl PyPreparedAnalysis {
                 CausalQuery::Counterfactual(q) => {
                     (hard_value(&q.control), q.interventions.first().and_then(hard_value))
                 }
+                CausalQuery::NestedCounterfactual(q) => {
+                    (Some(q.control_value()), Some(q.active_value()))
+                }
                 _ => unreachable!(),
             };
             let published = antecedent::PublishedScalarUncertainty::select(&result.estimate);
@@ -3783,6 +3787,19 @@ fn static_kind_query(
             )
             .with_control(Intervention::set(t, Value::f64(control))),
         )),
+        "nested_counterfactual" => {
+            if mediators.len() != 1 {
+                return Err(PyValueError::new_err(
+                    "nested_counterfactual requires exactly one mediator",
+                ));
+            }
+            let mediator = schema.id_of(&mediators[0]).map_err(py_err)?;
+            let q = antecedent_core::NestedCounterfactualQuery::with_levels(
+                t, mediator, y, control, active,
+            )
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            Ok(CausalQuery::NestedCounterfactual(q))
+        }
         _ => Err(PyValueError::new_err("unsupported static staged kind")),
     }
 }

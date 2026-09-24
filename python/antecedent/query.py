@@ -425,6 +425,36 @@ class Counterfactual:
 
 
 @dataclass(frozen=True, slots=True)
+class NestedCounterfactual:
+    """Natural direct effect ``Y(1, M(0)) - Y(0, M(0))``.
+
+    Licensed for one explicit three-node Markovian DAG with linear Gaussian
+    mechanisms. The same abduced exogenous table is used in both worlds.
+    """
+
+    treatment: str
+    mediator: str
+    outcome: str
+    _: KW_ONLY
+    control_level: float = 0.0
+    active_level: float = 1.0
+    kind: Literal["nested_counterfactual"] = field(
+        default="nested_counterfactual", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        _require_name("treatment", self.treatment)
+        _require_name("mediator", self.mediator)
+        _require_name("outcome", self.outcome)
+        if len({self.treatment, self.mediator, self.outcome}) != 3:
+            raise CausalValueError("treatment, mediator, and outcome must be distinct")
+        if not isfinite(float(self.control_level)) or not isfinite(float(self.active_level)):
+            raise CausalValueError("nested treatment levels must be finite")
+        if float(self.control_level) == float(self.active_level):
+            raise CausalValueError("nested treatment levels must be distinct")
+
+
+@dataclass(frozen=True, slots=True)
 class TemporalMediationEffect:
     """Temporal linear mediation (treatment → mediator → outcome).
 
@@ -702,6 +732,7 @@ __all__ = [
     "InterventionResponse",
     "Mean",
     "MediationEffect",
+    "NestedCounterfactual",
     "PathSpecificEffect",
     "PulseEffect",
     "Quantile",

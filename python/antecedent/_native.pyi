@@ -3501,6 +3501,9 @@ def identification_status_names() -> list[str]:
 class ClassicalTransportStage:
     def export(self) -> bytes: ...
     def certificate_json(self) -> str: ...
+    def proof_graph_json(
+        self, catalog: Any, *, max_steps: int = 100_000, max_depth: int = 256
+    ) -> str: ...
     @property
     def outcome(self) -> str: ...
     @property
@@ -3572,7 +3575,56 @@ class PreparedExactStage:
     def inspection_json(self) -> str: ...
     def export(self) -> bytes: ...
     def preview_transform(self, intent: str) -> dict[str, str]: ...
+    def mechanism_sensitivity(
+        self,
+        outcome_values: list[float],
+        parent_cardinalities: list[int],
+        treatment_levels: tuple[int, int],
+        max_fraction: float,
+        source_kernel_regime: int,
+        source_kernel_snapshot: str,
+        target_parent_regime: int,
+        target_parent_snapshot: str,
+        source_kernel: list[tuple[list[int], list[float]]],
+        source_parent_law: list[tuple[list[int], float]],
+        target_parent_law: list[tuple[int, list[int], float]],
+        decision_threshold: float | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
+class ZTransportStage:
+    @property
+    def outcome(self) -> str: ...
+    @property
+    def reason(self) -> str | None: ...
+    def prepare_exact(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int = 1_000_000,
+        memory_bytes: int | None = None,
+    ) -> PreparedZTransportStage: ...
+
+class PreparedZTransportStage:
+    def estimate(self) -> str: ...
+    def refresh(self, laws: Any) -> None: ...
+    @property
+    def interval_type(self) -> str: ...
+
+def identify_z_transport_stage(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    controllable: list[str],
+    experiment_assignment: dict[str, float],
+) -> ZTransportStage: ...
 def consume_exact_transport(
     bytes: bytes,
     *,

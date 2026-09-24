@@ -18,10 +18,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod meta;
+mod z_transport;
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
     CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
     identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+};
+pub use z_transport::{
+    BoundZTransportFunctional, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED,
+    ZExperimentFamilyError, ZTransportDerivation, ZTransportQuery, ZTransportResult,
+    bind_z_transport_catalog, identify_z_transport_surrogate, validate_z_experiment_family,
+    validate_z_transport_query, verify_z_transport_derivation,
 };
 
 /// Theoretical query under the classical family of all source experiments.

@@ -52,6 +52,7 @@ _EXPECTED_ALL = {
     "InterventionalDistribution",
     "InterventionResponse",
     "MediationEffect",
+    "NestedCounterfactual",
     "PathSpecificEffect",
     "PulseEffect",
     "PointDerivative",

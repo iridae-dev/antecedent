@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent
+import numpy as np
 
 
 def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata():
@@ -40,7 +39,9 @@ def test_new_bayesian_estimator_ids_are_public_and_basis_result_keeps_metadata()
     assert result.posterior.q025 < result.posterior.q975
     assert result.posterior.interval() == (result.posterior.q025, result.posterior.q975)
     assert result.posterior.artifact is not None
-    assert any("zero-centered Gaussian prior" in assumption for assumption in result.assumptions or [])
+    assert any(
+        "zero-centered Gaussian prior" in assumption for assumption in result.assumptions or []
+    )
 
     artifact = antecedent.inference.decode_posterior_artifact(result.posterior.artifact)
     assert artifact.backend_id == result.posterior.backend

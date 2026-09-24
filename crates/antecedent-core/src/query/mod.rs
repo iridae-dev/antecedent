@@ -12,6 +12,7 @@ mod error;
 mod functional;
 mod interference;
 mod mediation;
+mod nested_counterfactual;
 mod population;
 mod response;
 mod target;
@@ -19,6 +20,7 @@ mod temporal;
 mod transport;
 mod transport_catalog;
 mod transport_contract;
+mod transport_delta;
 
 pub use crate::intervention::TemporalPolicy;
 
@@ -37,6 +39,7 @@ pub use interference::{
     InterferenceFunctional, InterferenceQuery,
 };
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
+pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
@@ -59,6 +62,7 @@ pub use transport_contract::{
     TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
     TransportQueryScope, TransportSupportCoordinate, TransportUncertaintySupport,
 };
+pub use transport_delta::EvidenceCatalogDelta;
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
@@ -70,6 +74,8 @@ pub enum CausalQuery {
     TemporalEffect(TemporalEffectQuery),
     /// Counterfactual / unit-level what-if query .
     Counterfactual(CounterfactualQuery),
+    /// Fixed-contract nested natural direct effect.
+    NestedCounterfactual(NestedCounterfactualQuery),
     /// Anomaly attribution for one or more units .
     AnomalyAttribution(AnomalyAttributionQuery),
     /// Distribution / population change attribution .
@@ -111,6 +117,12 @@ impl CausalQuery {
     #[must_use]
     pub fn counterfactual(query: CounterfactualQuery) -> Self {
         Self::Counterfactual(query)
+    }
+
+    /// Construct a nested counterfactual query.
+    #[must_use]
+    pub fn nested_counterfactual(query: NestedCounterfactualQuery) -> Self {
+        Self::NestedCounterfactual(query)
     }
 
     /// Construct an anomaly attribution query.
@@ -198,6 +210,12 @@ impl From<CounterfactualQuery> for CausalQuery {
     }
 }
 
+impl From<NestedCounterfactualQuery> for CausalQuery {
+    fn from(query: NestedCounterfactualQuery) -> Self {
+        Self::NestedCounterfactual(query)
+    }
+}
+
 impl From<MediationQuery> for CausalQuery {
     fn from(query: MediationQuery) -> Self {
         Self::Mediation(query)
@@ -281,6 +299,7 @@ impl CausalQuery {
             Self::Response(inner) => Some(&inner.target_population),
             Self::ConditionalEffect(inner) => Some(&inner.inner.target_population),
             Self::Counterfactual(_)
+            | Self::NestedCounterfactual(_)
             | Self::AnomalyAttribution(_)
             | Self::ChangeAttribution(_)
             | Self::MechanismChange(_)
@@ -301,6 +320,7 @@ impl CausalQuery {
             Self::Response(inner) => Some(&mut inner.target_population),
             Self::ConditionalEffect(inner) => Some(&mut inner.inner.target_population),
             Self::Counterfactual(_)
+            | Self::NestedCounterfactual(_)
             | Self::AnomalyAttribution(_)
             | Self::ChangeAttribution(_)
             | Self::MechanismChange(_)
@@ -362,6 +382,7 @@ impl CausalQuery {
             Self::AverageEffect(q) => q.validate(),
             Self::TemporalEffect(q) => q.validate(),
             Self::Counterfactual(q) => q.validate(),
+            Self::NestedCounterfactual(q) => q.validate(),
             Self::AnomalyAttribution(q) => q.validate(),
             Self::ChangeAttribution(q) => q.validate(),
             Self::MechanismChange(q) => q.validate(),

@@ -583,7 +583,7 @@ fn estimate_static_effect_default(
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        EstimatorId::GcmFit => {
+        EstimatorId::GcmFit | EstimatorId::GcmFitBayesian | EstimatorId::GcmAttributionBayesian => {
             Err(CausalError::Unsupported { message: "gcm.fit is not a static ATE estimator" })
         }
         EstimatorId::Dml => {

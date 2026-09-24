@@ -1,5 +1,21 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-09-24
+Scope: workspace crates + `python` extension (package version **2.1.0**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+Pre-release source review of the 2.1.0 development branch against `origin/main`:
+the added Bayesian and evidence routes change statistical and proof handling,
+including query/artifact decoding. The changed Rust source adds no `unsafe`
+block, the lockfile adds no external package, and no workflow permission file
+changed. Exact and empirical transport inputs are bounded by the declared
+finite domains and checked catalog bindings; the nested SCM route is limited
+to the compatible explicit DAG and a point result. An offline `cargo deny
+check` on 2026-09-24 passed advisories, bans, licenses, and sources with
+warnings for existing dependency metadata and duplicate versions. This is a
+source and cached-advisory review; the release candidate still requires its
+CI, calibration, artifact, and support gates on the final commit.
+
 Date: 2026-09-22
 Scope: workspace crates + `python` extension (package version **2.0.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)

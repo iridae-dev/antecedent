@@ -6,6 +6,21 @@
 # classify_estimator licenses a route only when its EstimatorId is listed.
 
 [[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["mediation.linear"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/nested_counterfactual"
+evidence_test = "crates/antecedent/tests/staged_static_kinds.rs"
+evidence_assertion = "fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs"
+limitations = "Natural direct effect Y(active, M(control)) - Y(control, M(control)) for the fixed Markovian DAG treatment -> mediator, treatment -> outcome, mediator -> outcome under the compatible linear-Gaussian SCM. The mediator's control-world value and both outcome worlds share one abduced exogenous draw. This is a point-only claim: no sampling interval or repeated-sampling coverage is published. Bayesian SCM inference, latent-confounded graphs, accepted structures, graph-posterior structures, incompatible cross-world queries, and cheap/full refuters remain refused."
+calibration_reason = "no_interval_reported"
+
+[[cell]]
 query = "ResponseCurve"
 graph_class = "Dag"
 structure = "graph_posterior"

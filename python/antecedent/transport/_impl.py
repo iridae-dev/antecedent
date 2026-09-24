@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import KW_ONLY, dataclass, field
+from dataclasses import KW_ONLY, dataclass, field, replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args, overload
 
 if TYPE_CHECKING:
@@ -19,6 +20,7 @@ import numpy as np
 from .._defaults import OMITTED
 from .._native import estimate_trial_transport as _estimate_trial_transport
 from .._native import identify_transport as _identify_transport
+from .._native import identify_z_transport_stage as _identify_z_transport_stage
 from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .._transport_results import (
     TransportContrast,
@@ -74,6 +76,41 @@ class SelectionDiagram:
             raise CausalValueError("selections must not contain duplicates")
         if any(not value.strip() for value in self.selections):
             raise CausalValueError("selections must contain variable names")
+
+
+@dataclass(frozen=True, slots=True)
+class ZTransportQuery:
+    """Query for the currently registered graph-specific z-transport route.
+
+    ``experiment_assignment`` supplies the concrete source ``do(Z=z)`` law used
+    by the checked specialization. Other diagrams remain ``not_certified``.
+    """
+
+    diagram: SelectionDiagram
+    outcomes: Sequence[str]
+    treatments: Sequence[str]
+    controllable: Sequence[str]
+    experiment_assignment: Mapping[str, float]
+
+    def __post_init__(self) -> None:
+        for field_name in ("outcomes", "treatments", "controllable"):
+            values = tuple(getattr(self, field_name))
+            if not values or len(set(values)) != len(values) or any(not v.strip() for v in values):
+                raise CausalValueError(
+                    f"zTR {field_name} must be non-empty, distinct variable names"
+                )
+            object.__setattr__(self, field_name, values)
+        if len(self.controllable) > 2:
+            raise CausalValueError("zTR supports at most two declared controllable variables")
+        if not self.experiment_assignment:
+            raise CausalValueError("zTR requires a concrete source experiment assignment")
+        if not set(self.experiment_assignment).issubset(self.controllable):
+            raise CausalValueError("zTR experiment assignments must name controllable variables")
+        if any(not math.isfinite(value) for value in self.experiment_assignment.values()):
+            raise CausalValueError("zTR experiment assignments must be finite")
+        object.__setattr__(
+            self, "experiment_assignment", MappingProxyType(dict(self.experiment_assignment))
+        )
 
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
@@ -294,6 +331,40 @@ class EvidenceCatalog:
     @staticmethod
     def empty() -> EvidenceCatalog:
         return EvidenceCatalog()
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceCatalogDelta:
+    """Immutable proposed laws for a transport-planning preview.
+
+    The original catalog retains its evidence status. The returned preview is
+    a temporary input for identification and binding; it does not contain data.
+    """
+
+    proposed_regimes: Sequence[EvidenceRegime]
+
+    def __post_init__(self) -> None:
+        ids = [regime.id for regime in self.proposed_regimes]
+        if len(set(ids)) != len(ids):
+            raise CausalValueError("catalog delta regime ids must be unique")
+        if any(regime.evidence_kind != "proposed" for regime in self.proposed_regimes):
+            raise CausalValueError("catalog delta requires proposed regimes")
+
+    def preview(self, base: EvidenceCatalog) -> EvidenceCatalog:
+        """Return a separate catalog with hypothetical results available."""
+        if set(regime.id for regime in base.regimes) & set(
+            regime.id for regime in self.proposed_regimes
+        ):
+            raise CausalValueError("catalog delta conflicts with a base regime")
+        return EvidenceCatalog(
+            environments=base.environments,
+            regimes=(
+                *base.regimes,
+                *(replace(r, evidence_kind="available") for r in self.proposed_regimes),
+            ),
+            bindings=base.bindings,
+            target_sampling=base.target_sampling,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -602,6 +673,29 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
     )
 
 
+def identify_z_transport(*, graph: Admg, query: ZTransportQuery) -> Any:
+    """Create a native zTR stage for the one currently registered graph case.
+
+    The returned stage exposes ``outcome`` and ``reason``. On an identified
+    result, call ``prepare_exact(catalog, laws, assignments)`` to obtain an
+    independently prepared point-only execution. Other graphs remain refused.
+    """
+    if not isinstance(graph, Admg):
+        raise CausalTypeError("transport.identify_z_transport requires graph=Admg(...)")
+    if not isinstance(query, ZTransportQuery):
+        raise CausalTypeError("query must be a ZTransportQuery")
+    return _identify_z_transport_stage(
+        graph,
+        list(query.diagram.selections),
+        query.diagram.source,
+        query.diagram.target,
+        list(query.outcomes),
+        list(query.treatments),
+        list(query.controllable),
+        dict(query.experiment_assignment),
+    )
+
+
 def reload_lowered_expression(
     identification: TransportIdentification,
 ) -> tuple[str, str, tuple[tuple[str, int | None], ...], tuple[int, ...]]:
@@ -691,6 +785,7 @@ __all__ = [
     "DistributionAvailabilityName",
     "Environment",
     "EvidenceCatalog",
+    "EvidenceCatalogDelta",
     "EvidenceKindName",
     "EvidenceRegime",
     "MissingEvidenceCertificate",
@@ -710,11 +805,13 @@ __all__ = [
     "TransportIdentification",
     "TransportOverlapReport",
     "TransportQuery",
+    "ZTransportQuery",
     "TrialTransportEstimate",
     "VariableCoordinate",
     "VariableDomainName",
     "estimate_trial_effect",
     "identify",
+    "identify_z_transport",
 ]
 
 
@@ -734,12 +831,15 @@ class ExactDiscreteLaw:
     interventions: tuple[tuple[str, float], ...] = ()
     absolute_tolerance: float = 1e-12
     relative_tolerance: float = 1e-10
+    empirical_counts: tuple[int, ...] | None = None
 
     def __post_init__(self) -> None:
         # Freeze caller-owned sequences before retaining them as a snapshot.
         object.__setattr__(self, "axes", tuple((name, tuple(values)) for name, values in self.axes))
         object.__setattr__(self, "probabilities", tuple(self.probabilities))
         object.__setattr__(self, "interventions", tuple(tuple(item) for item in self.interventions))
+        if self.empirical_counts is not None:
+            object.__setattr__(self, "empirical_counts", tuple(self.empirical_counts))
 
 
 @dataclass(frozen=True, slots=True)
@@ -1551,6 +1651,34 @@ def inspect_catalog(
 
 
 __all__ += ["inspect_catalog"]
+
+
+def inspect_proof_graph(
+    identification: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+) -> dict[str, Any]:
+    """Return checked theorem steps and source-specific required factor leaves.
+
+    Every leaf names its supplying regime or the exact binding failure. Proposed
+    studies remain unavailable; use a hypothetical catalog delta for previews.
+    """
+    import json
+
+    return dict(
+        json.loads(
+            identification._native.proof_graph_json(
+                catalog,
+                max_steps=max_steps,
+                max_depth=max_depth,
+            )
+        )
+    )
+
+
+__all__ += ["inspect_proof_graph"]
 
 
 @dataclass(frozen=True, slots=True)

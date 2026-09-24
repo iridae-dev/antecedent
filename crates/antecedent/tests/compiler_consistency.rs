@@ -44,6 +44,11 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",
+    "bayesian.basis.gcomp",
+    "bayesian.robust_ate",
+    "iv.bayesian_joint_linear",
+    "rd.bayesian_local_linear",
+    "transport.trial_bayesian_bootstrap",
     "conditional.bayesian",
     "bayesian.temporal.gcomp",
     "response.temporal.bayesian",

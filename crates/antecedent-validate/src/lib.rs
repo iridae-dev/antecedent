@@ -16,6 +16,7 @@ pub mod error;
 pub mod evalue;
 pub mod functional;
 pub mod graph_refute;
+pub mod mechanism_sensitivity;
 pub mod mediation;
 pub mod overlap;
 pub mod overlap_rule;
@@ -48,6 +49,13 @@ pub use dummy_outcome::DummyOutcome;
 pub use error::ValidationError;
 pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
+pub use mechanism_sensitivity::{
+    DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,
+    DiscreteKernelSensitivityResult, FIXED_GRAPH_SENSITIVITY_MAX_STRATA,
+    FixedGraphMechanismSensitivityResult, FixedGraphMechanismSensitivitySpec,
+    FixedGraphSensitivityError, SourceOutcomeKernelRow, SourceParentLawRow, TargetParentLawRow,
+    fixed_graph_mechanism_sensitivity,
+};
 pub use mediation::QueryRefutationPlan;
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;

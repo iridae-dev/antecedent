@@ -40,6 +40,19 @@ The formula can be identified while a required joint is unbound. Then
 The meta-grid script's partial catalog is that neighbor next to the full-law
 success.
 
+For a checked classical identification, `antecedent.transport.advanced`
+exposes `inspect_proof_graph(identification, catalog)`. Its `steps` form the
+checked rule graph; each step names the factor nodes it needs. Each `factors`
+entry records the population, variables, conditioning and exact intervention
+set, followed by the supplying regime ID or a binding failure. It verifies the
+stored proof against the original diagram and query before reporting leaves.
+
+`EvidenceCatalogDelta` holds proposed regimes separately from the supplied
+catalog. `delta.preview(catalog)` makes a temporary structural preview for
+re-identification; the source catalog and its prepared analyses retain their
+original evidence status. A preview has no data snapshot, so actual results
+must enter through the ordinary prepare and refresh path.
+
 ## Local support / positivity
 
 A grid keeps unsupported coordinates. `result.support` locates the empty
