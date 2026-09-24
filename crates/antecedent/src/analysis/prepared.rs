@@ -1584,6 +1584,41 @@ pub struct PreparedStudy<S = SampledPreparedState> {
     pub(crate) state: S,
 }
 
+/// One sealed execution choice for a prepared tabular click. `LegacyStudyDispatch`
+/// names routes that still use the ordinary dispatcher; the checked variants
+/// carry the complete operation retained by preparation.
+#[derive(Clone, Debug)]
+pub(crate) enum PreparedExecution {
+    LegacyStudyDispatch,
+    CheckedLinear(antecedent_estimate::CheckedLinearAdjustmentAte),
+    NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
+    Distribution(CheckedDistributionOperation),
+    BayesianGcomp(CheckedBayesianGcompOperation),
+    StaticResponseCurve(CheckedStaticResponseCurve),
+}
+
+impl PreparedExecution {
+    pub(crate) fn checked_linear(
+        &self,
+    ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
+        if let Self::CheckedLinear(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn nested_counterfactual(
+        &self,
+    ) -> Option<&crate::gcm::NestedCounterfactualOperation> {
+        if let Self::NestedCounterfactual(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn distribution(&self) -> Option<&CheckedDistributionOperation> {
+        if let Self::Distribution(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
+        if let Self::BayesianGcomp(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
+        if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
+    }
+}
+
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
@@ -1603,15 +1638,8 @@ pub struct SampledPreparedState {
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
     /// Checked causal-to-linear lowering retained independently of the builder.
-    checked_linear: Option<antecedent_estimate::CheckedLinearAdjustmentAte>,
-    /// Typed cross-world operation retained for nested counterfactual execution.
-    nested_counterfactual: Option<crate::gcm::NestedCounterfactualOperation>,
-    /// Checked functional-distribution program retained through estimate and refresh.
-    distribution_operation: Option<CheckedDistributionOperation>,
-    /// Checked static-DAG mean-curve family plan.
-    checked_response_curve: Option<CheckedStaticResponseCurve>,
-    /// Checked query / identification / prior configuration for static Bayesian mean ATE.
-    bayesian_gcomp_operation: Option<CheckedBayesianGcompOperation>,
+    /// Sealed route selection and its checked operation, or explicitly named legacy dispatch.
+    execution: PreparedExecution,
 }
 
 impl std::ops::Deref for PreparedStudy {
@@ -1631,7 +1659,7 @@ impl PreparedStudy {
     /// prepared handle uses that licensed route.
     #[must_use]
     pub fn checked_bayesian_gcomp_operation(&self) -> Option<&CheckedBayesianGcompOperation> {
-        self.bayesian_gcomp_operation.as_ref()
+        self.execution.bayesian_gcomp()
     }
     /// Checked linear adjustment lowering retained by this prepared handle.
     ///
@@ -1641,13 +1669,13 @@ impl PreparedStudy {
     pub fn checked_linear_adjustment(
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
-        self.checked_linear.as_ref()
+        self.execution.checked_linear()
     }
 
     /// Checked functional program retained for a prepared distribution query.
     #[must_use]
     pub fn checked_distribution_program(&self) -> Option<&antecedent_expr::FunctionalProgram> {
-        self.distribution_operation.as_ref().map(|operation| operation.prepared.program())
+        self.execution.distribution().map(|operation| operation.prepared.program())
     }
 
     /// Borrow the caller's frozen query, with original variable ids and query kind.
@@ -1664,7 +1692,9 @@ impl PreparedStudy {
     #[cfg(test)]
     pub(crate) fn study_mut(&mut self) -> &mut Study {
         self.program_cache = std::sync::OnceLock::new();
-        self.checked_linear = None;
+        if matches!(self.execution, PreparedExecution::CheckedLinear(_)) {
+            self.execution = PreparedExecution::LegacyStudyDispatch;
+        }
         &mut self.analysis
     }
 
@@ -2177,8 +2207,8 @@ impl PreparedStudy {
             click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
         click_analysis.shared_batch_design = shared;
         let rebound_linear = self
-            .checked_linear
-            .as_ref()
+            .execution
+            .checked_linear()
             .map(|checked| {
                 let fitter = match &click_analysis.estimator_spec {
                     Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
@@ -2189,16 +2219,13 @@ impl PreparedStudy {
                 fitter.rebind_checked(checked, data).map_err(CausalError::from)
             })
             .transpose()?;
-        let mut result = click_analysis.execute_tabular(
-            data,
-            &self.plan,
-            rebound_linear.as_ref(),
-            self.nested_counterfactual.as_ref(),
-            self.distribution_operation.as_ref(),
-            self.bayesian_gcomp_operation.as_ref(),
-            self.checked_response_curve.as_ref(),
-            ctx,
-        )?;
+        let execution = match (&self.execution, rebound_linear) {
+            (PreparedExecution::CheckedLinear(_), Some(rebound)) => {
+                PreparedExecution::CheckedLinear(rebound)
+            }
+            (plan, _) => plan.clone(),
+        };
+        let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
         // record which refutation reports are caller-attested. Without the names,
         // the claim would drop custom-validator evidence from `attested` and from
@@ -2238,13 +2265,9 @@ impl PreparedStudy {
         // The checked static lowering belongs to the prepared handle. Execute
         // through it before replacing the retained data snapshot; otherwise the
         // generic Study refresh route would rederive an unchecked preparation.
-        let checked_result = (self.checked_linear.is_some()
-            || self.nested_counterfactual.is_some()
-            || self.distribution_operation.is_some()
-            || self.checked_response_curve.is_some()
-            || self.bayesian_gcomp_operation.is_some())
-        .then(|| self.estimate(&data, ctx))
-        .transpose()?;
+        let checked_result = (!matches!(self.execution, PreparedExecution::LegacyStudyDispatch))
+            .then(|| self.estimate(&data, ctx))
+            .transpose()?;
         let mut refreshed = self.analysis.clone();
         refreshed.shared_batch_design = refreshed
             .shared_batch_design
@@ -3110,6 +3133,19 @@ impl Study {
             _ => None,
         };
         let score_table = analysis.prepare_score_table(ctx)?;
+        let execution = if let Some(operation) = checked_linear {
+            PreparedExecution::CheckedLinear(operation)
+        } else if let Some(operation) = nested_counterfactual {
+            PreparedExecution::NestedCounterfactual(operation)
+        } else if let Some(operation) = distribution_operation {
+            PreparedExecution::Distribution(operation)
+        } else if let Some(operation) = bayesian_gcomp_operation {
+            PreparedExecution::BayesianGcomp(operation)
+        } else if let Some(operation) = checked_response_curve {
+            PreparedExecution::StaticResponseCurve(operation)
+        } else {
+            PreparedExecution::LegacyStudyDispatch
+        };
         Ok(PreparedStudy {
             state: SampledPreparedState {
                 analysis,
@@ -3119,11 +3155,7 @@ impl Study {
                 modality,
                 time_regularity,
                 score_table,
-                checked_linear,
-                nested_counterfactual,
-                distribution_operation,
-                checked_response_curve,
-                bayesian_gcomp_operation,
+                execution,
             },
         })
     }
@@ -4352,6 +4384,10 @@ mod checked_response_curve_tests {
         let grid = [-0.5, 0.0, 0.5];
         let context = ExecutionContext::for_tests(17);
         let mut prepared = study(data(0.0), &grid).prepare(&context).unwrap();
+        assert!(matches!(
+            prepared.execution,
+            super::PreparedExecution::StaticResponseCurve(_)
+        ));
         let refreshed = data(0.4);
         let actual = prepared.refresh(refreshed.clone(), &context).unwrap().response.unwrap();
         let expected = study(refreshed, &grid).run(&context).unwrap().response.unwrap();

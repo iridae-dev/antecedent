@@ -503,7 +503,13 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { unreachable!() };
-                self.execute_tabular_route(route, data, physical, None, None, None, None, None, ctx)
+                self.execute_tabular_route(
+                    route,
+                    data,
+                    physical,
+                    &super::super::prepared::PreparedExecution::LegacyStudyDispatch,
+                    ctx,
+                )
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -590,11 +596,7 @@ impl super::Study {
         &self,
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
-        checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
-        nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
-        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
-        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
-        checked_response_curve: Option<&super::super::prepared::CheckedStaticResponseCurve>,
+        execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -604,17 +606,7 @@ impl super::Study {
             classify_route(DataModality::Tabular, &self.query).ok_or(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             })?;
-        self.execute_tabular_route(
-            route,
-            data,
-            physical,
-            checked_linear,
-            nested_counterfactual,
-            distribution_operation,
-            bayesian_gcomp_operation,
-            checked_response_curve,
-            ctx,
-        )
+        self.execute_tabular_route(route, data, physical, execution, ctx)
     }
 
     /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
@@ -665,11 +657,7 @@ impl super::Study {
         route: AnalysisRoute,
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
-        checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
-        nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
-        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
-        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
-        checked_response_curve: Option<&super::super::prepared::CheckedStaticResponseCurve>,
+        execution: &super::super::prepared::PreparedExecution,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
@@ -680,7 +668,14 @@ impl super::Study {
                         let graph = self.require_execute_dag(
                             "Response execute requires a supplied static DAG",
                         )?;
-                        self.execute_response(data, graph, q, physical, checked_response_curve, ctx)
+                        self.execute_response(
+                            data,
+                            graph,
+                            q,
+                            physical,
+                            execution.response_curve(),
+                            ctx,
+                        )
                     }
                     GraphClass::Cpdag | GraphClass::Pag => {
                         self.execute_class_response(data, q, physical, ctx)
@@ -740,8 +735,8 @@ impl super::Study {
                             graph,
                             q,
                             physical,
-                            checked_linear,
-                            bayesian_gcomp_operation,
+                            execution.checked_linear(),
+                            execution.bayesian_gcomp(),
                             ctx,
                         )
                     }
@@ -770,8 +765,8 @@ impl super::Study {
                                 graph,
                                 q,
                                 physical,
-                                checked_linear,
-                                bayesian_gcomp_operation,
+                                execution.checked_linear(),
+                                execution.bayesian_gcomp(),
                                 ctx,
                             )
                         }
@@ -801,7 +796,7 @@ impl super::Study {
                             super::static_path::DistributionGraph::Dag(graph),
                             q,
                             physical,
-                            distribution_operation,
+                            execution.distribution(),
                             ctx,
                         )
                     }
@@ -814,7 +809,7 @@ impl super::Study {
                             super::static_path::DistributionGraph::Admg(admg),
                             q,
                             physical,
-                            distribution_operation,
+                            execution.distribution(),
                             ctx,
                         )
                     }
@@ -855,7 +850,7 @@ impl super::Study {
                         self.execute_static_mediation_total(data, graph, q, physical, ctx)
                     }
                     CausalQuery::NestedCounterfactual(q) => {
-                        let operation = match nested_counterfactual {
+                        let operation = match execution.nested_counterfactual() {
                             Some(operation) if operation.matches(graph, q) => operation.clone(),
                             Some(_) => {
                                 return Err(CausalError::Unsupported {
