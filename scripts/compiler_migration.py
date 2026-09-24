@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from pathlib import Path
 import re
 import subprocess
@@ -320,6 +321,21 @@ def validate(release_gate: bool = False) -> list[str]:
         evidence_test = row.get("evidence_test")
         evidence_assertion = row.get("evidence_assertion")
         verified = row.get("migration_status") == "verified"
+        if verified and (
+            row.get("checked_execution") != "verified"
+            or row.get("builder_independent") != "verified"
+            or row.get("execution_semantics") != "checked_plan"
+        ):
+            issues.append(
+                f"{key}: verified status requires checked execution, builder independence, "
+                "and checked-plan semantics"
+            )
+        if row.get("migration_status") == "pending" and (
+            row.get("checked_execution") != "unverified"
+            or row.get("builder_independent") != "unverified"
+            or row.get("execution_semantics") != "unverified"
+        ):
+            issues.append(f"{key}: pending route cannot carry verified execution claims")
         if verified and (not evidence_test or not evidence_assertion):
             issues.append(f"{key}: verified route must name evidence_test and evidence_assertion")
         if verified and evidence_test and evidence_assertion:
@@ -421,6 +437,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true", help="regenerate the checked-in inventory")
     parser.add_argument("--release-gate", action="store_true", help="require every licensed route to be verified")
+    parser.add_argument("--progress", action="store_true", help="show closure counts by execution family")
     args = parser.parse_args()
     if args.write:
         INVENTORY.write_text(render())
@@ -434,6 +451,14 @@ def main() -> int:
         return 1
     total = len(tomllib.loads(INVENTORY.read_text())["route"])
     print(f"compiler migration inventory: ok ({total} licensed routes classified, including {len(load_transport_stage_routes())} public transport stages)")
+    if args.progress:
+        rows = tomllib.loads(INVENTORY.read_text())["route"]
+        for kind in sorted(KINDS):
+            counts = Counter(row["migration_status"] for row in rows if row["kind"] == kind)
+            print(
+                f"{kind}: verified={counts['verified']} "
+                f"in_progress={counts['in_progress']} pending={counts['pending']}"
+            )
     if args.release_gate:
         print("compiler migration release gate: all licensed routes verified")
     return 0
