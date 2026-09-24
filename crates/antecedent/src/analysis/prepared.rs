@@ -153,6 +153,15 @@ pub(crate) struct CheckedFrontDoorOperation {
     pub(crate) preparation: antecedent_estimate::CheckedFrontDoorPreparation,
 }
 
+/// Selected AIPW procedure and its checked, row-bound numerical receipt.
+/// The fitter is retained so estimate clicks cannot recover its nuisance or
+/// uncertainty choices from a copied `Study`.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedAipwOperation {
+    pub(crate) fitter: AipwAte,
+    pub(crate) preparation: antecedent_estimate::CheckedAipwPreparation,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum CheckedIvOperation {
     Wald {
@@ -1593,7 +1602,7 @@ pub struct PreparedStudy<S = SampledPreparedState> {
 pub(crate) enum PreparedExecution {
     LegacyStudyDispatch,
     CheckedLinear(antecedent_estimate::CheckedLinearAdjustmentAte),
-    CheckedAipw(antecedent_estimate::CheckedAipwPreparation),
+    CheckedAipw(CheckedAipwOperation),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(CheckedBayesianGcompOperation),
@@ -1609,6 +1618,9 @@ impl PreparedExecution {
         if let Self::CheckedLinear(value) = self { Some(value) } else { None }
     }
     pub(crate) fn checked_aipw(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
+        self.aipw_operation().map(|operation| &operation.preparation)
+    }
+    pub(crate) fn aipw_operation(&self) -> Option<&CheckedAipwOperation> {
         if let Self::CheckedAipw(value) = self { Some(value) } else { None }
     }
     pub(crate) fn nested_counterfactual(
@@ -2264,10 +2276,16 @@ impl PreparedStudy {
             .transpose()?;
         let rebound_aipw = self
             .execution
-            .checked_aipw()
-            .map(|checked| {
-                let fitter = checked_aipw_fitter(&click_analysis);
-                fitter.rebind_checked(checked, data).map_err(CausalError::from)
+            .aipw_operation()
+            .map(|operation| {
+                operation
+                    .fitter
+                    .rebind_checked(&operation.preparation, data)
+                    .map(|preparation| CheckedAipwOperation {
+                        fitter: operation.fitter.clone(),
+                        preparation,
+                    })
+                    .map_err(CausalError::from)
             })
             .transpose()?;
         let rebound_frontdoor = self
@@ -3163,7 +3181,8 @@ impl Study {
             {
                 let fitter = checked_aipw_fitter(&analysis);
                 if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { trim: None, .. }) {
-                    Some(fitter.prepare_checked(data, &cache.identification, 0)?)
+                    let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+                    Some(CheckedAipwOperation { fitter, preparation })
                 } else {
                     None
                 }
@@ -4534,6 +4553,114 @@ mod tests {
         assert!(!is_supplied_static_graph(GraphClass::TemporalDag));
         assert!(!is_supplied_static_graph(GraphClass::TemporalCpdag));
         assert!(!is_supplied_static_graph(GraphClass::TemporalPag));
+    }
+}
+
+#[cfg(test)]
+mod checked_aipw_operation_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::AipwAte;
+    use antecedent_graph::Dag;
+
+    use super::PreparedExecution;
+    use crate::Study;
+    use crate::analysis::builder::RefuteSuite;
+    use crate::estimator_spec::EstimatorSpec;
+    use crate::strategy_table::EstimatorId;
+
+    fn data() -> TabularData {
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("z", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(hint),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let n = 512;
+        let mut t = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut z = Vec::with_capacity(n);
+        for i in 0..n {
+            let ti = (i % 2) as f64;
+            let zi = ((i * 37 % 101) as f64 - 50.0) / 50.0;
+            t.push(ti);
+            z.push(zi);
+            y.push(2.0 * ti + zi + ((i * 13 % 47) as f64 - 23.0) / 100.0);
+        }
+        let columns = [("t", t), ("y", y), ("z", z)]
+            .into_iter()
+            .map(|(name, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        schema.id_of(name).unwrap(),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+    }
+
+    #[test]
+    fn checked_aipw_click_uses_retained_fitter_after_study_config_changes() {
+        let data = data();
+        let graph =
+            Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+        let query = AverageEffectQuery::with_levels(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+            0.0,
+            1.0,
+        );
+        let context = ExecutionContext::for_tests(23);
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(query)
+            .estimator(EstimatorId::Aipw)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let mut prepared = study.prepare(&context).unwrap();
+        drop(study);
+        let PreparedExecution::CheckedAipw(operation) = &prepared.execution else {
+            panic!("expected retained checked AIPW operation")
+        };
+        assert_eq!(operation.fitter.bootstrap_replicates, 0);
+        assert_eq!(operation.preparation.lowering().bootstrap_replicates, 0);
+        let first = prepared.estimate(&data, &context).unwrap();
+        assert!((first.effect() - 2.0).abs() < 0.2);
+
+        // A copied Study is execution metadata, not the source of the fitter.
+        // If a click reconstructed AIPW from it, the changed replicate count
+        // would conflict with the checked receipt and reject the click.
+        let mut changed_fitter = AipwAte::new();
+        changed_fitter.bootstrap_replicates = 7;
+        prepared.analysis.estimator_spec = Some(EstimatorSpec::Aipw(Box::new(changed_fitter)));
+        let second = prepared.estimate(&data, &context).unwrap();
+        assert!((second.effect() - first.effect()).abs() < 1e-10);
+        assert!(second.estimate.se_bootstrap.is_none());
     }
 }
 
