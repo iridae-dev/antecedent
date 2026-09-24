@@ -358,6 +358,7 @@ impl PreparedStudy {
             self.checked_linear_operation(),
             self.checked_functional_effect_program(),
             self.checked_functional_effect_response_members(),
+            self.checked_nested_counterfactual_operation(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -408,6 +409,11 @@ impl PreparedStudy {
                 } else {
                     None
                 },
+                if population.is_none() {
+                    self.checked_nested_counterfactual_operation()
+                } else {
+                    None
+                },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -432,6 +438,10 @@ impl PreparedStudy {
                     antecedent_io::distribution_factor_laws_to_wire(&laws)
                         .map_err(|err| io_err(&err))?,
                 );
+            }
+            if let Some(operation) = self.checked_nested_counterfactual_operation() {
+                snapshot.nested_counterfactual_fit =
+                    Some(nested_counterfactual_fit_wire(tabular, operation)?);
             }
         }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
@@ -1147,6 +1157,7 @@ fn program_payloads_for(
     checked_functional_response_members: Option<
         &[super::prepared::CheckedFunctionalEffectResponseMember],
     >,
+    checked_nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1161,6 +1172,7 @@ fn program_payloads_for(
         checked_linear,
         checked_functional_effect,
         checked_functional_response_members,
+        checked_nested_counterfactual,
     )
 }
 
@@ -1231,6 +1243,51 @@ fn merge_response_factor_snapshots(
     })
 }
 
+fn nested_counterfactual_fit_wire(
+    data: &antecedent_data::TabularData,
+    operation: &crate::gcm::NestedCounterfactualOperation,
+) -> Result<antecedent_io::NestedCounterfactualFitWire, CausalError> {
+    let query = operation.query();
+    let x = data
+        .float64_values(query.treatment)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let m = data
+        .float64_values(query.mediator)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let y = data
+        .float64_values(query.outcome)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let mut gram = [0.0_f64; 9];
+    let mut outcome_cross = [0.0_f64; 3];
+    let mut complete_case_rows = 0_u64;
+    for ((x, m), y) in x.iter().zip(&m).zip(&y) {
+        if !x.is_finite() || !m.is_finite() || !y.is_finite() {
+            continue;
+        }
+        complete_case_rows += 1;
+        let design = [1.0, *x, *m];
+        for row in 0..3 {
+            outcome_cross[row] += design[row] * y;
+            for column in 0..3 {
+                gram[row * 3 + column] += design[row] * design[column];
+            }
+        }
+    }
+    if complete_case_rows < 4 {
+        return Err(CausalError::Compile {
+            message:
+                "nested counterfactual requires at least four complete outcome-regression rows"
+                    .into(),
+        });
+    }
+    Ok(antecedent_io::NestedCounterfactualFitWire {
+        format: 1,
+        complete_case_rows,
+        gram,
+        outcome_cross,
+    })
+}
+
 /// Add `study`'s data snapshot to program payloads already compiled for it.
 fn contract_payloads(
     program: Arc<ProgramPayloads>,
@@ -1257,6 +1314,10 @@ fn contract_payloads(
                     .map_err(|err| io_err(&err))?,
             );
         }
+        if let Some(operation) = prepared.checked_nested_counterfactual_operation() {
+            data_snapshot.nested_counterfactual_fit =
+                Some(nested_counterfactual_fit_wire(tabular, operation)?);
+        }
     }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
     Ok(ContractPayloads { identities: program.identities(snapshot_digest), program, data_snapshot })
@@ -1275,6 +1336,7 @@ fn program_payloads(
     checked_functional_response_members: Option<
         &[super::prepared::CheckedFunctionalEffectResponseMember],
     >,
+    checked_nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1590,6 +1652,19 @@ fn program_payloads(
         checked_iv_lowering,
         checked_linear_adjustment_lowering,
         checked_functional_response_grid,
+        checked_nested_counterfactual: checked_nested_counterfactual.map(|operation| {
+            let query = operation.query();
+            antecedent_io::CheckedNestedCounterfactualWire {
+                format: 1,
+                treatment: query.treatment.raw(),
+                mediator: query.mediator.raw(),
+                outcome: query.outcome.raw(),
+                control_bits: query.control_value().to_bits(),
+                active_bits: query.active_value().to_bits(),
+                model: "linear_gaussian".into(),
+                procedure: "natural_direct_shared_exogenous".into(),
+            }
+        }),
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
@@ -1692,6 +1767,9 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .and_then(PreparedStudy::checked_functional_effect_response_members),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_nested_counterfactual_operation),
         )?),
     };
     let mut payloads = contract_payloads(program, study, prepared)?;
@@ -1820,6 +1898,7 @@ fn data_snapshot_wire(
         partitions,
         interference: interference.map(super::contract_identity::interference_snapshot),
         distribution_factor_laws: None,
+        nested_counterfactual_fit: None,
     })
 }
 

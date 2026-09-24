@@ -721,6 +721,11 @@ pub fn verify_contract_against_body(
             (None, Some(_)) => unresolved.push(Arc::from("program.functional_program")),
         }
     }
+    if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
+        if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
+            unresolved.push(Arc::from(reason));
+        }
+    }
     if contract.target.schema.variable_names() != header.variable_names {
         unresolved.push(Arc::from("header.variable_names"));
     }
@@ -1164,6 +1169,139 @@ fn is_functional_effect_estimator_contract(contract: &AnalysisResultContractWire
         || contract.program.as_ref().is_some_and(|program| {
             program.commitments.resolved_estimator.as_deref() == Some("functional.effect")
         })
+}
+
+fn verify_nested_counterfactual_result(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+) -> Result<(), &'static str> {
+    let crate::CausalQueryWire::NestedCounterfactual {
+        treatment,
+        mediator,
+        outcome,
+        control_bits,
+        active_bits,
+    } = contract.target.query
+    else {
+        return Err("program.checked_nested_counterfactual.target");
+    };
+    let operation = contract
+        .program
+        .as_ref()
+        .and_then(|program| program.checked_nested_counterfactual.as_ref())
+        .ok_or("program.checked_nested_counterfactual")?;
+    if contract.graph_class != "Dag"
+        || contract.structure_source != "explicit"
+        || !matches!(contract.identifier.as_deref(), None | Some("path_specific.natural"))
+        || !matches!(contract.estimator.as_deref(), None | Some("mediation.linear"))
+        || contract
+            .program
+            .as_ref()
+            .and_then(|program| program.commitments.resolved_estimator.as_deref())
+            != Some("mediation.linear")
+        || contract.inference_binding.as_ref().map(|binding| binding.inference.as_str())
+            != Some("frequentist")
+    {
+        return Err("program.checked_nested_counterfactual.scope");
+    }
+    if operation.format != 1
+        || operation.treatment != treatment
+        || operation.mediator != mediator
+        || operation.outcome != outcome
+        || operation.control_bits != control_bits
+        || operation.active_bits != active_bits
+        || operation.model != "linear_gaussian"
+        || operation.procedure != "natural_direct_shared_exogenous"
+        || !f64::from_bits(active_bits).is_finite()
+        || !f64::from_bits(control_bits).is_finite()
+    {
+        return Err("program.checked_nested_counterfactual.binding");
+    }
+    let graph = contract
+        .identification
+        .as_ref()
+        .map(|identity| &identity.graph)
+        .ok_or("identities.identification")?;
+    let crate::GraphIdentityWire::Dag(dag) = graph else {
+        return Err("program.checked_nested_counterfactual.graph");
+    };
+    let mut edges = dag.edges.clone();
+    edges.sort_unstable();
+    let mut expected_edges = vec![(treatment, mediator), (treatment, outcome), (mediator, outcome)];
+    expected_edges.sort_unstable();
+    if dag.node_count != 3 || edges != expected_edges {
+        return Err("program.checked_nested_counterfactual.graph");
+    }
+    if !body.identification.estimands.iter().any(|estimand| {
+        estimand.method == "path_specific.natural" && estimand.mediators == [mediator]
+    }) {
+        return Err("program.checked_nested_counterfactual.identification");
+    }
+    let snapshot =
+        contract.data_snapshot.as_ref().ok_or("dependencies.nested_counterfactual_fit_moments")?;
+    let fit = snapshot
+        .nested_counterfactual_fit
+        .as_ref()
+        .ok_or("dependencies.nested_counterfactual_fit_moments")?;
+    if fit.format != 1
+        || fit.complete_case_rows < 4
+        || fit.complete_case_rows > snapshot.row_count
+        || fit.gram.iter().chain(&fit.outcome_cross).any(|value| !value.is_finite())
+        || (fit.gram[0] - fit.complete_case_rows as f64).abs() > 1e-9
+        || (0..3).any(|row| {
+            (0..3).any(|column| {
+                (fit.gram[row * 3 + column] - fit.gram[column * 3 + row]).abs() > 1e-9
+            })
+        })
+    {
+        return Err("dependencies.nested_counterfactual_fit_moments");
+    }
+    let beta = solve_nested_outcome_moments(fit.gram, fit.outcome_cross)
+        .ok_or("dependencies.nested_counterfactual_fit_rank")?;
+    let expected = beta[1] * (f64::from_bits(active_bits) - f64::from_bits(control_bits));
+    let actual = body.estimate.ok_or("body.nested_counterfactual_estimate")?;
+    if !expected.is_finite()
+        || !actual.is_finite()
+        || (actual - expected).abs() > 1e-8 * expected.abs().max(1.0)
+    {
+        return Err("body.nested_counterfactual_estimate");
+    }
+    Ok(())
+}
+
+fn solve_nested_outcome_moments(gram: [f64; 9], cross: [f64; 3]) -> Option<[f64; 3]> {
+    let mut augmented = [[0.0_f64; 4]; 3];
+    let scale = gram.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
+    if !scale.is_finite() || scale == 0.0 {
+        return None;
+    }
+    for row in 0..3 {
+        augmented[row][..3].copy_from_slice(&gram[row * 3..row * 3 + 3]);
+        augmented[row][3] = cross[row];
+    }
+    for pivot in 0..3 {
+        let best = (pivot..3).max_by(|left, right| {
+            augmented[*left][pivot].abs().total_cmp(&augmented[*right][pivot].abs())
+        })?;
+        if augmented[best][pivot].abs() <= 1e-12 * scale {
+            return None;
+        }
+        augmented.swap(pivot, best);
+        let divisor = augmented[pivot][pivot];
+        for column in pivot..4 {
+            augmented[pivot][column] /= divisor;
+        }
+        for row in 0..3 {
+            if row == pivot {
+                continue;
+            }
+            let factor = augmented[row][pivot];
+            for column in pivot..4 {
+                augmented[row][column] -= factor * augmented[pivot][column];
+            }
+        }
+    }
+    Some([augmented[0][3], augmented[1][3], augmented[2][3]])
 }
 
 fn is_scalar_functional_effect_contract(contract: &AnalysisResultContractWire) -> bool {
@@ -2881,6 +3019,7 @@ mod tests {
             checked_iv_lowering: None,
             checked_linear_adjustment_lowering: None,
             checked_functional_response_grid: None,
+            checked_nested_counterfactual: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {
@@ -2911,6 +3050,7 @@ mod tests {
             partitions: Vec::new(),
             interference: None,
             distribution_factor_laws: None,
+            nested_counterfactual_fit: None,
         };
         let snapshot_digest = data_snapshot_digest(&data_snapshot).unwrap();
         let execution = crate::execution_identity_from_context(
