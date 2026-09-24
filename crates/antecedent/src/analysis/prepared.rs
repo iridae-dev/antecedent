@@ -2980,6 +2980,20 @@ pub(crate) enum PreparedExecution {
 }
 
 impl PreparedExecution {
+    /// Rebind only the checked receipts that still execute through the shared
+    /// tabular dispatcher. Direct operations own their rebind at execution.
+    /// Keeping the variant selection here prevents a refreshed receipt from
+    /// accidentally changing the procedure selected at preparation.
+    fn rebind_for_dispatch(&self, data: &TabularData) -> Result<Self, CausalError> {
+        match self {
+            Self::CheckedLinear(operation) => Ok(Self::CheckedLinear(operation.rebind(data)?)),
+            Self::CheckedAipw(operation) => Ok(Self::CheckedAipw(operation.rebind(data)?)),
+            Self::FrontDoorLinear(operation) => Ok(Self::FrontDoorLinear(operation.rebind(data)?)),
+            Self::Iv(operation) => Ok(Self::Iv(operation.rebind(data)?)),
+            other => Ok(other.clone()),
+        }
+    }
+
     pub(crate) fn checked_linear(
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
@@ -4106,63 +4120,7 @@ impl PreparedStudy {
         click_analysis.interference =
             click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
         click_analysis.shared_batch_design = shared;
-        let rebound_linear = self
-            .execution
-            .linear_operation()
-            .map(|operation| operation.rebind(data))
-            .transpose()?;
-        let rebound_aipw =
-            self.execution.aipw_operation().map(|operation| operation.rebind(data)).transpose()?;
-        let rebound_frontdoor = self
-            .execution
-            .frontdoor_linear()
-            .map(|operation| {
-                operation
-                    .fitter
-                    .rebind_checked(&operation.preparation, data)
-                    .map(|preparation| CheckedFrontDoorOperation {
-                        fitter: operation.fitter.clone(),
-                        preparation,
-                    })
-                    .map_err(CausalError::from)
-            })
-            .transpose()?;
-        let rebound_iv = self
-            .execution
-            .iv()
-            .map(|operation| match operation {
-                CheckedIvOperation::Wald { fitter, preparation } => fitter
-                    .rebind_checked(preparation, data)
-                    .map(|preparation| CheckedIvOperation::Wald {
-                        fitter: fitter.clone(),
-                        preparation,
-                    })
-                    .map_err(CausalError::from),
-                CheckedIvOperation::TwoSls { fitter, preparation } => fitter
-                    .rebind_checked(preparation, data)
-                    .map(|preparation| CheckedIvOperation::TwoSls {
-                        fitter: fitter.clone(),
-                        preparation,
-                    })
-                    .map_err(CausalError::from),
-            })
-            .transpose()?;
-        let execution =
-            match (&self.execution, rebound_linear, rebound_aipw, rebound_frontdoor, rebound_iv) {
-                (PreparedExecution::CheckedLinear(_), Some(rebound), _, _, _) => {
-                    PreparedExecution::CheckedLinear(rebound)
-                }
-                (PreparedExecution::CheckedAipw(_), _, Some(rebound), _, _) => {
-                    PreparedExecution::CheckedAipw(rebound)
-                }
-                (PreparedExecution::FrontDoorLinear(_), _, _, Some(rebound), _) => {
-                    PreparedExecution::FrontDoorLinear(rebound)
-                }
-                (PreparedExecution::Iv(_), _, _, _, Some(rebound)) => {
-                    PreparedExecution::Iv(rebound)
-                }
-                (plan, _, _, _, _) => plan.clone(),
-            };
+        let execution = self.execution.rebind_for_dispatch(data)?;
         let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
         // record which refutation reports are caller-attested. Without the names,
