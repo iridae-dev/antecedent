@@ -66,6 +66,8 @@ from ._impl import (
     prepare_statistical,
     prepare_trial,
     reload_lowered_expression,
+    reload_lowered_program,
+    restore_lowered_program,
     replay_z_transport_proposal,
 )
 
@@ -129,4 +131,6 @@ __all__ = [
     "prepare_statistical",
     "prepare_trial",
     "reload_lowered_expression",
+    "reload_lowered_program",
+    "restore_lowered_program",
 ]

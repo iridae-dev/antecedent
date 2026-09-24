@@ -24,9 +24,9 @@ status = "licensed"
 graph = "already_identified"
 evidence = "population_and_regime_tagged_expression"
 functional = "nested_sums_products_ratios_and_kernels"
-guarantee = "identity_and_dependencies_preserved"
+guarantee = "checked_program_replays_identification_and_requires_matching_exact_provider_laws"
 evidence_test = "python/tests/test_transport_t2_functionals.py"
-evidence_assertion = "test_nested_kernel_round_trips_through_artifact"
+evidence_assertion = "test_reloaded_functional_program_executes_and_replays_checked_wire"
 
 [[routes]]
 route = "transport.finite_catalog_search"
@@ -65,8 +65,8 @@ functional = "full_target_distribution_numeric_means_and_contrasts"
 observation = "empirical_plugin_joints_with_sampling_zero_support"
 guarantee = "frequency_plugin_without_hidden_smoothing"
 limits = "Complete-observation frequencies only; missingness requires a separate contract; empty conditioners are sampling_zero; high-cardinality products refuse. Dirichlet/smoothing remain unlicensed."
-evidence_test = "crates/antecedent/tests/statistical_transport_numeric.rs"
-evidence_assertion = "mixed_supplied_law_is_bit_identical_across_replicates"
+evidence_test = "python/tests/test_transport_statistical.py"
+evidence_assertion = "test_empirical_table_execution_survives_identification_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.uncertainty_empirical_iid_bootstrap"
@@ -126,7 +126,7 @@ observation = "exact_laws_with_required_denominator_support"
 guarantee = "exact_law_evaluation_without_sampling_uncertainty"
 limits = "Three bounded catalog strategies; checked irrelevant-zero rule; explicit support and resource failures. No sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_recursive_frontdoor_exact_distribution_matches_latent_enumeration"
+evidence_assertion = "test_checked_exact_transport_execution_survives_builder_disposal"
 
 [[routes]]
 route = "antecedent_estimate.evaluate_exact_z_transport"
@@ -192,9 +192,9 @@ evidence = "checked_frozen_proof_and_bound_joint_law_snapshot"
 functional = "target_interventional_outcome_distribution"
 observation = "exact_or_empirical_plugin_point_distribution"
 guarantee = "no_interval_reported"
-limits = "Estimate and refresh preserve the declared point-only scope. Sampling uncertainty, artifact export/import, independent consumption, and replay are not implemented."
+limits = "Estimate and refresh preserve the declared point-only scope. Portable point artifacts are independently consumed by the separate z-transport consumer route; no sampling interval or calibration claim is made."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_z_transport_prepared_native_route_matches_independent_truth"
+evidence_assertion = "test_z_transport_estimate_refresh_executes_retained_program_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.consume_z_transport"
