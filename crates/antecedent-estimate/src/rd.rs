@@ -66,8 +66,12 @@
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, VariableId};
-use antecedent_data::TabularData;
-use antecedent_expr::IdentifiedEstimand;
+use antecedent_data::{TableView, TabularData};
+use antecedent_expr::{
+    DomainRef, ExprNode, FactorRequirement, FunctionalProgram, IdentifiedEstimand, OutcomeExprId,
+    ProgramLimits, ProgramSchema, ProgramVariable,
+};
+use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
@@ -101,6 +105,65 @@ pub struct PreparedRdProblem {
     /// Complete rows on which `T = 1{R ≥ cutoff}` was checked and held (every one of them;
     /// a single violation refuses the problem).
     pub assignment_verified_rows: usize,
+}
+
+/// Typed checked operation for the licensed sharp local-linear RD estimator.
+#[derive(Clone, Debug)]
+pub struct CheckedRdLowering {
+    /// Source boundary contrast root.
+    pub functional: antecedent_expr::ExprId,
+    /// Free-coordinate observational boundary mean root, evaluated at each side binding.
+    pub executable: antecedent_expr::ExprId,
+    /// Treatment threshold role.
+    pub treatment: VariableId,
+    /// Outcome role.
+    pub outcome: VariableId,
+    /// Running variable role.
+    pub running_variable: VariableId,
+    /// Cutoff represented by both the target and local fit.
+    pub cutoff: f64,
+    /// Symmetric window half-width used by the physical design.
+    pub bandwidth: f64,
+    /// Procedure family retained by this lowering.
+    pub procedure: Arc<str>,
+}
+
+/// Checked RD preparation owning the boundary expression and numerical design.
+#[derive(Clone, Debug)]
+pub struct CheckedRdPreparation {
+    target: IdentifiedEstimand,
+    program: FunctionalProgram,
+    factor_requirements: Arc<[FactorRequirement]>,
+    lowering: CheckedRdLowering,
+    required_assumptions: AssumptionSet,
+    problem: PreparedRdProblem,
+}
+
+impl CheckedRdPreparation {
+    /// Selected RD target.
+    pub fn target(&self) -> &IdentifiedEstimand {
+        &self.target
+    }
+    /// Structurally checked boundary functional program.
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+    /// Provider factor requirements.
+    pub fn factor_requirements(&self) -> &[FactorRequirement] {
+        &self.factor_requirements
+    }
+    /// Typed RD operation and geometry.
+    pub fn lowering(&self) -> &CheckedRdLowering {
+        &self.lowering
+    }
+    /// Selected identification assumptions.
+    pub fn required_assumptions(&self) -> &AssumptionSet {
+        &self.required_assumptions
+    }
+    /// Prepared local-linear design.
+    pub fn problem(&self) -> &PreparedRdProblem {
+        &self.problem
+    }
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -332,6 +395,108 @@ impl SharpRegressionDiscontinuity {
         })
     }
 
+    /// Prepare from one selected, checked sharp-RD identification claim.
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<CheckedRdPreparation, EstimationError> {
+        let target = identification
+            .estimands
+            .get(estimand_index)
+            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
+        let claim = identification.claim(estimand_index).ok_or_else(|| {
+            EstimationError::data_msg("selected estimand has no identification claim")
+        })?;
+        if claim.status != IdentificationStatus::NonparametricallyIdentified {
+            return Err(EstimationError::data_msg(
+                "checked sharp RD requires a nonparametrically identified claim",
+            ));
+        }
+        let query = identification.average_effect().ok_or_else(|| {
+            EstimationError::data_msg("checked sharp RD requires an average-effect query")
+        })?;
+        let design = target.rd_design.ok_or_else(|| {
+            EstimationError::data_msg("checked sharp RD requires design parameters on the estimand")
+        })?;
+        if target.method_kind().ok() != Some(antecedent_expr::EstimandMethod::RdSharp)
+            || !target.adjustment_set.is_empty()
+            || !target.instruments.is_empty()
+            || !target.mediators.is_empty()
+            || design.running_variable != self.running_variable
+            || design.cutoff.to_bits() != self.cutoff.to_bits()
+            || design.bandwidth.to_bits() != self.bandwidth.to_bits()
+            || query.treatment == query.outcome
+            || query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+        {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked sharp RD target roles and design must match the configured local-linear procedure",
+            });
+        }
+        let active = intervention_f64(&query.active)?;
+        let control = intervention_f64(&query.control)?;
+        if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
+            return Err(EstimationError::data_msg(
+                "checked sharp RD requires active=1 and control=0",
+            ));
+        }
+        let mut arena = identification.arena.clone();
+        let expected = arena.rd_sharp_local_effect(
+            query.treatment,
+            query.outcome,
+            design.running_variable,
+            design.cutoff,
+            antecedent_core::Value::f64(active),
+            antecedent_core::Value::f64(control),
+        );
+        if expected != target.functional {
+            return Err(EstimationError::data_msg(
+                "selected RD functional does not match treatment arms, running variable, or cutoff",
+            ));
+        }
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let executable = observational_rd_boundary_mean(
+            &mut arena,
+            query.treatment,
+            query.outcome,
+            design.running_variable,
+        );
+        let program = FunctionalProgram::new(
+            arena,
+            schema,
+            target.functional,
+            executable,
+            ProgramLimits::default(),
+        )
+        .map_err(|e| EstimationError::data_msg(format!("checked RD program: {e}")))?;
+        let factor_requirements: Arc<[FactorRequirement]> =
+            Arc::from(program.factor_requirements().to_vec());
+        let problem = self.prepare(data, target, query)?;
+        Ok(CheckedRdPreparation {
+            target: target.clone(),
+            program,
+            factor_requirements,
+            lowering: CheckedRdLowering {
+                functional: target.functional,
+                executable,
+                treatment: query.treatment,
+                outcome: query.outcome,
+                running_variable: design.running_variable,
+                cutoff: design.cutoff,
+                bandwidth: design.bandwidth,
+                procedure: Arc::from("sharp.rd.local_linear.uniform_kernel"),
+            },
+            required_assumptions: claim.required_assumptions.clone(),
+            problem,
+        })
+    }
+
     /// Fit the local-linear OLS and return the raw jump at the cutoff, with optional
     /// bootstrap. The query levels are constrained to 0/1 in `prepare`, so no level scaling
     /// is applied.
@@ -437,6 +602,16 @@ impl SharpRegressionDiscontinuity {
             .with_bootstrap(boot))
     }
 
+    /// Fit a sealed sharp-RD preparation with its retained identification assumptions.
+    pub fn fit_checked(
+        &self,
+        checked: &CheckedRdPreparation,
+        workspace: &mut RdWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.fit(checked.problem(), workspace, ctx, checked.required_assumptions().clone())
+    }
+
     fn bootstrap_se(
         &self,
         problem: &PreparedRdProblem,
@@ -461,6 +636,22 @@ impl SharpRegressionDiscontinuity {
             },
         )
     }
+}
+
+fn observational_rd_boundary_mean(
+    arena: &mut antecedent_expr::CausalExprArena,
+    treatment: VariableId,
+    outcome: VariableId,
+    running: VariableId,
+) -> antecedent_expr::ExprId {
+    let y = arena.intern_var_set([outcome]);
+    let given = arena.intern_var_set([treatment, running]);
+    let no_bindings = arena.empty_intervention_set();
+    let factor = arena.intern_distribution(y, given, no_bindings, DomainRef::Observational);
+    arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution: factor,
+    })
 }
 
 /// Check `T = 1{R ≥ cutoff}` on every row; return the number of rows checked.
@@ -551,6 +742,9 @@ mod tests {
     };
     use antecedent_expr::ExprId;
     use antecedent_expr::IdentifiedEstimand;
+    use antecedent_identify::{
+        DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+    };
 
     use super::*;
     use crate::overlap::OverlapPolicy;
@@ -624,6 +818,29 @@ mod tests {
             ))
     }
 
+    fn checked_rd_result(query: AverageEffectQuery, bandwidth: f64) -> IdentificationResult {
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let functional = arena.rd_sharp_local_effect(
+            query.treatment,
+            query.outcome,
+            VariableId::from_raw(2),
+            0.0,
+            antecedent_core::Value::f64(1.0),
+            antecedent_core::Value::f64(0.0),
+        );
+        IdentificationResult::identified(
+            antecedent_core::CausalQuery::average_effect(query),
+            vec![IdentifiedEstimand::rd_sharp(
+                functional,
+                antecedent_expr::RdDesignParams::new(VariableId::from_raw(2), 0.0, bandwidth),
+            )],
+            arena,
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        )
+    }
+
     // ---- known truth: three different effects, one of which the design identifies
     //
     // R has density f(r) = 2(r + 1)/9 on [−1, 2] (R = 3√U − 1), T = 1{R ≥ 0},
@@ -675,6 +892,31 @@ mod tests {
         assert!((effect.ate - TAU_AT_CUTOFF).abs() < 0.06, "jump={}", effect.ate);
         assert!((effect.ate - TAU_WINDOW_AVERAGE).abs() > 0.25, "jump={}", effect.ate);
         assert!((effect.ate - TAU_POPULATION).abs() > 5.0, "jump={}", effect.ate);
+    }
+
+    #[test]
+    fn checked_rd_product_retains_design_and_recovers_cutoff_truth() {
+        let data = heterogeneous_curved_scm(30_000, 41);
+        let bandwidth = 0.4;
+        let query = local_query(0.0);
+        let identification = checked_rd_result(query, bandwidth);
+        let estimator = SharpRegressionDiscontinuity {
+            bootstrap_replicates: 0,
+            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
+        };
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(checked.lowering().running_variable, VariableId::from_raw(2));
+        assert_eq!(checked.lowering().bandwidth, bandwidth);
+        assert_ne!(checked.program().mapping().source, checked.program().mapping().executable);
+        assert!(checked.factor_requirements().iter().all(|factor| {
+            factor.domain == DomainRef::Observational && factor.intervention.is_empty()
+        }));
+        assert_eq!(checked.problem().assignment_verified_rows, data.row_count());
+        let mut workspace = RdWorkspace::default();
+        let effect = estimator
+            .fit_checked(&checked, &mut workspace, &ExecutionContext::for_tests(41))
+            .unwrap();
+        assert!((effect.ate - TAU_AT_CUTOFF).abs() < 0.06, "jump={}", effect.ate);
     }
 
     /// The number is the cutoff effect, so a query that names any other population —

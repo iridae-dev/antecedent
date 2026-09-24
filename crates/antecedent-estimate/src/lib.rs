@@ -129,8 +129,8 @@ pub use envelope::{
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{
-    FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem,
-    linear_path_product_restriction,
+    CheckedFrontDoorLowering, CheckedFrontDoorPreparation, FrontDoorTwoStage, FrontDoorWorkspace,
+    PreparedFrontDoorProblem, linear_path_product_restriction,
 };
 pub use frontdoor_functional::{FrontDoorFunctional, FrontDoorOutcomeModel};
 pub use functional_distribution::{
@@ -149,7 +149,10 @@ pub use interference::{
     BayesianInterferenceEstimate, InterferenceEstimate, estimate_interference,
     estimate_interference_bayesian, own_treatment_level,
 };
-pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
+pub use iv::{
+    CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
+    TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
+};
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
     max_t_critical, monotone_decreasing, monotone_increasing, weighted_mean,
@@ -167,7 +170,10 @@ pub use propensity::{
     default_propensity_overlap,
 };
 pub use quantile::{MIN_QUANTILE_DENSITY, empirical_threshold_grid, invert_cdf_quantile};
-pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
+pub use rd::{
+    CheckedRdLowering, CheckedRdPreparation, PreparedRdProblem, RdWorkspace,
+    SharpRegressionDiscontinuity,
+};
 pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
 pub use retarget::{
     DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, changes_target,
