@@ -681,6 +681,15 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         Some(&contract.identities.program),
         program_digest,
     );
+    if let Some(program) =
+        contract.program.as_ref().and_then(|item| item.functional_program.as_ref())
+    {
+        if crate::functional_program_from_wire(program, antecedent_expr::ProgramLimits::default())
+            .is_err()
+        {
+            unresolved.push(Arc::from("program.functional_program"));
+        }
+    }
     require_payload_digest(
         &mut unresolved,
         "identities.inference_binding",
@@ -1652,6 +1661,7 @@ mod tests {
             identification_product: Some(*product_digest.as_bytes()),
             completion_budget: None,
             commitments,
+            functional_program: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {

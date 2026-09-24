@@ -1174,6 +1174,40 @@ fn program_payloads(
         None => None,
     };
     let commitments = inferential_commitments(study, resolved_estimator);
+    let functional_program = if resolved_estimator
+        .and_then(|name| name.parse::<crate::EstimatorId>().ok())
+        == Some(crate::EstimatorId::FunctionalDistribution)
+    {
+        cached
+            .map(|identification| {
+                let estimand = crate::strategy_table::select_estimand(
+                    identification,
+                    crate::EstimatorId::FunctionalDistribution,
+                )?;
+                let schema = data_schema(&study.data);
+                let program_schema = antecedent_expr::ProgramSchema::new(
+                    schema.variables().iter().map(|variable| {
+                        (
+                            variable.id,
+                            antecedent_expr::ProgramVariable { name: Arc::clone(&variable.name) },
+                        )
+                    }),
+                );
+                let root = estimand.functional;
+                let program = antecedent_expr::FunctionalProgram::new(
+                    identification.arena.clone(),
+                    program_schema,
+                    root,
+                    root,
+                    antecedent_expr::ProgramLimits::default(),
+                )
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                antecedent_io::functional_program_to_wire(&program).map_err(|error| io_err(&error))
+            })
+            .transpose()?
+    } else {
+        None
+    };
     let program = ProgramIdentityWire {
         format: IDENTITY_FORMAT,
         target: *target_digest.as_bytes(),
@@ -1181,6 +1215,7 @@ fn program_payloads(
         identification_product: identification_product_digest.map(|digest| *digest.as_bytes()),
         completion_budget: study.max_completions.map(|cap| cap as u64),
         commitments: commitments.clone(),
+        functional_program,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {

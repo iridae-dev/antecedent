@@ -1117,6 +1117,47 @@ fn licensed_family_distribution_frequentist_consumes() {
     let dist = result.distribution.as_ref().expect("distribution payload");
     assert!((dist.mean - 0.7).abs() < 0.08);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
+    let contract = consumed.contract.as_ref().unwrap();
+    let retained = contract.program.as_ref().unwrap().functional_program.as_ref().unwrap();
+    assert_eq!(retained.source, retained.executable);
+    assert!(
+        antecedent_io::functional_program_from_wire(
+            retained,
+            antecedent_expr::ProgramLimits::default(),
+        )
+        .is_ok()
+    );
+
+    // Recompute both the payload digest and section seal after tampering so
+    // independent consumption must validate the retained program structure.
+    let mut forged = contract.clone();
+    let retained = forged.program.as_mut().unwrap().functional_program.as_mut().unwrap();
+    retained.arena.nodes.clear();
+    forged.identities.program =
+        *antecedent_io::program_digest(forged.program.as_ref().unwrap()).unwrap().as_bytes();
+    forged.seal = antecedent_io::contract_seal(
+        &forged.identities,
+        &forged.reasoning,
+        &forged.graph_class,
+        &forged.structure_source,
+        forged.identifier.as_deref(),
+        forged.estimator.as_deref(),
+    )
+    .unwrap();
+    let forged_bytes = rewrite_contract_section(
+        &consumed.body,
+        schema_names(&data),
+        "dist-f-tampered-program",
+        &forged,
+    );
+    let forged = consume_analysis_result(&forged_bytes).unwrap();
+    assert!(
+        forged
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|item| item.as_ref() == "program.functional_program")
+    );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
