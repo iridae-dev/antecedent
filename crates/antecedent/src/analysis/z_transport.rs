@@ -84,18 +84,13 @@ impl PreparedZTransport {
     /// Exact and empirical plugin tables share the checked evaluator; empirical
     /// tables remain point-only and do not acquire a sampling interval here.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
-        if self.plan.root() != self.program.mapping().executable
-            || antecedent_io::expr_arena_to_wire(self.plan.arena())?
-                != antecedent_io::expr_arena_to_wire(self.program.arena())?
-        {
-            return Err(err("z_transport.physical_plan_program_mismatch"));
-        }
+        verify_plan_program(&self.plan, &self.program)?;
         let distribution = self.plan.evaluate(ctx).map_err(err)?;
         Ok(ZTransportResult { distribution })
     }
 
     /// Replace providers after revalidating their catalog bindings and compile a
-    /// fresh plan against the same checked query.
+    /// fresh physical plan against the retained checked program.
     pub fn refresh(
         &self,
         data: ExactTransportData,
@@ -109,11 +104,11 @@ impl PreparedZTransport {
             ctx,
         )
         .map_err(err)?;
-        let program = checked_program(&self.functional)?;
+        verify_plan_program(&plan, &self.program)?;
         Ok(Self {
             diagram: self.diagram.clone(),
             functional: self.functional.clone(),
-            program,
+            program: self.program.clone(),
             data,
             request: self.request.clone(),
             limits: self.limits,
@@ -138,6 +133,19 @@ impl PreparedZTransport {
     pub fn data(&self) -> &ExactTransportData {
         &self.data
     }
+}
+
+fn verify_plan_program(
+    plan: &ExactEvaluationPlan,
+    program: &FunctionalProgram,
+) -> Result<(), IoError> {
+    if plan.root() != program.mapping().executable
+        || antecedent_io::expr_arena_to_wire(plan.arena())?
+            != antecedent_io::expr_arena_to_wire(program.arena())?
+    {
+        return Err(err("z_transport.physical_plan_program_mismatch"));
+    }
+    Ok(())
 }
 
 fn checked_program(functional: &BoundZTransportFunctional) -> Result<FunctionalProgram, IoError> {
@@ -431,6 +439,33 @@ mod tests {
                 antecedent_core::query::OutcomeGuarantee::SoundIncomplete
             );
         }
+    }
+
+    #[test]
+    fn refresh_rebinds_evidence_under_the_original_checked_program() {
+        let (diagram, functional, data, request) = fixture(false);
+        let prepared = StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data.clone(),
+            request,
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(7),
+        )
+        .unwrap();
+        let retained_program = antecedent_io::functional_program_to_wire(prepared.program())
+            .unwrap();
+        let refreshed = prepared.refresh(data, &ExecutionContext::for_tests(8)).unwrap();
+        assert_eq!(
+            antecedent_io::functional_program_to_wire(refreshed.program()).unwrap(),
+            retained_program
+        );
+        assert_eq!(
+            refreshed.estimate(&ExecutionContext::for_tests(8)).unwrap().distribution().probabilities,
+            prepared.estimate(&ExecutionContext::for_tests(7)).unwrap().distribution().probabilities
+        );
+        let missing = ExactTransportData::try_new(Vec::<ExactDiscreteLaw>::new(), 16).unwrap();
+        assert!(prepared.refresh(missing, &ExecutionContext::for_tests(9)).is_err());
     }
 
     #[test]
