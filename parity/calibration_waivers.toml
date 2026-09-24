@@ -356,3 +356,79 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "2dd984c877734c69493d95b36dc3aa3204ca826cc0fced813e852bb0bc03008b"
+
+[[waiver]]
+id = "learn-burn-publish-a-dc50f0bb"
+from = "689900f58b3c5672164997128dfcc4fe336571ff"
+to = "dc50f0bb5cf4d664adf172955ad5ce1a66abf18f"
+reviewed_by = "Charles Hinshaw"
+justification = """
+antecedent-learn-burn's manifest dropped `publish = false` so the optional
+ml-neural crate can be published. No source in that crate changed. The
+manifest is on the core facet, so the edit sits outside the attestation
+waivers that end at 87786ef0. It does not touch a seed, a replicate or an
+interval. Same seed, same interval. This cannot move a measured number.\
+"""
+paths = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+  "crates/antecedent-learn-burn/Cargo.toml",
+]
+
+[[waiver.replay]]
+record = "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+  "crates/antecedent-learn-burn/Cargo.toml",
+]
+
+[waiver.outcome]
+replayed_at = "dc50f0bb5cf4d664adf172955ad5ce1a66abf18f"
+identical = true
+records = [
+  "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage" = "cb06f139bf27b22a9d6748b8a034f89410cb1757eba4b82655f86c5d630a05ee"
+
+[[waiver]]
+id = "learn-burn-publish-b-dc50f0bb"
+from = "f4c6813a40808aac5430a01114eb969358cfd86a"
+to = "dc50f0bb5cf4d664adf172955ad5ce1a66abf18f"
+reviewed_by = "Charles Hinshaw"
+justification = """
+antecedent-learn-burn's manifest dropped `publish = false` so the optional
+ml-neural crate can be published. No source in that crate changed. The
+manifest is on the core facet, so the edit sits outside the attestation
+waivers that end at 87786ef0. It does not touch a seed, a replicate or an
+interval. Same seed, same interval. This cannot move a measured number.\
+"""
+paths = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+  "crates/antecedent-learn-burn/Cargo.toml",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent/src/support_matrix_data.rs",
+  "crates/antecedent-learn-burn/Cargo.toml",
+]
+
+[waiver.outcome]
+replayed_at = "dc50f0bb5cf4d664adf172955ad5ce1a66abf18f"
+identical = true
+records = [
+  "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "2dd984c877734c69493d95b36dc3aa3204ca826cc0fced813e852bb0bc03008b"
