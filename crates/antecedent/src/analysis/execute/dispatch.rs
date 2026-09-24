@@ -954,6 +954,26 @@ impl super::Study {
     ///
     /// Compile / execute failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        // These families have a complete retained expression or model operation.
+        // The one-shot facade must use that operation too, so it cannot silently
+        // recover its meaning from the ordinary Study dispatcher.
+        if matches!(
+            self.query,
+            CausalQuery::Distribution(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::NestedCounterfactual(_)
+        ) {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_complete_program_operation(&self.query) {
+                    return Err(CausalError::Compile {
+                        message: "one-shot route did not retain its complete checked operation"
+                            .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.
