@@ -763,6 +763,11 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert!((true_atom.probability - 0.7).abs() < 1e-12);
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert!((refreshed.distribution.as_ref().unwrap().mean - 0.7).abs() < 1e-12);
+    let (incompatible, _, _) = confounded_scm(64, 91);
+    assert!(prepared.refresh(incompatible, &ctx).is_err());
+    assert!(
+        (prepared.estimate(&data, &ctx).unwrap().distribution.unwrap().mean - 0.7).abs() < 1e-12
+    );
     assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-dist", "distribution");
 }
 

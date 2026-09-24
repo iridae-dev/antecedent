@@ -98,6 +98,8 @@ pub struct CausalContract {
     pub score_reuse: Option<antecedent_core::SemanticDigest>,
     /// Target-weights identity of a row-weight retarget, when the result is one.
     pub target_weights: Option<antecedent_core::SemanticDigest>,
+    /// Digest of the executed checked AIPW complete-case rows, when exported.
+    checked_aipw_rows: Option<[u8; 32]>,
     /// Posterior construction label used for calibration matching
     /// (`<backend>.<likelihood>.<prior>`); empty for Frequentist programs.
     pub posterior: Arc<str>,
@@ -205,6 +207,7 @@ impl CausalContract {
         identities.execution = execution;
         identities.score_reuse = self.score_reuse.map(|digest| *digest.as_bytes());
         identities.target_weights = self.target_weights.map(|digest| *digest.as_bytes());
+        identities.checked_aipw_rows = self.checked_aipw_rows;
         Ok(identities)
     }
 
@@ -261,6 +264,7 @@ impl CausalContract {
             execution: execution.cloned(),
             score_reuse: reuse.score_reuse.clone(),
             target_weights: reuse.target_weights.clone(),
+            checked_aipw_rows: reuse.checked_aipw_rows.clone(),
         })
     }
 }
@@ -274,6 +278,7 @@ impl CausalContract {
 struct ReuseSection {
     score_reuse: Option<ScoreReuseIdentityWire>,
     target_weights: Option<TargetWeightsSectionWire>,
+    checked_aipw_rows: Option<antecedent_io::CheckedAipwRowsWire>,
 }
 
 /// Refusal when row weights meet a snapshot or score table they do not index.
@@ -347,6 +352,7 @@ impl PreparedStudy {
         let compiled = Arc::new(program_payloads_for(
             self.study(),
             self.plan().logical.record.estimator.as_deref(),
+            self.checked_aipw_ate(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -387,6 +393,7 @@ impl PreparedStudy {
             Some(study) => Arc::new(program_payloads_for(
                 &study,
                 self.plan().logical.record.estimator.as_deref(),
+                if population.is_none() { self.checked_aipw_ate() } else { None },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -536,6 +543,21 @@ impl PreparedStudy {
                 identity: binding.identity.clone(),
                 values: binding.weights.to_vec(),
             });
+        }
+        if self.checked_aipw_ate().is_some() {
+            let table =
+                result.estimate.score_table.as_ref().ok_or_else(|| CausalError::Compile {
+                    message: "checked AIPW execution did not retain its complete-case score rows"
+                        .into(),
+                })?;
+            let rows = antecedent_io::CheckedAipwRowsWire {
+                format: 1,
+                rows: table.row_index.to_vec(),
+                data_snapshot: *contract.identities.data_snapshot.as_bytes(),
+            };
+            contract.checked_aipw_rows =
+                Some(antecedent_io::checked_aipw_rows_digest(&rows).map_err(|err| io_err(&err))?);
+            reuse.checked_aipw_rows = Some(rows);
         }
         Ok(reuse)
     }
@@ -1084,6 +1106,7 @@ struct ContractPayloads {
 fn program_payloads_for(
     study: &Study,
     resolved_estimator: Option<&str>,
+    checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1092,6 +1115,7 @@ fn program_payloads_for(
         cached,
         cached.is_some_and(identification_search_capped),
         resolved_estimator,
+        checked_aipw,
     )
 }
 
@@ -1111,6 +1135,7 @@ fn program_payloads(
     cached: Option<&IdentificationResult>,
     search_capped: bool,
     resolved_estimator: Option<&str>,
+    checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1173,7 +1198,29 @@ fn program_payloads(
         Some(wire) => Some(identification_product_digest_wire(wire).map_err(|err| io_err(&err))?),
         None => None,
     };
-    let commitments = inferential_commitments(study, resolved_estimator);
+    let mut commitments = inferential_commitments(study, resolved_estimator);
+    let checked_aipw_lowering = checked_aipw.map(|checked| {
+        let lowering = checked.lowering();
+        commitments.se_kind = Some(lowering.se_kind.as_str().to_string());
+        let se_lag = match lowering.se_kind {
+            antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
+            | antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => Some(lag as u64),
+            _ => None,
+        };
+        antecedent_io::CheckedAipwLoweringWire {
+            format: 1,
+            functional: lowering.functional.raw(),
+            treatment: lowering.treatment.raw(),
+            outcome: lowering.outcome.raw(),
+            adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
+            population: "all_observed".into(),
+            procedure: "cross_fitted_logistic_ols".into(),
+            folds: lowering.folds as u64,
+            se_kind: lowering.se_kind.as_str().into(),
+            se_lag,
+            bootstrap_replicates: lowering.bootstrap_replicates,
+        }
+    });
     let functional_program = if resolved_estimator
         .and_then(|name| name.parse::<crate::EstimatorId>().ok())
         == Some(crate::EstimatorId::FunctionalDistribution)
@@ -1216,6 +1263,7 @@ fn program_payloads(
         completion_budget: study.max_completions.map(|cap| cap as u64),
         commitments: commitments.clone(),
         functional_program,
+        checked_aipw_lowering,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
@@ -1295,9 +1343,15 @@ fn compile_with_payloads(
         prepared.and_then(|prepared| prepared.plan().logical.record.estimator.clone());
     let program = match program {
         Some(program) => program,
-        None => {
-            Arc::new(program_payloads(study, cached, search_capped, resolved_estimator.as_deref())?)
-        }
+        None => Arc::new(program_payloads(
+            study,
+            cached,
+            search_capped,
+            resolved_estimator.as_deref(),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_aipw_ate),
+        )?),
     };
     let mut payloads = contract_payloads(program, study)?;
     if prepared.is_none() {
@@ -1338,6 +1392,7 @@ fn compile_with_payloads(
             ),
             score_reuse: None,
             target_weights: None,
+            checked_aipw_rows: None,
             posterior: Arc::from(posterior_label(&study.inference)),
             functional: Arc::from(functional),
             posterior_draws: match &study.inference {
