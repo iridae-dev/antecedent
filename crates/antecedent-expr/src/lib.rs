@@ -26,11 +26,16 @@ pub use exact_plan::{
 };
 pub mod latex;
 pub mod pretty;
+pub mod program;
 pub mod provider;
 pub mod simplify;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand, RdDesignParams};
 pub use eval::CompiledEvaluator;
+pub use program::{
+    FactorRequirement, FunctionalProgram, ProgramError, ProgramEvaluator, ProgramLimits,
+    ProgramMapping, ProgramSchema, ProgramVariable,
+};
 pub use provider::{
     Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
     GaussianDensityProvider, PosteriorDrawProvider, QuadratureNodes,

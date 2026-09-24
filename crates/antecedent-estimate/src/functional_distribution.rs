@@ -49,7 +49,8 @@ use antecedent_data::{DataError, DiscreteColumn, TableView, TabularData};
 use antecedent_expr::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, DomainRef,
     EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode, FactorSpec,
-    IdentifiedEstimand, InterventionAssignment,
+    FunctionalProgram, IdentifiedEstimand, InterventionAssignment, ProgramEvaluator, ProgramLimits,
+    ProgramSchema, ProgramVariable,
 };
 use antecedent_prob::{
     InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
@@ -355,6 +356,10 @@ pub struct PreparedFunctionalDistribution {
     pub arena: Arc<CausalExprArena>,
     /// Compiled evaluator for the functional root.
     pub compiled: CompiledEvaluator,
+    /// Checked owner used by execution; the legacy public arena/evaluator fields
+    /// above are retained for low-level API compatibility only.
+    program: FunctionalProgram,
+    program_evaluator: ProgramEvaluator,
     /// Empirical CPT provider built from data.
     pub provider: EmpiricalTableProvider,
     /// Outcome variables (query order).
@@ -374,6 +379,29 @@ pub struct PreparedFunctionalDistribution {
     /// Interventional signatures used to rebuild the empirical provider.
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+}
+
+impl PreparedFunctionalDistribution {
+    /// Checked expression owner used for every numerical evaluation.
+    #[must_use]
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+}
+
+fn functional_program(
+    data: &TabularData,
+    arena: &CausalExprArena,
+    root: ExprId,
+) -> Result<FunctionalProgram, EstimationError> {
+    let schema = ProgramSchema::new(
+        data.schema()
+            .variables()
+            .iter()
+            .map(|variable| (variable.id, ProgramVariable { name: Arc::clone(&variable.name) })),
+    );
+    FunctionalProgram::new(arena.clone(), schema, root, root, ProgramLimits::default())
+        .map_err(|error| EstimationError::stats_msg(error.to_string()))
 }
 
 /// Plug-in estimator for identified interventional distributions (discrete).
@@ -530,12 +558,16 @@ impl FunctionalDistribution {
 
         let (provider, columns) =
             build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
-        let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
+        let program = functional_program(data, arena, estimand.functional)?;
+        let program_evaluator = program.compile().map_err(eval_err)?;
+        let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
 
         Ok(PreparedFunctionalDistribution {
             estimand: estimand.clone(),
             arena: Arc::new(arena.clone()),
             compiled,
+            program,
+            program_evaluator,
             provider,
             outcomes: Arc::clone(&query.outcomes),
             interventions: Arc::from(interventions),
@@ -719,8 +751,7 @@ impl FunctionalDistribution {
                             for (y, val) in outcome_pairs {
                                 workspace.assignment.set(*y, val.clone());
                             }
-                            prepared.compiled.evaluate_with(
-                                &prepared.arena,
+                            prepared.program_evaluator.evaluate_with(
                                 provider,
                                 &EvalContext::default(),
                                 &workspace.assignment,
@@ -875,6 +906,10 @@ pub struct PreparedFunctionalEffect {
     pub arena: Arc<CausalExprArena>,
     /// Compiled evaluator.
     pub compiled: CompiledEvaluator,
+    /// Checked owner used by execution; the legacy public arena/evaluator fields
+    /// above are retained for low-level API compatibility only.
+    program: FunctionalProgram,
+    program_evaluator: ProgramEvaluator,
     /// Empirical CPT provider.
     pub provider: EmpiricalTableProvider,
     /// Assumptions from identification.
@@ -888,6 +923,12 @@ pub struct PreparedFunctionalEffect {
 }
 
 impl PreparedFunctionalEffect {
+    /// Checked expression owner used for every numerical evaluation.
+    #[must_use]
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+
     /// Value of the scalar functional on `provider`'s row law, with the functional's free
     /// variables resolved as the module docs describe.
     ///
@@ -897,7 +938,7 @@ impl PreparedFunctionalEffect {
     pub fn evaluate(&self, provider: &EmpiricalTableProvider) -> Result<f64, EvalError> {
         let ctx = EvalContext::default();
         average_over_free_variables(provider, &self.free_variables, &Assignment::new(), |env| {
-            self.compiled.evaluate_with(&self.arena, provider, &ctx, env).map(|v| vec![v])
+            self.program_evaluator.evaluate_with(provider, &ctx, env).map(|v| vec![v])
         })
         .map(|values| values[0])
     }
@@ -987,11 +1028,15 @@ impl FunctionalEffect {
         vars_needed.extend(extra_vars.iter().copied());
         let (provider, columns) =
             build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
-        let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
+        let program = functional_program(data, arena, estimand.functional)?;
+        let program_evaluator = program.compile().map_err(eval_err)?;
+        let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
         Ok(PreparedFunctionalEffect {
             estimand: estimand.clone(),
             arena: Arc::new(arena.clone()),
             compiled,
+            program,
+            program_evaluator,
             provider,
             assumptions,
             free_variables: Arc::from(free_variables),
@@ -1954,6 +1999,15 @@ mod tests {
         let mass: f64 = out.atoms.iter().map(|a| a.probability).sum();
         let expected_mass = fixture["case"]["atom_probability_sum"].as_f64().unwrap();
         assert!((mass - expected_mass).abs() <= tolerance, "mass={mass}");
+
+        // Compatibility fields are no longer execution authority. A caller
+        // replacing the old public arena cannot pair it with the retained
+        // checked evaluator used by the prepared route.
+        let mut decoy = prepared.clone();
+        decoy.arena = Arc::new(CausalExprArena::new());
+        let decoy_out =
+            est.estimate(&decoy, &[], &mut ews, &ExecutionContext::for_tests(0)).unwrap();
+        assert!((decoy_out.mean - out.mean).abs() <= tolerance);
     }
 
     #[test]

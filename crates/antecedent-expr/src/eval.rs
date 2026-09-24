@@ -88,6 +88,21 @@ impl CausalExprArena {
 }
 
 impl CompiledEvaluator {
+    pub(crate) fn free_vars(&self) -> &[VariableId] {
+        &self.free_vars[self.root]
+    }
+
+    pub(crate) fn evaluate_program(
+        &self,
+        arena: &CausalExprArena,
+        provider: &dyn DistributionProvider,
+        ctx: &EvalContext,
+        env: &Assignment,
+    ) -> Result<f64, EvalError> {
+        let mut scratch = env.clone();
+        self.eval_slot(arena, provider, ctx, &mut scratch, self.root)
+    }
+
     /// Compile an expression DAG into slot-addressed ops (post-order).
     ///
     /// Continuous [`ExprNode::IntegralOut`] is supported (see [`CausalExprArena::compile`]).
