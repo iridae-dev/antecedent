@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "counts_x0y0_x0y1_x1y0_x1y1": [20, 0, 10, 1],
+  "draws": 2048,
+  "empirical_support_p_y1_given_do_x1": 0.09090909090909091,
+  "state_space_p_y1_given_do_x1": 0.15384615384615385,
+  "monte_carlo_tolerance": 0.025
+}
