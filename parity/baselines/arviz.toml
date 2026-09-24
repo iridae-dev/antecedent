@@ -1,0 +1,5 @@
+# Pinned external baseline for Bayesian chain diagnostics.
+project = "arviz"
+version = "0.20.0"
+metadata_sha256 = "c7131ea95816ac0e9891c18a0d22616c2ca7f85291b8806a954225f2dd507acb"
+notes = "Rank R-hat and bulk/tail ESS on frozen shared chains; fixture pins NumPy 2.1.3 and SciPy 1.14.1 as computational dependencies."

@@ -1249,13 +1249,13 @@ graph_class = "Dag"
 structure = "explicit"
 inference = "Bayesian"
 validation = "none"
-estimators = ["bayesian.gcomp"]
+estimators = ["bayesian.gcomp", "iv.bayesian_joint_linear", "rd.bayesian_local_linear", "bayesian.basis.gcomp", "bayesian.robust_ate"]
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/bayesian/shared_functional_ate"
-evidence_test = "crates/antecedent/tests/licensed_static_cells.rs"
-evidence_assertion = "average_effect_dag_bayesian_known_truth_all_structures_and_suites"
-limitations = "The Bayesian posterior mean is compared directly to the fixture's structural ATE and additionally cross-checked against frequentist linear adjustment. Backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate. bayesian.gcomp declares a Gaussian identity-link outcome regression linear in the treatment and each adjustment column with no treatment × covariate interaction (assumption bayesian.gcomp.linear_gaussian_outcome); its credible interval is for that model's treatment contrast. `Bayesian(likelihood=logit|probit|poisson)` fits a Bernoulli or Poisson GLM on this cell instead (the assumption names that family) and averages the inverse-link contrast over the rows; every other Bayesian cell, the conjugate backend and a transferred prior refuse a non-Gaussian likelihood with `likelihood_not_supported`, and a Gaussian fit to a 0/1 or nonnegative-integer outcome reports `estimate.bayesian.gaussian_likelihood_discrete_outcome`. 400-replicate 90% coverage 0.882 (record `cov.average_effect.dag.bayesian.posterior_quantile.l90.bayesian_gcomp_misspecification_probe.linear_outcome`) on a linear law; R-17 misspecification probes (an omitted z² term, bias 0.154; an omitted t·z interaction, bias 0.282) cover far below nominal and are not registry records (coverage: crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe, calibration gate)."
+known_truth_fixture = "conformance/estimate/bayesian_rd"
+evidence_test = "crates/antecedent/tests/bayesian_iv_rd_staged.rs"
+evidence_assertion = "bayesian_rd_executes_staged_and_checks_bandwidth_conditioning"
+limitations = "The Bayesian posterior mean is compared directly to the fixture's structural ATE and additionally cross-checked against frequentist linear adjustment. Backend posteriors are pinned separately (conformance/bayesian/conjugate_gaussian, laplace_glm). The hmc backend floors under-specified draw counts to clear the MCMC publication gate. bayesian.gcomp declares a Gaussian identity-link outcome regression linear in the treatment and each adjustment column with no treatment × covariate interaction (assumption bayesian.gcomp.linear_gaussian_outcome); its credible interval is for that model's treatment contrast. `Bayesian(likelihood=logit|probit|poisson)` fits a Bernoulli or Poisson GLM on this cell instead (the assumption names that family) and averages the inverse-link contrast over the rows; every other Bayesian cell, the conjugate backend and a transferred prior refuse a non-Gaussian likelihood with `likelihood_not_supported`, and a Gaussian fit to a 0/1 or nonnegative-integer outcome reports `estimate.bayesian.gaussian_likelihood_discrete_outcome`. 400-replicate 90% coverage 0.882 (record `cov.average_effect.dag.bayesian.posterior_quantile.l90.bayesian_gcomp_misspecification_probe.linear_outcome`) on a linear law; R-17 misspecification probes (an omitted z² term, bias 0.154; an omitted t·z interaction, bias 0.282) cover far below nominal and are not registry records (coverage: crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe, calibration gate). Sharp RD is limited to a sharp-assignment local-linear Gaussian model with the caller-declared rectangular bandwidth, plug-in outcome variance, and isotropic prior_scale. Under the declared local-linear Gaussian law, its staged 95% posterior interval covered 0.957 of 300 repetitions (three Monte Carlo standard errors = 0.038); this is scoped evidence for that model and bandwidth. The separately selected IV route uses a joint Gaussian structural model with one instrument, no covariates, independent unit-variance stage disturbances, and a fixed unit loading of the treatment disturbance in the outcome equation; it applies an isotropic Normal prior and refuses first-stage F < 10. Its equal-tailed posterior interval is conditional on those restrictions, not generic IV robustness or Anderson–Rubin inference. The low-level 300-replicate exact-law nominal 95% interval check passes (crates/antecedent-estimate/src/bayesian_iv.rs::joint_fixed_loading_intervals_calibrate_under_the_declared_law); the staged public known-truth execution is crates/antecedent/tests/bayesian_iv_rd_staged.rs::bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth. A free-loading control-function candidate covered 100% in a 300-replicate check and is not exposed by the licensed route. The separately selected bayesian.basis.gcomp route uses Gaussian quadratic covariate terms and treatment-by-covariate interactions under an isotropic shrinkage prior for AllObserved only; its staged posterior and artifact test is crates/antecedent/tests/staged_bayesian_basis_gcomp.rs. A 100-repetition synthetic Gaussian AllObserved ATE check covered 95/100 nominal 90% intervals (crates/antecedent-learn/tests/bayesian_basis.rs); no coverage record is registered for this estimator yet. It refuses other populations, nonbinary treatment, and transferred priors. The explicit bayesian.robust_ate route is limited to AllObserved binary mean ATE on a fixed DAG. It refits cross-fitted weighted ridge outcome and ridge-logistic propensity nuisances under each shared Exp(1) Bayesian-bootstrap row-weight draw, then computes the orthogonal AIPW score using those same weights. Its interval is a modular bootstrap pushforward conditional on observed rows, stable row IDs, folds, linear nuisance bases, fixed penalties, and propensity clipping. Double robustness applies only when at least one nuisance is correctly specified under consistency, exchangeability, positivity, and regularity; the staged fixture checks propensity-correct/outcome-misspecified behavior, with no repeated-sampling calibration claim. Other populations, nonbinary treatment, non-mean outcomes, effect modifiers, transferred priors, and graph posterior structures remain unsupported."
 calibration = ["cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_default_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_logit_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_poisson_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_probit_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l90.bayesian_gcomp_misspecification_probe.linear_outcome", "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_default_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_logit_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_poisson_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_probit_nominal_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.bayesian_gcomp_misspecification_probe.linear_outcome"]
 
 [[cell]]
@@ -2148,6 +2148,22 @@ evidence_assertion = "cpdag_ate_envelope_numeric_pin"
 limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Runtime class stays Cpdag. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.8800 at n=200 at 400 replicates, a named boundary (record `cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage`) (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; below the band before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 calibration = ["cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage", "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage"]
 calibration_reason = "boundary_record"
+
+[[cell]]
+query = "InterferenceQuery"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["interference.bayesian_gaussian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/bayesian_interference"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "bayesian_interference_fixed_network_posterior_matches_known_truth"
+limitations = "Finite-network posterior for the supplied units and fixed graph under Y_i(z,g)=alpha+beta*z+gamma*g+epsilon_i, with the same unit disturbance shared across exposure-specific potential outcomes. Analytic conjugate Gaussian backend, variance fixed to one, and independent Normal(0, prior_sd²) coefficient prior. The estimand is the finite-network average to-minus-from contrast; inference conditions on the realized assignment and is model based, with no superpopulation or design-based randomization guarantee. Requires a full-rank observed intercept/own-treatment/neighbor-count design and both queried exposure levels represented in the realized assignment. Other backends, designs, mappings, unsupported exposures, transferred priors, cheap/full validation, accepted graphs, graph posterior, non-Dag graphs, and target populations remain refused. Refresh refits outcomes under the frozen network and assignment."
+calibration_reason = "estimator_grid_not_measured"
+
 
 [[cell]]
 query = "AverageEffect"
@@ -3681,13 +3697,13 @@ graph_class = "Dag"
 structure = "explicit"
 inference = "Bayesian"
 validation = "none"
-estimators = ["conditional.bayesian"]
+estimators = ["conditional.bayesian", "bayesian.basis.gcomp"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
+limitations = "Gaussian, Bernoulli logit/probit, or Poisson log-link interaction regression averaged over the declared modifiers; each draw evaluates interactions on the outcome scale; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; non-Gaussian interval calibration remains unmeasured; no conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity. The separately selected bayesian.basis.gcomp route uses Gaussian quadratic covariate terms and treatment-by-covariate interactions under an isotropic shrinkage prior for AllObserved only; its staged posterior and artifact test is crates/antecedent/tests/staged_bayesian_basis_gcomp.rs. A 100-repetition synthetic Gaussian AllObserved ATE check covered 95/100 nominal 90% intervals (crates/antecedent-learn/tests/bayesian_basis.rs); no coverage record is registered for this estimator yet. It refuses other populations, nonbinary treatment, and transferred priors."
 calibration = ["cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage"]
 
 [[cell]]
@@ -3702,7 +3718,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
+limitations = "Gaussian, Bernoulli logit/probit, or Poisson log-link interaction regression averaged over the declared modifiers; each draw evaluates interactions on the outcome scale; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; non-Gaussian interval calibration remains unmeasured; no conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
 calibration = ["cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage"]
 
 [[cell]]
@@ -3717,7 +3733,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+limitations = "Gaussian, Bernoulli logit/probit, or Poisson log-link interaction regression averaged over the declared modifiers; each draw evaluates interactions on the outcome scale; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; non-Gaussian interval calibration remains unmeasured; no conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 calibration = ["cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage"]
 
 [[cell]]
@@ -3732,7 +3748,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
+limitations = "Gaussian, Bernoulli logit/probit, or Poisson log-link interaction regression averaged over the declared modifiers; each draw evaluates interactions on the outcome scale; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; non-Gaussian interval calibration remains unmeasured; no conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
 calibration = ["cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage"]
 
 [[cell]]
@@ -3747,7 +3763,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
+limitations = "Gaussian, Bernoulli logit/probit, or Poisson log-link interaction regression averaged over the declared modifiers; each draw evaluates interactions on the outcome scale; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; non-Gaussian interval calibration remains unmeasured; no conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
 calibration = ["cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage"]
 
 [[cell]]
@@ -3762,7 +3778,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
-limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+limitations = "Gaussian, Bernoulli logit/probit, or Poisson log-link interaction regression averaged over the declared modifiers; each draw evaluates interactions on the outcome scale; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed under-covered at nominal 90%). AllObserved. 400-replicate 90% coverage 0.877 (boundary record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage`) (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; non-Gaussian interval calibration remains unmeasured; no conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 calibration = ["cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage", "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage"]
 
 [[cell]]
@@ -4341,7 +4357,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable. Credible bands hold the empirical covariate distribution fixed, so they target the sample-covariate curve: 400-replicate 90% pointwise coverage 0.887–0.888 (records `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0`, `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1`) on a linear law; scored against the population curve the same bands under-cover (coverage: crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage, calibration gate)."
+limitations = "Static response.bayesian; Gaussian, Bernoulli logit/probit, or Poisson log-link additive outcome regression; non-Gaussian posterior draws are evaluated on the outcome scale, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; a simultaneous band is supported on a fixed grid from coherent joint draws; non-Gaussian interval calibration remains unmeasured; no derivative or unsupported stochastic-policy claim. validation cheap/full is not applicable. Credible bands hold the empirical covariate distribution fixed, so they target the sample-covariate curve: 400-replicate 90% pointwise coverage 0.887–0.888 (records `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0`, `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1`) on a linear law; scored against the population curve the same bands under-cover (coverage: crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage, calibration gate)."
 calibration = ["cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a__1", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__1"]
 
 [[cell]]
@@ -4356,7 +4372,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable. Credible bands hold the empirical covariate distribution fixed, so they target the sample-covariate curve: 400-replicate 90% pointwise coverage 0.887–0.888 (records `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0`, `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1`) on a linear law; scored against the population curve the same bands under-cover (v19_static_calibration::response_curve_dag_bayesian_pointwise_nominal_90_coverage)."
+limitations = "Static response.bayesian; Gaussian, Bernoulli logit/probit, or Poisson log-link additive outcome regression; non-Gaussian posterior draws are evaluated on the outcome scale, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; a simultaneous band is supported on a fixed grid from coherent joint draws; non-Gaussian interval calibration remains unmeasured; no derivative or unsupported stochastic-policy claim. validation cheap/full is not applicable. Credible bands hold the empirical covariate distribution fixed, so they target the sample-covariate curve: 400-replicate 90% pointwise coverage 0.887–0.888 (records `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0`, `cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1`) on a linear law; scored against the population curve the same bands under-cover (v19_static_calibration::response_curve_dag_bayesian_pointwise_nominal_90_coverage)."
 calibration = ["cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a__1", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_1", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__0_5", "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__1"]
 
 [[cell]]
@@ -4401,7 +4417,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable. The credible interval holds the empirical covariate distribution fixed: 400-replicate 90% coverage 0.902 (record `cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage`) against the sample-covariate level and lower against the population level (coverage: crates/antecedent/tests/v19_static_calibration.rs::intervention_response_dag_bayesian_nominal_90_coverage, calibration gate)."
+limitations = "Static response.bayesian; Gaussian, Bernoulli logit/probit, or Poisson log-link additive outcome regression; non-Gaussian posterior draws are evaluated on the outcome scale, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; a simultaneous band is supported on a fixed grid from coherent joint draws; non-Gaussian interval calibration remains unmeasured; no derivative or unsupported stochastic-policy claim. validation cheap/full is not applicable. The credible interval holds the empirical covariate distribution fixed: 400-replicate 90% coverage 0.902 (record `cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage`) against the sample-covariate level and lower against the population level (coverage: crates/antecedent/tests/v19_static_calibration.rs::intervention_response_dag_bayesian_nominal_90_coverage, calibration gate)."
 calibration = ["cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage", "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage", "cov.intervention_response.dag.bayesian.posterior_quantile.l95.intervention_response_dag_bayesian_default_nominal_coverage"]
 
 [[cell]]
@@ -4416,7 +4432,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
-limitations = "Static response.bayesian; Gaussian additive outcome regression, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; no simultaneous, nonlinear, derivative, stochastic-policy or graph-posterior response claim. validation cheap/full is not applicable. The credible interval holds the empirical covariate distribution fixed: 400-replicate 90% coverage 0.902 (record `cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage`) against the sample-covariate level and lower against the population level (v19_static_calibration::intervention_response_dag_bayesian_nominal_90_coverage)."
+limitations = "Static response.bayesian; Gaussian, Bernoulli logit/probit, or Poisson log-link additive outcome regression; non-Gaussian posterior draws are evaluated on the outcome scale, one treatment, complete observations, AllObserved. Known linear surfaces and posterior projection checks. Pointwise credible intervals condition on observed covariates; a simultaneous band is supported on a fixed grid from coherent joint draws; non-Gaussian interval calibration remains unmeasured; no derivative or unsupported stochastic-policy claim. validation cheap/full is not applicable. The credible interval holds the empirical covariate distribution fixed: 400-replicate 90% coverage 0.902 (record `cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage`) against the sample-covariate level and lower against the population level (v19_static_calibration::intervention_response_dag_bayesian_nominal_90_coverage)."
 calibration = ["cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage", "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage", "cov.intervention_response.dag.bayesian.posterior_quantile.l95.intervention_response_dag_bayesian_default_nominal_coverage"]
 
 [[cell]]
@@ -6468,7 +6484,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_attribution"
 evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
 evidence_assertion = "anomaly_attribution_known_truth"
-limitations = "GCM anomaly scores on a supplied explicit Dag. Identification is parametric (gcm.parametric); estimator gcm.fit. Not an average treatment effect. Sampling uncertainty is unavailable. cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=AnomalyAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
+limitations = "GCM anomaly scores on a supplied explicit Dag. Identification is parametric (gcm.parametric); estimator gcm.fit. Not an average treatment effect. Sampling uncertainty is unavailable in frequentist mode. cheap/full, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=AnomalyAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
 calibration_reason = "no_interval_reported"
 
 [[cell]]
@@ -6483,8 +6499,38 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_attribution"
 evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
 evidence_assertion = "change_attribution_known_truth"
-limitations = "GCM distribution-change Shapley on a supplied explicit Dag, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Pins total_change from conformance/estimate/staged_attribution (same two-period intercept-shift chain as conformance/attribution/distribution_change_y_shift). cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=ChangeAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
+limitations = "GCM distribution-change Shapley on a supplied explicit Dag, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Pins total_change from conformance/estimate/staged_attribution (same two-period intercept-shift chain as conformance/attribution/distribution_change_y_shift). cheap/full, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=ChangeAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
 calibration_reason = "no_interval_reported"
+
+[[cell]]
+query = "AnomalyAttribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["gcm.fit.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "bayesian_attribution_shared_row_weight_known_truth"
+limitations = "Bayesian-bootstrap posterior of target mean anomaly scores on an explicit Dag. Conditional on mechanism-family selection from unweighted observed data; each draw refits all mechanisms under shared Dirichlet row weights while holding observed marginal reference statistics fixed. Does not address model misspecification or identification uncertainty."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ChangeAttribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["gcm.attribution.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "bayesian_attribution_shared_row_weight_known_truth"
+limitations = "Bayesian-bootstrap posterior of mechanism-change Shapley contributions on two time-range populations. Conditional on mechanism-family selection from unweighted populations; one Dirichlet row-weight vector per population is shared across its mechanism factors. Does not address model misspecification or identification uncertainty."
+calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
 query = "TransportQuery"
@@ -6498,8 +6544,23 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_transport"
 evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
 evidence_assertion = "transport_direct_trial_ipw_known_truth"
-limitations = "Single-source selection diagram on an explicit Admg. Identification is the implemented sID subset (Direct or S-admissible standardize). This cell estimates the binary trial-to-target ATE via Dahabreh IPW from caller-supplied trial membership and known selection/treatment probabilities, with the delta-method SE of that ratio-of-means over iid rows; the inner ResponseCurve names treatment/outcome only and is not a dose-response estimate. RecursiveFactorization and NotCertified refuse. A derivative or non-mean inner response, an embedded population, observation mechanism or temporal attachment, and RecursiveFactorization refuse with construction_not_licensed; NotCertified refuses at identification. cheap/full, Bayesian, accepted, graph-posterior, and non-Admg graphs remain refused. Selection diagram and trial column bindings freeze at prepare; each execution reads the trial columns from its own data. Python analyze(data, graph=Admg, query=TransportQuery(..., trial=, selection_probability=, treatment_probability=)) and the Rust Study API run this cell and retain a study; retarget refuses with population_not_estimable and a second-click refuter suite with option_not_applicable. The calibration slot is keyed TransportQuery/Admg/fixed/tabular/Frequentist/transport.trial_ipw/analytic_se/iid at the reported 0.95 level."
+limitations = "Single-source selection diagram on an explicit Admg. Identification is the implemented sID subset (Direct or S-admissible standardize). This cell estimates the binary trial-to-target ATE via Dahabreh IPW from caller-supplied trial membership and known selection/treatment probabilities, with the delta-method SE of that ratio-of-means over iid rows; the inner ResponseCurve names treatment/outcome only and is not a dose-response estimate. RecursiveFactorization and NotCertified refuse. A derivative or non-mean inner response, an embedded population, observation mechanism or temporal attachment, and RecursiveFactorization refuse with construction_not_licensed; NotCertified refuses at identification. cheap/full, accepted, graph-posterior, and non-Admg graphs remain refused. Selection diagram and trial column bindings freeze at prepare; each execution reads the trial columns from its own data. Python analyze(data, graph=Admg, query=TransportQuery(..., trial=, selection_probability=, treatment_probability=)) and the Rust Study API run this cell and retain a study; retarget refuses with population_not_estimable and a second-click refuter suite with option_not_applicable. The calibration slot is keyed TransportQuery/Admg/fixed/tabular/Frequentist/transport.trial_ipw/analytic_se/iid at the reported 0.95 level."
 calibration = ["cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage", "cov.transport_query.admg.frequentist.analytic_se.l95.transport_admg_trial_ipw_frequentist_nominal_coverage"]
+
+[[cell]]
+query = "TransportQuery"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["transport.trial_bayesian_bootstrap"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/bayesian_trial_transport"
+evidence_test = "crates/antecedent/tests/bayesian_trial_transport.rs"
+evidence_assertion = "bayesian_trial_transport_matches_two_source_row_dirichlet_moments"
+limitations = "Single-source direct or S-admissible standardize identification, binary trial-to-target IPW, explicit Admg, complete all-observed mean response. Dirichlet(1,...,1) posterior over observed trial rows conditions on the supplied selection and treatment probabilities, the selected trial sample size, and the target sample size; no uncertainty from fitted probability models or target sampling. The backend and coefficient-prior settings do not define this nonparametric posterior; supplied coefficient and transferred priors refuse. No repeated-sampling interval calibration is claimed."
+calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
 query = "InterferenceQuery"
@@ -6686,6 +6747,34 @@ limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing clas
 calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+staged = true
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each CPDAG completion keeps its Bayesian posterior response; cheap validation runs overlap against the posterior-mean intervention level of each evaluable atom and mixes reports only when atoms share an estimand. Frozen graph weights, unidentified mass, failed mass, and subsampled-out mass remain in structural_response. ATE-shaped contrast refuters do not apply; this check is not a calibration claim."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+staged = true
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each CPDAG completion keeps its Bayesian posterior response; full validation runs overlap and sampling-stability checks against each evaluable atom's posterior-mean intervention level, mixing reports only when atoms share an estimand. Frozen graph weights, unidentified mass, failed mass, and subsampled-out mass remain in structural_response. ATE-shaped contrast refuters do not apply; this check is not a calibration claim."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
 structure = "graph_posterior"
@@ -6853,3 +6942,30 @@ evidence_assertion = "class_posterior_graph_posterior_response_runs"
 limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
 calibration_reason = "estimator_grid_not_measured"
 
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+staged = true
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each PAG completion keeps its Bayesian posterior response; cheap validation runs overlap against the posterior-mean intervention level of each evaluable atom and mixes reports only when atoms share an estimand. Frozen graph weights, unidentified mass, failed mass, and subsampled-out mass remain in structural_response. ATE-shaped contrast refuters do not apply; this check is not a calibration claim."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+staged = true
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each PAG completion keeps its Bayesian posterior response; full validation runs overlap and sampling-stability checks against each evaluable atom's posterior-mean intervention level, mixing reports only when atoms share an estimand. Frozen graph weights, unidentified mass, failed mass, and subsampled-out mass remain in structural_response. ATE-shaped contrast refuters do not apply; this check is not a calibration claim."
+calibration_reason = "estimator_grid_not_measured"

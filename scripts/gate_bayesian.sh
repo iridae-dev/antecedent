@@ -25,8 +25,16 @@ EVIDENCE = {
     "bayes.estimate.gcomp": "crates/antecedent/tests/bayesian.rs",
     "bayes.estimate.temporal_gcomp": "crates/antecedent/tests/bayesian.rs",
     "bayes.estimate.graph_envelopes": "crates/antecedent/tests/bayesian.rs",
-    "bayes.validate.ppc": "crates/antecedent/tests/bayesian.rs",
-    "bayes.validate.prior_sensitivity": "crates/antecedent/tests/bayesian.rs",
+    "bayes.estimate.basis_gcomp_all_observed": "crates/antecedent-learn/tests/bayesian_basis.rs",
+    "bayes.estimate.robust_ate_modular": "crates/antecedent/tests/bayesian_robust_ate.rs",
+    "bayes.estimate.iv_joint_linear": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
+    "bayes.estimate.sharp_rd_local_linear": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
+    "bayes.estimate.interference_neighbor_count": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
+    "bayes.estimate.trial_to_target": "crates/antecedent/tests/bayesian_trial_transport.rs",
+    "bayes.response.simultaneous_joint_band": "crates/antecedent-estimate/src/response/mod.rs",
+    "bayes.validate.sbc_glm_families": "crates/antecedent-validate/src/bayesian_checks.rs",
+    "bayes.validate.ppc": "crates/antecedent-validate/src/bayesian_checks.rs",
+    "bayes.validate.prior_sensitivity": "crates/antecedent-validate/src/bayesian_checks.rs",
     "bayes.data.bayesian_bootstrap": "provenance/data.bayesian_bootstrap.toml",
     "bayes.io.posterior_artifact": "crates/antecedent-io/src/posterior.rs",
     "bayes.io.posterior_artifact_summary_only": "crates/antecedent-io/src/posterior.rs",
@@ -34,7 +42,7 @@ EVIDENCE = {
     "bayes.model.pcm_scm_registry": "crates/antecedent-model/src/lib.rs",
     "bayes.discovery.dag_posterior": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs",
     "bayes.backend.hierarchical_bvar_gp": "crates/antecedent-model/src/registry.rs",
-    "bayes.validate.mcmc_diagnostics": "crates/antecedent-validate/src/bayesian_checks.rs",
+    "bayes.validate.mcmc_diagnostics": "crates/antecedent-prob/tests/mcmc_arviz_oracle.rs",
     "bayes.ci.tests": "crates/antecedent-stats/src/ci/bayes.rs",
     "bayes.prior_bank.temporal_transfer": "crates/antecedent/tests/temporal_prior_transfer.rs",
     "bayes.prior_bank.catalog": "crates/antecedent-io/src/prior_bank.rs",
@@ -64,6 +72,7 @@ EXIT_ARTIFACTS = [
     "conformance/bayesian/prior_bank_ess/expected.json",
     "conformance/bayesian/prior_conjugate_moment_match/expected.json",
     "conformance/validate/bayesian_checks/expected.json",
+    "conformance/validate/bayesian_checks/diagnostics_oracle.json",
     "crates/antecedent-prob/benches/laplace_glm.rs",
     "crates/antecedent-prob/benches/hmc.rs",
     "crates/antecedent-prob/benches/mcmc_stats.rs",
@@ -78,6 +87,7 @@ PY
 echo "== cargo test antecedent-prob / estimate bayesian / io posterior / bayesian conformance =="
 bash scripts/counted_cargo.sh test -p antecedent-prob --lib
 bash scripts/counted_cargo.sh test -p antecedent-prob --test prior_support_oracle
+bash scripts/counted_cargo.sh test -p antecedent-prob --test mcmc_arviz_oracle
 bash scripts/counted_cargo.sh test -p antecedent-discovery --lib graph_posterior::
 bash scripts/counted_cargo.sh test -p antecedent-discovery --lib exact_enumeration::
 bash scripts/counted_cargo.sh test -p antecedent-discovery --lib structure_mcmc::

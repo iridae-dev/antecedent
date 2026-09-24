@@ -2193,14 +2193,35 @@ identifier = "gcm.parametric"
 estimator = "gcm.fit"
 
 [[route]]
+coordinate = "AnomalyAttribution:Dag:explicit:Bayesian:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit.bayesian"
+
+[[route]]
+coordinate = "ChangeAttribution:Dag:explicit:Bayesian:none"
+identifier = "gcm.parametric"
+estimator = "gcm.attribution.bayesian"
+
+[[route]]
 coordinate = "TransportQuery:Admg:explicit:Frequentist:none"
 identifier = "transport.sid"
 estimator = "transport.trial_ipw"
 
 [[route]]
+coordinate = "TransportQuery:Admg:explicit:Bayesian:none"
+identifier = "transport.sid"
+estimator = "transport.trial_bayesian_bootstrap"
+
+[[route]]
 coordinate = "InterferenceQuery:Dag:explicit:Frequentist:none"
 identifier = "interference.design"
 estimator = "interference.ht_hajek"
+
+[[route]]
+coordinate = "InterferenceQuery:Dag:explicit:Bayesian:none"
+identifier = "interference.design"
+estimator = "interference.bayesian_gaussian"
+
 
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:graph_posterior:Frequentist:none"
@@ -2263,6 +2284,16 @@ identifier = "generalized.adjustment"
 estimator = "response.bayesian"
 
 [[route]]
+coordinate = "InterventionResponse:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:Cpdag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
 coordinate = "ConditionalEffect:Pag:graph_posterior:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "conditional.linear.adjustment"
@@ -2319,5 +2350,15 @@ estimator = "response.intervention_gcomp"
 
 [[route]]
 coordinate = "InterventionResponse:Pag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:Pag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:Pag:graph_posterior:Bayesian:full"
 identifier = "generalized.adjustment"
 estimator = "response.bayesian"

@@ -59,12 +59,6 @@ reason = "Attribution is licensed only for an explicit Dag at validation none."
 [[closed]]
 queries = ["AnomalyAttribution", "ChangeAttribution"]
 graph_classes = ["Dag"]
-inferences = ["Bayesian"]
-reason = "Attribution has no Bayesian draw path; the licensed cells are Frequentist."
-
-[[closed]]
-queries = ["AnomalyAttribution", "ChangeAttribution"]
-graph_classes = ["Dag"]
 validations = ["cheap", "full"]
 reason = "Attribution has no native refuter suite; ATE refuters do not apply."
 
@@ -89,12 +83,6 @@ reason = "TransportQuery graph-posterior mixtures are not staged."
 [[closed]]
 queries = ["TransportQuery"]
 graph_classes = ["Admg"]
-inferences = ["Bayesian"]
-reason = "TransportQuery has no Bayesian trial-to-target estimator."
-
-[[closed]]
-queries = ["TransportQuery"]
-graph_classes = ["Admg"]
 validations = ["cheap", "full"]
 reason = "TransportQuery has no native refuter suite; ATE refuters do not apply."
 
@@ -115,12 +103,6 @@ graph_classes = ["Dag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 reason = "InterferenceQuery graph-posterior mixtures are not staged."
-
-[[closed]]
-queries = ["InterferenceQuery"]
-graph_classes = ["Dag"]
-inferences = ["Bayesian"]
-reason = "InterferenceQuery is design-based Frequentist; there is no Bayesian randomization estimator."
 
 [[closed]]
 queries = ["InterferenceQuery"]
@@ -251,11 +233,3 @@ graph_classes = ["Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
 reason = "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state."
-
-[[closed]]
-queries = ["InterventionResponse"]
-graph_classes = ["Cpdag", "Pag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-validations = ["cheap", "full"]
-reason = "Bayesian graph-posterior InterventionResponse on Cpdag/Pag is licensed at validation none. cheap/full attach the Frequentist plugin-level suite; there is no Bayesian class-IR refuter path on a static Cpdag/Pag posterior."
