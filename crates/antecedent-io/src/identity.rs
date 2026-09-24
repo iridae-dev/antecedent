@@ -1235,8 +1235,8 @@ pub struct DataSnapshotIdentityWire {
     /// Interference network and assignment, when the study carries one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interference: Option<InterferenceSnapshotWire>,
-    /// Portable finite-discrete provider tables for checked distribution replay.
-    /// Bound to this data snapshot and absent on older artifacts.
+    /// Portable finite-discrete provider tables for checked distribution or scalar
+    /// functional replay. Bound to this data snapshot and absent on older artifacts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub distribution_factor_laws: Option<DistributionFactorLawsWire>,
 }
@@ -1456,8 +1456,8 @@ pub struct ProgramIdentityWire {
     pub completion_budget: Option<u64>,
     /// Licensed inferential commitments.
     pub commitments: InferentialCommitmentsWire,
-    /// Retained checked program for high-level functional-distribution results.
-    /// Omitted by older artifacts and by other estimators.
+    /// Retained checked program for high-level functional-distribution and scalar
+    /// functional-effect results. Omitted by older artifacts and other estimators.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub functional_program: Option<crate::FunctionalProgramWire>,
     /// Checked AIPW semantic lowering (target roles and procedure choices).

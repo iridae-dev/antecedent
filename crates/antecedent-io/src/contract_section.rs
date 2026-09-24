@@ -593,6 +593,14 @@ pub fn verify_contract_against_body(
             .inference_binding
             .as_ref()
             .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    let functional_effect = is_scalar_functional_effect_contract(contract);
+    let posterior_functional_effect = functional_effect
+        && (contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference == "bayesian" || program.commitments.prior_required
+        }) || contract
+            .inference_binding
+            .as_ref()
+            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
     if posterior_distribution {
         // Posterior atoms require joint per-draw factor tables and draw
         // identity. Empirical marginal laws cannot replay their weights.
@@ -603,6 +611,20 @@ pub fn verify_contract_against_body(
         // only carries partition digests. Without portable factor laws a detached
         // consumer cannot recompute the atom probabilities.
         unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
+    }
+    if functional_effect && factor_laws.is_none() && !posterior_functional_effect {
+        unresolved.push(Arc::from("dependencies.functional_effect_factor_laws"));
+    }
+    if posterior_functional_effect {
+        // The scalar provider law is enough for a frequentist point replay, but Bayesian
+        // results require the shared row weights for every posterior draw.
+        unresolved.push(Arc::from("dependencies.functional_effect_posterior_draws"));
+    }
+    if is_response_functional_effect_contract(contract) {
+        // Response results contain an ordered grid of members. Until each member's
+        // checked program/result is carried and replayed, do not verify the summary
+        // scalar as though it were one functional-effect point.
+        unresolved.push(Arc::from("dependencies.functional_effect_response_grid"));
     }
     if body.identification.query != body.query {
         unresolved.push(Arc::from("body.identification.query"));
@@ -634,6 +656,35 @@ pub fn verify_contract_against_body(
                     unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
                 }
             }
+        }
+    }
+    if functional_effect && !posterior_functional_effect {
+        match (
+            contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
+            contract
+                .data_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
+        ) {
+            (Some(program), Some(laws)) => {
+                if let Err(reason) = crate::distribution_replay::replay_functional_scalar(
+                    &body.query,
+                    body.estimate,
+                    program,
+                    laws,
+                ) {
+                    unresolved.push(Arc::from(reason));
+                }
+            }
+            (_, None) => {
+                if !unresolved
+                    .iter()
+                    .any(|reason| reason.as_ref() == "dependencies.functional_effect_factor_laws")
+                {
+                    unresolved.push(Arc::from("dependencies.functional_effect_factor_laws"));
+                }
+            }
+            (None, Some(_)) => unresolved.push(Arc::from("program.functional_program")),
         }
     }
     if contract.target.schema.variable_names() != header.variable_names {
@@ -748,6 +799,13 @@ fn producer_encoding_unresolved(
     if contract.estimator.as_deref() == Some("functional.distribution") {
         unresolved.retain(|key| key.as_ref() != "dependencies.distribution_factor_laws");
         unresolved.retain(|key| key.as_ref() != "dependencies.distribution_posterior_factor_draws");
+    }
+    if is_scalar_functional_effect_contract(contract) {
+        unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_factor_laws");
+        unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_posterior_draws");
+    }
+    if is_response_functional_effect_contract(contract) {
+        unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_response_grid");
     }
     if contract
         .program
@@ -902,7 +960,14 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         // executable distribution without the program that was evaluated.
         unresolved.push(Arc::from("program.functional_program"));
     }
-    if let Some(program) = functional.filter(|_| !posterior_distribution) {
+    if is_scalar_functional_effect_contract(contract) && functional.is_none() {
+        unresolved.push(Arc::from("program.functional_program"));
+    }
+    if let Some(program) = functional.filter(|_| {
+        !posterior_distribution
+            && (contract.estimator.as_deref() == Some("functional.distribution")
+                || is_scalar_functional_effect_contract(contract))
+    }) {
         if crate::functional_program_from_wire(program, antecedent_expr::ProgramLimits::default())
             .is_err()
         {
@@ -924,8 +989,22 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
                         .iter()
                         .any(|estimand| estimand.functional == program.source)
             });
-        if contract.estimator.as_deref() != Some("functional.distribution")
-            || !matches!(contract.target.query, crate::CausalQueryWire::Distribution(_))
+        let distribution_binding = contract.estimator.as_deref() == Some("functional.distribution")
+            && matches!(contract.target.query, crate::CausalQueryWire::Distribution(_));
+        let effect_method = match &contract.target.query {
+            crate::CausalQueryWire::AverageEffect { .. } => Some("general.id"),
+            crate::CausalQueryWire::PathSpecific(_) => Some("path_specific.natural"),
+            _ => None,
+        };
+        let effect_binding = is_scalar_functional_effect_contract(contract)
+            && effect_method.is_some_and(|method| {
+                contract.identification_product.as_ref().is_some_and(|product| {
+                    product.estimands.iter().any(|estimand| {
+                        estimand.functional == program.source && estimand.method == method
+                    })
+                })
+            });
+        if (!distribution_binding && !effect_binding)
             || program.variables != expected_variables
             || !matches_identification
         {
@@ -1039,6 +1118,26 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         _ => unresolved.push(Arc::from("contract.seal")),
     }
     unresolved
+}
+
+fn is_functional_effect_estimator_contract(contract: &AnalysisResultContractWire) -> bool {
+    contract.estimator.as_deref() == Some("functional.effect")
+        || contract.program.as_ref().is_some_and(|program| {
+            program.commitments.resolved_estimator.as_deref() == Some("functional.effect")
+        })
+}
+
+fn is_scalar_functional_effect_contract(contract: &AnalysisResultContractWire) -> bool {
+    is_functional_effect_estimator_contract(contract)
+        && matches!(
+            contract.target.query,
+            crate::CausalQueryWire::AverageEffect { .. } | crate::CausalQueryWire::PathSpecific(_)
+        )
+}
+
+fn is_response_functional_effect_contract(contract: &AnalysisResultContractWire) -> bool {
+    is_functional_effect_estimator_contract(contract)
+        && matches!(contract.target.query, crate::CausalQueryWire::Response(_))
 }
 
 fn verify_checked_linear_adjustment(

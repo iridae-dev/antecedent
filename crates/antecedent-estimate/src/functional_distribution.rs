@@ -1010,6 +1010,8 @@ pub struct PreparedFunctionalEffect {
     bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    /// Input row count for the currently bound empirical law.
+    source_rows: usize,
 }
 
 impl PreparedFunctionalEffect {
@@ -1017,6 +1019,36 @@ impl PreparedFunctionalEffect {
     #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
         &self.program
+    }
+
+    /// Export every empirical law needed to independently evaluate this
+    /// checked scalar functional, including its free-variable weighting law.
+    pub fn factor_snapshot(&self) -> Result<EmpiricalDistributionFactorSnapshot, EstimationError> {
+        let mut requirements = self.program.factor_requirements().to_vec();
+        if !self.free_variables.is_empty() {
+            requirements.push(FactorRequirement {
+                variables: Arc::clone(&self.free_variables),
+                conditioned_on: Arc::from([]),
+                intervention: Arc::from([]),
+                domain: DomainRef::Observational,
+                population: Arc::from(""),
+                regime: None,
+            });
+        }
+        let provider = self
+            .provider
+            .snapshot_factors(&requirements)
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        Ok(EmpiricalDistributionFactorSnapshot {
+            requirements: Arc::from(requirements),
+            provider,
+            provenance: EmpiricalProviderProvenance {
+                provider: "empirical_table",
+                source_rows: self.source_rows,
+                complete_case_rows: self.bootstrap_columns.n(),
+                missing_row_policy: "joint_complete_case",
+            },
+        })
     }
 
     /// Value of the scalar functional on `provider`'s row law, with the functional's free
@@ -1133,6 +1165,7 @@ impl FunctionalEffect {
             bootstrap_columns: columns,
             bootstrap_factors: factor_specs,
             bootstrap_signatures: signatures,
+            source_rows: data.row_count(),
         })
     }
 
@@ -2562,6 +2595,16 @@ mod tests {
                 &[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
             )
             .unwrap();
+        let snapshot = prepared.factor_snapshot().unwrap();
+        assert_eq!(snapshot.provenance.source_rows, data.row_count());
+        assert_eq!(snapshot.provenance.complete_case_rows, data.row_count());
+        let covered: HashSet<_> = snapshot
+            .provider
+            .factors
+            .iter()
+            .flat_map(|factor| factor.requirement_indices.iter().copied())
+            .collect();
+        assert_eq!(covered.len(), snapshot.requirements.len());
         let out = est
             .estimate(
                 &prepared,
