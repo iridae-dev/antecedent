@@ -426,6 +426,7 @@ impl super::Study {
         graph: DistributionGraph<'_>,
         query: &antecedent_core::InterventionalDistributionQuery,
         physical: &PhysicalExecutionPlan,
+        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if matches!(graph, DistributionGraph::Admg(_)) {
@@ -464,15 +465,32 @@ impl super::Study {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalDistribution::new()
         };
-        let prepared = est
-            .prepare(
+        let prepared = if let Some(operation) = distribution_operation {
+            let checked_arena =
+                antecedent_io::expr_arena_to_wire(operation.prepared().program().arena())
+                    .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+            let claim_arena = antecedent_io::expr_arena_to_wire(&identification.arena)
+                .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+            if operation.query() != query
+                || operation.prepared().estimand.functional != estimand.functional
+                || checked_arena != claim_arena
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared distribution target disagrees with selected identification"
+                        .into(),
+                });
+            }
+            operation.rebind(data)?
+        } else {
+            est.prepare(
                 data,
                 query,
                 &estimand,
                 &identification.arena,
                 identification.required_assumptions.clone(),
             )
-            .map_err(CausalError::from)?;
+            .map_err(CausalError::from)?
+        };
         let (dist, posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             if let InferenceMode::Bayesian(cfg) = &self.inference {
                 if cfg.prior_artifact.is_some()

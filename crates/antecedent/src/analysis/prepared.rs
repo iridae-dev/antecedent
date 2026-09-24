@@ -10,9 +10,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention, MediationQuery,
-    OutcomeFunctional, ResponseQuery, TargetPopulation, TemporalEffectQuery, TemporalResponseSpec,
-    Value,
+    AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention,
+    InterventionalDistributionQuery, MediationQuery, OutcomeFunctional, ResponseQuery,
+    TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{PanelData, TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_discovery::{
@@ -56,6 +56,49 @@ pub struct CachedStaticIdentification {
     pub identification: IdentificationResult,
     /// Estimand selected for the prepared estimator.
     pub estimand: IdentifiedEstimand,
+}
+
+/// Retained functional-distribution target and program for prepared execution.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedDistributionOperation {
+    query: InterventionalDistributionQuery,
+    prepared: antecedent_estimate::PreparedFunctionalDistribution,
+}
+
+impl CheckedDistributionOperation {
+    pub(crate) fn query(&self) -> &InterventionalDistributionQuery {
+        &self.query
+    }
+
+    pub(crate) fn prepared(&self) -> &antecedent_estimate::PreparedFunctionalDistribution {
+        &self.prepared
+    }
+
+    pub(crate) fn rebind(
+        &self,
+        data: &TabularData,
+    ) -> Result<antecedent_estimate::PreparedFunctionalDistribution, CausalError> {
+        let rebound = antecedent_estimate::FunctionalDistribution::new().prepare(
+            data,
+            &self.query,
+            &self.prepared.estimand,
+            &self.prepared.arena,
+            self.prepared.assumptions.clone(),
+        )?;
+        let old_arena = antecedent_io::expr_arena_to_wire(self.prepared.program().arena())
+            .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+        let new_arena = antecedent_io::expr_arena_to_wire(rebound.program().arena())
+            .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+        if rebound.program().mapping() != self.prepared.program().mapping()
+            || new_arena != old_arena
+            || rebound.program().schema() != self.prepared.program().schema()
+        {
+            return Err(CausalError::Compile {
+                message: "prepared distribution program changed during data rebind".into(),
+            });
+        }
+        Ok(rebound)
+    }
 }
 
 /// Prepare-time generalized-adjustment envelope for a supplied PAG.
@@ -1484,6 +1527,8 @@ pub struct SampledPreparedState {
     checked_linear: Option<antecedent_estimate::CheckedLinearAdjustmentAte>,
     /// Typed cross-world operation retained for nested counterfactual execution.
     nested_counterfactual: Option<crate::gcm::NestedCounterfactualOperation>,
+    /// Checked functional-distribution program retained through estimate and refresh.
+    distribution_operation: Option<CheckedDistributionOperation>,
 }
 
 impl std::ops::Deref for PreparedStudy {
@@ -1508,6 +1553,12 @@ impl PreparedStudy {
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
         self.checked_linear.as_ref()
+    }
+
+    /// Checked functional program retained for a prepared distribution query.
+    #[must_use]
+    pub fn checked_distribution_program(&self) -> Option<&antecedent_expr::FunctionalProgram> {
+        self.distribution_operation.as_ref().map(|operation| operation.prepared.program())
     }
 
     /// Borrow the caller's frozen query, with original variable ids and query kind.
@@ -2054,6 +2105,7 @@ impl PreparedStudy {
             &self.plan,
             rebound_linear.as_ref(),
             self.nested_counterfactual.as_ref(),
+            self.distribution_operation.as_ref(),
             ctx,
         )?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
@@ -2096,7 +2148,8 @@ impl PreparedStudy {
         // through it before replacing the retained data snapshot; otherwise the
         // generic Study refresh route would rederive an unchecked preparation.
         let checked_result = (self.checked_linear.is_some()
-            || self.nested_counterfactual.is_some())
+            || self.nested_counterfactual.is_some()
+            || self.distribution_operation.is_some())
         .then(|| self.estimate(&data, ctx))
         .transpose()?;
         let mut refreshed = self.analysis.clone();
@@ -2872,6 +2925,20 @@ impl Study {
             }
             _ => None,
         };
+        let distribution_operation =
+            match (&self.data, &self.query, analysis.identification_cache.as_deref()) {
+                (DataInput::Tabular(data), CausalQuery::Distribution(query), Some(cache)) => {
+                    let prepared = antecedent_estimate::FunctionalDistribution::new().prepare(
+                        data,
+                        query,
+                        &cache.estimand,
+                        &cache.identification.arena,
+                        cache.identification.required_assumptions.clone(),
+                    )?;
+                    Some(CheckedDistributionOperation { query: query.clone(), prepared })
+                }
+                _ => None,
+            };
         let score_table = analysis.prepare_score_table(ctx)?;
         Ok(PreparedStudy {
             state: SampledPreparedState {
@@ -2884,6 +2951,7 @@ impl Study {
                 score_table,
                 checked_linear,
                 nested_counterfactual,
+                distribution_operation,
             },
         })
     }
