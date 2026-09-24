@@ -1465,9 +1465,7 @@ pub struct PreparedStudy<S = SampledPreparedState> {
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
-    /// Frozen analysis config (data slot replaced on each estimate). Read
-    /// through `PreparedStudy::study`; mutate only through `PreparedStudy::study_mut`, which
-    /// drops the compiled program identities.
+    /// Frozen analysis config (data slot replaced only by checked refresh).
     analysis: Study,
     /// Data-independent contract layers, compiled once per handle state.
     program_cache: std::sync::OnceLock<Arc<super::contract::ProgramPayloads>>,
@@ -1482,6 +1480,8 @@ pub struct SampledPreparedState {
     time_regularity: Option<antecedent_data::SamplingRegularity>,
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
+    /// Checked causal-to-linear lowering retained independently of the builder.
+    checked_linear: Option<antecedent_estimate::CheckedLinearAdjustmentAte>,
 }
 
 impl std::ops::Deref for PreparedStudy {
@@ -1497,6 +1497,17 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    /// Checked linear adjustment lowering retained by this prepared handle.
+    ///
+    /// `None` means this route has not migrated to the checked adjustment path;
+    /// it does not imply that another estimator is unsupported.
+    #[must_use]
+    pub fn checked_linear_adjustment(
+        &self,
+    ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
+        self.checked_linear.as_ref()
+    }
+
     /// Borrow the caller's frozen query, with original variable ids and query kind.
     #[must_use]
     pub fn query(&self) -> &CausalQuery {
@@ -1508,16 +1519,17 @@ impl PreparedStudy {
         &self.analysis
     }
 
-    /// Mutable frozen study. Drops the compiled program identities so the
-    /// next contract or estimate recompiles them from the changed study.
+    #[cfg(test)]
     pub(crate) fn study_mut(&mut self) -> &mut Study {
         self.program_cache = std::sync::OnceLock::new();
+        self.checked_linear = None;
         &mut self.analysis
     }
 
     /// Replace the frozen study after a successful refresh.
     fn replace_study(&mut self, study: Study) {
-        *self.study_mut() = study;
+        self.program_cache = std::sync::OnceLock::new();
+        self.analysis = study;
     }
 
     pub(crate) fn program_cache(
@@ -2022,7 +2034,21 @@ impl PreparedStudy {
         click_analysis.interference =
             click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
         click_analysis.shared_batch_design = shared;
-        let mut result = click_analysis.execute_tabular(data, &self.plan, ctx)?;
+        let rebound_linear = self
+            .checked_linear
+            .as_ref()
+            .map(|checked| {
+                let fitter = match &click_analysis.estimator_spec {
+                    Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
+                        (**cfg).clone()
+                    }
+                    _ => antecedent_estimate::LinearAdjustmentAte::new(),
+                };
+                fitter.rebind_checked(checked, data).map_err(CausalError::from)
+            })
+            .transpose()?;
+        let mut result =
+            click_analysis.execute_tabular(data, &self.plan, rebound_linear.as_ref(), ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
         // record which refutation reports are caller-attested. Without the names,
         // the claim would drop custom-validator evidence from `attested` and from
@@ -2059,6 +2085,11 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
+        // The checked static lowering belongs to the prepared handle. Execute
+        // through it before replacing the retained data snapshot; otherwise the
+        // generic Study refresh route would rederive an unchecked preparation.
+        let checked_result =
+            self.checked_linear.as_ref().map(|_| self.estimate(&data, ctx)).transpose()?;
         let mut refreshed = self.analysis.clone();
         refreshed.shared_batch_design = refreshed
             .shared_batch_design
@@ -2068,6 +2099,11 @@ impl PreparedStudy {
         refreshed.interference =
             refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
+        if let Some(result) = checked_result {
+            self.replace_study(refreshed);
+            self.score_table = None; // the checked route is a mean ATE
+            return Ok(result);
+        }
         let mut result = refreshed.execute(&self.plan, ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(&refreshed.query, scores.as_ref(), &mut result)?;
@@ -2792,6 +2828,32 @@ impl Study {
         {
             super::execute::report_identify_compute(ctx);
         }
+        let checked_linear = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                GraphClass::Dag,
+            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str()) =>
+            {
+                let fitter = match &self.estimator_spec {
+                    Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
+                        (**cfg).clone()
+                    }
+                    _ => antecedent_estimate::LinearAdjustmentAte::new(),
+                };
+                Some(fitter.prepare_checked(data, &cache.identification, 0)?)
+            }
+            _ => None,
+        };
         let score_table = analysis.prepare_score_table(ctx)?;
         Ok(PreparedStudy {
             state: SampledPreparedState {
@@ -2802,6 +2864,7 @@ impl Study {
                 modality,
                 time_regularity,
                 score_table,
+                checked_linear,
             },
         })
     }

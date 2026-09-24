@@ -503,7 +503,7 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { unreachable!() };
-                self.execute_tabular_route(route, data, physical, ctx)
+                self.execute_tabular_route(route, data, physical, None, ctx)
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -590,6 +590,7 @@ impl super::Study {
         &self,
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
+        checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -599,7 +600,7 @@ impl super::Study {
             classify_route(DataModality::Tabular, &self.query).ok_or(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             })?;
-        self.execute_tabular_route(route, data, physical, ctx)
+        self.execute_tabular_route(route, data, physical, checked_linear, ctx)
     }
 
     /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
@@ -650,6 +651,7 @@ impl super::Study {
         route: AnalysisRoute,
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
+        checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
@@ -715,7 +717,7 @@ impl super::Study {
                     GraphClass::Dag => {
                         let graph =
                             self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
-                        self.execute_static(data, graph, q, physical, ctx)
+                        self.execute_static(data, graph, q, physical, checked_linear, ctx)
                     }
                     GraphClass::Cpdag => {
                         let cpdag = self
@@ -737,7 +739,7 @@ impl super::Study {
                                     "Ready ADMG (DAG-coerced) plan missing resolved static DAG"
                                         .into(),
                             })?;
-                            self.execute_static(data, graph, q, physical, ctx)
+                            self.execute_static(data, graph, q, physical, checked_linear, ctx)
                         }
                     }
                     GraphClass::Pag => {
@@ -903,6 +905,31 @@ impl super::Study {
     ///
     /// Compile / execute failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        // The migrated static mean adjustment route executes from the prepared
+        // checked lowering even for the one-shot facade. Other routes retain
+        // their legacy dispatch until their own lowering checkpoint lands.
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(
+                &self.query,
+                CausalQuery::AverageEffect(query)
+                    if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                        && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
+            )
+            && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
+            && matches!(
+                &self.estimator_spec,
+                None | Some(crate::estimator_spec::EstimatorSpec::Default(
+                    EstimatorId::LinearAdjustmentAte
+                )) | Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_))
+            )
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                return self.prepare(ctx)?.estimate(data, ctx);
+            }
+        }
         let compiled = self.compile(ctx)?;
         self.execute(&compiled, ctx)
     }

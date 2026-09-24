@@ -10,6 +10,7 @@ impl super::Study {
         graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
+        prepared_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
@@ -104,26 +105,41 @@ impl super::Study {
             self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
         // Prepare against the original semantic variable IDs. Projection remaps tabular
         // columns, while the identified expression still belongs to the original arena.
-        let checked_linear =
-            if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-                && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
-            {
-                let fitter = match &estimator_spec {
-                    EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
-                        Some(LinearAdjustmentAte::new())
-                    }
-                    EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
-                    _ => None,
-                };
-                fitter
+        let checked_linear = if matches!(
+            query.outcome_functional,
+            antecedent_core::OutcomeFunctional::Mean
+        ) && matches!(
+            query.target_population,
+            antecedent_core::TargetPopulation::AllObserved
+        ) {
+            let fitter = match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
+                    Some(LinearAdjustmentAte::new())
+                }
+                EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
+                _ => None,
+            };
+            fitter
                     .map(|fitter| {
-                        let checked = fitter.prepare_checked(data, &identification, 0)?;
+                        let checked = match prepared_linear {
+                            Some(prepared) => {
+                                if prepared.source_functional() != estimand.functional
+                                    || prepared.target().adjustment_set != estimand.adjustment_set
+                                {
+                                    return Err(CausalError::Compile {
+                                        message: "prepared adjustment lowering disagrees with selected identification".into(),
+                                    });
+                                }
+                                prepared.clone()
+                            }
+                            None => fitter.prepare_checked(data, &identification, 0)?,
+                        };
                         Ok::<_, CausalError>((fitter, checked))
                     })
                     .transpose()?
-            } else {
-                None
-            };
+        } else {
+            None
+        };
         let point = if let Some((fitter, checked)) = &checked_linear {
             fitter.fit_checked(checked, &mut estimate_ws.linear, ctx).map_err(CausalError::from)?
         } else {
@@ -198,7 +214,7 @@ impl super::Study {
                 est.bootstrap_replicates = self.bootstrap_replicates;
                 est.overlap = OverlapPolicy::ExplicitOverride;
                 let prep = if let Some((_, checked)) = &checked_linear {
-                    checked.problem.clone()
+                    checked.problem().clone()
                 } else {
                     est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?
                 };
