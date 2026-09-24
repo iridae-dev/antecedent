@@ -1591,6 +1591,7 @@ pub struct PreparedStudy<S = SampledPreparedState> {
 pub(crate) enum PreparedExecution {
     LegacyStudyDispatch,
     CheckedLinear(antecedent_estimate::CheckedLinearAdjustmentAte),
+    CheckedAipw(antecedent_estimate::CheckedAipwPreparation),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(CheckedBayesianGcompOperation),
@@ -1602,6 +1603,9 @@ impl PreparedExecution {
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
         if let Self::CheckedLinear(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn checked_aipw(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
+        if let Self::CheckedAipw(value) = self { Some(value) } else { None }
     }
     pub(crate) fn nested_counterfactual(
         &self,
@@ -1616,6 +1620,21 @@ impl PreparedExecution {
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
         if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
+    }
+}
+
+pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {
+    match &study.estimator_spec {
+        Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => (**config).clone(),
+        _ => {
+            let mut fitter = AipwAte::new();
+            fitter.bootstrap_replicates = study.bootstrap_replicates;
+            if let Some(overlap) = study.overlap_policy {
+                fitter.overlap = overlap;
+            }
+            fitter.population_registry = study.population_registry.clone();
+            fitter
+        }
     }
 }
 
@@ -1670,6 +1689,12 @@ impl PreparedStudy {
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
         self.execution.checked_linear()
+    }
+
+    /// Checked AIPW lowering retained for the supported back-door mean ATE.
+    #[must_use]
+    pub fn checked_aipw_ate(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
+        self.execution.checked_aipw()
     }
 
     /// Checked functional program retained for a prepared distribution query.
@@ -2219,11 +2244,22 @@ impl PreparedStudy {
                 fitter.rebind_checked(checked, data).map_err(CausalError::from)
             })
             .transpose()?;
-        let execution = match (&self.execution, rebound_linear) {
-            (PreparedExecution::CheckedLinear(_), Some(rebound)) => {
+        let rebound_aipw = self
+            .execution
+            .checked_aipw()
+            .map(|checked| {
+                let fitter = checked_aipw_fitter(&click_analysis);
+                fitter.rebind_checked(checked, data).map_err(CausalError::from)
+            })
+            .transpose()?;
+        let execution = match (&self.execution, rebound_linear, rebound_aipw) {
+            (PreparedExecution::CheckedLinear(_), Some(rebound), _) => {
                 PreparedExecution::CheckedLinear(rebound)
             }
-            (plan, _) => plan.clone(),
+            (PreparedExecution::CheckedAipw(_), _, Some(rebound)) => {
+                PreparedExecution::CheckedAipw(rebound)
+            }
+            (plan, _, _) => plan.clone(),
         };
         let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
@@ -2278,8 +2314,13 @@ impl PreparedStudy {
             refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
         if let Some(result) = checked_result {
+            let scores = if matches!(self.execution, PreparedExecution::CheckedAipw(_)) {
+                refreshed.prepare_score_table(ctx)?
+            } else {
+                None
+            };
             self.replace_study(refreshed);
-            self.score_table = None; // checked routes carry their own refreshed estimate state
+            self.score_table = scores;
             return Ok(result);
         }
         let mut result = refreshed.execute(&self.plan, ctx)?;
@@ -3041,6 +3082,35 @@ impl Study {
             }
             _ => None,
         };
+        let checked_aipw = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                GraphClass::Dag,
+            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && matches!(query.target_population, TargetPopulation::AllObserved)
+                && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment && value.as_f64() == Some(1.0))
+                && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment && value.as_f64() == Some(0.0))
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::Aipw.as_str()) =>
+            {
+                let fitter = checked_aipw_fitter(&analysis);
+                if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { trim: None, .. }) {
+                    Some(fitter.prepare_checked(data, &cache.identification, 0)?)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
         let distribution_operation =
             match (&self.data, &self.query, analysis.identification_cache.as_deref()) {
                 (DataInput::Tabular(data), CausalQuery::Distribution(query), Some(cache)) => {
@@ -3135,6 +3205,8 @@ impl Study {
         let score_table = analysis.prepare_score_table(ctx)?;
         let execution = if let Some(operation) = checked_linear {
             PreparedExecution::CheckedLinear(operation)
+        } else if let Some(operation) = checked_aipw {
+            PreparedExecution::CheckedAipw(operation)
         } else if let Some(operation) = nested_counterfactual {
             PreparedExecution::NestedCounterfactual(operation)
         } else if let Some(operation) = distribution_operation {
@@ -4384,10 +4456,7 @@ mod checked_response_curve_tests {
         let grid = [-0.5, 0.0, 0.5];
         let context = ExecutionContext::for_tests(17);
         let mut prepared = study(data(0.0), &grid).prepare(&context).unwrap();
-        assert!(matches!(
-            prepared.execution,
-            super::PreparedExecution::StaticResponseCurve(_)
-        ));
+        assert!(matches!(prepared.execution, super::PreparedExecution::StaticResponseCurve(_)));
         let refreshed = data(0.4);
         let actual = prepared.refresh(refreshed.clone(), &context).unwrap().response.unwrap();
         let expected = study(refreshed, &grid).run(&context).unwrap().response.unwrap();

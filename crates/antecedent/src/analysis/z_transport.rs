@@ -453,16 +453,24 @@ mod tests {
             &ExecutionContext::for_tests(7),
         )
         .unwrap();
-        let retained_program = antecedent_io::functional_program_to_wire(prepared.program())
-            .unwrap();
+        let retained_program =
+            antecedent_io::functional_program_to_wire(prepared.program()).unwrap();
         let refreshed = prepared.refresh(data, &ExecutionContext::for_tests(8)).unwrap();
         assert_eq!(
             antecedent_io::functional_program_to_wire(refreshed.program()).unwrap(),
             retained_program
         );
         assert_eq!(
-            refreshed.estimate(&ExecutionContext::for_tests(8)).unwrap().distribution().probabilities,
-            prepared.estimate(&ExecutionContext::for_tests(7)).unwrap().distribution().probabilities
+            refreshed
+                .estimate(&ExecutionContext::for_tests(8))
+                .unwrap()
+                .distribution()
+                .probabilities,
+            prepared
+                .estimate(&ExecutionContext::for_tests(7))
+                .unwrap()
+                .distribution()
+                .probabilities
         );
         let missing = ExactTransportData::try_new(Vec::<ExactDiscreteLaw>::new(), 16).unwrap();
         assert!(prepared.refresh(missing, &ExecutionContext::for_tests(9)).is_err());
