@@ -5147,11 +5147,22 @@ mod prepared_frontdoor_tests {
         let first = prepared.estimate(&data(0.0), &context).unwrap();
         assert!((first.estimate.ate - 1.6).abs() < 0.12, "estimate={}", first.estimate.ate);
         assert_eq!(first.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+        let first_bytes =
+            prepared.encode_contracted_result(&first, "checked-frontdoor", &context).unwrap();
+        let first_consumed = antecedent_io::consume_analysis_result(&first_bytes).unwrap();
+        assert!(first_consumed.acceptance.accepts_as_verified_program());
+        assert_eq!(first_consumed.body.estimate, Some(first.effect()));
 
         let refreshed = prepared.refresh(data(0.35), &context).unwrap();
         assert!((refreshed.estimate.ate - 1.6).abs() < 0.12, "estimate={}", refreshed.estimate.ate);
         assert_eq!(refreshed.estimate.se_kind, Some(AnalyticSeKind::Hc1));
         assert!(matches!(prepared.execution, PreparedExecution::FrontDoorLinear(_)));
+        let refreshed_bytes = prepared
+            .encode_contracted_result(&refreshed, "checked-frontdoor-refresh", &context)
+            .unwrap();
+        let refreshed_consumed = antecedent_io::consume_analysis_result(&refreshed_bytes).unwrap();
+        assert!(refreshed_consumed.acceptance.accepts_as_verified_program());
+        assert_eq!(refreshed_consumed.body.estimate, Some(refreshed.effect()));
 
         let treatment = prepared.schema.id_of("t").unwrap();
         let outcome = prepared.schema.id_of("y").unwrap();
