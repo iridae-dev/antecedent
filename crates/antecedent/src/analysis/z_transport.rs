@@ -84,6 +84,12 @@ impl PreparedZTransport {
     /// Exact and empirical plugin tables share the checked evaluator; empirical
     /// tables remain point-only and do not acquire a sampling interval here.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
+        if self.plan.root() != self.program.mapping().executable
+            || antecedent_io::expr_arena_to_wire(self.plan.arena())?
+                != antecedent_io::expr_arena_to_wire(self.program.arena())?
+        {
+            return Err(err("z_transport.physical_plan_program_mismatch"));
+        }
         let distribution = self.plan.evaluate(ctx).map_err(err)?;
         Ok(ZTransportResult { distribution })
     }
@@ -406,6 +412,16 @@ mod tests {
             assert!(
                 consume_z_transport_artifact(
                     &forged_program.export().unwrap(),
+                    &ExecutionContext::for_tests(8),
+                )
+                .is_err()
+            );
+            let mut forged_schema: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
+                antecedent_io::from_cbor(&artifact).unwrap();
+            forged_schema.program.as_mut().unwrap().variables[0].1 = "forged-coordinate".into();
+            assert!(
+                consume_z_transport_artifact(
+                    &forged_schema.export().unwrap(),
                     &ExecutionContext::for_tests(8),
                 )
                 .is_err()
