@@ -16,21 +16,42 @@ SPEC.loader.exec_module(compiler_migration)
 class CompilerMigrationInventoryTests(unittest.TestCase):
     def test_all_licensed_coordinates_are_classified_and_current(self) -> None:
         support, routes = compiler_migration.load_registries()
+        stage_routes = compiler_migration.load_transport_stage_routes()
         self.assertEqual(support.keys(), routes.keys())
         self.assertEqual(compiler_migration.validate(), [])
         manifest = compiler_migration.tomllib.loads(compiler_migration.INVENTORY.read_text())
-        self.assertEqual(len(manifest["route"]), len(routes))
+        self.assertEqual(len(manifest["route"]), len(routes) + len(stage_routes))
         for row in manifest["route"]:
             self.assertIn(row["kind"], compiler_migration.KINDS)
-            self.assertEqual(row["migration_status"], "pending")
-            self.assertEqual(row["checked_execution"], "unverified")
-            self.assertEqual(row["builder_independent"], "unverified")
-            self.assertEqual(row["execution_semantics"], "unverified")
+            self.assertIn(row["migration_status"], compiler_migration.MIGRATION_STATES)
+            if row["migration_status"] == "pending":
+                self.assertEqual(row["checked_execution"], "unverified")
+                self.assertEqual(row["builder_independent"], "unverified")
+                self.assertEqual(row["execution_semantics"], "unverified")
+            if row.get("source_registry") == "parity/transport_stages.toml":
+                self.assertEqual(row["migration_status"], "pending")
+        self.assertEqual(len(stage_routes), 21)
+        self.assertNotIn(
+            "transport-stage:antecedent_estimate.evaluate_exact_z_transport",
+            {row["coordinate"] for row in manifest["route"]},
+            "low-level estimator entry points stay outside the high-level migration gate",
+        )
+        included = {row["coordinate"] for row in manifest["route"]}
+        for low_level in ("transport.exact_table_evaluate", "transport.learned_categorical_plugin"):
+            self.assertNotIn(f"transport-stage:{low_level}", included)
+
+    def test_nested_counterfactual_is_a_model_operation(self) -> None:
+        manifest = compiler_migration.tomllib.loads(compiler_migration.INVENTORY.read_text())
+        row = next(row for row in manifest["route"] if row["query"] == "NestedCounterfactualEffect")
+        self.assertEqual(row["kind"], "model_operation")
 
     def test_release_gate_rejects_unverified_routes(self) -> None:
         issues = compiler_migration.validate(release_gate=True)
-        self.assertEqual(len(issues), 472)
-        self.assertTrue(all("2.1 release blocked" in issue for issue in issues))
+        manifest = compiler_migration.tomllib.loads(compiler_migration.INVENTORY.read_text())
+        pending = [row for row in manifest["route"] if row["migration_status"] != "verified"]
+        self.assertGreater(len(pending), 0)
+        blocked = {issue.split(": 2.1 release blocked", 1)[0] for issue in issues if "2.1 release blocked" in issue}
+        self.assertTrue({row["coordinate"] for row in pending}.issubset(blocked))
 
     def test_route_classification_covers_each_execution_family(self) -> None:
         samples = [
