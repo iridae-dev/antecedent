@@ -140,8 +140,44 @@ impl super::Study {
         } else {
             None
         };
+        let checked_frontdoor_linear = match &estimator_spec {
+            EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
+                let fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+            }
+            EstimatorSpec::FrontDoorTwoStage(cfg) => {
+                let fitter = (**cfg).clone();
+                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+            }
+            _ => None,
+        };
+        let checked_frontdoor_functional =
+            if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::FrontDoorFunctional)) {
+                let fitter = antecedent_estimate::FrontDoorFunctional::new();
+                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+            } else {
+                None
+            };
+        let checked_wald = match &estimator_spec {
+            EstimatorSpec::Default(EstimatorId::IvWald) => {
+                let fitter = antecedent_estimate::WaldIv::new();
+                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+            }
+            EstimatorSpec::IvWald(cfg) => {
+                let fitter = (**cfg).clone();
+                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+            }
+            _ => None,
+        };
+        let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
         let point = if let Some((fitter, checked)) = &checked_linear {
             fitter.fit_checked(checked, &mut estimate_ws.linear, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
+            fitter.fit_checked(checked, &mut frontdoor_workspace, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_frontdoor_functional {
+            fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_wald {
+            fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
         } else {
             estimate_static_effect(
                 &estimator_spec,
@@ -197,6 +233,38 @@ impl super::Study {
                 );
                 point
             }
+        } else if matches!(estimator_id, EstimatorId::FrontDoorTwoStage)
+            && checked_frontdoor_linear.is_some()
+        {
+            clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+            let (_, checked) = checked_frontdoor_linear.as_ref().expect("checked above");
+            let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+            fitter.bootstrap_replicates = self.bootstrap_replicates;
+            let filled = fitter
+                .attach_bootstrap(checked.problem(), &mut frontdoor_workspace, ctx, point)
+                .map_err(CausalError::from)?;
+            clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+            super::super::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+            );
+            filled
+        } else if matches!(estimator_id, EstimatorId::FrontDoorFunctional)
+            && checked_frontdoor_functional.is_some()
+        {
+            clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+            let (_, checked) = checked_frontdoor_functional.as_ref().expect("checked above");
+            let fitter = antecedent_estimate::FrontDoorFunctional::new()
+                .with_bootstrap_replicates(self.bootstrap_replicates);
+            let filled = fitter
+                .attach_bootstrap(checked.problem(), ctx, point)
+                .map_err(CausalError::from)?;
+            clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+            super::super::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+            );
+            filled
         } else if matches!(estimator_id, EstimatorId::LinearAdjustmentAte) {
             // Reuse warmed OLS workspace: re-prepare + attach bootstrap without refitting point.
             let cancelled_before = ctx.cancellation.is_cancelled();
@@ -714,11 +782,9 @@ impl super::Study {
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
         est.se_kind = rd.se_kind;
-        let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
+        let checked = est.prepare_checked(data, &identification, 0).map_err(CausalError::from)?;
         let mut ws = RdWorkspace::default();
-        let estimate = est
-            .fit(&prep, &mut ws, ctx, identification.required_assumptions.clone())
-            .map_err(CausalError::from)?;
+        let estimate = est.fit_checked(&checked, &mut ws, ctx).map_err(CausalError::from)?;
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, extra_diagnostics) = run_refuters(
