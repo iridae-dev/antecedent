@@ -353,6 +353,7 @@ impl PreparedStudy {
             self.study(),
             self.plan().logical.record.estimator.as_deref(),
             self.checked_aipw_ate(),
+            self.checked_frontdoor_linear(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -394,6 +395,7 @@ impl PreparedStudy {
                 &study,
                 self.plan().logical.record.estimator.as_deref(),
                 if population.is_none() { self.checked_aipw_ate() } else { None },
+                if population.is_none() { self.checked_frontdoor_linear() } else { None },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -1107,6 +1109,7 @@ fn program_payloads_for(
     study: &Study,
     resolved_estimator: Option<&str>,
     checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
+    checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1116,6 +1119,7 @@ fn program_payloads_for(
         cached.is_some_and(identification_search_capped),
         resolved_estimator,
         checked_aipw,
+        checked_frontdoor,
     )
 }
 
@@ -1136,6 +1140,7 @@ fn program_payloads(
     search_capped: bool,
     resolved_estimator: Option<&str>,
     checked_aipw: Option<&antecedent_estimate::CheckedAipwPreparation>,
+    checked_frontdoor: Option<&antecedent_estimate::CheckedFrontDoorPreparation>,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1221,6 +1226,39 @@ fn program_payloads(
             bootstrap_replicates: lowering.bootstrap_replicates,
         }
     });
+    let checked_frontdoor_lowering =
+        checked_frontdoor
+            .map(|checked| {
+                let lowering = checked.lowering();
+                let procedure = match lowering.procedure {
+            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct => {
+                "linear_path_product"
+            }
+            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::Functional => "functional",
+        };
+                let problem = checked.problem();
+                Ok::<_, CausalError>(antecedent_io::CheckedFrontDoorLoweringWire {
+                    format: 1,
+                    functional: lowering.functional.raw(),
+                    executable: lowering.executable.raw(),
+                    treatment: lowering.treatment.raw(),
+                    outcome: lowering.outcome.raw(),
+                    mediators: lowering.mediators.iter().map(|id| id.raw()).collect(),
+                    active_bits: lowering.active.to_bits(),
+                    control_bits: lowering.control.to_bits(),
+                    procedure: procedure.into(),
+                    complete_case_rows: problem.nrows as u64,
+                    overlap: overlap_policy_tag(problem.overlap),
+                    uncertainty: format!(
+                        "{}:{}",
+                        commitments.interval_method,
+                        commitments.se_kind.as_deref().unwrap_or("unspecified")
+                    ),
+                    arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
+                        .map_err(|error| io_err(&error))?,
+                })
+            })
+            .transpose()?;
     let functional_program = if resolved_estimator
         .and_then(|name| name.parse::<crate::EstimatorId>().ok())
         == Some(crate::EstimatorId::FunctionalDistribution)
@@ -1264,6 +1302,7 @@ fn program_payloads(
         commitments: commitments.clone(),
         functional_program,
         checked_aipw_lowering,
+        checked_frontdoor_lowering,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
@@ -1351,6 +1390,9 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .and_then(PreparedStudy::checked_aipw_ate),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_frontdoor_linear),
         )?),
     };
     let mut payloads = contract_payloads(program, study)?;
@@ -1769,7 +1811,15 @@ fn inferential_commitments(
     study: &Study,
     resolved_estimator: Option<&str>,
 ) -> InferentialCommitmentsWire {
-    let (interval_method, se_kind) = compiled_interval(study);
+    let (mut interval_method, mut se_kind) = compiled_interval(study);
+    if let Some(antecedent_io::EstimatorSpecWire::FrontDoorTwoStage(config)) =
+        study.estimator_spec_identity.as_ref()
+    {
+        se_kind = config.se_kind.clone();
+        if config.bootstrap_replicates > 0 {
+            interval_method = IntervalMethod::BootstrapSe;
+        }
+    }
     InferentialCommitmentsWire {
         format: IDENTITY_FORMAT,
         estimator: study.estimator.map(|id| id.as_str().to_string()),

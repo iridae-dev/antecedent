@@ -1460,6 +1460,41 @@ pub struct ProgramIdentityWire {
     /// Data-dependent complete-case rows are carried separately by the contract.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_aipw_lowering: Option<crate::CheckedAipwLoweringWire>,
+    /// Checked semantic lowering for a prepared linear front-door program.
+    /// Older artifacts omit it and cannot be independently verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_frontdoor_lowering: Option<CheckedFrontDoorLoweringWire>,
+}
+
+/// Durable checked lowering for the linear front-door path-product route.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CheckedFrontDoorLoweringWire {
+    /// Wire format.
+    pub format: u16,
+    /// Source root in the identification arena.
+    pub functional: u32,
+    /// Executable observational root.
+    pub executable: u32,
+    /// Treatment variable id.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Mediator ids in selected-estimand order.
+    pub mediators: Vec<u32>,
+    /// Active intervention value bits.
+    pub active_bits: u64,
+    /// Control intervention value bits.
+    pub control_bits: u64,
+    /// Checked procedure tag.
+    pub procedure: String,
+    /// Checked-case count used by the fitted procedure.
+    pub complete_case_rows: u64,
+    /// Overlap handling tag.
+    pub overlap: String,
+    /// Uncertainty choice bound by the program commitments.
+    pub uncertainty: String,
+    /// Checked expression arena.
+    pub arena: crate::ExprArenaWire,
 }
 
 /// Digest a program identity.
