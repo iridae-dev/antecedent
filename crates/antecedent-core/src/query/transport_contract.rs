@@ -276,9 +276,9 @@ impl TheoremScope {
             family: TheoremFamily::ZTransportability,
             reference: TheoremReference {
                 citation: Arc::from(
-                    "Lee & Honavar, Causal Transportability of Experiments on Controllable Subsets of Variables: z-Transportability, UAI 2013, arXiv:1309.6842",
+                    "Bareinboim & Pearl, Causal Transportability with Limited Experiments, AAAI 2013",
                 ),
-                version: Arc::from("lee-honavar-sidz-uai2013-bounded-v1"),
+                version: Arc::from("bareinboim-pearl-trz-aaai2013-bounded-v1"),
             },
             graph_assumptions: GraphAssumptionSet::SemiMarkovianSelectionAdmg,
             observed: Arc::from([]),
