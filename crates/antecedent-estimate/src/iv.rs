@@ -139,6 +139,8 @@ pub struct CheckedIvPreparation {
     factor_requirements: Arc<[FactorRequirement]>,
     /// Checked typed IV lowering.
     lowering: CheckedIvLowering,
+    /// Query whose contrast and population semantics were checked.
+    query: AverageEffectQuery,
     /// Selected identification assumptions.
     required_assumptions: AssumptionSet,
     /// Prepared numerical design.
@@ -146,6 +148,47 @@ pub struct CheckedIvPreparation {
 }
 
 impl CheckedIvPreparation {
+    /// Rebind the physical IV design to compatible data while retaining the checked operation.
+    pub fn rebind(&self, data: &TabularData) -> Result<Self, EstimationError> {
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let active = intervention_f64(&self.query.active)?;
+        let control = intervention_f64(&self.query.control)?;
+        if self.outcome_program().schema() != &schema
+            || self.treatment_program().schema() != &schema
+            || self.lowering.functional != self.target.functional
+            || self.lowering.treatment != self.query.treatment
+            || self.lowering.outcome != self.query.outcome
+            || self.lowering.instruments != self.target.instruments
+            || self.lowering.adjustment != self.target.adjustment_set
+            || self.lowering.active != active
+            || self.lowering.control != control
+            || self.lowering.instrument_active != 1.0
+            || self.lowering.instrument_control != 0.0
+        {
+            return Err(EstimationError::data_msg(
+                "checked IV target, query, lowering, or semantic schema changed",
+            ));
+        }
+        let mut rebound = self.clone();
+        rebound.problem =
+            prepare_iv_problem(data, &self.target, &self.query, self.problem.overlap)?;
+        let n = rebound.problem.nrows;
+        if !rebound.problem.instruments_matrix[n..2 * n]
+            .iter()
+            .all(|&value| value == 0.0 || value == 1.0)
+        {
+            return Err(EstimationError::unsupported(
+                "checked IV rebound requires a binary 0/1 instrument",
+            ));
+        }
+        Ok(rebound)
+    }
+
     /// Selected IV target.
     pub fn target(&self) -> &IdentifiedEstimand {
         &self.target
@@ -306,6 +349,7 @@ fn prepare_iv_checked(
             instrument_control: 0.0,
             procedure,
         },
+        query: query.clone(),
         required_assumptions: claim.required_assumptions.clone(),
         problem,
     })
@@ -1239,6 +1283,11 @@ mod tests {
         let result = estimator
             .fit_checked(&checked, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
             .unwrap();
+        let rebound = checked.rebind(&data).unwrap();
+        let rebound_result = estimator
+            .fit_checked(&rebound, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
+            .unwrap();
+        assert_eq!(result.ate.to_bits(), rebound_result.ate.to_bits());
         assert!((result.ate - 2.0).abs() < 0.08, "estimate={}", result.ate);
 
         let wald = WaldIv::new().with_bootstrap_replicates(0);
