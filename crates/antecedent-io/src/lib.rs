@@ -129,6 +129,7 @@ pub use graph_networkx::{
 };
 pub use identity::{
     AdaptiveBudgetWire, BayesianBindingWire, CheckedFrontDoorLoweringWire,
+    CheckedFunctionalResponseGridWire, CheckedFunctionalResponseMemberWire,
     CheckedLinearAdjustmentLoweringWire, ClaimIdentityWire, ClassPriorIdentityWire,
     DataPartitionIdentityWire, DataSnapshotIdentityWire, DistributionFactorDomainWire,
     DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorRowWire,

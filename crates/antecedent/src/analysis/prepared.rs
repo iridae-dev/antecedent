@@ -477,6 +477,347 @@ impl CheckedFunctionalEffectOperation {
     }
 }
 
+/// One ordered, checked intervention point in an ADMG response curve.
+#[derive(Clone, Debug)]
+pub struct CheckedFunctionalEffectResponseMember {
+    grid_value: f64,
+    query: antecedent_core::ResponseQuery,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    prepared: antecedent_estimate::PreparedFunctionalEffect,
+}
+
+impl CheckedFunctionalEffectResponseMember {
+    /// Intervention value at this member's original grid position.
+    #[must_use]
+    pub const fn grid_value(&self) -> f64 {
+        self.grid_value
+    }
+    /// Typed scalar intervention query retained for this member.
+    #[must_use]
+    pub fn query(&self) -> &antecedent_core::ResponseQuery {
+        &self.query
+    }
+    /// General-ID proof retained for this member.
+    #[must_use]
+    pub const fn identification(&self) -> &IdentificationResult {
+        &self.identification
+    }
+    /// Identified expression target retained for this member.
+    #[must_use]
+    pub const fn estimand(&self) -> &IdentifiedEstimand {
+        &self.estimand
+    }
+    /// Checked functional program bound to this member.
+    #[must_use]
+    pub fn program(&self) -> &antecedent_expr::FunctionalProgram {
+        self.prepared.program()
+    }
+}
+
+/// Retained complete ordered program family for an ADMG response curve.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedAdmgResponseCurveOperation {
+    query: antecedent_core::ResponseQuery,
+    grid: Arc<[f64]>,
+    members: Arc<[CheckedFunctionalEffectResponseMember]>,
+    identifier: crate::strategy_table::IdentifierId,
+    estimator: crate::strategy_table::EstimatorId,
+    physical: PhysicalExecutionPlan,
+    fitter: antecedent_estimate::FunctionalEffect,
+    inference: InferenceMode,
+    graph_version: u32,
+    support_status: Option<crate::support::CellStatus>,
+    structure_source: crate::support::StructureSource,
+    population_registry: Option<antecedent_core::PopulationRegistry>,
+    latency_mode: Option<super::latency::LatencyMode>,
+    custom_validator_names: Arc<[Arc<str>]>,
+}
+
+impl CheckedAdmgResponseCurveOperation {
+    fn sealed_for_direct_execution(&self) -> bool {
+        matches!(
+            self.structure_source,
+            crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+        ) && self.identifier == crate::strategy_table::IdentifierId::GeneralId
+            && self.estimator == crate::strategy_table::EstimatorId::FunctionalEffect
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
+            && self.custom_validator_names.is_empty()
+            && self.members.len() == self.grid.len()
+    }
+
+    fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        let members = self
+            .members
+            .iter()
+            .map(|member| {
+                let (treatment, outcome) =
+                    member.query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                        message: "retained ADMG response member lost its treatment/outcome roles"
+                            .into(),
+                    })?;
+                let prepared = self
+                    .fitter
+                    .prepare(
+                        data,
+                        &member.estimand,
+                        &member.identification.arena,
+                        member.identification.required_assumptions.clone(),
+                        &[treatment, outcome],
+                    )
+                    .map_err(CausalError::from)?;
+                Ok(CheckedFunctionalEffectResponseMember { prepared, ..member.clone() })
+            })
+            .collect::<Result<Vec<_>, CausalError>>()?;
+        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            // Member calls use the same seeded Bayesian-bootstrap stream. Require
+            // every member to use every source row so its stream positions name
+            // identical rows and therefore one shared row-weight draw.
+            for member in &members {
+                let snapshot = member.prepared.factor_snapshot().map_err(CausalError::from)?;
+                if snapshot.provenance.source_rows != data.row_count()
+                    || snapshot.provenance.complete_case_rows != data.row_count()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian ADMG response curves require a common complete-case row set across grid members",
+                    });
+                }
+            }
+        }
+        let mut rebound = self.clone();
+        rebound.members = Arc::from(members);
+        Ok(rebound)
+    }
+
+    fn execute(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if self.members.is_empty() || self.members.len() != self.grid.len() {
+            return Err(CausalError::Compile {
+                message: "retained ADMG response grid/member mapping is incomplete".into(),
+            });
+        }
+        let mut means = Vec::with_capacity(self.members.len());
+        let mut member_posteriors = Vec::new();
+        let mut support_status = antecedent_core::SupportStatus::Supported;
+        let mut support_warnings = Vec::new();
+        for member in self.members.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
+            }
+            let value = match &self.inference {
+                InferenceMode::Frequentist => {
+                    match member.prepared.evaluate(&member.prepared.provider) {
+                        Ok(value) => value,
+                        Err(error) if antecedent_estimate::functional_cell_unevaluable(&error) => {
+                            support_status =
+                                antecedent_core::SupportStatus::OutsideEmpiricalSupport;
+                            support_warnings.push(antecedent_core::Diagnostic::new(
+                                "functional.required_cell",
+                                antecedent_core::DiagnosticKind::Scientific,
+                                antecedent_core::DiagnosticSeverity::Warning,
+                                error.to_string(),
+                            ));
+                            f64::NAN
+                        }
+                        Err(error) => {
+                            return Err(CausalError::from(
+                                antecedent_estimate::EstimationError::data_msg(error.to_string()),
+                            ));
+                        }
+                    }
+                }
+                InferenceMode::Bayesian(config) => {
+                    if config.prior_artifact.is_some()
+                        || config.external_compose.is_some()
+                        || config.prior.is_some()
+                    {
+                        return Err(CausalError::Unsupported {
+                            message: "functional Bayesian prior transfer requires a declared functional mapping; a coefficient prior cannot be applied to CPT factors",
+                        });
+                    }
+                    if config.n_draws < 2 {
+                        return Err(CausalError::Unsupported {
+                            message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
+                        });
+                    }
+                    let fit = self
+                        .fitter
+                        .estimate_bayesian(
+                            &member.prepared,
+                            config.n_draws,
+                            member.identification.status,
+                            ctx,
+                        )
+                        .map_err(CausalError::from)?;
+                    let mean = super::execute::effect_from_posterior(&fit)?.ate;
+                    // `estimate_bayesian` opens the same named RNG stream for each
+                    // member. Its Bayesian-bootstrap row weights therefore align
+                    // draw-for-draw across the fixed grid; retain every member
+                    // column below so the resulting posterior keeps that joint law.
+                    member_posteriors.push(fit);
+                    mean
+                }
+            };
+            means.push(value);
+        }
+        let n_draws = member_posteriors
+            .first()
+            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
+        let posterior = if member_posteriors.is_empty() {
+            None
+        } else {
+            let n = member_posteriors[0].draws.n_draws;
+            let mut columns = Vec::with_capacity(member_posteriors.len());
+            for member_posterior in &member_posteriors {
+                if member_posterior.draws.n_draws != n {
+                    return Err(CausalError::Compile {
+                        message:
+                            "response curve members did not retain a common posterior draw count"
+                                .into(),
+                    });
+                }
+                let quantity =
+                    member_posterior.effect_column().ok_or_else(|| CausalError::Compile {
+                        message: "response curve member posterior omitted its effect quantity"
+                            .into(),
+                    })?;
+                columns.push(
+                    member_posterior
+                        .draws
+                        .column(quantity)
+                        .map_err(|error| CausalError::Compile { message: error.to_string() })?
+                        .to_vec(),
+                );
+            }
+            let schema = antecedent_prob::PosteriorSchema {
+                quantities: Arc::from(
+                    self.grid
+                        .iter()
+                        .map(|value| antecedent_prob::PosteriorQuantityKind::Scalar {
+                            name: Arc::from(format!("response_at_{value}")),
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+            };
+            let draws = antecedent_prob::PosteriorDraws::from_column_major(
+                schema,
+                n,
+                columns.into_iter().flatten().collect::<Vec<_>>(),
+            )
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let summaries = draws.summarize();
+            let mut joint = member_posteriors.remove(0);
+            joint.draws = draws;
+            joint.summaries = summaries;
+            Some(joint)
+        };
+        let first = self.members.first().expect("nonempty checked member array");
+        let mut support =
+            antecedent_estimate::support_from_functional_eval(None).map_err(|error| {
+                CausalError::from(antecedent_estimate::EstimationError::data_msg(error.to_string()))
+            })?;
+        support.status = support_status;
+        support.query_region = antecedent_core::SupportRegion {
+            minima: Arc::from([self.grid.iter().copied().fold(f64::INFINITY, f64::min)]),
+            maxima: Arc::from([self.grid.iter().copied().fold(f64::NEG_INFINITY, f64::max)]),
+        };
+        support.warnings.extend(support_warnings.iter().cloned());
+        let response = antecedent_core::CausalResponse {
+            estimand: self.query.functional.clone(),
+            identification_status: first.identification.status,
+            estimate: antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Surface {
+                    grid: Arc::clone(&self.grid),
+                    dimension: 1,
+                    mean: Arc::from(means),
+                },
+            ),
+            uncertainty: antecedent_core::ResponseUncertainty::None,
+            support,
+            assumptions: first.identification.required_assumptions.clone(),
+            provenance_id: Arc::from("estimate.response.general_id"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        };
+        let mut diagnostics = first.identification.diagnostics.clone();
+        diagnostics.push(antecedent_core::Diagnostic::new(
+            "identify.response.general_id", antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "intervention mean identified by general ID; grid members are evaluated from their retained checked programs",
+        ));
+        diagnostics.extend(support_warnings);
+        let (identify_artifact, identify_operation) =
+            crate::strategy_table::identify_provenance_step(self.identifier);
+        let (estimate_artifact, estimate_operation) =
+            crate::strategy_table::estimate_provenance_step(self.estimator);
+        let provenance = provenance_pair(
+            (
+                identify_artifact,
+                identify_operation,
+                &[],
+                &first.identification.required_assumptions,
+            ),
+            (
+                estimate_artifact,
+                estimate_operation,
+                &[identify_artifact],
+                &first.prepared.assumptions,
+            ),
+        );
+        let mut result = assemble_result(AssembleArgs {
+            logical: &self.physical.logical.record,
+            physical: &self.physical.record,
+            identification: first.identification.clone(),
+            estimand: first.estimand.clone(),
+            estimate: EffectEstimate::new(
+                f64::NAN,
+                f64::NAN,
+                first.identification.required_assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            ),
+            distribution: None,
+            posterior,
+            mediation: None,
+            mediation_grid: None,
+            counterfactual: None,
+            anomaly: None,
+            change_attribution: None,
+            mechanism_change: None,
+            unit_change: None,
+            refutations: Vec::new(),
+            diagnostics,
+            provenance,
+            treatment: first.query.functional.primary_pair().expect("checked member roles").0,
+            outcome: first.query.functional.primary_pair().expect("checked member roles").1,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
+            stage_timings_ns: Vec::new(),
+            bootstrap_replicates_requested: Some(0),
+            bootstrap_replicates_ok: None,
+            n_draws,
+            cancelled: false,
+            early_stopped: false,
+            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
+        });
+        result.response = Some(response);
+        result.certificate = Some(crate::AnalysisIdentification {
+            identification: crate::Identification::Point {
+                result: first.identification.clone(),
+                temporal_indexer: None,
+                strategy: self.identifier,
+                structure_version: self.graph_version,
+            },
+            query: CausalQuery::Response(self.query.clone()),
+            graph_class: GraphClass::Admg,
+        });
+        result.support_status = self.support_status;
+        result.structure_source = self.structure_source;
+        result.population_registry.clone_from(&self.population_registry);
+        result.custom_validator_names = self.custom_validator_names.to_vec();
+        Ok(result)
+    }
+}
+
 /// Retained checked family plan for a static DAG, complete observation mean curve.
 /// The grid is copied into the plan so execution can detect query tampering before
 /// handing the frozen estimand to the response estimator.
@@ -2627,6 +2968,7 @@ pub(crate) enum PreparedExecution {
     LegacyStudyDispatch,
     FunctionalEffect(CheckedFunctionalEffectOperation),
     PathSpecificEffect(CheckedPathSpecificEffectOperation),
+    AdmgResponseCurve(CheckedAdmgResponseCurveOperation),
     CheckedLinear(CheckedLinearOperation),
     CheckedAipw(CheckedAipwOperation),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
@@ -2667,6 +3009,9 @@ impl PreparedExecution {
         &self,
     ) -> Option<&CheckedPathSpecificEffectOperation> {
         if let Self::PathSpecificEffect(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn admg_response_curve(&self) -> Option<&CheckedAdmgResponseCurveOperation> {
+        if let Self::AdmgResponseCurve(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
         if let Self::BayesianGcomp(value) = self { Some(value) } else { None }
@@ -2794,6 +3139,14 @@ impl PreparedStudy {
             })
     }
 
+    /// Ordered checked members for a prepared ADMG mean response curve.
+    #[must_use]
+    pub fn checked_functional_effect_response_members(
+        &self,
+    ) -> Option<&[CheckedFunctionalEffectResponseMember]> {
+        self.execution.admg_response_curve().map(|operation| operation.members.as_ref())
+    }
+
     /// Export the complete empirical factor laws for the retained effect program.
     pub(crate) fn functional_effect_factor_snapshot(
         &self,
@@ -2820,6 +3173,22 @@ impl PreparedStudy {
                 .map_err(CausalError::from);
         }
         Ok(None)
+    }
+
+    /// Rebound empirical factor snapshots, one for each response member in grid order.
+    pub(crate) fn functional_effect_response_factor_snapshots(
+        &self,
+        data: &TabularData,
+    ) -> Result<Option<Arc<[antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot]>>, CausalError>{
+        let Some(operation) = self.execution.admg_response_curve() else { return Ok(None) };
+        self.ensure_schema_compatible(data)?;
+        let rebound = operation.rebind(data)?;
+        let snapshots = rebound
+            .members
+            .iter()
+            .map(|member| member.prepared.factor_snapshot().map_err(CausalError::from))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Some(Arc::from(snapshots)))
     }
 
     /// Export the complete provider laws for the retained distribution program,
@@ -3639,6 +4008,24 @@ impl PreparedStudy {
                 let rebound = operation.rebind(data)?;
                 let result = rebound.execute(data, ctx)?;
                 return self.stamp_linear(&DataInput::Tabular(data.clone()), &rebound, result);
+            }
+        }
+        if let Some(operation) = self.execution.admg_response_curve() {
+            if operation.sealed_for_direct_execution() {
+                let rebound = operation.rebind(data)?;
+                let mut result = rebound.execute(ctx)?;
+                result.custom_validator_names = rebound.custom_validator_names.to_vec();
+                super::execute::push_gaussian_likelihood_disclosure(
+                    &mut result,
+                    &rebound.inference,
+                    &DataInput::Tabular(data.clone()),
+                );
+                result.executed_contract = Some(self.executed_contract(
+                    &DataInput::Tabular(data.clone()),
+                    RefuteSuite::None,
+                    None,
+                )?);
+                return Ok(result);
             }
         }
         if let Some(operation) = self.execution.path_specific_effect_operation() {
@@ -5023,6 +5410,119 @@ impl Study {
             }
             _ => None,
         };
+        let admg_response_curve_operation = match (&self.data, &self.query, analysis.graph.class())
+        {
+            (DataInput::Tabular(data), CausalQuery::Response(query), GraphClass::Admg)
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == TargetPopulation::AllObserved
+                    && query.outcome_functional == OutcomeFunctional::Mean
+                    && analysis.refute == RefuteSuite::None
+                    && plan
+                        .logical
+                        .record
+                        .identifier
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
+                        == crate::strategy_table::IdentifierId::GeneralId.as_str()
+                    && plan
+                        .logical
+                        .record
+                        .estimator
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
+                        == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    )
+                    && matches!(
+                        analysis.inference,
+                        InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                    ) =>
+            {
+                let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
+                    &query.functional
+                else {
+                    unreachable!()
+                };
+                let grid = treatment
+                    .grid
+                    .values()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                if grid.is_empty() {
+                    return Err(CausalError::Compile {
+                        message: "ADMG response curve has no grid members".into(),
+                    });
+                }
+                let admg = analysis.graph.as_admg().ok_or_else(|| CausalError::Compile {
+                    message: "ADMG response operation lacks an ADMG graph".into(),
+                })?;
+                let mut fitter = antecedent_estimate::FunctionalEffect::new();
+                fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                let mut members = Vec::with_capacity(grid.len());
+                for level in &grid {
+                    let mut member_query = query.clone();
+                    member_query.functional =
+                        antecedent_core::ResponseFunctional::InterventionResponse {
+                            outcome: *outcome,
+                            interventions: Arc::from([Intervention::set(
+                                treatment.variable,
+                                Value::f64(*level),
+                            )]),
+                        };
+                    let member_causal_query = CausalQuery::Response(member_query.clone());
+                    let identification = crate::strategy_table::identify_admg_query(
+                        crate::strategy_table::IdentifierId::GeneralId,
+                        admg,
+                        &member_causal_query,
+                    )?;
+                    let estimand = crate::strategy_table::select_estimand(
+                        &identification,
+                        crate::strategy_table::EstimatorId::FunctionalEffect,
+                    )?;
+                    let prepared = fitter.prepare(
+                        data,
+                        &estimand,
+                        &identification.arena,
+                        identification.required_assumptions.clone(),
+                        &[treatment.variable, *outcome],
+                    )?;
+                    members.push(CheckedFunctionalEffectResponseMember {
+                        grid_value: *level,
+                        query: member_query,
+                        identification,
+                        estimand,
+                        prepared,
+                    });
+                }
+                Some(CheckedAdmgResponseCurveOperation {
+                    query: query.clone(),
+                    grid: Arc::from(grid),
+                    members: Arc::from(members),
+                    identifier: crate::strategy_table::IdentifierId::GeneralId,
+                    estimator: crate::strategy_table::EstimatorId::FunctionalEffect,
+                    physical: plan.clone(),
+                    fitter,
+                    inference: analysis.inference.clone(),
+                    graph_version: analysis.graph.version(),
+                    support_status: analysis.support_status,
+                    structure_source: analysis.structure_source,
+                    population_registry: analysis.population_registry.clone(),
+                    latency_mode: analysis.latency_mode,
+                    custom_validator_names: Arc::from(
+                        analysis
+                            .custom_validators
+                            .iter()
+                            .map(|v| Arc::from(v.name()))
+                            .collect::<Vec<_>>(),
+                    ),
+                })
+            }
+            _ => None,
+        };
         let bayesian_gcomp_operation = match (
             &self.query,
             analysis.identification_cache.as_deref(),
@@ -5117,6 +5617,8 @@ impl Study {
             PreparedExecution::FunctionalEffect(operation)
         } else if let Some(operation) = path_specific_effect_operation {
             PreparedExecution::PathSpecificEffect(operation)
+        } else if let Some(operation) = admg_response_curve_operation {
+            PreparedExecution::AdmgResponseCurve(operation)
         } else if let Some(operation) = bayesian_gcomp_operation {
             PreparedExecution::BayesianGcomp(operation)
         } else if let Some(operation) = checked_response_curve {

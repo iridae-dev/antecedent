@@ -28,9 +28,9 @@ use crate::identity::{
 };
 use crate::query_wire::TargetPopulationWire;
 use crate::{
-    AnalysisResultHeader, AnalysisResultWire, EncodedArtifact, ExecutionIdentityWire, IoError,
-    RefutationReportWire, StructuralWeightBasisWire, from_cbor, query_wire::causal_query_from_wire,
-    to_cbor,
+    AnalysisResultHeader, AnalysisResultWire, CausalQueryWire, EncodedArtifact,
+    ExecutionIdentityWire, IoError, RefutationReportWire, StructuralWeightBasisWire, from_cbor,
+    query_wire::causal_query_from_wire, to_cbor,
 };
 
 /// Section id on the composite `analysis_result` artifact.
@@ -621,10 +621,44 @@ pub fn verify_contract_against_body(
         unresolved.push(Arc::from("dependencies.functional_effect_posterior_draws"));
     }
     if is_response_functional_effect_contract(contract) {
-        // Response results contain an ordered grid of members. Until each member's
-        // checked program/result is carried and replayed, do not verify the summary
-        // scalar as though it were one functional-effect point.
-        unresolved.push(Arc::from("dependencies.functional_effect_response_grid"));
+        let posterior = contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference == "bayesian" || program.commitments.prior_required
+        }) || contract
+            .inference_binding
+            .as_ref()
+            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some());
+        if posterior {
+            unresolved.push(Arc::from("dependencies.functional_effect_response_posterior_draws"));
+        } else {
+            match (
+                contract
+                    .program
+                    .as_ref()
+                    .and_then(|program| program.checked_functional_response_grid.as_ref()),
+                contract
+                    .data_snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
+                body.response.as_ref(),
+            ) {
+                (Some(grid), Some(laws), Some(response)) => {
+                    if let Err(reason) = replay_functional_response_grid(
+                        &contract.target.query,
+                        grid,
+                        &response.estimate,
+                        laws,
+                    ) {
+                        unresolved.push(Arc::from(reason));
+                    }
+                }
+                (None, _, _) => {
+                    unresolved.push(Arc::from("program.functional_effect_response_grid"))
+                }
+                (_, None, _) => unresolved
+                    .push(Arc::from("dependencies.functional_effect_response_factor_laws")),
+                (_, _, None) => unresolved.push(Arc::from("body.response")),
+            }
+        }
     }
     if body.identification.query != body.query {
         unresolved.push(Arc::from("body.identification.query"));
@@ -805,7 +839,12 @@ fn producer_encoding_unresolved(
         unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_posterior_draws");
     }
     if is_response_functional_effect_contract(contract) {
-        unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_response_grid");
+        unresolved.retain(|key| key.as_ref() != "program.functional_effect_response_grid");
+        unresolved
+            .retain(|key| key.as_ref() != "dependencies.functional_effect_response_factor_laws");
+        unresolved.retain(|key| {
+            key.as_ref() != "dependencies.functional_effect_response_posterior_draws"
+        });
     }
     if contract
         .program
@@ -1138,6 +1177,101 @@ fn is_scalar_functional_effect_contract(contract: &AnalysisResultContractWire) -
 fn is_response_functional_effect_contract(contract: &AnalysisResultContractWire) -> bool {
     is_functional_effect_estimator_contract(contract)
         && matches!(contract.target.query, crate::CausalQueryWire::Response(_))
+}
+
+fn replay_functional_response_grid(
+    target: &CausalQueryWire,
+    family: &crate::CheckedFunctionalResponseGridWire,
+    reported: &crate::ResponseIdentificationWire,
+    laws: &crate::DistributionFactorLawsWire,
+) -> Result<(), &'static str> {
+    use crate::{GridSpecWire, ResponseFunctionalWire, ResponseValueWire};
+    let CausalQueryWire::Response(target) = target else {
+        return Err("program.functional_effect_response_grid.target");
+    };
+    let ResponseFunctionalWire::MeanCurve { outcome, treatment } = &target.functional else {
+        return Err("program.functional_effect_response_grid.target_kind");
+    };
+    if family.format != 1 || family.outcome != *outcome || family.treatment != treatment.variable {
+        return Err("program.functional_effect_response_grid.target_binding");
+    }
+    let expected_grid = match &treatment.grid {
+        GridSpecWire::Values(values) => values.clone(),
+        GridSpecWire::Linspace { start, end, points } => {
+            let points = usize::try_from(*points).map_err(|_| "functional_effect.response_grid")?;
+            if points == 0 || points > 100_000 {
+                return Err("functional_effect.response_grid_resource_limit");
+            }
+            if points == 1 {
+                vec![*start]
+            } else {
+                (0..points)
+                    .map(|index| start + (end - start) * index as f64 / (points - 1) as f64)
+                    .collect()
+            }
+        }
+    };
+    if expected_grid.len() != family.members.len() || expected_grid.is_empty() {
+        return Err("program.functional_effect_response_grid.member_count");
+    }
+    let (reported_grid, means) = match reported {
+        crate::ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+            grid,
+            dimension: 1,
+            mean,
+        }) => (grid, mean),
+        _ => return Err("functional_effect.response_result_shape"),
+    };
+    if reported_grid.len() != expected_grid.len()
+        || means.len() != expected_grid.len()
+        || reported_grid
+            .iter()
+            .zip(&expected_grid)
+            .any(|(left, right)| left.to_bits() != right.to_bits())
+    {
+        return Err("functional_effect.response_grid_result_mismatch");
+    }
+    if laws.format != 1
+        || laws.provider != "empirical_table"
+        || laws.missing_row_policy != "joint_complete_case"
+        || laws.complete_case_rows == 0
+        || laws.source_rows < laws.complete_case_rows
+    {
+        return Err("functional_effect.provider_provenance");
+    }
+    for ((member, expected), reported) in family.members.iter().zip(expected_grid).zip(means) {
+        if member.grid_value_bits != expected.to_bits() {
+            return Err("program.functional_effect_response_grid.member_value");
+        }
+        let CausalQueryWire::Response(query) = &member.query else {
+            return Err("program.functional_effect_response_grid.member_query_kind");
+        };
+        let ResponseFunctionalWire::InterventionResponse { outcome: member_outcome, interventions } =
+            &query.functional
+        else {
+            return Err("program.functional_effect_response_grid.member_functional");
+        };
+        if member_outcome != outcome
+            || interventions.len() != 1
+            || !matches!(interventions.first(), Some(crate::InterventionWire::Set { variable, value })
+                if *variable == treatment.variable && value.to_value() == antecedent_core::Value::Float64(expected))
+        {
+            return Err("program.functional_effect_response_grid.member_intervention");
+        }
+        if member.identification.estimands.iter().all(|estimand| {
+            estimand.method != "general.id" || estimand.functional != member.program.source
+        }) || member.program.source != member.program.executable
+        {
+            return Err("program.functional_effect_response_grid.member_program");
+        }
+        crate::distribution_replay::replay_functional_scalar(
+            &member.query,
+            Some(*reported),
+            &member.program,
+            laws,
+        )?;
+    }
+    Ok(())
 }
 
 fn verify_checked_linear_adjustment(
@@ -2480,6 +2614,90 @@ mod tests {
         encode_analysis_result_artifact_with_contract, schema_to_wire, to_cbor,
     };
 
+    #[test]
+    fn checked_response_grid_rejects_reordered_member_values() {
+        use crate::{
+            CheckedFunctionalResponseGridWire, CheckedFunctionalResponseMemberWire,
+            FunctionalProgramWire, IdentificationProductWire, ResponseIdentificationWire,
+            ResponseValueWire,
+        };
+        use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+
+        let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(vec![0.0, 1.0].into()),
+            ),
+        }));
+        let target = causal_query_to_wire(&query).unwrap();
+        let empty_arena = ExprArenaWire {
+            derivations: Vec::new(),
+            var_sets: Vec::new(),
+            interventions: Vec::new(),
+            lists: Vec::new(),
+            nodes: Vec::new(),
+        };
+        let member = CheckedFunctionalResponseMemberWire {
+            grid_value_bits: 1.0f64.to_bits(), // Tampered order: this should be 0.0.
+            query: CausalQueryWire::Response(
+                crate::response_query_to_wire(&ResponseQuery::new(
+                    ResponseFunctional::InterventionResponse {
+                        outcome: VariableId::from_raw(1),
+                        interventions: vec![antecedent_core::Intervention::set(
+                            VariableId::from_raw(0),
+                            antecedent_core::Value::f64(0.0),
+                        )]
+                        .into(),
+                    },
+                ))
+                .unwrap(),
+            ),
+            identification: IdentificationProductWire {
+                format: IDENTITY_FORMAT,
+                status: "identified".into(),
+                estimands: Vec::new(),
+                arena: empty_arena.clone(),
+                derivation_rules: Vec::new(),
+                required_assumptions: Vec::new(),
+                hedge: false,
+                search_capped: false,
+                envelope: None,
+            },
+            program: FunctionalProgramWire {
+                arena: empty_arena,
+                source: 0,
+                executable: 0,
+                variables: Vec::new(),
+            },
+        };
+        let family = CheckedFunctionalResponseGridWire {
+            format: 1,
+            treatment: 0,
+            outcome: 1,
+            members: vec![member.clone(), member],
+        };
+        let reported = ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+            grid: vec![0.0, 1.0],
+            dimension: 1,
+            mean: vec![0.2, 0.8],
+        });
+        let laws = crate::DistributionFactorLawsWire {
+            format: 1,
+            provider: "empirical_table".into(),
+            source_rows: 2,
+            complete_case_rows: 2,
+            missing_row_policy: "joint_complete_case".into(),
+            domains: Vec::new(),
+            requirements: Vec::new(),
+            factors: Vec::new(),
+        };
+        assert_eq!(
+            replay_functional_response_grid(&target, &family, &reported, &laws),
+            Err("program.functional_effect_response_grid.member_value")
+        );
+    }
+
     fn schema_and_query() -> (antecedent_core::CausalSchema, CausalQuery) {
         let mut builder = CausalSchemaBuilder::new();
         builder
@@ -2662,6 +2880,7 @@ mod tests {
             checked_frontdoor_lowering: None,
             checked_iv_lowering: None,
             checked_linear_adjustment_lowering: None,
+            checked_functional_response_grid: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {

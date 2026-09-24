@@ -322,7 +322,12 @@ pub(crate) fn replay_functional_scalar(
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
 ) -> Result<(), &'static str> {
-    if !matches!(query, CausalQueryWire::AverageEffect { .. } | CausalQueryWire::PathSpecific(_)) {
+    if !matches!(
+        query,
+        CausalQueryWire::AverageEffect { .. }
+            | CausalQueryWire::PathSpecific(_)
+            | CausalQueryWire::Response(_)
+    ) {
         return Err("functional_effect.query_kind");
     }
     let reported = reported.ok_or("functional_effect.result")?;
@@ -411,7 +416,7 @@ fn verify_scalar_requirements(
             regime: None,
         });
     }
-    if expected != laws.requirements {
+    if expected.iter().any(|requirement| !laws.requirements.contains(requirement)) {
         return Err("functional_effect.factor_requirements");
     }
     let mut unique = Vec::new();
@@ -420,10 +425,7 @@ fn verify_scalar_requirements(
             unique.push(key);
         }
     }
-    if unique.len() != laws.factors.len()
-        || unique.iter().any(|key| !laws.factors.iter().any(|factor| &factor.key == key))
-        || laws.factors.iter().any(|factor| !unique.contains(&factor.key))
-    {
+    if unique.iter().any(|key| !laws.factors.iter().any(|factor| &factor.key == key)) {
         return Err("functional_effect.factor_law_coverage");
     }
     Ok(())

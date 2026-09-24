@@ -34,8 +34,8 @@ use antecedent_io::{
     ProgramIdentityWire, ReasoningSectionWire, ScoreReuseIdentityWire, SlotSectionWire,
     SupportSlotWire, TargetIdentityWire, TargetWeightsIdentityWire, TargetWeightsSectionWire,
     TemporalIdentificationWire, UncertaintyComponentWire, UncertaintySlotWire, admg_identity,
-    causal_query_to_wire_with_registry, claim_digest, cpdag_identity, dag_identity,
-    data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
+    causal_query_to_wire, causal_query_to_wire_with_registry, claim_digest, cpdag_identity,
+    dag_identity, data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
     execution_digest, execution_identity_from_context, graph_posterior_atom_identities,
     identification_digest, identification_product_digest_wire, identification_product_wire,
     identification_to_wire_with_registry, inference_binding_digest, observation_identity_wire,
@@ -357,6 +357,7 @@ impl PreparedStudy {
             self.checked_iv(),
             self.checked_linear_operation(),
             self.checked_functional_effect_program(),
+            self.checked_functional_effect_response_members(),
         )?);
         Ok(Arc::clone(self.program_cache().get_or_init(|| compiled)))
     }
@@ -402,6 +403,11 @@ impl PreparedStudy {
                 if population.is_none() { self.checked_iv() } else { None },
                 if population.is_none() { self.checked_linear_operation() } else { None },
                 if population.is_none() { self.checked_functional_effect_program() } else { None },
+                if population.is_none() {
+                    self.checked_functional_effect_response_members()
+                } else {
+                    None
+                },
             )?),
         };
         let snapshot = data_snapshot_wire(
@@ -414,6 +420,13 @@ impl PreparedStudy {
             let laws = self
                 .distribution_factor_snapshot(tabular)?
                 .or(self.functional_effect_factor_snapshot(tabular)?);
+            let laws = match laws {
+                Some(laws) => Some(laws),
+                None => self
+                    .functional_effect_response_factor_snapshots(tabular)?
+                    .map(|snapshots| merge_response_factor_snapshots(&snapshots))
+                    .transpose()?,
+            };
             if let Some(laws) = laws {
                 snapshot.distribution_factor_laws = Some(
                     antecedent_io::distribution_factor_laws_to_wire(&laws)
@@ -1131,6 +1144,9 @@ fn program_payloads_for(
     checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
     checked_linear: Option<&super::prepared::CheckedLinearOperation>,
     checked_functional_effect: Option<&antecedent_expr::FunctionalProgram>,
+    checked_functional_response_members: Option<
+        &[super::prepared::CheckedFunctionalEffectResponseMember],
+    >,
 ) -> Result<ProgramPayloads, CausalError> {
     let cached = contract_identification(study);
     let cached = cached.as_deref();
@@ -1144,7 +1160,75 @@ fn program_payloads_for(
         checked_iv,
         checked_linear,
         checked_functional_effect,
+        checked_functional_response_members,
     )
+}
+
+fn merge_response_factor_snapshots(
+    snapshots: &[antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot],
+) -> Result<
+    antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot,
+    CausalError,
+> {
+    let Some(first) = snapshots.first() else {
+        return Err(CausalError::Compile {
+            message: "response curve has no checked members".into(),
+        });
+    };
+    if snapshots.iter().any(|snapshot| snapshot.provenance != first.provenance) {
+        return Err(CausalError::Compile {
+            message: "response member factor snapshots have different provider provenance".into(),
+        });
+    }
+    let mut requirements = Vec::new();
+    let mut domains = Vec::new();
+    let mut factors = Vec::new();
+    for snapshot in snapshots {
+        requirements.extend(snapshot.requirements.iter().cloned());
+        for domain in snapshot.provider.domains.iter() {
+            if let Some(existing) = domains.iter().find(
+                |existing: &&antecedent_expr::provider::DiscreteDomainSnapshot| {
+                    existing.variable == domain.variable
+                },
+            ) {
+                if existing.values != domain.values {
+                    return Err(CausalError::Compile {
+                        message: "response member snapshots disagree on a finite domain".into(),
+                    });
+                }
+            } else {
+                domains.push(domain.clone());
+            }
+        }
+        for factor in snapshot.provider.factors.iter() {
+            if let Some(existing) = factors.iter().find(
+                |existing: &&antecedent_expr::provider::EmpiricalFactorTableSnapshot| {
+                    existing.variables == factor.variables
+                        && existing.conditioned_on == factor.conditioned_on
+                        && existing.intervention == factor.intervention
+                        && existing.domain == factor.domain
+                        && existing.population == factor.population
+                        && existing.regime == factor.regime
+                },
+            ) {
+                if existing.rows != factor.rows {
+                    return Err(CausalError::Compile {
+                        message: "aliased response factors have inconsistent laws".into(),
+                    });
+                }
+            } else {
+                factors.push(factor.clone());
+            }
+        }
+    }
+    Ok(antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot {
+        requirements: Arc::from(requirements),
+        provider: antecedent_expr::provider::EmpiricalProviderSnapshot {
+            domains: Arc::from(domains),
+            factors: Arc::from(factors),
+        },
+        provenance: first.provenance.clone(),
+    })
 }
 
 /// Add `study`'s data snapshot to program payloads already compiled for it.
@@ -1164,6 +1248,14 @@ fn contract_payloads(
                 antecedent_io::distribution_factor_laws_to_wire(&laws)
                     .map_err(|err| io_err(&err))?,
             );
+        } else if let Some(snapshots) =
+            prepared.functional_effect_response_factor_snapshots(tabular)?
+        {
+            let merged = merge_response_factor_snapshots(&snapshots)?;
+            data_snapshot.distribution_factor_laws = Some(
+                antecedent_io::distribution_factor_laws_to_wire(&merged)
+                    .map_err(|err| io_err(&err))?,
+            );
         }
     }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
@@ -1180,6 +1272,9 @@ fn program_payloads(
     checked_iv: Option<&antecedent_estimate::CheckedIvPreparation>,
     checked_linear: Option<&super::prepared::CheckedLinearOperation>,
     checked_functional_effect: Option<&antecedent_expr::FunctionalProgram>,
+    checked_functional_response_members: Option<
+        &[super::prepared::CheckedFunctionalEffectResponseMember],
+    >,
 ) -> Result<ProgramPayloads, CausalError> {
     let schema = data_schema(&study.data);
     let target = TargetIdentityWire {
@@ -1441,6 +1536,47 @@ fn program_payloads(
     } else {
         None
     };
+    let checked_functional_response_grid = checked_functional_response_members
+        .map(|members| {
+            let (treatment, outcome) = match &study.query {
+                CausalQuery::Response(query) => match &query.functional {
+                    antecedent_core::ResponseFunctional::MeanCurve { treatment, outcome } => {
+                        (treatment.variable.raw(), outcome.raw())
+                    }
+                    _ => {
+                        return Err(CausalError::Compile {
+                            message: "checked response members require a mean-curve target".into(),
+                        });
+                    }
+                },
+                _ => {
+                    return Err(CausalError::Compile {
+                        message: "checked response members require a response target".into(),
+                    });
+                }
+            };
+            let members = members
+                .iter()
+                .map(|member| {
+                    let query = CausalQuery::Response(member.query().clone());
+                    Ok(antecedent_io::CheckedFunctionalResponseMemberWire {
+                        grid_value_bits: member.grid_value().to_bits(),
+                        query: causal_query_to_wire(&query).map_err(|error| io_err(&error))?,
+                        identification: identification_product_wire(member.identification(), false)
+                            .map_err(|error| io_err(&error))?,
+                        program: antecedent_io::functional_program_to_wire(member.program())
+                            .map_err(|error| io_err(&error))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, CausalError>>()?;
+            Ok::<_, CausalError>(antecedent_io::CheckedFunctionalResponseGridWire {
+                format: 1,
+                treatment,
+                outcome,
+                members,
+            })
+        })
+        .transpose()?;
     let program = ProgramIdentityWire {
         format: IDENTITY_FORMAT,
         target: *target_digest.as_bytes(),
@@ -1453,6 +1589,7 @@ fn program_payloads(
         checked_frontdoor_lowering,
         checked_iv_lowering,
         checked_linear_adjustment_lowering,
+        checked_functional_response_grid,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
     let inference_binding = InferenceBindingWire {
@@ -1552,6 +1689,9 @@ fn compile_with_payloads(
             prepared
                 .filter(|prepared| study.query == *prepared.query())
                 .and_then(PreparedStudy::checked_functional_effect_program),
+            prepared
+                .filter(|prepared| study.query == *prepared.query())
+                .and_then(PreparedStudy::checked_functional_effect_response_members),
         )?),
     };
     let mut payloads = contract_payloads(program, study, prepared)?;
