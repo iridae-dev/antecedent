@@ -564,6 +564,30 @@ pub fn prepare_exact_z_transport(
             "exact zTR request must bind precisely the certified treatment coordinates",
         ));
     }
+    // A direct source-exchange formula is the joint experimental law at the
+    // concrete values recorded in the proof. It only answers the corresponding
+    // target intervention; surrogate formulas keep their treatment request
+    // independent of the source-side do(Z) assignment.
+    if matches!(
+        functional.arena().node(functional.root()),
+        antecedent_expr::ExprNode::Distribution { .. }
+    ) {
+        let source_assignment = &query.experiment_assignment;
+        if query.treatments.iter().any(|treatment| {
+            let Some(source_value) = source_assignment
+                .iter()
+                .find(|assignment| assignment.variable == *treatment)
+                .map(|assignment| &assignment.value)
+            else {
+                return true;
+            };
+            request.get(*treatment) != Some(source_value)
+        }) {
+            return Err(EvalError::ProviderKind(
+                "exact zTR direct-exchange request must match its concrete source intervention",
+            ));
+        }
+    }
     let catalog = functional.catalog();
     for law in data.laws() {
         let regime = catalog

@@ -266,9 +266,10 @@ impl TheoremScope {
 
     /// Bounded single-source z-transportability research scope.
     ///
-    /// The current graph-specific implementation is sound but incomplete even
-    /// within six observed and two controllable variables. Evidence binding
-    /// is a separate execution step.
+    /// The current implementation has registered and recursive positive
+    /// reductions, but no complete restricted-experiment obstruction procedure
+    /// within six observed and two controllable variables. Evidence binding is
+    /// a separate execution step.
     #[must_use]
     pub fn z_transportability() -> Self {
         Self {

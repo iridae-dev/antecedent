@@ -48,6 +48,7 @@ pub mod transport_certificate;
 pub mod transport_interference_wire;
 pub mod transport_proof;
 pub mod wire;
+pub mod z_transport_artifact;
 
 pub use analysis_result_artifact::{
     AnalysisResultHeader, AnalysisResultWire, IdentifiedSetIntervalMethodWire,

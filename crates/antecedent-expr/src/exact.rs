@@ -537,6 +537,12 @@ pub struct ExactTransportData {
 }
 
 impl ExactTransportData {
+    /// Maximum number of support rows retained for factor evaluation.
+    #[must_use]
+    pub const fn max_support_rows(&self) -> usize {
+        self.max_support_rows
+    }
+
     /// Validate compatible domains and unambiguous population/regime/world bindings.
     ///
     /// # Errors
