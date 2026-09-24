@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2.0.x   | Yes — fixes land on `main` and ship in the next release |
+| 2.1.x   | Yes — development branch; fixes ship with the 2.1 release |
+| 2.0.x   | Yes — current released line; fixes land on `main` |
 | < 2.0   | No — upgrade to the latest release |
 
 Security fixes are made on `main` and released from there. Fixes are not backported to

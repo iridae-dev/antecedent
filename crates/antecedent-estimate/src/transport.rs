@@ -526,6 +526,129 @@ pub fn evaluate_exact_transport(
     prepare_exact_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
 }
 
+/// Evaluate the currently licensed point-only z-surrogate functional against
+/// exact or empirical joint-law tables. Empirical inputs produce a plug-in
+/// point estimate; this route publishes no interval or sampling guarantee.
+///
+/// # Errors
+/// Request, catalog, provider, support, or resource validation failures.
+pub fn evaluate_exact_z_transport(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
+    prepare_exact_z_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Validate source joint-law providers and compile the checked zTR formula.
+///
+/// # Errors
+/// Provider/catalog disagreement, missing assignment, or resource limit.
+pub fn prepare_exact_z_transport(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    use antecedent_core::{DistributionAvailability, VariableDomain};
+    use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
+
+    let query = functional.derivation().query();
+    if request.entries().len() != query.treatments.len()
+        || query.treatments.iter().any(|variable| request.get(*variable).is_none())
+    {
+        return Err(EvalError::ProviderKind(
+            "exact zTR request must bind precisely the certified treatment coordinates",
+        ));
+    }
+    let catalog = functional.catalog();
+    for law in data.laws() {
+        let regime = catalog
+            .regimes
+            .iter()
+            .find(|regime| {
+                regime.id == law.regime() && regime.population.as_ref() == law.population()
+            })
+            .ok_or(EvalError::ProviderKind(
+                "exact zTR provider names an unknown evidence regime",
+            ))?;
+        if !regime.evidence_kind.can_satisfy_factor()
+            || !matches!(regime.distribution, DistributionAvailability::Joint)
+            || !regime.conditioned_on.is_empty()
+            || law.interventions().len() != regime.interventions.len()
+            || !law
+                .interventions()
+                .iter()
+                .all(|assignment| regime.interventions.contains(&assignment.variable))
+            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
+            || regime.intervention_values.iter().any(|required| {
+                !law.interventions().iter().any(|actual| {
+                    actual.variable == required.variable && actual.value == required.value
+                })
+            })
+        {
+            return Err(EvalError::ProviderKind(
+                "exact zTR provider disagrees with its evidence regime",
+            ));
+        }
+        for binding in catalog.bindings.iter().filter(|binding| binding.regime == regime.id) {
+            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
+                return Err(EvalError::ProviderKind(
+                    "exact zTR provider snapshot does not match catalog binding",
+                ));
+            }
+        }
+        for axis in law.axes() {
+            for coordinate in catalog
+                .environments
+                .iter()
+                .flat_map(|environment| environment.variables.iter())
+                .filter(|coordinate| coordinate.variable == axis.variable)
+            {
+                let valid = match coordinate.domain {
+                    VariableDomain::Unspecified => true,
+                    VariableDomain::Continuous => false,
+                    VariableDomain::Binary => {
+                        axis.values.len() == 2
+                            && [0.0, 1.0].iter().all(|level| {
+                                axis.values.iter().any(|value| value.as_f64() == Some(*level))
+                            })
+                    }
+                    VariableDomain::Categorical { cardinality } => {
+                        usize::try_from(cardinality).ok() == Some(axis.values.len())
+                            && (0..cardinality).all(|level| {
+                                axis.values
+                                    .iter()
+                                    .any(|value| value.as_f64() == Some(f64::from(level)))
+                            })
+                    }
+                    VariableDomain::Count => axis.values.iter().all(|value| {
+                        value.as_f64().is_some_and(|value| value >= 0.0 && value.fract() == 0.0)
+                    }),
+                };
+                if !valid {
+                    return Err(EvalError::ProviderKind(
+                        "exact zTR provider domain disagrees with evidence coordinates",
+                    ));
+                }
+            }
+        }
+    }
+    ExactEvaluationPlan::compile(
+        functional.arena(),
+        functional.root(),
+        data,
+        query.outcomes.clone(),
+        request,
+        limits,
+        LawTolerance::default(),
+        ctx,
+    )
+}
+
 /// Validate exact providers and compile without evaluating any probabilities.
 ///
 /// # Errors
@@ -626,11 +749,191 @@ pub fn prepare_exact_transport(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::{
+        DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
+        ExecutionContext, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value,
+        VariableCoordinate, VariableDomain, VariableId,
+    };
+    use antecedent_expr::{
+        DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
+        InterventionAssignment as ExprInterventionAssignment, LawTolerance,
+    };
+    use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
     use antecedent_identify::{
         NotCertifiedCertificate, PopulationFactor, TransportCertificate, TransportFormula,
+        ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+        identify_z_transport_surrogate,
     };
 
     use super::*;
+
+    fn checked_z_fixture(
+        empirical: bool,
+    ) -> (antecedent_identify::BoundZTransportFunctional, ExactTransportData) {
+        let mut graph = Admg::with_variables(4);
+        for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        for (a, b) in [(0, 3), (1, 3), (1, 2)] {
+            graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (w, z, x, y) = (
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        );
+        let query = ZTransportQuery {
+            outcomes: Arc::from([y]),
+            treatments: Arc::from([x]),
+            controllable: Arc::from([z]),
+            experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                variable: z,
+                value: Value::Bool(false),
+            }]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let ZTransportResult::Identified(derivation) =
+            identify_z_transport_surrogate(&diagram, &query).unwrap()
+        else {
+            panic!("fixture should be identified");
+        };
+        let coords = [w, z, x, y].map(|variable| VariableCoordinate {
+            variable,
+            domain: VariableDomain::Binary,
+            unit: None,
+        });
+        let environment =
+            Environment::try_new("source", coords, Arc::<[VariableId]>::from([])).unwrap();
+        let measured: Arc<[VariableId]> = Arc::from([w, z, x, y]);
+        let regimes = [false, true].map(|level| {
+            antecedent_core::EvidenceRegime::try_new(
+                RegimeId::from_raw(u32::from(level)),
+                RegimeKind::Experimental,
+                EvidenceKind::Available,
+                [z],
+                [antecedent_core::InterventionAssignment {
+                    variable: z,
+                    value: Value::Bool(level),
+                }],
+                Arc::clone(&measured),
+                "source",
+                DistributionAvailability::Joint,
+            )
+            .unwrap()
+        });
+        let bindings = [false, true].map(|level| RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(u32::from(level)),
+            snapshot_identity: Arc::from(format!("source-do-z-{level}")),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        });
+        let catalog = EvidenceCatalog::try_new([environment], regimes, bindings, None).unwrap();
+        let functional = bind_z_transport_catalog(&diagram, &query, &derivation, &catalog).unwrap();
+        let mut probabilities = Vec::with_capacity(8);
+        let mut counts = Vec::with_capacity(8);
+        for wv in [false, true] {
+            for xv in [false, true] {
+                for yv in [false, true] {
+                    let pw = if wv { 0.25 } else { 0.75 };
+                    let px = if xv { 0.35 } else { 0.65 };
+                    let py = if yv == xv { 0.80 } else { 0.20 };
+                    let probability: f64 = pw * px * py;
+                    probabilities.push(probability);
+                    counts.push((probability * 10_000.0).round() as u64);
+                }
+            }
+        }
+        if empirical {
+            let count_total = counts.iter().sum::<u64>() as f64;
+            probabilities = counts.iter().map(|count| *count as f64 / count_total).collect();
+        }
+        let mut law = ExactDiscreteLaw::try_new(
+            "source",
+            RegimeId::from_raw(0),
+            [ExprInterventionAssignment::concrete(z, Value::Bool(false))],
+            [
+                DiscreteAxis {
+                    variable: w,
+                    values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+                },
+                DiscreteAxis {
+                    variable: x,
+                    values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+                },
+                DiscreteAxis {
+                    variable: y,
+                    values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+                },
+            ],
+            probabilities,
+            "source-do-z-false",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        if empirical {
+            law = law.with_empirical_counts(counts).unwrap();
+        }
+        let data = ExactTransportData::try_new([law], 128).unwrap();
+        (functional, data)
+    }
+
+    #[test]
+    fn z_transport_exact_provider_matches_independent_scm_truth() {
+        let (functional, data) = checked_z_fixture(false);
+        let outcome = VariableId::from_raw(3);
+        let request = antecedent_expr::Assignment::from_pairs([(
+            VariableId::from_raw(2),
+            Value::Bool(false),
+        )]);
+        let result = evaluate_exact_z_transport(
+            &functional,
+            data,
+            request,
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+        let true_mass = result
+            .atoms
+            .iter()
+            .zip(result.probabilities.iter())
+            .filter(|(atom, _)| atom[0] == Value::Bool(true))
+            .map(|(_, probability)| probability)
+            .sum::<f64>();
+        assert!((true_mass - 0.20).abs() < 1e-12, "P(Y=1)={true_mass}");
+        assert_eq!(result.outcomes.as_ref(), &[outcome]);
+    }
+
+    #[test]
+    fn z_transport_empirical_provider_is_plugin_point_only() {
+        let (functional, data) = checked_z_fixture(true);
+        let result = evaluate_exact_z_transport(
+            &functional,
+            data,
+            antecedent_expr::Assignment::from_pairs([(
+                VariableId::from_raw(2),
+                Value::Bool(false),
+            )]),
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+        let true_mass = result
+            .atoms
+            .iter()
+            .zip(result.probabilities.iter())
+            .filter(|(atom, _)| atom[0] == Value::Bool(true))
+            .map(|(_, probability)| probability)
+            .sum::<f64>();
+        assert!((true_mass - 0.20).abs() < 0.002, "empirical P(Y=1)={true_mass}");
+        // ExactDistribution is a point law and has no interval fields by design.
+    }
 
     /// A minimal positive certificate, standing in for whatever
     /// `TransportIdentifier::identify` actually certified for a query. The estimators below

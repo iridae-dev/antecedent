@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form",
+    "project": "linear Markovian structural equations",
+    "pin": "natural-direct-shared-exogenous-v1",
+    "generation_location": "analytical artifact; no generator retained"
+  },
+  "model": {
+    "graph": ["X->M", "X->Y", "M->Y"],
+    "mediator": "M = 0.8*X + U_M",
+    "outcome": "Y = 1.7*X + 4.0*M + U_Y",
+    "treatment_control": -1.0,
+    "treatment_active": 2.0
+  },
+  "reference": {
+    "natural_direct_effect": 5.1,
+    "formula": "(2.0 - (-1.0))*1.7"
+  },
+  "acceptance": {"atol": 0.001, "shared_exogenous_draw": true}
+}

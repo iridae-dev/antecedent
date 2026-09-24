@@ -817,6 +817,11 @@ QUERY_TOKENS: dict[str, list[str]] = {
         r"DistributionQuery",
     ],
     "MediationEffect": [r"MediationQuery", r"MediationEffect", r"CausalQuery::Mediation"],
+    "NestedCounterfactualEffect": [
+        r"NestedCounterfactualQuery",
+        r"NestedCounterfactualEffect",
+        r"CausalQuery::NestedCounterfactual",
+    ],
     "PathSpecificEffect": [r"PathSpecific", r"path_specific"],
     "Counterfactual": [r"Counterfactual"],
     "AverageDerivative": [r"AverageDerivative"],

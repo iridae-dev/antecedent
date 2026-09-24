@@ -123,10 +123,15 @@ else:
 # TransportQuery stays on the support-matrix query axis (licensed trial-IPW
 # cell) but lives on `antecedent.transport.advanced`, not root `__all__`.
 root_queries = [q for q in queries if q != "TransportQuery"]
-if sorted(root_queries) != sorted(live_queries):
+# Public query class names can differ from the stable support query axis.
+# Keep those mappings explicit so adding a user-facing type does not silently
+# rename support cells or their evidence records.
+query_axis_aliases = {"NestedCounterfactual": "NestedCounterfactualEffect"}
+mapped_live_queries = [query_axis_aliases.get(q, q) for q in live_queries]
+if sorted(root_queries) != sorted(mapped_live_queries):
     fail.append(
         "parity/support_axes.toml queries != python __all__ query names: "
-        f"axes={sorted(root_queries)} live={sorted(live_queries)}"
+        f"axes={sorted(root_queries)} live={sorted(mapped_live_queries)}"
     )
 
 for name in ["Frequentist", "Bayesian"]:
@@ -590,3 +595,4 @@ print(
 PY
 
 python3 "$ROOT/scripts/check_transport_stages.py"
+python3 "$ROOT/scripts/generate_calibration_backlog.py" --check

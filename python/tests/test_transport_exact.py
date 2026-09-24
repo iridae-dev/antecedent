@@ -467,3 +467,36 @@ def test_catalog_diagnostics_distinguish_missing_evidence_and_future_experiments
     assert not report["finite_catalog_complete"]
     assert report["future_experiments"] == ["future"]
     assert report["missing_factors"]
+
+
+def test_checked_proof_graph_names_factor_binding_failure():
+    graph = Admg.from_edges(["x", "y"], [("x", "y")])
+    identified = transport.identify_classical(
+        graph, transport.SelectionDiagram("source", "target", []), outcomes=["y"], treatments=["x"]
+    )
+    catalog = transport.EvidenceCatalog(regimes=[])
+    view = transport.inspect_proof_graph(identified, catalog)
+    assert view["steps"]
+    assert view["factors"]
+    assert any(leaf["binding_failure"] for leaf in view["factors"])
+    assert all(leaf["supplied_by"] is None for leaf in view["factors"])
+
+
+def test_hypothetical_catalog_delta_does_not_change_supplied_evidence():
+    base = transport.EvidenceCatalog.empty()
+    proposal = transport.EvidenceCatalogDelta(
+        [
+            transport.EvidenceRegime(
+                "future",
+                "source",
+                kind="experimental",
+                evidence_kind="proposed",
+                interventions=["z"],
+                measured=["x", "y"],
+            )
+        ]
+    )
+    preview = proposal.preview(base)
+    assert not base.has_available_experiment("source", ["z"])
+    assert preview.has_available_experiment("source", ["z"])
+    assert proposal.proposed_regimes[0].evidence_kind == "proposed"

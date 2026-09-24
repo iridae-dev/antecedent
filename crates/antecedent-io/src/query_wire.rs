@@ -664,6 +664,19 @@ pub enum CausalQueryWire {
         /// Nested flag.
         allow_nested: bool,
     },
+    /// Fixed-contract natural direct effect.
+    NestedCounterfactual {
+        /// Treatment node.
+        treatment: u32,
+        /// Mediator node.
+        mediator: u32,
+        /// Outcome node.
+        outcome: u32,
+        /// Control level IEEE-754 bits.
+        control_bits: u64,
+        /// Active level IEEE-754 bits.
+        active_bits: u64,
+    },
     /// Anomaly attribution.
     AnomalyAttribution {
         /// Targets.
@@ -773,6 +786,7 @@ impl CausalQueryWire {
             Self::Response(inner) => Some(&mut inner.target_population),
             Self::ConditionalEffect { inner } => inner.target_population_mut(),
             Self::Counterfactual { .. }
+            | Self::NestedCounterfactual { .. }
             | Self::AnomalyAttribution { .. }
             | Self::ChangeAttribution { .. }
             | Self::MechanismChange { .. }
@@ -799,6 +813,7 @@ impl CausalQueryWire {
             Self::Response(inner) => Some(&inner.target_population),
             Self::ConditionalEffect { inner } => inner.target_population(),
             Self::Counterfactual { .. }
+            | Self::NestedCounterfactual { .. }
             | Self::AnomalyAttribution { .. }
             | Self::ChangeAttribution { .. }
             | Self::MechanismChange { .. }
@@ -1154,6 +1169,13 @@ pub fn causal_query_to_wire_with_registry(
             control: Some(InterventionWire::from_domain(&q.control)?),
             allow_nested: q.allow_nested,
         },
+        CausalQuery::NestedCounterfactual(q) => CausalQueryWire::NestedCounterfactual {
+            treatment: q.treatment.raw(),
+            mediator: q.mediator.raw(),
+            outcome: q.outcome.raw(),
+            control_bits: q.control_value().to_bits(),
+            active_bits: q.active_value().to_bits(),
+        },
         CausalQuery::AnomalyAttribution(q) => CausalQueryWire::AnomalyAttribution {
             targets: vars_to_raw(&q.targets),
             unit_rows: q
@@ -1287,6 +1309,23 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 control,
                 allow_nested: *allow_nested,
             })
+        }
+        CausalQueryWire::NestedCounterfactual {
+            treatment,
+            mediator,
+            outcome,
+            control_bits,
+            active_bits,
+        } => {
+            let query = antecedent_core::NestedCounterfactualQuery::with_levels(
+                antecedent_core::VariableId::from_raw(*treatment),
+                antecedent_core::VariableId::from_raw(*mediator),
+                antecedent_core::VariableId::from_raw(*outcome),
+                f64::from_bits(*control_bits),
+                f64::from_bits(*active_bits),
+            )
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::NestedCounterfactual(query)
         }
         CausalQueryWire::AnomalyAttribution { targets, unit_rows, max_units } => {
             CausalQuery::AnomalyAttribution(AnomalyAttributionQuery {
@@ -1981,6 +2020,9 @@ mod tests {
             [m],
             MediationContrast::NaturalIndirect,
         )));
+        assert_rt(&CausalQuery::NestedCounterfactual(
+            antecedent_core::NestedCounterfactualQuery::with_levels(t, m, y, -0.5, 1.5).unwrap(),
+        ));
         let conditional = ConditionalEffectQuery::try_new(
             AverageEffectQuery::binary_ate(t, y).with_effect_modifiers([z]),
         )

@@ -9,7 +9,7 @@ structural transport.
 
 ```toml
 [dependencies]
-antecedent = "2.0"
+antecedent = "2.1"
 ```
 
 See the [workspace documentation](../../docs/index.md) for the 2.0 contract and its calibration limits.

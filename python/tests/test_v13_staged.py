@@ -121,6 +121,36 @@ def test_counterfactual_stages_and_artifact():
     assert accepted.unit_effects == pytest.approx(result.unit_effects, abs=1e-12)
 
 
+def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
+    i = np.arange(300, dtype=float)
+    x = np.sin(i * 0.37)
+    m = 0.8 * x + np.cos(i * 0.91)
+    y = 1.7 * x + 4.0 * m + 0.01 * np.sin(i * 0.23)
+    data = {"x": x, "m": m, "y": y}
+    dag = ac.Dag.from_edges(list(data), [("x", "m"), ("x", "y"), ("m", "y")])
+    query = ac.NestedCounterfactual("x", "m", "y", control_level=-1.0, active_level=2.0)
+    identified = identify(graph=dag, query=query)
+    assert identified.identifier == "path_specific.natural"
+
+    prepared = PreparedAnalysis.prepare(data, graph=dag, query=query, refute="none")
+    result = prepared.estimate(data)
+    assert result.effect == pytest.approx(5.1, abs=1e-3)
+    assert result.estimate.estimator_id == "mediation.linear"
+    assert any("counterfactual.nested.shared_exogenous" in d for d in result.diagnostics)
+    assert result.estimate.se_bootstrap is None
+
+    query_artifact = artifacts.loads(prepared.export_artifact(payload="query"))
+    assert query_artifact.payload_kind == "query"
+    assert "nested_counterfactual" in str(query_artifact.payload).lower()
+    result_artifact = artifacts.loads(prepared.export_artifact(payload="result"))
+    assert result_artifact.payload["estimate"] == pytest.approx(result.effect)
+    assert prepared.evidence_status == "licensed"
+
+    refreshed_data = {"x": x, "m": m + 0.2, "y": y + 0.7}
+    refreshed = prepared.refresh(refreshed_data)
+    assert refreshed.effect == pytest.approx(result.effect, abs=1e-8)
+
+
 @pytest.mark.parametrize(
     "kind,pin_key",
     [

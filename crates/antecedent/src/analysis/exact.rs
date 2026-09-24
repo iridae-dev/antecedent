@@ -454,6 +454,30 @@ impl PreparedStudy<ExactPreparedState> {
             catalog_scope: TheoremScope::finite_catalog_search(),
         }
     }
+
+    /// Evaluate a declared one-factor mechanism sensitivity analysis against this
+    /// prepared study's checked graph, query, and catalog bindings.
+    ///
+    /// # Errors
+    /// The fixed-graph route refuses unsupported graphs, stale proofs or snapshots,
+    /// incomplete categorical strata, and invalid kernel probabilities.
+    pub fn mechanism_sensitivity(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_mechanism_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            ctx,
+        )
+    }
+
     fn reasoning(evaluated: bool) -> ReasoningView {
         ReasoningView::new(
             SlotAvailability::Available(IdentificationSlot::identified_singleton(

@@ -15,9 +15,9 @@ of what exists in the codebase; it does not license a cell.
 See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/main/adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
-validation) is **3402** cells. That denominator is not a feature count.
-Of those cells, **1999** are typed impossibilities and
-**1403** are meaningful combinations.
+validation) is **3564** cells. That denominator is not a feature count.
+Of those cells, **2089** are typed impossibilities and
+**1475** are meaningful combinations.
 
 Every cell is in exactly **one of three runtime states**: **licensed** (a
 result), **n/a** (the coordinate does not denote — a typed impossibility),
@@ -31,19 +31,19 @@ but the current matrix has no active allowlist entries.
 
 | Status | Count | How to read it |
 |---|---|---|
-| Cartesian product | 3402 | Axis product, not a coverage score |
-| n/a | 1999 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
-| Meaningful remainder | 1403 | Combinations that could in principle be a claim |
-| Licensed | 471 | Staged path plus the row's recorded evidence contract and limitations |
+| Cartesian product | 3564 | Axis product, not a coverage score |
+| n/a | 2089 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
+| Meaningful remainder | 1475 | Combinations that could in principle be a claim |
+| Licensed | 472 | Staged path plus the row's recorded evidence contract and limitations |
 | `allowed_unlicensed` compatibility entries | 0 | Retained wire value; the release gate requires this count to remain zero |
-| Refused — reason on file | 932 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — reason on file | 1003 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
 | Refused — no reason on file | 0 | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_closed.toml` rule |
 
-Do not read "471 / 3402" as coverage. Read: **471 cells
+Do not read "472 / 3564" as coverage. Read: **472 cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
-Interval calibration of the 471 licensed cells: 295 cite coverage records; 172 have no coverage measurement for their estimator (`estimator_grid_not_measured`); 4 report no interval (`no_interval_reported`). A licensed cell therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
+Interval calibration of the 472 licensed cells: 295 cite coverage records; 172 across 92 distinct coordinates have no coverage measurement for their estimator (`estimator_grid_not_measured`); 5 report no interval (`no_interval_reported`). A licensed cell therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
@@ -86,6 +86,7 @@ edge is silently oriented.
 - `InterventionalDistribution`
 - `InterventionResponse`
 - `MediationEffect`
+- `NestedCounterfactualEffect`
 - `PathSpecificEffect`
 - `PointDerivative`
 - `PulseEffect`
@@ -118,15 +119,15 @@ edge is silently oriented.
 ## n/a
 
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag, CoDetermined, Unknown} — Temporal contrast queries require a temporal graph class.
-- queries ∈ {AnomalyAttribution, AverageDerivative, AverageEffect, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, MediationEffect, PathSpecificEffect, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment.
+- queries ∈ {AnomalyAttribution, AverageDerivative, AverageEffect, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, NestedCounterfactualEffect, MediationEffect, PathSpecificEffect, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment.
 - queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — TransportQuery and InterferenceQuery are typed against static graphs; they do not denote on a temporal graph class.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag, Admg, TemporalDag, Cpdag, Pag, TemporalCpdag, TemporalPag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag, TemporalDag, TemporalCpdag, TemporalPag} ∧ structures ∈ {graph_posterior} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state.
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {TemporalDag, Cpdag, Pag, TemporalCpdag, TemporalPag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; temporal and class-aware InterventionResponse remain function-valued or envelope-mixed surfaces with no licensed scalar-refuter state.
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted, graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — Bayesian InterventionResponse has no licensed scalar-refuter state; cheap/full name the Frequentist ATE-shaped suite.
 - queries ∈ {PointDerivative, Elasticity, SemiElasticity, AverageDerivative, DirectionalDerivative, ResponseJacobian} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — Derivative-native validation is not implemented; ATE refuters do not apply.
-- queries ∈ {AnomalyAttribution, AverageDerivative, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Unknown} — Unknown-tier cells license the two-scenario AverageEffect envelope only.
-- queries ∈ {AnomalyAttribution, AverageDerivative, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {CoDetermined} — CoDetermined cells license AverageEffect and joint InterventionResponse only.
+- queries ∈ {AnomalyAttribution, AverageDerivative, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, MediationEffect, NestedCounterfactualEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Unknown} — Unknown-tier cells license the two-scenario AverageEffect envelope only.
+- queries ∈ {AnomalyAttribution, AverageDerivative, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, NestedCounterfactualEffect, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {CoDetermined} — CoDetermined cells license AverageEffect and joint InterventionResponse only.
 - graph_classes ∈ {CoDetermined, Unknown} ∧ structures ∈ {accepted, graph_posterior} — Tier-rule backgrounds are an explicit structure source.
 - graph_classes ∈ {CoDetermined, Unknown} ∧ inferences ∈ {Bayesian} — Tier-rule cells are Frequentist (cell.aipw joint / two-scenario envelope).
 - queries ∈ {AverageEffect, InterventionResponse} ∧ graph_classes ∈ {CoDetermined, Unknown} ∧ validations ∈ {cheap, full} — cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no licensed scalar-refuter state.
@@ -167,6 +168,10 @@ row here yet.
 - queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Cpdag, Admg, Pag} ∧ validations ∈ {cheap, full} — Query-native functional validation requires a Dag.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist or Bayesian explicit or accepted Dag at validation none.
 - queries ∈ {MediationEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — Graph-posterior mediation mixtures are not staged; the licensed MediationEffect cells are Frequentist or Bayesian explicit or accepted Dag.
+- queries ∈ {NestedCounterfactualEffect} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — NestedCounterfactualEffect requires the supplied fixed static Dag.
+- queries ∈ {NestedCounterfactualEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {accepted, graph_posterior} — NestedCounterfactualEffect requires an explicitly supplied Dag; accepted and graph-posterior structures are not licensed.
+- queries ∈ {NestedCounterfactualEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit} ∧ inferences ∈ {Bayesian} — NestedCounterfactualEffect is licensed only for the compatible Frequentist linear-Gaussian SCM; Bayesian SCM inference is not licensed.
+- queries ∈ {NestedCounterfactualEffect} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit} ∧ inferences ∈ {Frequentist} ∧ validations ∈ {cheap, full} — NestedCounterfactualEffect has no compatible cheap/full cross-world refuter suite.
 - queries ∈ {Counterfactual} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} — Staged counterfactuals require a supplied Dag; graph-posterior structures are refused.
 - queries ∈ {Counterfactual} ∧ graph_classes ∈ {Dag} ∧ validations ∈ {cheap, full} — Counterfactual cheap/full are not licensed; there is no native ITE refuter suite and ATE refuters do not apply.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Admg, Cpdag, Pag} ∧ structures ∈ {graph_posterior} ∧ validations ∈ {cheap, full} — Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state.
@@ -190,10 +195,11 @@ executed plans) is checked against an external oracle by that parity row; the
 cell's own output is not. *Discovery oracles* apply when an accepted graph of
 that class came from that discovery strategy.
 
-Of 471 licensed cells, 6 compare their own output with an external oracle; 145 more run an identifier or estimator that an external oracle checks; 106 more are accepted-graph cells whose class a discovery oracle backs; 214 rest on internal evidence only.
+Of 472 licensed cells, 6 compare their own output with an external oracle; 145 more run an identifier or estimator that an external oracle checks; 106 more are accepted-graph cells whose class a discovery oracle backs; 215 rest on internal evidence only.
 
 | query | graph | structure | inference | validation | evidence | external oracles | limitations |
 |---|---|---|---|---|---|---|---|
+| `NestedCounterfactualEffect` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/nested_counterfactual`) | none | Natural direct effect Y(active, M(control)) - Y(control, M(control)) for the fixed Markovian DAG treatment -> mediator, treatment -> outcome, mediator -> outcome under the compatible linear-Gaussian SCM. The mediator's control-world value and both outcome worlds share one abduced exogenous draw. This is a point-only claim: no sampling interval or repeated-sampling coverage is published. Bayesian SCM inference, latent-confounded graphs, accepted structures, graph-posterior structures, incompatible cross-world queries, and cheap/full refuters remain refused. |
 | `ResponseCurve` | `Dag` | `graph_posterior` | `Frequentist` | `none` | internal_known_truth (`conformance/bayesian/known_truth_mixtures`) | none | Each DAG atom is identified and estimated independently. Posterior graph weights, atom values, identified/unidentified/unevaluable mass, the pointwise identified set, and the conditional-on-identified mean are retained. Failed estimation is unevaluable, not unidentified: the atom keeps its identification status with no value, its mass is reported as unevaluable_mass (also in Python), and any unevaluable mass makes the result GraphDependent. Prepared clicks reuse the graph-posterior identification cache. The joint-IF SE is published only for a scalar aggregate; a multi-atom curve withholds its band (`estimate.response.graph_posterior.uncertainty_withheld`). Prepared handles refuse non-complete-observation queries before identification. Simultaneous bands are not claimed. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim. Under the interactive latency tier at most 16 identified atoms are fitted (the highest-posterior-weight atoms, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent. |
 | `PulseEffect` | `TemporalDag` | `graph_posterior` | `Frequentist` | `none` | internal_known_truth (`conformance/bayesian/known_truth_mixtures`) | none | Each identified DBN atom uses its own I(h), with fixed posterior graph weights and unidentified mass retained. When requested, uncertainty refits every contributing atom on the same circular-block replicate before mixing; it is not a sum of atom variances. Frequentist uncertainty (when replicates are requested) is a shared circular-block bootstrap over lag-aligned series times: blocks of consecutive times are resampled over the window where every atom's maximal lag window is available, each atom's lag-aligned design keeps its rows' original lag windows (no row pairs an outcome with lags from an unrelated block), every contributing atom is refit on the same resampled times, and the replicate SD is scaled by the circular-Bartlett fixed-b factor. Block length is max(span, ⌈m^{1/3}⌉) over the m shared times (span = max lag + 1), lengthened to ⌈b_PW·m^{1/6}⌉ (the Politis-White length at the fixed-b testing rate) when any atom's influence, the mixture score, or any fitted regression's normal-equation score (residuals included) is persistently dependent; estimate.temporal.circular_block_se.short_series warns when the score effective rows (the smallest over every atom's and the mixture's score of the lag-1 and block-length readings) fall below 155 (docs/short-series-thresholds.md). That threshold covers a bias the block bootstrap cannot remove: at ρ ≥ 0.9 an atom that omits a persistent confounder is biased in finite samples (in the docs/short-series-thresholds.md sweep, v19_short_series_measurement, TemporalCpdag Pulse with two completions under-covered at ρ ≥ 0.9, n ≤ 400 and DBN multi-step Sustained under-covered at ρ = 0.95, n ≤ 60: a warned boundary). Coverage (heterogeneous atoms, iid and AR(1)): crates/antecedent/tests/v19_calibration.rs. Python reaches this cell through analyze(discovery=DbnPosterior(...) or GraphPosterior(...), inference=Frequentist()) and PreparedAnalysis.prepare(discovery=...); the shared-block replicate count follows an explicit bootstrap or the latency tier (interactive: 0, SE withheld). The result carries structural_response (posterior-probability atoms, identified and unidentified mass, identified set). |
 | `PulseEffect` | `TemporalDag` | `graph_posterior` | `Frequentist` | `cheap` | internal_known_truth (`conformance/bayesian/known_truth_mixtures`) | none | Applicable temporal refuters run on every contributing atom against that atom's own estimate (not the pooled mean) and mix by fixed graph weight; the mixed check passes only if every atom passes. They do not rediscover graphs. Pulse is a single intervention time; multi-step Sustained validation is documented in its own cells. |

@@ -13,6 +13,18 @@ _ROOT = Path(__file__).resolve().parents[2]
 _LICENSED = load_toml(_ROOT / "parity" / "support_licensed.toml")
 
 _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
+    "NestedCounterfactualEffect": (
+        {
+            "nested_counterfactual": {
+                "treatment": 0,
+                "mediator": 1,
+                "outcome": 2,
+                "control_bits": 0,
+                "active_bits": 4607182418800017408,
+            }
+        },
+        ["t", "m", "y"],
+    ),
     "AverageEffect": (
         {
             "average_effect": {

@@ -22,6 +22,7 @@ from .query import (
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
+    NestedCounterfactual,
     PathSpecificEffect,
     PointDerivative,
     PulseEffect,
@@ -57,6 +58,7 @@ def analyze(
         | PathSpecificEffect
         | ConditionalEffect
         | MediationEffect
+        | NestedCounterfactual
         | Counterfactual
         | TemporalMediationEffect
         | ResponseCurve
@@ -131,7 +133,7 @@ def analyze(
     query:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
         ``InterventionalDistribution``, ``PathSpecificEffect``,
-        ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``,
+        ``MediationEffect``, ``NestedCounterfactual``, ``Counterfactual``, ``TemporalMediationEffect``,
         ``transport.Transport`` (T5–T9 compiler on an ``Admg``, with
         ``provider=`` / ``TransportInference`` / ``controls=``),
         ``transport.advanced.TransportQuery`` (the licensed trial-IPW cell on

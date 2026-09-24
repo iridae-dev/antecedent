@@ -41,6 +41,7 @@ from .query import (
     Elasticity,
     InterventionResponse,
     MediationEffect,
+    NestedCounterfactual,
     PointDerivative,
     PulseEffect,
     ResponseCurve,
@@ -161,6 +162,7 @@ class Identification:
         | DirectionalDerivative
         | ResponseJacobian
         | MediationEffect
+        | NestedCounterfactual
         | TemporalMediationEffect
         | Counterfactual
         | Any
@@ -681,6 +683,7 @@ def identify(
     | DirectionalDerivative
     | ResponseJacobian
     | MediationEffect
+    | NestedCounterfactual
     | Counterfactual
     | TemporalMediationEffect
     | Any,
@@ -743,6 +746,7 @@ def identify(
         query,
         (
             MediationEffect,
+            NestedCounterfactual,
             Counterfactual,
             PointDerivative,
             Elasticity,
@@ -799,7 +803,13 @@ def identify(
             query.kind,
             treatments,
             outcomes,
-            mediators=list(query.mediators) if isinstance(query, MediationEffect) else [],
+            mediators=(
+                list(query.mediators)
+                if isinstance(query, MediationEffect)
+                else [query.mediator]
+                if isinstance(query, NestedCounterfactual)
+                else []
+            ),
             contrast=getattr(query, "contrast", "mediated"),
             control_level=getattr(query, "control_level", 0.0),
             active_level=getattr(query, "active_level", 1.0),

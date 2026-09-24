@@ -269,6 +269,7 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         CausalQuery::AverageEffect(_) => Some("AverageEffect"),
         CausalQuery::ConditionalEffect(_) => Some("ConditionalEffect"),
         CausalQuery::Counterfactual(_) => Some("Counterfactual"),
+        CausalQuery::NestedCounterfactual(_) => Some("NestedCounterfactualEffect"),
         CausalQuery::Distribution(_) => Some("InterventionalDistribution"),
         CausalQuery::PathSpecific(_) => Some("PathSpecificEffect"),
         CausalQuery::Mediation(_) => match graph_class {

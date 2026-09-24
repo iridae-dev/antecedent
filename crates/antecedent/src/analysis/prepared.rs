@@ -3796,6 +3796,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported { message: "counterfactual requires Dag" });
             }
         }
+        (DataInput::Tabular(_), CausalQuery::NestedCounterfactual(_)) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "cross_world_not_identified: nested effect requires a supplied DAG",
+                });
+            }
+        }
         (
             DataInput::Tabular(_),
             CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
@@ -3902,6 +3909,7 @@ impl PreparedStudy {
                 Intervention::Set { value, .. } => value.as_f64().unwrap_or(0.0),
                 _ => 0.0,
             },
+            CausalQuery::NestedCounterfactual(q) => q.control_value(),
             _ => 0.0,
         }
     }

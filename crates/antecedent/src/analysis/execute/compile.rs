@@ -471,7 +471,6 @@ impl super::Study {
             }
             (Some(AnalysisRoute::StaticMediation), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
                     || self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
@@ -483,6 +482,11 @@ impl super::Study {
                         message: "static mediation requires path_specific.natural and mediation.linear without custom estimators, scalar validators, or discovery split",
                     });
                 }
+                let q = match &self.query {
+                    CausalQuery::Mediation(q) => q.clone(),
+                    CausalQuery::NestedCounterfactual(q) => q.as_mediation_query(),
+                    _ => unreachable!(),
+                };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 let path = antecedent_core::PathSpecificEffectQuery {
                     control: q.control.clone(),
@@ -501,7 +505,12 @@ impl super::Study {
                 })?;
                 plan.record.plan_id = Arc::from("static_mediation");
                 plan.record.estimator = Some(Arc::from("mediation.linear"));
-                plan.query = CausalQuery::Mediation(q.clone());
+                plan.query = match &self.query {
+                    CausalQuery::NestedCounterfactual(nested) => {
+                        CausalQuery::NestedCounterfactual(*nested)
+                    }
+                    _ => CausalQuery::Mediation(q),
+                };
                 Ok(plan)
             }
             (Some(AnalysisRoute::Transport), GraphClass::Admg) => {
@@ -557,7 +566,13 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("interference.design")),
-                        estimator: Some(Arc::from("interference.ht_hajek")),
+                        estimator: Some(Arc::from(
+                            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                                "interference.bayesian_gaussian"
+                            } else {
+                                "interference.ht_hajek"
+                            },
+                        )),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([outcome, outcome]),
                     },
@@ -568,7 +583,7 @@ impl super::Study {
             }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                // Parametric SCM paths: closed `gcm.parametric` / `gcm.fit`, not backdoor ATE.
+                // Parametric SCM paths use a query- and inference-specific estimator identity.
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
                 self.query
                     .validate()
@@ -580,7 +595,15 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("gcm.parametric")),
-                        estimator: Some(Arc::from("gcm.fit")),
+                        estimator: Some(Arc::from(match (&self.query, &self.inference) {
+                            (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
+                                "gcm.fit.bayesian"
+                            }
+                            (CausalQuery::ChangeAttribution(_), InferenceMode::Bayesian(_)) => {
+                                "gcm.attribution.bayesian"
+                            }
+                            _ => "gcm.fit",
+                        })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([treatment, outcome]),
                     },

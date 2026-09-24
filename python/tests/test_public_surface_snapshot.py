@@ -131,6 +131,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "InterventionResponse",
         "InterventionalDistribution",
         "MediationEffect",
+        "NestedCounterfactual",
         "PathSpecificEffect",
         "PointDerivative",
         "PulseEffect",

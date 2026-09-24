@@ -538,6 +538,15 @@ impl super::Study {
         diagnostics: Vec<Diagnostic>,
         identify_cached: bool,
     ) -> StudyResult {
+        let estimator_id = match (&query, &self.inference) {
+            (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
+                EstimatorId::GcmFitBayesian
+            }
+            (CausalQuery::ChangeAttribution(_), InferenceMode::Bayesian(_)) => {
+                EstimatorId::GcmAttributionBayesian
+            }
+            _ => EstimatorId::GcmFit,
+        };
         let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
         self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -545,7 +554,7 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id: IdentifierId::GcmParametric,
-            estimator_id: EstimatorId::GcmFit,
+            estimator_id,
             treatment,
             outcome,
             identify_cached,

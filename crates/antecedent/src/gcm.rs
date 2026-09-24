@@ -41,8 +41,8 @@ pub use antecedent_attribution::{
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
     CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
-    RANK_PRESERVING_ASSUMPTION, nested_counterfactual, nested_hard_counterfactual,
-    simultaneous_hard_counterfactual,
+    RANK_PRESERVING_ASSUMPTION, nested_counterfactual, nested_counterfactual_with_exo,
+    nested_hard_counterfactual, simultaneous_hard_counterfactual,
 };
 pub use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
@@ -93,6 +93,55 @@ pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGc
         .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
         .map_err(map_mechanism_fit)?;
     Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+}
+
+/// Evaluate a natural direct effect with one abducted exogenous table shared by
+/// both linear-Gaussian worlds.
+pub(crate) fn nested_direct_effect(
+    graph: Dag,
+    data: &TabularData,
+    query: &antecedent_core::NestedCounterfactualQuery,
+    ctx: &ExecutionContext,
+) -> Result<f64, CausalError> {
+    let compiled = CompiledCausalModel::compile(graph).map_err(map_model)?;
+    let (store, _) = MechanismRegistry::standard()
+        .assign_and_fit(
+            &compiled,
+            data,
+            SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+        )
+        .map_err(map_model)?;
+    let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+    let exo = engine
+        .abduct(data, AbductionMissingPolicy::Error, ctx)
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let control_outer = [Intervention::set(query.treatment, Value::f64(query.control_value()))];
+    let active_inner = [Intervention::set(query.treatment, Value::f64(query.active_value()))];
+    let control_inner = [Intervention::set(query.treatment, Value::f64(query.control_value()))];
+    let mut workspace = MechanismWorkspace::default();
+    let active = nested_counterfactual_with_exo(
+        &engine,
+        &exo,
+        &control_outer,
+        &active_inner,
+        &[query.mediator],
+        query.outcome,
+        &mut workspace,
+        ctx,
+    )
+    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let control = nested_counterfactual_with_exo(
+        &engine,
+        &exo,
+        &control_outer,
+        &control_inner,
+        &[query.mediator],
+        query.outcome,
+        &mut workspace,
+        ctx,
+    )
+    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    Ok(active - control)
 }
 
 /// Map a mechanism-fit failure, turning non-convergence into a reason-coded

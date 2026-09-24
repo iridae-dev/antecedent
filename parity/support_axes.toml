@@ -22,6 +22,7 @@ queries = [
   "InterventionalDistribution",
   "InterventionResponse",
   "MediationEffect",
+  "NestedCounterfactualEffect",
   "PathSpecificEffect",
   "PointDerivative",
   "PulseEffect",

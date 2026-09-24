@@ -148,10 +148,15 @@ name = "antecedent-design"
 version = "2.1.0"
 dependencies = [
  "antecedent-core",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-io",
  "antecedent-kernels",
  "antecedent-prob",
  "antecedent-stats",
+ "blake3",
  "criterion",
+ "serde",
  "serde_json",
  "thiserror 2.0.20",
 ]

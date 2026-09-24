@@ -31,6 +31,43 @@ impl super::Study {
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
+        if let CausalQuery::NestedCounterfactual(q) = &self.query {
+            q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            let Some(graph) = self.graph.as_dag() else {
+                return Err(CausalError::Unsupported {
+                    message: "cross_world_not_identified: natural direct effect requires the licensed three-node DAG",
+                });
+            };
+            let expected = [
+                (q.treatment.raw(), q.mediator.raw()),
+                (q.treatment.raw(), q.outcome.raw()),
+                (q.mediator.raw(), q.outcome.raw()),
+            ];
+            let mut observed: Vec<_> =
+                graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
+            observed.sort_unstable();
+            let mut expected = expected.to_vec();
+            expected.sort_unstable();
+            if graph.node_count() != 3 || observed != expected {
+                return Err(CausalError::Unsupported {
+                    message: "cross_world_not_identified: query requires exactly X -> M, X -> Y, M -> Y with no other nodes or edges",
+                });
+            }
+            if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) {
+                return Err(CausalError::Unsupported {
+                    message: "cross_world_not_identified: nested effect requires tabular data and the fixed DAG",
+                });
+            }
+            if self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
+                || self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
+                || matches!(self.inference, InferenceMode::Bayesian(_))
+                || self.bootstrap_replicates != 0
+            {
+                return Err(CausalError::Unsupported {
+                    message: "cross_world_not_identified: only the point-only linear Gaussian mediation route is licensed for this query",
+                });
+            }
+        }
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && (!matches!(self.data, DataInput::Tabular(_))
                 || class != GraphClass::Dag
@@ -772,11 +809,41 @@ impl super::Study {
                 }
             }
             AnalysisRoute::StaticMediation => {
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
                 let graph = self.require_execute_dag(
                     "static Mediation execute requires a supplied static DAG",
                 )?;
-                self.execute_static_mediation_total(data, graph, q, physical, ctx)
+                match &self.query {
+                    CausalQuery::Mediation(q) => {
+                        self.execute_static_mediation_total(data, graph, q, physical, ctx)
+                    }
+                    CausalQuery::NestedCounterfactual(q) => {
+                        let mediation = q.as_mediation_query();
+                        let mut result = self.execute_static_mediation_total(
+                            data, graph, &mediation, physical, ctx,
+                        )?;
+                        let effect = nested_direct_effect(graph.clone(), data, q, ctx)?;
+                        result.estimate.ate = effect;
+                        result.estimate.se_analytic = f64::NAN;
+                        result.estimate.se_bootstrap = None;
+                        result.interval = None;
+                        if let Some(components) = &mut result.mediation {
+                            components.direct = Some(effect);
+                            if let (Some(total), Some(direct)) =
+                                (components.total, components.direct)
+                            {
+                                components.mediated = Some(total - direct);
+                            }
+                        }
+                        result.diagnostics.push(Diagnostic::new(
+                            "counterfactual.nested.shared_exogenous",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Info,
+                            "both nested treatment worlds used one abduced linear-Gaussian exogenous table".to_string(),
+                        ));
+                        Ok(result)
+                    }
+                    _ => unreachable!(),
+                }
             }
             AnalysisRoute::Counterfactual => {
                 let CausalQuery::Counterfactual(q) = &self.query else { unreachable!() };

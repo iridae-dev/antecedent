@@ -4,10 +4,10 @@
 
 use crate::{IoError, query_wire::ValueWire};
 use antecedent_core::{
-    DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceProjection, EvidenceRegime, InterventionAssignment, LicensedWeights, QueryError,
-    RegimeBinding, RegimeId, RegimeKind, SamplingDesign, TargetSampling, VariableCoordinate,
-    VariableDomain, VariableId,
+    DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta,
+    EvidenceKind, EvidenceProjection, EvidenceRegime, InterventionAssignment, LicensedWeights,
+    QueryError, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, TargetSampling,
+    VariableCoordinate, VariableDomain, VariableId,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -23,6 +23,74 @@ pub struct EvidenceCatalogWire {
     pub bindings: Vec<RegimeBindingWire>,
     /// Target sampling contract.
     pub target_sampling: Option<String>,
+}
+
+/// Portable proposed evidence addition. Decoding requires its named base catalog.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceCatalogDeltaWire {
+    /// Proposed study regimes; no dataset binding or available result is implied.
+    pub proposed_regimes: Vec<EvidenceRegimeWire>,
+}
+
+impl EvidenceCatalogDeltaWire {
+    /// Encode a validated hypothetical addition.
+    #[must_use]
+    pub fn from_delta(delta: &EvidenceCatalogDelta) -> Self {
+        let catalog = EvidenceCatalog::try_new([], Arc::clone(&delta.proposed_regimes), [], None)
+            .expect("validated delta regimes must form a catalog");
+        Self { proposed_regimes: EvidenceCatalogWire::from_catalog(&catalog).regimes }
+    }
+
+    /// Decode and validate against the base catalog without changing it.
+    ///
+    /// # Errors
+    /// Malformed regimes, duplicate ids, or a purportedly available study.
+    pub fn to_delta(&self, base: &EvidenceCatalog) -> Result<EvidenceCatalogDelta, IoError> {
+        let wire = EvidenceCatalogWire {
+            environments: Vec::new(),
+            regimes: self.proposed_regimes.clone(),
+            bindings: Vec::new(),
+            target_sampling: None,
+        };
+        let parsed = wire.to_catalog()?;
+        EvidenceCatalogDelta::try_new(base, parsed.regimes)
+            .map_err(|error| IoError::Convert(error.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod delta_tests {
+    use super::*;
+
+    #[test]
+    fn hypothetical_delta_roundtrips_without_promoting_the_base() {
+        let base = EvidenceCatalog::empty();
+        let regime = EvidenceRegime::try_new(
+            RegimeId::from_raw(5),
+            RegimeKind::Experimental,
+            EvidenceKind::Proposed,
+            [VariableId::from_raw(0)],
+            [],
+            [VariableId::from_raw(1)],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let delta = EvidenceCatalogDelta::try_new(&base, [regime]).unwrap();
+        let wire = EvidenceCatalogDeltaWire::from_delta(&delta);
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let parsed: EvidenceCatalogDeltaWire = serde_json::from_slice(&bytes).unwrap();
+        let restored = parsed.to_delta(&base).unwrap();
+        assert_eq!(restored, delta);
+        assert!(base.regimes.is_empty());
+        assert!(
+            restored
+                .preview_catalog(&base)
+                .unwrap()
+                .has_available_experiment("source", &[VariableId::from_raw(0)],)
+        );
+    }
 }
 
 /// Population coordinates.

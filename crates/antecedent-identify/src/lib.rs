@@ -47,11 +47,15 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
-    BoundTransportFunctional, CatalogTransportResult, CheckedTransportDerivation,
-    ClassicalTransportDerivation, ClassicalTransportQuery, ClassicalTransportResult, MetaSource,
-    MetaTransportQuery, SidLimits, identify_catalog_transport, identify_classical_transport,
-    identify_meta_catalog, identify_meta_transport, verify_classical_transport,
-    verify_meta_s_hedge, verify_meta_transport,
+    BoundTransportFunctional, BoundZTransportFunctional, CatalogTransportResult,
+    CheckedTransportDerivation, ClassicalTransportDerivation, ClassicalTransportQuery,
+    ClassicalTransportResult, MetaSource, MetaTransportQuery, SidLimits,
+    Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError,
+    ZTransportDerivation, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+    identify_catalog_transport, identify_classical_transport, identify_meta_catalog,
+    identify_meta_transport, identify_z_transport_surrogate, validate_z_experiment_family,
+    validate_z_transport_query, verify_classical_transport, verify_meta_s_hedge,
+    verify_meta_transport, verify_z_transport_derivation,
 };
 mod transport_lower;
 

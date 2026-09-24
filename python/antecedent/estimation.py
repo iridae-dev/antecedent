@@ -72,6 +72,7 @@ from .query import (
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
+    NestedCounterfactual,
     PathSpecificEffect,
     PointDerivative,
     PulseEffect,
@@ -1371,6 +1372,7 @@ _PreparedQuery = (
     | PulseEffect
     | SustainedEffect
     | MediationEffect
+    | NestedCounterfactual
     | Counterfactual
     | PointDerivative
     | Elasticity
@@ -1694,7 +1696,7 @@ class _PrepareRoute:
             )
             return native, "average"
         edges = _static_edges(self.graph)
-        if isinstance(query, (MediationEffect, Counterfactual)):
+        if isinstance(query, (MediationEffect, NestedCounterfactual, Counterfactual)):
             return self._static_kind(edges)
         if isinstance(query, PathSpecificEffect):
             self._refuse_estimator_config("PathSpecificEffect")
@@ -2156,9 +2158,15 @@ class _PrepareRoute:
         query = self.query
         self._refuse_estimator_config(f"{type(query).__name__}")
         expected_id = (
-            "path_specific.natural" if isinstance(query, MediationEffect) else "gcm.parametric"
+            "path_specific.natural"
+            if isinstance(query, (MediationEffect, NestedCounterfactual))
+            else "gcm.parametric"
         )
-        expected_est = "mediation.linear" if isinstance(query, MediationEffect) else "gcm.fit"
+        expected_est = (
+            "mediation.linear"
+            if isinstance(query, (MediationEffect, NestedCounterfactual))
+            else "gcm.fit"
+        )
         if self.identifier not in (None, expected_id) or self.estimator not in (None, expected_est):
             raise CausalUnsupportedError(f"{query.kind} requires {expected_id} and {expected_est}")
         if isinstance(query, Counterfactual) and self._explicit_refute():
@@ -2169,6 +2177,11 @@ class _PrepareRoute:
             )
         if isinstance(query, Counterfactual) and self.bootstrap:
             raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
+        if isinstance(query, NestedCounterfactual) and self.bootstrap:
+            raise CausalUnsupportedError(
+                "NestedCounterfactualEffect is point-only until its interval route is calibrated",
+                reason_code="cell_not_licensed",
+            )
         native = _NativePreparedAnalysis.prepare_static_kind(
             self.names,
             self.columns,
@@ -2176,7 +2189,13 @@ class _PrepareRoute:
             query.kind,
             query.treatment,
             query.outcome,
-            mediators=list(query.mediators) if isinstance(query, MediationEffect) else [],
+            mediators=(
+                [query.mediator]
+                if isinstance(query, NestedCounterfactual)
+                else list(query.mediators)
+                if isinstance(query, MediationEffect)
+                else []
+            ),
             contrast=query.contrast if isinstance(query, MediationEffect) else "mediated",
             control_level=query.control_level,
             active_level=query.active_level,

@@ -90,6 +90,7 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
             AnalysisRoute::TemporalMediation
         }
         (DataModality::Tabular, CausalQuery::Mediation(_)) => AnalysisRoute::StaticMediation,
+        (DataModality::Tabular, CausalQuery::NestedCounterfactual(_)) => AnalysisRoute::StaticMediation,
         (DataModality::Tabular, CausalQuery::Counterfactual(_)) => AnalysisRoute::Counterfactual,
         (DataModality::Tabular, CausalQuery::AnomalyAttribution(_)) => AnalysisRoute::Anomaly,
         (DataModality::Tabular, CausalQuery::ChangeAttribution(_)) => {

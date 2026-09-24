@@ -47,7 +47,7 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Temporal contrast queries require a temporal graph class.",
     },
     NaRule {
-        queries: Some(&["AnomalyAttribution", "AverageDerivative", "AverageEffect", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseJacobian", "SemiElasticity"]),
+        queries: Some(&["AnomalyAttribution", "AverageDerivative", "AverageEffect", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "NestedCounterfactualEffect", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseJacobian", "SemiElasticity"]),
         graph_classes: Some(&["TemporalDag", "TemporalCpdag", "TemporalPag"]),
         structures: None,
         inferences: None,
@@ -103,7 +103,7 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Derivative-native validation is not implemented; ATE refuters do not apply.",
     },
     NaRule {
-        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "InterventionResponse", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
+        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "InterventionResponse", "MediationEffect", "NestedCounterfactualEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
         graph_classes: Some(&["Unknown"]),
         structures: None,
         inferences: None,
@@ -111,7 +111,7 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Unknown-tier cells license the two-scenario AverageEffect envelope only.",
     },
     NaRule {
-        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
+        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "NestedCounterfactualEffect", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
         graph_classes: Some(&["CoDetermined"]),
         structures: None,
         inferences: None,
@@ -370,6 +370,38 @@ pub static CLOSED_RULES: &[NaRule] = &[
         reason: "Graph-posterior mediation mixtures are not staged; the licensed MediationEffect cells are Frequentist or Bayesian explicit or accepted Dag.",
     },
     NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Admg", "Cpdag", "Pag"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "NestedCounterfactualEffect requires the supplied fixed static Dag.",
+    },
+    NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["accepted", "graph_posterior"]),
+        inferences: None,
+        validations: None,
+        reason: "NestedCounterfactualEffect requires an explicitly supplied Dag; accepted and graph-posterior structures are not licensed.",
+    },
+    NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["explicit"]),
+        inferences: Some(&["Bayesian"]),
+        validations: None,
+        reason: "NestedCounterfactualEffect is licensed only for the compatible Frequentist linear-Gaussian SCM; Bayesian SCM inference is not licensed.",
+    },
+    NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["explicit"]),
+        inferences: Some(&["Frequentist"]),
+        validations: Some(&["cheap", "full"]),
+        reason: "NestedCounterfactualEffect has no compatible cheap/full cross-world refuter suite.",
+    },
+    NaRule {
         queries: Some(&["Counterfactual"]),
         graph_classes: Some(&["Dag"]),
         structures: Some(&["graph_posterior"]),
@@ -400,6 +432,15 @@ pub static ALLOWED_RULES: &[AllowedRule] = &[
 ];
 
 pub static LICENSED: &[LicensedCell] = &[
+    LicensedCell {
+        query: "NestedCounterfactualEffect",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+        route_estimator: Some("mediation.linear"),
+        estimators: &["mediation.linear"],
+    },
     LicensedCell {
         query: "ResponseCurve",
         graph_class: "Dag",

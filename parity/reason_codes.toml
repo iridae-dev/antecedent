@@ -7,10 +7,10 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-max_uses = 4
+max_uses = 5
 # Eligibility: a licensed cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
-queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]
+queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]
 
 [[code]]
 id = "boundary_record"
@@ -246,7 +246,7 @@ meaning = "A statistical provider required by a certified transport factor is ab
 id = "transport_unsupported_evaluator"
 applies_to = ["runtime_refusal"]
 meaning = "The transport formula is identified but this evaluator does not run it."
-max_uses = 3
+max_uses = 4
 
 [[code]]
 id = "transport_support_failure"

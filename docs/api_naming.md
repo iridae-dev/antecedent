@@ -18,7 +18,7 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 56 names as of 2.0**.
+The root namespace (`import antecedent`) is **frozen at 57 names as of 2.1**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses

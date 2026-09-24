@@ -8,6 +8,11 @@
 # rows whose external oracles exercise them.
 
 [[route]]
+coordinate = "NestedCounterfactualEffect:Dag:explicit:Frequentist:none"
+identifier = "path_specific.natural"
+estimator = "mediation.linear"
+
+[[route]]
 coordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:none"
 identifier = "response.backdoor"
 estimator = "response.kennedy_dr"
@@ -731,6 +736,11 @@ estimator = "bayesian.gcomp"
 coordinate = "AverageEffect:Cpdag:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "InterferenceQuery:Dag:explicit:Bayesian:none"
+identifier = "interference.design"
+estimator = "interference.bayesian_gaussian"
 
 [[route]]
 coordinate = "AverageEffect:Cpdag:explicit:Frequentist:cheap"
@@ -2216,12 +2226,6 @@ estimator = "transport.trial_bayesian_bootstrap"
 coordinate = "InterferenceQuery:Dag:explicit:Frequentist:none"
 identifier = "interference.design"
 estimator = "interference.ht_hajek"
-
-[[route]]
-coordinate = "InterferenceQuery:Dag:explicit:Bayesian:none"
-identifier = "interference.design"
-estimator = "interference.bayesian_gaussian"
-
 
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:graph_posterior:Frequentist:none"

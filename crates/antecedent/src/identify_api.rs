@@ -330,6 +330,7 @@ fn identify_with_source(
 fn static_identify_query(query: &CausalQuery) -> CausalQuery {
     match query {
         CausalQuery::ConditionalEffect(q) => CausalQuery::AverageEffect(q.inner.clone()),
+        CausalQuery::NestedCounterfactual(q) => CausalQuery::Mediation(q.as_mediation_query()),
         other => other.clone(),
     }
 }
@@ -397,6 +398,7 @@ fn dag_default_strategy(query: &CausalQuery) -> IdentifierId {
         CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_) => {
             IdentifierId::PathSpecificNatural
         }
+        CausalQuery::NestedCounterfactual(_) => IdentifierId::PathSpecificNatural,
         CausalQuery::Distribution(_) => IdentifierId::GeneralId,
         _ => default_strategy(GraphClass::Dag),
     }

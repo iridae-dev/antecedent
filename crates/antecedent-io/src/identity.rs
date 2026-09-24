@@ -160,6 +160,22 @@ pub fn executed_functional_labels(query: &CausalQueryWire) -> Vec<(String, Strin
             functional: None,
             temporal: horizons_label(horizons),
         }),
+        CausalQueryWire::NestedCounterfactual {
+            treatment,
+            mediator,
+            outcome,
+            control_bits,
+            active_bits,
+        } => vec![
+            ("query_kind".into(), "nested_counterfactual".into()),
+            ("estimand".into(), "natural_direct_shared_exogenous".into()),
+            ("treatment".into(), treatment.to_string()),
+            ("mediator".into(), mediator.to_string()),
+            ("outcome".into(), outcome.to_string()),
+            ("control".into(), f64::from_bits(*control_bits).to_string()),
+            ("active".into(), f64::from_bits(*active_bits).to_string()),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
         CausalQueryWire::PathSpecific(path) => contrast_labels(ContrastLabels {
             kind: "path_specific",
             treatment: path.treatment,
@@ -2431,6 +2447,31 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("set:0=1"));
         assert_eq!(labels.get("population").map(String::as_str), Some("all_observed"));
         assert_eq!(labels.get("temporal_coordinates").map(String::as_str), Some("none"));
+    }
+
+    #[test]
+    fn nested_counterfactual_has_distinct_functional_identity() {
+        let query = CausalQuery::NestedCounterfactual(
+            antecedent_core::NestedCounterfactualQuery::with_levels(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                VariableId::from_raw(2),
+                0.0,
+                1.0,
+            )
+            .unwrap(),
+        );
+        let wire = causal_query_to_wire(&query).unwrap();
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&wire).into_iter().collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("nested_counterfactual"));
+        assert_eq!(
+            labels.get("estimand").map(String::as_str),
+            Some("natural_direct_shared_exogenous")
+        );
+        assert_eq!(labels.get("mediator").map(String::as_str), Some("1"));
+        assert_eq!(labels.get("control").map(String::as_str), Some("0"));
+        assert_eq!(labels.get("active").map(String::as_str), Some("1"));
     }
 
     fn static_posterior(weights: [f64; 3], graphs: [u64; 3]) -> GraphPosterior {

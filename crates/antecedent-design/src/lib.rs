@@ -27,6 +27,7 @@ pub mod objective;
 pub mod preposterior;
 pub mod ranker;
 pub mod result;
+pub mod transport_planner;
 
 pub use candidate::{
     CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
@@ -46,3 +47,8 @@ pub use ranker::{
     ModelLoglikDraws,
 };
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+pub use transport_planner::{
+    TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
+    TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,
+    plan_transport_evidence,
+};

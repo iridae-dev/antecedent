@@ -2,7 +2,7 @@
 
 > Install from PyPI: `python -m pip install antecedent`. `calibrated` still requires a coverage record that attests the installed build.
 
-Antecedent exposes the same causal contract as the Rust facade. The root namespace contains 56 names; see [the naming dictionary](../docs/api_naming.md). Start with a query and graph, identify it, estimate on data, inspect the claim, and export or refresh the study when appropriate.
+Antecedent exposes the same causal contract as the Rust facade. The root namespace contains 57 names; see [the naming dictionary](../docs/api_naming.md). Start with a query and graph, identify it, estimate on data, inspect the claim, and export or refresh the study when appropriate.
 
 ```python
 import antecedent as ant

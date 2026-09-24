@@ -642,6 +642,9 @@ fn refuse_estimator_inference_mismatch(
             EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
             EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
             EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
+            EstimatorId::TransportTrialBayesianBootstrap => {
+                bayesian!("transport.trial_bayesian_bootstrap")
+            }
             EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
             EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
             EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
@@ -678,9 +681,6 @@ fn refuse_estimator_inference_mismatch(
                 }
                 EstimatorId::CellAipw => frequentist!("cell.aipw"),
                 EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
-                EstimatorId::TransportTrialBayesianBootstrap => {
-                    bayesian!("transport.trial_bayesian_bootstrap")
-                }
                 EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
                 _ => Ok(()),
             }
@@ -693,7 +693,7 @@ fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &InferenceMode) -
         CausalQuery::Response(q) => {
             q.is_temporal() && matches!(inference, InferenceMode::Frequentist)
         }
-        CausalQuery::Counterfactual(_) => false,
+        CausalQuery::Counterfactual(_) | CausalQuery::NestedCounterfactual(_) => false,
         _ => true,
     }
 }

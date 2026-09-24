@@ -5,9 +5,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{EnvironmentId, VariableId};
+use serde::{Deserialize, Serialize};
 
 /// Cost / resource load of a candidate (library does not own currency units).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DesignCost {
     /// Scalar cost (caller-defined units).
     pub amount: f64,
