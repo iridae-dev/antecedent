@@ -6,7 +6,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::{BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, Study};
+use antecedent::{
+    BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
+};
 use antecedent_core::{ExecutionContext, IdentificationStatus, SlotAvailability, TransformIntent};
 use antecedent_graph::{Admg, DenseNodeId};
 
@@ -51,14 +53,15 @@ fn checked_adjustment_executes_after_builder_discard_and_refresh() {
 fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     let ctx = ExecutionContext::for_tests(11);
     let (data, dag, query) = confounded_scm(512, 73);
-    let builder = Study::tabular(data.clone())
+    let aipw_builder = Study::tabular(data.clone())
         .graph(dag)
         .query(query)
         .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
         .bootstrap_replicates(0);
-    let study = builder.clone().build().unwrap();
+    let study = aipw_builder.clone().build().unwrap();
     let mut prepared = study.prepare(&ctx).unwrap();
-    drop(builder);
+    drop(aipw_builder);
     drop(study);
 
     let lowering = prepared.checked_aipw_ate().expect("checked AIPW lowering retained");
@@ -74,6 +77,28 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
     assert!(consumed.acceptance.accepts_as_verified_program());
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
+
+    let (data, dag, query) = confounded_scm(512, 73);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(8)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    assert_eq!(prepared.checked_aipw_ate().unwrap().lowering().bootstrap_replicates, 8);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.estimate.se_bootstrap.is_some());
+    let bytes = prepared.encode_contracted_result(&result, "checked-aipw-bootstrap", &ctx).unwrap();
+    assert!(
+        antecedent_io::consume_analysis_result(&bytes)
+            .unwrap()
+            .acceptance
+            .accepts_as_verified_program()
+    );
 }
 
 /// Estimators that never run under the named inference mode on a static
