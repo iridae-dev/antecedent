@@ -4697,6 +4697,12 @@ mod checked_static_operation_tests {
         let second = prepared.estimate(&data, &context).unwrap();
         assert!((second.effect() - first.effect()).abs() < 1e-10);
         assert!(second.estimate.se_bootstrap.is_none());
+
+        prepared.analysis.estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
+            antecedent_estimate::LinearAdjustmentAte::new(),
+        )));
+        let third = prepared.estimate(&data, &context).unwrap();
+        assert!((third.effect() - first.effect()).abs() < 1e-10);
     }
 
     #[test]
@@ -4890,6 +4896,7 @@ mod checked_iv_prepared_tests {
     use antecedent_estimate::{AnalyticSeKind, TwoStageLeastSquares, WaldIv};
     use antecedent_graph::Dag;
 
+    use crate::estimator_spec::EstimatorSpec;
     use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
 
     use super::{CheckedIvOperation, PreparedExecution};
@@ -4995,6 +5002,9 @@ mod checked_iv_prepared_tests {
             let result = prepared.estimate(&data(0.0), &context).unwrap();
             assert!((result.estimate.ate - 2.0).abs() < 0.15, "estimate={}", result.estimate.ate);
             assert_eq!(result.estimate.se_kind, Some(AnalyticSeKind::Hc1));
+            prepared.study_mut().estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(
+                Box::new(antecedent_estimate::LinearAdjustmentAte::new()),
+            ));
             let refreshed = prepared.refresh(data(0.4), &context).unwrap();
             assert!(
                 (refreshed.estimate.ate - 2.0).abs() < 0.15,
@@ -5153,6 +5163,7 @@ mod prepared_frontdoor_tests {
     use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::prepared::PreparedExecution;
+    use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::{EstimatorId, IdentifierId};
 
     fn data(outcome_shift: f64) -> TabularData {
@@ -5246,6 +5257,10 @@ mod prepared_frontdoor_tests {
         let first_consumed = antecedent_io::consume_analysis_result(&first_bytes).unwrap();
         assert!(first_consumed.acceptance.accepts_as_verified_program());
         assert_eq!(first_consumed.body.estimate, Some(first.effect()));
+
+        prepared.study_mut().estimator_spec = Some(EstimatorSpec::LinearAdjustmentAte(Box::new(
+            antecedent_estimate::LinearAdjustmentAte::new(),
+        )));
 
         let refreshed = prepared.refresh(data(0.35), &context).unwrap();
         assert!((refreshed.estimate.ate - 1.6).abs() < 0.12, "estimate={}", refreshed.estimate.ate);

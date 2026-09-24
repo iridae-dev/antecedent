@@ -109,11 +109,18 @@ impl super::Study {
             });
         }
         let mut estimate_ws = StaticEstimateWorkspaces::default();
-        // A caller-configured estimator wins; otherwise select by id and let the
-        // study fill bootstrap/overlap defaults. The builder refuses the ambiguous
-        // case (both set) at `build()` time, so there is nothing to reconcile here.
-        let estimator_spec =
-            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
+        // A prepared checked route has already selected its estimator and bound
+        // its configuration. Do not let the copied Study select a competing
+        // fitter while executing that retained operation.
+        let estimator_spec = if prepared_linear.is_some()
+            || prepared_aipw.is_some()
+            || prepared_frontdoor.is_some()
+            || prepared_iv.is_some()
+        {
+            EstimatorSpec::Default(estimator_id)
+        } else {
+            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id))
+        };
         // Prepare against the original semantic variable IDs. Projection remaps tabular
         // columns, while the identified expression still belongs to the original arena.
         let checked_linear = if matches!(
