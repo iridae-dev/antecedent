@@ -151,6 +151,40 @@ pub struct CheckedAipwRowsWire {
     pub data_snapshot: [u8; 32],
 }
 
+/// Semantic roles, procedure, weak-instrument policy, and complete-case scope
+/// retained by a checked prepared IV operation.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckedIvLoweringWire {
+    /// Lowering payload format.
+    pub format: u16,
+    /// Selected causal Wald-ratio functional expression id.
+    pub functional: u32,
+    /// Endogenous treatment variable id.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Single instrument variable id.
+    pub instrument: u32,
+    /// Exogenous adjustment variable ids in selected-estimand order.
+    pub adjustment: Vec<u32>,
+    /// Queried active treatment value bits.
+    pub active_bits: u64,
+    /// Queried control treatment value bits.
+    pub control_bits: u64,
+    /// Instrument's active arm value bits.
+    pub instrument_active_bits: u64,
+    /// Instrument's control arm value bits.
+    pub instrument_control_bits: u64,
+    /// `wald` or `two_stage_least_squares`.
+    pub procedure: String,
+    /// Analytic standard-error method selected by the prepared operation.
+    pub se_kind: String,
+    /// Weak-instrument confidence-set route, including an explicit withheld state.
+    pub weak_instrument_uncertainty: String,
+    /// Number of complete-case observations in the prepared design.
+    pub complete_case_rows: u64,
+}
+
 /// Hash a checked AIPW row binding for inclusion in contract identities.
 ///
 /// # Errors
@@ -651,14 +685,23 @@ fn producer_encoding_unresolved(
     contract: &AnalysisResultContractWire,
     mut unresolved: Vec<Arc<str>>,
 ) -> Vec<Arc<str>> {
-    if contract.estimator.as_deref() != Some("aipw") || contract.program.is_none() {
-        return unresolved;
+    if contract.estimator.as_deref() == Some("aipw") && contract.program.is_some() {
+        if contract.program.as_ref().is_some_and(|program| program.checked_aipw_lowering.is_none())
+        {
+            unresolved.retain(|key| key.as_ref() != "program.checked_aipw_lowering");
+        }
+        if contract.checked_aipw_rows.is_none() && contract.identities.checked_aipw_rows.is_none() {
+            unresolved.retain(|key| key.as_ref() != "checked_aipw.row_binding");
+        }
     }
-    if contract.program.as_ref().is_some_and(|program| program.checked_aipw_lowering.is_none()) {
-        unresolved.retain(|key| key.as_ref() != "program.checked_aipw_lowering");
-    }
-    if contract.checked_aipw_rows.is_none() && contract.identities.checked_aipw_rows.is_none() {
-        unresolved.retain(|key| key.as_ref() != "checked_aipw.row_binding");
+    let is_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        || contract.program.as_ref().is_some_and(|program| {
+            matches!(program.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        });
+    if is_iv
+        && contract.program.as_ref().is_some_and(|program| program.checked_iv_lowering.is_none())
+    {
+        unresolved.retain(|key| key.as_ref() != "program.checked_iv_lowering");
     }
     unresolved
 }
@@ -825,6 +868,19 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
             unresolved.push(Arc::from("program.frontdoor_binding"));
         }
     }
+    let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
+    let is_checked_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        || contract.program.as_ref().is_some_and(|item| {
+            matches!(item.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        });
+    if is_checked_iv && checked_iv.is_none() {
+        unresolved.push(Arc::from("program.checked_iv_lowering"));
+    }
+    if let Some(iv) = checked_iv {
+        if !verify_checked_iv(contract, iv) {
+            unresolved.push(Arc::from("program.checked_iv_binding"));
+        }
+    }
     verify_checked_aipw(contract, &mut unresolved);
     require_payload_digest(
         &mut unresolved,
@@ -891,6 +947,94 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         _ => unresolved.push(Arc::from("contract.seal")),
     }
     unresolved
+}
+
+fn verify_checked_iv(
+    contract: &AnalysisResultContractWire,
+    lowering: &crate::CheckedIvLoweringWire,
+) -> bool {
+    let (Some(product), Some(program), Some(snapshot)) = (
+        contract.identification_product.as_ref(),
+        contract.program.as_ref(),
+        contract.data_snapshot.as_ref(),
+    ) else {
+        return false;
+    };
+    let Some(_estimand) = product.estimands.iter().find(|estimand| {
+        estimand.functional == lowering.functional
+            && estimand.method == "iv"
+            && estimand.instruments == [lowering.instrument]
+            && estimand.adjustment_set == lowering.adjustment
+    }) else {
+        return false;
+    };
+    let (query_treatment, query_outcome, active, control, mean_outcome) =
+        match &contract.target.query {
+            crate::CausalQueryWire::AverageEffect {
+                treatment,
+                outcome,
+                active,
+                control,
+                outcome_functional,
+                ..
+            } => (
+                *treatment,
+                *outcome,
+                active,
+                control,
+                matches!(outcome_functional, crate::query_wire::OutcomeFunctionalWire::Mean),
+            ),
+            _ => return false,
+        };
+    let expected_procedure = match contract.estimator.as_deref() {
+        Some("iv.wald") => "wald",
+        Some("iv.2sls") => "two_stage_least_squares",
+        _ => return false,
+    };
+    let expected_weak_uncertainty = match lowering.se_kind.as_str() {
+        "homoskedastic" => "anderson_rubin_if_weak",
+        "hc0" | "hc1" | "hc2" | "hc3" | "cluster" | "multiway" | "newey_west"
+        | "panel_cluster_hac" => "withheld_non_homoskedastic",
+        _ => return false,
+    };
+    let mut arena = match crate::expr_arena_from_wire(&product.arena) {
+        Ok(arena) => arena,
+        Err(_) => return false,
+    };
+    let Ok(expected_functional) = arena.iv_wald(
+        antecedent_core::VariableId::from_raw(lowering.treatment),
+        antecedent_core::VariableId::from_raw(lowering.outcome),
+        &[antecedent_core::VariableId::from_raw(lowering.instrument)],
+        &antecedent_core::Value::Float64(f64::from_bits(lowering.active_bits)),
+        &antecedent_core::Value::Float64(f64::from_bits(lowering.control_bits)),
+    ) else {
+        return false;
+    };
+    let expected_arena = crate::expr_arena_to_wire(&arena).ok();
+    lowering.format == 1
+        && lowering.procedure == expected_procedure
+        && lowering.treatment == query_treatment
+        && lowering.outcome == query_outcome
+        && intervention_bits(active, query_treatment) == Some(lowering.active_bits)
+        && intervention_bits(control, query_treatment) == Some(lowering.control_bits)
+        && mean_outcome
+        && lowering.instrument_active_bits == 1.0_f64.to_bits()
+        && lowering.instrument_control_bits == 0.0_f64.to_bits()
+        && lowering.complete_case_rows > 0
+        && lowering.complete_case_rows <= snapshot.row_count
+        && program.commitments.resolved_estimator.as_deref()
+            == Some(expected_procedure_id(expected_procedure))
+        && program.commitments.se_kind.as_deref() == Some(lowering.se_kind.as_str())
+        && lowering.weak_instrument_uncertainty == expected_weak_uncertainty
+        && expected_functional.raw() == lowering.functional
+        && expected_arena.as_ref() == Some(&product.arena)
+}
+
+fn expected_procedure_id(procedure: &str) -> &'static str {
+    match procedure {
+        "wald" => "iv.wald",
+        _ => "iv.2sls",
+    }
 }
 
 fn verify_frontdoor_lowering(
@@ -2112,6 +2256,7 @@ mod tests {
             functional_program: None,
             checked_aipw_lowering: None,
             checked_frontdoor_lowering: None,
+            checked_iv_lowering: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {
@@ -2606,6 +2751,32 @@ mod tests {
                 .iter()
                 .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
         );
+    }
+
+    #[test]
+    fn legacy_iv_contract_is_readable_with_precise_checked_lowering_refusal() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("iv.wald".into());
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = Some("iv.wald".into());
+        program.commitments.resolved_estimator = Some("iv.wald".into());
+        contract.claim = None;
+        contract.execution = None;
+        contract.identities.execution = None;
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+
+        let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "program.checked_iv_lowering" })
+        );
+        assert!(!consumed.acceptance.accepts_as_verified_program());
     }
 
     #[test]

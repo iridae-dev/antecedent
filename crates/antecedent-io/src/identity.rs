@@ -1464,6 +1464,10 @@ pub struct ProgramIdentityWire {
     /// Older artifacts omit it and cannot be independently verified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_frontdoor_lowering: Option<CheckedFrontDoorLoweringWire>,
+    /// Checked semantic lowering for prepared IV Wald and single-instrument 2SLS.
+    /// Older artifacts omit it and cannot be independently verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_iv_lowering: Option<crate::CheckedIvLoweringWire>,
 }
 
 /// Durable checked lowering for the linear front-door path-product route.
