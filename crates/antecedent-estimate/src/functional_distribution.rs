@@ -40,10 +40,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{
-    AssumptionSet, CausalRng, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
-    IdentificationStatus, Intervention, InterventionalDistributionQuery, StreamDomain,
-    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, Value,
-    VariableId,
+    AssumptionSet, CausalRng, CausalSchema, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    ExecutionContext, IdentificationStatus, Intervention, InterventionalDistributionQuery,
+    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
+    Value, VariableId,
 };
 use antecedent_data::{DataError, DiscreteColumn, TableView, TabularData};
 use antecedent_expr::{
@@ -348,6 +348,8 @@ impl FunctionalDistributionWorkspace {
 /// Prepared discrete functional-distribution problem.
 #[derive(Clone, Debug)]
 pub struct PreparedFunctionalDistribution {
+    /// Full semantic schema frozen with the prepared program, including types and order.
+    semantic_schema: CausalSchema,
     /// Identified estimand (`GeneralId` / IDC).
     pub estimand: IdentifiedEstimand,
     /// Expression arena owning the functional. Shared (never mutated after
@@ -386,6 +388,35 @@ impl PreparedFunctionalDistribution {
     #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
         &self.program
+    }
+
+    /// Bind a compatible snapshot to the same target, evaluator, and procedure.
+    /// The causal program is retained rather than reconstructed from the query.
+    pub fn rebind_checked(&self, data: &TabularData) -> Result<Self, EstimationError> {
+        if data.schema() != &self.semantic_schema {
+            return Err(EstimationError::data_msg(
+                "functional distribution refresh changed semantic schema",
+            ));
+        }
+        let mut vars_needed = HashSet::new();
+        vars_needed.extend(self.outcomes.iter().copied());
+        vars_needed.extend(self.interventions.iter().map(|a| a.variable));
+        vars_needed.extend(self.conditioning.iter().map(|a| a.variable));
+        vars_needed.extend(self.free_variables.iter().copied());
+        for (vars, conditioning) in &self.bootstrap_factors {
+            vars_needed.extend(vars.iter().copied());
+            vars_needed.extend(conditioning.iter().copied());
+        }
+        let (provider, columns) = build_empirical_provider(
+            data,
+            &vars_needed,
+            &self.bootstrap_factors,
+            &self.bootstrap_signatures,
+        )?;
+        let mut rebound = self.clone();
+        rebound.provider = provider;
+        rebound.bootstrap_columns = columns;
+        Ok(rebound)
     }
 }
 
@@ -563,6 +594,7 @@ impl FunctionalDistribution {
         let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
 
         Ok(PreparedFunctionalDistribution {
+            semantic_schema: data.schema().clone(),
             estimand: estimand.clone(),
             arena: Arc::new(arena.clone()),
             compiled,
