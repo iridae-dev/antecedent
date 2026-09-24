@@ -162,6 +162,15 @@ pub(crate) struct CheckedAipwOperation {
     pub(crate) preparation: antecedent_estimate::CheckedAipwPreparation,
 }
 
+/// Checked linear adjustment target with its selected fit and uncertainty
+/// procedure. `default_id` preserves the progressive point/uncertainty stages.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedLinearOperation {
+    pub(crate) fitter: antecedent_estimate::LinearAdjustmentAte,
+    pub(crate) preparation: antecedent_estimate::CheckedLinearAdjustmentAte,
+    pub(crate) default_id: bool,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum CheckedIvOperation {
     Wald {
@@ -172,6 +181,14 @@ pub(crate) enum CheckedIvOperation {
         fitter: antecedent_estimate::TwoStageLeastSquares,
         preparation: antecedent_estimate::CheckedIvPreparation,
     },
+}
+
+impl CheckedIvOperation {
+    pub(crate) fn preparation(&self) -> &antecedent_estimate::CheckedIvPreparation {
+        match self {
+            Self::Wald { preparation, .. } | Self::TwoSls { preparation, .. } => preparation,
+        }
+    }
 }
 
 impl CheckedDistributionOperation {
@@ -1601,7 +1618,7 @@ pub struct PreparedStudy<S = SampledPreparedState> {
 #[derive(Clone, Debug)]
 pub(crate) enum PreparedExecution {
     LegacyStudyDispatch,
-    CheckedLinear(antecedent_estimate::CheckedLinearAdjustmentAte),
+    CheckedLinear(CheckedLinearOperation),
     CheckedAipw(CheckedAipwOperation),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
     Distribution(CheckedDistributionOperation),
@@ -1615,6 +1632,9 @@ impl PreparedExecution {
     pub(crate) fn checked_linear(
         &self,
     ) -> Option<&antecedent_estimate::CheckedLinearAdjustmentAte> {
+        self.linear_operation().map(|operation| &operation.preparation)
+    }
+    pub(crate) fn linear_operation(&self) -> Option<&CheckedLinearOperation> {
         if let Self::CheckedLinear(value) = self { Some(value) } else { None }
     }
     pub(crate) fn checked_aipw(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
@@ -1725,6 +1745,12 @@ impl PreparedStudy {
         &self,
     ) -> Option<&antecedent_estimate::CheckedFrontDoorPreparation> {
         self.execution.frontdoor_linear().map(|operation| &operation.preparation)
+    }
+
+    /// Checked Wald or single-binary-instrument 2SLS lowering retained by this handle.
+    #[must_use]
+    pub fn checked_iv(&self) -> Option<&antecedent_estimate::CheckedIvPreparation> {
+        self.execution.iv().map(CheckedIvOperation::preparation)
     }
 
     /// Checked functional program retained for a prepared distribution query.
@@ -2263,15 +2289,17 @@ impl PreparedStudy {
         click_analysis.shared_batch_design = shared;
         let rebound_linear = self
             .execution
-            .checked_linear()
-            .map(|checked| {
-                let fitter = match &click_analysis.estimator_spec {
-                    Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
-                        (**cfg).clone()
-                    }
-                    _ => antecedent_estimate::LinearAdjustmentAte::new(),
-                };
-                fitter.rebind_checked(checked, data).map_err(CausalError::from)
+            .linear_operation()
+            .map(|operation| {
+                operation
+                    .fitter
+                    .rebind_checked(&operation.preparation, data)
+                    .map(|preparation| CheckedLinearOperation {
+                        fitter: operation.fitter.clone(),
+                        preparation,
+                        default_id: operation.default_id,
+                    })
+                    .map_err(CausalError::from)
             })
             .transpose()?;
         let rebound_aipw = self
@@ -3149,13 +3177,21 @@ impl Study {
                 && plan.logical.record.estimator.as_deref()
                     == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str()) =>
             {
-                let fitter = match &self.estimator_spec {
+                let default_id = !matches!(
+                    &self.estimator_spec,
+                    Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_))
+                );
+                let mut fitter = match &self.estimator_spec {
                     Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(cfg)) => {
                         (**cfg).clone()
                     }
                     _ => antecedent_estimate::LinearAdjustmentAte::new(),
                 };
-                Some(fitter.prepare_checked(data, &cache.identification, 0)?)
+                if default_id {
+                    fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                }
+                let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
+                Some(CheckedLinearOperation { fitter, preparation, default_id })
             }
             _ => None,
         };
@@ -4557,7 +4593,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod checked_aipw_operation_tests {
+mod checked_static_operation_tests {
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -4661,6 +4697,64 @@ mod checked_aipw_operation_tests {
         let second = prepared.estimate(&data, &context).unwrap();
         assert!((second.effect() - first.effect()).abs() < 1e-10);
         assert!(second.estimate.se_bootstrap.is_none());
+    }
+
+    #[test]
+    fn checked_linear_click_uses_retained_default_uncertainty_after_study_changes() {
+        let data = data();
+        let graph =
+            Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+        let query = AverageEffectQuery::with_levels(
+            data.schema().id_of("t").unwrap(),
+            data.schema().id_of("y").unwrap(),
+            0.0,
+            1.0,
+        );
+        let context = ExecutionContext::for_tests(24);
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(query)
+            .estimator(EstimatorId::LinearAdjustmentAte)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let mut prepared = study.prepare(&context).unwrap();
+        drop(study);
+        let PreparedExecution::CheckedLinear(operation) = &prepared.execution else {
+            panic!("expected retained checked linear operation")
+        };
+        assert!(operation.default_id);
+        assert_eq!(operation.fitter.bootstrap_replicates, 0);
+        let first = prepared.estimate(&data, &context).unwrap();
+        assert!((first.effect() - 2.0).abs() < 0.2);
+        assert!(first.estimate.se_bootstrap.is_none());
+
+        prepared.analysis.bootstrap_replicates = 9;
+        prepared.analysis.estimator_spec = Some(EstimatorSpec::Aipw(Box::new(AipwAte::new())));
+        let second = prepared.estimate(&data, &context).unwrap();
+        assert!((second.effect() - first.effect()).abs() < 1e-10);
+        assert!(second.estimate.se_bootstrap.is_none());
+
+        let graph =
+            Dag::from_named_edges(data.schema(), &[("z", "t"), ("z", "y"), ("t", "y")]).unwrap();
+        let with_bootstrap = Study::tabular(data.clone())
+            .graph(graph)
+            .query(AverageEffectQuery::with_levels(
+                data.schema().id_of("t").unwrap(),
+                data.schema().id_of("y").unwrap(),
+                0.0,
+                1.0,
+            ))
+            .estimator(EstimatorId::LinearAdjustmentAte)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(8)
+            .build()
+            .unwrap()
+            .prepare(&context)
+            .unwrap();
+        let with_bootstrap_result = with_bootstrap.estimate(&data, &context).unwrap();
+        assert!(with_bootstrap_result.estimate.se_bootstrap.is_some());
     }
 }
 
