@@ -170,6 +170,21 @@ impl FrontDoorFunctional {
         )
     }
 
+    /// Rebind a checked functional preparation to compatible data, preserving its selected
+    /// target and outcome-model procedure.
+    pub fn rebind_checked(
+        &self,
+        checked: &crate::frontdoor::CheckedFrontDoorPreparation,
+        data: &TabularData,
+    ) -> Result<crate::frontdoor::CheckedFrontDoorPreparation, EstimationError> {
+        if checked.lowering().procedure != crate::frontdoor::CheckedFrontDoorProcedure::Functional {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked front-door receipt was prepared for the linear path-product estimator",
+            });
+        }
+        checked.rebind(data)
+    }
+
     /// Fit the plug-in contrast with its influence-function SE and optional bootstrap.
     ///
     /// # Errors
