@@ -73,8 +73,8 @@ pub mod util;
 mod calibration_coverage;
 
 pub use adjustment::{
-    BlockResampling, CandidateSelectionRecord, EffectEstimate, EstimationWorkspace,
-    LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
+    BlockResampling, CandidateSelectionRecord, CheckedLinearAdjustmentAte, EffectEstimate,
+    EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
 pub mod learned_trial;
 pub use learned_trial::{
