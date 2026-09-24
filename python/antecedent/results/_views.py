@@ -285,6 +285,10 @@ class PosteriorView(ResultModel):
     n_draws: int | None
     p_below_zero: float | None
     backend: str | None
+    #: Construction used for the published q025/q975 interval. New estimator
+    #: routes must select this from their estimator identity rather than infer
+    #: that every posterior-shaped result is an ordinary coefficient posterior.
+    interval_type: str | None = None
     artifact: bytes | list[int] | None = Field(default=None, exclude=True)
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
@@ -321,6 +325,8 @@ class PosteriorView(ResultModel):
             f"n_draws={self.n_draws}",
             f"backend={self.backend!r}",
         ]
+        if self.interval_type is not None:
+            parts.append(f"interval={self.interval_type!r}")
         if self.unidentified_mass is not None and self.unidentified_mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(self.unidentified_mass)}")
         if self.subsampled_out_mass > 0:

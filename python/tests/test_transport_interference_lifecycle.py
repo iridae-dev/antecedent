@@ -415,14 +415,15 @@ def test_constructions_outside_the_licensed_cells_refuse():
     assert raised.value.reason_code == "construction_not_licensed"
 
 
-def test_unlicensed_axes_refuse_on_analyze():
-    with pytest.raises(CausalUnsupportedError):
-        ant.analyze(
-            _transport_data(200, 7),
-            graph=_transport_graph(),
-            query=_transport_query(),
-            inference=ant.Bayesian(n_draws=32),
-        )
+def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
+    bayesian = ant.analyze(
+        _transport_data(200, 7),
+        graph=_transport_graph(),
+        query=_transport_query(),
+        inference=ant.Bayesian(n_draws=32),
+    )
+    assert bayesian.evidence_status == "licensed"
+    assert bayesian.posterior is not None
     assignment, data = _interference_design()
     with pytest.raises(CausalUnsupportedError):
         ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")

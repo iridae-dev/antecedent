@@ -76,6 +76,17 @@ impl PreparedStatisticalStage {
             "mean_intervals": est.mean_intervals.as_ref().map(|rows| {
                 rows.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>()
             }),
+            "bayesian_posterior": result.bayesian_estimate().map(|posterior| serde_json::json!({
+                "estimator": posterior.estimator.as_ref(),
+                "interval_method": posterior.interval_method.as_ref(),
+                "draws_requested": posterior.draws_requested,
+                "draws_ok": posterior.draws_ok,
+                "draws_failed": posterior.draws_failed,
+                "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
+                "atom_intervals": posterior.atom_intervals.to_vec(),
+                "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
+                "calibration_status": "not_licensed",
+            })),
         });
         Ok((
             result
@@ -101,6 +112,22 @@ impl PreparedStatisticalStage {
     #[getter]
     fn outcomes(&self) -> Vec<String> {
         self.inner.query().outcomes.iter().map(|v| self.graph.names[v.as_usize()].clone()).collect()
+    }
+    #[getter]
+    fn bayesian_posterior(&self) -> Option<String> {
+        self.last.as_ref().and_then(|result| result.bayesian_estimate()).map(|posterior| {
+            serde_json::json!({
+                "estimator": posterior.estimator.as_ref(),
+                "interval_method": posterior.interval_method.as_ref(),
+                "draws_requested": posterior.draws_requested,
+                "draws_ok": posterior.draws_ok,
+                "draws_failed": posterior.draws_failed,
+                "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
+                "atom_intervals": posterior.atom_intervals.to_vec(),
+                "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
+                "calibration_status": "not_licensed",
+            }).to_string()
+        })
     }
     #[pyo3(signature=(execution=None,cancel=None))]
     fn estimate(
@@ -329,6 +356,10 @@ pub(crate) fn parse_provider(
         return match name.as_str() {
             "plugin" => Ok(EmpiricalTableEstimator::Plugin),
             "dirichlet" => Ok(EmpiricalTableEstimator::Dirichlet),
+            "empirical_support_bayesian_bootstrap" => {
+                Ok(EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap)
+            }
+            "state_space_dirichlet" => Ok(EmpiricalTableEstimator::StateSpaceDirichlet),
             _ => Err(error(format!("unknown statistical provider {name}"))),
         };
     }
@@ -338,6 +369,10 @@ pub(crate) fn parse_provider(
         wire.get_item("kind")?.ok_or_else(|| error("missing provider kind"))?.extract()?;
     match kind.as_str() {
         "empirical_table" => Ok(EmpiricalTableEstimator::Plugin),
+        "empirical_support_bayesian_bootstrap" => {
+            Ok(EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap)
+        }
+        "state_space_dirichlet" => Ok(EmpiricalTableEstimator::StateSpaceDirichlet),
         "learned_categorical" => {
             let spec = crate::estimator_config::get_learner(wire, "learner")?
                 .ok_or_else(|| error("missing categorical learner"))?;
@@ -348,7 +383,7 @@ pub(crate) fn parse_provider(
 }
 
 #[pyfunction]
-#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
+#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, posterior_draws=199, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_statistical_transport(
     py: Python<'_>,
@@ -362,6 +397,7 @@ fn prepare_statistical_transport(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
     bootstrap: u32,
+    posterior_draws: u32,
     coverage_level: f64,
     estimator: Option<&Bound<'_, PyAny>>,
     seed: u64,
@@ -410,6 +446,7 @@ fn prepare_statistical_transport(
             EmpiricalTableOptions {
                 estimator,
                 bootstrap_replicates: bootstrap,
+                posterior_draws,
                 coverage_level,
                 max_joint_cells: max_support_rows,
             },

@@ -1,0 +1,8 @@
+{
+  "n": 800,
+  "truth": 2.0,
+  "treatment_logit": "-0.1 + 0.8*x",
+  "outcome": "1.4*x^2 + 2*treatment",
+  "expected_case": "linear logistic propensity is correctly specified; linear outcome nuisance is misspecified",
+  "tolerance": 0.25
+}

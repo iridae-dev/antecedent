@@ -524,7 +524,13 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("transport.sid")),
-                        estimator: Some(Arc::from("transport.trial_ipw")),
+                        estimator: Some(Arc::from(
+                            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                                "transport.trial_bayesian_bootstrap"
+                            } else {
+                                "transport.trial_ipw"
+                            },
+                        )),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([treatment, outcome]),
                     },

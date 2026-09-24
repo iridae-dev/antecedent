@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "closed_form",
+    "description": "For two trial rows with equal selection and treatment probabilities, normalized Dirichlet(1,1) row mass U is Uniform(0,1); the transported effect draw is 8U-2."
+  },
+  "expected_mean": 2.0,
+  "expected_variance": 5.333333333333333,
+  "mean_tolerance": 0.2,
+  "variance_tolerance": 0.5
+}

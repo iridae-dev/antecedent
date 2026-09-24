@@ -19,7 +19,10 @@ pub mod adjustment;
 pub mod aipw;
 pub mod ar_kernel;
 pub mod bayesian;
+pub mod bayesian_iv;
 pub mod bayesian_mediation;
+pub mod bayesian_rd;
+pub mod bayesian_robust_ate;
 pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
@@ -111,10 +114,13 @@ pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
 pub use dr::DrLearner;
 pub use empirical_table::{
+    BayesianTransportLawDraw, BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP,
     EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN, EmpiricalTableEstimator,
-    EmpiricalTableOptions, RegimeSample, StatisticalTransportInput, assemble_point_laws,
-    assemble_statistical_laws, catalog_axes, dependence_refusal, fit_empirical_joint,
-    licensed_iid_dependence, licensed_iid_regimes,
+    EmpiricalTableOptions, RegimeSample, STATE_SPACE_DIRICHLET, StatisticalTransportInput,
+    assemble_point_laws, assemble_statistical_laws, catalog_axes, dependence_refusal,
+    draw_bayesian_transport_laws, draw_empirical_support_transport_law,
+    draw_state_space_dirichlet_transport_law, fit_empirical_joint, licensed_iid_dependence,
+    licensed_iid_regimes,
 };
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
@@ -139,7 +145,10 @@ pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
     imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
-pub use interference::{InterferenceEstimate, estimate_interference, own_treatment_level};
+pub use interference::{
+    BayesianInterferenceEstimate, InterferenceEstimate, estimate_interference,
+    estimate_interference_bayesian, own_treatment_level,
+};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
@@ -176,7 +185,8 @@ pub use serial_dependence::{
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use statistical_transport::{
-    PERCENTILE_BOOTSTRAP, StatisticalTransportEstimate, TransportUncertaintyRow,
+    BayesianStatisticalTransportEstimate, PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL,
+    StatisticalTransportEstimate, TransportUncertaintyRow, evaluate_bayesian_statistical_transport,
     evaluate_statistical_transport, percentile_interval,
 };
 pub use temporal_adjustment::{
@@ -221,7 +231,8 @@ pub use temporal_sequential_tuples::{
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
     TransportResponseGridEstimate, evaluate_exact_transport, prepare_exact_transport,
-    transport_augmented_response_grid, trial_to_target_effect, trial_to_target_ipw_se,
+    transport_augmented_response_grid, trial_to_target_bayesian_bootstrap, trial_to_target_effect,
+    trial_to_target_ipw_se,
 };
 pub use util::BootstrapSeResult;
 

@@ -122,15 +122,6 @@ def test_gaussian_fit_to_a_discrete_outcome_is_disclosed() -> None:
             ),
         ),
         (
-            "conditional",
-            lambda d: ant.analyze(
-                d,
-                graph=STATIC_DAG,
-                query=ant.ConditionalEffect("t", "y", modifier="z"),
-                inference=ant.Bayesian(likelihood="logit"),
-            ),
-        ),
-        (
             "cpdag",
             lambda d: ant.analyze(
                 d,

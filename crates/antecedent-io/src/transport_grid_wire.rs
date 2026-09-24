@@ -16,8 +16,24 @@ pub struct StatisticalOptionsWire {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub learner: Option<antecedent_estimate::LearnerSpec>,
     pub bootstrap_replicates: u32,
+    #[serde(default = "default_posterior_draws")]
+    pub posterior_draws: u32,
     pub coverage_level: f64,
     pub max_joint_cells: usize,
+}
+
+/// Posterior draw payload for Bayesian finite structural transport.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BayesianTransportPosteriorWire {
+    pub estimator: String,
+    pub interval_method: String,
+    pub draws_requested: u32,
+    pub draws_ok: u32,
+    pub draws_failed: u32,
+    pub probabilities: Vec<Vec<f64>>,
+    pub atom_intervals: Vec<(f64, f64)>,
+    pub mean_intervals: Vec<(u32, f64, f64)>,
 }
 
 impl StatisticalOptionsWire {
@@ -30,6 +46,7 @@ impl StatisticalOptionsWire {
                 _ => None,
             },
             bootstrap_replicates: options.bootstrap_replicates,
+            posterior_draws: options.posterior_draws,
             coverage_level: options.coverage_level,
             max_joint_cells: options.max_joint_cells,
         }
@@ -38,6 +55,12 @@ impl StatisticalOptionsWire {
         let estimator = match (self.estimator.as_str(), self.learner) {
             (antecedent_estimate::EMPIRICAL_TABLE_PLUGIN, None) => {
                 antecedent_estimate::EmpiricalTableEstimator::Plugin
+            }
+            (antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, None) => {
+                antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap
+            }
+            (antecedent_estimate::STATE_SPACE_DIRICHLET, None) => {
+                antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet
             }
             ("transport.learned_categorical_plugin", Some(spec)) => {
                 spec.validate().map_err(err)?;
@@ -48,10 +71,15 @@ impl StatisticalOptionsWire {
         Ok(EmpiricalTableOptions {
             estimator,
             bootstrap_replicates: self.bootstrap_replicates,
+            posterior_draws: self.posterior_draws,
             coverage_level: self.coverage_level,
             max_joint_cells: self.max_joint_cells,
         })
     }
+}
+
+fn default_posterior_draws() -> u32 {
+    199
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

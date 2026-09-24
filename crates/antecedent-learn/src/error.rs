@@ -41,6 +41,9 @@ pub enum LearnError {
     /// Statistical backend failure.
     #[error(transparent)]
     Stats(#[from] antecedent_stats::StatsError),
+    /// Probability backend failure.
+    #[error(transparent)]
+    Probability(#[from] antecedent_prob::ProbError),
     /// Kernel view construction failure.
     #[error("view error: {0}")]
     View(String),

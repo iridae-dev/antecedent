@@ -321,6 +321,12 @@ def _wrap_ate(
                 backend=sec_posterior.backend,
                 subsampled_out_mass=skipped,
             )
+        posterior_estimator_id = str(getattr(sec_estimate, "estimator_id", "") or "")
+        posterior_interval_type = (
+            "modular_bootstrap_pushforward"
+            if posterior_estimator_id == "bayesian.robust_ate"
+            else "equal_tailed_95"
+        )
         posterior = PosteriorView(
             effect_mean=sec_posterior.effect_mean,
             effect_sd=sec_posterior.effect_sd,
@@ -329,6 +335,7 @@ def _wrap_ate(
             n_draws=sec_posterior.n_draws,
             p_below_zero=sec_posterior.p_below_zero,
             backend=sec_posterior.backend,
+            interval_type=posterior_interval_type,
             artifact=sec_posterior.artifact,
             unidentified_mass=None if mass is None else float(mass),
             envelope=envelope,

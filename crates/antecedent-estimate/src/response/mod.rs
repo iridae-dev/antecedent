@@ -45,7 +45,7 @@ use crate::EstimationError;
 use crate::util::range;
 
 mod band;
-use band::simultaneous_multiplier_band;
+use band::{simultaneous_multiplier_band, simultaneous_posterior_band};
 
 /// Refuse a local-polynomial response whose design is singular at `at`.
 ///
@@ -148,7 +148,10 @@ pub struct ContinuousResponseOptions {
     pub minimum_local_ess: f64,
     /// Pointwise confidence level.
     pub confidence_level: f64,
-    /// Wild-multiplier replicates for a fixed-grid simultaneous band.
+    /// Wild-multiplier replicates for a frequentist fixed-grid simultaneous band.
+    /// For Bayesian Gaussian response, this requests a joint-posterior credible
+    /// band and is the minimum number of posterior draws; all fitted draws are
+    /// used and the result reports their actual count.
     /// `None` preserves pointwise-band behavior.
     pub simultaneous_replicates: Option<u32>,
     /// Deterministic seed for simultaneous-band multipliers.
@@ -325,7 +328,7 @@ impl ContinuousResponseEstimator {
         ))
     }
 
-    /// Bayesian Gaussian linear-additive response levels, with posterior
+    /// Bayesian generalized-linear response levels, with posterior
     /// coefficient uncertainty propagated through every intervention coordinate.
     /// This estimator is parametric; it makes no doubly robust claim.
     pub fn estimate_bayesian(
@@ -354,12 +357,9 @@ impl ContinuousResponseEstimator {
             );
         }
         self.validate(query, identification_status)?;
-        if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
-            || self.options.simultaneous_replicates.is_some()
-            || self.options.export_row_diagnostics
-        {
+        if self.options.export_row_diagnostics {
             return Err(EstimationError::unsupported(
-                "Bayesian response requires GaussianIdentity, pointwise intervals, and no frequentist row influence export",
+                "Bayesian response does not export frequentist row influence diagnostics",
             ));
         }
         let mut support_grid = None;
@@ -404,6 +404,12 @@ impl ContinuousResponseEstimator {
             .chain(joint_levels.iter().map(|(target, _, _)| *target))
             .collect();
         let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
+        let family = estimator.glm_family();
+        if stochastic && !matches!(family, antecedent_stats::GlmFamily::GaussianIdentity) {
+            return Err(EstimationError::unsupported(
+                "non-Gaussian Bayesian response does not integrate stochastic policies by their mean",
+            ));
+        }
         let n = sample.len();
         if let Some(shift) = primary_shift {
             grid[0] = sample.treatments.iter().sum::<f64>() / n as f64 + shift;
@@ -461,9 +467,48 @@ impl ContinuousResponseEstimator {
         // The draw vector each grid point's interval is the quantiles of is
         // retained on the published uncertainty (`CredibleDraws`).
         let mut retained: Vec<Vec<f64>> = Vec::with_capacity(grid.len());
+        let coefficient_columns: Vec<&[f64]> = (0..prep.design.ncols)
+            .map(|index| {
+                let column = posterior
+                    .draws
+                    .schema
+                    .quantities
+                    .iter()
+                    .position(|quantity| matches!(quantity,
+                        antecedent_prob::PosteriorQuantityKind::Coefficient { index: i, .. } if *i == index))
+                    .ok_or_else(|| EstimationError::stats_msg("Bayesian response missing coefficient draw"))?;
+                posterior.draws.column(column).map_err(EstimationError::from)
+            })
+            .collect::<Result<_, _>>()?;
         for &dose in &grid {
             weights[1] = dose;
-            let values = crate::bayesian::linear_response_draws(&posterior, &weights)?;
+            let values = if matches!(family, antecedent_stats::GlmFamily::GaussianIdentity) {
+                crate::bayesian::linear_response_draws(&posterior, &weights)?
+            } else {
+                let mut values = vec![0.0; posterior.draws.n_draws];
+                for (draw, value) in values.iter_mut().enumerate() {
+                    for row in 0..n {
+                        let mut eta = 0.0;
+                        for (column, coefficients) in coefficient_columns.iter().enumerate() {
+                            let design_value = if column == 1 {
+                                primary_shift.map_or(dose, |shift| sample.treatments[row] + shift)
+                            } else if column >= 2 && column < 1 + treatments.len() {
+                                let (level, shift) =
+                                    (joint_levels[column - 2].1, joint_levels[column - 2].2);
+                                level.unwrap_or(
+                                    sample.treatment_matrix[(column - 1) * n + row] + shift,
+                                )
+                            } else {
+                                prep.design.matrix[column * n + row]
+                            };
+                            eta += coefficients[draw] * design_value;
+                        }
+                        *value += family.mean_from_eta(eta);
+                    }
+                    *value /= n as f64;
+                }
+                values
+            };
             let (mean, lo, hi, sd) = crate::bayesian::summarize_linear_response_draws(
                 values.clone(),
                 self.options.confidence_level,
@@ -475,6 +520,15 @@ impl ContinuousResponseEstimator {
             sds.push(sd);
         }
         let draws = Some(CredibleDraws::columns(posterior.draws.n_draws, &retained));
+        if self
+            .options
+            .simultaneous_replicates
+            .is_some_and(|minimum| posterior.draws.n_draws < minimum as usize)
+        {
+            return Err(EstimationError::unsupported(
+                "Bayesian simultaneous band requires at least the requested number of posterior draws",
+            ));
+        }
         let support_points = support_grid.as_deref().unwrap_or(&grid);
         for &dose in support_points {
             let kernels: Vec<_> = sample
@@ -503,7 +557,7 @@ impl ContinuousResponseEstimator {
             };
             support.warnings.push(Diagnostic::new(
                 "response.joint_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
-                "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the Gaussian additive model and empirical covariate distribution",
+                "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the declared additive outcome model and empirical covariate distribution",
             ));
         }
         if stochastic {
@@ -517,7 +571,7 @@ impl ContinuousResponseEstimator {
         assumptions.entries.extend(posterior.assumptions.entries);
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption {
-                id: Arc::from("bayesian.response.linear_additive"), description: Arc::from("Gaussian linear-additive outcome mechanism; empirical covariate distribution held fixed; pointwise posterior credible intervals, without nuisance-distribution or simultaneous coverage claims"),
+                id: Arc::from("bayesian.response.linear_additive"), description: Arc::from(format!("{:?} additive outcome mechanism on its link scale; each posterior draw is evaluated on the outcome scale over the empirical covariate distribution; credible intervals use coherent joint draws over the requested grid, without nuisance-distribution uncertainty", family)),
             }),
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.bayesian") },
             scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
@@ -525,7 +579,11 @@ impl ContinuousResponseEstimator {
         let value = if scalar {
             ResponseValue::Scalar(means[0])
         } else {
-            ResponseValue::Surface { dimension: 1, grid: Arc::from(grid), mean: Arc::from(means) }
+            ResponseValue::Surface {
+                dimension: 1,
+                grid: Arc::from(grid),
+                mean: Arc::from(means.clone()),
+            }
         };
         let uncertainty = if scalar {
             ResponseUncertainty::Scalar {
@@ -536,6 +594,15 @@ impl ContinuousResponseEstimator {
                 interpretation: antecedent_core::IntervalInterpretation::Credible,
                 draws,
             }
+        } else if self.options.simultaneous_replicates.is_some() {
+            simultaneous_posterior_band(
+                &means,
+                &retained,
+                &lower,
+                &upper,
+                &sds,
+                self.options.confidence_level,
+            )?
         } else {
             ResponseUncertainty::PointwiseBand {
                 level: self.options.confidence_level,
@@ -3349,6 +3416,115 @@ mod tests {
             scale: DerivativeScale::Identity,
         });
         assert_retained_draws_publish(&jacobian.uncertainty, bayes.n_draws);
+    }
+
+    #[test]
+    fn bayesian_logit_response_evaluates_each_draw_on_probability_scale() {
+        let n = 240;
+        let mut treatment = Vec::with_capacity(n);
+        let mut outcome = Vec::with_capacity(n);
+        let mut covariate = Vec::with_capacity(n);
+        for row in 0..n {
+            let x = -1.0 + 2.0 * row as f64 / (n - 1) as f64;
+            let a = -0.8 + 1.6 * ((row * 53 % n) as f64 / n as f64);
+            let p =
+                antecedent_stats::GlmFamily::BinomialLogit.mean_from_eta(-0.4 + 0.8 * a + 0.7 * x);
+            let y = f64::from((row * 37 % 101) as f64 / 101.0 < p);
+            covariate.push(x);
+            treatment.push(a);
+            outcome.push(y);
+        }
+        let data = TabularData::from_f64_columns([
+            ("a", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("x", covariate.as_slice()),
+        ])
+        .unwrap();
+        let a = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let x = VariableId::from_raw(2);
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.4, 0.0, 0.4]))),
+        });
+        let bayes = crate::BayesianGComputationAte::new()
+            .with_likelihood(antecedent_prob::BayesLikelihood::BernoulliLogit)
+            .with_n_draws(80)
+            .with_seed(31);
+        let result = ContinuousResponseEstimator::new([x])
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &bayes,
+                &antecedent_core::ExecutionContext::for_tests(31),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+            &result.estimate
+        else {
+            panic!("expected response surface")
+        };
+        assert!(mean.iter().all(|value| (0.0..=1.0).contains(value)));
+        assert!(mean[0] < mean[2]);
+        assert_retained_draws_publish(&result.uncertainty, 80);
+    }
+
+    #[test]
+    fn bayesian_curve_simultaneous_band_uses_joint_posterior_draws() {
+        let (data, a, y, x) = confounded_curve(240);
+        let bayes = crate::BayesianGComputationAte::new().with_n_draws(200).with_seed(31);
+        let ctx = antecedent_core::ExecutionContext::for_tests(18);
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: y,
+            treatment: ContinuousDomain::new(a, GridSpec::Values(Arc::from([-0.5, 0.0, 0.5]))),
+        });
+        let mut pointwise = ContinuousResponseEstimator::new([x]);
+        pointwise.options.bandwidth = Some(0.4);
+        let ordinary = pointwise
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &bayes,
+                &ctx,
+            )
+            .unwrap();
+        pointwise.options.simultaneous_replicates = Some(100);
+        let joint = pointwise
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &bayes,
+                &ctx,
+            )
+            .unwrap();
+        let ResponseUncertainty::PointwiseBand { lower: p_lo, upper: p_hi, .. } =
+            ordinary.uncertainty
+        else {
+            panic!("expected pointwise credible band");
+        };
+        let ResponseUncertainty::SimultaneousBand {
+            lower: s_lo,
+            upper: s_hi,
+            replicates,
+            interpretation,
+            ..
+        } = joint.uncertainty
+        else {
+            panic!("expected simultaneous credible band");
+        };
+        assert_eq!(replicates, 200);
+        assert_eq!(interpretation, antecedent_core::IntervalInterpretation::Credible);
+        for ((&lo, &hi), (&point_lo, &point_hi)) in
+            s_lo.iter().zip(s_hi.iter()).zip(p_lo.iter().zip(p_hi.iter()))
+        {
+            assert!(lo <= point_lo && hi >= point_hi);
+        }
     }
 
     /// Minimal deterministic uniform stream (`SplitMix64`) for exchangeability checks.

@@ -25,6 +25,219 @@ pub const EMPIRICAL_TABLE_PLUGIN: &str = "transport.empirical_table_plugin";
 /// Named but unlicensed smoothing choice.
 pub const EMPIRICAL_TABLE_DIRICHLET: &str = "transport.empirical_table_dirichlet";
 
+/// Bayesian-bootstrap draw from the empirical support of a finite joint.
+pub const EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP: &str =
+    "transport.empirical_support_bayesian_bootstrap";
+/// Posterior draw from a declared full finite state space with a symmetric Dirichlet prior.
+pub const STATE_SPACE_DIRICHLET: &str = "transport.state_space_dirichlet";
+
+/// A single posterior law draw for a finite categorical joint.
+///
+/// Both providers return one joint law so all factors derived from this evidence share
+/// the same draw. The empirical-support provider assigns zero mass to unobserved cells;
+/// the declared-state-space provider gives every declared cell a Dirichlet(1) prior.
+#[derive(Clone, Debug)]
+pub struct BayesianTransportLawDraw {
+    /// Stable estimator identity.
+    pub estimator: Arc<str>,
+    /// Posterior draw as a validated joint law.
+    pub law: ExactDiscreteLaw,
+}
+
+/// Which finite-joint posterior law to draw from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BayesianTransportLawProvider {
+    /// Rubin Bayesian bootstrap on observed rows; empty declared cells stay empty.
+    EmpiricalSupport,
+    /// Full declared categorical table with a symmetric Dirichlet(1) prior.
+    DeclaredStateSpaceDirichlet,
+}
+
+/// Draw one law per independent dataset, preserving supplied laws and forwarded aliases.
+///
+/// The map is keyed by [`SampleKey`]. Forwarded aliases share probabilities from one
+/// underlying dataset draw while each returned law retains its own population/regime
+/// identity. Supplied exact laws are carried through unchanged.
+/// # Errors
+/// Conflicting aliases, invalid catalog bindings, missing samples, or excessive support.
+pub fn draw_bayesian_transport_laws(
+    input: &StatisticalTransportInput,
+    functional: &BoundTransportFunctional,
+    provider: BayesianTransportLawProvider,
+    rng: &mut antecedent_core::CausalRng,
+    max_joint_cells: usize,
+) -> Result<(Vec<ExactDiscreteLaw>, BTreeMap<SampleKey, ExactDiscreteLaw>), EstimationError> {
+    validate_dataset_aliases(functional.catalog(), &input.samples)?;
+    refuse_convenience_target(
+        functional.catalog(),
+        input,
+        &functional.derivation().query().target,
+    )?;
+    if input.supplied.iter().any(|law| law.origin() != antecedent_expr::LawOrigin::SuppliedExact) {
+        return Err(EstimationError::data_msg(
+            "posterior transport input laws must retain exact supplied-law provenance",
+        ));
+    }
+    for sample in &input.samples {
+        if functional
+            .catalog()
+            .bindings
+            .iter()
+            .any(|binding| binding.regime == sample.regime && binding.weights.is_some())
+        {
+            return Err(EstimationError::data_msg(
+                "weighted sampling is not a finite categorical Bayesian law provider",
+            ));
+        }
+        if input.supplied.iter().any(|law| {
+            law.population() == sample.population.as_ref()
+                && law.regime() == sample.regime
+                && same_world(law.interventions(), &sample.interventions)
+        }) {
+            return Err(EstimationError::data_msg(
+                "a regime cannot bind both a supplied law and an estimated sample",
+            ));
+        }
+    }
+    let mut law_by_dataset = BTreeMap::<SampleKey, ExactDiscreteLaw>::new();
+    let mut result = BTreeMap::new();
+    for sample in &input.samples {
+        let alias_key = bound_sample_key(functional.catalog(), sample);
+        let source = if let Some(law) = law_by_dataset.get(&alias_key) {
+            law.clone()
+        } else {
+            let axes = catalog_axes_bounded(functional.catalog(), sample, max_joint_cells)?;
+            let draw = match provider {
+                BayesianTransportLawProvider::EmpiricalSupport => {
+                    draw_empirical_support_transport_law(sample, &axes, max_joint_cells, rng)?
+                }
+                BayesianTransportLawProvider::DeclaredStateSpaceDirichlet => {
+                    draw_state_space_dirichlet_transport_law(sample, &axes, max_joint_cells, rng)?
+                }
+            };
+            law_by_dataset.insert(alias_key.clone(), draw.law.clone());
+            draw.law
+        };
+        let law = ExactDiscreteLaw::try_bayesian_posterior(
+            sample.population.clone(),
+            sample.regime,
+            sample.interventions.clone(),
+            source.axes().to_vec(),
+            source.probabilities().to_vec(),
+            sample.snapshot_identity.clone(),
+            source.tolerance(),
+        )
+        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        result.insert(sample_key(sample), law);
+    }
+    Ok((input.supplied.clone(), result))
+}
+
+/// Draw a Bayesian bootstrap law on empirical support, using Rubin Exp(1) row weights.
+///
+/// The random row masses are aggregated into the declared joint cells. Consequently,
+/// unobserved declared cells remain at zero probability. Call once per independent
+/// dataset and reuse the returned law for every factor and alias derived from that data.
+/// # Errors
+/// Invalid domains or rows, missing observations, empty samples, or excessive size.
+pub fn draw_empirical_support_transport_law(
+    sample: &RegimeSample,
+    axes: &[DiscreteAxis],
+    max_joint_cells: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Result<BayesianTransportLawDraw, EstimationError> {
+    draw_transport_law(sample, axes, max_joint_cells, rng, false)
+}
+
+/// Draw from a declared-state-space Dirichlet(count + 1) posterior.
+///
+/// The full Cartesian state space is explicit in `axes`. Every cell receives one unit
+/// of prior mass, including cells never observed in the sample. This is a distinct
+/// posterior law from the empirical-support bootstrap and must not inherit its license.
+/// # Errors
+/// Invalid domains or rows, missing observations, empty samples, or excessive size.
+pub fn draw_state_space_dirichlet_transport_law(
+    sample: &RegimeSample,
+    axes: &[DiscreteAxis],
+    max_joint_cells: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Result<BayesianTransportLawDraw, EstimationError> {
+    draw_transport_law(sample, axes, max_joint_cells, rng, true)
+}
+
+fn draw_transport_law(
+    sample: &RegimeSample,
+    axes: &[DiscreteAxis],
+    max_joint_cells: usize,
+    rng: &mut antecedent_core::CausalRng,
+    include_unseen: bool,
+) -> Result<BayesianTransportLawDraw, EstimationError> {
+    let n = sample.n();
+    if n == 0 || sample.columns.values().any(|column| column.len() != n) {
+        return Err(EstimationError::data_msg(
+            "empirical columns must have equal, nonzero lengths",
+        ));
+    }
+    let cells = cartesian_size(axes, max_joint_cells)?;
+    if cells == 0 {
+        return Err(law_err(sample, "invalid_law_axis"));
+    }
+    let indexed = axes
+        .iter()
+        .map(|axis| {
+            let column = sample
+                .columns
+                .get(&axis.variable)
+                .ok_or_else(|| EstimationError::data_msg("sample is missing a catalog axis"))?;
+            let levels = axis
+                .values
+                .iter()
+                .enumerate()
+                .map(|(i, value)| {
+                    let value = value.as_f64().filter(|v| v.is_finite()).ok_or_else(|| {
+                        EstimationError::data_msg("empirical axes require finite numeric codes")
+                    })?;
+                    Ok((if value == 0.0 { 0 } else { value.to_bits() }, i))
+                })
+                .collect::<Result<std::collections::HashMap<_, _>, EstimationError>>()?;
+            if levels.len() != axis.values.len() {
+                return Err(EstimationError::data_msg("duplicate empirical domain levels"));
+            }
+            Ok(IndexedAxis { column, levels })
+        })
+        .collect::<Result<Vec<_>, EstimationError>>()?;
+    let mut shape = vec![if include_unseen { 1.0 } else { 0.0 }; cells];
+    for row in 0..n {
+        let cell = cell_index(&indexed, row)?;
+        let u = rng.next_f64().max(f64::MIN_POSITIVE);
+        let weight = -u.ln();
+        shape[cell] += weight;
+    }
+    let mass: f64 = shape.iter().sum();
+    if !mass.is_finite() || mass <= 0.0 {
+        return Err(EstimationError::data_msg("invalid Bayesian transport law mass"));
+    }
+    let probabilities = shape.into_iter().map(|value| value / mass).collect::<Vec<_>>();
+    let law = ExactDiscreteLaw::try_bayesian_posterior(
+        sample.population.clone(),
+        sample.regime,
+        sample.interventions.clone(),
+        axes.to_vec(),
+        probabilities,
+        sample.snapshot_identity.clone(),
+        LawTolerance::default(),
+    )
+    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+    Ok(BayesianTransportLawDraw {
+        estimator: Arc::from(if include_unseen {
+            STATE_SPACE_DIRICHLET
+        } else {
+            EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
+        }),
+        law,
+    })
+}
+
 /// Explicit statistical-provider choice. Defaults never hide empty cells.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EmpiricalTableEstimator {
@@ -32,6 +245,10 @@ pub enum EmpiricalTableEstimator {
     Plugin,
     /// Named Dirichlet / pseudocount smoother. Not licensed in T6.1.
     Dirichlet,
+    /// Bayesian bootstrap law on the empirical row support. Not yet support licensed.
+    EmpiricalSupportBayesianBootstrap,
+    /// Full declared-state-space Dirichlet posterior. Not yet support licensed.
+    StateSpaceDirichlet,
     /// Model-based finite categorical joint; independently uncalibrated.
     Learned(crate::LearnerSpec),
 }
@@ -52,6 +269,8 @@ impl EmpiricalTableEstimator {
         match self {
             Self::Plugin => EMPIRICAL_TABLE_PLUGIN,
             Self::Dirichlet => EMPIRICAL_TABLE_DIRICHLET,
+            Self::EmpiricalSupportBayesianBootstrap => EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP,
+            Self::StateSpaceDirichlet => STATE_SPACE_DIRICHLET,
             Self::Learned(_) => "transport.learned_categorical_plugin",
         }
     }
@@ -64,6 +283,8 @@ pub struct EmpiricalTableOptions {
     pub estimator: EmpiricalTableEstimator,
     /// Outer bootstrap replicates. Zero withholds the interval.
     pub bootstrap_replicates: u32,
+    /// Posterior law draws when a Bayesian transport provider is selected.
+    pub posterior_draws: u32,
     /// Nominal coverage of pointwise percentile intervals.
     pub coverage_level: f64,
     /// Refuse rather than densify a larger Cartesian product.
@@ -75,6 +296,7 @@ impl Default for EmpiricalTableOptions {
         Self {
             estimator: EmpiricalTableEstimator::Plugin,
             bootstrap_replicates: 199,
+            posterior_draws: 199,
             coverage_level: 0.95,
             max_joint_cells: 1_000_000,
         }
@@ -843,6 +1065,33 @@ mod tests {
             interventions: Arc::from([]),
             columns: BTreeMap::from([(v(0), x), (v(1), y)]),
         }
+    }
+
+    #[test]
+    fn bayesian_transport_providers_keep_empirical_and_declared_support_distinct() {
+        let data = sample(3, 0, 0, 0);
+        let axes = [0, 1].map(|i| DiscreteAxis {
+            variable: v(i),
+            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+        });
+        let mut empirical_rng = antecedent_core::CausalRng::from_seed(41);
+        let empirical =
+            draw_empirical_support_transport_law(&data, &axes, 16, &mut empirical_rng).unwrap();
+        assert_eq!(empirical.estimator.as_ref(), EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP);
+        assert!(empirical.law.probabilities()[1..].iter().all(|p| *p == 0.0));
+
+        let mut state_rng = antecedent_core::CausalRng::from_seed(41);
+        let state =
+            draw_state_space_dirichlet_transport_law(&data, &axes, 16, &mut state_rng).unwrap();
+        assert_eq!(state.estimator.as_ref(), STATE_SPACE_DIRICHLET);
+        assert!(state.law.probabilities().iter().all(|p| *p > 0.0));
+        assert!((state.law.probabilities().iter().sum::<f64>() - 1.0).abs() < 1e-12);
+
+        // One draw is a joint law; downstream factors and aliases consume this same object.
+        let mut repeat_rng = antecedent_core::CausalRng::from_seed(41);
+        let repeat =
+            draw_state_space_dirichlet_transport_law(&data, &axes, 16, &mut repeat_rng).unwrap();
+        assert_eq!(state.law.probabilities(), repeat.law.probabilities());
     }
 
     #[test]

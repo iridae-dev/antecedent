@@ -273,7 +273,10 @@ impl std::fmt::Debug for Study {
 mod admg_posterior;
 mod admg_posterior_response;
 mod attribution_path;
+mod bayesian_basis_path;
 mod bayesian_path;
+mod bayesian_robust_ate_path;
+mod bayesian_specialist_path;
 mod class_envelope_se;
 mod class_posterior;
 mod class_posterior_response;

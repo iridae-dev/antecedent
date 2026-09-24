@@ -31,6 +31,19 @@ impl super::Study {
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
+        if self.estimator == Some(EstimatorId::BayesianBasisGcomp)
+            && (!matches!(self.data, DataInput::Tabular(_))
+                || class != GraphClass::Dag
+                || !matches!(
+                    self.query,
+                    CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)
+                )
+                || !matches!(self.inference, InferenceMode::Bayesian(_)))
+        {
+            return Err(CausalError::Unsupported {
+                message: "bayesian.basis.gcomp requires Bayesian inference, tabular data, a supplied DAG, and an ATE or CATE query",
+            });
+        }
         if let DataInput::Panel(panel) = &self.data {
             super::super::builder::refuse_unlicensed_panel_route(
                 &self.query,
@@ -261,7 +274,10 @@ impl super::Study {
         (
             Arc::from(self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID).as_str()),
             Arc::from(
-                self.estimator_spec.as_ref().map_or(estimator, crate::EstimatorSpec::id).as_str(),
+                self.estimator_spec
+                    .as_ref()
+                    .map_or(self.estimator.unwrap_or(estimator), crate::EstimatorSpec::id)
+                    .as_str(),
             ),
         )
     }
@@ -349,7 +365,11 @@ impl super::Study {
     }
 
     pub(super) fn ensure_rd_config_present(&self, estimator: &str) -> Result<(), CausalError> {
-        if matches!(estimator.parse::<EstimatorId>()?, EstimatorId::RdSharp) && self.rd.is_none() {
+        if matches!(
+            estimator.parse::<EstimatorId>()?,
+            EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear
+        ) && self.rd.is_none()
+        {
             return Err(CausalError::Compile {
                 message: "estimator \"rd.sharp\" requires builder.rd_config(running_variable, cutoff, bandwidth)".into(),
             });

@@ -2937,8 +2937,8 @@ fn gcomp_outcome_model_assumption(
         antecedent_prob::BayesLikelihood::PoissonLog => "Poisson log-link outcome regression",
     };
     let design = if conditional {
-        "linear in the treatment, the declared modifier, their product, and each adjustment \
-         column"
+        "linear in the treatment, each declared modifier, each treatment × modifier product, \
+         and each adjustment column; contrasts are evaluated on the outcome scale per draw"
     } else {
         "linear in the treatment and each adjustment column, with no treatment × covariate \
          interaction"

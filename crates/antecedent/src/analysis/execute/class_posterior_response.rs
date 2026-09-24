@@ -172,7 +172,6 @@ impl super::Study {
         let (refutations, refute_diags) =
             if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
                 && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
-                && matches!(self.inference, InferenceMode::Frequentist)
             {
                 if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                     diagnostics.push(Diagnostic::new(
@@ -222,17 +221,17 @@ impl super::Study {
                 }
             } else if !matches!(self.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
-                    "refute.response.skipped",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    if matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms) {
-                        "query-native validation does not compare refuters against a withheld \
+                "refute.response.skipped",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                if matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms) {
+                    "query-native validation does not compare refuters against a withheld \
                      aggregate under GraphDependentAtoms"
-                    } else {
-                        "scalar ATE refuters are not applicable to a function-valued or Bayesian \
-                     class-posterior response"
-                    },
-                ));
+                } else {
+                    "scalar ATE refuters are not applicable to a function-valued class-posterior \
+                     response"
+                },
+            ));
                 (Vec::new(), Vec::new())
             } else {
                 (Vec::new(), Vec::new())
@@ -373,6 +372,7 @@ fn evaluate_class_atom_response_bayesian(
     };
     let mut weighted = Vec::new();
     let mut primary_estimand = None;
+    let mut plugin_levels = Vec::new();
     for (case_index, case) in atom.cases.iter().enumerate() {
         let Some(estimand) = case.estimand.as_ref() else {
             continue;
@@ -398,6 +398,16 @@ fn evaluate_class_atom_response_bayesian(
         if primary_estimand.is_none() {
             primary_estimand = Some(estimand.clone());
         }
+        if let Some(scalar) = atom_plugin_scalar(&response) {
+            // Refuters use the posterior mean intervention level as their reference
+            // point. Posterior uncertainty remains attached to the response itself.
+            plugin_levels.push((
+                case.weight,
+                estimand.clone(),
+                scalar,
+                response.assumptions.clone(),
+            ));
+        }
         weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), case.weight, response));
     }
     let response = if weighted.is_empty() {
@@ -413,7 +423,7 @@ fn evaluate_class_atom_response_bayesian(
         partial: atom.invariant.is_none()
             || matches!(atom.identification.status, IdentificationStatus::PartiallyIdentified),
         atom_scores: Vec::new(),
-        plugin_levels: Vec::new(),
+        plugin_levels,
     })
 }
 

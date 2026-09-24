@@ -10,9 +10,10 @@ use antecedent_identify::BoundTransportFunctional;
 use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 
 use crate::empirical_table::{
-    EmpiricalTableOptions, StatisticalTransportInput, assemble_point_laws,
-    assemble_statistical_laws, bound_sample_key, dependence_refusal, licensed_iid_dependence,
-    validate_dataset_aliases, validate_options,
+    BayesianTransportLawProvider, EmpiricalTableOptions, StatisticalTransportInput,
+    assemble_point_laws, assemble_statistical_laws, bound_sample_key, dependence_refusal,
+    draw_bayesian_transport_laws, licensed_iid_dependence, validate_dataset_aliases,
+    validate_options,
 };
 use crate::error::EstimationError;
 use crate::transport::prepare_exact_transport;
@@ -20,6 +21,135 @@ use crate::util::BOOTSTRAP_MAX_FAILURE_FRAC;
 
 /// Licensed uncertainty method for the empirical-table path.
 pub const PERCENTILE_BOOTSTRAP: &str = "percentile_bootstrap";
+/// Posterior interval constructor for finite-discrete structural transport.
+pub const POSTERIOR_EQUAL_TAIL: &str = "posterior_equal_tail";
+
+/// Posterior summaries from coherent finite-joint law draws.
+#[derive(Clone, Debug)]
+pub struct BayesianStatisticalTransportEstimate {
+    /// Provider identity, including its support/prior distinction.
+    pub estimator: Arc<str>,
+    /// Posterior interval interpretation.
+    pub interval_method: Arc<str>,
+    /// Complete transport distribution for every joint posterior draw.
+    pub distributions: Arc<[ExactDistribution]>,
+    /// Pointwise equal-tail posterior intervals for each atom, in distribution order.
+    pub atom_intervals: Arc<[(f64, f64)]>,
+    /// Pointwise equal-tail posterior intervals by outcome mean.
+    pub mean_intervals: Arc<[(VariableId, f64, f64)]>,
+    /// Requested joint posterior draws.
+    pub draws_requested: u32,
+    /// Successfully evaluated draws.
+    pub draws_ok: u32,
+    /// Failed draws, retained in accounting.
+    pub draws_failed: u32,
+}
+
+/// Evaluate finite-discrete structural transport under joint Bayesian law draws.
+///
+/// Each independent dataset is drawn once per iteration and aliases resolve to that same
+/// draw. Caller supplied exact laws are included unchanged. The two providers have
+/// distinct identities and support semantics; this function makes no causal-identification
+/// or repeated-sampling calibration claim.
+/// # Errors
+/// Invalid interval settings, cancellation, or exhausted exact-evaluation resources.
+pub fn evaluate_bayesian_statistical_transport(
+    functional: &BoundTransportFunctional,
+    input: &StatisticalTransportInput,
+    request: Assignment,
+    limits: ExactEvaluationLimits,
+    provider: BayesianTransportLawProvider,
+    draws: u32,
+    coverage_level: f64,
+    max_joint_cells: usize,
+    ctx: &ExecutionContext,
+) -> Result<BayesianStatisticalTransportEstimate, EstimationError> {
+    if draws < 2 || !coverage_level.is_finite() || !(0.0..1.0).contains(&coverage_level) {
+        return Err(EstimationError::data_msg(
+            "Bayesian transport requires at least two draws and coverage strictly between zero and one",
+        ));
+    }
+    let estimator: Arc<str> = Arc::from(match provider {
+        BayesianTransportLawProvider::EmpiricalSupport => {
+            crate::empirical_table::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
+        }
+        BayesianTransportLawProvider::DeclaredStateSpaceDirichlet => {
+            crate::empirical_table::STATE_SPACE_DIRICHLET
+        }
+    });
+    let mut distributions = Vec::with_capacity(draws as usize);
+    for draw_id in 0..draws {
+        if ctx.cancellation.is_cancelled() {
+            return Err(EstimationError::data_msg("Bayesian transport execution cancelled"));
+        }
+        let mut rng =
+            ctx.rng.stream_for(StreamDomain::Transport, 0xB_AE5_0000 | u64::from(draw_id));
+        let (mut laws, by_sample) =
+            draw_bayesian_transport_laws(input, functional, provider, &mut rng, max_joint_cells)?;
+        laws.extend(by_sample.into_values());
+        let data = antecedent_expr::ExactTransportData::try_new(laws, max_joint_cells)
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        let distribution =
+            match prepare_exact_transport(functional, data, request.clone(), limits, ctx)
+                .and_then(|plan| plan.evaluate(ctx))
+            {
+                Ok(distribution) => distribution,
+                Err(
+                    antecedent_expr::EvalError::ExactLaw(_)
+                    | antecedent_expr::EvalError::ExactRatioSupport { .. }
+                    | antecedent_expr::EvalError::DivisionByZero,
+                ) => {
+                    continue;
+                }
+                Err(error) => return Err(EstimationError::data_msg(error.to_string())),
+            };
+        distributions.push(distribution);
+    }
+    let successful = u32::try_from(distributions.len()).unwrap_or(u32::MAX);
+    let failed = draws.saturating_sub(successful);
+    let atom_columns = distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>();
+    if atom_columns.is_empty() {
+        return Err(EstimationError::data_msg("all Bayesian transport draws failed"));
+    }
+    let atoms = atom_columns[0].len();
+    if atom_columns.iter().any(|draw| draw.len() != atoms) {
+        return Err(EstimationError::data_msg(
+            "Bayesian transport atom support changed between draws",
+        ));
+    }
+    let mut atom_intervals = Vec::with_capacity(atoms);
+    for atom in 0..atoms {
+        let mut column = atom_columns.iter().map(|draw| draw[atom]).collect::<Vec<_>>();
+        column.sort_by(f64::total_cmp);
+        atom_intervals.push(equal_tail_interval_sorted(
+            &column,
+            coverage_level,
+            QuantileRule::Interpolated,
+        ));
+    }
+    let outcomes = functional.derivation().query().outcomes.clone();
+    let mut mean_intervals = Vec::with_capacity(outcomes.len());
+    for outcome in outcomes.iter().copied() {
+        let mut column = distributions
+            .iter()
+            .map(|d| d.mean(outcome).map_err(|e| EstimationError::data_msg(e.to_string())))
+            .collect::<Result<Vec<_>, _>>()?;
+        column.sort_by(f64::total_cmp);
+        let (lower, upper) =
+            equal_tail_interval_sorted(&column, coverage_level, QuantileRule::Interpolated);
+        mean_intervals.push((outcome, lower, upper));
+    }
+    Ok(BayesianStatisticalTransportEstimate {
+        estimator,
+        interval_method: Arc::from(POSTERIOR_EQUAL_TAIL),
+        distributions: distributions.into(),
+        atom_intervals: atom_intervals.into(),
+        mean_intervals: mean_intervals.into(),
+        draws_requested: draws,
+        draws_ok: successful,
+        draws_failed: failed,
+    })
+}
 
 /// Joint bootstrap columns aligned to original replicate IDs.
 pub type TransportMeanReplicates = Arc<[(VariableId, Arc<[f64]>)]>;

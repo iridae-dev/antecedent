@@ -3585,6 +3585,8 @@ def consume_exact_transport(
 class PreparedStatisticalStage:
     @property
     def outcomes(self) -> list[str]: ...
+    @property
+    def bayesian_posterior(self) -> str | None: ...
     def estimate_grid(
         self, assignments: list[dict[str, float]], cancel: CancellationToken | None = None
     ) -> list[PreparedStatisticalStage]: ...
@@ -3615,6 +3617,7 @@ def prepare_statistical_transport(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
     bootstrap: int = 199,
+    posterior_draws: int = 199,
     coverage_level: float = 0.95,
     estimator: object = None,
     seed: int = 1,

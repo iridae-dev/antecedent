@@ -824,9 +824,10 @@ impl BayesianGComputationAte {
         })
     }
 
-    /// Prepare a Gaussian conditional effect with one modifier. Centering the
-    /// interaction at the observed modifier mean makes the treatment coefficient
-    /// exactly the population-average contrast for every posterior draw.
+    /// Prepare a Gaussian conditional effect with declared modifiers and one
+    /// treatment interaction per modifier. Interactions are centered at their
+    /// observed means, so the treatment coefficient is the empirical-population
+    /// average contrast for every posterior draw.
     pub fn prepare_conditional(
         &self,
         data: &TabularData,
@@ -834,49 +835,60 @@ impl BayesianGComputationAte {
         query: &antecedent_core::ConditionalEffectQuery,
     ) -> Result<PreparedBayesianProblem, EstimationError> {
         query.validate()?;
-        if self.likelihood != BayesLikelihood::GaussianIdentity {
-            return Err(EstimationError::unsupported(
-                "Bayesian conditional effects require GaussianIdentity",
-            ));
-        }
         let q = &query.inner;
-        if q.effect_modifiers.len() != 1 {
+        let mut seen = std::collections::HashSet::new();
+        if q.effect_modifiers.iter().any(|modifier| {
+            *modifier == q.treatment || *modifier == q.outcome || !seen.insert(*modifier)
+        }) {
             return Err(EstimationError::unsupported(
-                "Bayesian conditional effects require one modifier",
+                "Bayesian conditional effects require distinct modifiers separate from treatment and outcome",
             ));
         }
-        let modifier = q.effect_modifiers[0];
         let mut base_query = q.clone();
         base_query.effect_modifiers = Arc::from([]);
         let mut prep = self.prepare(data, estimand, &base_query)?;
-        let mut ids = vec![q.treatment, q.outcome, modifier];
+        let mut ids = vec![q.treatment, q.outcome];
+        ids.extend_from_slice(&q.effect_modifiers);
         ids.extend_from_slice(&estimand.adjustment_set);
         let mask = data.complete_case_mask(&ids)?;
         let t = data.float64_masked(q.treatment, &mask)?;
         let y = data.float64_masked(q.outcome, &mask)?;
-        let w = data.float64_masked(modifier, &mask)?;
         if t.len() < 8 {
             return Err(EstimationError::data_msg("too few conditional complete rows"));
         }
-        let mean = w.iter().sum::<f64>() / w.len() as f64;
-        let interaction: Vec<_> = t.iter().zip(&w).map(|(t, w)| t * (w - mean)).collect();
-        let mut covs = vec![(modifier, w), (modifier, interaction)];
-        for &id in estimand.adjustment_set.iter().filter(|&&id| id != modifier) {
+        let mut modifier_covariates = Vec::with_capacity(q.effect_modifiers.len());
+        let mut interaction_covariates = Vec::with_capacity(q.effect_modifiers.len());
+        for &modifier in q.effect_modifiers.iter() {
+            let w = data.float64_masked(modifier, &mask)?;
+            let mean = w.iter().sum::<f64>() / w.len() as f64;
+            let interaction: Vec<_> = t.iter().zip(&w).map(|(t, w)| t * (w - mean)).collect();
+            modifier_covariates.push((modifier, w));
+            interaction_covariates.push((modifier, interaction));
+        }
+        let mut covs = modifier_covariates;
+        covs.extend(interaction_covariates);
+        for &id in estimand.adjustment_set.iter().filter(|&&id| !q.effect_modifiers.contains(&id)) {
             covs.push((id, data.float64_masked(id, &mask)?));
         }
         let refs: Vec<_> = covs.iter().map(|(id, values)| (*id, values.as_slice())).collect();
         let rows: Vec<_> =
             mask.iter().enumerate().filter_map(|(i, &keep)| keep.then_some(i)).collect();
         prep.design = CompiledDesign::linear_adjustment(&t, &refs, &y, &rows)?;
-        let mut names: Vec<Arc<str>> = vec![
-            Arc::from("intercept"),
-            Arc::from("treatment_at_mean_modifier"),
-            Arc::from("modifier"),
-            Arc::from("treatment_centered_modifier"),
-        ];
+        let mut names: Vec<Arc<str>> =
+            vec![Arc::from("intercept"), Arc::from("treatment_at_mean_modifier")];
+        for &modifier in q.effect_modifiers.iter() {
+            names.push(Arc::from(format!("modifier_{}", modifier.raw())));
+        }
+        for &modifier in q.effect_modifiers.iter() {
+            names.push(Arc::from(format!("treatment_centered_modifier_{}", modifier.raw())));
+        }
         names.extend(
-            covs.iter().skip(2).map(|(id, _)| Arc::from(format!("adjustment_{}", id.raw()))),
+            covs.iter()
+                .skip(q.effect_modifiers.len() * 2)
+                .map(|(id, _)| Arc::from(format!("adjustment_{}", id.raw()))),
         );
+        // Store the ordered modifier identities in the coefficient names. The draw
+        // adjustment helper uses these to preserve shared bootstrap weights.
         prep.coef_names = Some(Arc::from(names));
         Ok(prep)
     }
@@ -1282,6 +1294,7 @@ impl BayesianGComputationAte {
             }
             add_modifier_mean_uncertainty(
                 problem,
+                glm_family,
                 &quantities,
                 &mut values,
                 n_draws,
@@ -1307,7 +1320,8 @@ impl BayesianGComputationAte {
                 assumptions,
                 unidentified_mass: 0.0,
                 early_stopped,
-                treatment_contrast: Some(problem.active - problem.control),
+                treatment_contrast: (self.glm_family() == GlmFamily::GaussianIdentity)
+                    .then_some(problem.active - problem.control),
             });
         }
 
@@ -1357,6 +1371,7 @@ impl BayesianGComputationAte {
         }
         add_modifier_mean_uncertainty(
             problem,
+            glm_family,
             &quantities,
             &mut values,
             n_draws,
@@ -1385,7 +1400,8 @@ impl BayesianGComputationAte {
             assumptions,
             unidentified_mass: 0.0,
             early_stopped: false,
-            treatment_contrast: Some(problem.active - problem.control),
+            treatment_contrast: (self.glm_family() == GlmFamily::GaussianIdentity)
+                .then_some(problem.active - problem.control),
         })
     }
 }
@@ -1467,54 +1483,72 @@ pub fn coefficient_names_from_design(
     Arc::from(names)
 }
 
-/// Modifier-mean uncertainty for [`BayesianGComputationAte::prepare_conditional`].
-///
-/// The conditional design centres the interaction at the observed modifier
-/// mean `w̄`, so g-computation over the observed rows returns `δ·β_T` per draw:
-/// the CATE averaged over the *empirical* modifier distribution, held fixed.
-/// The reported functional averages over the population modifier
-/// distribution, so each draw adds `δ·β_{T×W}·(μ_w − w̄)` with `μ_w` a Rubin
-/// Bayesian-bootstrap draw of the modifier mean (`Σ ω_i w_i`,
-/// `ω ~ Dirichlet(1, …, 1)`). Without it the interval under-covers whenever
-/// `β_{T×W} ≠ 0`. Non-conditional designs are left untouched.
+/// Recompute a conditional contrast on the outcome scale for each coefficient draw.
+/// One Rubin Bayesian-bootstrap weight vector is shared across all observed
+/// modifiers and rows in a draw. Both intervention design rows include their
+/// treatment-by-modifier terms, including for nonlinear inverse links.
 fn add_modifier_mean_uncertainty(
     problem: &PreparedBayesianProblem,
+    family: GlmFamily,
     quantities: &[PosteriorQuantityKind],
     values: &mut [f64],
     n_draws: usize,
     effect_idx: usize,
     seed: u64,
 ) {
-    let conditional = problem.coef_names.as_deref().is_some_and(|names| {
-        names.get(3).is_some_and(|n| n.as_ref() == "treatment_centered_modifier")
-    });
-    if !conditional || n_draws == 0 {
-        return;
-    }
-    let Some(interaction) = quantities
-        .iter()
-        .position(|q| matches!(q, PosteriorQuantityKind::Coefficient { index: 3, .. }))
-    else {
+    let Some(names) = problem.coef_names.as_deref() else {
         return;
     };
-    let nrows = problem.design.nrows;
-    if nrows == 0 || problem.design.ncols < 4 {
+    let modifier_count = names.iter().filter(|name| name.starts_with("modifier_")).count();
+    if modifier_count == 0 || n_draws == 0 || problem.design.ncols < 2 + modifier_count * 2 {
         return;
     }
-    let w = &problem.design.matrix[2 * nrows..3 * nrows];
-    let w_bar = w.iter().sum::<f64>() / nrows as f64;
-    let delta = problem.active - problem.control;
+    let nrows = problem.design.nrows;
+    if nrows == 0 {
+        return;
+    }
+    let ncols = problem.design.ncols;
+    let mut coefficient_columns = Vec::with_capacity(ncols);
+    for coef_index in 0..ncols {
+        let Some(column) = quantities.iter().position(|q| {
+            matches!(q, PosteriorQuantityKind::Coefficient { index, .. } if *index == coef_index)
+        }) else { return; };
+        coefficient_columns.push(column);
+    }
+    let modifier_means: Vec<f64> = (0..modifier_count)
+        .map(|modifier| {
+            problem.design.matrix[(2 + modifier) * nrows..(3 + modifier) * nrows]
+                .iter()
+                .sum::<f64>()
+                / nrows as f64
+        })
+        .collect();
     let mut rng = antecedent_core::CausalRng::from_seed(seed ^ 0x4D4F_4449_4649_4552);
     for d in 0..n_draws {
-        let mut total = 0.0;
-        let mut weighted = 0.0;
-        for &wi in w {
-            let e = -rng.next_f64().max(f64::MIN_POSITIVE).ln();
-            total += e;
-            weighted += e * (wi - w_bar);
+        let weights: Vec<f64> =
+            (0..nrows).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let total = weights.iter().sum::<f64>();
+        let beta: Vec<f64> =
+            coefficient_columns.iter().map(|&column| values[column * n_draws + d]).collect();
+        let mut contrast = 0.0;
+        for (row, weight) in weights.iter().enumerate() {
+            let mut baseline = 0.0;
+            for (column, &coefficient) in beta.iter().enumerate() {
+                if column != 1 && !(2 + modifier_count..2 + 2 * modifier_count).contains(&column) {
+                    baseline += problem.design.matrix[column * nrows + row] * coefficient;
+                }
+            }
+            let mut treatment_slope = beta[1];
+            for modifier in 0..modifier_count {
+                let centered = problem.design.matrix[(2 + modifier) * nrows + row];
+                treatment_slope +=
+                    beta[2 + modifier_count + modifier] * (centered - modifier_means[modifier]);
+            }
+            let active = family.mean_from_eta(baseline + problem.active * treatment_slope);
+            let control = family.mean_from_eta(baseline + problem.control * treatment_slope);
+            contrast += weight * (active - control);
         }
-        let beta_tw = values[interaction * n_draws + d];
-        values[effect_idx * n_draws + d] += delta * beta_tw * (weighted / total);
+        values[effect_idx * n_draws + d] = contrast / total;
     }
 }
 
@@ -2042,6 +2076,151 @@ mod tests {
         ];
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         (TabularData::new(storage), t, y, z)
+    }
+
+    #[test]
+    fn gaussian_conditional_design_supports_multiple_declared_modifiers() {
+        let n = 12;
+        let mut schema_builder = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("W1", RoleHint::Context),
+            ("W2", RoleHint::Context),
+            ("T", RoleHint::TreatmentCandidate),
+            ("Y", RoleHint::OutcomeCandidate),
+        ] {
+            schema_builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(role),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = schema_builder.build().unwrap();
+        let w1 = VariableId::from_raw(0);
+        let w2 = VariableId::from_raw(1);
+        let t = VariableId::from_raw(2);
+        let y = VariableId::from_raw(3);
+        let first: Vec<_> = (0..n).map(|i| i as f64).collect();
+        let second: Vec<_> = (0..n).map(|i| (i as f64) * 2.0 - 3.0).collect();
+        let treatment: Vec<_> = (0..n).map(|i| f64::from(i % 2 == 0)).collect();
+        let outcome: Vec<_> = (0..n)
+            .map(|i| {
+                1.0 + treatment[i] * (2.0 + 0.5 * (first[i] - 5.5) - 0.25 * (second[i] - 8.0))
+                    + 0.2 * first[i]
+                    + 0.1 * second[i]
+            })
+            .collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(w1, Arc::from(first.clone()), validity.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(w2, Arc::from(second.clone()), validity.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(t, Arc::from(treatment.clone()), validity.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(Float64Column::new(y, Arc::from(outcome), validity).unwrap()),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![w1, w2]),
+            ExprId::from_raw(0),
+        );
+        let mut query = AverageEffectQuery::binary_ate(t, y);
+        query.effect_modifiers = Arc::from(vec![w1, w2]);
+        let query = antecedent_core::ConditionalEffectQuery::try_new(query).unwrap();
+        let prep =
+            BayesianGComputationAte::new().prepare_conditional(&data, &estimand, &query).unwrap();
+
+        assert_eq!(prep.design.ncols, 6);
+        let nrows = prep.design.nrows;
+        let at = |column: usize, row: usize| prep.design.matrix[column * nrows + row];
+        assert_eq!(at(1, 0), treatment[0]);
+        assert!((at(2, 0) - first[0]).abs() < 1e-12);
+        assert!((at(3, 0) - second[0]).abs() < 1e-12);
+        assert!((at(4, 0) - treatment[0] * (first[0] - 5.5)).abs() < 1e-12);
+        assert!((at(5, 0) - treatment[0] * (second[0] - 8.0)).abs() < 1e-12);
+        let names = prep.coef_names.unwrap();
+        assert_eq!(names[4].as_ref(), "treatment_centered_modifier_0");
+        assert_eq!(names[5].as_ref(), "treatment_centered_modifier_1");
+
+        let mut duplicate = query.inner.clone();
+        duplicate.effect_modifiers = Arc::from(vec![w1, w1]);
+        let duplicate = antecedent_core::ConditionalEffectQuery::try_new(duplicate).unwrap();
+        assert!(
+            BayesianGComputationAte::new()
+                .prepare_conditional(&data, &estimand, &duplicate)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
+        let treatment = [0.0, 1.0, 0.0, 1.0];
+        let modifier = [-2.0, -1.0, 1.0, 2.0];
+        let interaction: Vec<f64> = treatment.iter().zip(modifier).map(|(t, w)| t * w).collect();
+        let outcome = [0.0; 4];
+        let id = VariableId::from_raw(2);
+        let design = CompiledDesign::linear_adjustment(
+            &treatment,
+            &[(id, &modifier), (id, &interaction)],
+            &outcome,
+            &[],
+        )
+        .unwrap();
+        let problem = PreparedBayesianProblem {
+            design,
+            method: Arc::from("backdoor.adjustment"),
+            adjustment_set: Arc::from([]),
+            active: 1.0,
+            control: 0.0,
+            overlap: OverlapPolicy::ExplicitOverride,
+            coef_names: Some(Arc::from([
+                Arc::from("intercept"),
+                Arc::from("treatment_at_mean_modifier"),
+                Arc::from("modifier_2"),
+                Arc::from("treatment_centered_modifier_2"),
+            ])),
+            unit_ids: None,
+            serial_dependence: SerialDependence::Iid,
+        };
+        let quantities: Vec<_> = (0..4)
+            .map(|index| PosteriorQuantityKind::Coefficient { index, name: None })
+            .chain([PosteriorQuantityKind::Effect { name: Arc::from("ate") }])
+            .collect();
+        let mut values = vec![0.3, 0.7, 0.2, 0.8, 0.0];
+        add_modifier_mean_uncertainty(
+            &problem,
+            GlmFamily::BinomialLogit,
+            &quantities,
+            &mut values,
+            1,
+            4,
+            17,
+        );
+        let mut rng = antecedent_core::CausalRng::from_seed(17 ^ 0x4D4F_4449_4649_4552);
+        let weights: Vec<f64> =
+            (0..4).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let expected = weights
+            .iter()
+            .zip(modifier)
+            .map(|(weight, w)| {
+                let baseline = 0.3 + 0.2 * w;
+                weight
+                    * (GlmFamily::BinomialLogit.mean_from_eta(baseline + 0.7 + 0.8 * w)
+                        - GlmFamily::BinomialLogit.mean_from_eta(baseline))
+            })
+            .sum::<f64>()
+            / weights.iter().sum::<f64>();
+        assert!((values[4] - expected).abs() < 1e-12);
     }
 
     fn linear_scm_pooled(

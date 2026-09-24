@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::CausalRng;
 use antecedent_identify::{TransportFormula, TransportIdentification};
 
 use crate::EstimationError;
@@ -300,6 +301,85 @@ pub fn trial_to_target_effect(
             treatment: diagnostic(&trial_treatment_probabilities, &treatment_weights),
         },
     })
+}
+
+/// Bayesian-bootstrap draws for the identified trial-to-target IPW contrast.
+///
+/// Each draw puts a shared `Dirichlet(1, ..., 1)` law on the observed trial rows,
+/// keeping the trial sample size, target sample size, supplied selection odds,
+/// and supplied treatment probabilities fixed. It propagates uncertainty in the
+/// empirical trial outcome law, conditional on these supplied probabilities;
+/// it does not propagate uncertainty from fitting either probability model or
+/// from sampling the target rows. The identifying certificate is checked anew.
+///
+/// # Errors
+///
+/// Uncertified identification, invalid inputs, fewer than two draws, or a trial
+/// without observed units in both treatment arms.
+pub fn trial_to_target_bayesian_bootstrap(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    n_draws: usize,
+    seed: u64,
+) -> Result<Vec<f64>, EstimationError> {
+    require_dahabreh_compatible_formula(identification, "Bayesian trial-to-target effect")?;
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    if n_draws < 2 {
+        return Err(EstimationError::data_msg(
+            "Bayesian trial-to-target effect requires at least two draws",
+        ));
+    }
+    let source_rows: Vec<usize> = trial
+        .iter()
+        .enumerate()
+        .filter_map(|(index, is_trial)| is_trial.then_some(index))
+        .collect();
+    if !source_rows.iter().any(|&i| treatment[i]) || !source_rows.iter().any(|&i| !treatment[i]) {
+        return Err(EstimationError::data_msg(
+            "Bayesian trial-to-target effect requires both observed treatment arms",
+        ));
+    }
+    let scores: Vec<f64> = source_rows
+        .iter()
+        .map(|&i| {
+            let s = selection_probability[i];
+            let e = treatment_probability[i];
+            let arm = if treatment[i] { e } else { 1.0 - e };
+            let sign = if treatment[i] { 1.0 } else { -1.0 };
+            sign * ((1.0 - s) / s) * outcome[i] / arm
+        })
+        .collect();
+    let mut rng = CausalRng::from_seed(seed);
+    let mut draws = Vec::with_capacity(n_draws);
+    for _ in 0..n_draws {
+        let weights: Vec<f64> =
+            source_rows.iter().map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let normalizer: f64 = weights.iter().sum();
+        if !normalizer.is_finite() || normalizer <= 0.0 {
+            return Err(EstimationError::stats_msg(
+                "Bayesian trial-to-target row weights failed to normalize",
+            ));
+        }
+        let numerator: f64 = weights.iter().zip(&scores).map(|(w, score)| w * score).sum();
+        let draw = numerator * source_rows.len() as f64 / (normalizer * target_n as f64);
+        if !draw.is_finite() {
+            return Err(EstimationError::stats_msg(
+                "Bayesian trial-to-target effect has a non-finite draw",
+            ));
+        }
+        draws.push(draw);
+    }
+    Ok(draws)
 }
 
 /// Checks shared by [`trial_to_target_effect`] and [`trial_to_target_ipw_se`]: equal
@@ -625,6 +705,50 @@ mod tests {
         assert!(
             trial_to_target_ipw_se(&outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn bayesian_trial_transport_matches_two_row_dirichlet_law() {
+        // With one source row in each arm, equal supplied probabilities and
+        // outcomes (2, 0), the draw is exactly 4U for U ~ Beta(1, 1).
+        // Thus E[effect] = 2 and Var(effect) = 4/3 independently of the
+        // implementation's random-number generation and weight normalization.
+        let source = [true, true, false, false];
+        let treatment = [true, false, false, false];
+        let outcome = [2.0, 0.0, 0.0, 0.0];
+        let draw = || {
+            trial_to_target_bayesian_bootstrap(
+                &certified_identification(),
+                &outcome,
+                &treatment,
+                &source,
+                &[0.5; 4],
+                &[0.5; 4],
+                10_000,
+                41,
+            )
+            .unwrap()
+        };
+        let draws = draw();
+        assert_eq!(draws, draw());
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        let variance = draws.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / draws.len() as f64;
+        assert!((mean - 2.0).abs() < 0.08, "mean={mean}");
+        assert!((variance - 4.0 / 3.0).abs() < 0.08, "variance={variance}");
+        assert!(draws.iter().all(|&x| (0.0..=4.0).contains(&x)));
+        assert!(
+            trial_to_target_bayesian_bootstrap(
+                &certified_identification(),
+                &outcome,
+                &[true; 4],
+                &source,
+                &[0.5; 4],
+                &[0.5; 4],
+                100,
+                41,
+            )
+            .is_err()
         );
     }
 

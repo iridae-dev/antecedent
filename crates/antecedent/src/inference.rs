@@ -138,10 +138,11 @@ impl BayesianConfig {
 
     /// Outcome likelihood of the g-computation model (Laplace and HMC backends).
     ///
-    /// [`BayesLikelihood::GaussianIdentity`] is the default. A Bernoulli or
-    /// Poisson likelihood is licensed on a tabular `AverageEffect`; every
-    /// other route, the conjugate backend and a transferred prior refuse it
-    /// at build with `likelihood_not_supported`.
+    /// [`BayesLikelihood::GaussianIdentity`] is the default. Bernoulli and
+    /// Poisson likelihoods are supported on fixed-DAG tabular mean effects,
+    /// conditional effects, and static response levels. Other routes, the
+    /// conjugate backend, and transferred priors refuse at build with
+    /// `likelihood_not_supported`.
     #[must_use]
     pub const fn likelihood(mut self, likelihood: BayesLikelihood) -> Self {
         self.likelihood = likelihood;
@@ -365,6 +366,18 @@ pub fn resolve_bayesian_prior_with_conflict(
         None => default_hydrate_mapping(bytes, prep)?,
     };
     let names = coef_names_for_problem(prep);
+    // A static coefficient transfer needs evidence that the source quantity was
+    // an identity-link treatment contrast. Non-Gaussian effect draws live on
+    // the response scale, so equal coefficient labels alone do not make their
+    // slopes interchangeable with a Gaussian outcome model.
+    if !names.iter().any(|name| is_temporal_coefficient_name(name)) {
+        let (source, _) = decode_causal_posterior_bytes(bytes)?;
+        if source.treatment_contrast.is_none() {
+            return Err(CausalError::Unsupported {
+                message: "static prior transfer requires an identity-link source contrast and matching coefficient meaning",
+            });
+        }
+    }
     let baseline = PriorSet::weakly_informative(prep.design.ncols);
     let treatment_col = prep.design.treatment_column();
     require_lag_aware_transfer(bytes, &mapping, &names, treatment_col)?;

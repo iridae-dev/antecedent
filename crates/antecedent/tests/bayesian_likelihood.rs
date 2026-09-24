@@ -11,7 +11,8 @@
 
 use antecedent::{BayesianConfig, CausalError, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
+    GridSpec, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
@@ -213,14 +214,19 @@ fn routes_that_cannot_fit_a_non_gaussian_likelihood_refuse_by_code() {
         AverageEffectQuery::binary_ate(v(0), v(1)).with_effect_modifiers([v(2)]),
     )
     .unwrap();
-    assert_refused(
-        Study::tabular(table.clone())
-            .graph(dag())
-            .query(CausalQuery::ConditionalEffect(conditional))
-            .inference(logit)
-            .build(),
-        "ConditionalEffect",
-    );
+    let conditional_result = Study::tabular(table.clone())
+        .graph(dag())
+        .query(CausalQuery::ConditionalEffect(conditional))
+        .inference(logit)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap();
+    let conditional_posterior = conditional_result.posterior.as_ref().unwrap();
+    let effect = conditional_posterior.effect_column().unwrap();
+    assert!(conditional_posterior.summaries.mean[effect].is_finite());
+    assert!(conditional_posterior.summaries.mean[effect].abs() <= 1.0);
 
     assert_refused(
         Study::tabular(table)
@@ -234,4 +240,32 @@ fn routes_that_cannot_fit_a_non_gaussian_likelihood_refuse_by_code() {
             .build(),
         "transferred prior",
     );
+}
+
+#[test]
+fn non_gaussian_response_levels_run_through_study_on_probability_scale() {
+    let (table, _) = binary(240, 42);
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: v(1),
+        treatment: ContinuousDomain::new(v(0), GridSpec::Values(vec![0.0, 1.0].into())),
+    });
+    let result = Study::tabular(table)
+        .graph(dag())
+        .query(CausalQuery::Response(query))
+        .inference(bayes(BayesLikelihood::BernoulliLogit))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(42))
+        .unwrap();
+    let response = result.response.as_ref().unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+        &response.estimate
+    else {
+        panic!("expected response surface")
+    };
+    assert_eq!(mean.len(), 2);
+    assert!(mean.iter().all(|value| (0.0..=1.0).contains(value)));
+    assert!(mean[0] < mean[1]);
+    assert_eq!(response.uncertainty.credible_draws().unwrap().n_coordinates(), 2);
 }

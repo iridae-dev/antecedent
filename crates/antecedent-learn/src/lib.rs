@@ -10,6 +10,7 @@
 #![deny(missing_docs)]
 
 pub mod auto;
+pub mod bayesian_basis;
 pub mod categorical;
 pub mod crossfit;
 pub use categorical::FiniteJoint;
@@ -28,11 +29,15 @@ pub mod linear;
 pub mod logistic;
 #[cfg(feature = "ml-neural")]
 pub mod neural;
+pub mod posterior_prediction;
 pub mod ridge;
 pub mod spec;
 pub mod transform;
 
 pub use auto::resolve_auto;
+pub use bayesian_basis::{
+    BasisTargetPopulation, BayesianBasisEffect, BayesianBasisGComputation, BayesianBasisSpec,
+};
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{
     CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, cross_fit_with_folds,
@@ -48,6 +53,9 @@ pub use learner::{
 };
 pub use linear::LinearLearner;
 pub use logistic::{LogisticLearner, RidgeLogisticLearner};
+pub use posterior_prediction::{
+    PosteriorPrediction, PosteriorPredictionDiagnostics, PosteriorPredictionProvenance,
+};
 pub use ridge::RidgeLearner;
 pub use spec::{
     ElasticNetSpec, FOREST_PROBABILITY_MIN_LEAF, ForestSpec, GbtSpec, LearnerSpec, LinearSpec,

@@ -24,8 +24,20 @@ impl super::Study {
         if matches!(estimator_id, EstimatorId::RdSharp) {
             return self.execute_rd(data, graph, query, physical, ctx);
         }
+        if matches!(estimator_id, EstimatorId::BayesianIvJointLinear) {
+            return self.execute_bayesian_iv(data, graph, query, physical, ctx);
+        }
+        if matches!(estimator_id, EstimatorId::BayesianRdLocalLinear) {
+            return self.execute_bayesian_rd(data, graph, query, physical, ctx);
+        }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_bayesian(data, graph, query, physical, ctx);
+        }
+        if matches!(estimator_id, EstimatorId::BayesianBasisGcomp) {
+            return self.execute_bayesian_basis(data, graph, query, physical, ctx);
+        }
+        if matches!(estimator_id, EstimatorId::BayesianRobustAte) {
+            return self.execute_bayesian_robust_ate(data, graph, query, physical, ctx);
         }
         if matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return self.execute_functional_ate(data, graph, query, physical, ctx);
@@ -708,6 +720,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if self.estimator == Some(EstimatorId::BayesianBasisGcomp) {
+            return self.execute_bayesian_basis(data, graph, &query.inner, physical, ctx);
+        }
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
             return self.execute_bayesian(data, graph, &query.inner, physical, ctx);
         }

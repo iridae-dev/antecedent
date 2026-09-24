@@ -55,7 +55,7 @@ pub use builder::ChangeAttribution;
 pub use coalition::{CoalitionCache, CoalitionKey};
 pub use distribution_change::{
     DifferenceMeasure, DistributionChangeOptions, distribution_change, distribution_change_shapley,
-    distribution_change_with_fit_uncertainty,
+    distribution_change_with_fit_uncertainty, distribution_change_with_row_weights,
 };
 pub use error::AttributionError;
 pub use feature_relevance::feature_relevance;

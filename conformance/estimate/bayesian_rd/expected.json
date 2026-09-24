@@ -1,0 +1,7 @@
+{
+  "model": "sharp assignment local-linear Gaussian RD",
+  "cutoff": 0.0,
+  "true_jump": 2.5,
+  "fixed_bandwidth": 0.8,
+  "fixture": "antecedent_estimate::bayesian_rd::tests::local_linear_jump_recovers_known_truth_and_reports_bandwidth_sensitivity"
+}

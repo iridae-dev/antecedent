@@ -262,6 +262,7 @@ fn prepare_transport_grid(
     let options = statistical.then_some(EmpiricalTableOptions {
         estimator: crate::transport_statistical_api::parse_provider(estimator)?,
         bootstrap_replicates: bootstrap,
+        posterior_draws: 199,
         coverage_level,
         max_joint_cells: max_support_rows,
     });

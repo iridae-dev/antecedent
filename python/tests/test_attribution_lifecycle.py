@@ -200,14 +200,15 @@ def test_retarget_refuses():
     assert raised.value.reason_code == "population_not_estimable"
 
 
-def test_unlicensed_axes_refuse_on_analyze():
-    with pytest.raises(CausalUnsupportedError):
-        ant.analyze(
-            _outlier_chain(),
-            graph=_dag(),
-            query=_anomaly_query(),
-            inference=ant.Bayesian(n_draws=32),
-        )
+def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
+    bayesian = ant.analyze(
+        _outlier_chain(),
+        graph=_dag(),
+        query=_anomaly_query(),
+        inference=ant.Bayesian(n_draws=32),
+    )
+    assert bayesian.posterior is not None
+    assert bayesian.posterior.backend == "gcm.attribution.shared_dirichlet_row_weights"
     with pytest.raises(CausalUnsupportedError):
         ant.analyze(
             _two_period_chain(),
