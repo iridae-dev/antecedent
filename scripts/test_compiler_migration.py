@@ -98,11 +98,15 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
     def test_status_cannot_claim_closure_without_all_three_execution_receipts(self) -> None:
         original = compiler_migration.INVENTORY
         row = original.read_text()
-        key = 'InterventionalDistribution:Dag:explicit:Frequentist:none'
+        manifest = compiler_migration.tomllib.loads(row)
+        key = next(
+            route['coordinate'] for route in manifest['route']
+            if route['migration_status'] == 'verified'
+        )
         start = row.index(f'coordinate = "{key}"')
         end = row.find('[[route]]', start)
         end = len(row) if end < 0 else end
-        chunk = row[start:end].replace('migration_status = "in_progress"', 'migration_status = "verified"')
+        chunk = row[start:end].replace('checked_execution = "verified"', 'checked_execution = "unverified"')
         self.assertNotEqual(chunk, row[start:end])
         from tempfile import TemporaryDirectory
         with TemporaryDirectory() as directory:

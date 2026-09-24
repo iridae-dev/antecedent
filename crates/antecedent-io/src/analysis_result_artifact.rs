@@ -338,6 +338,27 @@ pub struct TemporalIdentificationWire {
     pub identification: IdentificationResultWire,
 }
 
+/// One probability atom from an interventional distribution result.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionAtomWire {
+    /// Outcome assignment in query outcome order.
+    pub outcomes: Vec<(u32, crate::ValueWire)>,
+    /// Conditioning assignment in query conditioning order.
+    #[serde(default)]
+    pub conditioning: Vec<(u32, crate::ValueWire)>,
+    /// Probability mass for this atom.
+    pub probability: f64,
+}
+
+/// Atom distribution reported by a checked interventional-distribution execution.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InterventionalDistributionWire {
+    /// Outcome and conditioning probability atoms.
+    pub atoms: Vec<DistributionAtomWire>,
+}
+
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
@@ -353,6 +374,11 @@ pub struct AnalysisResultWire {
     pub temporal_identification: Vec<TemporalIdentificationWire>,
     /// Scalar estimate when one exists; function-valued results have no scalar placeholder.
     pub estimate: Option<f64>,
+    /// Full atom result for an interventional-distribution query. Absent on older
+    /// artifacts; such artifacts remain readable but cannot verify as a checked
+    /// distribution execution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interventional_distribution: Option<InterventionalDistributionWire>,
     /// Scalar standard error when justified. Absent when the published interval
     /// is an Anderson–Rubin set (`interval_lower` / `interval_upper`) or when
     /// no scalar SE is licensed.
@@ -592,6 +618,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         crate::identification_from_wire(&horizon.identification)?;
     }
     crate::identification_from_wire(&result.identification)?;
+    validate_interventional_distribution(result)?;
     if result.identification_variables.is_none() && result.identification.query != result.query {
         return Err(IoError::Convert(
             "identification.query does not match the enclosing query".into(),
@@ -636,6 +663,101 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     validate_cate_and_learner_metrics(result)?;
     if let Some(structural) = &result.structural_response {
         validate_structural_response(structural, variable_names.len())?;
+    }
+    Ok(())
+}
+
+fn validate_interventional_distribution(result: &AnalysisResultWire) -> Result<(), IoError> {
+    let query = match &result.query {
+        CausalQueryWire::Distribution(query) => query,
+        _ if result.interventional_distribution.is_some() => {
+            return Err(IoError::Convert(
+                "interventional distribution atoms require a distribution query".into(),
+            ));
+        }
+        _ => return Ok(()),
+    };
+    let Some(distribution) = &result.interventional_distribution else {
+        // Older artifacts remain readable. The independent contract consumer
+        // reports the missing executable result payload as a dependency.
+        return Ok(());
+    };
+    if distribution.atoms.is_empty() {
+        return Err(IoError::Convert("interventional distribution has no atoms".into()));
+    }
+    let expected_outcomes = &query.outcomes;
+    let expected_conditioning = &query.conditioning;
+    let mut groups: Vec<(Vec<(u32, crate::ValueWire)>, f64)> = Vec::new();
+    let mut numeric_mean = 0.0;
+    for atom in &distribution.atoms {
+        if !atom.probability.is_finite()
+            || atom.probability < 0.0
+            || atom.outcomes.iter().map(|(id, _)| *id).collect::<Vec<_>>() != *expected_outcomes
+            || atom.conditioning.iter().map(|(id, _)| *id).collect::<Vec<_>>()
+                != *expected_conditioning
+        {
+            return Err(IoError::Convert(
+                "interventional distribution atom does not match its query or has invalid mass"
+                    .into(),
+            ));
+        }
+        if atom
+            .outcomes
+            .iter()
+            .chain(atom.conditioning.iter())
+            .any(|(_, value)| matches!(value, crate::ValueWire::Float64(v) if !v.is_finite()))
+        {
+            return Err(IoError::Convert(
+                "interventional distribution atom contains a non-finite value".into(),
+            ));
+        }
+        if expected_outcomes.len() == 1 {
+            if let Some(value) = atom.outcomes[0].1.to_value().as_f64() {
+                numeric_mean += value * atom.probability;
+            } else {
+                numeric_mean = f64::NAN;
+            }
+        } else {
+            numeric_mean = f64::NAN;
+        }
+        if let Some((_, mass)) =
+            groups.iter_mut().find(|(conditioning, _)| *conditioning == atom.conditioning)
+        {
+            *mass += atom.probability;
+        } else {
+            groups.push((atom.conditioning.clone(), atom.probability));
+        }
+        if distribution
+            .atoms
+            .iter()
+            .filter(|other| {
+                other.conditioning == atom.conditioning && other.outcomes == atom.outcomes
+            })
+            .count()
+            != 1
+        {
+            return Err(IoError::Convert(
+                "interventional distribution contains duplicate atoms".into(),
+            ));
+        }
+    }
+    if groups.iter().any(|(_, mass)| (mass - 1.0).abs() > 1e-9) {
+        return Err(IoError::Convert(
+            "interventional distribution atom masses must sum to one per conditioning assignment"
+                .into(),
+        ));
+    }
+    if expected_conditioning.is_empty()
+        && groups.len() == 1
+        && expected_outcomes.len() == 1
+        && numeric_mean.is_finite()
+        && result.estimate.is_some_and(|estimate| {
+            (estimate - numeric_mean).abs() > 1e-9 * (1.0 + numeric_mean.abs())
+        })
+    {
+        return Err(IoError::Convert(
+            "interventional distribution atoms disagree with the reported mean".into(),
+        ));
     }
     Ok(())
 }
@@ -935,6 +1057,59 @@ mod tests {
             "estimate": 1.0, "standard_error": 0.2, "assumptions": [], "diagnostics": [], "refutations": [],
             "response": null, "posterior_artifact": null, "mediation_grid": null, "structural_response": null
         })).unwrap()
+    }
+
+    fn distribution_fixture() -> AnalysisResultWire {
+        let query = antecedent_core::CausalQuery::Distribution(
+            antecedent_core::InterventionalDistributionQuery::new(
+                antecedent_core::VariableId::from_raw(1),
+                [antecedent_core::Intervention::set(
+                    antecedent_core::VariableId::from_raw(0),
+                    antecedent_core::Value::f64(1.0),
+                )],
+            ),
+        );
+        let query = crate::causal_query_to_wire(&query).unwrap();
+        let mut result = fixture();
+        result.query = query.clone();
+        result.identification.query = query;
+        result.estimate = Some(0.7);
+        result.interventional_distribution = Some(InterventionalDistributionWire {
+            atoms: vec![
+                DistributionAtomWire {
+                    outcomes: vec![(1, crate::ValueWire::Float64(0.0))],
+                    conditioning: Vec::new(),
+                    probability: 0.3,
+                },
+                DistributionAtomWire {
+                    outcomes: vec![(1, crate::ValueWire::Float64(1.0))],
+                    conditioning: Vec::new(),
+                    probability: 0.7,
+                },
+            ],
+        });
+        result
+    }
+
+    #[test]
+    fn distribution_atoms_are_bound_to_query_and_reported_mean() {
+        let mut result = distribution_fixture();
+        validate_interventional_distribution(&result).unwrap();
+
+        result.interventional_distribution.as_mut().unwrap().atoms[0].probability = 0.2;
+        assert!(validate_interventional_distribution(&result).is_err());
+
+        let mut result = distribution_fixture();
+        result.interventional_distribution.as_mut().unwrap().atoms[1].outcomes[0].0 = 0;
+        assert!(validate_interventional_distribution(&result).is_err());
+
+        let mut result = distribution_fixture();
+        result.estimate = Some(0.6);
+        assert!(validate_interventional_distribution(&result).is_err());
+
+        let mut result = distribution_fixture();
+        result.interventional_distribution.as_mut().unwrap().atoms[1].probability = f64::NAN;
+        assert!(validate_interventional_distribution(&result).is_err());
     }
 
     #[test]

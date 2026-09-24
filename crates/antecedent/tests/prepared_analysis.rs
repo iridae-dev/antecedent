@@ -15,9 +15,9 @@ use antecedent::{
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext,
-    Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec, MediationContrast,
-    MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet, TransformIntent, Value,
-    ValueType, VariableId,
+    IdentificationStatus, Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet,
+    TransformIntent, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
@@ -597,7 +597,11 @@ fn assert_prepared_contract_consume(
     assert_eq!(claim.identities.program, contract.identities.program);
     let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{query_kind} artifact unresolved: {:?}",
+        consumed.acceptance.unresolved
+    );
     let labels: std::collections::HashMap<_, _> = executed_functional_labels(
         &consumed.contract.as_ref().expect("verified contract").target.query,
     )
@@ -609,6 +613,9 @@ fn assert_prepared_contract_consume(
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
     );
     assert_eq!(consumed.body.estimate, Some(result.effect()));
+    if query_kind == "distribution" {
+        assert!(consumed.body.interventional_distribution.is_some());
+    }
 }
 
 fn assert_cached_only_on_prepared(
@@ -708,7 +715,7 @@ fn prepared_path_specific_reestimate_matches_fresh() {
 }
 
 #[test]
-fn prepared_distribution_reestimate_matches_fresh() {
+fn test_interventional_distribution_dag_explicit_frequentist_none_executes_checked_program() {
     let (data, dag, query) = distribution_fixture();
     let ctx = ExecutionContext::for_tests(1);
     let build = |data: TabularData, dag: Dag, query: InterventionalDistributionQuery| {
@@ -724,7 +731,7 @@ fn prepared_distribution_reestimate_matches_fresh() {
     let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
     let builder = Study::tabular(data.clone())
         .graph(dag)
-        .query(CausalQuery::Distribution(query))
+        .query(CausalQuery::Distribution(query.clone()))
         .identifier(IdentifierId::GeneralId)
         .estimator(EstimatorId::FunctionalDistribution)
         .refute(RefuteSuite::None);
@@ -732,6 +739,23 @@ fn prepared_distribution_reestimate_matches_fresh() {
     let mut prepared = study.prepare(&ctx).unwrap();
     drop(builder);
     drop(study);
+    let contract = prepared.contract().unwrap();
+    assert_eq!(prepared.query(), &CausalQuery::Distribution(query));
+    assert_eq!(contract.query_kind.as_ref(), "InterventionalDistribution");
+    assert_eq!(contract.identifier.as_deref(), Some("general.id"));
+    assert_eq!(contract.estimator.as_deref(), Some("functional.distribution"));
+    assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("general.id"));
+    assert_eq!(
+        prepared.plan().logical.record.estimator.as_deref(),
+        Some("functional.distribution")
+    );
+    assert!(contract.identities.identification_product.is_some());
+    match &contract.reasoning.identification {
+        antecedent_core::SlotAvailability::Available(slot) => {
+            assert_eq!(slot.status, IdentificationStatus::NonparametricallyIdentified);
+        }
+        other => panic!("prepared distribution has no identification product: {other:?}"),
+    }
     let plan = prepared.checked_distribution_program().expect("retained distribution program");
     assert_eq!(plan.mapping().source, plan.mapping().executable);
     assert!(!plan.factor_requirements().is_empty());
@@ -769,6 +793,77 @@ fn prepared_distribution_reestimate_matches_fresh() {
         (prepared.estimate(&data, &ctx).unwrap().distribution.unwrap().mean - 0.7).abs() < 1e-12
     );
     assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-dist", "distribution");
+
+    // Independent replay retains the complete distribution and its empirical
+    // factor laws, so the consumer can verify both atom probabilities.
+    let bytes =
+        prepared.encode_contracted_result(&first, "prepared-dist-independent", &ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    assert_eq!(consumed.body.estimate, Some(0.7));
+    let labels: std::collections::HashMap<_, _> =
+        executed_functional_labels(&consumed.body.query).into_iter().collect();
+    assert_eq!(labels["query_kind"], "distribution");
+    let artifact_dist =
+        consumed.body.interventional_distribution.as_ref().expect("portable distribution atoms");
+    let atom_probability = |outcome: f64| {
+        artifact_dist
+            .atoms
+            .iter()
+            .find(|atom| {
+                atom.outcomes.iter().any(|(variable, value)| {
+                    *variable == 1 && *value == antecedent_io::ValueWire::Float64(outcome)
+                })
+            })
+            .expect("outcome atom")
+            .probability
+    };
+    assert!((atom_probability(0.0) - 0.3).abs() < 1e-12);
+    assert!((atom_probability(1.0) - 0.7).abs() < 1e-12);
+
+    // Rehash a changed, still-normalized empirical law. The writer must reject
+    // the altered law when independent replay no longer generates the atoms.
+    let mut tampered_contract = consumed.contract.clone().expect("verified contract");
+    let snapshot = tampered_contract.data_snapshot.as_mut().expect("data snapshot");
+    let laws = snapshot.distribution_factor_laws.as_mut().expect("portable factor laws");
+    let rows = &mut laws.factors[0].rows;
+    assert!(rows.len() >= 2);
+    rows[0].probability += 0.01;
+    rows[1].probability -= 0.01;
+    tampered_contract.identities.data_snapshot =
+        *antecedent_io::data_snapshot_digest(tampered_contract.data_snapshot.as_ref().unwrap())
+            .unwrap()
+            .as_bytes();
+    tampered_contract.seal = antecedent_io::contract_seal(
+        &tampered_contract.identities,
+        &tampered_contract.reasoning,
+        &tampered_contract.graph_class,
+        &tampered_contract.structure_source,
+        tampered_contract.identifier.as_deref(),
+        tampered_contract.estimator.as_deref(),
+    )
+    .unwrap();
+    let result_digest = antecedent_io::result_digest(&consumed.body).unwrap();
+    let seal = tampered_contract.seal;
+    let claim = tampered_contract.claim.as_mut().unwrap();
+    claim.claim_id = *antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+        seal,
+        claim,
+        result_digest,
+    ))
+    .unwrap()
+    .as_bytes();
+    let rejected = antecedent_io::encode_analysis_result_artifact_with_contract(
+        &consumed.body,
+        consumed.header.variable_names.clone(),
+        "prepared-dist-tampered-laws",
+        Some(&tampered_contract),
+    );
+    assert!(rejected.is_err(), "rehashed factor-law tampering must be refused");
 }
 
 /// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses
@@ -1453,6 +1548,37 @@ fn prepared_admg_distribution_reuses_identification() {
     assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
     assert_eq!(first.support_status.unwrap().as_str(), "licensed");
     assert!(fresh.refutations.is_empty());
+
+    for accepted_structure in [false, true] {
+        let builder = Study::tabular(data.clone());
+        let builder = if accepted_structure {
+            builder.graph(AcceptedGraph::from(admg.clone()))
+        } else {
+            builder.graph(admg.clone())
+        };
+        let prepared_bayesian = builder
+            .query(CausalQuery::Distribution(query.clone()))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let bayesian_result = prepared_bayesian.estimate(&data, &ctx).unwrap();
+        let posterior = bayesian_result.posterior.as_ref().expect("ADMG posterior draws");
+        assert_eq!(posterior.draws.n_draws, 32);
+        assert!(bayesian_result.distribution.as_ref().unwrap().mean.is_finite());
+        let mass: f64 = bayesian_result
+            .distribution
+            .as_ref()
+            .unwrap()
+            .atoms
+            .iter()
+            .map(|atom| atom.probability)
+            .sum();
+        assert!((mass - 1.0).abs() < 1e-9);
+    }
 
     let accepted = Study::tabular(data.clone())
         .graph(AcceptedGraph::from(admg))

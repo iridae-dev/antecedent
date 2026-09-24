@@ -575,8 +575,66 @@ pub fn verify_contract_against_body(
     if contract.target.query != body.query {
         unresolved.push(Arc::from("body.query"));
     }
+    if contract.estimator.as_deref() == Some("functional.distribution")
+        && body.interventional_distribution.is_none()
+    {
+        // Pre-atom artifacts remain decodable, but cannot independently verify
+        // the distribution that produced the scalar summary.
+        unresolved.push(Arc::from("body.interventional_distribution"));
+    }
+    let factor_laws = contract
+        .data_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref());
+    let posterior_distribution = contract.estimator.as_deref() == Some("functional.distribution")
+        && (contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference == "bayesian" || program.commitments.prior_required
+        }) || contract
+            .inference_binding
+            .as_ref()
+            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    if posterior_distribution {
+        // Posterior atoms require joint per-draw factor tables and draw
+        // identity. Empirical marginal laws cannot replay their weights.
+        unresolved.push(Arc::from("dependencies.distribution_posterior_factor_draws"));
+    }
+    if contract.estimator.as_deref() == Some("functional.distribution") && factor_laws.is_none() {
+        // The checked expression proves what to evaluate, while the data snapshot
+        // only carries partition digests. Without portable factor laws a detached
+        // consumer cannot recompute the atom probabilities.
+        unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
+    }
     if body.identification.query != body.query {
         unresolved.push(Arc::from("body.identification.query"));
+    }
+    if contract.estimator.as_deref() == Some("functional.distribution") && !posterior_distribution {
+        match (
+            body.interventional_distribution.as_ref(),
+            contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
+            contract
+                .data_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
+        ) {
+            (Some(result), Some(program), Some(laws)) => {
+                if let Err(reason) = crate::distribution_replay::replay_distribution_atoms(
+                    &body.query,
+                    result,
+                    program,
+                    laws,
+                ) {
+                    unresolved.push(Arc::from(reason));
+                }
+            }
+            _ => {
+                if !unresolved
+                    .iter()
+                    .any(|reason| reason.as_ref() == "dependencies.distribution_factor_laws")
+                {
+                    unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
+                }
+            }
+        }
     }
     if contract.target.schema.variable_names() != header.variable_names {
         unresolved.push(Arc::from("header.variable_names"));
@@ -685,6 +743,19 @@ fn producer_encoding_unresolved(
     contract: &AnalysisResultContractWire,
     mut unresolved: Vec<Arc<str>>,
 ) -> Vec<Arc<str>> {
+    // Preserve portable structural artifacts while making the missing replay
+    // input explicit to independent consumers.
+    if contract.estimator.as_deref() == Some("functional.distribution") {
+        unresolved.retain(|key| key.as_ref() != "dependencies.distribution_factor_laws");
+        unresolved.retain(|key| key.as_ref() != "dependencies.distribution_posterior_factor_draws");
+    }
+    if contract
+        .program
+        .as_ref()
+        .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
+    {
+        unresolved.retain(|key| key.as_ref() != "dependencies.linear_fit_sufficient_statistics");
+    }
     if contract.estimator.as_deref() == Some("aipw") && contract.program.is_some() {
         if contract.program.as_ref().is_some_and(|program| program.checked_aipw_lowering.is_none())
         {
@@ -816,12 +887,22 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         program_digest,
     );
     let functional = contract.program.as_ref().and_then(|item| item.functional_program.as_ref());
-    if contract.estimator.as_deref() == Some("functional.distribution") && functional.is_none() {
+    let posterior_distribution = contract.estimator.as_deref() == Some("functional.distribution")
+        && (contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference == "bayesian" || program.commitments.prior_required
+        }) || contract
+            .inference_binding
+            .as_ref()
+            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    if contract.estimator.as_deref() == Some("functional.distribution")
+        && functional.is_none()
+        && !posterior_distribution
+    {
         // Older artifacts stay readable but cannot advertise a verified
         // executable distribution without the program that was evaluated.
         unresolved.push(Arc::from("program.functional_program"));
     }
-    if let Some(program) = functional {
+    if let Some(program) = functional.filter(|_| !posterior_distribution) {
         if crate::functional_program_from_wire(program, antecedent_expr::ProgramLimits::default())
             .is_err()
         {
@@ -880,6 +961,17 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         if !verify_checked_iv(contract, iv) {
             unresolved.push(Arc::from("program.checked_iv_binding"));
         }
+    }
+    verify_checked_linear_adjustment(contract, &mut unresolved);
+    if contract
+        .program
+        .as_ref()
+        .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
+    {
+        // This payload retains the checked design roles and selected
+        // procedure, but the artifact has no rows or replay sufficient
+        // statistics for recomputing the reported numeric estimate.
+        unresolved.push(Arc::from("dependencies.linear_fit_sufficient_statistics"));
     }
     verify_checked_aipw(contract, &mut unresolved);
     require_payload_digest(
@@ -947,6 +1039,201 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         _ => unresolved.push(Arc::from("contract.seal")),
     }
     unresolved
+}
+
+fn verify_checked_linear_adjustment(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<Arc<str>>,
+) {
+    let lowering = contract
+        .program
+        .as_ref()
+        .and_then(|program| program.checked_linear_adjustment_lowering.as_ref());
+    // The checked linear-adjustment lowering currently covers the supplied
+    // or accepted DAG ATE. Other graph classes may select the same numerical
+    // estimator inside an envelope, but they do not have this lowering yet.
+    let is_linear = contract.graph_class == "Dag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, crate::CausalQueryWire::AverageEffect { .. })
+        && (contract.estimator.as_deref() == Some("linear.adjustment.ate")
+            || contract.program.as_ref().is_some_and(|program| {
+                program.commitments.resolved_estimator.as_deref() == Some("linear.adjustment.ate")
+            }));
+    if is_linear && lowering.is_none() {
+        unresolved.push(Arc::from("program.checked_linear_adjustment_lowering"));
+        return;
+    }
+    let Some(lowering) = lowering else { return };
+    if !verify_linear_adjustment_lowering(contract, lowering) {
+        unresolved.push(Arc::from("program.checked_linear_adjustment_binding"));
+    }
+}
+
+fn verify_linear_adjustment_lowering(
+    contract: &AnalysisResultContractWire,
+    lowering: &crate::CheckedLinearAdjustmentLoweringWire,
+) -> bool {
+    let (Some(product), Some(program), Some(snapshot), Some(binding)) = (
+        contract.identification_product.as_ref(),
+        contract.program.as_ref(),
+        contract.data_snapshot.as_ref(),
+        contract.inference_binding.as_ref(),
+    ) else {
+        return false;
+    };
+    if lowering.format != 1
+        || lowering.backend != "faer"
+        || lowering.population != TargetPopulationWire::AllObserved
+        || lowering.complete_case_rows == 0
+        || lowering.complete_case_rows > snapshot.row_count
+        || lowering.design_columns.first().map(String::as_str) != Some("intercept")
+        || lowering.design_columns.get(1).map(String::as_str) != Some("treatment")
+        || lowering.design_columns.len() != lowering.adjustment.len() + 2
+        || lowering
+            .design_columns
+            .iter()
+            .skip(2)
+            .zip(&lowering.adjustment)
+            .any(|(role, id)| role != &format!("covariate:{id}"))
+        || !valid_linear_fit_kind(&lowering.fit_kind)
+        || !matches!(
+            lowering.se_kind.as_str(),
+            "homoskedastic"
+                | "hc0"
+                | "hc1"
+                | "hc2"
+                | "hc3"
+                | "cluster"
+                | "multiway"
+                | "newey_west"
+                | "panel_cluster_hac"
+        )
+        || matches!(lowering.se_kind.as_str(), "newey_west" | "panel_cluster_hac")
+            != lowering.se_lag.is_some()
+    {
+        return false;
+    }
+    let Some(estimand) = product.estimands.iter().find(|estimand| {
+        estimand.functional == lowering.functional
+            && estimand.method == "backdoor.adjustment"
+            && estimand.adjustment_set == lowering.adjustment
+    }) else {
+        return false;
+    };
+    let target_matches = match &contract.target.query {
+        crate::CausalQueryWire::AverageEffect {
+            treatment,
+            outcome,
+            active,
+            control,
+            outcome_functional,
+            target_population,
+            effect_modifiers,
+        } => {
+            *treatment == lowering.treatment
+                && *outcome == lowering.outcome
+                && intervention_bits(active, *treatment) == Some(lowering.active_bits)
+                && intervention_bits(control, *treatment) == Some(lowering.control_bits)
+                && matches!(outcome_functional, crate::query_wire::OutcomeFunctionalWire::Mean)
+                && target_population == &lowering.population
+                && effect_modifiers.is_empty()
+        }
+        _ => false,
+    };
+    if !product.estimands.iter().any(|candidate| candidate.functional == lowering.functional) {
+        return false;
+    }
+    let mut arena = match crate::expr_arena_from_wire(&lowering.arena) {
+        Ok(arena) => arena,
+        Err(_) => return false,
+    };
+    let treatment = antecedent_core::VariableId::from_raw(lowering.treatment);
+    let outcome = antecedent_core::VariableId::from_raw(lowering.outcome);
+    let adjustment = lowering
+        .adjustment
+        .iter()
+        .copied()
+        .map(antecedent_core::VariableId::from_raw)
+        .collect::<Vec<_>>();
+    let expected_source = arena.backdoor_ate(
+        treatment,
+        outcome,
+        &adjustment,
+        antecedent_core::Value::Float64(f64::from_bits(lowering.active_bits)),
+        antecedent_core::Value::Float64(f64::from_bits(lowering.control_bits)),
+    );
+    let z = arena.intern_var_set(adjustment.iter().copied());
+    let y = arena.intern_var_set([outcome]);
+    let tz = arena.intern_var_set(std::iter::once(treatment).chain(adjustment.iter().copied()));
+    let empty = arena.empty_var_set();
+    let no_intervention = arena.empty_intervention_set();
+    let marginal_z = arena.intern_distribution(
+        z,
+        empty,
+        no_intervention,
+        antecedent_expr::DomainRef::Observational,
+    );
+    let outcome_given_tz = arena.intern_distribution(
+        y,
+        tz,
+        no_intervention,
+        antecedent_expr::DomainRef::Observational,
+    );
+    let factors = arena.intern_list([outcome_given_tz, marginal_z]);
+    let product_expr = arena.intern(antecedent_expr::ExprNode::Product(factors));
+    let averaged =
+        arena.intern(antecedent_expr::ExprNode::SumOut { variables: z, expr: product_expr });
+    let expected_executable = arena.intern(antecedent_expr::ExprNode::Expectation {
+        function: antecedent_expr::OutcomeExprId::identity(outcome),
+        distribution: averaged,
+    });
+    let expected_arena = crate::expr_arena_to_wire(&arena).ok();
+    let commitments_match = program.commitments.resolved_estimator.as_deref()
+        == Some("linear.adjustment.ate")
+        && program.commitments.inference == "frequentist"
+        && !program.commitments.prior_required
+        && program.commitments.se_kind.as_deref() == Some(lowering.se_kind.as_str())
+        && program.commitments.interval_method == lowering.interval_method
+        && lowering.interval_method
+            == if lowering.bootstrap_replicates > 0 { "bootstrap_se" } else { "analytic_se" }
+        && binding.inference == "frequentist"
+        && binding.bayesian.is_none()
+        && binding.bootstrap_replicates == lowering.bootstrap_replicates;
+    let binding_matches = match binding.estimator_spec.as_ref() {
+        Some(crate::EstimatorSpecWire::Default(name)) => name == "linear.adjustment.ate",
+        Some(crate::EstimatorSpecWire::LinearAdjustmentAte(config)) => {
+            config.bootstrap_replicates == lowering.bootstrap_replicates
+                && config.se_kind.as_deref().unwrap_or("homoskedastic") == lowering.se_kind
+                && config.backend == lowering.backend
+                && config.fit_kind.as_ref().is_none_or(|(family, parameter)| {
+                    let expected = match lowering.fit_kind.split_once(':') {
+                        Some((kind, bits)) => (kind, u64::from_str_radix(bits, 16).ok()),
+                        None => (lowering.fit_kind.as_str(), None),
+                    };
+                    family == expected.0 && *parameter == expected.1
+                })
+        }
+        None => true,
+        _ => false,
+    };
+    target_matches
+        && estimand.adjustment_set == lowering.adjustment
+        && expected_source.raw() == lowering.functional
+        && expected_executable.raw() == lowering.executable
+        && expected_arena.as_ref() == Some(&lowering.arena)
+        && commitments_match
+        && binding_matches
+}
+
+fn valid_linear_fit_kind(fit_kind: &str) -> bool {
+    match fit_kind {
+        "ols" => true,
+        _ => fit_kind.split_once(':').is_some_and(|(kind, bits)| {
+            let Ok(bits) = u64::from_str_radix(bits, 16) else { return false };
+            let value = f64::from_bits(bits);
+            value.is_finite() && value > 0.0 && matches!(kind, "ridge" | "lasso" | "huber")
+        }),
+    }
 }
 
 fn verify_checked_iv(
@@ -2150,6 +2437,7 @@ mod tests {
             identification_variables: None,
             temporal_identification: Vec::new(),
             estimate: Some(2.0),
+            interventional_distribution: None,
             standard_error: Some(0.1),
             interval_lower: None,
             interval_upper: None,
@@ -2177,6 +2465,23 @@ mod tests {
             query: query_wire,
         };
         (body, target, schema.variables().iter().map(|v| v.name.to_string()).collect())
+    }
+
+    #[test]
+    fn distribution_consumer_names_missing_factor_laws_as_replay_dependency() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("functional.distribution".into());
+        let unresolved = verify_contract_against_body(
+            &AnalysisResultHeader { variable_names: names },
+            &body,
+            &contract,
+        );
+        assert!(
+            unresolved
+                .iter()
+                .any(|reason| { reason.as_ref() == "dependencies.distribution_factor_laws" })
+        );
     }
 
     #[allow(clippy::too_many_lines)]
@@ -2257,6 +2562,7 @@ mod tests {
             checked_aipw_lowering: None,
             checked_frontdoor_lowering: None,
             checked_iv_lowering: None,
+            checked_linear_adjustment_lowering: None,
         };
         let program_digest = program_digest(&program).unwrap();
         let inference_binding = InferenceBindingWire {
@@ -2286,6 +2592,7 @@ mod tests {
             unit_count: None,
             partitions: Vec::new(),
             interference: None,
+            distribution_factor_laws: None,
         };
         let snapshot_digest = data_snapshot_digest(&data_snapshot).unwrap();
         let execution = crate::execution_identity_from_context(
