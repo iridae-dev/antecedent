@@ -841,6 +841,9 @@ fn verify_layer_links(contract: &AnalysisResultContractWire, unresolved: &mut Ve
             if binding.bayesian.is_some() != (binding.inference == "bayesian") {
                 unresolved.push(Arc::from("inference_binding.bayesian"));
             }
+            if commitments.prior_required != binding.bayesian.is_some() {
+                unresolved.push(Arc::from("program.commitments.prior_required"));
+            }
         }
     }
 }
@@ -2147,6 +2150,20 @@ mod tests {
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+    }
+
+    #[test]
+    fn prior_requirement_is_bound_to_bayesian_inference_dependencies() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.program.as_mut().unwrap().commitments.prior_required = true;
+        seal_claim(&mut contract, &body);
+
+        let unresolved = unresolved_after(&body, &names, &contract);
+        assert!(
+            unresolved.iter().any(|item| item == "program.commitments.prior_required"),
+            "{unresolved:?}"
+        );
     }
 
     #[test]
