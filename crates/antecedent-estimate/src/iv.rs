@@ -43,10 +43,14 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, Value, VariableId,
 };
-use antecedent_data::TabularData;
-use antecedent_expr::IdentifiedEstimand;
+use antecedent_data::{TableView, TabularData};
+use antecedent_expr::{
+    DomainRef, ExprNode, FactorRequirement, FunctionalProgram, IdentifiedEstimand, OutcomeExprId,
+    ProgramLimits, ProgramSchema, ProgramVariable,
+};
+use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
     FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
     fit_2sls,
@@ -86,6 +90,225 @@ pub struct PreparedIvProblem {
     pub overlap: OverlapPolicy,
     /// Active − control treatment contrast that scales the per-unit IV effect.
     pub treatment_delta: f64,
+}
+
+/// Estimator procedure retained by a checked IV lowering.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CheckedIvProcedure {
+    /// Single binary instrument Wald ratio.
+    Wald,
+    /// Two-stage least squares.
+    TwoStageLeastSquares,
+}
+
+/// Typed semantic roles and procedure checked before IV design preparation.
+#[derive(Clone, Debug)]
+pub struct CheckedIvLowering {
+    /// Selected causal per-unit Wald ratio root.
+    pub functional: antecedent_expr::ExprId,
+    /// Observational `E[Y|Z=z]` child program.
+    pub outcome_program: FunctionalProgram,
+    /// Observational `E[T|Z=z]` child program.
+    pub treatment_program: FunctionalProgram,
+    /// Endogenous treatment role.
+    pub treatment: VariableId,
+    /// Outcome role.
+    pub outcome: VariableId,
+    /// Instrument roles in selected-estimand order.
+    pub instruments: Arc<[VariableId]>,
+    /// Exogenous adjustment roles.
+    pub adjustment: Arc<[VariableId]>,
+    /// Queried active treatment level.
+    pub active: f64,
+    /// Queried control treatment level.
+    pub control: f64,
+    /// Instrument value used as the first conditional arm.
+    pub instrument_active: f64,
+    /// Instrument value used as the second conditional arm.
+    pub instrument_control: f64,
+    /// Procedure selected by the estimator.
+    pub procedure: CheckedIvProcedure,
+}
+
+/// Checked IV preparation carrying its justification, expression program, and physical data.
+#[derive(Clone, Debug)]
+pub struct CheckedIvPreparation {
+    /// Selected identified estimand.
+    target: IdentifiedEstimand,
+    /// Checked provider factor requirements.
+    factor_requirements: Arc<[FactorRequirement]>,
+    /// Checked typed IV lowering.
+    lowering: CheckedIvLowering,
+    /// Selected identification assumptions.
+    required_assumptions: AssumptionSet,
+    /// Prepared numerical design.
+    problem: PreparedIvProblem,
+}
+
+impl CheckedIvPreparation {
+    /// Selected IV target.
+    pub fn target(&self) -> &IdentifiedEstimand {
+        &self.target
+    }
+    /// Checked observational outcome-mean child program.
+    pub fn outcome_program(&self) -> &FunctionalProgram {
+        &self.lowering.outcome_program
+    }
+    /// Checked observational treatment-mean child program.
+    pub fn treatment_program(&self) -> &FunctionalProgram {
+        &self.lowering.treatment_program
+    }
+    /// Provider factor requirements.
+    pub fn factor_requirements(&self) -> &[FactorRequirement] {
+        &self.factor_requirements
+    }
+    /// Typed IV lowering.
+    pub fn lowering(&self) -> &CheckedIvLowering {
+        &self.lowering
+    }
+    /// Selected identification assumptions.
+    pub fn required_assumptions(&self) -> &AssumptionSet {
+        &self.required_assumptions
+    }
+    /// Prepared numerical design.
+    pub fn problem(&self) -> &PreparedIvProblem {
+        &self.problem
+    }
+}
+
+fn prepare_iv_checked(
+    data: &TabularData,
+    identification: &IdentificationResult,
+    estimand_index: usize,
+    overlap: OverlapPolicy,
+    procedure: CheckedIvProcedure,
+) -> Result<CheckedIvPreparation, EstimationError> {
+    let target = identification
+        .estimands
+        .get(estimand_index)
+        .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
+    let claim = identification.claim(estimand_index).ok_or_else(|| {
+        EstimationError::data_msg("selected estimand has no identification claim")
+    })?;
+    if claim.status != IdentificationStatus::IdentifiedUnderParametricRestrictions {
+        return Err(EstimationError::data_msg(
+            "checked IV requires the selected parametric-restriction identification claim",
+        ));
+    }
+    let query = identification.average_effect().ok_or_else(|| {
+        EstimationError::data_msg("checked IV requires an average-effect identification query")
+    })?;
+    if target.method_kind().ok() != Some(antecedent_expr::EstimandMethod::Iv)
+        || target.instruments.len() != 1
+        || !target.mediators.is_empty()
+        || !target.adjustment_set.is_empty()
+        || target.instruments[0] == query.treatment
+        || target.instruments[0] == query.outcome
+    {
+        return Err(EstimationError::IncompatibleEstimand {
+            message: "checked IV lowering requires one instrument and no mediator roles",
+        });
+    }
+    let active = intervention_f64(&query.active)?;
+    let control = intervention_f64(&query.control)?;
+    if active == control {
+        return Err(EstimationError::unsupported(
+            "active and control treatment levels must differ",
+        ));
+    }
+    let mut arena = identification.arena.clone();
+    let expected = arena
+        .iv_wald(
+            query.treatment,
+            query.outcome,
+            &target.instruments,
+            &Value::f64(active),
+            &Value::f64(control),
+        )
+        .map_err(|e| EstimationError::data_msg(format!("invalid checked IV target: {e}")))?;
+    if expected != target.functional {
+        return Err(EstimationError::data_msg(
+            "selected IV functional does not match query treatment/outcome and instrument roles",
+        ));
+    }
+    let schema = ProgramSchema::new(
+        data.schema()
+            .variables()
+            .iter()
+            .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+    );
+    let problem = prepare_iv_problem(data, target, query, overlap)?;
+    let instrument = target.instruments[0];
+    let column = problem.nrows;
+    if !problem.instruments_matrix[column..2 * column]
+        .iter()
+        .all(|&value| value == 0.0 || value == 1.0)
+    {
+        return Err(EstimationError::unsupported(
+            "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+        ));
+    }
+    if instrument == query.treatment || instrument == query.outcome {
+        return Err(EstimationError::data_msg("IV instrument role overlaps treatment or outcome"));
+    }
+    let zset = arena.intern_var_set([instrument]);
+    let yset = arena.intern_var_set([query.outcome]);
+    let tset = arena.intern_var_set([query.treatment]);
+    let no_bindings = arena.empty_intervention_set();
+    let y_factor = arena.intern_distribution(yset, zset, no_bindings, DomainRef::Observational);
+    let t_factor = arena.intern_distribution(tset, zset, no_bindings, DomainRef::Observational);
+    let outcome_root = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(query.outcome),
+        distribution: y_factor,
+    });
+    let treatment_root = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(query.treatment),
+        distribution: t_factor,
+    });
+    let outcome_program = FunctionalProgram::new(
+        arena.clone(),
+        schema.clone(),
+        outcome_root,
+        outcome_root,
+        ProgramLimits::default(),
+    )
+    .map_err(|e| EstimationError::data_msg(format!("checked IV outcome child program: {e}")))?;
+    let treatment_program = FunctionalProgram::new(
+        arena,
+        schema,
+        treatment_root,
+        treatment_root,
+        ProgramLimits::default(),
+    )
+    .map_err(|e| EstimationError::data_msg(format!("checked IV treatment child program: {e}")))?;
+    let factor_requirements: Arc<[FactorRequirement]> = Arc::from(
+        outcome_program
+            .factor_requirements()
+            .iter()
+            .chain(treatment_program.factor_requirements())
+            .cloned()
+            .collect::<Vec<_>>(),
+    );
+    Ok(CheckedIvPreparation {
+        target: target.clone(),
+        factor_requirements,
+        lowering: CheckedIvLowering {
+            functional: target.functional,
+            outcome_program,
+            treatment_program,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            instruments: Arc::clone(&target.instruments),
+            adjustment: Arc::clone(&target.adjustment_set),
+            active,
+            control,
+            instrument_active: 1.0,
+            instrument_control: 0.0,
+            procedure,
+        },
+        required_assumptions: claim.required_assumptions.clone(),
+        problem,
+    })
 }
 
 fn prepare_iv_problem(
@@ -291,6 +514,36 @@ impl WaldIv {
         query: &AverageEffectQuery,
     ) -> Result<PreparedIvProblem, EstimationError> {
         prepare_iv_problem(data, estimand, query, self.overlap)
+    }
+
+    /// Prepare a Wald problem from one checked IV identification claim.
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<CheckedIvPreparation, EstimationError> {
+        prepare_iv_checked(
+            data,
+            identification,
+            estimand_index,
+            self.overlap,
+            CheckedIvProcedure::Wald,
+        )
+    }
+
+    /// Fit a sealed Wald preparation with its retained identification assumptions.
+    pub fn fit_checked(
+        &self,
+        checked: &CheckedIvPreparation,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if checked.lowering.procedure != CheckedIvProcedure::Wald {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked IV receipt was prepared for two-stage least squares",
+            });
+        }
+        self.fit(&checked.problem, ctx, checked.required_assumptions.clone())
     }
 
     /// Compute the Wald ratio (constant effect, or complier LATE; see [`WaldIv`]).
@@ -649,6 +902,37 @@ impl TwoStageLeastSquares {
         prepare_iv_problem(data, estimand, query, self.overlap)
     }
 
+    /// Prepare a two-stage least-squares problem from one checked IV claim.
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<CheckedIvPreparation, EstimationError> {
+        prepare_iv_checked(
+            data,
+            identification,
+            estimand_index,
+            self.overlap,
+            CheckedIvProcedure::TwoStageLeastSquares,
+        )
+    }
+
+    /// Fit a sealed two-stage least-squares preparation with retained assumptions.
+    pub fn fit_checked(
+        &self,
+        checked: &CheckedIvPreparation,
+        workspace: &mut TwoStageLeastSquaresWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if checked.lowering.procedure != CheckedIvProcedure::TwoStageLeastSquares {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked IV receipt was prepared for the Wald estimator",
+            });
+        }
+        self.fit(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
+    }
+
     /// Fit 2SLS and report the instrumented treatment coefficient (constant effect, or an
     /// instrument-weighted complier effect; see the module docs).
     ///
@@ -727,6 +1011,9 @@ mod tests {
     };
     use antecedent_expr::ExprId;
     use antecedent_expr::IdentifiedEstimand;
+    use antecedent_identify::{
+        DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+    };
 
     use super::*;
     use crate::overlap::OverlapPolicy;
@@ -883,6 +1170,31 @@ mod tests {
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0)
     }
 
+    fn checked_result(query: AverageEffectQuery) -> IdentificationResult {
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let functional = arena
+            .iv_wald(
+                query.treatment,
+                query.outcome,
+                &[VariableId::from_raw(2)],
+                &Value::f64(intervention_f64(&query.active).unwrap()),
+                &Value::f64(intervention_f64(&query.control).unwrap()),
+            )
+            .unwrap();
+        IdentificationResult::identified_under_parametric_restrictions(
+            antecedent_core::CausalQuery::average_effect(query),
+            vec![IdentifiedEstimand::instrumental(
+                "iv",
+                Arc::from([VariableId::from_raw(2)]),
+                functional,
+            )],
+            arena,
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        )
+    }
+
     fn ctx() -> ExecutionContext {
         ExecutionContext::for_tests(21)
     }
@@ -901,6 +1213,42 @@ mod tests {
         let (lo, hi, level) = diag.anderson_rubin.expect("homoskedastic AR set");
         assert_eq!(level, 0.95);
         assert!(lo <= 2.0 && 2.0 <= hi, "AR [{lo}, {hi}]");
+    }
+
+    #[test]
+    fn checked_two_sls_retains_iv_program_and_recovers_independent_truth() {
+        let (data, _) = binary_iv_scm(20_000, 31);
+        let identification = checked_result(query());
+        let estimator = TwoStageLeastSquares::new().with_bootstrap_replicates(0);
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(checked.lowering.procedure, CheckedIvProcedure::TwoStageLeastSquares);
+        assert_eq!(
+            checked.lowering.outcome_program.mapping().source,
+            checked.lowering.outcome_program.mapping().executable
+        );
+        assert_eq!(
+            checked.lowering.treatment_program.mapping().source,
+            checked.lowering.treatment_program.mapping().executable
+        );
+        assert_eq!(checked.lowering.instrument_active, 1.0);
+        assert_eq!(checked.lowering.instrument_control, 0.0);
+        assert!(checked.factor_requirements.iter().all(|factor| {
+            factor.domain == antecedent_expr::DomainRef::Observational
+                && factor.intervention.is_empty()
+        }));
+        let result = estimator
+            .fit_checked(&checked, &mut TwoStageLeastSquaresWorkspace::default(), &ctx())
+            .unwrap();
+        assert!((result.ate - 2.0).abs() < 0.08, "estimate={}", result.ate);
+
+        let wald = WaldIv::new().with_bootstrap_replicates(0);
+        let wald_checked = wald.prepare_checked(&data, &identification, 0).unwrap();
+        let wald_result = wald.fit_checked(&wald_checked, &ctx()).unwrap();
+        assert!((wald_result.ate - 2.0).abs() < 0.2, "Wald={}", wald_result.ate);
+
+        let mut tampered = checked_result(query());
+        tampered.estimands[0].instruments = Arc::from([VariableId::from_raw(1)]);
+        assert!(estimator.prepare_checked(&data, &tampered, 0).is_err());
     }
 
     #[test]

@@ -51,10 +51,14 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, VariableId,
+    AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation, Value, VariableId,
 };
-use antecedent_data::TabularData;
-use antecedent_expr::IdentifiedEstimand;
+use antecedent_data::{TableView, TabularData};
+use antecedent_expr::{
+    CausalExprArena, DomainRef, ExprNode, FactorRequirement, FunctionalProgram, IdentifiedEstimand,
+    OutcomeExprId, ProgramLimits, ProgramSchema, ProgramVariable,
+};
+use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
@@ -101,6 +105,222 @@ pub struct PreparedFrontDoorProblem {
     pub active: f64,
     /// Control treatment level.
     pub control: f64,
+}
+
+/// Typed functional and estimator roles checked for a front-door lowering.
+#[derive(Clone, Debug)]
+pub struct CheckedFrontDoorLowering {
+    /// Source and executable front-door functional root.
+    pub functional: antecedent_expr::ExprId,
+    /// Executable one-arm observational root; bind treatment and evaluate per declared arm.
+    pub executable: antecedent_expr::ExprId,
+    /// Treatment role.
+    pub treatment: VariableId,
+    /// Outcome role.
+    pub outcome: VariableId,
+    /// Mediator roles in selected-estimand order.
+    pub mediators: Arc<[VariableId]>,
+    /// Active intervention level.
+    pub active: f64,
+    /// Control intervention level.
+    pub control: f64,
+    /// Population averaging semantics.
+    pub population: TargetPopulation,
+    /// Numerical procedure checked for the product.
+    pub procedure: CheckedFrontDoorProcedure,
+}
+
+/// Front-door numerical procedure retained by the checked product.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CheckedFrontDoorProcedure {
+    /// Plug-in evaluation of the nonparametric front-door functional.
+    Functional,
+    /// Linear path-product estimator, which requires an additional functional-form restriction.
+    LinearPathProduct,
+}
+
+/// Checked front-door preparation for the nonparametric or two-stage numerical estimator.
+#[derive(Clone, Debug)]
+pub struct CheckedFrontDoorPreparation {
+    /// Selected identified estimand.
+    target: IdentifiedEstimand,
+    /// Checked functional program.
+    program: FunctionalProgram,
+    /// Provider factors requested by the functional.
+    factor_requirements: Arc<[FactorRequirement]>,
+    /// Typed functional and role correspondence.
+    lowering: CheckedFrontDoorLowering,
+    /// Selected identification assumptions.
+    required_assumptions: AssumptionSet,
+    /// Prepared physical data.
+    problem: PreparedFrontDoorProblem,
+}
+
+impl CheckedFrontDoorPreparation {
+    /// Selected front-door target.
+    pub fn target(&self) -> &IdentifiedEstimand {
+        &self.target
+    }
+    /// Structurally checked front-door program.
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+    /// Provider factor requirements.
+    pub fn factor_requirements(&self) -> &[FactorRequirement] {
+        &self.factor_requirements
+    }
+    /// Typed front-door lowering.
+    pub fn lowering(&self) -> &CheckedFrontDoorLowering {
+        &self.lowering
+    }
+    /// Selected identification assumptions.
+    pub fn required_assumptions(&self) -> &AssumptionSet {
+        &self.required_assumptions
+    }
+    /// Prepared numerical design.
+    pub fn problem(&self) -> &PreparedFrontDoorProblem {
+        &self.problem
+    }
+}
+
+pub(crate) fn prepare_frontdoor_checked(
+    data: &TabularData,
+    identification: &IdentificationResult,
+    estimand_index: usize,
+    overlap: OverlapPolicy,
+    procedure: CheckedFrontDoorProcedure,
+) -> Result<CheckedFrontDoorPreparation, EstimationError> {
+    let target = identification
+        .estimands
+        .get(estimand_index)
+        .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
+    let claim = identification.claim(estimand_index).ok_or_else(|| {
+        EstimationError::data_msg("selected estimand has no identification claim")
+    })?;
+    let has_linear_restriction = claim.required_assumptions.entries.iter().any(|record| {
+        matches!(
+            &record.assumption,
+            antecedent_core::Assumption::ParametricRestriction(p)
+                if p.id.as_ref() == LINEAR_PATH_PRODUCT_ASSUMPTION_ID
+        )
+    });
+    let claim_is_usable = match procedure {
+        CheckedFrontDoorProcedure::Functional => {
+            claim.status == IdentificationStatus::NonparametricallyIdentified
+        }
+        CheckedFrontDoorProcedure::LinearPathProduct => {
+            claim.status == IdentificationStatus::IdentifiedUnderParametricRestrictions
+                && has_linear_restriction
+        }
+    };
+    if !claim_is_usable {
+        return Err(EstimationError::data_msg(
+            "checked front-door requires nonparametric identification for the functional estimator, or the parametric claim with the exact linear path-product restriction for two-stage",
+        ));
+    }
+    let query = identification.average_effect().ok_or_else(|| {
+        EstimationError::data_msg("checked front-door requires an average-effect query")
+    })?;
+    if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
+        return Err(EstimationError::unsupported(
+            "checked front-door currently supports the mean outcome functional",
+        ));
+    }
+    let mut roles = target.mediators.to_vec();
+    roles.sort_unstable();
+    roles.dedup();
+    if target.method_kind().ok() != Some(antecedent_expr::EstimandMethod::FrontDoor)
+        || target.mediators.is_empty()
+        || !target.adjustment_set.is_empty()
+        || !target.instruments.is_empty()
+        || roles.len() != target.mediators.len()
+        || roles.contains(&query.treatment)
+        || roles.contains(&query.outcome)
+    {
+        return Err(EstimationError::IncompatibleEstimand {
+            message: "checked front-door requires unique mediator roles distinct from treatment/outcome",
+        });
+    }
+    let active = intervention_f64(&query.active)?;
+    let control = intervention_f64(&query.control)?;
+    let mut arena = identification.arena.clone();
+    let expected = arena.frontdoor_ate(
+        query.treatment,
+        query.outcome,
+        &target.mediators,
+        Value::f64(active),
+        Value::f64(control),
+    );
+    if expected != target.functional {
+        return Err(EstimationError::data_msg(
+            "selected front-door functional does not match query arms and mediator roles",
+        ));
+    }
+    let schema = ProgramSchema::new(
+        data.schema()
+            .variables()
+            .iter()
+            .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+    );
+    let executable =
+        observational_frontdoor_arm(&mut arena, query.treatment, query.outcome, &target.mediators);
+    let program = FunctionalProgram::new(
+        arena,
+        schema,
+        target.functional,
+        executable,
+        ProgramLimits::default(),
+    )
+    .map_err(|e| EstimationError::data_msg(format!("checked front-door program: {e}")))?;
+    let factor_requirements: Arc<[FactorRequirement]> =
+        Arc::from(program.factor_requirements().to_vec());
+    let problem = prepare_frontdoor_problem(data, target, query, overlap)?;
+    Ok(CheckedFrontDoorPreparation {
+        target: target.clone(),
+        program,
+        factor_requirements,
+        lowering: CheckedFrontDoorLowering {
+            functional: target.functional,
+            executable,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            mediators: Arc::clone(&target.mediators),
+            active,
+            control,
+            population: query.target_population.clone(),
+            procedure,
+        },
+        required_assumptions: claim.required_assumptions.clone(),
+        problem,
+    })
+}
+
+/// One-arm observational front-door formula with treatment left as a binding coordinate.
+fn observational_frontdoor_arm(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    outcome: VariableId,
+    mediators: &[VariableId],
+) -> antecedent_expr::ExprId {
+    let m = arena.intern_var_set(mediators.iter().copied());
+    let y = arena.intern_var_set([outcome]);
+    let t = arena.intern_var_set([treatment]);
+    let m_and_t = arena.intern_var_set(mediators.iter().copied().chain([treatment]));
+    let empty = arena.empty_var_set();
+    let no_bindings = arena.empty_intervention_set();
+    let m_given_t = arena.intern_distribution(m, t, no_bindings, DomainRef::Observational);
+    let y_given_m_t = arena.intern_distribution(y, m_and_t, no_bindings, DomainRef::Observational);
+    let t_marginal = arena.intern_distribution(t, empty, no_bindings, DomainRef::Observational);
+    let inner_factors = arena.intern_list([y_given_m_t, t_marginal]);
+    let inner_product = arena.intern(ExprNode::Product(inner_factors));
+    let inner_sum = arena.intern(ExprNode::SumOut { variables: t, expr: inner_product });
+    let outer_factors = arena.intern_list([m_given_t, inner_sum]);
+    let outer_product = arena.intern(ExprNode::Product(outer_factors));
+    let outer_sum = arena.intern(ExprNode::SumOut { variables: m, expr: outer_product });
+    arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution: outer_sum,
+    })
 }
 
 pub(crate) fn prepare_frontdoor_problem(
@@ -274,6 +494,22 @@ impl FrontDoorTwoStage {
         prepare_frontdoor_problem(data, estimand, query, self.overlap)
     }
 
+    /// Prepare from a selected checked identification result.
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<CheckedFrontDoorPreparation, EstimationError> {
+        prepare_frontdoor_checked(
+            data,
+            identification,
+            estimand_index,
+            self.overlap,
+            CheckedFrontDoorProcedure::LinearPathProduct,
+        )
+    }
+
     /// Fit the path-sum product-of-coefficients estimator, with optional bootstrap.
     ///
     /// # Errors
@@ -291,6 +527,21 @@ impl FrontDoorTwoStage {
         let point = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_se_kind(self.se_kind);
         self.attach_bootstrap(problem, workspace, ctx, point)
+    }
+
+    /// Fit a sealed linear path-product preparation with its retained assumptions.
+    pub fn fit_checked(
+        &self,
+        checked: &CheckedFrontDoorPreparation,
+        workspace: &mut FrontDoorWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if checked.lowering.procedure != CheckedFrontDoorProcedure::LinearPathProduct {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked front-door receipt was prepared for the functional estimator",
+            });
+        }
+        self.fit(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
     }
 
     /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
@@ -805,6 +1056,9 @@ pub(crate) mod tests {
     };
     use antecedent_expr::ExprId;
     use antecedent_expr::IdentifiedEstimand;
+    use antecedent_identify::{
+        DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
+    };
 
     use super::*;
     use crate::overlap::OverlapPolicy;
@@ -941,6 +1195,57 @@ pub(crate) mod tests {
         assert!((effect.ate - 6.0).abs() < 0.5, "ate={}", effect.ate);
         assert!(effect.se_bootstrap.is_some());
         assert!(effect.se_analytic.is_finite());
+    }
+
+    #[test]
+    fn checked_frontdoor_product_retains_roles_and_recovers_independent_truth() {
+        let (data, _) = frontdoor_scm(8_000, 17);
+        let query = query();
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let functional = arena.frontdoor_ate(
+            query.treatment,
+            query.outcome,
+            &[VariableId::from_raw(2)],
+            Value::f64(intervention_f64(&query.active).unwrap()),
+            Value::f64(intervention_f64(&query.control).unwrap()),
+        );
+        let identification = IdentificationResult::identified(
+            antecedent_core::CausalQuery::average_effect(query),
+            vec![IdentifiedEstimand::frontdoor(
+                "frontdoor",
+                Arc::from([VariableId::from_raw(2)]),
+                functional,
+            )],
+            arena.clone(),
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        );
+        let functional_estimator = crate::FrontDoorFunctional::new();
+        let functional_checked =
+            functional_estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(functional_checked.lowering().procedure, CheckedFrontDoorProcedure::Functional);
+        let mut assumptions = AssumptionSet::new();
+        assumptions.push(linear_path_product_restriction());
+        let identification = IdentificationResult::identified_under_parametric_restrictions(
+            identification.query.clone(),
+            identification.estimands.clone(),
+            arena,
+            DerivationTrace::default(),
+            assumptions,
+            IdentificationPerformanceRecord::default(),
+        );
+        let estimator = FrontDoorTwoStage::new().with_bootstrap_replicates(0);
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(checked.lowering.mediators.as_ref(), &[VariableId::from_raw(2)]);
+        assert_eq!(checked.program.mapping().source, checked.target.functional);
+        assert_ne!(checked.program.mapping().source, checked.program.mapping().executable);
+        assert!(checked.factor_requirements.iter().all(|factor| {
+            factor.domain == DomainRef::Observational && factor.intervention.is_empty()
+        }));
+        let mut workspace = FrontDoorWorkspace::default();
+        let effect = estimator.fit_checked(&checked, &mut workspace, &ctx()).unwrap();
+        assert!((effect.ate - 6.0).abs() < 0.35, "ate={}", effect.ate);
     }
 
     #[test]

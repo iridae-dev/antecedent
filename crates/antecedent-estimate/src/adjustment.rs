@@ -65,24 +65,59 @@ pub struct PreparedEstimationProblem {
 #[derive(Clone, Debug)]
 pub struct CheckedLinearAdjustmentAte {
     /// Selected causal target and its estimator roles.
-    pub target: IdentifiedEstimand,
-    /// Arena owning the selected functional.
-    pub arena: CausalExprArena,
+    target: IdentifiedEstimand,
     /// Selected source functional root.
-    pub source_functional: ExprId,
+    source_functional: ExprId,
     /// One-arm observational adjustment functional derived from the source target.
     /// Evaluate with treatment bound to each declared arm, then subtract control from active.
-    pub executable_functional: ExprId,
+    executable_functional: ExprId,
     /// Checked role and population receipt for the source-to-executable lowering.
-    pub lowering: CheckedAdjustmentLowering,
+    lowering: CheckedAdjustmentLowering,
     /// Structurally checked owner of the source and executable roots.
-    pub program: FunctionalProgram,
+    program: FunctionalProgram,
     /// Provider factors discovered while checking the executable root.
-    pub factor_requirements: Arc<[FactorRequirement]>,
+    factor_requirements: Arc<[FactorRequirement]>,
+    /// Query that was checked and used to bind the source target.
+    query: AverageEffectQuery,
     /// Assumptions attached to the selected identification claim.
-    pub required_assumptions: AssumptionSet,
+    required_assumptions: AssumptionSet,
     /// Checked and prepared linear adjustment design.
-    pub problem: PreparedEstimationProblem,
+    problem: PreparedEstimationProblem,
+}
+
+impl CheckedLinearAdjustmentAte {
+    /// Selected causal target.
+    pub fn target(&self) -> &IdentifiedEstimand {
+        &self.target
+    }
+    /// Checked program that owns the target and observational execution root.
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+    /// Checked source root.
+    pub fn source_functional(&self) -> ExprId {
+        self.source_functional
+    }
+    /// Checked executable arm root.
+    pub fn executable_functional(&self) -> ExprId {
+        self.executable_functional
+    }
+    /// Typed source-to-executable lowering.
+    pub fn lowering(&self) -> &CheckedAdjustmentLowering {
+        &self.lowering
+    }
+    /// Checked provider factor requirements.
+    pub fn factor_requirements(&self) -> &[FactorRequirement] {
+        &self.factor_requirements
+    }
+    /// Selected identification assumptions.
+    pub fn required_assumptions(&self) -> &AssumptionSet {
+        &self.required_assumptions
+    }
+    /// Prepared numerical design.
+    pub fn problem(&self) -> &PreparedEstimationProblem {
+        &self.problem
+    }
 }
 
 /// Checked semantic correspondence for a static adjustment ATE lowering.
@@ -923,7 +958,6 @@ impl LinearAdjustmentAte {
         let problem = self.prepare_unchecked(data, target, query)?;
         Ok(CheckedLinearAdjustmentAte {
             target: target.clone(),
-            arena: checked_arena,
             source_functional: target.functional,
             executable_functional: executable,
             lowering: CheckedAdjustmentLowering {
@@ -938,9 +972,56 @@ impl LinearAdjustmentAte {
             },
             program,
             factor_requirements,
+            query: query.clone(),
             required_assumptions: claim.required_assumptions.clone(),
             problem,
         })
+    }
+
+    /// Rebuild the physical design for another dataset with the same semantic schema.
+    ///
+    /// The checked program and lowering are reused unchanged. This verifies the data schema,
+    /// retained query, target roles, and source/executable correspondence before preparing
+    /// the new row and design binding.
+    pub fn rebind_checked(
+        &self,
+        checked: &CheckedLinearAdjustmentAte,
+        data: &TabularData,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let mapping = checked.program.mapping();
+        if checked.program.schema() != &schema
+            || checked.target.functional != checked.source_functional
+            || mapping.source != checked.source_functional
+            || mapping.executable != checked.executable_functional
+            || checked.lowering.source != checked.source_functional
+            || checked.lowering.executable != checked.executable_functional
+            || checked.lowering.treatment != checked.query.treatment
+            || checked.lowering.outcome != checked.query.outcome
+            || checked.lowering.adjustment != checked.target.adjustment_set
+            || checked.lowering.population != checked.query.target_population
+            || checked.query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+            || checked.query.target_population != TargetPopulation::AllObserved
+        {
+            return Err(EstimationError::data_msg(
+                "checked adjustment program, query, roles, or data semantic schema no longer agree",
+            ));
+        }
+        let (active, control, _) =
+            treatment_contrast(&checked.query.active, &checked.query.control)?;
+        if active != checked.lowering.active || control != checked.lowering.control {
+            return Err(EstimationError::data_msg(
+                "checked adjustment arm bindings no longer agree with the retained query",
+            ));
+        }
+        let mut rebound = checked.clone();
+        rebound.problem = self.prepare_unchecked(data, &checked.target, &checked.query)?;
+        Ok(rebound)
     }
 
     /// Fit a checked preparation using the assumptions retained with its selected claim.
@@ -1743,11 +1824,25 @@ mod tests {
         assert_eq!(checked.lowering.population, TargetPopulation::AllObserved);
         assert!(checked.factor_requirements.iter().all(|f| f.intervention.is_empty()));
         assert_eq!(
-            checked.arena.node(checked.source_functional),
+            checked.program.arena().node(checked.source_functional),
             identification.arena.node(checked.source_functional)
         );
         assert_eq!(checked.problem.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
         assert!(checked.required_assumptions.is_empty());
+        let rebound = estimator.rebind_checked(&checked, &data).unwrap();
+        assert_eq!(rebound.program.mapping(), checked.program.mapping());
+        assert_eq!(rebound.problem.design.nrows, checked.problem.design.nrows);
+
+        let t = [0.0, 1.0];
+        let y = [0.0, 1.0];
+        let z = [0.0, 1.0];
+        let changed_schema = TabularData::from_f64_columns([
+            ("renamed_t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        assert!(estimator.rebind_checked(&checked, &changed_schema).is_err());
     }
 
     #[test]

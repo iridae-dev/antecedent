@@ -59,6 +59,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_identify::IdentificationResult;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
@@ -153,6 +154,22 @@ impl FrontDoorFunctional {
         prepare_frontdoor_problem(data, estimand, query, self.overlap)
     }
 
+    /// Prepare from a selected checked identification result.
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<crate::frontdoor::CheckedFrontDoorPreparation, EstimationError> {
+        crate::frontdoor::prepare_frontdoor_checked(
+            data,
+            identification,
+            estimand_index,
+            self.overlap,
+            crate::frontdoor::CheckedFrontDoorProcedure::Functional,
+        )
+    }
+
     /// Fit the plug-in contrast with its influence-function SE and optional bootstrap.
     ///
     /// # Errors
@@ -191,6 +208,20 @@ impl FrontDoorFunctional {
         let point = EffectEstimate::new(fitted.ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(problem.nrows as u64);
         self.attach_bootstrap(problem, ctx, point)
+    }
+
+    /// Fit a sealed nonparametric front-door preparation with its retained assumptions.
+    pub fn fit_checked(
+        &self,
+        checked: &crate::frontdoor::CheckedFrontDoorPreparation,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if checked.lowering().procedure != crate::frontdoor::CheckedFrontDoorProcedure::Functional {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "checked front-door receipt was prepared for the linear path-product estimator",
+            });
+        }
+        self.fit(checked.problem(), ctx, checked.required_assumptions().clone())
     }
 
     /// Attach the bootstrap SE onto a point estimate from [`Self::fit`] (progressive
