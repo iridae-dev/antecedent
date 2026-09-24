@@ -581,6 +581,15 @@ pub fn verify_contract_against_body(
     } else if contract.identities.identification_product.is_some() {
         unresolved.push(Arc::from("identities.identification_product"));
     }
+    if contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
+        && !body.assumptions.iter().any(|assumption| {
+            matches!(&assumption.assumption,
+                crate::trace::AssumptionTagWire::ParametricRestriction { id, .. }
+                    if id == "frontdoor.linear_path_product")
+        })
+    {
+        unresolved.push(Arc::from("body.frontdoor_assumption"));
+    }
     require_present(&mut unresolved, "identities.identification", contract.identification.as_ref());
     require_present(&mut unresolved, "identities.program", contract.program.as_ref());
     require_present(
@@ -893,7 +902,7 @@ fn verify_frontdoor_lowering(
     let Some(estimand) = product.estimands.iter().find(|estimand| {
         estimand.functional == lowering.functional
             && estimand.mediators == lowering.mediators
-            && estimand.method == "front_door"
+            && estimand.method == "frontdoor"
     }) else {
         return false;
     };
@@ -949,7 +958,12 @@ fn verify_frontdoor_lowering(
             antecedent_core::Value::Float64(f64::from_bits(lowering.control_bits)),
         );
         let executable = frontdoor_observational_root(&mut arena, treatment, outcome, &mediators);
-        Some(source.raw() == lowering.functional && executable.raw() == lowering.executable)
+        let expected_arena = crate::expr_arena_to_wire(&arena).ok()?;
+        Some(
+            source.raw() == lowering.functional
+                && executable.raw() == lowering.executable
+                && expected_arena == lowering.arena,
+        )
     })()
     .unwrap_or(false);
     let uncertainty_matches = lowering.uncertainty
@@ -958,18 +972,19 @@ fn verify_frontdoor_lowering(
             program.commitments.interval_method,
             program.commitments.se_kind.as_deref().unwrap_or("unspecified")
         );
-    let overlap_matches =
-        contract.inference_binding.as_ref().and_then(|binding| binding.overlap_policy.as_deref())
-            == Some(lowering.overlap.as_str());
-    let assumption_present = product.required_assumptions.iter().any(|assumption| {
-        matches!(&assumption.assumption,
-            crate::trace::AssumptionTagWire::ParametricRestriction { id, .. }
-                if id == "frontdoor.linear_path_product")
+    let overlap_matches = contract.inference_binding.as_ref().is_some_and(|binding| {
+        if let Some(overlap) = binding.overlap_policy.as_deref() {
+            return overlap == lowering.overlap;
+        }
+        matches!(
+            binding.estimator_spec.as_ref(),
+            Some(crate::EstimatorSpecWire::FrontDoorTwoStage(config))
+                if overlap_policy_tag(&config.overlap) == lowering.overlap
+        )
     });
     target_matches
         && program_valid
         && lowering_matches_frontdoor
-        && lowering.arena == product.arena
         && lowering.format == 1
         && lowering.procedure == "linear_path_product"
         && contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
@@ -980,8 +995,7 @@ fn verify_frontdoor_lowering(
         && !lowering.mediators.is_empty()
         && lowering.treatment != lowering.outcome
         && lowering.mediators.iter().all(|id| *id != lowering.treatment && *id != lowering.outcome)
-        && assumption_present
-        && estimand.method == "front_door"
+        && estimand.method == "frontdoor"
 }
 
 fn frontdoor_observational_root(
@@ -1025,6 +1039,17 @@ fn intervention_bits(wire: &crate::query_wire::InterventionWire, variable: u32) 
             }
         }
         _ => None,
+    }
+}
+
+fn overlap_policy_tag(policy: &crate::OverlapPolicyWire) -> String {
+    match policy {
+        crate::OverlapPolicyWire::ExplicitOverride => "explicit_override".into(),
+        crate::OverlapPolicyWire::RequireDiagnostics { clip_bits, trim_bits } => format!(
+            "require_diagnostics:clip={}:trim={}",
+            clip_bits.map_or_else(|| "none".into(), |bits| format!("{bits:016x}")),
+            trim_bits.map_or_else(|| "none".into(), |bits| format!("{bits:016x}")),
+        ),
     }
 }
 
