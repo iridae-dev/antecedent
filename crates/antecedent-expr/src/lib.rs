@@ -524,6 +524,22 @@ impl CausalExprArena {
         self.populations.len()
     }
 
+    /// Total entries stored across interned variable sets, interventions, expression lists,
+    /// and population keys. Useful for applying resource limits before compiling a program.
+    #[must_use]
+    pub fn table_entry_count(&self) -> usize {
+        self.var_sets
+            .iter()
+            .map(|items| items.len())
+            .chain(self.interventions.iter().map(|items| items.len()))
+            .chain(self.lists.iter().map(|items| items.len()))
+            .fold(0usize, usize::saturating_add)
+            .saturating_add(self.var_sets.len())
+            .saturating_add(self.interventions.len())
+            .saturating_add(self.lists.len())
+            .saturating_add(self.populations.len())
+    }
+
     /// Hash-cons a default (single-study) distribution leaf.
     pub fn intern_distribution(
         &mut self,

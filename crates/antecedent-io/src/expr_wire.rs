@@ -65,6 +65,41 @@ pub fn functional_program_from_wire(
     wire: &FunctionalProgramWire,
     limits: ProgramLimits,
 ) -> Result<FunctionalProgram, IoError> {
+    if wire.arena.nodes.len() > limits.max_nodes {
+        return Err(IoError::Convert("invalid functional program: node limit exceeded".into()));
+    }
+    if wire.arena.derivations.len() > limits.max_nodes {
+        return Err(IoError::Convert(
+            "invalid functional program: derivation limit exceeded".into(),
+        ));
+    }
+    let table_entries = wire
+        .arena
+        .var_sets
+        .iter()
+        .map(Vec::len)
+        .chain(wire.arena.interventions.iter().map(Vec::len))
+        .chain(wire.arena.lists.iter().map(Vec::len))
+        .fold(0usize, usize::saturating_add)
+        .saturating_add(wire.arena.var_sets.len())
+        .saturating_add(wire.arena.interventions.len())
+        .saturating_add(wire.arena.lists.len());
+    let populations = wire
+        .arena
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            ExprNodeWire::Distribution { population, .. }
+            | ExprNodeWire::Kernel { population, .. } => Some(population.as_str()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    if table_entries.saturating_add(populations).saturating_add(wire.variables.len())
+        > limits.max_table_entries
+    {
+        return Err(IoError::Convert("invalid functional program: table limit exceeded".into()));
+    }
     let arena = expr_arena_from_wire(&wire.arena)?;
     let schema = ProgramSchema::new(wire.variables.iter().map(|(id, name)| {
         (VariableId::from_raw(*id), ProgramVariable { name: Arc::from(name.as_str()) })
@@ -494,6 +529,20 @@ mod tests {
         assert_eq!(loaded.mapping(), program.mapping());
         assert_eq!(loaded.schema().variable(y).unwrap().name.as_ref(), "outcome");
         assert_eq!(loaded.factor_requirements(), program.factor_requirements());
+        assert!(
+            functional_program_from_wire(
+                &wire,
+                ProgramLimits { max_nodes: 0, max_table_entries: 10, max_depth: 10 },
+            )
+            .is_err()
+        );
+        assert!(
+            functional_program_from_wire(
+                &wire,
+                ProgramLimits { max_nodes: 10, max_table_entries: 1, max_depth: 10 },
+            )
+            .is_err()
+        );
         let mut invalid = wire;
         invalid.executable = u32::MAX;
         assert!(functional_program_from_wire(&invalid, ProgramLimits::default()).is_err());
