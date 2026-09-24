@@ -169,7 +169,46 @@ impl super::Study {
             }
             _ => None,
         };
+        // Route the supported single binary-instrument slice through the checked IV
+        // receipt. The generic 2SLS estimator still supports multiple/continuous
+        // instruments and adjustment covariates; those designs remain on its legacy
+        // preparation path because the current receipt lowers the binary Wald functional.
+        let checked_iv_roles_supported = identification.estimands.first().is_some_and(|target| {
+            target.instruments.len() == 1
+                && target.mediators.is_empty()
+                && target.adjustment_set.is_empty()
+        });
+        let checked_2sls = if !checked_iv_roles_supported {
+            None
+        } else {
+            match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::Iv2Sls) => {
+                    let fitter = antecedent_estimate::TwoStageLeastSquares::new();
+                    match fitter.prepare_checked(data, &identification, 0) {
+                        Ok(checked) => Some((fitter, checked)),
+                        Err(antecedent_estimate::EstimationError::Unsupported {
+                            message:
+                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                        }) => None,
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                EstimatorSpec::Iv2Sls(cfg) => {
+                    let fitter = (**cfg).clone();
+                    match fitter.prepare_checked(data, &identification, 0) {
+                        Ok(checked) => Some((fitter, checked)),
+                        Err(antecedent_estimate::EstimationError::Unsupported {
+                            message:
+                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                        }) => None,
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                _ => None,
+            }
+        };
         let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
+        let mut iv_workspace = antecedent_estimate::TwoStageLeastSquaresWorkspace::default();
         let point = if let Some((fitter, checked)) = &checked_linear {
             fitter.fit_checked(checked, &mut estimate_ws.linear, ctx).map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
@@ -178,6 +217,8 @@ impl super::Study {
             fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
         } else if let Some((fitter, checked)) = &checked_wald {
             fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_2sls {
+            fitter.fit_checked(checked, &mut iv_workspace, ctx).map_err(CausalError::from)?
         } else {
             estimate_static_effect(
                 &estimator_spec,
