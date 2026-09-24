@@ -1959,6 +1959,70 @@ mod tests {
     }
 
     #[test]
+    fn bayesian_transport_providers_match_independent_dirichlet_moments() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../conformance/estimate/bayesian_structural_transport/expected.json"
+        ))
+        .unwrap();
+        let counts: [usize; 4] = oracle["counts_x0y0_x0y1_x1y0_x1y1"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_u64().unwrap() as usize)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        let draws = oracle["draws"].as_u64().unwrap() as u32;
+        let tolerance = oracle["monte_carlo_tolerance"].as_f64().unwrap();
+        let ctx = ExecutionContext::for_tests(251);
+        for (estimator, expected_key) in [
+            (
+                antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap,
+                "empirical_support_p_y1_given_do_x1",
+            ),
+            (
+                antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet,
+                "state_space_p_y1_given_do_x1",
+            ),
+        ] {
+            let study = prepared_with_options(
+                "dirichlet-oracle",
+                counts,
+                DependenceGroup::IndependentStudies,
+                EmpiricalTableOptions {
+                    estimator,
+                    posterior_draws: draws,
+                    ..EmpiricalTableOptions::default()
+                },
+            );
+            let result = study.estimate_retained(&ctx).unwrap();
+            let posterior = result.bayesian_estimate().unwrap();
+            assert_eq!(posterior.draws_ok, draws);
+            assert_eq!(posterior.draws_failed, 0);
+            let mean = posterior
+                .distributions
+                .iter()
+                .map(|distribution| distribution.mean(v(1)).unwrap())
+                .sum::<f64>()
+                / f64::from(draws);
+            let expected = oracle[expected_key].as_f64().unwrap();
+            assert!((mean - expected).abs() < tolerance, "{estimator:?}: {mean} != {expected}");
+            let artifact = study.export(&result).unwrap();
+            let (_, consumed) = PreparedStudy::<StatisticalPreparedState>::consume(
+                &artifact,
+                ExactEvaluationLimits::default(),
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(consumed.bayesian_estimate().unwrap().draws_ok, posterior.draws_ok,);
+            assert_eq!(
+                consumed.bayesian_estimate().unwrap().mean_intervals,
+                posterior.mean_intervals,
+            );
+        }
+    }
+
+    #[test]
     fn dependent_binding_withholds_interval_with_the_estimators_reason() {
         for dependence in [DependenceGroup::LinkedUnits, DependenceGroup::UnknownDependence] {
             let study = prepared_with_dependence(

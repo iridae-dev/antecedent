@@ -362,12 +362,13 @@ notes = "Posterior draws and target-source provenance pass through the prepared 
 
 [[capabilities]]
 id = "bayes.transport.empirical_and_state_space_laws"
-status = "in_progress"
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent-estimate/src/empirical_table.rs"
-evidence_assertion = "bayesian_transport_providers_keep_empirical_and_declared_support_distinct"
-limitations = "Distinct empirical-support Bayesian bootstrap and declared-state-space Dirichlet providers share draws across aliased factors; the composed transport evaluator remains unlicensed pending calibrated grid contracts."
-notes = "Exact-law artifact origin and independent consumption are tested in antecedent-io."
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/bayesian_structural_transport/expected.json"
+evidence_test = "crates/antecedent/src/analysis/statistical.rs"
+evidence_assertion = "bayesian_transport_providers_match_independent_dirichlet_moments"
+limitations = "Distinct empirical-support Bayesian bootstrap and declared-state-space Dirichlet providers share draws across aliased factors. A sparse binary-table fixture compares each provider with an independent exact Dirichlet posterior mean; the composed transport evaluator and its intervals remain unlicensed pending calibrated grid contracts and a minimum-successful-draw policy."
+notes = "Both providers pass public Python prepare, estimate, export, consume and refresh tests with explicit unlicensed calibration status."
 
 [[capabilities]]
 id = "bayes.response.simultaneous_joint_band"

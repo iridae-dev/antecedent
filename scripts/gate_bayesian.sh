@@ -31,6 +31,7 @@ EVIDENCE = {
     "bayes.estimate.sharp_rd_local_linear": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
     "bayes.estimate.interference_neighbor_count": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
     "bayes.estimate.trial_to_target": "crates/antecedent/tests/bayesian_trial_transport.rs",
+    "bayes.transport.empirical_and_state_space_laws": "crates/antecedent/src/analysis/statistical.rs",
     "bayes.response.simultaneous_joint_band": "crates/antecedent-estimate/src/response/mod.rs",
     "bayes.validate.sbc_glm_families": "crates/antecedent-validate/src/bayesian_checks.rs",
     "bayes.validate.ppc": "crates/antecedent-validate/src/bayesian_checks.rs",
@@ -97,12 +98,21 @@ bash scripts/counted_cargo.sh test -p antecedent-discovery --lib dbn_posterior::
 bash scripts/counted_cargo.sh test -p antecedent-discovery --test graph_mcmc_oracle
 bash scripts/counted_cargo.sh test -p antecedent-estimate --lib bayesian
 bash scripts/counted_cargo.sh test -p antecedent-estimate --lib envelope
+bash scripts/counted_cargo.sh test -p antecedent-estimate --test bayesian_robust_ate_calibration
+bash scripts/counted_cargo.sh test -p antecedent-learn --test bayesian_basis
 bash scripts/counted_cargo.sh test -p antecedent-validate --lib bayesian_checks
 bash scripts/counted_cargo.sh test -p antecedent-io --lib posterior
 bash scripts/counted_cargo.sh test -p antecedent-io --lib prior_bank
 bash scripts/counted_cargo.sh test -p antecedent-data --lib resample
 bash scripts/counted_cargo.sh test -p antecedent --test prepared_analysis
 bash scripts/counted_cargo.sh test -p antecedent --test bayesian
+bash scripts/counted_cargo.sh test -p antecedent --test bayesian_iv_rd_staged
+bash scripts/counted_cargo.sh test -p antecedent --test bayesian_robust_ate
+bash scripts/counted_cargo.sh test -p antecedent --test bayesian_trial_transport
+bash scripts/counted_cargo.sh test -p antecedent --test staged_bayesian_basis_gcomp
+bash scripts/counted_cargo.sh test -p antecedent --test staged_attribution_transport_interference
+bash scripts/counted_cargo.sh test -p antecedent --test class_posterior_ate
+bash scripts/counted_cargo.sh test -p antecedent --lib bayesian_transport_providers_match_independent_dirichlet_moments
 bash scripts/counted_cargo.sh test -p antecedent --test temporal_prior_transfer
 bash scripts/counted_cargo.sh test -p antecedent --test manufacturing_temporal
 
@@ -113,6 +123,6 @@ cargo bench -p antecedent-prob --bench mcmc_stats -- --test
 cargo bench -p antecedent-estimate --bench posterior_functional -- --test
 
 echo "== Python panel Bayesian facade smoke =="
-python_smoke tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py tests/test_temporal_prior_transfer.py
+python_smoke tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py tests/test_temporal_prior_transfer.py tests/test_bayesian_estimator_lifecycle.py tests/test_bayesian_likelihood.py tests/test_attribution_lifecycle.py tests/test_transport_interference_lifecycle.py tests/test_transport_statistical.py
 
 echo "Bayesian gate PASSED"

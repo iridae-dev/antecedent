@@ -85,6 +85,44 @@ def test_statistical_prepare_estimate_and_inspect_license():
     assert loaded.uncertainty["available"]
 
 
+@pytest.mark.parametrize(
+    "provider, estimator_id",
+    [
+        ("empirical_support_bayesian_bootstrap", "transport.empirical_support_bayesian_bootstrap"),
+        ("state_space_dirichlet", "transport.state_space_dirichlet"),
+    ],
+)
+def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, estimator_id):
+    identified, catalog, data = fixture()
+    study = transport.prepare_statistical(
+        identified,
+        catalog,
+        data,
+        at={"x": 1.0},
+        estimator=provider,
+        seed=23,
+    )
+
+    assert not study.inspect().uncertainty.available
+    result = study.estimate()
+    posterior = result.uncertainty["bayesian_posterior"]
+    assert posterior["estimator"] == estimator_id
+    assert posterior["interval_method"] == "posterior_equal_tail"
+    assert posterior["draws_requested"] == posterior["draws_ok"] == 199
+    assert posterior["draws_failed"] == 0
+    assert posterior["calibration_status"] == "not_licensed"
+    assert result.uncertainty["available"] is False
+    assert not study.inspect().uncertainty.available
+
+    # The portable transport artifact retains the posterior summaries and provider identity.
+    consumed = transport.consume_statistical(result.export())
+    refreshed = consumed.refresh(data)
+    replayed = refreshed.uncertainty["bayesian_posterior"]
+    assert replayed["estimator"] == estimator_id
+    assert replayed["draws_requested"] == replayed["draws_ok"] == 199
+    assert replayed["calibration_status"] == "not_licensed"
+
+
 def test_unknown_dependence_keeps_identification_and_withholds_interval():
     identified, catalog, data = fixture()
     catalog = transport.EvidenceCatalog(
