@@ -5059,7 +5059,7 @@ mod prepared_frontdoor_tests {
     use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::prepared::PreparedExecution;
-    use crate::strategy_table::IdentifierId;
+    use crate::strategy_table::{EstimatorId, IdentifierId};
 
     fn data(outcome_shift: f64) -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -5171,5 +5171,35 @@ mod prepared_frontdoor_tests {
         ));
         let error = prepared.estimate(&data(0.35), &context).unwrap_err();
         assert!(error.to_string().contains("prepared front-door lowering"), "{error}");
+    }
+
+    #[test]
+    fn default_frontdoor_id_exports_a_verified_checked_result() {
+        let data = data(0.0);
+        let graph = Dag::from_named_edges(data.schema(), &[("t", "m"), ("m", "y")]).unwrap();
+        let treatment = data.schema().id_of("t").unwrap();
+        let outcome = data.schema().id_of("y").unwrap();
+        let context = ExecutionContext::for_tests(92);
+        let prepared = Study::tabular(data.clone())
+            .graph(graph)
+            .query(AverageEffectQuery::with_levels(treatment, outcome, 0.0, 1.0))
+            .identifier(IdentifierId::Frontdoor)
+            .estimator(EstimatorId::FrontDoorTwoStage)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&context)
+            .unwrap();
+        assert!(matches!(prepared.execution, PreparedExecution::FrontDoorLinear(_)));
+        let result = prepared.estimate(&data, &context).unwrap();
+        let bytes =
+            prepared.encode_contracted_result(&result, "default-frontdoor", &context).unwrap();
+        assert!(
+            antecedent_io::consume_analysis_result(&bytes)
+                .unwrap()
+                .acceptance
+                .accepts_as_verified_program()
+        );
     }
 }

@@ -976,11 +976,15 @@ fn verify_frontdoor_lowering(
         if let Some(overlap) = binding.overlap_policy.as_deref() {
             return overlap == lowering.overlap;
         }
-        matches!(
-            binding.estimator_spec.as_ref(),
-            Some(crate::EstimatorSpecWire::FrontDoorTwoStage(config))
-                if overlap_policy_tag(&config.overlap) == lowering.overlap
-        )
+        match binding.estimator_spec.as_ref() {
+            Some(crate::EstimatorSpecWire::FrontDoorTwoStage(config)) => {
+                overlap_policy_tag(&config.overlap) == lowering.overlap
+            }
+            Some(crate::EstimatorSpecWire::Default(id)) if id == "frontdoor.linear_two_stage" => {
+                lowering.overlap == "explicit_override"
+            }
+            _ => false,
+        }
     });
     target_matches
         && program_valid
