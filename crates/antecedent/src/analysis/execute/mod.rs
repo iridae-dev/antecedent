@@ -59,7 +59,7 @@ pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
     anomaly_attribution_with, attribute_distribution_change, attribute_unit_change,
     counterfactual_ite, fit_gcm, fit_gcm_counterfactual, map_mechanism_fit,
-    mechanism_change_detection, nested_direct_effect,
+    mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,

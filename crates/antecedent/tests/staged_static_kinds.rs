@@ -149,11 +149,31 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         .build()
         .unwrap();
     assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
-    let result = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate_retained(&ctx).unwrap();
     let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
     assert!((result.estimate.ate - expected).abs() < 1e-3, "{:?}", result.estimate);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     assert!(result.interval.is_none(), "this route is point-only until separately calibrated");
+
+    // The retained typed operation survives the builder and data refresh. A fresh
+    // retained estimate repeats the refreshed result without reconstructing worlds
+    // from a Study builder.
+    let refreshed_y: Vec<_> = y
+        .iter()
+        .enumerate()
+        .map(|(index, value)| value + if index % 2 == 0 { 0.25 } else { -0.25 })
+        .collect();
+    let refreshed_data = TabularData::from_f64_columns([
+        ("x", a.as_slice()),
+        ("m", m.as_slice()),
+        ("y", refreshed_y.as_slice()),
+    ])
+    .unwrap();
+    let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
+    assert!(refreshed.estimate.ate.is_finite());
+    let retained = prepared.estimate_retained(&ctx).unwrap();
+    assert_eq!(retained.estimate.ate.to_bits(), refreshed.estimate.ate.to_bits());
 
     // A well-formed but incompatible DAG is refused with the stable cross-world reason.
     let mut incompatible = Dag::with_variables(4);

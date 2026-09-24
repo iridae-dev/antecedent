@@ -1482,6 +1482,8 @@ pub struct SampledPreparedState {
     score_table: Option<antecedent_estimate::ScoreTable>,
     /// Checked causal-to-linear lowering retained independently of the builder.
     checked_linear: Option<antecedent_estimate::CheckedLinearAdjustmentAte>,
+    /// Typed cross-world operation retained for nested counterfactual execution.
+    nested_counterfactual: Option<crate::gcm::NestedCounterfactualOperation>,
 }
 
 impl std::ops::Deref for PreparedStudy {
@@ -2047,8 +2049,13 @@ impl PreparedStudy {
                 fitter.rebind_checked(checked, data).map_err(CausalError::from)
             })
             .transpose()?;
-        let mut result =
-            click_analysis.execute_tabular(data, &self.plan, rebound_linear.as_ref(), ctx)?;
+        let mut result = click_analysis.execute_tabular(
+            data,
+            &self.plan,
+            rebound_linear.as_ref(),
+            self.nested_counterfactual.as_ref(),
+            ctx,
+        )?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
         // record which refutation reports are caller-attested. Without the names,
         // the claim would drop custom-validator evidence from `attested` and from
@@ -2088,8 +2095,10 @@ impl PreparedStudy {
         // The checked static lowering belongs to the prepared handle. Execute
         // through it before replacing the retained data snapshot; otherwise the
         // generic Study refresh route would rederive an unchecked preparation.
-        let checked_result =
-            self.checked_linear.as_ref().map(|_| self.estimate(&data, ctx)).transpose()?;
+        let checked_result = (self.checked_linear.is_some()
+            || self.nested_counterfactual.is_some())
+        .then(|| self.estimate(&data, ctx))
+        .transpose()?;
         let mut refreshed = self.analysis.clone();
         refreshed.shared_batch_design = refreshed
             .shared_batch_design
@@ -2581,6 +2590,15 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
         let plan = self.compile(ctx)?;
+        let nested_counterfactual = match (&self.graph, &self.query) {
+            (_, CausalQuery::NestedCounterfactual(query)) => {
+                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
+                    message: "cross_world_not_identified: natural direct effect requires the licensed three-node DAG",
+                })?;
+                Some(crate::gcm::NestedCounterfactualOperation::compile(graph.clone(), *query)?)
+            }
+            _ => None,
+        };
         let (schema, modality, time_regularity) = match &self.data {
             DataInput::Tabular(data) => (data.schema().clone(), PreparedModality::Tabular, None),
             DataInput::Temporal(data) | DataInput::Event(data) => (
@@ -2865,6 +2883,7 @@ impl Study {
                 time_regularity,
                 score_table,
                 checked_linear,
+                nested_counterfactual,
             },
         })
     }
