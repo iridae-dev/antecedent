@@ -503,7 +503,7 @@ impl super::Study {
         match classify_analysis_route(data, &self.query) {
             Some(route) if matches!(data_modality(data), DataModality::Tabular) => {
                 let DataInput::Tabular(data) = data else { unreachable!() };
-                self.execute_tabular_route(route, data, physical, None, ctx)
+                self.execute_tabular_route(route, data, physical, None, None, ctx)
             }
             Some(AnalysisRoute::TemporalMediation) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
@@ -591,6 +591,7 @@ impl super::Study {
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
         checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
+        nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
@@ -600,7 +601,14 @@ impl super::Study {
             classify_route(DataModality::Tabular, &self.query).ok_or(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             })?;
-        self.execute_tabular_route(route, data, physical, checked_linear, ctx)
+        self.execute_tabular_route(
+            route,
+            data,
+            physical,
+            checked_linear,
+            nested_counterfactual,
+            ctx,
+        )
     }
 
     /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
@@ -652,6 +660,7 @@ impl super::Study {
         data: &TabularData,
         physical: &PhysicalExecutionPlan,
         checked_linear: Option<&antecedent_estimate::CheckedLinearAdjustmentAte>,
+        nested_counterfactual: Option<&crate::gcm::NestedCounterfactualOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match route {
@@ -819,11 +828,23 @@ impl super::Study {
                         self.execute_static_mediation_total(data, graph, q, physical, ctx)
                     }
                     CausalQuery::NestedCounterfactual(q) => {
-                        let mediation = q.as_mediation_query();
+                        let operation = match nested_counterfactual {
+                            Some(operation) if operation.matches(graph, q) => operation.clone(),
+                            Some(_) => {
+                                return Err(CausalError::Unsupported {
+                                    message: "cross_world_not_identified: prepared nested operation does not match the frozen worlds and graph",
+                                });
+                            }
+                            None => crate::gcm::NestedCounterfactualOperation::compile(
+                                graph.clone(),
+                                *q,
+                            )?,
+                        };
+                        let mediation = operation.mediation_query();
                         let mut result = self.execute_static_mediation_total(
-                            data, graph, &mediation, physical, ctx,
+                            data, graph, mediation, physical, ctx,
                         )?;
-                        let effect = nested_direct_effect(graph.clone(), data, q, ctx)?;
+                        let effect = operation.execute(data, ctx)?;
                         result.estimate.ate = effect;
                         result.estimate.se_analytic = f64::NAN;
                         result.estimate.se_bootstrap = None;

@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AnomalyAttributionQuery, CausalRng, ChangeAttributionQuery, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, MechanismChangeQuery, PathSpecificEffectQuery,
-    TargetPopulation, UnitChangeQuery, Value, VariableId,
+    InterventionalDistributionQuery, MechanismChangeQuery, NestedCounterfactualQuery,
+    PathSpecificEffectQuery, TargetPopulation, UnitChangeQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::Dag;
@@ -97,51 +97,121 @@ pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGc
 
 /// Evaluate a natural direct effect with one abducted exogenous table shared by
 /// both linear-Gaussian worlds.
-pub(crate) fn nested_direct_effect(
+/// Complete checked operation for the licensed natural direct effect route.
+///
+/// The operation fixes the graph, cross-world target roles, treatment levels,
+/// and shared-exogenous execution procedure at preparation time.
+#[derive(Clone, Debug)]
+pub(crate) struct NestedCounterfactualOperation {
     graph: Dag,
-    data: &TabularData,
-    query: &antecedent_core::NestedCounterfactualQuery,
-    ctx: &ExecutionContext,
-) -> Result<f64, CausalError> {
-    let compiled = CompiledCausalModel::compile(graph).map_err(map_model)?;
-    let (store, _) = MechanismRegistry::standard()
-        .assign_and_fit(
-            &compiled,
-            data,
-            SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+    query: NestedCounterfactualQuery,
+    mediation_query: antecedent_core::MediationQuery,
+    outer_world: Intervention,
+    active_inner_world: Intervention,
+    control_inner_world: Intervention,
+    frozen: Arc<[VariableId]>,
+}
+
+impl NestedCounterfactualOperation {
+    pub(crate) fn compile(
+        graph: Dag,
+        query: NestedCounterfactualQuery,
+    ) -> Result<Self, CausalError> {
+        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let mut observed: Vec<_> = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
+        observed.sort_unstable();
+        let mut expected = vec![
+            (query.treatment.raw(), query.mediator.raw()),
+            (query.treatment.raw(), query.outcome.raw()),
+            (query.mediator.raw(), query.outcome.raw()),
+        ];
+        expected.sort_unstable();
+        if graph.node_count() != 3 || observed != expected {
+            return Err(CausalError::Unsupported {
+                message: "cross_world_not_identified: query requires exactly X -> M, X -> Y, M -> Y with no other nodes or edges",
+            });
+        }
+        Ok(Self {
+            graph,
+            query,
+            mediation_query: query.as_mediation_query(),
+            outer_world: Intervention::set(query.treatment, Value::f64(query.control_value())),
+            active_inner_world: Intervention::set(
+                query.treatment,
+                Value::f64(query.active_value()),
+            ),
+            control_inner_world: Intervention::set(
+                query.treatment,
+                Value::f64(query.control_value()),
+            ),
+            frozen: Arc::from([query.mediator]),
+        })
+    }
+
+    pub(crate) fn matches(&self, graph: &Dag, query: &NestedCounterfactualQuery) -> bool {
+        self.query == *query
+            && graph.node_count() == self.graph.node_count()
+            && graph.nodes() == self.graph.nodes()
+            && {
+                let mut left: Vec<_> =
+                    graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
+                let mut right: Vec<_> =
+                    self.graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
+                left.sort_unstable();
+                right.sort_unstable();
+                left == right
+            }
+    }
+
+    pub(crate) fn mediation_query(&self) -> &antecedent_core::MediationQuery {
+        &self.mediation_query
+    }
+
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<f64, CausalError> {
+        let compiled = CompiledCausalModel::compile(self.graph.clone()).map_err(map_model)?;
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(
+                &compiled,
+                data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+            )
+            .map_err(map_model)?;
+        let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
+        let exo = engine
+            .abduct(data, AbductionMissingPolicy::Error, ctx)
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let control_outer = [self.outer_world.clone()];
+        let active_inner = [self.active_inner_world.clone()];
+        let control_inner = [self.control_inner_world.clone()];
+        let mut workspace = MechanismWorkspace::default();
+        let active = nested_counterfactual_with_exo(
+            &engine,
+            &exo,
+            &control_outer,
+            &active_inner,
+            &self.frozen,
+            self.query.outcome,
+            &mut workspace,
+            ctx,
         )
-        .map_err(map_model)?;
-    let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
-    let exo = engine
-        .abduct(data, AbductionMissingPolicy::Error, ctx)
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    let control_outer = [Intervention::set(query.treatment, Value::f64(query.control_value()))];
-    let active_inner = [Intervention::set(query.treatment, Value::f64(query.active_value()))];
-    let control_inner = [Intervention::set(query.treatment, Value::f64(query.control_value()))];
-    let mut workspace = MechanismWorkspace::default();
-    let active = nested_counterfactual_with_exo(
-        &engine,
-        &exo,
-        &control_outer,
-        &active_inner,
-        &[query.mediator],
-        query.outcome,
-        &mut workspace,
-        ctx,
-    )
-    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    let control = nested_counterfactual_with_exo(
-        &engine,
-        &exo,
-        &control_outer,
-        &control_inner,
-        &[query.mediator],
-        query.outcome,
-        &mut workspace,
-        ctx,
-    )
-    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    Ok(active - control)
+        let control = nested_counterfactual_with_exo(
+            &engine,
+            &exo,
+            &control_outer,
+            &control_inner,
+            &self.frozen,
+            self.query.outcome,
+            &mut workspace,
+            ctx,
+        )
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        Ok(active - control)
+    }
 }
 
 /// Map a mechanism-fit failure, turning non-convergence into a reason-coded
@@ -505,6 +575,33 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::DenseNodeId;
+
+    #[test]
+    fn nested_operation_refuses_world_level_mismatch() {
+        let mut graph = Dag::with_variables(3);
+        for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+            graph
+                .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+                .unwrap();
+        }
+        let query = NestedCounterfactualQuery::new(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        )
+        .unwrap();
+        let changed_worlds = NestedCounterfactualQuery::with_levels(
+            query.treatment,
+            query.mediator,
+            query.outcome,
+            -1.0,
+            1.0,
+        )
+        .unwrap();
+        let plan = NestedCounterfactualOperation::compile(graph.clone(), query).unwrap();
+        assert!(plan.matches(&graph, &query));
+        assert!(!plan.matches(&graph, &changed_worlds));
+    }
 
     /// A mechanism that still does not converge is a reason-coded refusal naming
     /// the remedy, never a raw deviance in a compile error; every other fit
