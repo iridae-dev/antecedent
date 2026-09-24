@@ -215,7 +215,7 @@ except ImportError:  # pragma: no cover - extension not built
     try:
         __version__ = _metadata.version("antecedent")
     except _metadata.PackageNotFoundError:
-        __version__ = "2.0.0"
+        __version__ = "2.1.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

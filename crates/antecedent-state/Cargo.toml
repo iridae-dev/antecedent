@@ -17,9 +17,9 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.0.0", path = "../antecedent-core" }
-antecedent-kernels = { version = "2.0.0", path = "../antecedent-kernels" }
-antecedent-stats = { version = "2.0.0", path = "../antecedent-stats" }
+antecedent-core = { version = "2.1.0", path = "../antecedent-core" }
+antecedent-kernels = { version = "2.1.0", path = "../antecedent-kernels" }
+antecedent-stats = { version = "2.1.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
