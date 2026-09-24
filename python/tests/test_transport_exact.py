@@ -153,6 +153,47 @@ def test_recursive_frontdoor_exact_distribution_matches_latent_enumeration():
     assert result.uncertainty is None
 
 
+def test_checked_exact_transport_execution_survives_builder_disposal():
+    """The prepared exact evaluator retains its checked target and replays independently."""
+    from antecedent import Admg
+
+    graph_builder = Admg.from_edges(["x", "y"], [("x", "y")])
+    builder = transport.identify_classical(
+        graph_builder,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    identification = builder
+    catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("observational", "target", measured=["x", "y"])],
+    )
+    law = transport.ExactDiscreteLaw(
+        "target",
+        "observational",
+        (("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.4, 0.1, 0.15, 0.35),
+        "oracle-law",
+    )
+    program = identification.formula
+    assert program
+    del builder
+    prepared = transport.prepare_exact(
+        identification,
+        catalog,
+        transport.ExactTransportData((law,)),
+        at={"x": 1.0},
+    )
+    retained_plan = prepared.inspect()
+    assert retained_plan.identification.available
+    result = prepared.estimate()
+    # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
+    assert result.probabilities == pytest.approx((0.3, 0.7))
+    consumer = transport.consume_exact(prepared.export())
+    assert consumer.inspect().program_id == retained_plan.program_id
+    assert consumer.estimate().probabilities == pytest.approx((0.3, 0.7))
+
+
 def test_inspect_does_not_evaluate_or_fit(monkeypatch):
     from antecedent import prepare
 

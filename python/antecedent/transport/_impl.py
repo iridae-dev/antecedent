@@ -815,6 +815,31 @@ def reload_lowered_expression(
     return pretty, latex, tuple(zip(populations, regimes, strict=True)), tuple(free)
 
 
+def reload_lowered_program(identification: TransportIdentification) -> Any:
+    """Return a bounded, checked executable program for an identified expression.
+
+    The returned native program owns the validated arena and semantic schema.
+    Exact evaluation requires an explicit catalog and provider laws; this
+    function does not infer or fetch them.
+    """
+    if not isinstance(identification, TransportIdentification):
+        raise CausalTypeError("reload_lowered_program requires a TransportIdentification")
+    if identification._native is None or not identification.transportable:
+        raise CausalValueError("identification has no checked expression to reload")
+    return identification._native.reload_checked_program()
+
+
+def restore_lowered_program(
+    identification: TransportIdentification, wire_json: str
+) -> Any:
+    """Independently import and verify a checked program against its identification."""
+    if not isinstance(identification, TransportIdentification):
+        raise CausalTypeError("restore_lowered_program requires a TransportIdentification")
+    if identification._native is None or not identification.transportable:
+        raise CausalValueError("identification has no checked expression to reload")
+    return identification._native.load_checked_program(wire_json)
+
+
 def estimate_trial_effect(
     identification: TransportIdentification,
     treatment: Sequence[bool],
@@ -900,6 +925,8 @@ __all__ = [
     "PopulationFactor",
     "RecursiveFactorizationFormula",
     "reload_lowered_expression",
+    "reload_lowered_program",
+    "restore_lowered_program",
     "RegimeBinding",
     "RegimeKindName",
     "SamplingDesignName",

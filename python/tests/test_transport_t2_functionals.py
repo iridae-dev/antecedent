@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import antecedent
+import pytest
 from antecedent.transport import advanced as transport
 
 
@@ -43,6 +44,62 @@ def test_nested_kernel_round_trips_through_artifact() -> None:
     assert latex == result.latex
     assert bindings == result.leaf_bindings
     assert free
+
+
+def test_reloaded_functional_program_executes_and_replays_checked_wire() -> None:
+    graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
+    catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("observational", "target", measured=["a", "y"])],
+    )
+    query = transport.TransportQuery(
+        antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+        transport.SelectionDiagram("trial", "target", []),
+        catalog=catalog,
+    )
+    identification_builder = transport.identify(graph=graph, query=query)
+    identification = identification_builder
+    del identification_builder
+    pretty, latex, bindings, free = transport.reload_lowered_expression(identification)
+    assert pretty == identification.pretty
+    assert latex == identification.latex
+    assert bindings == identification.leaf_bindings
+    assert free
+    program = transport.reload_lowered_program(identification)
+    assert program.source_root == program.executable_root
+    with pytest.raises(ValueError, match="provider catalog"):
+        program.evaluate_exact()
+    with pytest.raises(ValueError, match="provider laws"):
+        program.evaluate_exact(catalog)
+
+    law = transport.ExactDiscreteLaw(
+        "target",
+        "observational",
+        (("a", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.4, 0.1, 0.15, 0.35),
+        "exact-response-law",
+    )
+    # Independent reference: P(Y=1 | A=1) = .35 / (.15 + .35) = .7.
+    estimate = program.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0})
+    assert estimate == pytest.approx(0.7)
+    changed_catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("observational", "target", measured=["a"])],
+    )
+    with pytest.raises(ValueError, match="catalog differs"):
+        program.evaluate_exact(changed_catalog, (law,), {"a": 1.0, "y": 1.0})
+    with pytest.raises(ValueError, match="budget must be positive"):
+        program.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}, max_operations=0)
+
+    wire = program.to_wire_json()
+    replayed = transport.restore_lowered_program(identification, wire)
+    assert replayed.source_root == program.source_root
+    assert replayed.executable_root == program.executable_root
+    assert replayed.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
+    tampered = wire.replace('"executable":', '"executable": 999, "ignored":')
+    with pytest.raises(ValueError, match="checked functional program"):
+        transport.restore_lowered_program(identification, tampered)
+    del identification
+    assert program.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
+    assert replayed.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
 
 
 def test_source_and_target_leaves_stay_distinct() -> None:

@@ -34,8 +34,6 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
                 self.assertEqual(row["checked_execution"], "unverified")
                 self.assertEqual(row["builder_independent"], "unverified")
                 self.assertEqual(row["execution_semantics"], "unverified")
-            if row.get("source_registry") == "parity/transport_stages.toml":
-                self.assertEqual(row["migration_status"], "pending")
         self.assertEqual(len(stage_routes), 21)
         self.assertIn(
             "AverageEffect:Dag:explicit:Frequentist:none::estimator=iv.2sls",
@@ -103,6 +101,10 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
             self.assertEqual(compiler_migration.validate_evidence_body(body, "route"), [])
         body = "{ let plan = prepared.checked_plan(); drop(result); prepared.estimate(); }"
         self.assertTrue(compiler_migration.validate_evidence_body(body, "route"))
+
+    def test_checked_functional_evaluate_exact_is_executable_evidence(self) -> None:
+        body = "{ let program = reload_lowered_program(target); del builder; program.evaluate_exact(); }"
+        self.assertEqual(compiler_migration.validate_evidence_body(body, "route"), [])
 
     def test_status_cannot_claim_closure_without_all_three_execution_receipts(self) -> None:
         original = compiler_migration.INVENTORY

@@ -123,6 +123,26 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
         transport.consume_z_transport_sensitivity_artifact(bytes(tampered_sensitivity))
 
 
+def test_z_transport_estimate_refresh_executes_retained_program_after_builder_disposal():
+    """The zTR handle keeps its proof and provider binding through refresh and replay."""
+    _, builder, catalog, prepared, laws = fixture(False)
+    program = builder.inspect_proof(catalog)
+    assert program["rules"]
+    del builder
+
+    first = json.loads(prepared.estimate())
+    retained_plan = prepared.export()
+    independently_consumed = json.loads(transport.consume_z_transport_artifact(retained_plan))
+    assert independently_consumed["probabilities"] == pytest.approx(first["probabilities"])
+    assert independently_consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
+
+    prepared.refresh(laws)
+    refreshed = json.loads(prepared.estimate())
+    assert refreshed["probabilities"] == pytest.approx(first["probabilities"])
+    refreshed_consumer = json.loads(transport.consume_z_transport_artifact(prepared.export()))
+    assert refreshed_consumer["probabilities"] == pytest.approx(refreshed["probabilities"])
+
+
 def test_z_transport_stage_refuses_unregistered_selection_graph():
     graph = Admg.from_edges(
         ["w", "z", "x", "y"],

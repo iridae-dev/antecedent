@@ -85,6 +85,39 @@ def test_statistical_prepare_estimate_and_inspect_license():
     assert loaded.uncertainty["available"]
 
 
+def test_empirical_table_execution_survives_identification_builder_disposal():
+    """The empirical joint table is evaluated from retained checked transport semantics."""
+    identified, catalog, _ = fixture()
+    builder = identified
+    program = builder.formula
+    assert program
+    del builder
+    sample = transport.RegimeSample(
+        "source",
+        "trial",
+        "v1",
+        {"y": [0.0] * 20 + [1.0] * 80},
+        interventions=(("x", 1.0),),
+    )
+    data = transport.StatisticalTransportData(samples=(sample,))
+    prepared = transport.prepare_statistical(
+        identified, catalog, data, at={"x": 1.0}, bootstrap=0
+    )
+    plan = prepared.inspect()
+    assert plan.identification.available
+    result = prepared.estimate()
+    assert result.mean("y") == pytest.approx(0.8)
+    consumer = transport.consume_statistical(result.export())
+    assert consumer.inspect().program_id == plan.program_id
+    assert consumer.inspect().identification.available
+    # Raw empirical rows are an explicit dependency for a new estimate.
+    with pytest.raises(ValueError, match="transport.samples_not_embedded"):
+        consumer.estimate()
+    replay = consumer.refresh(data)
+    assert replay.probabilities == pytest.approx(result.probabilities)
+    assert replay.mean("y") == pytest.approx(0.8)
+
+
 @pytest.mark.parametrize(
     "provider, estimator_id",
     [

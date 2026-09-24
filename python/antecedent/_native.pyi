@@ -280,6 +280,22 @@ class TransportIdentificationResult:
     leaf_regimes: list[int | None]
     expr_root: int | None
     expr_wire_json: str | None
+    def reload_checked_program(self) -> CheckedTransportProgram: ...
+    def load_checked_program(self, wire_json: str) -> CheckedTransportProgram: ...
+
+class CheckedTransportProgram:
+    source_root: int
+    executable_root: int
+    def to_wire_json(self) -> str: ...
+    def evaluate_exact(
+        self,
+        catalog: object | None = ...,
+        laws: object | None = ...,
+        at: Mapping[str, float] | None = ...,
+        *,
+        max_support_rows: int = 100_000,
+        max_operations: int = 1_000_000,
+    ) -> float: ...
 
 class TrialTransportResult:
     rule: str
