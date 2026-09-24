@@ -53,6 +53,7 @@ CRATES=(
   antecedent-counterfactual
   antecedent-attribution
   antecedent-identify
+  antecedent-learn-burn
   antecedent-learn
   antecedent-estimate
   antecedent-discovery
