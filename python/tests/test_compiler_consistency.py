@@ -107,6 +107,32 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
 
+def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> None:
+    """A checked front-door result survives public refresh and portable consumption."""
+    data = _frontdoor(31)
+    prepared = ant.prepare(
+        data,
+        graph=[("t", "m"), ("m", "y")],
+        query=ant.AverageEffect("t", "y"),
+        identifier="frontdoor",
+        estimator="frontdoor.linear_two_stage",
+        refute="none",
+        bootstrap=0,
+    )
+    first = prepared.estimate(data)
+    assert first.effect == pytest.approx(1.0, abs=0.15)
+    accepted = ant.artifacts.accept(first.export())
+    assert accepted["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "y": data["y"] + 0.4}
+    refreshed = prepared.refresh(changed)
+    assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
+    accepted_refresh = ant.artifacts.accept(refreshed.export())
+    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    assert accepted_refresh["program"] == accepted["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
 # (name, data, graph, query, extra analyze kwargs)
 ESTIMATOR_ROUTES: list[tuple[str, Callable[[], Any], Any, Any, dict[str, Any]]] = [
     ("dag", lambda: _static(1), GRAPH, ant.AverageEffect("treatment", "outcome"), {}),
