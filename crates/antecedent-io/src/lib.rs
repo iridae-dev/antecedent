@@ -137,7 +137,7 @@ pub use identity::{
     ExecutionIdentityWire, ExternalComposeIdentityWire, ExternalPriorSourceIdentityWire,
     GlmOptionsWire, GraphIdentityWire, IdentificationEnvelopeWire, IdentificationIdentityWire,
     IdentificationProductWire, InferenceBindingWire, InferentialCommitmentsWire,
-    InterferenceSnapshotWire, KernelPolicyWire, NestedCounterfactualFitWire,
+    InterferenceSnapshotWire, KernelPolicyWire, LinearFitMomentsWire, NestedCounterfactualFitWire,
     ObservationIdentityWire, ObservationOptionsWire, OverlapPolicyWire, PayloadDigestWire,
     PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
     PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,

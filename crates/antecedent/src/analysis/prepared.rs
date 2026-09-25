@@ -4136,6 +4136,11 @@ impl PreparedStudy {
         self.execution.nested_counterfactual()
     }
 
+    /// Retained static linear fit inputs for portable result replay.
+    pub(crate) fn checked_linear_operation(&self) -> Option<&CheckedLinearOperation> {
+        self.execution.linear_operation()
+    }
+
     /// Checked Bayesian g-computation receipt for a static mean ATE, when this
     /// prepared handle uses that licensed route.
     #[must_use]

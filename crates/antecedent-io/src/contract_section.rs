@@ -572,6 +572,17 @@ pub fn verify_contract_against_body(
     contract: &AnalysisResultContractWire,
 ) -> Vec<Arc<str>> {
     let mut unresolved = verify_stored_payloads(contract);
+    if let Some(lowering) = contract
+        .program
+        .as_ref()
+        .and_then(|program| program.checked_linear_adjustment_lowering.as_ref())
+    {
+        unresolved
+            .retain(|reason| reason.as_ref() != "dependencies.linear_fit_sufficient_statistics");
+        if let Err(reason) = verify_linear_fit_moments(contract, body, lowering) {
+            unresolved.push(Arc::from(reason));
+        }
+    }
     if contract.program.as_ref().is_some_and(|program| {
         [
             program.functional_program.is_some(),
@@ -739,25 +750,22 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from(
-            if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag") {
-                "dependencies.checked_class_graph_posterior_effect_operation"
-            } else {
-                "dependencies.checked_graph_posterior_effect_operation"
-            },
-        ));
+        unresolved.push(Arc::from(if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag") {
+            "dependencies.checked_class_graph_posterior_effect_operation"
+        } else {
+            "dependencies.checked_graph_posterior_effect_operation"
+        }));
     }
     if contract.structure_source == "graph_posterior"
         && contract.graph_class == "Dag"
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
         && resolved_estimator == Some("bayesian.gcomp")
-        && contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference.eq_ignore_ascii_case("bayesian")
-        })
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from(
-            "dependencies.checked_bayesian_graph_posterior_ate_operation",
-        ));
+        unresolved.push(Arc::from("dependencies.checked_bayesian_graph_posterior_ate_operation"));
     }
     if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -890,9 +898,10 @@ pub fn verify_contract_against_body(
         && matches!(contract.target.query, CausalQueryWire::TemporalEffect { .. })
         && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
         && resolved_estimator == Some("bayesian.temporal.gcomp")
-        && contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference.eq_ignore_ascii_case("bayesian")
-        })
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
         unresolved.push(Arc::from("dependencies.checked_bayesian_temporal_dag_effect_operation"));
     }
@@ -901,9 +910,10 @@ pub fn verify_contract_against_body(
         && matches!(contract.target.query, CausalQueryWire::TemporalEffect { .. })
         && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
         && resolved_estimator == Some("temporal.sequential.gcomp")
-        && contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference.eq_ignore_ascii_case("bayesian")
-        })
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
         unresolved.push(Arc::from("dependencies.checked_bayesian_temporal_dag_effect_operation"));
     }
@@ -1512,16 +1522,6 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         }
     }
     verify_checked_linear_adjustment(contract, &mut unresolved);
-    if contract
-        .program
-        .as_ref()
-        .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
-    {
-        // This payload retains the checked design roles and selected
-        // procedure, but the artifact has no rows or replay sufficient
-        // statistics for recomputing the reported numeric estimate.
-        unresolved.push(Arc::from("dependencies.linear_fit_sufficient_statistics"));
-    }
     verify_checked_aipw(contract, &mut unresolved);
     require_payload_digest(
         &mut unresolved,
@@ -2031,6 +2031,176 @@ fn valid_linear_fit_kind(fit_kind: &str) -> bool {
             value.is_finite() && value > 0.0 && matches!(kind, "ridge" | "lasso" | "huber")
         }),
     }
+}
+
+fn verify_linear_fit_moments(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    lowering: &crate::CheckedLinearAdjustmentLoweringWire,
+) -> Result<(), &'static str> {
+    if lowering.fit_kind != "ols"
+        || lowering.se_kind != "homoskedastic"
+        || lowering.bootstrap_replicates != 0
+        || lowering.interval_method != "analytic_se"
+        || !matches!(&lowering.population, crate::TargetPopulationWire::AllObserved)
+    {
+        return Err("dependencies.linear_fit_sufficient_statistics");
+    }
+    let snapshot =
+        contract.data_snapshot.as_ref().ok_or("dependencies.linear_fit_sufficient_statistics")?;
+    let moments = snapshot
+        .linear_fit_moments
+        .as_ref()
+        .ok_or("dependencies.linear_fit_sufficient_statistics")?;
+    let p = lowering.design_columns.len();
+    if moments.format != 1
+        || usize::try_from(moments.columns).ok() != Some(p)
+        || moments.complete_case_rows != lowering.complete_case_rows
+        || moments.complete_case_rows > snapshot.row_count
+        || p < 2
+        || p > 64
+        || moments.complete_case_rows <= p as u64
+        || moments.gram.len() != p * p
+        || moments.outcome_cross.len() != p
+        || !moments.outcome_square.is_finite()
+        || moments.gram.iter().chain(&moments.outcome_cross).any(|v| !v.is_finite())
+    {
+        return Err("data_snapshot.linear_fit_moments");
+    }
+    let scale = moments.gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
+    if scale == 0.0
+        || !scale.is_finite()
+        || (0..p).any(|row| {
+            (0..p).any(|column| {
+                (moments.gram[row * p + column] - moments.gram[column * p + row]).abs()
+                    > 1e-10 * scale.max(1.0)
+            })
+        })
+    {
+        return Err("data_snapshot.linear_fit_moments");
+    }
+    let beta = solve_linear_moments(&moments.gram, &moments.outcome_cross, p)
+        .ok_or("data_snapshot.linear_fit_moments_rank")?;
+    let inverse =
+        invert_linear_moments(&moments.gram, p).ok_or("data_snapshot.linear_fit_moments_rank")?;
+    let residual_square = moments.outcome_square
+        - beta.iter().zip(&moments.outcome_cross).map(|(b, xy)| b * xy).sum::<f64>();
+    let tolerance = 1e-9 * moments.outcome_square.abs().max(1.0);
+    if !residual_square.is_finite() || residual_square < -tolerance {
+        return Err("data_snapshot.linear_fit_moments");
+    }
+    let dof = (moments.complete_case_rows - p as u64) as f64;
+    let treatment_column = lowering
+        .design_columns
+        .iter()
+        .position(|column| column == "treatment")
+        .ok_or("program.checked_linear_adjustment_binding")?;
+    if lowering.design_columns.iter().filter(|column| *column == "treatment").count() != 1
+        || lowering.design_columns.first().map(String::as_str) != Some("intercept")
+    {
+        return Err("program.checked_linear_adjustment_binding");
+    }
+    let variance =
+        (residual_square.max(0.0) / dof) * inverse[treatment_column * p + treatment_column];
+    if !variance.is_finite() || variance < 0.0 {
+        return Err("data_snapshot.linear_fit_moments");
+    }
+    let delta = f64::from_bits(lowering.active_bits) - f64::from_bits(lowering.control_bits);
+    let expected = beta[treatment_column] * delta;
+    let expected_se = delta.abs() * variance.sqrt();
+    let actual = body.estimate.ok_or("body.estimate")?;
+    if !close_replay_value(actual, expected) {
+        return Err("body.estimate");
+    }
+    let actual_se = body.standard_error.ok_or("body.standard_error")?;
+    if !close_replay_value(actual_se, expected_se) {
+        return Err("body.standard_error");
+    }
+    Ok(())
+}
+
+fn solve_linear_moments(gram: &[f64], cross: &[f64], p: usize) -> Option<Vec<f64>> {
+    let mut augmented = vec![0.0; p * (p + 1)];
+    let width = p + 1;
+    for row in 0..p {
+        augmented[row * width..row * width + p].copy_from_slice(&gram[row * p..row * p + p]);
+        augmented[row * width + p] = cross[row];
+    }
+    let scale = gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
+    for pivot in 0..p {
+        let best = (pivot..p).max_by(|left, right| {
+            augmented[*left * width + pivot]
+                .abs()
+                .total_cmp(&augmented[*right * width + pivot].abs())
+        })?;
+        if augmented[best * width + pivot].abs() <= 1e-12 * scale {
+            return None;
+        }
+        for column in 0..width {
+            augmented.swap(pivot * width + column, best * width + column);
+        }
+        let divisor = augmented[pivot * width + pivot];
+        for column in pivot..width {
+            augmented[pivot * width + column] /= divisor;
+        }
+        for row in 0..p {
+            if row == pivot {
+                continue;
+            }
+            let factor = augmented[row * width + pivot];
+            for column in pivot..width {
+                augmented[row * width + column] -= factor * augmented[pivot * width + column];
+            }
+        }
+    }
+    let result = (0..p).map(|row| augmented[row * width + p]).collect::<Vec<_>>();
+    result.iter().all(|v| v.is_finite()).then_some(result)
+}
+
+fn invert_linear_moments(gram: &[f64], p: usize) -> Option<Vec<f64>> {
+    let width = 2 * p;
+    let mut augmented = vec![0.0; p * width];
+    for row in 0..p {
+        augmented[row * width..row * width + p].copy_from_slice(&gram[row * p..row * p + p]);
+        augmented[row * width + p + row] = 1.0;
+    }
+    let scale = gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
+    for pivot in 0..p {
+        let best = (pivot..p).max_by(|left, right| {
+            augmented[*left * width + pivot]
+                .abs()
+                .total_cmp(&augmented[*right * width + pivot].abs())
+        })?;
+        if augmented[best * width + pivot].abs() <= 1e-12 * scale {
+            return None;
+        }
+        for column in 0..width {
+            augmented.swap(pivot * width + column, best * width + column);
+        }
+        let divisor = augmented[pivot * width + pivot];
+        for column in 0..width {
+            augmented[pivot * width + column] /= divisor;
+        }
+        for row in 0..p {
+            if row == pivot {
+                continue;
+            }
+            let factor = augmented[row * width + pivot];
+            for column in 0..width {
+                augmented[row * width + column] -= factor * augmented[pivot * width + column];
+            }
+        }
+    }
+    let inverse = (0..p)
+        .flat_map(|row| augmented[row * width + p..row * width + width].iter().copied())
+        .collect::<Vec<_>>();
+    inverse.iter().all(|v| v.is_finite()).then_some(inverse)
+}
+
+fn close_replay_value(actual: f64, expected: f64) -> bool {
+    actual.is_finite()
+        && expected.is_finite()
+        && (actual - expected).abs() <= 1e-8 * expected.abs().max(1.0)
 }
 
 fn verify_checked_iv(
@@ -3477,6 +3647,7 @@ mod tests {
             interference: None,
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
+            linear_fit_moments: None,
         };
         let snapshot_digest = data_snapshot_digest(&data_snapshot).unwrap();
         let execution = crate::execution_identity_from_context(

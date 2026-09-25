@@ -69,7 +69,7 @@ def test_same_shape_refresh_changes_only_data_identity() -> None:
     assert preview["input_data_snapshot"] != after["data_snapshot"]
 
 
-def test_contracted_artifact_names_missing_linear_fit_statistics() -> None:
+def test_contracted_linear_adjustment_replays_from_fit_statistics() -> None:
     from antecedent import artifacts
 
     data = _data()
@@ -87,8 +87,7 @@ def test_contracted_artifact_names_missing_linear_fit_statistics() -> None:
     assert loaded.payload_kind == "analysis_result"
     assert loaded.contract is not None
     accepted = artifacts.accept(encoded)
-    assert accepted["accepts_as_verified_program"] == "false"
-    assert "dependencies.linear_fit_sufficient_statistics" in accepted["unresolved"]
+    assert accepted["accepts_as_verified_program"] == "true"
     assert accepted["program"] == contract["program"]
     assert accepted["target"] == contract["target"]
     for key in (
