@@ -896,6 +896,27 @@ pub struct CheckedStaticDagResponseInfo {
     pub grid_members: Arc<[f64]>,
 }
 
+/// Read-only target, graph, and procedure of a checked static mediation plan.
+#[derive(Clone, Debug)]
+pub struct CheckedStaticMediationInfo {
+    /// Complete contrast, mediators, intervention levels, and population.
+    pub query: MediationQuery,
+    /// Prepare-time identifier.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Prepare-time estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Identified adjustment roles used by the model.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Source and executable functional root identifiers.
+    pub functional_roots: (u32, u32),
+    /// Canonical supplied DAG edges.
+    pub graph_edges: Arc<[(u32, u32)]>,
+    /// Bootstrap replicate budget, including zero for point-only execution.
+    pub bootstrap_replicates: u32,
+    /// Prepare-time validation suite.
+    pub validation: RefuteSuite,
+}
+
 /// Read-only inspection of a retained TemporalDag response operation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CheckedTemporalDagResponseInfo {
@@ -3207,10 +3228,11 @@ pub(crate) enum PreparedExecution {
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
     DerivativeResponse(super::execute::CheckedDerivativeResponseOperation),
     StaticDagResponse(super::execute::CheckedStaticDagResponseOperation),
+    StaticMediation(super::execute::CheckedStaticMediationOperation),
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
     TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
     Distribution(CheckedDistributionOperation),
-    BayesianGcomp(CheckedBayesianGcompOperation),
+    BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
     StaticResponseCurve(CheckedStaticResponseCurve),
     FrontDoorLinear(CheckedFrontDoorOperation),
     Iv(CheckedIvOperation),
@@ -3264,6 +3286,7 @@ impl PreparedExecution {
             | Self::Counterfactual(_)
             | Self::DerivativeResponse(_)
             | Self::StaticDagResponse(_)
+            | Self::StaticMediation(_)
             | Self::TemporalDagResponse(_)
             | Self::TemporalDagEffect(_)
             | Self::BayesianGcomp(_)
@@ -3324,7 +3347,7 @@ impl PreparedExecution {
         if let Self::AdmgResponseCurve(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
-        if let Self::BayesianGcomp(value) = self { Some(value) } else { None }
+        if let Self::BayesianGcomp(value) = self { Some(value.operation()) } else { None }
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
         if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
@@ -3333,6 +3356,11 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedStaticDagResponseOperation> {
         if let Self::StaticDagResponse(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn static_mediation(
+        &self,
+    ) -> Option<&super::execute::CheckedStaticMediationOperation> {
+        if let Self::StaticMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_dag_response(
         &self,
@@ -3472,6 +3500,15 @@ impl PreparedStudy {
     pub fn checked_bayesian_gcomp_operation(&self) -> Option<&CheckedBayesianGcompOperation> {
         self.execution.bayesian_gcomp()
     }
+
+    /// Validation procedure frozen with the checked Bayesian DAG effect route.
+    #[must_use]
+    pub fn checked_bayesian_gcomp_validation(&self) -> Option<RefuteSuite> {
+        match &self.execution {
+            PreparedExecution::BayesianGcomp(operation) => Some(operation.validation()),
+            _ => None,
+        }
+    }
     /// Checked linear adjustment lowering retained by this prepared handle.
     ///
     /// `None` means this route has not migrated to the checked adjustment path;
@@ -3517,6 +3554,29 @@ impl PreparedStudy {
 
     pub(crate) fn has_checked_static_dag_response_operation(&self) -> bool {
         matches!(self.execution, PreparedExecution::StaticDagResponse(_))
+    }
+
+    /// Inspect the sealed static DAG mediation target and procedure.
+    #[must_use]
+    pub fn checked_static_mediation_info(&self) -> Option<CheckedStaticMediationInfo> {
+        let (query, estimand, program, bootstrap_replicates, validation, graph) =
+            self.execution.static_mediation()?.inspect();
+        let mut edges: Vec<_> = graph
+            .edges()
+            .filter_map(|edge| edge.parent_child())
+            .map(|(a, b)| (a.raw(), b.raw()))
+            .collect();
+        edges.sort_unstable();
+        Some(CheckedStaticMediationInfo {
+            query: query.clone(),
+            identifier: crate::strategy_table::IdentifierId::PathSpecificNatural,
+            estimator: crate::strategy_table::EstimatorId::StaticMediationLinear,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            functional_roots: (program.mapping().source.raw(), program.mapping().executable.raw()),
+            graph_edges: edges.into(),
+            bootstrap_replicates,
+            validation,
+        })
     }
 
     pub(crate) fn has_checked_temporal_dag_response_operation(&self) -> bool {
@@ -5065,6 +5125,20 @@ impl PreparedStudy {
             let result = self
                 .analysis
                 .execute_checked_static_dag_response(data, &self.plan, ctx, operation)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::StaticMediation(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianGcomp(operation) = &self.execution {
+            let mut result = operation.execute(data, ctx)?;
+            result.custom_validator_names = operation.custom_validator_names();
+            super::execute::push_gaussian_likelihood_disclosure(
+                &mut result,
+                operation.operation().inference(),
+                &DataInput::Tabular(data.clone()),
+            );
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::CheckedGlmAdjustment(operation) = &self.execution {
@@ -6895,6 +6969,23 @@ impl Study {
             }
             _ => None,
         };
+        let bayesian_gcomp_execution = if let Some(operation) = bayesian_gcomp_operation {
+            let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
+                message: "checked Bayesian g-computation requires its retained DAG".into(),
+            })?;
+            Some(super::execute::CheckedBayesianDagAteExecution::checked(
+                graph,
+                operation,
+                super::execute::IdentifiedResultContext::from_study(&analysis),
+                plan.clone(),
+                analysis.refute,
+                analysis.latency_mode,
+                analysis.custom_validators.clone(),
+                analysis.stage_sink.clone(),
+            )?)
+        } else {
+            None
+        };
         let derivative_response_operation = match (
             &self.data,
             &self.query,
@@ -7311,6 +7402,27 @@ impl Study {
             }
             _ => None,
         };
+        let checked_static_mediation = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (DataInput::Tabular(data), CausalQuery::Mediation(_), Some(cache), GraphClass::Dag)
+                if matches!(analysis.inference, InferenceMode::Frequentist)
+                    && matches!(
+                        analysis.structure_source,
+                        crate::support::StructureSource::Explicit
+                            | crate::support::StructureSource::Accepted
+                    )
+                    && analysis.custom_validators.is_empty() =>
+            {
+                Some(super::execute::CheckedStaticMediationOperation::checked(
+                    &analysis, data, &plan, cache,
+                )?)
+            }
+            _ => None,
+        };
         let score_table = analysis.prepare_score_table(ctx)?;
         let execution = if let Some(operation) = checked_linear {
             PreparedExecution::CheckedLinear(operation)
@@ -7338,6 +7450,8 @@ impl Study {
             PreparedExecution::DerivativeResponse(operation)
         } else if let Some(operation) = static_dag_response_operation {
             PreparedExecution::StaticDagResponse(operation)
+        } else if let Some(operation) = checked_static_mediation {
+            PreparedExecution::StaticMediation(operation)
         } else if let Some(operation) = temporal_dag_response_operation {
             PreparedExecution::TemporalDagResponse(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {
@@ -7350,7 +7464,7 @@ impl Study {
             PreparedExecution::PathSpecificEffect(operation)
         } else if let Some(operation) = admg_response_curve_operation {
             PreparedExecution::AdmgResponseCurve(operation)
-        } else if let Some(operation) = bayesian_gcomp_operation {
+        } else if let Some(operation) = bayesian_gcomp_execution {
             PreparedExecution::BayesianGcomp(operation)
         } else if let Some(operation) = checked_response_curve {
             PreparedExecution::StaticResponseCurve(operation)

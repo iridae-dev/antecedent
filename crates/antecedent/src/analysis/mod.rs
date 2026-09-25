@@ -62,7 +62,8 @@ pub use latency::{
 };
 pub use prepared::{
     CachedTemporalIdentification, CheckedConditionalEffectInfo, CheckedGraphPosteriorEffectInfo,
-    CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, PreparedStudy,
+    CheckedStaticMediationInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
+    PreparedStudy,
 };
 pub use stage::{StageEvent, StageResultSink};
 

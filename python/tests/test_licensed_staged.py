@@ -602,6 +602,83 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_checked_static_mediation_retains_contrast_and_refresh(accepted: bool):
+    a = np.array([float(i % 2) for i in range(200)])
+    m = 0.4 * a + np.sin(np.arange(200) * 0.71)
+    y = 0.3 * a + 0.5 * m
+    data = {"a": a, "m": m, "y": y}
+    builder_graph = antecedent.Dag.from_edges(
+        ["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")]
+    )
+    if accepted:
+        builder_graph = antecedent.AcceptedGraph.from_graph(builder_graph, algorithm_id="hand")
+    builder_query = antecedent.MediationEffect(
+        "a", "y", mediators=["m"], contrast="natural_direct"
+    )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data, graph=builder_graph, query=builder_query, refute=False, bootstrap=0, seed=11
+    )
+    del builder_graph, builder_query
+    plan = prepared.checked_static_mediation_info()
+    assert plan is not None
+    assert (plan["treatment"], plan["outcome"], plan["mediators"]) == ("a", "y", ["m"])
+    assert plan["contrast"] == "NaturalDirect"
+    assert plan["estimator"] == "mediation.linear"
+    assert plan["validation"] == "none"
+    assert len(plan["graph_edges"]) == 3
+    result = prepared.estimate(data, seed=11)
+    assert result.ate == pytest.approx(0.3, abs=1e-9)
+    changed = {**data, "y": y + 0.1 * a}
+    refreshed = prepared.refresh(changed, seed=11)
+    assert refreshed.ate == pytest.approx(0.4, abs=1e-9)
+    consumed = antecedent.artifacts.accept(refreshed.export())
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_mediation_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
+    from known_truth import static_data
+
+    data = static_data(256)
+    builder_graph = antecedent.Dag.from_edges(
+        ["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")]
+    )
+    if accepted:
+        builder_graph = antecedent.AcceptedGraph.from_graph(builder_graph, algorithm_id="hand")
+    builder_query = antecedent.AverageEffect("t", "y")
+    inference = antecedent.Bayesian(backend="conjugate", n_draws=64, prior_scale=30.0)
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        inference=inference,
+        refute=False,
+        bootstrap=0,
+        seed=12,
+    )
+    del builder_graph, builder_query
+    plan = prepared.checked_bayesian_dag_ate_info()
+    assert plan is not None
+    assert (plan["treatment"], plan["outcome"]) == ("t", "y")
+    assert plan["estimator"] == "bayesian.gcomp"
+    assert plan["n_draws"] == 64
+    assert plan["prior_scale"] == pytest.approx(30.0)
+    assert plan["transferred_prior"] is False
+    assert plan["validation"] == "none"
+    assert plan["adjustment_set"] == ["z"]
+    result = prepared.estimate(data, seed=12)
+    assert result.ate == pytest.approx(2.0, abs=0.2)
+    assert result.posterior is not None
+    changed = {**data, "y": data["y"] + 0.4 * data["t"]}
+    refreshed = prepared.refresh(changed, seed=12)
+    assert refreshed.ate == pytest.approx(2.4, abs=0.2)
+    consumed = antecedent.artifacts.accept(refreshed.export())
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_bayesian_dag_ate_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
 @pytest.mark.parametrize(
     ("refute", "validation"),
     [(False, "none"), ("cheap", "overlap+evalue"), ("full", "validation.full")],

@@ -3359,6 +3359,16 @@ class PreparedAnalysis(Generic[ResultT]):
         info = self._native.checked_conditional_effect_info()
         return None if info is None else dict(info)
 
+    def checked_static_mediation_info(self) -> dict[str, Any] | None:
+        """Inspect the retained static mediation contrast, graph, and procedure."""
+        info = self._native.checked_static_mediation_info()
+        return None if info is None else dict(info)
+
+    def checked_bayesian_dag_ate_info(self) -> dict[str, Any] | None:
+        """Inspect the retained Bayesian DAG ATE target, backend, and prior source."""
+        info = self._native.checked_bayesian_dag_ate_info()
+        return None if info is None else dict(info)
+
     def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None:
         """Inspect frozen graph atoms, weights, and the selected effect procedure."""
         info = self._native.checked_graph_posterior_effect_info()

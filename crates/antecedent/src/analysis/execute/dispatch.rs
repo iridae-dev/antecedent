@@ -956,6 +956,60 @@ impl super::Study {
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.estimator == Some(EstimatorId::BayesianGcomp)
+            && self
+                .identifier
+                .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
+            && matches!(
+                &self.query,
+                CausalQuery::AverageEffect(query)
+                    if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                        && query.target_population == antecedent_core::TargetPopulation::AllObserved
+            )
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_bayesian_gcomp_operation().is_none() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot Bayesian DAG effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && matches!(self.query, CausalQuery::Mediation(_))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_static_mediation_info().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot mediation did not retain its checked operation".into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
             && self.graph.class() == GraphClass::TemporalDag
             && matches!(
                 self.structure_source,

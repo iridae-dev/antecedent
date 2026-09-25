@@ -848,6 +848,8 @@ fn consume_licensed_family(
                 | "dependencies.checked_intervention_response_operation"
                 | "dependencies.checked_temporal_response_operation"
                 | "dependencies.checked_conditional_effect_operation"
+                | "dependencies.checked_mediation_operation"
+                | "dependencies.checked_bayesian_dag_ate_operation"
                 | "dependencies.checked_temporal_dag_effect_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 // The portable result is readable and preserves the posterior
@@ -1007,6 +1009,10 @@ fn licensed_family_mediation_frequentist_consumes() {
             < pin["tolerance"].as_f64().unwrap()
     );
     assert_eq!(consumed.body.estimate, Some(result.estimate.ate));
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_mediation_operation")]
+    );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -5520,7 +5526,10 @@ fn calibration_slot_is_covered_by_claim_id() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "cal-slot", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_bayesian_dag_ate_operation")]
+    );
     let original = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration.clone();
 
     // Re-encode the same artifact with an edited calibration slot and the
@@ -5616,7 +5625,12 @@ fn producer_and_consumer_agree_on_the_calibration_slot() {
             claim.calibration,
             "{label}: the consumer re-derives a different slot"
         );
-        if label == "series" {
+        if label == "tabular" {
+            assert_eq!(
+                consumed.acceptance.unresolved.as_ref(),
+                &[std::sync::Arc::<str>::from("dependencies.checked_bayesian_dag_ate_operation")]
+            );
+        } else if label == "series" {
             assert_eq!(
                 consumed.acceptance.unresolved.as_ref(),
                 &[std::sync::Arc::<str>::from(
