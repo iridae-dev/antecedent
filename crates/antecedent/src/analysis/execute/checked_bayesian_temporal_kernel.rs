@@ -109,7 +109,10 @@ pub(crate) fn fit_temporal_dag_effect(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InferenceMode, analysis::checked_temporal_effect::CheckedTemporalEffectOperation};
+    use crate::{
+        BayesianConfig, InferenceMode,
+        analysis::checked_temporal_effect::CheckedTemporalEffectOperation,
+    };
     use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
     use antecedent_data::TimeSeriesData;
     use antecedent_graph::{TemporalDag, ensure_lagged};
