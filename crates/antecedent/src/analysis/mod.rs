@@ -22,7 +22,9 @@ mod transport_grid;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub(crate) use checked_conditional::{CheckedConditionalOperation, ConditionalProcedure};
-pub(crate) use checked_graph_posterior::CheckedGraphPosteriorEffect;
+pub(crate) use checked_graph_posterior::{
+    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect,
+};
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;
 pub use exact::{
@@ -64,11 +66,11 @@ pub use latency::{
     STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
 pub use prepared::{
-    CachedTemporalIdentification, CheckedAttributionInfo, CheckedCellAipwResponseInfo,
-    CheckedConditionalEffectInfo, CheckedGraphPosteriorEffectInfo, CheckedInterferenceInfo,
-    CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo, CheckedTemporalDagEffectInfo,
-    CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo, CheckedUnknownTieredAverageInfo,
-    PreparedStudy,
+    CachedTemporalIdentification, CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo,
+    CheckedCellAipwResponseInfo, CheckedConditionalEffectInfo, CheckedGraphPosteriorEffectInfo,
+    CheckedInterferenceInfo, CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo,
+    CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
+    CheckedUnknownTieredAverageInfo, PreparedStudy,
 };
 pub use stage::{StageEvent, StageResultSink};
 

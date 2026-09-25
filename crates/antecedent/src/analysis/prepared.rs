@@ -16,12 +16,12 @@ use antecedent_core::{
 };
 use antecedent_data::{PanelData, TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_discovery::{
-    dag_from_adjacency_mask, temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks,
-    temporal_pag_from_dbn_masks, GraphPosterior,
+    GraphPosterior, dag_from_adjacency_mask, temporal_cpdag_from_dbn_masks,
+    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
 };
 use antecedent_estimate::{
-    crossfit_binary_scores, exceedance_cdf_values, AipwAte, CellSaturatedAipw, EffectEstimate,
-    EstimationWorkspace, OverlapPolicy, RetargetResult, ScoreTable,
+    AipwAte, CellSaturatedAipw, EffectEstimate, EstimationWorkspace, OverlapPolicy, RetargetResult,
+    ScoreTable, crossfit_binary_scores, exceedance_cdf_values,
 };
 
 use crate::accepted::GraphClass;
@@ -29,7 +29,7 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
-use crate::strategy_table::{EstimatorId, IdentifierId, DEFAULT_ESTIMATOR};
+use crate::strategy_table::{DEFAULT_ESTIMATOR, EstimatorId, IdentifierId};
 
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Pag, TemporalDag};
@@ -46,11 +46,11 @@ use super::checked_propensity::{
 };
 use super::execute::Study;
 use super::helpers::{
-    assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
-    run_plugin_level_refuters, run_refuters, AssembleArgs,
+    AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
+    run_plugin_level_refuters, run_refuters,
 };
-use super::stage::{StageClock, STAGE_ESTIMATE_POINT, STAGE_VALIDATE};
-use super::CheckedGraphPosteriorEffect;
+use super::stage::{STAGE_ESTIMATE_POINT, STAGE_VALIDATE, StageClock};
+use super::{CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect};
 use super::{CheckedConditionalOperation, ConditionalProcedure};
 
 /// Prepare-time identification products for the static ATE / response path.
@@ -1155,6 +1155,21 @@ pub struct CheckedGraphPosteriorEffectInfo {
     pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
     /// Procedure-specific bootstrap count retained by preparation.
     pub bootstrap_replicates: u32,
+}
+
+/// Frozen ADMG response posterior, including atom weights and identification flags.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedAdmgGraphPosteriorResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Frozen graph identity per posterior atom.
+    pub graph_keys: Arc<[u64]>,
+    /// Frozen posterior weight per atom.
+    pub weights: Arc<[f64]>,
+    /// Identified and unidentified atom status, preserving unresolved mass.
+    pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Validation suite fixed at preparation.
+    pub validation: RefuteSuite,
 }
 
 /// Checked binding for the prepared static Bayesian mean ATE g-computation row.
@@ -2291,7 +2306,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
     use std::collections::HashMap;
 
     use crate::strategy_table::{
-        identify_static, select_estimand, EstimatorId, DEFAULT_IDENTIFIER_ID,
+        DEFAULT_IDENTIFIER_ID, EstimatorId, identify_static, select_estimand,
     };
 
     // A DBN posterior's contemporaneous masks are valid DAGs, but identifying a
@@ -2409,7 +2424,7 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     use std::collections::HashMap;
 
     use crate::strategy_table::{
-        identify_admg_query, select_estimand, EstimatorId, DEFAULT_ADMG_IDENTIFIER_ID,
+        DEFAULT_ADMG_IDENTIFIER_ID, EstimatorId, identify_admg_query, select_estimand,
     };
     use antecedent_discovery::admg_from_adjacency_mask;
 
@@ -2534,7 +2549,7 @@ fn build_admg_graph_posterior_identification_cache(
     use std::collections::HashMap;
 
     use crate::strategy_table::{
-        identify_admg, select_estimand, EstimatorId, DEFAULT_ADMG_IDENTIFIER_ID,
+        DEFAULT_ADMG_IDENTIFIER_ID, EstimatorId, identify_admg, select_estimand,
     };
     use antecedent_discovery::admg_from_adjacency_mask;
 
@@ -2625,7 +2640,7 @@ fn build_class_graph_posterior_identification_cache(
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     use std::collections::HashMap;
 
-    use crate::strategy_table::{identify_cpdag, identify_pag, DEFAULT_PAG_IDENTIFIER_ID};
+    use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag, identify_pag};
     use antecedent_discovery::{cpdag_from_adjacency_mask, pag_from_adjacency_mask};
 
     super::execute::report_identify_compute(ctx);
@@ -2720,7 +2735,7 @@ fn cache_class_envelope<G>(
     query: &AverageEffectQuery,
     envelope: IdentificationEnvelope<G>,
 ) -> CachedClassPosteriorAtomIdentification {
-    use crate::strategy_table::{select_estimand, EstimatorId};
+    use crate::strategy_table::{EstimatorId, select_estimand};
 
     let identification = super::execute::envelope_to_identification_result(&envelope, query);
     let cases: Vec<CachedClassPosteriorCase> = envelope
@@ -2878,8 +2893,8 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     ctx: &ExecutionContext,
 ) -> Result<CachedTemporalClassPosteriorIdentification, CausalError> {
     use crate::strategy_table::{
-        identify_temporal_cpdag_configured, identify_temporal_pag_configured,
-        DEFAULT_PAG_IDENTIFIER_ID,
+        DEFAULT_PAG_IDENTIFIER_ID, identify_temporal_cpdag_configured,
+        identify_temporal_pag_configured,
     };
 
     let lag_masks = posterior.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
@@ -3436,6 +3451,7 @@ pub(crate) enum PreparedExecution {
     FunctionalEffect(CheckedFunctionalEffectOperation),
     PathSpecificEffect(CheckedPathSpecificEffectOperation),
     AdmgResponseCurve(CheckedAdmgResponseCurveOperation),
+    AdmgGraphPosteriorResponse(Box<CheckedAdmgGraphPosteriorResponse>),
     CheckedLinear(CheckedLinearOperation),
     CheckedGlmAdjustment(CheckedGlmAdjustmentOperation),
     CheckedRd(CheckedRdOperation),
@@ -3504,6 +3520,7 @@ impl PreparedExecution {
             Self::AdmgResponseCurve(operation) => {
                 CheckedProgramBinding::FunctionalResponse(&operation.members)
             }
+            Self::AdmgGraphPosteriorResponse(_) => CheckedProgramBinding::None,
             Self::Distribution(operation) => {
                 CheckedProgramBinding::Distribution(operation.prepared.program())
             }
@@ -3604,6 +3621,15 @@ impl PreparedExecution {
     }
     pub(crate) fn admg_response_curve(&self) -> Option<&CheckedAdmgResponseCurveOperation> {
         if let Self::AdmgResponseCurve(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+    pub(crate) fn admg_graph_posterior_response(
+        &self,
+    ) -> Option<&CheckedAdmgGraphPosteriorResponse> {
+        if let Self::AdmgGraphPosteriorResponse(value) = self {
             Some(value)
         } else {
             None
@@ -4013,6 +4039,12 @@ impl PreparedStudy {
         matches!(self.execution, PreparedExecution::GraphPosteriorEffect(_))
     }
 
+    /// Whether preparation retained an ADMG graph-posterior response operation.
+    #[must_use]
+    pub fn has_checked_admg_graph_posterior_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::AdmgGraphPosteriorResponse(_))
+    }
+
     /// Inspect the frozen graph-posterior atoms and estimator procedure.
     #[must_use]
     pub fn checked_graph_posterior_effect_info(&self) -> Option<CheckedGraphPosteriorEffectInfo> {
@@ -4026,6 +4058,21 @@ impl PreparedStudy {
             weights: Arc::from(weights),
             identified: Arc::from(identified),
             bootstrap_replicates: operation.bootstrap_replicates(),
+        })
+    }
+
+    /// Inspect the retained ADMG graph-posterior response operation.
+    #[must_use]
+    pub fn checked_admg_graph_posterior_response_info(
+        &self,
+    ) -> Option<CheckedAdmgGraphPosteriorResponseInfo> {
+        let operation = self.execution.admg_graph_posterior_response()?;
+        Some(CheckedAdmgGraphPosteriorResponseInfo {
+            query: operation.query().clone(),
+            graph_keys: Arc::clone(&operation.identification().graphs.graph_keys),
+            weights: Arc::clone(&operation.identification().graphs.weights),
+            identified: Arc::clone(&operation.identification().graphs.identified),
+            validation: operation.validation(),
         })
     }
 
@@ -5742,6 +5789,12 @@ impl PreparedStudy {
             };
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::AdmgGraphPosteriorResponse(operation) = &self.execution {
+            let result = self
+                .analysis
+                .execute_checked_admg_graph_posterior_response(data, operation, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.interference =
@@ -6376,7 +6429,6 @@ fn multi_env_regularity(
 }
 
 impl Study {
-
     #[inline(never)]
     fn seal_graph_posterior_effect(
         analysis: &Study,
@@ -6479,6 +6531,55 @@ impl Study {
             }
             _ => None,
         })
+    }
+
+    fn seal_admg_graph_posterior_response(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<Box<CheckedAdmgGraphPosteriorResponse>>, CausalError> {
+        let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
+            analysis.graph_posterior.as_ref(),
+            &analysis.query,
+            analysis.graph_posterior_identification_cache.as_deref(),
+        ) else {
+            return Ok(None);
+        };
+        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Admg
+            || !analysis.custom_validators.is_empty()
+            || !matches!(
+                analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
+                None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
+            )
+            || !matches!(
+                analysis.estimator,
+                None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
+            )
+            || plan
+                .logical
+                .record
+                .identifier
+                .as_deref()
+                .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
+                != crate::strategy_table::IdentifierId::GeneralId.as_str()
+            || plan
+                .logical
+                .record
+                .estimator
+                .as_deref()
+                .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
+                != crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+        {
+            return Ok(None);
+        }
+        super::execute::graph_posterior_response_supported(query)?;
+        Ok(Some(Box::new(CheckedAdmgGraphPosteriorResponse::prepare(
+            posterior.clone(),
+            query.clone(),
+            identification.clone(),
+            plan.clone(),
+            analysis.inference.clone(),
+            analysis.refute,
+        )?)))
     }
 
     /// Compile once into a durable [`PreparedStudy`] for re-estimate-many.
@@ -8356,6 +8457,8 @@ impl Study {
             None
         };
         let checked_graph_posterior_effect = Self::seal_graph_posterior_effect(&analysis, &plan)?;
+        let checked_admg_graph_posterior_response =
+            Self::seal_admg_graph_posterior_response(&analysis, &plan)?;
         let checked_bayesian_static_mediation = match (
             &self.data,
             &self.query,
@@ -8502,6 +8605,8 @@ impl Study {
             PreparedExecution::FunctionalEffect(operation)
         } else if let Some(operation) = path_specific_effect_operation {
             PreparedExecution::PathSpecificEffect(operation)
+        } else if let Some(operation) = checked_admg_graph_posterior_response {
+            PreparedExecution::AdmgGraphPosteriorResponse(operation)
         } else if let Some(operation) = admg_response_curve_operation {
             PreparedExecution::AdmgResponseCurve(operation)
         } else if let Some(operation) = bayesian_gcomp_execution {
@@ -8539,8 +8644,8 @@ impl Study {
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            identify_static, identify_static_query, identify_static_query_with_rd, select_claim,
-            select_estimand, EstimatorId, IdentifierId, DEFAULT_IDENTIFIER,
+            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
+            identify_static_query_with_rd, select_claim, select_estimand,
         };
         if matches!(self.query, CausalQuery::Counterfactual(_)) {
             let graph = self
@@ -8814,7 +8919,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedPagIdentification>, CausalError> {
-        use crate::strategy_table::{identify_pag, IdentifierId, DEFAULT_PAG_IDENTIFIER};
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_pag};
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -8843,7 +8948,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedCpdagIdentification>, CausalError> {
-        use crate::strategy_table::{identify_cpdag, IdentifierId, DEFAULT_PAG_IDENTIFIER};
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_cpdag};
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -8884,7 +8989,7 @@ impl Study {
     fn prepare_temporal_identification(
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
-        use crate::strategy_table::{select_estimand, EstimatorId};
+        use crate::strategy_table::{EstimatorId, select_estimand};
         if self.graph.class() != GraphClass::TemporalDag {
             return Ok(None);
         }
@@ -8945,7 +9050,7 @@ impl Study {
     fn prepare_temporal_class_identification(
         &self,
     ) -> Result<Option<CachedTemporalClassIdentification>, CausalError> {
-        use crate::strategy_table::{IdentifierId, DEFAULT_PAG_IDENTIFIER};
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId};
 
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
@@ -9557,8 +9662,7 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
             ) {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
+                    message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
                 });
             }
         }
@@ -9690,10 +9794,10 @@ mod checked_static_operation_tests {
     use antecedent_stats::GlmFamily;
 
     use super::PreparedExecution;
+    use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::EstimatorId;
-    use crate::Study;
 
     fn data() -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -10090,7 +10194,7 @@ mod checked_iv_prepared_tests {
     use antecedent_graph::Dag;
 
     use crate::estimator_spec::EstimatorSpec;
-    use crate::{analysis::builder::RefuteSuite, strategy_table::IdentifierId, Study};
+    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
 
     use super::{CheckedIvOperation, PreparedExecution};
 
@@ -10342,7 +10446,7 @@ mod refresh_tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use antecedent_graph::{ensure_lagged, TemporalDag};
+    use antecedent_graph::{TemporalDag, ensure_lagged};
 
     use super::super::builder::{DataInput, RefuteSuite};
     use crate::analysis::execute::Study;
@@ -10462,11 +10566,11 @@ mod prepared_frontdoor_tests {
     use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage};
     use antecedent_graph::Dag;
 
+    use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::prepared::PreparedExecution;
     use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::{EstimatorId, IdentifierId};
-    use crate::Study;
 
     fn data(outcome_shift: f64) -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -10606,9 +10710,11 @@ mod prepared_frontdoor_tests {
         let result = prepared.estimate(&data, &context).unwrap();
         let bytes =
             prepared.encode_contracted_result(&result, "default-frontdoor", &context).unwrap();
-        assert!(antecedent_io::consume_analysis_result(&bytes)
-            .unwrap()
-            .acceptance
-            .accepts_as_verified_program());
+        assert!(
+            antecedent_io::consume_analysis_result(&bytes)
+                .unwrap()
+                .acceptance
+                .accepts_as_verified_program()
+        );
     }
 }
