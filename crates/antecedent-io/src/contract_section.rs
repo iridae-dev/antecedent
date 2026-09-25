@@ -885,6 +885,17 @@ pub fn verify_contract_against_body(
     }
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::TemporalEffect { .. })
+        && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
+        && resolved_estimator == Some("temporal.sequential.gcomp")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("bayesian")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_bayesian_temporal_dag_effect_operation"));
+    }
+    if contract.graph_class == "TemporalDag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && matches!(contract.target.query, CausalQueryWire::Mediation { .. })
         && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
         && matches!(resolved_estimator, Some("temporal.mediation" | "temporal.mediation.bayesian"))

@@ -118,6 +118,12 @@ fn every_fixed_structure_pulse_coordinate_uses_parent_adjustment() {
                     .unwrap()
                     .prepare(&ctx)
                     .unwrap();
+                if bayesian {
+                    assert!(
+                        prepared.checked_bayesian_temporal_dag_effect_info().is_some(),
+                        "the parent-adjustment Bayesian route must retain its checked temporal plan"
+                    );
+                }
                 let result = prepared.estimate_series(&data, &ctx).unwrap_or_else(|error| {
                     panic!("bayesian={bayesian} accepted={accepted} {suite:?}: {error}")
                 });

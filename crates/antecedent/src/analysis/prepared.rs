@@ -4445,10 +4445,15 @@ impl PreparedStudy {
         let super::CheckedBayesianTemporalTarget::Dag(target) = operation.target() else {
             return None;
         };
+        let estimator = if target.query().is_multi_step_sustained() {
+            crate::strategy_table::EstimatorId::TemporalSequentialGcomp
+        } else {
+            crate::strategy_table::EstimatorId::BayesianTemporalGcomp
+        };
         Some(CheckedBayesianTemporalDagEffectInfo {
             query: target.query().clone(),
             identifier: crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded,
-            estimator: crate::strategy_table::EstimatorId::BayesianTemporalGcomp,
+            estimator,
             validation: operation.validation(),
             posterior_draws: operation.config().n_draws,
             graph_signature: Arc::from(target.graph_signature()),
@@ -8744,7 +8749,6 @@ impl Study {
                 && analysis.split.is_none()
                 && analysis.custom_validators.is_empty()
                 && matches!(analysis.inference, InferenceMode::Bayesian(_))
-                && !query.is_multi_step_sustained()
                 && matches!(
                     query.policy,
                     antecedent_core::TemporalPolicy::Pulse { .. }
@@ -8756,7 +8760,11 @@ impl Study {
                 ) =>
             {
                 let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
-                let estimator = crate::strategy_table::EstimatorId::BayesianTemporalGcomp;
+                let estimator = if query.is_multi_step_sustained() {
+                    crate::strategy_table::EstimatorId::TemporalSequentialGcomp
+                } else {
+                    crate::strategy_table::EstimatorId::BayesianTemporalGcomp
+                };
                 if plan.logical.record.identifier.as_deref().is_some_and(|name| name != identifier.as_str())
                     || plan.logical.record.estimator.as_deref().is_some_and(|name| name != estimator.as_str())
                 {
@@ -8765,6 +8773,11 @@ impl Study {
                     let member = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                         message: "prepared Bayesian temporal effect lacks its horizon proof".into(),
                     })?;
+                    let procedure = if query.is_multi_step_sustained() {
+                        crate::strategy_table::EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        crate::strategy_table::EstimatorId::TemporalLinearAdjustment
+                    };
                     let target = super::CheckedTemporalEffectOperation::checked(
                         analysis.graph.as_temporal_dag().expect("guarded TemporalDag"),
                         query,
@@ -8772,7 +8785,7 @@ impl Study {
                         member.estimand.clone(),
                         member.indexer.clone(),
                         identifier,
-                        crate::strategy_table::EstimatorId::TemporalLinearAdjustment,
+                        procedure,
                         0,
                         analysis.refute,
                     )?;
