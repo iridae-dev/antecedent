@@ -13,7 +13,7 @@
 
 use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TimeSeriesData;
-use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{ensure_lagged, TemporalDag};
 
 use super::calibration::{ar1_noise, gaussian, stream_seed};
 use super::driven_dgp::{A, B, C};

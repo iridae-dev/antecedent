@@ -206,7 +206,7 @@ mod tests {
         TemporalResponseSpec, VariableId,
     };
     use antecedent_data::TimeSeriesData;
-    use antecedent_graph::{TemporalDag, ensure_lagged};
+    use antecedent_graph::{ensure_lagged, TemporalDag};
     use antecedent_identify::temporal_backdoor::TemporalBackdoorIdentifier;
 
     #[test]
@@ -303,11 +303,9 @@ mod tests {
             }
         ));
         assert!(result.provenance.nodes.len() >= 2);
-        assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "refute.temporal_response.skipped")
-        );
+        assert!(result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "refute.temporal_response.skipped"));
     }
 }

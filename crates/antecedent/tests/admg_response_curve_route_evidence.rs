@@ -313,9 +313,7 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         for (actual, expected) in means(&refreshed).iter().zip([0.314_f64, 0.596]) {
             assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
         }
-        let artifact = prepared
-            .encode_contracted_result(&refreshed, &coordinate, &ctx)
-            .unwrap();
+        let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
         assert!(
             consumed.acceptance.accepts_as_verified_program()

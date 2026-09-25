@@ -355,7 +355,9 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             let refreshed_mass = refreshed.structural_response.as_ref().unwrap();
             assert!((refreshed_mass.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
             assert!((refreshed_mass.unidentified_mass - expected_unidentified).abs() < 1e-12);
-            let artifact = prepared.encode_contracted_result(&refreshed, "admg-gp-response", &context).unwrap();
+            let artifact = prepared
+                .encode_contracted_result(&refreshed, "admg-gp-response", &context)
+                .unwrap();
             let consumed = consume_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.accepts_as_verified_program()
