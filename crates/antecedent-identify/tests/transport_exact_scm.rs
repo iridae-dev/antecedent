@@ -856,9 +856,7 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                 ) {
                                     continue;
                                 }
-                                if let Err(err) = four_node_formula_matches_scm(
-                                    &proof,
-                                    &catalog,
+                                let model = FourNodeModel {
                                     directed,
                                     bidirected,
                                     selections,
@@ -866,8 +864,10 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                     parent_w,
                                     shared_w,
                                     sel_w,
-                                    &ctx,
-                                ) {
+                                };
+                                if let Err(err) =
+                                    four_node_formula_matches_scm(&proof, &catalog, &model, &ctx)
+                                {
                                     *message.lock().unwrap() = err;
                                     failed.store(true, std::sync::atomic::Ordering::Relaxed);
                                     return;
@@ -960,34 +960,8 @@ fn four_node_power_set_catalog() -> EvidenceCatalog {
     EvidenceCatalog::try_new([], regimes, [], None).unwrap()
 }
 
-fn four_node_weight(
-    node: usize,
-    values: usize,
-    latent: usize,
-    directed: u32,
-    bidirected: u32,
-    base: f64,
-    parent_w: f64,
-    shared_w: f64,
-    sel: f64,
-) -> f64 {
-    let mut parents = 0.0;
-    let mut shared = 0.0;
-    for (edge, &(from, to)) in FOUR_EDGES.iter().enumerate() {
-        if to == node && directed & (1 << edge) != 0 {
-            parents += ((values >> from) & 1) as f64;
-        }
-        if (from == node || to == node) && bidirected & (1 << edge) != 0 {
-            shared += ((latent >> edge) & 1) as f64;
-        }
-    }
-    base + parent_w * parents + shared_w * shared + sel
-}
-
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-fn four_node_formula_matches_scm(
-    proof: &antecedent_identify::ClassicalTransportDerivation,
-    catalog: &EvidenceCatalog,
+#[derive(Clone, Copy)]
+struct FourNodeModel {
     directed: u32,
     bidirected: u32,
     selections: u32,
@@ -995,8 +969,38 @@ fn four_node_formula_matches_scm(
     parent_w: f64,
     shared_w: f64,
     sel_w: f64,
+}
+
+fn four_node_weight(
+    node: usize,
+    values: usize,
+    latent: usize,
+    model: &FourNodeModel,
+    target: bool,
+) -> f64 {
+    let mut parents = 0.0;
+    let mut shared = 0.0;
+    for (edge, &(from, to)) in FOUR_EDGES.iter().enumerate() {
+        if to == node && model.directed & (1 << edge) != 0 {
+            parents += ((values >> from) & 1) as f64;
+        }
+        if (from == node || to == node) && model.bidirected & (1 << edge) != 0 {
+            shared += ((latent >> edge) & 1) as f64;
+        }
+    }
+    let selection_shift =
+        if target && model.selections & (1 << node) != 0 { model.sel_w } else { 0.0 };
+    model.base + model.parent_w * parents + model.shared_w * shared + selection_shift
+}
+
+#[allow(clippy::too_many_lines)]
+fn four_node_formula_matches_scm(
+    proof: &antecedent_identify::ClassicalTransportDerivation,
+    catalog: &EvidenceCatalog,
+    model: &FourNodeModel,
     ctx: &ExecutionContext,
 ) -> Result<(), String> {
+    let FourNodeModel { directed, bidirected, selections, base, .. } = *model;
     let mut source = vec![Vec::new(); 81];
     for mask in 0..16usize {
         let free = 4 - mask.count_ones() as usize;
@@ -1012,29 +1016,22 @@ fn four_node_formula_matches_scm(
     let prior = 1.0 / 64.0;
     for latent in 0..64usize {
         for values in 0..16usize {
-            let source_p: [f64; 4] = std::array::from_fn(|node| {
-                four_node_weight(
-                    node, values, latent, directed, bidirected, base, parent_w, shared_w, 0.0,
-                )
-            });
-            let target_p: [f64; 4] = std::array::from_fn(|node| {
-                let sel = if selections & (1 << node) != 0 { sel_w } else { 0.0 };
-                four_node_weight(
-                    node, values, latent, directed, bidirected, base, parent_w, shared_w, sel,
-                )
-            });
+            let source_p: [f64; 4] =
+                std::array::from_fn(|node| four_node_weight(node, values, latent, model, false));
+            let target_p: [f64; 4] =
+                std::array::from_fn(|node| four_node_weight(node, values, latent, model, true));
             let mut observational = prior;
-            for node in 0..4 {
-                observational *= bernoulli((values >> node) & 1, target_p[node]);
+            for (node, probability) in target_p.iter().enumerate() {
+                observational *= bernoulli((values >> node) & 1, *probability);
             }
             target[four_node_free_row(values, 0)] += observational;
             for mask in 0..16usize {
                 let mut mass = prior;
-                for node in 0..4 {
+                for (node, probability) in source_p.iter().enumerate() {
                     if mask & (1 << node) != 0 {
                         continue;
                     }
-                    mass *= bernoulli((values >> node) & 1, source_p[node]);
+                    mass *= bernoulli((values >> node) & 1, *probability);
                 }
                 let row = four_node_free_row(values, mask);
                 source[four_node_slot(mask, values & mask)][row] += mass;
@@ -1042,8 +1039,8 @@ fn four_node_formula_matches_scm(
             let x = values & 1;
             if (values >> 3) & 1 == 1 {
                 let mut mass = prior;
-                for node in 1..4 {
-                    mass *= bernoulli((values >> node) & 1, target_p[node]);
+                for (node, probability) in target_p.iter().enumerate().skip(1) {
+                    mass *= bernoulli((values >> node) & 1, *probability);
                 }
                 truth[x] += mass;
             }
@@ -1058,14 +1055,14 @@ fn four_node_formula_matches_scm(
             let interventions = (0..4)
                 .filter(|node| mask & (1 << node) != 0)
                 .map(|node| antecedent_expr::InterventionAssignment {
-                    variable: v(node as u32),
+                    variable: v(u32::try_from(node).expect("node index is within 0..4")),
                     value: Value::Int64(((values >> node) & 1) as i64),
                 })
                 .collect::<Vec<_>>();
             let axes = (0..4)
                 .filter(|node| mask & (1 << node) == 0)
                 .map(|node| DiscreteAxis {
-                    variable: v(node as u32),
+                    variable: v(u32::try_from(node).expect("node index is within 0..4")),
                     values: Arc::from([Value::Int64(0), Value::Int64(1)]),
                 })
                 .collect::<Vec<_>>();
@@ -1092,7 +1089,7 @@ fn four_node_formula_matches_scm(
             [],
             (0..4)
                 .map(|node| DiscreteAxis {
-                    variable: v(node as u32),
+                    variable: v(u32::try_from(node).expect("node index is within 0..4")),
                     values: Arc::from([Value::Int64(0), Value::Int64(1)]),
                 })
                 .collect::<Vec<_>>(),
@@ -1104,13 +1101,13 @@ fn four_node_formula_matches_scm(
     );
     let bound = proof.bind_catalog(catalog).map_err(|err| format!("bind: {err}"))?;
     let data = ExactTransportData::try_new(laws, 10_000).map_err(|err| format!("data: {err}"))?;
-    for x in 0..2usize {
+    for (x, expected_truth) in truth.iter().enumerate() {
         let result = ExactEvaluationPlan::compile(
             bound.arena(),
             bound.root(),
             data.clone(),
             [v(3)],
-            Assignment::from_pairs([(v(0), Value::Int64(x as i64))]),
+            Assignment::from_pairs([(v(0), Value::Int64(i64::try_from(x).expect("x is binary")))]),
             ExactEvaluationLimits::default(),
             LawTolerance::default(),
             ctx,
@@ -1118,10 +1115,9 @@ fn four_node_formula_matches_scm(
         .and_then(|plan| plan.evaluate(ctx))
         .map_err(|err| format!("evaluate x={x} directed={directed} bidirected={bidirected} selections={selections}: {err}"))?;
         let got = result.mean(v(3)).map_err(|err| format!("mean: {err}"))?;
-        if (got - truth[x]).abs() > 1e-8 {
+        if (got - expected_truth).abs() > 1e-8 {
             return Err(format!(
-                "directed={directed} bidirected={bidirected} selections={selections} x={x} base={base} got={got} truth={}",
-                truth[x]
+                "directed={directed} bidirected={bidirected} selections={selections} x={x} base={base} got={got} truth={expected_truth}"
             ));
         }
     }
