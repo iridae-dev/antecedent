@@ -190,9 +190,10 @@ fn basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage() 
         ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
     };
     let n = 96;
-    let repetitions = 100;
+    let repetitions = 100_usize;
     let mut covered = 0;
     for rep in 0..repetitions {
+        let rep_seed = u64::try_from(rep).expect("repetition index fits u64");
         let z: Vec<f64> = (0..n).map(|row| -0.99 + 1.98 * row as f64 / (n - 1) as f64).collect();
         let treatment: Vec<f64> = (0..n).map(|_| f64::from(uniform() < 0.5)).collect();
         let outcome: Vec<f64> = (0..n)
@@ -217,8 +218,8 @@ fn basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage() 
                 None,
                 None,
                 BasisTargetPopulation::AllObserved,
-                BayesianBasisSpec { prior_sd: 10.0, n_draws: 299, seed: rep as u64 + 7 },
-                &ExecutionContext::for_tests(rep as u64 + 9),
+                BayesianBasisSpec { prior_sd: 10.0, n_draws: 299, seed: rep_seed + 7 },
+                &ExecutionContext::for_tests(rep_seed + 9),
             )
             .unwrap();
         let mut draws = fit.ate_draws.to_vec();
@@ -227,7 +228,9 @@ fn basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage() 
         let hi = draws[284];
         covered += usize::from(lo <= truth && truth <= hi);
     }
-    let rate = covered as f64 / repetitions as f64;
+    let covered = u32::try_from(covered).expect("coverage count fits u32");
+    let repetitions = u32::try_from(repetitions).expect("repetition count fits u32");
+    let rate = f64::from(covered) / f64::from(repetitions);
     println!("Bayesian basis AllObserved ATE: {covered}/{repetitions} 90% intervals covered");
     assert!((0.78..=0.98).contains(&rate), "90% interval coverage was {rate:.3}");
 }

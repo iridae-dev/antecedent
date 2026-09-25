@@ -85,49 +85,15 @@ impl BayesianBasisGComputation {
         spec: BayesianBasisSpec,
         ctx: &ExecutionContext,
     ) -> Result<BayesianBasisEffect, LearnError> {
-        if population != BasisTargetPopulation::AllObserved {
-            return Err(LearnError::Unsupported {
-                message: "Bayesian basis g-computation supports AllObserved only",
-            });
-        }
-        let n = treatment.len();
-        if n < 4
-            || outcome.len() != n
-            || covariates_colmajor.len() != n.saturating_mul(n_covariates)
-        {
-            return Err(LearnError::Shape {
-                message: "basis g-computation input dimensions do not match rows and covariates",
-            });
-        }
-        if n_covariates == 0 {
-            return Err(LearnError::Shape { message: "basis g-computation requires covariates" });
-        }
-        if row_ids.is_some_and(|ids| ids.len() != n) {
-            return Err(LearnError::Shape {
-                message: "basis g-computation row ids length != rows",
-            });
-        }
-        if fold_ids.is_some_and(|ids| ids.len() != n) {
-            return Err(LearnError::Shape {
-                message: "basis g-computation fold ids length != rows",
-            });
-        }
-        if treatment.iter().any(|t| *t != 0.0 && *t != 1.0)
-            || !treatment.iter().any(|t| *t == 0.0)
-            || !treatment.iter().any(|t| *t == 1.0)
-        {
-            return Err(LearnError::Unsupported {
-                message: "basis g-computation requires binary treatment with both levels 0 and 1",
-            });
-        }
-        if treatment.iter().chain(outcome).chain(covariates_colmajor).any(|v| !v.is_finite()) {
-            return Err(LearnError::Shape { message: "basis g-computation inputs must be finite" });
-        }
-        if spec.n_draws == 0 || !(spec.prior_sd > 0.0) || !spec.prior_sd.is_finite() {
-            return Err(LearnError::Shape {
-                message: "basis g-computation requires positive finite prior_sd and n_draws",
-            });
-        }
+        let n = validate_inputs(
+            treatment,
+            outcome,
+            covariates_colmajor,
+            n_covariates,
+            (row_ids, fold_ids),
+            population,
+            spec,
+        )?;
 
         let p = 2 + 3 * n_covariates;
         let mut design = vec![0.0; n * p];
@@ -185,29 +151,8 @@ impl BayesianBasisGComputation {
         };
         let beta_cols: Vec<&[f64]> =
             (0..p).map(|coefficient| fit.draws.column(coefficient)).collect::<Result<_, _>>()?;
-        let mut values = vec![0.0; spec.n_draws * 3 * n];
-        let mut ate_draws = vec![0.0; spec.n_draws];
-        for draw in 0..spec.n_draws {
-            let base = draw * 3 * n;
-            let (control, remaining) = values[base..base + 3 * n].split_at_mut(n);
-            let (active, effect) = remaining.split_at_mut(n);
-            for r in 0..n {
-                let mut y0 = beta_cols[0][draw];
-                let mut y1 = y0 + beta_cols[1][draw];
-                for j in 0..n_covariates {
-                    let z = covariates_colmajor[j * n + r];
-                    y0 += beta_cols[2 + j][draw] * z
-                        + beta_cols[2 + 2 * n_covariates + j][draw] * z * z;
-                    y1 += beta_cols[2 + j][draw] * z
-                        + beta_cols[2 + n_covariates + j][draw] * z
-                        + beta_cols[2 + 2 * n_covariates + j][draw] * z * z;
-                }
-                control[r] = y0;
-                active[r] = y1;
-                effect[r] = y1 - y0;
-                ate_draws[draw] += effect[r] / n as f64;
-            }
-        }
+        let (values, ate_draws) =
+            evaluate_draws(&beta_cols, covariates_colmajor, n, n_covariates, spec.n_draws);
         let provenance = PosteriorPredictionProvenance {
             model_id: Arc::from("bayesian_basis_gcomp.quadratic_tz_z2"),
             prior_id: Arc::from(format!("gaussian_coefficients_isotropic_sd_{}", spec.prior_sd)),
@@ -244,4 +189,92 @@ impl BayesianBasisGComputation {
     pub const fn task(&self) -> PredictionTask {
         PredictionTask::Regression
     }
+}
+
+fn validate_inputs(
+    treatment: &[f64],
+    outcome: &[f64],
+    covariates: &[f64],
+    n_covariates: usize,
+    identities: (Option<&[u32]>, Option<&[u16]>),
+    population: BasisTargetPopulation,
+    spec: BayesianBasisSpec,
+) -> Result<usize, LearnError> {
+    if population != BasisTargetPopulation::AllObserved {
+        return Err(LearnError::Unsupported {
+            message: "Bayesian basis g-computation supports AllObserved only",
+        });
+    }
+    let n = treatment.len();
+    if n < 4 || outcome.len() != n || covariates.len() != n.saturating_mul(n_covariates) {
+        return Err(LearnError::Shape {
+            message: "basis g-computation input dimensions do not match rows and covariates",
+        });
+    }
+    if n_covariates == 0 {
+        return Err(LearnError::Shape { message: "basis g-computation requires covariates" });
+    }
+    if identities.0.is_some_and(|ids| ids.len() != n) {
+        return Err(LearnError::Shape { message: "basis g-computation row ids length != rows" });
+    }
+    if identities.1.is_some_and(|ids| ids.len() != n) {
+        return Err(LearnError::Shape { message: "basis g-computation fold ids length != rows" });
+    }
+    if !is_binary_with_both_levels(treatment) {
+        return Err(LearnError::Unsupported {
+            message: "basis g-computation requires binary treatment with both levels 0 and 1",
+        });
+    }
+    if treatment.iter().chain(outcome).chain(covariates).any(|v| !v.is_finite()) {
+        return Err(LearnError::Shape { message: "basis g-computation inputs must be finite" });
+    }
+    if spec.n_draws == 0 || spec.prior_sd <= 0.0 || !spec.prior_sd.is_finite() {
+        return Err(LearnError::Shape {
+            message: "basis g-computation requires positive finite prior_sd and n_draws",
+        });
+    }
+    Ok(n)
+}
+
+// Exact equality is the declared binary-treatment domain, not a numeric tolerance test.
+#[allow(clippy::float_cmp)]
+fn is_binary_with_both_levels(treatment: &[f64]) -> bool {
+    treatment.iter().all(|value| *value == 0.0 || *value == 1.0)
+        && treatment.iter().any(|value| *value == 0.0)
+        && treatment.iter().any(|value| *value == 1.0)
+}
+
+fn evaluate_draws(
+    beta_cols: &[&[f64]],
+    covariates: &[f64],
+    n_rows: usize,
+    n_covariates: usize,
+    n_draws: usize,
+) -> (Vec<f64>, Vec<f64>) {
+    let mut values = vec![0.0; n_draws * 3 * n_rows];
+    let mut ate_draws = vec![0.0; n_draws];
+    for (draw, ate) in ate_draws.iter_mut().enumerate() {
+        let base = draw * 3 * n_rows;
+        let (control, remaining) = values[base..base + 3 * n_rows].split_at_mut(n_rows);
+        let (active, effect) = remaining.split_at_mut(n_rows);
+        for (row, (control_value, (active_value, effect_value))) in
+            control.iter_mut().zip(active.iter_mut().zip(effect.iter_mut())).enumerate()
+        {
+            let mut y0 = beta_cols[0][draw];
+            let mut y1 = y0 + beta_cols[1][draw];
+            for covariate in 0..n_covariates {
+                let z = covariates[covariate * n_rows + row];
+                y0 += beta_cols[2 + covariate][draw] * z
+                    + beta_cols[2 + 2 * n_covariates + covariate][draw] * z * z;
+                y1 += beta_cols[2 + covariate][draw] * z
+                    + beta_cols[2 + n_covariates + covariate][draw] * z
+                    + beta_cols[2 + 2 * n_covariates + covariate][draw] * z * z;
+            }
+            *control_value = y0;
+            *active_value = y1;
+            *effect_value = y1 - y0;
+            *ate += *effect_value / n_rows as f64;
+        }
+    }
+    (values, ate_draws)
 }
