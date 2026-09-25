@@ -70,12 +70,12 @@ pub enum ZTransportMissingEvidence {
     SourceExperiment(ZExperimentFamilyError),
 }
 
-/// Result of the bounded TRz decision when the theorem's full data family is checked.
+/// Result of the bounded z-transport search when its declared data family is checked.
 #[derive(Clone, Debug)]
 pub enum ZTransportDecision {
     /// A positive TRz formula was derived.
     Identified(Box<ZTransportDerivation>),
-    /// A checked line-11 obstruction was reached with the complete data family.
+    /// A checked restricted-experiment obstruction was reached with the complete data family.
     ProvenNonTransportable(Box<ZTransportObstruction>),
     /// A theorem input law is not present in the catalog.
     MissingEvidence {
@@ -616,8 +616,14 @@ fn query_with_complete_assignment(
 /// Decide the bounded single-source z-transport problem under the complete
 /// discrete source experiment family and the target observational joint law.
 ///
-/// Positive formulas and negative certificates are structural theorem results.
-/// Missing catalog laws are reported separately and never imply obstruction.
+/// Positive formulas are structural theorem results. A negative result is
+/// certified only for the currently checked hedge subset: the target query has
+/// a checked ID hedge and every controllable variable lies in a different
+/// undirected ADMG component from that hedge. In this case, interventions on
+/// the declared controls cannot add information about the hedge component.
+/// Other completed search misses remain `NotCertified`; the <=6/<=2 input bound
+/// alone does not imply complete negative coverage. Missing catalog laws are
+/// reported separately and never imply obstruction.
 ///
 /// # Errors
 /// Invalid or unsupported query, cancellation, or exhausted search.
@@ -709,6 +715,11 @@ pub fn decide_z_transport_with_catalog(
             reason: "z_transport.no_replayable_line11_failure",
         });
     };
+    if !has_disconnected_target_hedge(diagram, query, limits, ctx)? {
+        return Ok(ZTransportDecision::NotCertified {
+            reason: "z_transport.negative_outside_checked_hedge_subset",
+        });
+    }
     let obstruction = ZTransportObstruction {
         query: query.clone(),
         graph_signature: super::graph_signature(diagram),
@@ -812,6 +823,9 @@ pub fn verify_z_transport_obstruction(
     if family.iter().map(|regime| regime.raw()).collect::<Vec<_>>() != obstruction.family_regimes {
         return Err(IdentificationError::msg("z_transport.obstruction_family_mismatch"));
     }
+    if !has_disconnected_target_hedge(diagram, query, limits, ctx)? {
+        return Err(IdentificationError::msg("z_transport.obstruction_without_checked_hedge"));
+    }
     let search_query = query_with_complete_assignment(query, catalog)?;
     let assignment = search_query
         .experiment_assignment
@@ -830,6 +844,81 @@ pub fn verify_z_transport_obstruction(
         return Err(IdentificationError::msg("z_transport.obstruction_replay_mismatch"));
     }
     Ok(())
+}
+
+/// Restrict negative certification to a graph-theoretic subset with a checked
+/// target ID hedge. The temporary all-selected diagram asks the existing
+/// independent hedge checker for the pair of nested forests; the selection
+/// markers are discarded after checking, because an ID hedge is the same
+/// forest condition without the selector-membership premise. Controls must be
+/// outside the undirected component containing that hedge, so their complete
+/// intervention family is informationally separate from its SCM mechanisms.
+fn has_disconnected_target_hedge(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<bool, IdentificationError> {
+    let graph = diagram.causal_graph();
+    let nodes = graph
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            NodeRef::Static(variable) => Some(*variable),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if nodes.len() != graph.node_count() {
+        return Ok(false);
+    }
+    let all_selected =
+        SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from(nodes.clone()))?;
+    let classical_query = super::ClassicalTransportQuery {
+        outcomes: Arc::clone(&query.outcomes),
+        treatments: Arc::clone(&query.treatments),
+        source: Arc::clone(&query.source),
+        target: Arc::clone(&query.target),
+    };
+    let result = super::identify_classical_transport(&all_selected, &classical_query, limits, ctx)?;
+    let super::ClassicalTransportResult::ProvenNonTransportable(hedge) = result else {
+        return Ok(false);
+    };
+    let hedge_nodes = &hedge.larger.nodes;
+    let mut reachable = vec![false; graph.node_count()];
+    let mut pending = Vec::new();
+    for variable in hedge_nodes.iter().copied() {
+        let Some(index) = graph.nodes().iter().position(|node| *node == NodeRef::Static(variable))
+        else {
+            return Ok(false);
+        };
+        if !reachable[index] {
+            reachable[index] = true;
+            pending.push(antecedent_graph::DenseNodeId::from_raw(index as u32));
+        }
+    }
+    while let Some(node) = pending.pop() {
+        for neighbor in graph
+            .parents(node)
+            .iter()
+            .chain(graph.children(node))
+            .chain(graph.bidirected_neighbors(node))
+        {
+            if !reachable[neighbor.as_usize()] {
+                reachable[neighbor.as_usize()] = true;
+                pending.push(*neighbor);
+            }
+        }
+    }
+    for control in query.controllable.iter().copied() {
+        let Some(index) = graph.nodes().iter().position(|node| *node == NodeRef::Static(control))
+        else {
+            return Ok(false);
+        };
+        if reachable[index] {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Identify a bounded single-source restricted-experiment query.
