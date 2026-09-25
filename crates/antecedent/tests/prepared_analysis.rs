@@ -257,12 +257,13 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
     let fresh_sd_bits: Vec<u64> = fresh_post.summaries.sd.iter().map(|v| v.to_bits()).collect();
     assert_eq!(first_sd_bits, fresh_sd_bits);
 
-    // Only the prepared click carries the cache marker.
-    assert!(
-        first.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
-        "prepared Bayesian estimate missing exec.identify.cached diagnostic"
-    );
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    // One-shot execution now prepares the sealed Bayesian plan before fitting.
+    for result in [&fresh, &first] {
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "sealed Bayesian estimate missing exec.identify.cached diagnostic"
+        );
+    }
 }
 
 #[test]

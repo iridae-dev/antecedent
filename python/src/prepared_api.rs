@@ -1058,6 +1058,79 @@ impl PyPreparedAnalysis {
         Ok(Some(descriptor.unbind()))
     }
 
+    /// Inspect the retained static mediation contrast, graph, and procedure.
+    fn checked_static_mediation_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(info) = self.inner.checked_static_mediation_info() else {
+            return Ok(None);
+        };
+        let name = |id: antecedent_core::VariableId| {
+            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
+        };
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{:?}", info.query))?;
+        descriptor.set_item("treatment", name(info.query.treatment))?;
+        descriptor.set_item("outcome", name(info.query.outcome))?;
+        descriptor.set_item(
+            "mediators",
+            info.query.mediators.iter().copied().map(&name).collect::<Vec<_>>(),
+        )?;
+        descriptor.set_item("contrast", format!("{:?}", info.query.contrast))?;
+        descriptor.set_item("control", format!("{:?}", info.query.control))?;
+        descriptor.set_item("active", format!("{:?}", info.query.active))?;
+        descriptor.set_item("population", format!("{:?}", info.query.target_population))?;
+        descriptor.set_item("identifier", info.identifier.as_str())?;
+        descriptor.set_item("estimator", info.estimator.as_str())?;
+        descriptor
+            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
+        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
+        descriptor.set_item(
+            "adjustment_set",
+            info.adjustment_set.iter().copied().map(&name).collect::<Vec<_>>(),
+        )?;
+        descriptor.set_item("functional_roots", info.functional_roots)?;
+        descriptor.set_item("graph_edges", info.graph_edges.as_ref())?;
+        Ok(Some(descriptor.unbind()))
+    }
+
+    /// Inspect the retained DAG Bayesian ATE target, prior source, and validation.
+    fn checked_bayesian_dag_ate_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(operation) = self.inner.checked_bayesian_gcomp_operation() else {
+            return Ok(None);
+        };
+        let antecedent::InferenceMode::Bayesian(config) = operation.inference() else {
+            return Ok(None);
+        };
+        let name = |id: antecedent_core::VariableId| {
+            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
+        };
+        let query = operation.query();
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{query:?}"))?;
+        descriptor.set_item("treatment", name(query.treatment))?;
+        descriptor.set_item("outcome", name(query.outcome))?;
+        descriptor.set_item("population", format!("{:?}", query.target_population))?;
+        descriptor.set_item("identifier", "backdoor.adjustment")?;
+        descriptor.set_item("estimator", "bayesian.gcomp")?;
+        descriptor.set_item("backend", format!("{:?}", config.backend))?;
+        descriptor.set_item("likelihood", format!("{:?}", config.likelihood))?;
+        descriptor.set_item("n_draws", config.n_draws)?;
+        descriptor.set_item("prior_scale", config.prior_scale)?;
+        descriptor.set_item("transferred_prior", config.prior_artifact.is_some())?;
+        descriptor.set_item("composed_prior", config.external_compose.is_some())?;
+        descriptor.set_item(
+            "validation",
+            self.inner
+                .checked_bayesian_gcomp_validation()
+                .and_then(|suite| suite.validation_suite_id())
+                .unwrap_or("none"),
+        )?;
+        descriptor.set_item(
+            "adjustment_set",
+            operation.estimand().adjustment_set.iter().copied().map(&name).collect::<Vec<_>>(),
+        )?;
+        Ok(Some(descriptor.unbind()))
+    }
+
     /// Read-only inspection of a retained checked static DAG response operation.
     ///
     /// The descriptor is built from the prepared handle rather than the Python

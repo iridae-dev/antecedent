@@ -2980,7 +2980,7 @@ fn compose_temporal_mediation_for_atom(
 /// causal effect when the outcome mean is nonlinear in the adjustment set or
 /// carries treatment × covariate interactions the design does not include
 /// (`tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe`).
-fn gcomp_outcome_model_assumption(
+pub(super) fn gcomp_outcome_model_assumption(
     likelihood: antecedent_prob::BayesLikelihood,
     conditional: bool,
 ) -> antecedent_core::AssumptionRecord {

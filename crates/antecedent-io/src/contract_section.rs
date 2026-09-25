@@ -721,6 +721,27 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_conditional_effect_operation"));
     }
+    if contract.graph_class == "Dag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::Mediation { .. })
+        && resolved_estimator == Some("mediation.linear")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_mediation_operation"));
+    }
+    if contract.graph_class == "Dag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
+        && resolved_estimator == Some("bayesian.gcomp")
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
+    {
+        unresolved.push(Arc::from("dependencies.checked_bayesian_dag_ate_operation"));
+    }
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && matches!(&contract.target.query, CausalQueryWire::Response(query)
@@ -1018,6 +1039,8 @@ fn producer_encoding_unresolved(
                 | "dependencies.fitted_counterfactual_mechanisms"
                 | "dependencies.checked_graph_posterior_effect_operation"
                 | "dependencies.checked_conditional_effect_operation"
+                | "dependencies.checked_mediation_operation"
+                | "dependencies.checked_bayesian_dag_ate_operation"
                 | "dependencies.checked_temporal_dag_effect_operation"
                 | "dependencies.checked_temporal_response_operation"
         )
