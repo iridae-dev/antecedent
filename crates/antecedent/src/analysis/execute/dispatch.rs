@@ -994,6 +994,34 @@ impl super::Study {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
+            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.estimator == Some(EstimatorId::BayesianConditional)
+            && self
+                .identifier
+                .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::ConditionalEffect(query)
+                if !query.inner.effect_modifiers.is_empty())
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_bayesian_conditional_operation().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot Bayesian DAG conditional effect did not retain its checked operation".into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
             && matches!(self.query, CausalQuery::Mediation(_))

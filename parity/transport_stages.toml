@@ -52,8 +52,8 @@ functional = "target_interventional_distribution"
 observation = "catalog_domains_and_complete_observation_empirical_joints"
 guarantee = "immutable_authority_atomic_refresh_and_identity_invalidation"
 limits = "Finite binary/categorical catalog domains; one joint per regime/world; convenience samples cannot stand in for the target law. No learner-backed factors or silent smoothing."
-evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_statistical_prepare_estimate_and_inspect_license"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.evaluate_empirical_table"
@@ -96,8 +96,8 @@ evidence = "embedded_fitted_joints_origin_flags_and_uncertainty_metadata"
 functional = "target_interventional_distribution"
 guarantee = "independently_checked_embedded_plugin_point"
 limits = "Version 2 checks all identities, sample summaries, replicate accounting, pointwise atom/mean intervals and reasoning; recomputes the point without fitting/fetching. Raw samples are required for re-estimation. Earlier statistical artifacts must be regenerated."
-evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_statistical_prepare_estimate_and_inspect_license"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.advanced.identify_classical"
@@ -260,9 +260,9 @@ evidence = "same_finite_samples_and_fixed_supplied_laws_across_grid"
 functional = "joint_target_grid_and_paired_mean_contrasts"
 guarantee = "shared_outer_replicates_with_pointwise_percentile_uncertainty"
 limits = "Explicit independent IID sampling only; whole-grid replicate failures are retained. Contrasts require matching native evidence/snapshot/inference identities. No simultaneous or execution-specific calibration guarantee."
-evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_joint_grid_and_contrasts_preserve_shared_replicates"
 
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.advanced.identify_meta"
@@ -277,7 +277,7 @@ limits = "Numerically enumerated only on ordered three-node meta graphs and name
 conformance_test = "crates/antecedent-identify/tests/meta_transport_scm.rs"
 conformance_assertion = "ordered_three_node_meta_graphs_match_every_target_atom_and_contrast"
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_complementary_sources_exact_grid_and_independent_consume"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.prepare_response_grid"
@@ -289,7 +289,7 @@ functional = "retained_named_finite_intervention_family"
 guarantee = "immutable_authority_atomic_refresh_and_retained_unsupported_points"
 limits = "Finite discrete treatment domains; actual joint regimes only. Structural/evidence changes require preparation. No new calibrated coverage license."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_grid_family_identity_atomic_refresh_and_preview"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.evaluate_response_grid"
@@ -301,7 +301,7 @@ functional = "target_distributions_means_and_paired_two_point_contrasts"
 guarantee = "retained_local_failures_and_shared_replicate_accounting"
 limits = "Exact laws carry no sampling uncertainty. Empirical IID intervals are nominal and pointwise; whole-family replicate support failures are shared. Bounded fixtures are not coverage measurements. No quantile inference, derivatives, simultaneous bands or automatic formula averaging."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_bounded_multisource_calibration_fixture"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.consume_response_grid"
@@ -312,8 +312,8 @@ evidence = "embedded_joint_tables_sample_summaries_and_pointwise_inference"
 functional = "retained_partial_grid_and_four_reasoning_slots"
 guarantee = "independent_proof_binding_and_numerical_verification"
 limits = "Required features and all enclosing point claims are checked. No fitting, fetching or resampling on load. Raw samples must be supplied for statistical estimator replay; scalar projections produce loss receipts."
-evidence_test = "crates/antecedent/src/analysis/transport_grid.rs"
-evidence_assertion = "native_partial_grid_checks_semantics_beyond_container_checksums"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "antecedent.transport.consume_identification"
@@ -324,8 +324,8 @@ evidence = "typed_positive_proof_common_obstruction_or_conservative_outcome"
 functional = "structural_transport_claim"
 guarantee = "independently_verified_positive_or_negative_claim"
 limits = "NotCertified is never upgraded to a proven obstruction; no estimator execution or external provider fetching."
-evidence_test = "crates/antecedent-io/src/transport_certificate.rs"
-evidence_assertion = "negative_meta_certificate_rejects_altered_scope_and_witness"
+evidence_test = "python/tests/test_transport_meta_grid.py"
+evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
 
 [[routes]]
 route = "transport.multi_source_calibrated_coverage"

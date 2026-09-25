@@ -186,6 +186,58 @@ def test_structural_positive_and_negative_round_trips():
     assert load(negative.export()).inspect() == negative.inspect()
 
 
+def test_checked_meta_statistical_plan_survives_builder_and_independent_consume():
+    # The two sources jointly identify P(y | do(x)); neither source does alone.
+    graph, identification_builder, catalog, data = fixture(statistical=True)
+    proof_wire = identification_builder.export()
+    del identification_builder
+    proof = transport.consume_identification(proof_wire)
+    assert proof.outcome == "identified"
+    assert proof.inspect().identification.available
+
+    # A new theorem-stage compilation has the same checked target and formula.
+    compiled = transport.identify_meta(
+        graph, catalog, target="target", outcomes=["y"], treatments=["x"]
+    )
+    assert compiled.formula == proof.formula
+    assert compiled.outcomes == proof.outcomes
+
+    builder = transport.StatisticalTransportQuery(compiled, catalog, {"x": 1.0}, bootstrap=40)
+    plan = transport.prepare(builder, data)
+    assert plan.inspect().identification.available
+    del builder, graph, compiled
+    result = plan.estimate()
+    # Independent arithmetic: 0.8 P(y=1 | do(z=1)) + 0.2 P(y=1 | do(z=0)).
+    assert result.mean("y") == pytest.approx(0.8 * 0.9 + 0.2 * 0.1)
+    direct_plan = transport.prepare_statistical(proof, catalog, data, at={"x": 1.0}, bootstrap=40)
+    assert direct_plan.inspect().identification.available
+    assert direct_plan.estimate().mean("y") == pytest.approx(result.mean("y"))
+    consumed = transport.consume_statistical(result.export())
+    assert consumed.inspect().identification.available
+    with pytest.raises(ValueError, match="samples_not_embedded"):
+        consumed.estimate()
+    assert consumed.refresh(data).mean("y") == pytest.approx(result.mean("y"))
+
+    grid = transport.evaluate_statistical_grid(
+        proof, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40
+    )
+    assert [point.mean("y") for point in grid] == pytest.approx([0.26, 0.74])
+    assert grid[1].contrast(grid[0], "y")["estimate"] == pytest.approx(0.48)
+
+    grid_plan = transport.prepare_response_grid(
+        proof, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40
+    )
+    assert grid_plan.inspect().identification.available
+    family = grid_plan.estimate()
+    assert [family.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
+    assert family.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
+    restored_family = transport.consume_response_grid(family.export())
+    assert restored_family.inspect().identification.available
+    with pytest.raises(ValueError, match="samples_not_embedded"):
+        restored_family.estimate()
+    assert restored_family.refresh(data).points == family.points
+
+
 def test_grid_snapshot_refresh_and_scalar_loss_receipt():
     _, identified, catalog, data = fixture(statistical=True)
     study = transport.prepare_response_grid(

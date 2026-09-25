@@ -103,6 +103,11 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
         body = "{ let plan = prepared.checked_plan(); drop(result); prepared.estimate(); }"
         self.assertTrue(compiler_migration.validate_evidence_body(body, "route"))
 
+    def test_temporal_estimate_and_refresh_series_are_executable_evidence(self) -> None:
+        for execution in ("prepared.estimate_series(data, ctx)", "prepared.refresh_series(data, ctx)"):
+            body = f"{{ let plan = prepared.checked_plan(); drop(builder); {execution}; }}"
+            self.assertEqual(compiler_migration.validate_evidence_body(body, "route"), [])
+
     def test_checked_functional_evaluate_exact_is_executable_evidence(self) -> None:
         body = "{ let program = reload_lowered_program(target); del builder; program.evaluate_exact(); }"
         self.assertEqual(compiler_migration.validate_evidence_body(body, "route"), [])

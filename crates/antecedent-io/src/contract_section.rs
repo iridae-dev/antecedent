@@ -732,6 +732,30 @@ pub fn verify_contract_against_body(
         unresolved.push(Arc::from("dependencies.checked_mediation_operation"));
     }
     if contract.graph_class == "Dag"
+        && contract.structure_source == "explicit"
+        && matches!(
+            contract.target.query,
+            CausalQueryWire::AnomalyAttribution { .. } | CausalQueryWire::ChangeAttribution { .. }
+        )
+        && resolved_estimator == Some("gcm.fit")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_attribution_operation"));
+    }
+    if contract.graph_class == "Dag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. })
+        && resolved_estimator == Some("conditional.bayesian")
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
+    {
+        unresolved.push(Arc::from("dependencies.checked_bayesian_conditional_operation"));
+    }
+    if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
         && resolved_estimator == Some("bayesian.gcomp")
@@ -767,6 +791,20 @@ pub fn verify_contract_against_body(
         })
     {
         unresolved.push(Arc::from("dependencies.checked_temporal_dag_effect_operation"));
+    }
+    if matches!(contract.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::TemporalEffect { .. })
+        && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
+        && matches!(
+            resolved_estimator,
+            Some("temporal.linear.adjustment" | "temporal.sequential.gcomp")
+        )
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_temporal_class_effect_operation"));
     }
     if contract.estimator.as_deref() == Some("functional.distribution")
         && body.interventional_distribution.is_none()
@@ -1040,8 +1078,11 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_graph_posterior_effect_operation"
                 | "dependencies.checked_conditional_effect_operation"
                 | "dependencies.checked_mediation_operation"
+                | "dependencies.checked_attribution_operation"
                 | "dependencies.checked_bayesian_dag_ate_operation"
+                | "dependencies.checked_bayesian_conditional_operation"
                 | "dependencies.checked_temporal_dag_effect_operation"
+                | "dependencies.checked_temporal_class_effect_operation"
                 | "dependencies.checked_temporal_response_operation"
         )
     });
