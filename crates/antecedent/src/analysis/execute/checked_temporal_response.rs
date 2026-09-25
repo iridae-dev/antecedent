@@ -300,9 +300,6 @@ mod tests {
             antecedent_core::ResponseUncertainty::PointwiseBand {
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
                 ..
-            } | antecedent_core::ResponseUncertainty::SimultaneousBand {
-                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                ..
             }
         ));
         assert!(result.provenance.nodes.len() >= 2);

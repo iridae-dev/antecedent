@@ -713,6 +713,12 @@ pub fn verify_contract_against_body(
         }
         _ => {}
     }
+    if resolved_estimator == Some("linear.adjustment.ate")
+        && body.identification.status == "graph_dependent"
+        && body.structural_response.is_some()
+    {
+        unresolved.push(Arc::from("dependencies.checked_unknown_tiered_average_operation"));
+    }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
         && resolved_estimator == Some("linear.adjustment.ate")
@@ -1127,6 +1133,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_temporal_response_operation"
                 | "dependencies.checked_temporal_mediation_operation"
                 | "dependencies.checked_interference_operation"
+                | "dependencies.checked_unknown_tiered_average_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay
