@@ -79,10 +79,12 @@ impl CheckedBayesianStaticMediationOperation {
                     });
                 }
                 Some(antecedent_io::PriorMapping::NamedParameters { pairs })
-                    if pairs.iter().any(|(_, target)| target != &outcome_treatment_slope) =>
+                    if pairs.len() != 1
+                        || pairs[0].0.is_empty()
+                        || pairs[0].1 != outcome_treatment_slope =>
                 {
                     return Err(CausalError::Unsupported {
-                        message: "Bayesian mediation named prior targets must resolve only to the outcome-mechanism treatment slope",
+                        message: "Bayesian mediation prior mapping is ambiguous; declare exactly one source quantity for the outcome-mechanism treatment slope",
                     });
                 }
                 _ => {}

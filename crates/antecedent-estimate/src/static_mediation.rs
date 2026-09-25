@@ -288,6 +288,11 @@ fn estimate_static_mediation_bayesian_impl(
             "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
         ));
     }
+    if bridge.is_some() && !outcome_prior_only {
+        return Err(EstimationError::unsupported(
+            "mapped Bayesian mediation priors require outcome-mechanism scope; use the outcome-prior entry point so shared coefficient names cannot hydrate multiple mechanisms",
+        ));
+    }
     let point = estimate_static_mediation(data, graph, query, assumptions.clone(), 0, extra, ctx)?;
     query.validate()?;
     let MediationRows { delta, order, columns, extras, rows } =
@@ -745,6 +750,117 @@ mod tests {
             (0..n).map(|index| PosteriorQuantityKind::Coefficient { index, name: None }).collect();
         kinds.push(PosteriorQuantityKind::ResidualVariance);
         (kinds, vec![0.5; n + 1], vec![0.1; n + 1])
+    }
+
+    #[test]
+    fn equal_width_shared_coefficient_name_requires_outcome_scoped_prior_entry_point() {
+        // Both mechanisms have two parent slopes and an intercept. `coef_t` is
+        // therefore present in both raw designs, despite representing different
+        // likelihood mechanisms.
+        let mut t = Vec::new();
+        let mut m = Vec::new();
+        let mut y = Vec::new();
+        let mut z = Vec::new();
+        for i in 0..600 {
+            let treatment = ((i as f64) * 0.43).sin();
+            let covariate = ((i as f64) * 0.79).cos();
+            let mediator = 0.7 * treatment + 0.25 * covariate + 0.03 * ((i as f64) * 0.17).sin();
+            let outcome = 1.8 * treatment
+                + 0.6 * mediator
+                + 0.2 * covariate
+                + 0.03 * ((i as f64) * 0.31).cos();
+            t.push(treatment);
+            m.push(mediator);
+            y.push(outcome);
+            z.push(covariate);
+        }
+        let data = TabularData::from_f64_columns([
+            ("t", &t[..]),
+            ("m", &m[..]),
+            ("y", &y[..]),
+            ("z", &z[..]),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(4);
+        for (from, to) in [(0, 1), (0, 2), (1, 2), (3, 1)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalDirect,
+        );
+        let mapping = HydrateMapping::NamedParameters {
+            pairs: vec![("source_treatment_slope".into(), "coef_t".into())],
+        };
+        let quantities =
+            [PosteriorQuantityKind::Scalar { name: Arc::from("source_treatment_slope") }];
+        let bridge = MediationPriorBridge {
+            mapping: &mapping,
+            quantities: &quantities,
+            mean: &[1.8],
+            sd: &[0.05],
+            source_contrast: None,
+        };
+        let estimator = crate::BayesianGComputationAte { n_draws: 512, ..Default::default() };
+        let ctx = ExecutionContext::for_tests(1941);
+        let refused = estimate_static_mediation_bayesian(
+            &data,
+            &graph,
+            &query,
+            AssumptionSet::new(),
+            &[],
+            &estimator,
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            Some(bridge),
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(
+            refused
+                .to_string()
+                .contains("mapped Bayesian mediation priors require outcome-mechanism scope"),
+            "{refused}"
+        );
+
+        let (estimate, posterior) = estimate_static_mediation_bayesian_outcome_prior(
+            &data,
+            &graph,
+            &query,
+            AssumptionSet::new(),
+            &[],
+            &estimator,
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            Some(bridge),
+            &ctx,
+        )
+        .unwrap();
+        assert!(
+            (estimate.effect.ate - 1.8).abs() < 0.08,
+            "direct slope estimate {}",
+            estimate.effect.ate
+        );
+        let has_mediator_prior = posterior.assumptions.entries.iter().any(|record| {
+            matches!(&record.assumption, Assumption::PriorRestriction(prior)
+                if prior.id.as_ref() == "external_named_prior")
+                && matches!(&record.scope, AssumptionScope::Variables { variables }
+                    if variables.as_ref() == [VariableId::from_raw(1)])
+        });
+        let has_outcome_prior = posterior.assumptions.entries.iter().any(|record| {
+            matches!(&record.assumption, Assumption::PriorRestriction(prior)
+                if prior.id.as_ref() == "external_named_prior")
+                && matches!(&record.scope, AssumptionScope::Variables { variables }
+                    if variables.as_ref() == [VariableId::from_raw(2)])
+        });
+        assert!(
+            !has_mediator_prior,
+            "shared raw coef_t name must not hydrate the mediator mechanism"
+        );
+        assert!(
+            has_outcome_prior,
+            "the declared direct-slope prior must reach the outcome mechanism"
+        );
     }
 
     #[test]

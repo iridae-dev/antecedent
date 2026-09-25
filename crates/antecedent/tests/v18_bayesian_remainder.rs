@@ -855,7 +855,7 @@ fn transfer_without_mapping_fails_closed() {
 }
 
 #[test]
-fn static_mediation_mapped_prior_hydrates_mechanisms() {
+fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/static_mediation_prior_transfer/expected.json"
     ))
@@ -932,22 +932,20 @@ fn static_mediation_mapped_prior_hydrates_mechanisms() {
     );
     assert_eq!(pin["compatibility_filter"].as_str().unwrap(), "outcome-mechanism ATE/Δ hydrate");
     let mapping = antecedent_estimate::HydrateMapping::NamedParameters {
-        pairs: vec![("slope_t".into(), "coef_a".into()), ("slope_m".into(), "coef_m".into())],
+        pairs: vec![("slope_t".into(), "coef_a".into())],
     };
-    let quantities = [
-        antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") },
-        antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_m") },
-    ];
+    let quantities =
+        [antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") }];
     let bridge = antecedent_estimate::MediationPriorBridge {
         mapping: &mapping,
         quantities: &quantities,
-        mean: &[3.0, 4.0],
-        sd: &[0.2, 0.3],
+        mean: &[3.0],
+        sd: &[0.2],
         source_contrast: None,
     };
     let estimator =
         antecedent_estimate::BayesianGComputationAte { n_draws: 64, ..Default::default() };
-    let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
+    let (_, posterior) = antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
         &data,
         &dag,
         &query,
@@ -959,19 +957,29 @@ fn static_mediation_mapped_prior_hydrates_mechanisms() {
         &ctx,
     )
     .unwrap();
-    for node in [1, 2] {
-        assert!(posterior.assumptions.entries.iter().any(|record| {
+    assert!(
+        posterior.assumptions.entries.iter().any(|record| {
             matches!(&record.assumption, antecedent_core::Assumption::PriorRestriction(prior)
-                if prior.id.as_ref() == "external_named_prior")
+            if prior.id.as_ref() == "external_named_prior")
                 && matches!(&record.scope, antecedent_core::AssumptionScope::Variables { variables }
-                    if variables.as_ref() == [VariableId::from_raw(node)])
-        }), "mapped prior must survive composition for mechanism {node}");
-    }
+                if variables.as_ref() == [VariableId::from_raw(2)])
+        }),
+        "the named treatment-slope prior must reach the outcome mechanism"
+    );
+    assert!(
+        !posterior.assumptions.entries.iter().any(|record| {
+            matches!(&record.assumption, antecedent_core::Assumption::PriorRestriction(prior)
+            if prior.id.as_ref() == "external_named_prior")
+                && matches!(&record.scope, antecedent_core::AssumptionScope::Variables { variables }
+                if variables.as_ref() == [VariableId::from_raw(1)])
+        }),
+        "the shared raw coefficient name must not hydrate the mediator mechanism"
+    );
     assert!(!format!("{:?}", posterior.assumptions).contains("mapped ATE/Δ"));
     let bad_mapping = antecedent_estimate::HydrateMapping::NamedParameters {
-        pairs: vec![("slope_t".into(), "coef_a".into()), ("slope_m".into(), "typo".into())],
+        pairs: vec![("slope_t".into(), "typo".into())],
     };
-    let err = antecedent_estimate::estimate_static_mediation_bayesian(
+    let err = antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
         &data,
         &dag,
         &query,
