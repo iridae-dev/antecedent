@@ -669,6 +669,11 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_bayesian_basis_ate_operation"));
         }
+        Some("bayesian.basis.gcomp")
+            if matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. }) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_bayesian_basis_cate_operation"));
+        }
         Some("glm.adjustment") => {
             unresolved.push(Arc::from("dependencies.checked_glm_operation"));
         }
@@ -1223,6 +1228,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_attribution_operation"
                 | "dependencies.checked_bayesian_dag_ate_operation"
                 | "dependencies.checked_bayesian_basis_ate_operation"
+                | "dependencies.checked_bayesian_basis_cate_operation"
                 | "dependencies.checked_bayesian_conditional_operation"
                 | "dependencies.checked_temporal_dag_effect_operation"
                 | "dependencies.checked_bayesian_temporal_dag_effect_operation"

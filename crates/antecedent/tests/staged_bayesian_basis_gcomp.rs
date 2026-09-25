@@ -45,6 +45,14 @@ fn dag() -> Dag {
     graph
 }
 
+fn dag_with_two_adjustment_variables() -> Dag {
+    let mut graph = Dag::with_variables(4);
+    for (from, to) in [(2, 0), (2, 1), (3, 0), (3, 1), (0, 1)] {
+        graph.insert_directed(d(from), d(to)).unwrap();
+    }
+    graph
+}
+
 fn run(
     query: impl Into<CausalQuery>,
 ) -> (Study, antecedent::PreparedStudy, antecedent::StudyResult, TabularData) {
@@ -181,4 +189,92 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     ])
     .unwrap();
     assert!(prepared.refresh(reordered, &context).is_err());
+}
+
+#[test]
+fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
+    let data = fixture();
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(v(0), v(1)).with_effect_modifiers([v(2)]),
+    )
+    .unwrap();
+    let builder = Study::tabular(data.clone())
+        .graph(dag())
+        .query(CausalQuery::ConditionalEffect(query.clone()))
+        .estimator(EstimatorId::BayesianBasisGcomp)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(192).prior_scale(20.0),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let context = ExecutionContext::for_tests(904);
+    let one_shot = builder.run(&context).unwrap();
+    let mut prepared = builder.prepare(&context).unwrap();
+    drop(builder);
+    let retained_plan = prepared
+        .checked_bayesian_basis_cate_query()
+        .expect("checked CATE plan survives builder disposal");
+    assert_eq!(retained_plan, &query);
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    let result = prepared.estimate(&data, &context).unwrap();
+    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    let cate = result.estimate.cate.as_ref().expect("CATE summary");
+    assert!((cate[0] - (0.5 - 0.75)).abs() < 0.12);
+    assert!((cate[1] - (0.5 + 0.75)).abs() < 0.12);
+    let posterior = result.posterior.as_ref().expect("posterior");
+    assert_eq!(posterior.draws.n_draws, 192);
+    assert_eq!(posterior.draws.schema.quantities.len(), data.row_count() + 1);
+    for col in 1..posterior.draws.schema.quantities.len() {
+        assert_eq!(posterior.draws.column(col).unwrap().len(), 192);
+    }
+
+    let bytes = prepared.encode_contracted_result(&result, "checked-basis-cate", &context).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert!(
+        consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_bayesian_basis_cate_operation"
+        })
+    );
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+
+    let t = data.float64_values(v(0)).unwrap();
+    let y = data.float64_values(v(1)).unwrap();
+    let z = data.float64_values(v(2)).unwrap();
+    let shifted = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.iter().map(|v| v + 0.25).collect::<Vec<_>>().as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 0.08);
+
+    let expanded = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+        (
+            "w",
+            (0..data.row_count())
+                .map(|i| f64::from((i % 7) as u8) / 3.0)
+                .collect::<Vec<_>>()
+                .as_slice(),
+        ),
+    ])
+    .unwrap();
+    let partial_modifiers = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(v(0), v(1)).with_effect_modifiers([v(2)]),
+    )
+    .unwrap();
+    let refused = Study::tabular(expanded)
+        .graph(dag_with_two_adjustment_variables())
+        .query(CausalQuery::ConditionalEffect(partial_modifiers))
+        .estimator(EstimatorId::BayesianBasisGcomp)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&context);
+    assert!(refused.is_err(), "modifier projection must be refused at preparation");
 }
