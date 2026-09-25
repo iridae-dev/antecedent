@@ -846,6 +846,7 @@ fn consume_licensed_family(
                 | "dependencies.checked_derivative_response_operation"
                 | "dependencies.checked_response_grid_operation"
                 | "dependencies.checked_intervention_response_operation"
+                | "dependencies.checked_temporal_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 // The portable result is readable and preserves the posterior
                 // claim, but does not carry joint factor draws for replay.
@@ -2539,6 +2540,10 @@ fn licensed_family_temporal_response_curve_consumes() {
     })
     .with_temporal(temporal_spec(&pin));
     let (result, consumed) = consume_temporal_response(&series, graph, query, "tresp-f");
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_response_operation")]
+    );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &result.response.as_ref().expect("temporal response").estimate
     else {

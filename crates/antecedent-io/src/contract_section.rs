@@ -702,6 +702,27 @@ pub fn verify_contract_against_body(
         }
         _ => {}
     }
+    if contract.structure_source == "graph_posterior"
+        && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
+        && resolved_estimator == Some("linear.adjustment.ate")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
+    }
+    if contract.graph_class == "TemporalDag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(&contract.target.query, CausalQueryWire::Response(query)
+            if matches!(query.functional, crate::ResponseFunctionalWire::MeanCurve { .. })
+                && matches!(query.observation, crate::ObservationSpecWire::Complete))
+        && resolved_estimator == Some("temporal.response.gcomp")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_temporal_response_operation"));
+    }
     if contract.estimator.as_deref() == Some("functional.distribution")
         && body.interventional_distribution.is_none()
     {
@@ -971,6 +992,8 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_response_grid_operation"
                 | "dependencies.checked_intervention_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
+                | "dependencies.checked_graph_posterior_effect_operation"
+                | "dependencies.checked_temporal_response_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay

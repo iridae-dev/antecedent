@@ -3354,6 +3354,16 @@ class PreparedAnalysis(Generic[ResultT]):
         info = self._native.checked_static_dag_response_info()
         return None if info is None else dict(info)
 
+    def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None:
+        """Inspect frozen graph atoms, weights, and the selected effect procedure."""
+        info = self._native.checked_graph_posterior_effect_info()
+        return None if info is None else dict(info)
+
+    def checked_temporal_response_info(self) -> dict[str, Any] | None:
+        """Inspect the frozen temporal response grid, horizons, and uncertainty method."""
+        info = self._native.checked_temporal_response_info()
+        return None if info is None else dict(info)
+
     @property
     def evidence_status(self) -> str | None:
         """`licensed` or `allowed_unlicensed`, or ``None`` if the query is off-axis."""

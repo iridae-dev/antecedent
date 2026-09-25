@@ -277,8 +277,8 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
             Some(expected_cells.as_slice())
         );
         assert!(
-            direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
-            "fresh execution must identify"
+            direct.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "Study::run prepares the sealed temporal plan before execution"
         );
         assert!(
             click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),

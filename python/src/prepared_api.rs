@@ -1044,6 +1044,41 @@ impl PyPreparedAnalysis {
         Ok(Some(descriptor.unbind()))
     }
 
+    /// Inspect frozen DAG graph-posterior atoms and the selected frequentist procedure.
+    fn checked_graph_posterior_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(info) = self.inner.checked_graph_posterior_effect_info() else {
+            return Ok(None);
+        };
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{:?}", info.query))?;
+        descriptor.set_item("estimator", info.estimator.as_str())?;
+        descriptor
+            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
+        descriptor.set_item("graph_keys", info.graph_keys.as_ref())?;
+        descriptor.set_item("weights", info.weights.as_ref())?;
+        descriptor.set_item(
+            "identified",
+            info.identified.iter().map(|flag| format!("{flag:?}")).collect::<Vec<_>>(),
+        )?;
+        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
+        Ok(Some(descriptor.unbind()))
+    }
+
+    /// Inspect a fixed temporal DAG response grid and its frozen procedure.
+    fn checked_temporal_response_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(info) = self.inner.checked_temporal_response_info() else {
+            return Ok(None);
+        };
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{:?}", info.query.functional))?;
+        descriptor.set_item("identifier", info.identifier.as_str())?;
+        descriptor.set_item("estimator", info.estimator.as_str())?;
+        descriptor.set_item("uncertainty", info.uncertainty.as_ref())?;
+        descriptor.set_item("grid_members", info.grid_members.as_ref())?;
+        descriptor.set_item("horizons", info.horizons.as_ref())?;
+        Ok(Some(descriptor.unbind()))
+    }
+
     /// Inspection of the frozen execution, using the executed reasoning slots.
     fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
         let result = self

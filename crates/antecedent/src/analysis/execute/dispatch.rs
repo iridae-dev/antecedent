@@ -956,6 +956,63 @@ impl super::Study {
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
+            && self.graph.class() == GraphClass::TemporalDag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::Response(query)
+                if query.temporal.is_some()
+                    && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
+                        antecedent_core::TemporalPolicy::Pulse { .. } => true,
+                        antecedent_core::TemporalPolicy::Sustained { from, until } => from == until,
+                        antecedent_core::TemporalPolicy::Dynamic { .. } => false,
+                        _ => false,
+                    })
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. }))
+            && self.estimator.is_none_or(|id| id == EstimatorId::TemporalResponseGcomp)
+        {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_temporal_dag_response_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot temporal DAG response did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
+            }
+        }
+        if self.graph_posterior.as_ref().is_some_and(|posterior| {
+            posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
+        }) && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(self.query, CausalQuery::AverageEffect(_))
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && self.custom_validators.is_empty()
+            && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_graph_posterior_effect_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot graph-posterior effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
             && matches!(
                 self.structure_source,

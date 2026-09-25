@@ -6,7 +6,9 @@
 
 mod batch;
 mod builder;
+mod checked_graph_posterior;
 mod checked_propensity;
+mod checked_temporal_response;
 mod contract;
 mod contract_identity;
 mod exact;
@@ -16,6 +18,7 @@ mod statistical;
 mod transport_grid;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
+pub(crate) use checked_graph_posterior::CheckedGraphPosteriorEffect;
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
@@ -53,7 +56,13 @@ pub use latency::{
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
     STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
-pub use prepared::{CachedTemporalIdentification, PreparedStudy};
+pub use prepared::{
+    CachedTemporalIdentification, CheckedGraphPosteriorEffectInfo, CheckedTemporalDagResponseInfo,
+    PreparedStudy,
+};
 pub use stage::{StageEvent, StageResultSink};
 
+pub(crate) use checked_temporal_response::{
+    CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence,
+};
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};
