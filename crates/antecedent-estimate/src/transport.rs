@@ -316,6 +316,7 @@ pub fn trial_to_target_effect(
 ///
 /// Uncertified identification, invalid inputs, fewer than two draws, or a trial
 /// without observed units in both treatment arms.
+#[allow(clippy::too_many_arguments)] // Each slice is a distinct aligned trial/target input.
 pub fn trial_to_target_bayesian_bootstrap(
     identification: &TransportIdentification,
     outcome: &[f64],
@@ -546,6 +547,7 @@ pub fn evaluate_exact_z_transport(
 ///
 /// # Errors
 /// Provider/catalog disagreement, missing assignment, or resource limit.
+#[allow(clippy::too_many_lines)] // Keep staged provider validation beside plan compilation.
 pub fn prepare_exact_z_transport(
     functional: &antecedent_identify::BoundZTransportFunctional,
     data: antecedent_expr::ExactTransportData,
@@ -791,6 +793,7 @@ mod tests {
 
     use super::*;
 
+    #[allow(clippy::too_many_lines)] // Central fixture wires the complete source catalog and law.
     fn checked_z_fixture(
         empirical: bool,
     ) -> (antecedent_identify::BoundZTransportFunctional, ExactTransportData) {
@@ -869,6 +872,8 @@ mod tests {
                     let py = if yv == xv { 0.80 } else { 0.20 };
                     let probability: f64 = pw * px * py;
                     probabilities.push(probability);
+                    // These finite decimal fixture probabilities produce integral counts.
+                    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                     counts.push((probability * 10_000.0).round() as u64);
                 }
             }

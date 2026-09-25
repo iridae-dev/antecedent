@@ -320,10 +320,12 @@ fn estimate_static_mediation_bayesian_impl(
             return Err(EstimationError::unsupported("static mediation cancelled"));
         }
         let i = node.as_usize();
+        let raw_node = u32::try_from(i)
+            .map_err(|_| EstimationError::unsupported("mediation graph node id exceeds u32"))?;
         if i == query.treatment.as_usize() {
             continue;
         }
-        let parents = graph.parents(DenseNodeId::from_raw(i as u32));
+        let parents = graph.parents(DenseNodeId::from_raw(raw_node));
         if parents.is_empty() {
             continue;
         }
@@ -395,7 +397,7 @@ fn estimate_static_mediation_bayesian_impl(
                 is_outcome,
             )? {
                 node_est.prior = Some(prior);
-                hydrated.push(name_of(VariableId::from_raw(i as u32)));
+                hydrated.push(name_of(VariableId::from_raw(raw_node)));
                 bound_targets.extend(coef_names.iter().map(std::string::ToString::to_string));
             }
         }
@@ -410,7 +412,7 @@ fn estimate_static_mediation_bayesian_impl(
         mechanism_assumptions.entries.extend(posterior.assumptions.entries.iter().cloned().map(
             |mut record| {
                 record.scope = AssumptionScope::Variables {
-                    variables: Arc::from([VariableId::from_raw(i as u32)]),
+                    variables: Arc::from([VariableId::from_raw(raw_node)]),
                 };
                 record
             },
@@ -762,13 +764,12 @@ mod tests {
         let mut y = Vec::new();
         let mut z = Vec::new();
         for i in 0..600 {
-            let treatment = ((i as f64) * 0.43).sin();
-            let covariate = ((i as f64) * 0.79).cos();
-            let mediator = 0.7 * treatment + 0.25 * covariate + 0.03 * ((i as f64) * 0.17).sin();
-            let outcome = 1.8 * treatment
-                + 0.6 * mediator
-                + 0.2 * covariate
-                + 0.03 * ((i as f64) * 0.31).cos();
+            let i = f64::from(u32::try_from(i).unwrap());
+            let treatment = (i * 0.43).sin();
+            let covariate = (i * 0.79).cos();
+            let mediator = 0.7 * treatment + 0.25 * covariate + 0.03 * (i * 0.17).sin();
+            let outcome =
+                1.8 * treatment + 0.6 * mediator + 0.2 * covariate + 0.03 * (i * 0.31).cos();
             t.push(treatment);
             m.push(mediator);
             y.push(outcome);

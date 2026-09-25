@@ -35,6 +35,10 @@ pub struct BayesianRdEstimate {
 /// Sharp assignment `T = 1{R >= cutoff}` is checked row by row. The posterior conditions on
 /// that design, the fixed bandwidth, and the plug-in variance. At least 12 in-window rows and
 /// four rows on each side are required.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public estimator inputs match the fixed-bandwidth model contract"
+)]
 pub fn fit_bayesian_sharp_rd(
     running: &[f64],
     treatment: &[f64],
@@ -67,7 +71,10 @@ pub fn fit_bayesian_sharp_rd(
     let mut right = 0;
     for i in 0..n {
         let assigned = f64::from(running[i] >= cutoff);
-        if treatment[i] != assigned {
+        // Sharp assignment is an exact binary design condition, not a noisy measurement.
+        #[expect(clippy::float_cmp, reason = "the contract requires exact sharp 0/1 assignment")]
+        let assignment_mismatch = treatment[i] != assigned;
+        if assignment_mismatch {
             return Err(EstimationError::refused(
                 antecedent_core::reason_code!("rd_assignment_not_sharp"),
                 format!("row {i} has T={}, but sharp assignment implies {assigned}", treatment[i]),
@@ -75,7 +82,12 @@ pub fn fit_bayesian_sharp_rd(
         }
         let x = running[i] - cutoff;
         if x.abs() <= bandwidth {
-            if assigned == 1.0 {
+            #[expect(
+                clippy::float_cmp,
+                reason = "assigned is constructed as the exact binary indicator 0 or 1"
+            )]
+            let on_right = assigned == 1.0;
+            if on_right {
                 right += 1
             } else {
                 left += 1
@@ -109,6 +121,10 @@ pub fn fit_bayesian_sharp_rd(
 }
 
 /// Fit the same model over declared bandwidths and return sensitivity summaries.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "sensitivity forwards the same explicit fit contract"
+)]
 pub fn bayesian_rd_bandwidth_sensitivity(
     running: &[f64],
     treatment: &[f64],
@@ -143,6 +159,10 @@ pub fn bayesian_rd_bandwidth_sensitivity(
 }
 
 /// Refit the fixed-bandwidth model over caller-declared coefficient prior scales.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "sensitivity forwards the same explicit fit contract"
+)]
 pub fn bayesian_rd_prior_sensitivity(
     running: &[f64],
     treatment: &[f64],
@@ -178,7 +198,18 @@ pub fn bayesian_rd_prior_sensitivity(
 
 fn q(a: &[f64], p: f64) -> f64 {
     let k = p * (a.len() - 1) as f64;
+    // `p` is one of the fixed posterior quantile probabilities and `a` is nonempty.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "quantile rank is bounded by the slice length"
+    )]
     let lo = k.floor() as usize;
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "quantile rank is bounded by the slice length"
+    )]
     let hi = k.ceil() as usize;
     a[lo] + (k - lo as f64) * (a[hi] - a[lo])
 }
@@ -294,7 +325,9 @@ mod tests {
     #[test]
     fn local_linear_jump_recovers_known_truth_and_reports_bandwidth_sensitivity() {
         let n = 400;
-        let running: Vec<f64> = (0..n).map(|i| (i as f64 - 200.0) / 100.0).collect();
+        let running: Vec<f64> = (0..n)
+            .map(|i| (f64::from(i32::try_from(i).expect("test index fits i32")) - 200.0) / 100.0)
+            .collect();
         let t: Vec<f64> = running.iter().map(|r| f64::from(*r >= 0.0)).collect();
         let y: Vec<f64> = running
             .iter()
@@ -318,7 +351,7 @@ mod tests {
     }
     #[test]
     fn non_sharp_assignment_is_refused() {
-        let r: Vec<f64> = (0..20).map(|i| i as f64 - 10.0).collect();
+        let r: Vec<f64> = (0..20).map(|i| f64::from(i) - 10.0).collect();
         let mut t: Vec<f64> = r.iter().map(|x| f64::from(*x >= 0.0)).collect();
         t[8] = 1.0;
         let y = r.clone();

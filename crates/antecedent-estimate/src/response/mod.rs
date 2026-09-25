@@ -571,7 +571,7 @@ impl ContinuousResponseEstimator {
         assumptions.entries.extend(posterior.assumptions.entries);
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption {
-                id: Arc::from("bayesian.response.linear_additive"), description: Arc::from(format!("{:?} additive outcome mechanism on its link scale; each posterior draw is evaluated on the outcome scale over the empirical covariate distribution; credible intervals use coherent joint draws over the requested grid, without nuisance-distribution uncertainty", family)),
+                id: Arc::from("bayesian.response.linear_additive"), description: Arc::from(format!("{family:?} additive outcome mechanism on its link scale; each posterior draw is evaluated on the outcome scale over the empirical covariate distribution; credible intervals use coherent joint draws over the requested grid, without nuisance-distribution uncertainty")),
             }),
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.bayesian") },
             scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,

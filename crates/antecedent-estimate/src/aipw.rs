@@ -350,6 +350,10 @@ impl AipwAte {
     /// The receipt retains the selected functional, identification assumptions, semantic
     /// roles, cross-fit procedure, uncertainty choices, and complete-case row identities.
     /// This checked route currently covers the untrimmed `AllObserved` mean ATE.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the checked AIPW receipt binds identification, treatment contrast, program, procedure, and row identities atomically"
+    )]
     pub fn prepare_checked(
         &self,
         data: &TabularData,
@@ -405,6 +409,10 @@ impl AipwAte {
         }
         let (active, control, _) =
             crate::prepare::treatment_contrast(&query.active, &query.control)?;
+        #[allow(
+            clippy::float_cmp,
+            reason = "AIPW's licensed binary treatment arms are exact category labels"
+        )]
         if active != 1.0 || control != 0.0 {
             return Err(EstimationError::unsupported(
                 "checked AIPW requires binary treatment arms active=1.0 and control=0.0",

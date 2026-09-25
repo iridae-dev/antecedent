@@ -151,6 +151,10 @@ pub struct CheckedIvPreparation {
 
 impl CheckedIvPreparation {
     /// Rebind the physical IV design to compatible data while retaining the checked operation.
+    #[allow(
+        clippy::float_cmp,
+        reason = "IV arm and binary-instrument values are exact category labels; approximate equality changes their semantics"
+    )]
     pub fn rebind(&self, data: &TabularData) -> Result<Self, EstimationError> {
         let schema = ProgramSchema::new(
             data.schema()
@@ -243,6 +247,11 @@ impl CheckedIvPreparation {
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    clippy::float_cmp,
+    reason = "the sealed IV operation validates the selected claim, typed children, binary instrument design, and retained procedure together; arm and instrument values are exact category labels"
+)]
 fn prepare_iv_checked(
     data: &TabularData,
     identification: &IdentificationResult,
@@ -279,6 +288,10 @@ fn prepare_iv_checked(
     }
     let active = intervention_f64(&query.active)?;
     let control = intervention_f64(&query.control)?;
+    #[allow(
+        clippy::float_cmp,
+        reason = "distinct treatment arm labels are a semantic requirement, not a numerical tolerance check"
+    )]
     if active == control {
         return Err(EstimationError::unsupported(
             "active and control treatment levels must differ",
