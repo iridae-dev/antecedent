@@ -127,7 +127,8 @@ impl super::Study {
                 ) =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "CausalQuery::Distribution requires tabular data and a static Dag or Admg",
+                    message:
+                        "CausalQuery::Distribution requires tabular data and a static Dag or Admg",
                 });
             }
             (_, CausalQuery::PathSpecific(_), class)
@@ -957,6 +958,9 @@ impl super::Study {
         if let Some(result) = self.run_checked_bayesian_static_mediation(ctx)? {
             return Ok(*result);
         }
+        if let Some(result) = self.run_checked_admg_response(ctx)? {
+            return Ok(*result);
+        }
         self.run_other_routes(ctx)
     }
 
@@ -1401,6 +1405,58 @@ impl super::Study {
     }
 
     #[inline(never)]
+    fn run_checked_admg_response(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Box<StudyResult>>, CausalError> {
+        let licensed_shape = match &self.query {
+            CausalQuery::Response(query)
+                if query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population
+                        == antecedent_core::TargetPopulation::AllObserved
+                    && query.outcome_functional == antecedent_core::OutcomeFunctional::Mean =>
+            {
+                match (&query.functional, self.refute) {
+                    (_, RefuteSuite::None) => true,
+                    (
+                        antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                        RefuteSuite::Cheap | RefuteSuite::Full,
+                    ) => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        };
+        if licensed_shape
+            && self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Admg
+            && self.graph.as_admg().is_some_and(admg_has_bidirected)
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
+            && self.custom_validators.is_empty()
+            && self.identifier.is_none_or(|identifier| identifier == IdentifierId::GeneralId)
+            && self.estimator.is_none_or(|estimator| estimator == EstimatorId::FunctionalEffect)
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_functional_effect_response_members().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot ADMG response did not retain its checked operation"
+                            .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx).map(Box::new).map(Some);
+            }
+        }
+        Ok(None)
+    }
+
     fn run_checked_bayesian_static_mediation(
         &self,
         ctx: &ExecutionContext,
@@ -1448,8 +1504,8 @@ impl super::Study {
     /// Missing graph structure, unsupported graph class, or identification failure.
     pub fn identify_only(&self) -> Result<IdentificationResult, CausalError> {
         use crate::strategy_table::{
-            DEFAULT_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, identify_admg,
-            identify_static_query,
+            identify_admg, identify_static_query, DEFAULT_IDENTIFIER_ID,
+            DEFAULT_RESPONSE_IDENTIFIER_ID,
         };
 
         if self.graph_posterior.is_some() {

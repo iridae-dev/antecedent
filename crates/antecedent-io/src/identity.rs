@@ -26,13 +26,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,
-    VariableId,
+    CausalSchema, ExecutionContext, IdentityDomain, NodeRef, SemanticDigest, VariableId,
+    IDENTITY_FORMAT,
 };
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask, cpdag_from_adjacency_mask,
-    dag_from_adjacency_mask, pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks,
-    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
+    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
+    pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks,
+    temporal_pag_from_dbn_masks, GraphPosterior, GraphPosteriorAtomKind,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
@@ -45,14 +45,14 @@ use crate::analysis_wire::{IdentifiedEstimandWire, RdDesignWire};
 use crate::convert::{
     admg_to_wire, cpdag_to_wire, dag_to_wire, pag_to_wire, schema_to_wire, vars_to_raw,
 };
-use crate::discovery_wire::{TemporalGraphWire, temporal_dag_to_wire};
+use crate::discovery_wire::{temporal_dag_to_wire, TemporalGraphWire};
 use crate::error::IoError;
-use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
+use crate::expr_wire::{expr_arena_to_wire, ExprArenaWire};
 use crate::query_wire::{
     CausalQueryWire, InterventionWire, OutcomeFunctionalWire, TargetPopulationWire, ValueWire,
 };
 use crate::to_cbor;
-use crate::trace::{AssumptionRecordWire, assumptions_to_wire};
+use crate::trace::{assumptions_to_wire, AssumptionRecordWire};
 use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWire};
 
 /// Domain-separated BLAKE3 digest of a canonical CBOR payload.
@@ -774,6 +774,11 @@ pub enum PosteriorAtomGraphWire {
     Temporal(TemporalGraphWire),
     /// Temporal class structure (lagged/context nodes and marked edges).
     TemporalClass(TemporalClassIdentityWire),
+    /// Posterior weight whose mask is not a graph of the atom class.
+    ///
+    /// Execution keeps this weight as unidentified mass. It is not rewritten
+    /// into another graph class.
+    Unrepresentable,
 }
 
 /// Durable graph-posterior atom: structure plus posterior weight.
@@ -886,8 +891,9 @@ fn posterior_atom_graph_wire(
     }
     match posterior.atom_kind {
         GraphPosteriorAtomKind::Admg => {
-            let admg = admg_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
+                return Ok(PosteriorAtomGraphWire::Unrepresentable);
+            };
             Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
         }
         GraphPosteriorAtomKind::Cpdag => {
