@@ -680,65 +680,16 @@ impl EmpiricalTableProvider {
                 existing.requirement_indices = Arc::from(indices);
                 continue;
             }
-            let cell_count = level_sets
-                .iter()
-                .try_fold(1usize, |count, levels| count.checked_mul(levels.len()))
-                .ok_or(ProviderSnapshotError::CellLimit {
-                    requested: usize::MAX,
-                    limit: cell_limit,
-                })?;
-            total_cells =
-                total_cells.checked_add(cell_count).ok_or(ProviderSnapshotError::CellLimit {
-                    requested: usize::MAX,
-                    limit: cell_limit,
-                })?;
-            if total_cells > cell_limit {
-                return Err(ProviderSnapshotError::CellLimit {
-                    requested: total_cells,
-                    limit: cell_limit,
-                });
-            }
-
-            let spec = FactorSpec {
-                variables: &requirement.variables,
-                conditioned_on: &requirement.conditioned_on,
-                intervention: &requirement.intervention,
-                domain: requirement.domain,
-                population: &requirement.population,
-                regime: requirement.regime,
-            };
-            let value_rows = cartesian_values(&level_sets);
-            let mut rows = Vec::with_capacity(value_rows.len());
-            let mut conditional_sums = HashMap::<Vec<Value>, f64>::new();
-            for values in value_rows {
-                let assignment =
-                    Assignment::from_pairs(ids.iter().copied().zip(values.iter().cloned()));
-                let probability =
-                    self.probability(&spec, &assignment, &EvalContext::default()).map_err(
-                        |_| ProviderSnapshotError::MissingCell { factor: requirement_index },
-                    )?;
-                if !probability.is_finite() || !(0.0..=1.0).contains(&probability) {
-                    return Err(ProviderSnapshotError::InvalidProbability {
-                        factor: requirement_index,
-                    });
-                }
-                let split = requirement.variables.len();
-                *conditional_sums.entry(values[split..].to_vec()).or_default() += probability;
-                rows.push(EmpiricalFactorRow { values: Arc::from(values), probability });
-            }
-            if conditional_sums.values().any(|sum| (sum - 1.0).abs() > 1e-9) {
-                return Err(ProviderSnapshotError::NotNormalized { factor: requirement_index });
-            }
-            tables.push(EmpiricalFactorTableSnapshot {
-                requirement_indices: Arc::from([requirement_index]),
-                variables: Arc::clone(&requirement.variables),
-                conditioned_on: Arc::clone(&requirement.conditioned_on),
-                intervention: Arc::clone(&requirement.intervention),
-                domain: requirement.domain,
-                population: Arc::clone(&requirement.population),
-                regime: requirement.regime,
-                rows: Arc::from(rows),
-            });
+            let (table, cell_count) = self.snapshot_factor_table(
+                requirement,
+                requirement_index,
+                &ids,
+                &level_sets,
+                total_cells,
+                cell_limit,
+            )?;
+            total_cells += cell_count;
+            tables.push(table);
         }
         Ok(EmpiricalProviderSnapshot {
             domains: Arc::from(
@@ -749,6 +700,71 @@ impl EmpiricalTableProvider {
             ),
             factors: Arc::from(tables),
         })
+    }
+
+    fn snapshot_factor_table(
+        &self,
+        requirement: &FactorRequirement,
+        requirement_index: usize,
+        ids: &[VariableId],
+        level_sets: &[Arc<[Value]>],
+        total_cells: usize,
+        cell_limit: usize,
+    ) -> Result<(EmpiricalFactorTableSnapshot, usize), ProviderSnapshotError> {
+        let cell_count = level_sets
+            .iter()
+            .try_fold(1usize, |count, levels| count.checked_mul(levels.len()))
+            .ok_or(ProviderSnapshotError::CellLimit { requested: usize::MAX, limit: cell_limit })?;
+        let next_total = total_cells
+            .checked_add(cell_count)
+            .ok_or(ProviderSnapshotError::CellLimit { requested: usize::MAX, limit: cell_limit })?;
+        if next_total > cell_limit {
+            return Err(ProviderSnapshotError::CellLimit {
+                requested: next_total,
+                limit: cell_limit,
+            });
+        }
+        let spec = FactorSpec {
+            variables: &requirement.variables,
+            conditioned_on: &requirement.conditioned_on,
+            intervention: &requirement.intervention,
+            domain: requirement.domain,
+            population: &requirement.population,
+            regime: requirement.regime,
+        };
+        let mut rows = Vec::with_capacity(cell_count);
+        let mut conditional_sums = HashMap::<Vec<Value>, f64>::new();
+        for values in cartesian_values(level_sets) {
+            let assignment =
+                Assignment::from_pairs(ids.iter().copied().zip(values.iter().cloned()));
+            let probability = self
+                .probability(&spec, &assignment, &EvalContext::default())
+                .map_err(|_| ProviderSnapshotError::MissingCell { factor: requirement_index })?;
+            if !probability.is_finite() || !(0.0..=1.0).contains(&probability) {
+                return Err(ProviderSnapshotError::InvalidProbability {
+                    factor: requirement_index,
+                });
+            }
+            let split = requirement.variables.len();
+            *conditional_sums.entry(values[split..].to_vec()).or_default() += probability;
+            rows.push(EmpiricalFactorRow { values: Arc::from(values), probability });
+        }
+        if conditional_sums.values().any(|sum| (sum - 1.0).abs() > 1e-9) {
+            return Err(ProviderSnapshotError::NotNormalized { factor: requirement_index });
+        }
+        Ok((
+            EmpiricalFactorTableSnapshot {
+                requirement_indices: Arc::from([requirement_index]),
+                variables: Arc::clone(&requirement.variables),
+                conditioned_on: Arc::clone(&requirement.conditioned_on),
+                intervention: Arc::clone(&requirement.intervention),
+                domain: requirement.domain,
+                population: Arc::clone(&requirement.population),
+                regime: requirement.regime,
+                rows: Arc::from(rows),
+            },
+            cell_count,
+        ))
     }
 }
 
@@ -1120,8 +1136,8 @@ mod tests {
         assert_eq!(snapshot.factors[0].requirement_indices.as_ref(), &[0, 1]);
         assert_eq!(snapshot.factors[0].rows.len(), 2);
         assert_eq!(snapshot.factors[0].rows[0].values.as_ref(), &[f(0.0)]);
-        assert_eq!(snapshot.factors[0].rows[0].probability, 0.25);
-        assert_eq!(snapshot.factors[0].rows[1].probability, 0.75);
+        assert!((snapshot.factors[0].rows[0].probability - 0.25).abs() < f64::EPSILON);
+        assert!((snapshot.factors[0].rows[1].probability - 0.75).abs() < f64::EPSILON);
     }
 
     #[test]
