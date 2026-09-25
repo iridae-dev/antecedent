@@ -1288,9 +1288,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_route_evidence.rs"
-evidence_assertion = "bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop"
-
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
 [[route]]
@@ -1304,9 +1301,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_route_evidence.rs"
-evidence_assertion = "bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop"
-
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
 [[route]]
@@ -1320,9 +1314,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_route_evidence.rs"
-evidence_assertion = "bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop"
-
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
 [[route]]
@@ -1378,9 +1369,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_route_evidence.rs"
-evidence_assertion = "bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop"
-
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
 [[route]]
@@ -1394,9 +1382,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_route_evidence.rs"
-evidence_assertion = "bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop"
-
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
 [[route]]
@@ -1410,9 +1395,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_route_evidence.rs"
-evidence_assertion = "bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop"
-
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
 [[route]]

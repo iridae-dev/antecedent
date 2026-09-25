@@ -265,14 +265,29 @@ impl CheckedTemporalMediationOperation {
         let mut cancelled = false;
         let mut diagnostics = Vec::new();
 
+        let natural_alias = matches!(
+            bound.query.contrast,
+            antecedent_core::MediationContrast::NaturalDirect
+                | antecedent_core::MediationContrast::NaturalIndirect
+        );
+        if bayesian && natural_alias {
+            diagnostics.push(Diagnostic::new(
+                "estimate.mediation.bayesian",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; NaturalDirect and NaturalIndirect use the licensed additive linear no-treatment-mediator-interaction alias",
+            ));
+        }
+
         for horizon in bound.horizons.iter() {
+            let refutation_start = refutations.len();
             let mut qh = bound.query.clone();
             qh.horizons = Arc::from([horizon.horizon]);
             let (mediation, uncertainty, posterior) = match &bound.inference {
                 CheckedMediationInference::Frequentist { bootstrap_replicates } => {
                     let est =
                         TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-                    let (estimate, block) = est
+                    let (mut estimate, block) = est
                         .estimate_with_block_bootstrap(
                             data,
                             &horizon.estimand,
@@ -288,6 +303,24 @@ impl CheckedTemporalMediationOperation {
                             .map_or(block.replicates_ok, |n: u32| n.min(block.replicates_ok)),
                     );
                     cancelled |= estimate.effect.bootstrap_cancelled;
+                    if block.replicates_attempted > 0 {
+                        estimate.effect = estimate
+                            .effect
+                            .clone()
+                            .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation);
+                        diagnostics.extend(super::temporal_path::temporal_dependence_se_diagnostics(
+                            antecedent_estimate::CircularBlockFamily::Mediation,
+                            block.block_length,
+                            block.rows,
+                            block.kernel_bias,
+                            block.effective_rows,
+                            block.replicates_attempted > 0,
+                            &format!(
+                                "horizon {}: shared circular-block resampling refits all three mediation mechanism regressions, {}/{} replicates",
+                                horizon.horizon, block.replicates_ok, block.replicates_attempted,
+                            ),
+                        ));
+                    }
                     if bound.validation != RefuteSuite::None {
                         refutations.extend(
                             antecedent_validate::mediation::refute_temporal_mediation_adjusted(
@@ -352,6 +385,11 @@ impl CheckedTemporalMediationOperation {
                             horizon.identification.status,
                         )
                         .map_err(CausalError::from)?;
+                    if natural_alias {
+                        posterior
+                            .assumptions
+                            .push(antecedent_estimate::linear_no_interaction_restriction());
+                    }
                     let mut effect = effect_from_posterior(&posterior)?;
                     let estimate = TemporalMediationEstimate {
                         effect: effect.clone(),
@@ -461,6 +499,12 @@ impl CheckedTemporalMediationOperation {
                     )
                 }
             };
+            if !single {
+                for report in &mut refutations[refutation_start..] {
+                    report.refuter =
+                        Arc::from(format!("horizon.{}.{}", horizon.horizon, report.refuter));
+                }
+            }
             slices.push(antecedent_estimate::TemporalMediationSlice {
                 horizon: horizon.horizon,
                 identification_status: horizon.identification.status,
@@ -536,11 +580,15 @@ impl CheckedTemporalMediationOperation {
                     mediation_grid: Some(grid),
                     posterior: if single { first_posterior } else { None },
                     predictive_checks,
-                    n_draws: match &bound.inference {
-                        CheckedMediationInference::Bayesian(config) => {
-                            u32::try_from(config.n_draws).ok()
+                    n_draws: if single {
+                        match &bound.inference {
+                            CheckedMediationInference::Bayesian(config) => {
+                                u32::try_from(config.n_draws).ok()
+                            }
+                            _ => None,
                         }
-                        _ => None,
+                    } else {
+                        None
                     },
                     ..Default::default()
                 },
@@ -609,10 +657,43 @@ mod tests {
         ValueType,
     };
     use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TimeIndex,
         ValidityBitmap,
     };
     use antecedent_graph::ensure_lagged;
+
+    fn execute_checked(
+        data: &TimeSeriesData,
+        graph: &TemporalDag,
+        query: antecedent_core::MediationQuery,
+        inference: InferenceMode,
+        validation: RefuteSuite,
+        bootstrap_replicates: u32,
+    ) -> crate::StudyResult {
+        let ctx = ExecutionContext::for_tests(8821);
+        let study = Study::series(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Mediation(query.clone()))
+            .inference(inference)
+            .refute(validation)
+            .bootstrap_replicates(bootstrap_replicates)
+            .build()
+            .unwrap();
+        let physical = study.compile(&ctx).unwrap();
+        let estimator = if matches!(study.inference, InferenceMode::Bayesian(_)) {
+            EstimatorId::BayesianTemporalMediation
+        } else {
+            EstimatorId::TemporalMediation
+        };
+        let cache = crate::analysis::prepared::identify_temporal_mediation_horizons(
+            graph, &query, estimator,
+        )
+        .unwrap();
+        CheckedTemporalMediationOperation::checked(&study, data, &physical, &cache)
+            .unwrap()
+            .execute(data, &ctx)
+            .unwrap()
+    }
 
     const N: usize = 241;
     const MEDIATED_TRUTH: f64 = 0.8 * 0.55;
@@ -762,5 +843,109 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn bayesian_natural_contrasts_retain_the_linear_alias_assumption_and_diagnostic() {
+        let (data, graph) = fixture();
+        for contrast in [MediationContrast::NaturalDirect, MediationContrast::NaturalIndirect] {
+            let mut query = antecedent_core::MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                contrast,
+            )
+            .with_horizons([1])
+            .unwrap();
+            query.contrast = contrast;
+            let result = execute_checked(
+                &data,
+                &graph,
+                query,
+                InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)),
+                RefuteSuite::None,
+                0,
+            );
+            assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|record| {
+                matches!(&record.assumption, antecedent_core::Assumption::ParametricRestriction(item)
+                    if item.id.as_ref() == "mediation.linear_no_interaction")
+            }));
+            assert!(
+                result.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code.as_ref() == "estimate.mediation.bayesian"
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn frequentist_bootstrap_publishes_mediation_block_semantics_and_short_series_warning() {
+        let (data, graph) = fixture();
+        let columns = ["t", "m", "y", "z"]
+            .map(|name| data.schema().id_of(name).unwrap())
+            .map(|id| data.float64_values(id).unwrap());
+        let short = TimeSeriesData::from_f64_columns(
+            [
+                ("t", &columns[0][..31]),
+                ("m", &columns[1][..31]),
+                ("y", &columns[2][..31]),
+                ("z", &columns[3][..31]),
+            ],
+            1,
+        )
+        .unwrap();
+        let query = antecedent_core::MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        )
+        .with_horizons([1])
+        .unwrap();
+        let result = execute_checked(
+            &short,
+            &graph,
+            query,
+            InferenceMode::Frequentist,
+            RefuteSuite::None,
+            64,
+        );
+        assert_eq!(
+            result.estimate.block_family,
+            Some(antecedent_estimate::CircularBlockFamily::Mediation)
+        );
+        let interval = result.primary_interval_binding(false);
+        assert_eq!(interval.method, antecedent_core::IntervalMethod::CircularBlockSe);
+        assert_eq!(interval.dependence, "circular_block:mediation");
+        assert!(result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_ref() == "estimate.temporal.circular_block_se.short_series"
+        }));
+    }
+
+    #[test]
+    fn multi_horizon_refutations_are_scoped_and_parent_draw_count_is_suppressed() {
+        let (data, graph) = fixture();
+        let query = antecedent_core::MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        )
+        .with_horizons([1, 2])
+        .unwrap();
+        let result = execute_checked(
+            &data,
+            &graph,
+            query,
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)),
+            RefuteSuite::Cheap,
+            0,
+        );
+        assert!(result.posterior.is_none());
+        assert_eq!(result.performance.n_draws, None);
+        assert!(!result.refutations.is_empty());
+        assert!(result.refutations.iter().all(|report| {
+            report.refuter.starts_with("horizon.1.") || report.refuter.starts_with("horizon.2.")
+        }));
     }
 }

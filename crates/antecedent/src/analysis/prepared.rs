@@ -1000,8 +1000,8 @@ pub struct CheckedTemporalMediationInfo {
     pub horizons: Arc<[u32]>,
     /// Estimator family fixed at preparation.
     pub estimator: crate::strategy_table::EstimatorId,
-    /// Number of graph-derived adjustment columns retained at each horizon.
-    pub adjustment_widths: Arc<[(u32, usize)]>,
+    /// Graph-derived adjustment node keys retained at each horizon.
+    pub adjustment_sets: Arc<[(u32, Arc<[antecedent_core::TemporalNodeKey]>)]>,
 }
 
 /// Read-only source graph, completion proof, and procedure for a temporal
@@ -3966,10 +3966,20 @@ impl PreparedStudy {
             validation,
             horizons: Arc::from(horizons),
             estimator: operation.estimator(),
-            adjustment_widths: Arc::from(
+            adjustment_sets: Arc::from(
                 operation
                     .horizon_contracts()
-                    .map(|(horizon, _, _, _, design)| (horizon, design.len()))
+                    .map(|(horizon, _, _, _, design)| {
+                        let keys = design
+                            .iter()
+                            .map(|column| antecedent_core::TemporalNodeKey {
+                                variable: column.variable,
+                                offset: -i32::try_from(column.lag.raw())
+                                    .expect("checked temporal mediation lags fit i32"),
+                            })
+                            .collect::<Vec<_>>();
+                        (horizon, Arc::from(keys))
+                    })
                     .collect::<Vec<_>>(),
             ),
         })
