@@ -9,14 +9,14 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 
-fn fixture(offset: f64) -> (TabularData, Dag) {
+fn fixture(slope: f64) -> (TabularData, Dag) {
     let x = (0..120).map(|i| f64::from(i) / 30.0 - 2.0).collect::<Vec<_>>();
     // Independent structural truth: Y = 1 + 2X + ε, with ε fixed per row.
     // Therefore every row's cross-world ITE is exactly 2.
     let y = x
         .iter()
         .enumerate()
-        .map(|(i, x)| 1.0 + 2.0 * x + 0.025 * (i as f64 * 0.71).sin() + offset)
+        .map(|(i, x)| 1.0 + slope * x + 0.025 * (i as f64 * 0.71).sin())
         .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
     let mut graph = Dag::with_variables(2);
@@ -38,7 +38,7 @@ fn query() -> CausalQuery {
 fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_boundary() {
     let ctx = ExecutionContext::for_tests(611);
     for accepted in [false, true] {
-        let (data, graph) = fixture(0.0);
+        let (data, graph) = fixture(2.0);
         let builder = if accepted {
             Study::tabular(data.clone()).graph(AcceptedGraph::from(graph.clone()))
         } else {
@@ -80,9 +80,10 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
                 && diagnostic.message.contains("mean_ite interval")
         }));
 
-        let (refreshed_data, _) = fixture(0.4);
+        let (refreshed_data, _) = fixture(2.5);
         let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-        assert!((refreshed.counterfactual.as_ref().unwrap().mean_ite - 2.0).abs() < 0.12);
+        let refreshed_mean = refreshed.counterfactual.as_ref().unwrap().mean_ite;
+        assert!((refreshed_mean - 2.5).abs() < 0.12, "mean_ite={refreshed_mean}");
         assert!(prepared.checked_counterfactual_operation().is_some());
 
         let artifact = prepared

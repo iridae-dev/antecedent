@@ -90,7 +90,9 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
             AnalysisRoute::TemporalMediation
         }
         (DataModality::Tabular, CausalQuery::Mediation(_)) => AnalysisRoute::StaticMediation,
-        (DataModality::Tabular, CausalQuery::NestedCounterfactual(_)) => AnalysisRoute::StaticMediation,
+        (DataModality::Tabular, CausalQuery::NestedCounterfactual(_)) => {
+            AnalysisRoute::StaticMediation
+        }
         (DataModality::Tabular, CausalQuery::Counterfactual(_)) => AnalysisRoute::Counterfactual,
         (DataModality::Tabular, CausalQuery::AnomalyAttribution(_)) => AnalysisRoute::Anomaly,
         (DataModality::Tabular, CausalQuery::ChangeAttribution(_)) => {
@@ -168,6 +170,50 @@ pub(super) struct IdentifiedExecuteFinish<'a> {
     pub cancelled: bool,
     pub early_stopped: bool,
     pub extras: IdentifiedExecuteExtras,
+}
+
+/// Frozen result metadata required to assemble an identified execution without
+/// retaining or consulting its mutable `Study` builder.
+#[derive(Clone)]
+pub(crate) struct IdentifiedResultContext {
+    pub(crate) query: CausalQuery,
+    pub(crate) graph_class: GraphClass,
+    pub(crate) graph_version: u32,
+    graph_has_certificate: bool,
+    refute_default_downgrade: Option<RefuteSuite>,
+    latency_bootstrap_not_applied: Option<(u32, u32)>,
+    bootstrap_replicates: u32,
+    pub(crate) inference: InferenceMode,
+    population_registry: Option<PopulationRegistry>,
+    latency_mode: Option<LatencyMode>,
+    support_status: Option<crate::support::CellStatus>,
+    structure_source: crate::support::StructureSource,
+    tiered: Option<antecedent_graph::TieredBackground>,
+    custom_validators: bool,
+}
+
+impl IdentifiedResultContext {
+    /// Freeze result metadata from a builder at preparation time.
+    #[must_use]
+    pub(crate) fn from_study(study: &Study) -> Self {
+        Self {
+            query: study.query.clone(),
+            graph_class: study.graph.class(),
+            graph_version: study.graph.version(),
+            graph_has_certificate: study.graph_posterior.is_none()
+                && (study.graph.as_dag().is_some() || study.graph.as_admg().is_some()),
+            refute_default_downgrade: study.refute_default_downgrade,
+            latency_bootstrap_not_applied: study.latency_bootstrap_not_applied,
+            bootstrap_replicates: study.bootstrap_replicates,
+            inference: study.inference.clone(),
+            population_registry: study.population_registry.clone(),
+            latency_mode: study.latency_mode,
+            support_status: study.support_status,
+            structure_source: study.structure_source,
+            tiered: study.tiered.clone(),
+            custom_validators: !study.custom_validators.is_empty(),
+        }
+    }
 }
 
 /// Optional finish slots that most identified paths leave at default.
@@ -942,7 +988,9 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     subsampled_out_mass: f64,
     truncated_atoms: usize,
 ) -> MixedGraphPosteriorPolicy {
-    use crate::result::{StructuralAggregationPolicy, StructuralResponseAtom, StructuralWeightBasis};
+    use crate::result::{
+        StructuralAggregationPolicy, StructuralResponseAtom, StructuralWeightBasis,
+    };
     let mut structural_atoms = Vec::with_capacity(atoms.len());
     let mut identified_weight = 0.0;
     let mut mixable = 0.0;
@@ -997,7 +1045,8 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     let mixable_scalar =
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
-    let conditional_on_identified = mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
+    let conditional_on_identified =
+        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
     let mixture = crate::result::StructuralResponseMixture {
         weight_basis: StructuralWeightBasis::PosteriorProbability,
         atoms: structural_atoms,
@@ -1052,7 +1101,12 @@ pub(super) fn free_variables_averaged(
             .outcomes
             .iter()
             .copied()
-            .chain(query.interventions.iter().filter_map(antecedent_core::Intervention::primary_variable))
+            .chain(
+                query
+                    .interventions
+                    .iter()
+                    .filter_map(antecedent_core::Intervention::primary_variable),
+            )
             .chain(query.conditioning.iter().copied())
             .collect(),
         _ => Vec::new(),
@@ -2017,7 +2071,8 @@ pub(super) fn posterior_note_diagnostics<'a>(
             DiagnosticSeverity::Warning,
             "long-run-variance tempering could not be estimated on at least one fit \
                  (n < max(8, p+2)); the published credible interval for it is the iid posterior \
-                 and is likely too narrow".to_string(),
+                 and is likely too narrow"
+                .to_string(),
         ));
     }
     if capped {
@@ -2026,7 +2081,8 @@ pub(super) fn posterior_note_diagnostics<'a>(
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
             "long-run-variance tempering hit the n/(p+2) cap on at least one fit; kappa is \
-                 known to be too small and the published credible interval is still too narrow".to_string(),
+                 known to be too small and the published credible interval is still too narrow"
+                .to_string(),
         ));
     }
     if let Some(&(requested, used)) = floors.first() {
@@ -2224,244 +2280,250 @@ impl super::Study {
         &self,
         args: IdentifiedExecuteFinish<'_>,
     ) -> StudyResult {
-        let extras = args.extras;
-        let certificate = extras.certificate.or_else(|| {
-            (self.graph_posterior.is_none()
-                && (self.graph.as_dag().is_some() || self.graph.as_admg().is_some()))
-            .then(|| crate::Identification::Point {
-                result: args.identification.clone(),
-                temporal_indexer: None,
-                strategy: args.identifier_id,
-                structure_version: self.graph.version(),
-            })
-        });
-        let mut diagnostics = if let Some(prebuilt) = extras.diagnostics {
-            prebuilt
-        } else {
-            let mut diagnostics = args.identification.diagnostics.clone();
-            diagnostics.push(overlap_diagnostic(args.estimate.overlap));
-            diagnostics.extend(args.extra_diagnostics);
-            diagnostics
+        let context = IdentifiedResultContext::from_study(self);
+        let tabular_data = match &self.data {
+            DataInput::Tabular(data) => Some(data),
+            _ => None,
         };
-        let mut seen: std::collections::HashSet<Arc<str>> =
-            diagnostics.iter().map(|d| Arc::clone(&d.code)).collect();
-        // Envelope routes supply their own diagnostic seed, but a prepared
-        // envelope still must expose cache reuse just like a single-graph path.
-        if args.identify_cached {
-            push_unique_diagnostic(&mut diagnostics, &mut seen, identify_cached_diagnostic());
-        }
-        push_aipw_score_kind(&mut diagnostics, &mut seen, args.estimator_id, &args.estimate);
-        push_grid_scalar_cleared(&mut diagnostics, &mut seen, &args.estimate);
-        if matches!(
-            args.estimator_id,
-            EstimatorId::FunctionalEffect | EstimatorId::FunctionalDistribution
-        ) {
-            if let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand)
-            {
-                push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
-            }
-        }
-        let structural_posteriors = extras
-            .structural_response
-            .iter()
-            .flat_map(|mixture| mixture.atoms.iter().filter_map(|atom| atom.posterior.as_ref()));
-        for diagnostic in
-            posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
-        {
+        finish_identified_execute_with_context(&context, tabular_data, args)
+    }
+}
+
+fn finish_identified_execute_with_context(
+    context: &IdentifiedResultContext,
+    tabular_data: Option<&TabularData>,
+    args: IdentifiedExecuteFinish<'_>,
+) -> StudyResult {
+    let extras = args.extras;
+    let certificate = extras.certificate.or_else(|| {
+        context.graph_has_certificate.then(|| crate::Identification::Point {
+            result: args.identification.clone(),
+            temporal_indexer: None,
+            strategy: args.identifier_id,
+            structure_version: context.graph_version,
+        })
+    });
+    let mut diagnostics = if let Some(prebuilt) = extras.diagnostics {
+        prebuilt
+    } else {
+        let mut diagnostics = args.identification.diagnostics.clone();
+        diagnostics.push(overlap_diagnostic(args.estimate.overlap));
+        diagnostics.extend(args.extra_diagnostics);
+        diagnostics
+    };
+    let mut seen: std::collections::HashSet<Arc<str>> =
+        diagnostics.iter().map(|d| Arc::clone(&d.code)).collect();
+    // Envelope routes supply their own diagnostic seed, but a prepared
+    // envelope still must expose cache reuse just like a single-graph path.
+    if args.identify_cached {
+        push_unique_diagnostic(&mut diagnostics, &mut seen, identify_cached_diagnostic());
+    }
+    push_aipw_score_kind(&mut diagnostics, &mut seen, args.estimator_id, &args.estimate);
+    push_grid_scalar_cleared(&mut diagnostics, &mut seen, &args.estimate);
+    if matches!(
+        args.estimator_id,
+        EstimatorId::FunctionalEffect | EstimatorId::FunctionalDistribution
+    ) {
+        if let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand) {
             push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
         }
-        if let (Some(mode), Some(n)) = (self.latency_mode, extras.n_draws) {
-            let tier = match mode {
-                crate::analysis::latency::LatencyMode::Interactive => {
-                    crate::analysis::latency::INTERACTIVE_N_DRAWS
-                }
-                crate::analysis::latency::LatencyMode::Standard => {
-                    crate::analysis::latency::STANDARD_N_DRAWS
-                }
-                crate::analysis::latency::LatencyMode::Report => {
-                    crate::analysis::latency::REPORT_N_DRAWS
-                }
-            };
-            if usize::try_from(n).ok() != Some(tier) {
-                diagnostics.push(Diagnostic::new(
-                    "latency.explicit_budget_kept",
-                    DiagnosticKind::Execution,
-                    DiagnosticSeverity::Info,
-                    format!("explicit n_draws={n} kept over {} tier default {tier}", mode.as_str()),
-                ));
+    }
+    let structural_posteriors = extras
+        .structural_response
+        .iter()
+        .flat_map(|mixture| mixture.atoms.iter().filter_map(|atom| atom.posterior.as_ref()));
+    for diagnostic in
+        posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
+    {
+        push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
+    }
+    if let (Some(mode), Some(n)) = (context.latency_mode, extras.n_draws) {
+        let tier = match mode {
+            crate::analysis::latency::LatencyMode::Interactive => {
+                crate::analysis::latency::INTERACTIVE_N_DRAWS
             }
+            crate::analysis::latency::LatencyMode::Standard => {
+                crate::analysis::latency::STANDARD_N_DRAWS
+            }
+            crate::analysis::latency::LatencyMode::Report => {
+                crate::analysis::latency::REPORT_N_DRAWS
+            }
+        };
+        if usize::try_from(n).ok() != Some(tier) {
+            diagnostics.push(Diagnostic::new(
+                "latency.explicit_budget_kept",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Info,
+                format!("explicit n_draws={n} kept over {} tier default {tier}", mode.as_str()),
+            ));
         }
-        let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
-            let (a, b) = identify_provenance_step(args.identifier_id);
-            provenance_ids(a, b)
-        });
-        let (est_artifact, est_op) = extras.estimate_provenance.unwrap_or_else(|| {
-            let (a, b) = estimate_provenance_step(args.estimator_id);
-            provenance_ids(a, b)
-        });
-        let provenance = if extras.empty_provenance {
-            ProvenanceGraph::new()
-        } else {
-            provenance_pair(
-                (
-                    id_artifact.as_ref(),
-                    id_op.as_ref(),
-                    &[],
-                    &args.identification.required_assumptions,
-                ),
-                (
-                    est_artifact.as_ref(),
-                    est_op.as_ref(),
-                    &[id_artifact.as_ref()],
-                    &args.estimate.assumptions,
-                ),
-            )
+    }
+    let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
+        let (a, b) = identify_provenance_step(args.identifier_id);
+        provenance_ids(a, b)
+    });
+    let (est_artifact, est_op) = extras.estimate_provenance.unwrap_or_else(|| {
+        let (a, b) = estimate_provenance_step(args.estimator_id);
+        provenance_ids(a, b)
+    });
+    let provenance = if extras.empty_provenance {
+        ProvenanceGraph::new()
+    } else {
+        provenance_pair(
+            (id_artifact.as_ref(), id_op.as_ref(), &[], &args.identification.required_assumptions),
+            (
+                est_artifact.as_ref(),
+                est_op.as_ref(),
+                &[id_artifact.as_ref()],
+                &args.estimate.assumptions,
+            ),
+        )
+    };
+    let mut physical_record = args.physical.record.clone();
+    if context.custom_validators {
+        let (record, diagnostic) = mark_python_callback_plan(physical_record, "validator");
+        physical_record = record;
+        diagnostics.push(diagnostic);
+    }
+    let (counterfactual, anomaly, change_attribution, mechanism_change, unit_change) =
+        match extras.gcm {
+            Some(GcmSlot::Counterfactual(v)) => (Some(v), None, None, None, None),
+            Some(GcmSlot::Anomaly(v)) => (None, Some(v), None, None, None),
+            Some(GcmSlot::Change(v)) => (None, None, Some(v), None, None),
+            Some(GcmSlot::Mechanism(v)) => (None, None, None, Some(v), None),
+            Some(GcmSlot::Unit(v)) => (None, None, None, None, Some(v)),
+            None => (None, None, None, None, None),
         };
-        let physical_record =
-            self.apply_callback_plan_marks(args.physical.record.clone(), &mut diagnostics);
-        let (counterfactual, anomaly, change_attribution, mechanism_change, unit_change) =
-            match extras.gcm {
-                Some(GcmSlot::Counterfactual(v)) => (Some(v), None, None, None, None),
-                Some(GcmSlot::Anomaly(v)) => (None, Some(v), None, None, None),
-                Some(GcmSlot::Change(v)) => (None, None, Some(v), None, None),
-                Some(GcmSlot::Mechanism(v)) => (None, None, None, Some(v), None),
-                Some(GcmSlot::Unit(v)) => (None, None, None, None, Some(v)),
-                None => (None, None, None, None, None),
-            };
-        let mut result = assemble_result(AssembleArgs {
-            logical: &args.physical.logical.record,
-            physical: &physical_record,
-            identification: args.identification,
-            estimand: args.estimand,
-            estimate: args.estimate,
-            distribution: args.distribution,
-            posterior: extras.posterior,
-            mediation: args.mediation,
-            mediation_grid: extras.mediation_grid,
-            counterfactual,
-            anomaly,
-            change_attribution,
-            mechanism_change,
-            unit_change,
-            refutations: args.refutations,
-            diagnostics,
-            provenance,
-            treatment: args.treatment,
-            outcome: args.outcome,
-            wall_time_ns: args.wall_time_ns,
-            latency_mode: self.latency_mode.map(|m| Arc::from(m.as_str())),
-            stage_timings_ns: extras.stage_timings_ns,
-            bootstrap_replicates_requested: extras
-                .bootstrap_replicates_requested
-                .unwrap_or(Some(self.bootstrap_replicates)),
-            bootstrap_replicates_ok: args.bootstrap_replicates_ok,
-            n_draws: extras.n_draws,
-            cancelled: args.cancelled,
-            early_stopped: args.early_stopped,
-            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
-        });
-        result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
-            identification,
-            query: self.query.clone(),
-            graph_class: self.graph.class(),
-        });
-        let is_quantile = match &self.query {
-            CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
-            CausalQuery::ConditionalEffect(q) => {
-                q.inner.outcome_functional.quantile_level().is_some()
-            }
-            CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
-            _ => false,
-        };
-        if is_quantile {
-            result.estimate.evalue = None;
-            result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
-            if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
-                result.diagnostics.push(Diagnostic::new("estimate.functional.conditional_quantile",
+    let mut result = assemble_result(AssembleArgs {
+        logical: &args.physical.logical.record,
+        physical: &physical_record,
+        identification: args.identification,
+        estimand: args.estimand,
+        estimate: args.estimate,
+        distribution: args.distribution,
+        posterior: extras.posterior,
+        mediation: args.mediation,
+        mediation_grid: extras.mediation_grid,
+        counterfactual,
+        anomaly,
+        change_attribution,
+        mechanism_change,
+        unit_change,
+        refutations: args.refutations,
+        diagnostics,
+        provenance,
+        treatment: args.treatment,
+        outcome: args.outcome,
+        wall_time_ns: args.wall_time_ns,
+        latency_mode: context.latency_mode.map(|m| Arc::from(m.as_str())),
+        stage_timings_ns: extras.stage_timings_ns,
+        bootstrap_replicates_requested: extras
+            .bootstrap_replicates_requested
+            .unwrap_or(Some(context.bootstrap_replicates)),
+        bootstrap_replicates_ok: args.bootstrap_replicates_ok,
+        n_draws: extras.n_draws,
+        cancelled: args.cancelled,
+        early_stopped: args.early_stopped,
+        bayesian: matches!(context.inference, InferenceMode::Bayesian(_)),
+    });
+    result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
+        identification,
+        query: context.query.clone(),
+        graph_class: context.graph_class,
+    });
+    let is_quantile = match &context.query {
+        CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
+        CausalQuery::ConditionalEffect(q) => q.inner.outcome_functional.quantile_level().is_some(),
+        CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
+        _ => false,
+    };
+    if is_quantile {
+        result.estimate.evalue = None;
+        result.diagnostics.push(super::helpers::quantile_scope_diagnostic());
+        if matches!(context.query, CausalQuery::ConditionalEffect(_)) {
+            result.diagnostics.push(Diagnostic::new("estimate.functional.conditional_quantile",
                     DiagnosticKind::Scientific, DiagnosticSeverity::Info,
                     "quantile contrast inverts arm CDFs standardized over the retained modifier distribution; this is not a pointwise conditional-quantile surface or an average of individual quantile effects"));
-            }
         }
-        result.predictive_checks = extras.predictive_checks;
-        result.response = extras.response;
-        result.structural_response = extras.structural_response;
-        result.rebind_interval(matches!(self.inference, InferenceMode::Bayesian(_)));
-        result.support_status = self.support_status;
-        result.structure_source = self.structure_source;
-        // A named predicate or custom distribution is a handle; encoding the
-        // executed query (certificates, artifacts) needs its bindings.
-        result.population_registry.clone_from(&self.population_registry);
-        if !is_quantile {
-            super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+    }
+    result.predictive_checks = extras.predictive_checks;
+    result.response = extras.response;
+    result.structural_response = extras.structural_response;
+    result.rebind_interval(matches!(context.inference, InferenceMode::Bayesian(_)));
+    result.support_status = context.support_status;
+    result.structure_source = context.structure_source;
+    // A named predicate or custom distribution is a handle; encoding the
+    // executed query (certificates, artifacts) needs its bindings.
+    result.population_registry.clone_from(&context.population_registry);
+    if !is_quantile {
+        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+    }
+    if !is_quantile
+        && context
+            .tiered
+            .as_ref()
+            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+    {
+        if let Some(data) = tabular_data {
+            super::helpers::attach_tiered_evalue(
+                &mut result.estimate,
+                data,
+                args.outcome,
+                &mut result.diagnostics,
+            );
         }
-        if !is_quantile
-            && self
-                .tiered
-                .as_ref()
-                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
-        {
-            if let DataInput::Tabular(data) = &self.data {
-                super::helpers::attach_tiered_evalue(
-                    &mut result.estimate,
-                    data,
-                    args.outcome,
-                    &mut result.diagnostics,
-                );
-            }
-        }
-        if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) =
-            self.support_status
-        {
-            result.diagnostics.push(Diagnostic {
-                code: Arc::from("support.allowed_unlicensed"),
-                kind: DiagnosticKind::Support,
-                severity: DiagnosticSeverity::Warning,
-                message: Arc::from(
-                    "this estimate executed an allowlisted cell; it is not a licensed claim",
-                ),
-                artifact_id: None,
-                fields: Arc::from([
-                    (Arc::from("reason"), Arc::from(reason)),
-                    (Arc::from("parent"), Arc::from(parent)),
-                ]),
-            });
-        }
-        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
-            result.diagnostics.push(Diagnostic {
-                code: Arc::from("latency.bootstrap_not_applied"),
-                kind: DiagnosticKind::Scientific,
-                severity: DiagnosticSeverity::Info,
-                message: Arc::from(format!(
-                    "the latency tier maps to {tier} bootstrap replicates, but the configured \
+    }
+    if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) = context.support_status
+    {
+        result.diagnostics.push(Diagnostic {
+            code: Arc::from("support.allowed_unlicensed"),
+            kind: DiagnosticKind::Support,
+            severity: DiagnosticSeverity::Warning,
+            message: Arc::from(
+                "this estimate executed an allowlisted cell; it is not a licensed claim",
+            ),
+            artifact_id: None,
+            fields: Arc::from([
+                (Arc::from("reason"), Arc::from(reason)),
+                (Arc::from("parent"), Arc::from(parent)),
+            ]),
+        });
+    }
+    if let Some((tier, configured)) = context.latency_bootstrap_not_applied {
+        result.diagnostics.push(Diagnostic {
+            code: Arc::from("latency.bootstrap_not_applied"),
+            kind: DiagnosticKind::Scientific,
+            severity: DiagnosticSeverity::Info,
+            message: Arc::from(format!(
+                "the latency tier maps to {tier} bootstrap replicates, but the configured \
                      estimator owns its replicate count; {configured} replicates ran"
-                )),
-                artifact_id: None,
-                fields: Arc::from([
-                    (Arc::from("tier_replicates"), Arc::from(tier.to_string())),
-                    (Arc::from("configured_replicates"), Arc::from(configured.to_string())),
-                ]),
-            });
-        }
-        if let Some(requested) = self.refute_default_downgrade {
-            let requested_id = requested.validation_suite_id().unwrap_or("none");
-            result.diagnostics.push(Diagnostic {
-                code: Arc::from("exec.refute.default_suite_unsupported"),
-                kind: DiagnosticKind::Scientific,
-                severity: DiagnosticSeverity::Info,
-                message: Arc::from(format!(
-                    "no .refute(..) was set; the default validation suite \
+            )),
+            artifact_id: None,
+            fields: Arc::from([
+                (Arc::from("tier_replicates"), Arc::from(tier.to_string())),
+                (Arc::from("configured_replicates"), Arc::from(configured.to_string())),
+            ]),
+        });
+    }
+    if let Some(requested) = context.refute_default_downgrade {
+        let requested_id = requested.validation_suite_id().unwrap_or("none");
+        result.diagnostics.push(Diagnostic {
+            code: Arc::from("exec.refute.default_suite_unsupported"),
+            kind: DiagnosticKind::Scientific,
+            severity: DiagnosticSeverity::Info,
+            message: Arc::from(format!(
+                "no .refute(..) was set; the default validation suite \
                      ({requested_id}) is not supported for this cell, so validation was \
                      silently downgraded to none (no refuters ran)"
-                )),
-                artifact_id: None,
-                fields: Arc::from([
-                    (Arc::from("requested_suite"), Arc::from(requested_id)),
-                    (Arc::from("applied_suite"), Arc::from("none")),
-                ]),
-            });
-        }
-        result
+            )),
+            artifact_id: None,
+            fields: Arc::from([
+                (Arc::from("requested_suite"), Arc::from(requested_id)),
+                (Arc::from("applied_suite"), Arc::from("none")),
+            ]),
+        });
     }
+    result
 }
 
 /// Match the estimator failure policy without counting unattempted, cancelled

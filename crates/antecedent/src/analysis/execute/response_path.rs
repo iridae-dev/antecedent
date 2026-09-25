@@ -117,14 +117,10 @@ impl CheckedDerivativeResponseOperation {
         &self.query
     }
 
-    /// The graph whose identification claim this operation retains.
-    pub(crate) fn graph(&self) -> &Dag {
-        &self.graph
-    }
-
     /// Verify that execution still uses the graph fixed at preparation.
     pub(crate) fn matches_graph(&self, graph: &Dag) -> bool {
         dag_signature(graph) == self.graph_signature
+            && dag_signature(&self.graph) == self.graph_signature
     }
 
     /// Checked identification result and expression target.
@@ -196,6 +192,228 @@ fn dag_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
     (graph.node_count(), edges.into())
 }
 
+/// Checked frequentist execution for static DAG response curves and scalar
+/// intervention g-computation. Grid coordinates or intervention values remain
+/// attached to the exact response query through preparation and execution.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedStaticDagResponseOperation {
+    graph: Dag,
+    graph_signature: (usize, Arc<[(u32, u32)]>),
+    query: ResponseQuery,
+    curve_grid: Arc<[f64]>,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identifier: IdentifierId,
+    estimator: EstimatorId,
+    fitter: ContinuousResponseEstimator,
+    refute: RefuteSuite,
+}
+
+impl CheckedStaticDagResponseOperation {
+    /// Check and retain an explicit or accepted static DAG response route.
+    pub(crate) fn checked(
+        graph: &Dag,
+        query: &ResponseQuery,
+        identification: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+        identifier: IdentifierId,
+        estimator: EstimatorId,
+        options: antecedent_estimate::ContinuousResponseOptions,
+        refute: RefuteSuite,
+    ) -> Result<Self, CausalError> {
+        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let curve_grid = match &query.functional {
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment
+                .grid
+                .values()
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?
+                .into(),
+            ResponseFunctional::InterventionResponse { interventions, .. } => {
+                if interventions.is_empty()
+                    || interventions.iter().any(|intervention| {
+                        matches!(
+                            intervention,
+                            Intervention::Soft { .. } | Intervention::Sequence(_)
+                        )
+                    })
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "checked intervention g-computation requires hard set, shift, or stochastic policies",
+                    });
+                }
+                Arc::from([])
+            }
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "checked static DAG response operation supports MeanCurve or InterventionResponse",
+                });
+            }
+        };
+        let expected_estimator = match query.functional {
+            ResponseFunctional::MeanCurve { .. } => EstimatorId::ResponseKennedyDr,
+            ResponseFunctional::InterventionResponse { .. } => {
+                EstimatorId::ResponseInterventionGcomp
+            }
+            _ => unreachable!(),
+        };
+        let admissible_refuter = match query.functional {
+            ResponseFunctional::MeanCurve { .. } => refute == RefuteSuite::None,
+            ResponseFunctional::InterventionResponse { .. } => {
+                matches!(
+                    refute,
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
+                )
+            }
+            _ => false,
+        };
+        let scalar_outcome =
+            matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean);
+        if query.temporal.is_some()
+            || query.observation != ObservationSpec::Complete
+            || query.target_population != antecedent_core::TargetPopulation::AllObserved
+            || !scalar_outcome
+            || identifier != crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID
+            || estimator != expected_estimator
+            || !admissible_refuter
+            || identification.query != CausalQuery::Response(query.clone())
+            || identification.status != IdentificationStatus::NonparametricallyIdentified
+            || identification.estimands.is_empty()
+            || identification.estimands.first().is_none_or(|candidate| {
+                candidate.method != estimand.method
+                    || candidate.adjustment_set != estimand.adjustment_set
+                    || candidate.instruments != estimand.instruments
+                    || candidate.mediators != estimand.mediators
+                    || candidate.functional != estimand.functional
+                    || candidate.rd_design != estimand.rd_design
+            })
+            || !matches!(
+                estimand.method_kind().ok(),
+                Some(EstimandMethod::BackdoorAdjustment | EstimandMethod::BackdoorEfficient)
+            )
+            || identification
+                .estimands
+                .iter()
+                .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
+        {
+            return Err(CausalError::Compile {
+                message: "static DAG response query, target, estimator, or validation suite do not form one checked route".into(),
+            });
+        }
+        let fitter = ContinuousResponseEstimator {
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            options,
+        };
+        Ok(Self {
+            graph: graph.clone(),
+            graph_signature: dag_signature(graph),
+            query: query.clone(),
+            curve_grid,
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+            identifier,
+            estimator,
+            fitter,
+            refute,
+        })
+    }
+
+    /// Retained response query, including full grid or intervention values.
+    pub(crate) fn query(&self) -> &ResponseQuery {
+        &self.query
+    }
+
+    /// Verify graph identity at dispatch and refresh boundaries.
+    pub(crate) fn matches_graph(&self, graph: &Dag) -> bool {
+        dag_signature(graph) == self.graph_signature
+            && dag_signature(&self.graph) == self.graph_signature
+    }
+
+    /// Ordered curve coordinates; empty for an intervention query.
+    pub(crate) fn curve_grid(&self) -> &[f64] {
+        &self.curve_grid
+    }
+
+    /// Retained identification and selected target.
+    pub(crate) fn target(&self) -> (&IdentificationResult, &IdentifiedEstimand) {
+        (&self.identification, &self.estimand)
+    }
+
+    /// Procedure and validation identities fixed by preparation.
+    pub(crate) const fn procedure(&self) -> (IdentifierId, EstimatorId, RefuteSuite) {
+        (self.identifier, self.estimator, self.refute)
+    }
+
+    /// Execute the exact retained response functional.
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        if !self.curve_grid.is_empty() {
+            // A curve result materializes the grid, mean, and interval endpoints,
+            // plus estimator-side work arrays. Budget five f64 values per member;
+            // this deliberately overstates only the fixed output arrays and gives
+            // a deterministic guard before fitting begins.
+            let bytes = self
+                .curve_grid
+                .len()
+                .checked_mul(5 * std::mem::size_of::<f64>())
+                .and_then(|bytes| u64::try_from(bytes).ok())
+                .ok_or_else(|| CausalError::Resource {
+                    message: "response curve memory estimate overflowed".into(),
+                })?;
+            let limit = [ctx.memory.soft_limit_bytes, ctx.memory.hard_limit_bytes]
+                .into_iter()
+                .flatten()
+                .min();
+            if limit.is_some_and(|limit| bytes > limit) {
+                return Err(CausalError::Resource {
+                    message: format!(
+                        "response curve needs at least {bytes} bytes for {0} grid members, above the configured memory budget",
+                        self.curve_grid.len()
+                    ),
+                });
+            }
+        }
+        let (response, scores) = self
+            .fitter
+            .estimate_identified_scored(
+                data,
+                &self.query,
+                self.identification.status,
+                self.identification.required_assumptions.clone(),
+            )
+            .map_err(CausalError::from)?;
+        if response.estimand != self.query.functional {
+            return Err(CausalError::Compile {
+                message: "response estimator returned a different functional than the sealed query"
+                    .into(),
+            });
+        }
+        if let ResponseFunctional::MeanCurve { treatment, .. } = &self.query.functional {
+            let current = treatment
+                .grid
+                .values()
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            if current.as_slice() != self.curve_grid.as_ref() {
+                return Err(CausalError::Compile {
+                    message: "retained response grid no longer matches the checked curve members"
+                        .into(),
+                });
+            }
+        }
+        Ok((response, scores))
+    }
+}
+
 impl super::Study {
     /// Execute a retained derivative-response operation without consulting the
     /// study query, estimator string, or a fresh identification pass.
@@ -249,6 +467,112 @@ impl super::Study {
             identify_cached: true,
             extra_diagnostics: Vec::new(),
             refutations: Vec::new(),
+            distribution: None,
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: ctx.cancellation.is_cancelled(),
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    Arc::clone(&response.provenance_id),
+                    Arc::clone(&response.provenance_id),
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            },
+        }))
+    }
+
+    /// Execute a retained static DAG mean curve or intervention g-computation
+    /// plan. This adapter deliberately does not resolve IDs from the builder or
+    /// re-run identification.
+    pub(crate) fn execute_checked_static_dag_response(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        operation: &CheckedStaticDagResponseOperation,
+    ) -> Result<StudyResult, CausalError> {
+        if self.query != CausalQuery::Response(operation.query().clone())
+            || self.graph.as_dag().is_none_or(|graph| !operation.matches_graph(graph))
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "prepared static response operation no longer matches the study query or graph"
+                        .into(),
+            });
+        }
+        let started = Instant::now();
+        let (response, scores) = operation.execute(data, ctx)?;
+        let (identification, estimand) = operation.target();
+        let query = operation.query();
+        let (treatment, outcome) = response_primary_pair(&query.functional)?;
+        let (scalar, standard_error) = response_scalar_summary(&response);
+        let mut estimate = EffectEstimate::new(
+            scalar,
+            standard_error,
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        attach_response_influence(&mut estimate, scores.as_ref())?;
+        let (identifier_id, estimator_id, refute) = operation.procedure();
+        let mut diagnostics = identification.diagnostics.clone();
+        diagnostics.push(identify_cached_diagnostic());
+        if !scalar.is_finite() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.no_scalar_summary",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "this response is function-valued; the scalar effect summary is not applicable and the result is carried by the response payload",
+            ));
+        }
+        diagnostics.extend(response.support.warnings.iter().cloned());
+
+        let scalar_intervention = scalar.is_finite()
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        let (refutations, refute_diagnostics) = if scalar_intervention
+            && matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full)
+        {
+            let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+            let mut workspace = EstimationWorkspace::default();
+            if matches!(refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+                diagnostics.push(Diagnostic::new(
+                    "refute.evalue.not_a_contrast",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "contrast-shaped refuters are not licensed for a plugin intervention level; cheap runs overlap only and full runs overlap plus sampling-stability of the g-computation level",
+                ));
+            }
+            run_plugin_level_refuters(
+                data,
+                estimand,
+                &ate_query,
+                &estimate,
+                &mut workspace,
+                ctx,
+                refute,
+                estimator_id.as_str(),
+                &[],
+            )?
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        diagnostics.extend(refute_diagnostics);
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+            estimate,
+            identifier_id,
+            estimator_id,
+            treatment,
+            outcome,
+            identify_cached: true,
+            extra_diagnostics: Vec::new(),
+            refutations,
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),

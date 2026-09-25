@@ -40,6 +40,10 @@ use antecedent_identify::{
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::builder::{DataInput, RefuteSuite};
+use super::checked_propensity::{
+    CheckedPropensityContext, CheckedPropensityEstimator, CheckedPropensityOperation,
+    CheckedPropensityProcedure, CheckedPropensityUncertainty,
+};
 use super::execute::Study;
 use super::helpers::{
     AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
@@ -873,6 +877,38 @@ pub struct CheckedDerivativeResponseInfo {
     pub adjustment_set: Arc<[antecedent_core::VariableId]>,
     /// Maximum derivative coordinates the operation may materialize.
     pub max_derivative_cells: usize,
+}
+
+/// Read-only inspection of a retained static DAG response operation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedStaticDagResponseInfo {
+    /// Exact mean-curve or intervention query, including its member values.
+    pub query: ResponseQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: RefuteSuite,
+    /// Ordered curve grid. Empty for intervention-response queries.
+    pub grid_members: Arc<[f64]>,
+}
+
+/// Read-only target and uncertainty binding for a prepared propensity route.
+#[derive(Clone, Debug)]
+pub struct CheckedPropensityInfo {
+    /// The selected weighting or matching estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Adjustment variables in the checked target.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Population targeted by the bound design.
+    pub population: TargetPopulation,
+    /// Source rows retained by the propensity preparation.
+    pub source_rows: Arc<[u32]>,
+    /// Named uncertainty procedure.
+    pub uncertainty: Arc<str>,
+    /// Bootstrap count only when the weighting procedure can use it.
+    pub bootstrap_replicates: Option<u32>,
 }
 
 /// Checked binding for the prepared static Bayesian mean ATE g-computation row.
@@ -3086,10 +3122,12 @@ pub(crate) enum PreparedExecution {
     CheckedLinear(CheckedLinearOperation),
     CheckedGlmAdjustment(CheckedGlmAdjustmentOperation),
     CheckedRd(CheckedRdOperation),
+    CheckedPropensity(CheckedPropensityOperation),
     CheckedAipw(CheckedAipwOperation),
-    Counterfactual(crate::gcm::CheckedCounterfactualOperation),
+    Counterfactual(super::execute::CheckedCounterfactualPlan),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
     DerivativeResponse(super::execute::CheckedDerivativeResponseOperation),
+    StaticDagResponse(super::execute::CheckedStaticDagResponseOperation),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(CheckedBayesianGcompOperation),
     StaticResponseCurve(CheckedStaticResponseCurve),
@@ -3122,7 +3160,9 @@ impl PreparedExecution {
             }
             Self::Iv(operation) => CheckedProgramBinding::Iv(operation.preparation()),
             Self::CheckedLinear(operation) => CheckedProgramBinding::Linear(operation),
-            Self::CheckedGlmAdjustment(_) | Self::CheckedRd(_) => CheckedProgramBinding::None,
+            Self::CheckedGlmAdjustment(_) | Self::CheckedRd(_) | Self::CheckedPropensity(_) => {
+                CheckedProgramBinding::None
+            }
             Self::FunctionalEffect(operation) => {
                 CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
             }
@@ -3141,6 +3181,7 @@ impl PreparedExecution {
             Self::LegacyStudyDispatch
             | Self::Counterfactual(_)
             | Self::DerivativeResponse(_)
+            | Self::StaticDagResponse(_)
             | Self::BayesianGcomp(_)
             | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
         }
@@ -3202,6 +3243,14 @@ impl PreparedExecution {
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
         if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn static_dag_response(
+        &self,
+    ) -> Option<&super::execute::CheckedStaticDagResponseOperation> {
+        if let Self::StaticDagResponse(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn propensity(&self) -> Option<&CheckedPropensityOperation> {
+        if let Self::CheckedPropensity(value) = self { Some(value) } else { None }
     }
     pub(crate) fn frontdoor_linear(&self) -> Option<&CheckedFrontDoorOperation> {
         if let Self::FrontDoorLinear(value) = self { Some(value) } else { None }
@@ -3354,8 +3403,8 @@ impl PreparedStudy {
     pub fn checked_counterfactual_operation(
         &self,
     ) -> Option<&crate::gcm::CheckedCounterfactualOperation> {
-        if let PreparedExecution::Counterfactual(operation) = &self.execution {
-            Some(operation)
+        if let PreparedExecution::Counterfactual(plan) = &self.execution {
+            Some(plan.operation())
         } else {
             None
         }
@@ -3363,6 +3412,51 @@ impl PreparedStudy {
 
     pub(crate) fn has_checked_derivative_response_operation(&self) -> bool {
         matches!(self.execution, PreparedExecution::DerivativeResponse(_))
+    }
+
+    pub(crate) fn has_checked_static_dag_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::StaticDagResponse(_))
+    }
+
+    pub(crate) fn has_checked_propensity_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::CheckedPropensity(_))
+    }
+
+    /// Read-only target, row binding, and uncertainty selected for propensity estimation.
+    #[must_use]
+    pub fn checked_propensity_info(&self) -> Option<CheckedPropensityInfo> {
+        let operation = self.execution.propensity()?;
+        let lowering = operation.lowering();
+        let (estimator, uncertainty, bootstrap_replicates) =
+            match (lowering.procedure, lowering.uncertainty) {
+                (
+                    CheckedPropensityProcedure::HajekWeighting,
+                    CheckedPropensityUncertainty::HajekAnalyticAndBootstrap {
+                        bootstrap_replicates,
+                    },
+                ) => (
+                    crate::strategy_table::EstimatorId::PropensityWeighting,
+                    Arc::from("hajek_analytic_and_optional_bootstrap"),
+                    Some(bootstrap_replicates),
+                ),
+                (
+                    CheckedPropensityProcedure::AbadieImbensMatching,
+                    CheckedPropensityUncertainty::AbadieImbensAnalytic { .. },
+                ) => (
+                    crate::strategy_table::EstimatorId::PropensityMatching,
+                    Arc::from("abadie_imbens_analytic"),
+                    None,
+                ),
+                _ => return None,
+            };
+        Some(CheckedPropensityInfo {
+            estimator,
+            adjustment_set: Arc::clone(&lowering.adjustment),
+            population: lowering.population.clone(),
+            source_rows: Arc::clone(&lowering.source_rows),
+            uncertainty,
+            bootstrap_replicates,
+        })
     }
 
     /// Read-only view of the checked static derivative-response route, when
@@ -3380,6 +3474,20 @@ impl PreparedStudy {
             estimator,
             adjustment_set: Arc::clone(&estimand.adjustment_set),
             max_derivative_cells: operation.max_derivative_cells(),
+        })
+    }
+
+    /// Read-only view of the retained checked static DAG response route.
+    #[must_use]
+    pub fn checked_static_dag_response_info(&self) -> Option<CheckedStaticDagResponseInfo> {
+        let operation = self.execution.static_dag_response()?;
+        let (identifier, estimator, validation) = operation.procedure();
+        Some(CheckedStaticDagResponseInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            validation,
+            grid_members: Arc::from(operation.curve_grid()),
         })
     }
 
@@ -3794,6 +3902,67 @@ impl PreparedStudy {
             },
             estimate,
             Some(operation.fitter.bootstrap_replicates),
+            started,
+            ctx,
+        )
+    }
+
+    fn execute_checked_propensity(
+        &self,
+        data: &TabularData,
+        operation: &CheckedPropensityOperation,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let retained = operation.context();
+        let lowering = operation.lowering();
+        if self.analysis.query != retained.source_query
+            || self.plan.logical.record.estimator != retained.physical.logical.record.estimator
+            || lowering.functional != operation.target().functional
+            || lowering.treatment != operation.query().treatment
+            || lowering.outcome != operation.query().outcome
+            || lowering.adjustment != operation.target().adjustment_set
+        {
+            return Err(CausalError::Compile {
+                message: "retained propensity operation no longer matches its checked target or procedure".into(),
+            });
+        }
+        let estimator = match lowering.procedure {
+            CheckedPropensityProcedure::HajekWeighting => {
+                crate::strategy_table::EstimatorId::PropensityWeighting
+            }
+            CheckedPropensityProcedure::AbadieImbensMatching => {
+                crate::strategy_table::EstimatorId::PropensityMatching
+            }
+        };
+        let bootstrap_requested = match lowering.uncertainty {
+            CheckedPropensityUncertainty::HajekAnalyticAndBootstrap { bootstrap_replicates } => {
+                Some(bootstrap_replicates)
+            }
+            CheckedPropensityUncertainty::AbadieImbensAnalytic { .. } => None,
+        };
+        let estimate = operation.execute(ctx)?;
+        self.assemble_checked_operation_effect(
+            data,
+            CheckedStaticResultMetadata {
+                source_query: &retained.source_query,
+                query: operation.query(),
+                identification: &retained.identification,
+                estimand: operation.target(),
+                identifier: retained.identifier,
+                estimator,
+                physical: &retained.physical,
+                graph_class: retained.graph_class,
+                graph_version: retained.graph_version,
+                support_status: retained.support_status,
+                structure_source: retained.structure_source,
+                population_registry: retained.population_registry.as_ref(),
+                latency_mode: retained.latency_mode,
+                refute: retained.refute,
+                custom_validator_names: &retained.custom_validator_names,
+            },
+            estimate,
+            bootstrap_requested,
             started,
             ctx,
         )
@@ -4606,15 +4775,20 @@ impl PreparedStudy {
             let result = self.execute_checked_iv(data, &rebound, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
-        if let PreparedExecution::Counterfactual(operation) = &self.execution {
-            let result =
-                self.analysis.execute_counterfactual_checked(data, &self.plan, ctx, operation)?;
+        if let PreparedExecution::Counterfactual(plan) = &self.execution {
+            let result = plan.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::DerivativeResponse(operation) = &self.execution {
             let result = self
                 .analysis
                 .execute_checked_derivative_response(data, &self.plan, ctx, operation)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::StaticDagResponse(operation) = &self.execution {
+            let result = self
+                .analysis
+                .execute_checked_static_dag_response(data, &self.plan, ctx, operation)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::CheckedGlmAdjustment(operation) = &self.execution {
@@ -4627,6 +4801,11 @@ impl PreparedStudy {
         if let PreparedExecution::CheckedRd(operation) = &self.execution {
             let rebound = operation.rebind(data)?;
             let result = self.execute_checked_rd(data, &rebound, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::CheckedPropensity(operation) = &self.execution {
+            let rebound = operation.rebind(data)?;
+            let result = self.execute_checked_propensity(data, &rebound, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         let mut click_analysis = self.analysis.clone();
@@ -5693,6 +5872,109 @@ impl Study {
             }
             _ => None,
         };
+        let checked_propensity = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                GraphClass::Dag,
+                InferenceMode::Frequentist,
+            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
+                )
+                && matches!(
+                    plan.logical.record.estimator.as_deref(),
+                    Some("propensity.weighting" | "propensity.matching")
+                ) =>
+            {
+                let estimator: crate::strategy_table::EstimatorId = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .expect("checked propensity estimator")
+                    .parse()?;
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER)
+                    .parse()?;
+                let estimand_index = cache
+                    .identification
+                    .estimands
+                    .iter()
+                    .position(|candidate| {
+                        candidate.functional == cache.estimand.functional
+                            && candidate.method == cache.estimand.method
+                            && candidate.adjustment_set == cache.estimand.adjustment_set
+                    })
+                    .ok_or_else(|| CausalError::Compile {
+                        message:
+                            "selected propensity estimand is absent from its identification product"
+                                .into(),
+                    })?;
+                let fitter = match (&analysis.estimator_spec, estimator) {
+                    (
+                        Some(crate::estimator_spec::EstimatorSpec::PropensityWeighting(config)),
+                        crate::strategy_table::EstimatorId::PropensityWeighting,
+                    ) => CheckedPropensityEstimator::Weighting((**config).clone()),
+                    (
+                        Some(crate::estimator_spec::EstimatorSpec::PropensityMatching(config)),
+                        crate::strategy_table::EstimatorId::PropensityMatching,
+                    ) => CheckedPropensityEstimator::Matching((**config).clone()),
+                    (_, crate::strategy_table::EstimatorId::PropensityWeighting) => {
+                        let mut fitter = antecedent_estimate::PropensityWeighting::new();
+                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                        CheckedPropensityEstimator::Weighting(fitter)
+                    }
+                    (_, crate::strategy_table::EstimatorId::PropensityMatching) => {
+                        let mut fitter = antecedent_estimate::PropensityMatching::new();
+                        fitter.bootstrap_replicates = analysis.bootstrap_replicates;
+                        CheckedPropensityEstimator::Matching(fitter)
+                    }
+                    _ => unreachable!(),
+                };
+                let context = CheckedPropensityContext {
+                    source_query: analysis.query.clone(),
+                    identification: cache.identification.clone(),
+                    estimand_index,
+                    identifier,
+                    physical: plan.clone(),
+                    graph_class: analysis.graph.class(),
+                    graph_version: analysis.graph.version(),
+                    support_status: analysis.support_status,
+                    structure_source: analysis.structure_source,
+                    inference: analysis.inference.clone(),
+                    refute: analysis.refute,
+                    population_registry: analysis.population_registry.clone(),
+                    latency_mode: analysis.latency_mode,
+                    custom_validator_names: Arc::from([]),
+                };
+                Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
+            }
+            _ => None,
+        };
         let checked_aipw = match (
             &self.data,
             &self.query,
@@ -6265,6 +6547,76 @@ impl Study {
             }
             _ => None,
         };
+        let static_dag_response_operation = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && matches!(
+                        analysis.structure_source,
+                        crate::support::StructureSource::Explicit
+                            | crate::support::StructureSource::Accepted
+                    )
+                    && analysis.custom_validators.is_empty()
+                    && matches!(analysis.inference, InferenceMode::Frequentist)
+                    && query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && (matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    ) && analysis.refute == RefuteSuite::None
+                        || matches!(
+                            query.functional,
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                        )) =>
+            {
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)
+                    .parse()?;
+                let estimator = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
+                    .parse()?;
+                if estimator == crate::strategy_table::EstimatorId::ResponseKennedyDr
+                    && matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    )
+                    || estimator == crate::strategy_table::EstimatorId::ResponseInterventionGcomp
+                        && matches!(
+                            query.functional,
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                        )
+                {
+                    Some(super::execute::CheckedStaticDagResponseOperation::checked(
+                        analysis.graph.as_dag().expect("checked DAG response"),
+                        query,
+                        &cache.identification,
+                        &cache.estimand,
+                        identifier,
+                        estimator,
+                        analysis.response_options.clone().unwrap_or_default(),
+                        analysis.refute,
+                    )?)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
         let checked_response_curve = match (
             &self.data,
             &self.query,
@@ -6316,6 +6668,26 @@ impl Study {
             }
             _ => None,
         };
+        let checked_counterfactual = if let Some(operation) = counterfactual {
+            let cache =
+                analysis.identification_cache.as_deref().ok_or_else(|| CausalError::Compile {
+                    message: "counterfactual preparation lost its identification product".into(),
+                })?;
+            let inference = analysis.inference.clone();
+            let procedure = super::execute::CounterfactualProcedure::for_inference(&inference)?;
+            Some(super::execute::CheckedCounterfactualPlan::new(
+                operation,
+                cache.identification.clone(),
+                cache.estimand.clone(),
+                true,
+                inference,
+                procedure,
+                plan.clone(),
+                super::execute::IdentifiedResultContext::from_study(&analysis),
+            )?)
+        } else {
+            None
+        };
         let score_table = analysis.prepare_score_table(ctx)?;
         let execution = if let Some(operation) = checked_linear {
             PreparedExecution::CheckedLinear(operation)
@@ -6323,18 +6695,22 @@ impl Study {
             PreparedExecution::CheckedGlmAdjustment(operation)
         } else if let Some(operation) = checked_rd {
             PreparedExecution::CheckedRd(operation)
+        } else if let Some(operation) = checked_propensity {
+            PreparedExecution::CheckedPropensity(operation)
         } else if let Some(operation) = checked_aipw {
             PreparedExecution::CheckedAipw(operation)
         } else if let Some(operation) = checked_frontdoor_linear {
             PreparedExecution::FrontDoorLinear(operation)
         } else if let Some(operation) = checked_iv {
             PreparedExecution::Iv(operation)
-        } else if let Some(operation) = counterfactual {
+        } else if let Some(operation) = checked_counterfactual {
             PreparedExecution::Counterfactual(operation)
         } else if let Some(operation) = nested_counterfactual {
             PreparedExecution::NestedCounterfactual(operation)
         } else if let Some(operation) = derivative_response_operation {
             PreparedExecution::DerivativeResponse(operation)
+        } else if let Some(operation) = static_dag_response_operation {
+            PreparedExecution::StaticDagResponse(operation)
         } else if let Some(operation) = distribution_operation {
             PreparedExecution::Distribution(operation)
         } else if let Some(operation) = functional_effect_operation {
@@ -7870,7 +8246,7 @@ mod checked_response_curve_tests {
         let grid = [-0.5, 0.0, 0.5];
         let context = ExecutionContext::for_tests(17);
         let mut prepared = study(data(0.0), &grid).prepare(&context).unwrap();
-        assert!(matches!(prepared.execution, super::PreparedExecution::StaticResponseCurve(_)));
+        assert!(matches!(prepared.execution, super::PreparedExecution::StaticDagResponse(_)));
         let refreshed = data(0.4);
         let actual = prepared.refresh(refreshed.clone(), &context).unwrap().response.unwrap();
         let expected = study(refreshed, &grid).run(&context).unwrap().response.unwrap();
@@ -7903,7 +8279,9 @@ mod checked_response_curve_tests {
         });
         prepared.study_mut().query = changed.into();
         let err = prepared.estimate(&data(0.2), &context).unwrap_err();
-        assert!(err.to_string().contains("response curve query or grid changed"));
+        assert!(err.to_string().contains(
+            "prepared static response operation no longer matches the study query or graph"
+        ));
     }
 }
 

@@ -6,6 +6,7 @@
 
 mod batch;
 mod builder;
+mod checked_propensity;
 mod contract;
 mod contract_identity;
 mod exact;
