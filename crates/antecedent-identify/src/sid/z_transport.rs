@@ -9,7 +9,7 @@
 use super::IdentificationError;
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind,
-    InterventionAssignment as CatalogInterventionAssignment, RegimeKind, VariableDomain,
+    InterventionAssignment as CatalogInterventionAssignment, RegimeKind, Value, VariableDomain,
     VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
@@ -47,7 +47,7 @@ pub const Z_TRANSPORT_MAX_CONTROLLABLE: usize = 2;
 pub enum ZExperimentFamilyError {
     /// A finite discrete family cannot be enumerated from this variable domain.
     UnsupportedDomain {
-        /// Controllable variable with an unsupported or undeclared finite domain.
+        /// Observed variable with an unsupported or undeclared finite domain.
         variable: VariableId,
     },
     /// One required intervention joint law is absent or has only marginal data.
@@ -57,6 +57,81 @@ pub enum ZExperimentFamilyError {
         /// Concrete assignment required for this regime (empty for observational).
         values: Arc<[(VariableId, f64)]>,
     },
+}
+
+/// Why complete theorem inputs are not yet available for a negative decision.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ZTransportMissingEvidence {
+    /// No source environment declaration is available.
+    SourceEnvironment,
+    /// The target observational joint law over all observed variables is absent.
+    TargetObservationalJoint,
+    /// A required source experiment is missing or is not a joint law.
+    SourceExperiment(ZExperimentFamilyError),
+}
+
+/// Result of the bounded TRz decision when the theorem's full data family is checked.
+#[derive(Clone, Debug)]
+pub enum ZTransportDecision {
+    /// A positive TRz formula was derived.
+    Identified(Box<ZTransportDerivation>),
+    /// A checked line-11 obstruction was reached with the complete data family.
+    ProvenNonTransportable(Box<ZTransportObstruction>),
+    /// A theorem input law is not present in the catalog.
+    MissingEvidence {
+        /// Exact missing evidence requirement.
+        missing: ZTransportMissingEvidence,
+    },
+    /// Search completed without a replayable line-11 terminal state.
+    NotCertified {
+        /// Stable scope note.
+        reason: &'static str,
+    },
+}
+
+/// A checked bounded TRz failure tied to the complete experimental family.
+#[derive(Clone, Debug)]
+pub struct ZTransportObstruction {
+    query: ZTransportQuery,
+    graph_signature: String,
+    selected_assignment: Vec<(u32, f64)>,
+    family_regimes: Vec<u32>,
+    terminal: TrzTerminalFailure,
+}
+
+/// Portable line-11 premises. Query and catalog are supplied separately and
+/// must be identical in meaning when this record is checked.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZTransportObstructionRecord {
+    /// Stable graph identity, including selection targets.
+    pub graph_signature: String,
+    /// Canonical finite assignment used while replaying TRz.
+    pub selected_assignment: Vec<(u32, f64)>,
+    /// Regime IDs supplying the complete source experimental family.
+    pub family_regimes: Vec<u32>,
+    /// Reduced terminal subproblem at TRz line 11.
+    pub terminal: ZTransportTerminalRecord,
+}
+
+/// Portable reduced TRz state for the terminal failure rule.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZTransportTerminalRecord {
+    /// Outcome coordinates in the reduced problem.
+    pub outcomes: Vec<u32>,
+    /// Intervention coordinates in the reduced problem.
+    pub treatments: Vec<u32>,
+    /// Vertices in the reduced selection diagram.
+    pub vertices: Vec<u32>,
+    /// Controllable coordinates remaining after previous exchanges.
+    pub remaining_controllable: Vec<u32>,
+    /// Previously activated intervention coordinates and values.
+    pub active_interventions: Vec<(u32, f64)>,
+    /// Whether selection nodes are separated from outcomes given treatments.
+    pub selection_separated: bool,
+    /// Recursive TRz rules used to reach this terminal state.
+    pub rules: Vec<String>,
 }
 
 /// A checked derivation for the registered four-variable surrogate experiment.
@@ -356,6 +431,30 @@ pub fn validate_z_experiment_family(
 ) -> Result<Vec<antecedent_core::RegimeId>, ZExperimentFamilyError> {
     let source =
         catalog.environments.iter().find(|environment| environment.identity == query.source);
+    let target =
+        catalog.environments.iter().find(|environment| environment.identity == query.target);
+    let observed = diagram
+        .causal_graph()
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            NodeRef::Static(variable) => Some(*variable),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for variable in &observed {
+        for environment in [source, target].into_iter().flatten() {
+            let domain = environment
+                .variables
+                .iter()
+                .find(|coordinate| coordinate.variable == *variable)
+                .map(|coordinate| &coordinate.domain);
+            if !matches!(domain, Some(VariableDomain::Binary | VariableDomain::Categorical { .. }))
+            {
+                return Err(ZExperimentFamilyError::UnsupportedDomain { variable: *variable });
+            }
+        }
+    }
     let domains = query
         .controllable
         .iter()
@@ -375,15 +474,6 @@ pub fn validate_z_experiment_family(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let observed = diagram
-        .causal_graph()
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            NodeRef::Static(variable) => Some(*variable),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
     let mut required = Vec::new();
     let k = query.controllable.len();
     for mask in 1..(1usize << k) {
@@ -447,12 +537,307 @@ pub fn validate_z_experiment_family(
     Ok(required)
 }
 
+fn has_target_observational_joint(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    catalog: &EvidenceCatalog,
+) -> bool {
+    let observed = diagram
+        .causal_graph()
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            NodeRef::Static(variable) => Some(*variable),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    catalog.regimes.iter().any(|regime| {
+        regime.kind == RegimeKind::Observational
+            && regime.evidence_kind == EvidenceKind::Available
+            && regime.population.as_ref() == query.target.as_ref()
+            && regime.interventions.is_empty()
+            && regime.intervention_values.is_empty()
+            && same_variable_set(&regime.measured, &observed)
+            && regime.conditioned_on.is_empty()
+            && regime.distribution == DistributionAvailability::Joint
+            && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
+    })
+}
+
+fn query_with_complete_assignment(
+    query: &ZTransportQuery,
+    catalog: &EvidenceCatalog,
+) -> Result<ZTransportQuery, IdentificationError> {
+    if query.controllable.iter().all(|variable| {
+        query.experiment_assignment.iter().any(|assignment| assignment.variable == *variable)
+    }) {
+        return Ok(query.clone());
+    }
+    let source = catalog
+        .environments
+        .iter()
+        .find(|environment| environment.identity == query.source)
+        .ok_or_else(|| IdentificationError::msg("z_transport.source_environment_missing"))?;
+    let mut assignments = query.experiment_assignment.to_vec();
+    for variable in query.controllable.iter().copied() {
+        let coordinate = source
+            .variables
+            .iter()
+            .find(|coordinate| coordinate.variable == variable)
+            .ok_or_else(|| IdentificationError::msg("z_transport.unsupported_domain"))?;
+        let (levels, default_value) = match coordinate.domain {
+            VariableDomain::Binary => (vec![0.0, 1.0], Value::Bool(false)),
+            VariableDomain::Categorical { cardinality } => {
+                ((0..cardinality).map(f64::from).collect(), Value::Category(0))
+            }
+            _ => return Err(IdentificationError::msg("z_transport.unsupported_domain")),
+        };
+        if let Some(assignment) = assignments.iter().find(|a| a.variable == variable) {
+            let selected = assignment.value.as_f64().ok_or_else(|| {
+                IdentificationError::msg("z_transport.invalid_experiment_assignment")
+            })?;
+            if !levels.contains(&selected) {
+                return Err(IdentificationError::msg("z_transport.invalid_experiment_assignment"));
+            }
+        } else {
+            assignments.push(CatalogInterventionAssignment { variable, value: default_value });
+        }
+    }
+    Ok(ZTransportQuery {
+        outcomes: Arc::clone(&query.outcomes),
+        treatments: Arc::clone(&query.treatments),
+        controllable: Arc::clone(&query.controllable),
+        experiment_assignment: assignments.into(),
+        source: Arc::clone(&query.source),
+        target: Arc::clone(&query.target),
+    })
+}
+
+/// Decide the bounded single-source z-transport problem under the complete
+/// discrete source experiment family and the target observational joint law.
+///
+/// Positive formulas and negative certificates are structural theorem results.
+/// Missing catalog laws are reported separately and never imply obstruction.
+///
+/// # Errors
+/// Invalid or unsupported query, cancellation, or exhausted search.
+pub fn decide_z_transport_with_catalog(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    catalog: &EvidenceCatalog,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ZTransportDecision, IdentificationError> {
+    validate_z_transport_query(diagram, query)?;
+    catalog.validate().map_err(|_| IdentificationError::msg("z_transport.invalid_catalog"))?;
+    if limits.steps == 0 || limits.depth == 0 {
+        return Err(IdentificationError::msg("z_transport.exhausted_computation"));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::msg("z_transport.cancelled"));
+    }
+    let search_query = match query_with_complete_assignment(query, catalog) {
+        Ok(query) => query,
+        Err(error) if error.to_string() == "z_transport.source_environment_missing" => {
+            return Ok(ZTransportDecision::MissingEvidence {
+                missing: ZTransportMissingEvidence::SourceEnvironment,
+            });
+        }
+        Err(error) => return Err(error),
+    };
+    if direct_joint_admissible(diagram, &search_query)? {
+        let (arena, root) = direct_joint_formula(&search_query);
+        let derivation = ZTransportDerivation {
+            query: search_query.clone(),
+            graph_signature: super::graph_signature(diagram),
+            surrogate: search_query.experiment_assignment[0].variable,
+            confounder: search_query.experiment_assignment[0].variable,
+            arena,
+            root,
+            kind: ZFormulaKind::DirectJoint,
+            rules: vec!["ztr.source_exchange_joint".into()],
+        };
+        verify_z_transport_derivation(diagram, &search_query, &derivation)?;
+        return Ok(ZTransportDecision::Identified(Box::new(derivation)));
+    }
+    if !has_target_observational_joint(diagram, query, catalog) {
+        return Ok(ZTransportDecision::MissingEvidence {
+            missing: ZTransportMissingEvidence::TargetObservationalJoint,
+        });
+    }
+    if !catalog.environments.iter().any(|environment| environment.identity == query.source) {
+        return Ok(ZTransportDecision::MissingEvidence {
+            missing: ZTransportMissingEvidence::SourceEnvironment,
+        });
+    }
+    let family = match validate_z_experiment_family(diagram, query, catalog) {
+        Ok(family) => family,
+        Err(missing @ ZExperimentFamilyError::MissingJointLaw { .. }) => {
+            return Ok(ZTransportDecision::MissingEvidence {
+                missing: ZTransportMissingEvidence::SourceExperiment(missing),
+            });
+        }
+        Err(ZExperimentFamilyError::UnsupportedDomain { variable }) => {
+            return Err(IdentificationError::msg(format!(
+                "z_transport.unsupported_domain: {variable}"
+            )));
+        }
+    };
+    let searched = search_trz_detailed(diagram, &search_query, limits, ctx).map_err(|error| {
+        if error.to_string() == "transport.identification_budget" {
+            IdentificationError::msg("z_transport.exhausted_computation")
+        } else {
+            error
+        }
+    })?;
+    if let Some((arena, root, trace)) = searched.identified {
+        let derivation = ZTransportDerivation {
+            query: search_query.clone(),
+            graph_signature: super::graph_signature(diagram),
+            surrogate: search_query.controllable[0],
+            confounder: search_query.outcomes[0],
+            arena,
+            root,
+            kind: ZFormulaKind::Recursive,
+            rules: std::iter::once("ztr.recursive_reduction".to_owned()).chain(trace).collect(),
+        };
+        verify_z_transport_derivation(diagram, &search_query, &derivation)?;
+        return Ok(ZTransportDecision::Identified(Box::new(derivation)));
+    }
+    let Some(terminal) = searched.terminal_failure else {
+        return Ok(ZTransportDecision::NotCertified {
+            reason: "z_transport.no_replayable_line11_failure",
+        });
+    };
+    let obstruction = ZTransportObstruction {
+        query: query.clone(),
+        graph_signature: super::graph_signature(diagram),
+        selected_assignment: search_query
+            .experiment_assignment
+            .iter()
+            .filter_map(|assignment| {
+                assignment.value.as_f64().map(|value| (assignment.variable.raw(), value))
+            })
+            .collect(),
+        family_regimes: family.iter().map(|regime| regime.raw()).collect(),
+        terminal,
+    };
+    verify_z_transport_obstruction(diagram, query, catalog, &obstruction, limits, ctx)?;
+    Ok(ZTransportDecision::ProvenNonTransportable(Box::new(obstruction)))
+}
+
+impl ZTransportObstruction {
+    /// The original structural query.
+    #[must_use]
+    pub const fn query(&self) -> &ZTransportQuery {
+        &self.query
+    }
+
+    /// Export the reduced terminal state and theorem evidence identities.
+    #[must_use]
+    pub fn to_record(&self) -> ZTransportObstructionRecord {
+        ZTransportObstructionRecord {
+            graph_signature: self.graph_signature.clone(),
+            selected_assignment: self.selected_assignment.clone(),
+            family_regimes: self.family_regimes.clone(),
+            terminal: ZTransportTerminalRecord {
+                outcomes: self.terminal.outcomes.clone(),
+                treatments: self.terminal.treatments.clone(),
+                vertices: self.terminal.vertices.clone(),
+                remaining_controllable: self.terminal.remaining_controllable.clone(),
+                active_interventions: self.terminal.active_interventions.clone(),
+                selection_separated: self.terminal.selection_separated,
+                rules: self.terminal.rules.clone(),
+            },
+        }
+    }
+
+    /// Reconstruct an obstruction only after full-family and line-11 replay.
+    ///
+    /// # Errors
+    /// Changed graph, query, source family, target law, or terminal search state.
+    pub fn from_record_checked(
+        record: ZTransportObstructionRecord,
+        diagram: &SelectionDiagram,
+        query: &ZTransportQuery,
+        catalog: &EvidenceCatalog,
+        limits: super::SidLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, IdentificationError> {
+        let checked = match decide_z_transport_with_catalog(diagram, query, catalog, limits, ctx)? {
+            ZTransportDecision::ProvenNonTransportable(obstruction) => *obstruction,
+            ZTransportDecision::MissingEvidence { .. } => {
+                return Err(IdentificationError::msg("z_transport.obstruction_missing_evidence"));
+            }
+            ZTransportDecision::Identified(_) => {
+                return Err(IdentificationError::msg("z_transport.obstruction_not_reproduced"));
+            }
+            ZTransportDecision::NotCertified { .. } => {
+                return Err(IdentificationError::msg("z_transport.obstruction_not_reproduced"));
+            }
+        };
+        if checked.to_record() != record {
+            return Err(IdentificationError::msg("z_transport.obstruction_record_mismatch"));
+        }
+        Ok(checked)
+    }
+}
+
+/// Independently replay a bounded negative z-transport certificate.
+///
+/// # Errors
+/// The complete data family is absent, the query differs, or TRz does not
+/// reach the recorded line-11 state.
+pub fn verify_z_transport_obstruction(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    catalog: &EvidenceCatalog,
+    obstruction: &ZTransportObstruction,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(), IdentificationError> {
+    validate_z_transport_query(diagram, query)?;
+    if obstruction.query != *query || obstruction.graph_signature != super::graph_signature(diagram)
+    {
+        return Err(IdentificationError::msg("z_transport.obstruction_input_mismatch"));
+    }
+    catalog
+        .validate()
+        .map_err(|_| IdentificationError::msg("z_transport.obstruction_catalog_invalid"))?;
+    if !has_target_observational_joint(diagram, query, catalog) {
+        return Err(IdentificationError::msg("z_transport.obstruction_target_law_missing"));
+    }
+    let family = validate_z_experiment_family(diagram, query, catalog)
+        .map_err(|_| IdentificationError::msg("z_transport.obstruction_family_incomplete"))?;
+    if family.iter().map(|regime| regime.raw()).collect::<Vec<_>>() != obstruction.family_regimes {
+        return Err(IdentificationError::msg("z_transport.obstruction_family_mismatch"));
+    }
+    let search_query = query_with_complete_assignment(query, catalog)?;
+    let assignment = search_query
+        .experiment_assignment
+        .iter()
+        .filter_map(|intervention| {
+            intervention.value.as_f64().map(|value| (intervention.variable.raw(), value))
+        })
+        .collect::<Vec<_>>();
+    if assignment != obstruction.selected_assignment {
+        return Err(IdentificationError::msg("z_transport.obstruction_assignment_mismatch"));
+    }
+    let replay = search_trz_detailed(diagram, &search_query, limits, ctx)?;
+    if replay.identified.is_some()
+        || replay.terminal_failure.as_ref() != Some(&obstruction.terminal)
+    {
+        return Err(IdentificationError::msg("z_transport.obstruction_replay_mismatch"));
+    }
+    Ok(())
+}
+
 /// Identify a bounded single-source restricted-experiment query.
 ///
 /// The registered surrogate formula and direct joint exchange have dedicated
 /// local checkers. Other positive formulas follow the recursive TRz reduction
-/// and are rederived on replay. The bounded search does not yet issue a
-/// theorem-level negative certificate; a failed branch is `NotCertified`.
+/// and are rederived on replay. Use [`decide_z_transport_with_catalog`] when a
+/// negative result must be distinguished from incomplete catalog evidence.
 ///
 /// The licensed graph has four observed variables with edges `W→Z→X→Y`,
 /// `W→Y`, and bidirected `W↔Y`, `Z↔Y`, `Z↔X`. The only controllable variable is
@@ -1284,11 +1669,9 @@ fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
     left.len() == right.len() && left.iter().all(|variable| right.contains(variable))
 }
 
-// TRz recursion uses the ordinary ID kernel operations for lines 1–8. The
-// restricted source exchange at line 10 changes the carried law to a *joint*
-// source experiment on the currently relevant controllable coordinates, then
-// runs ordinary ID on that experimental kernel. Keep this search separate from
-// the published derivation until its broader proof/evidence binding is checked.
+// TRz recursion uses the ordinary ID kernel operations for lines 1–8. At line
+// 10, the restricted source exchange changes the carried law to a joint source
+// experiment and recurses with the remaining controllables still available.
 #[allow(dead_code)]
 fn search_trz(
     diagram: &SelectionDiagram,
@@ -1296,6 +1679,32 @@ fn search_trz(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Option<(CausalExprArena, ExprId, Vec<String>)>, IdentificationError> {
+    Ok(search_trz_detailed(diagram, query, limits, ctx)?.identified)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct TrzTerminalFailure {
+    outcomes: Vec<u32>,
+    treatments: Vec<u32>,
+    vertices: Vec<u32>,
+    remaining_controllable: Vec<u32>,
+    active_interventions: Vec<(u32, f64)>,
+    selection_separated: bool,
+    rules: Vec<String>,
+}
+
+#[derive(Debug)]
+struct TrzSearchResult {
+    identified: Option<(CausalExprArena, ExprId, Vec<String>)>,
+    terminal_failure: Option<TrzTerminalFailure>,
+}
+
+fn search_trz_detailed(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TrzSearchResult, IdentificationError> {
     let classical = super::ClassicalTransportQuery {
         outcomes: Arc::clone(&query.outcomes),
         treatments: Arc::clone(&query.treatments),
@@ -1305,8 +1714,21 @@ fn search_trz(
     let mut engine = super::Engine::new(diagram, &classical, limits, ctx)?;
     let initial = engine.initial()?;
     let mut trace = Vec::new();
-    let result = search_trz_state(&mut engine, initial, query, 0, &mut trace)?;
-    Ok(result.map(|root| (engine.arena, root, trace)))
+    let mut terminal_failure = None;
+    let result = search_trz_state(
+        &mut engine,
+        initial,
+        query,
+        &query.controllable,
+        &[],
+        0,
+        &mut trace,
+        &mut terminal_failure,
+    )?;
+    Ok(TrzSearchResult {
+        identified: result.map(|root| (engine.arena, root, trace)),
+        terminal_failure,
+    })
 }
 
 #[allow(dead_code)]
@@ -1314,8 +1736,11 @@ fn search_trz_state(
     engine: &mut super::Engine<'_>,
     state: super::State,
     query: &ZTransportQuery,
+    remaining_controllable: &[VariableId],
+    active_interventions: &[CatalogInterventionAssignment],
     depth: usize,
     trace: &mut Vec<String>,
+    terminal_failure: &mut Option<TrzTerminalFailure>,
 ) -> Result<Option<ExprId>, IdentificationError> {
     engine.charge(depth)?;
     let mut ws = antecedent_graph::GraphWorkspace::default();
@@ -1332,7 +1757,16 @@ fn search_trz_state(
             v: ancestors.clone(),
             kernel: engine.marginal(state.kernel, &super::difference(&state.v, &ancestors))?,
         };
-        return search_trz_state(engine, next, query, depth + 1, trace);
+        return search_trz_state(
+            engine,
+            next,
+            query,
+            remaining_controllable,
+            active_interventions,
+            depth + 1,
+            trace,
+            terminal_failure,
+        );
     }
     let mut irrelevant = super::difference(&state.v, &state.x);
     let bar = engine.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
@@ -1341,7 +1775,17 @@ fn search_trz_state(
         trace.push("ztr.line3.enlarge".into());
         let mut next = state.clone();
         next.x.union_with(&irrelevant);
-        let Some(child) = search_trz_state(engine, next, query, depth + 1, trace)? else {
+        let Some(child) = search_trz_state(
+            engine,
+            next,
+            query,
+            remaining_controllable,
+            active_interventions,
+            depth + 1,
+            trace,
+            terminal_failure,
+        )?
+        else {
             return Ok(None);
         };
         return Ok(Some(engine.enlarge_output(&state, &irrelevant, child)?));
@@ -1356,7 +1800,17 @@ fn search_trz_state(
                 x: super::difference(&state.v, &district),
                 ..state.clone()
             };
-            let Some(child) = search_trz_state(engine, next, query, depth + 1, trace)? else {
+            let Some(child) = search_trz_state(
+                engine,
+                next,
+                query,
+                remaining_controllable,
+                active_interventions,
+                depth + 1,
+                trace,
+                terminal_failure,
+            )?
+            else {
                 return Ok(None);
             };
             expressions.push(child);
@@ -1387,17 +1841,41 @@ fn search_trz_state(
             kernel: engine.factor(&state, larger)?,
         };
         trace.push("ztr.line8.recurse".into());
-        return search_trz_state(engine, next, query, depth + 1, trace);
+        return search_trz_state(
+            engine,
+            next,
+            query,
+            remaining_controllable,
+            active_interventions,
+            depth + 1,
+            trace,
+            terminal_failure,
+        );
     }
 
     let mut activated = BitSet::with_len(engine.diagram.causal_graph().node_count());
-    for variable in query.controllable.iter().copied() {
+    for variable in remaining_controllable.iter().copied() {
         let dense = engine.prepared.var_to_dense(variable)?;
         if state.x.contains(dense) {
             activated.insert(dense);
         }
     }
-    if !activated.any() || !engine.source_admissible(&state)? {
+    let selection_separated = engine.source_admissible(&state)?;
+    if !activated.any() || !selection_separated {
+        if terminal_failure.is_none() {
+            *terminal_failure = Some(TrzTerminalFailure {
+                outcomes: engine.vars(&state.y)?.iter().map(|v| v.raw()).collect(),
+                treatments: engine.vars(&state.x)?.iter().map(|v| v.raw()).collect(),
+                vertices: engine.vars(&state.v)?.iter().map(|v| v.raw()).collect(),
+                remaining_controllable: remaining_controllable.iter().map(|v| v.raw()).collect(),
+                active_interventions: active_interventions
+                    .iter()
+                    .filter_map(|a| a.value.as_f64().map(|value| (a.variable.raw(), value)))
+                    .collect(),
+                selection_separated,
+                rules: trace.clone(),
+            });
+        }
         return Ok(None);
     }
     let active_vars = engine.vars(&activated)?;
@@ -1406,7 +1884,7 @@ fn search_trz_state(
         .map(|v| query.experiment_assignment.iter().find(|a| a.variable == *v))
         .collect::<Option<Vec<_>>>()
     else {
-        return Ok(None);
+        return Err(IdentificationError::msg("z_transport.experiment_assignment_required"));
     };
     trace.push(format!(
         "ztr.line10.source_exchange:{:?}",
@@ -1426,8 +1904,14 @@ fn search_trz_state(
         }
     }
     let conditioned_on = engine.arena.intern_var_set(engine.vars(&external_parents)?);
+    let mut cumulative = active_interventions.to_vec();
+    for assignment in assignments {
+        if !cumulative.iter().any(|a| a.variable == assignment.variable) {
+            cumulative.push(assignment.clone());
+        }
+    }
     let intervention =
-        engine.arena.intern_intervention_assignments(assignments.iter().map(|a| {
+        engine.arena.intern_intervention_assignments(cumulative.iter().map(|a| {
             antecedent_expr::InterventionAssignment::concrete(a.variable, a.value.clone())
         }));
     let population = engine.arena.intern_population(Arc::clone(&query.source));
@@ -1445,14 +1929,23 @@ fn search_trz_state(
         v: remaining,
         kernel,
     };
-    let proof_start = engine.proof.len();
-    let Some(step) = engine.solve(next, false, depth + 1)? else { return Ok(None) };
-    trace.extend(
-        engine.proof[proof_start..]
-            .iter()
-            .map(|step| format!("ztr.source_id.{}", step.rule.name())),
-    );
-    Ok(Some(engine.proof[step].output))
+    // Fig. 4 line 10 recurses into TRz on the reduced graph and retains
+    // experiments over the remaining controllable variables.
+    let remaining = remaining_controllable
+        .iter()
+        .copied()
+        .filter(|variable| !active_vars.contains(variable))
+        .collect::<Vec<_>>();
+    search_trz_state(
+        engine,
+        next,
+        query,
+        &remaining,
+        &cumulative,
+        depth + 1,
+        trace,
+        terminal_failure,
+    )
 }
 
 #[cfg(test)]
@@ -1462,6 +1955,7 @@ mod tests {
         DependenceGroup, Environment, RegimeBinding, RegimeId, SamplingDesign, Value,
         VariableCoordinate,
     };
+    use antecedent_expr::{Assignment, DistributionProvider, EvalContext, EvalError, FactorSpec};
     use antecedent_graph::{Admg, DenseNodeId};
 
     fn query(graph_size: usize, controllable: &[u32]) -> (SelectionDiagram, ZTransportQuery) {
@@ -1883,6 +2377,148 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(exhausted.to_string(), "z_transport.exhausted_computation");
+    }
+
+    struct SequentialExchangeScm;
+
+    impl DistributionProvider for SequentialExchangeScm {
+        fn probability(
+            &self,
+            spec: &FactorSpec<'_>,
+            assignment: &Assignment,
+            _ctx: &EvalContext,
+        ) -> Result<f64, EvalError> {
+            let mut intervention = [None; 4];
+            for item in spec.intervention {
+                let value = item.value.as_f64().ok_or(EvalError::MissingBinding(item.variable))?;
+                intervention[item.variable.raw() as usize] = Some(usize::from(value == 1.0));
+            }
+            let mut denominator = 0.0;
+            let mut numerator = 0.0;
+            for exogenous in 0..16 {
+                let a = exogenous & 1;
+                let b = (exogenous >> 1) & 1;
+                let noise_z = (exogenous >> 2) & 1;
+                let noise_t = (exogenous >> 3) & 1;
+                let x = intervention[0].unwrap_or(a ^ b);
+                let t = intervention[1].unwrap_or(noise_t);
+                let z = intervention[2].unwrap_or(x ^ a ^ noise_z);
+                let y = intervention[3].unwrap_or(z ^ b);
+                let state = [x, t, z, y];
+                let matches = |variables: &[VariableId]| {
+                    variables.iter().all(|variable| {
+                        assignment.get(*variable).and_then(Value::as_f64).is_some_and(|value| {
+                            usize::from(value == 1.0) == state[variable.raw() as usize]
+                        })
+                    })
+                };
+                if matches(spec.conditioned_on) {
+                    denominator += 1.0 / 16.0;
+                    if matches(spec.variables) {
+                        numerator += 1.0 / 16.0;
+                    }
+                }
+            }
+            if denominator == 0.0 {
+                return Err(EvalError::DivisionByZero);
+            }
+            Ok(numerator / denominator)
+        }
+
+        fn support(
+            &self,
+            variables: &[VariableId],
+            _ctx: &EvalContext,
+        ) -> Result<Arc<[Arc<[Value]>]>, EvalError> {
+            Ok((0..(1_usize << variables.len()))
+                .map(|mask| {
+                    variables
+                        .iter()
+                        .enumerate()
+                        .map(|(index, _)| Value::f64(((mask >> index) & 1) as f64))
+                        .collect::<Arc<[_]>>()
+                })
+                .collect::<Vec<_>>()
+                .into())
+        }
+
+        fn outcome(
+            &self,
+            variable: VariableId,
+            assignment: &Assignment,
+            _ctx: &EvalContext,
+        ) -> Result<f64, EvalError> {
+            assignment
+                .get(variable)
+                .and_then(Value::as_f64)
+                .ok_or(EvalError::MissingBinding(variable))
+        }
+
+        fn n_draws(&self) -> Option<usize> {
+            None
+        }
+    }
+
+    #[test]
+    fn recursive_line10_keeps_remaining_controllables_and_matches_exact_scm() {
+        // SCM: A and B are independent binary causes of X; A also causes Z,
+        // B also causes Y, and the directed chain is X -> Z -> Y. T is
+        // independent. The latent projection has X<->Z and X<->Y.
+        let mut graph = Admg::with_variables(4);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+        graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([VariableId::from_raw(3)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            controllable: Arc::from([VariableId::from_raw(0), VariableId::from_raw(2)]),
+            experiment_assignment: Arc::from([
+                CatalogInterventionAssignment {
+                    variable: VariableId::from_raw(0),
+                    value: Value::Bool(false),
+                },
+                CatalogInterventionAssignment {
+                    variable: VariableId::from_raw(2),
+                    value: Value::Bool(false),
+                },
+            ]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let Some((arena, root, trace)) = search_trz(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("two-stage TRz exchange should identify this query");
+        };
+        assert_eq!(
+            trace.iter().filter(|rule| rule.starts_with("ztr.line10.source_exchange")).count(),
+            2,
+            "the second controllable must remain available after the first exchange: {trace:?}"
+        );
+
+        let evaluator = arena.compile(root).unwrap();
+        let provider = SequentialExchangeScm;
+        for treatment in [0.0, 1.0] {
+            for outcome in [0.0, 1.0] {
+                let assignment = Assignment::from_pairs([
+                    (VariableId::from_raw(0), Value::f64(treatment)),
+                    (VariableId::from_raw(1), Value::f64(0.0)),
+                    (VariableId::from_raw(3), Value::f64(outcome)),
+                ]);
+                let actual = evaluator
+                    .evaluate_with(&arena, &provider, &EvalContext::default(), &assignment)
+                    .unwrap();
+                // Under do(X=x,T=0), Z has fair A/E noise and Y adds
+                // independent fair B, so P(Y=y)=1/2 for both levels.
+                assert!((actual - 0.5).abs() < 1e-12, "x={treatment}, y={outcome}: {actual}");
+            }
+        }
     }
 
     #[test]

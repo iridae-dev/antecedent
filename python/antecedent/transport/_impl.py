@@ -87,9 +87,10 @@ class SelectionDiagram:
 class ZTransportQuery:
     """Query for the bounded single-source discrete z-transport route.
 
-    The declared controllable variables and their concrete experiment values
-    bound the source interventions available to the theorem search. Unsupported
-    domains and inputs remain explicitly refused.
+    The declared controllable variables bound the possible source experiments.
+    A concrete assignment selects values for a positive formula; an empty
+    assignment is valid for a catalog-aware negative theorem decision, which
+    checks the complete experimental family instead.
     """
 
     diagram: SelectionDiagram
@@ -108,8 +109,6 @@ class ZTransportQuery:
             object.__setattr__(self, field_name, values)
         if len(self.controllable) > 2:
             raise CausalValueError("zTR supports at most two declared controllable variables")
-        if not self.experiment_assignment:
-            raise CausalValueError("zTR requires a concrete source experiment assignment")
         if not set(self.experiment_assignment).issubset(self.controllable):
             raise CausalValueError("zTR experiment assignments must name controllable variables")
         if any(not math.isfinite(value) for value in self.experiment_assignment.values()):
@@ -737,6 +736,8 @@ def identify_z_transport(*, graph: Admg, query: ZTransportQuery) -> Any:
     The returned stage exposes ``outcome`` and ``reason``. Positive formulas
     are checked before binding evidence; a negative search is not treated as a
     theorem obstruction unless the complete experimental-family premises hold.
+    Call ``stage.decide(catalog)`` to check those premises and obtain a
+    replayable bounded obstruction or a precise missing-evidence result.
     On an identified result, call ``prepare_exact`` or ``prepare_empirical``
     to obtain a point-only execution.
     """
