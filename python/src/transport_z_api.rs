@@ -590,6 +590,24 @@ impl PreparedZTransportStage {
         let names = &self.graph.names;
         let query = self.inner.functional().derivation().query();
         let distribution = result.distribution();
+        let interval = if result.interval_type() == antecedent_estimate::PERCENTILE_BOOTSTRAP {
+            serde_json::json!({
+                "available": true,
+                "method": result.interval_type(),
+                "reason": result.interval_reason(),
+                "coverage_target": result.coverage_target(),
+                "mean_intervals": result.mean_intervals().iter().map(|(variable, lower, upper)| serde_json::json!({
+                    "outcome": &names[variable.as_usize()],
+                    "lower": lower,
+                    "upper": upper,
+                })).collect::<Vec<_>>(),
+            })
+        } else {
+            serde_json::json!({
+                "available": false,
+                "reason": result.interval_reason(),
+            })
+        };
         let payload = serde_json::json!({
             "status":"available",
             "scope":"single_source_z_transport_cited_joints_sound_incomplete",
@@ -600,7 +618,7 @@ impl PreparedZTransportStage {
                 "expression":s.expression.raw(), "status":s.status, "denominator":s.denominator,
                 "assignment":s.assignment.iter().map(|(v,x)| (names[v.as_usize()].as_str(), x.as_f64())).collect::<BTreeMap<_,_>>()
             })).collect::<Vec<_>>(),
-            "interval":{"available":false,"reason":"no_interval_reported"}
+            "interval": interval
         }).to_string();
         self.last = Some(result);
         Ok(payload)
@@ -655,7 +673,7 @@ impl PreparedZTransportStage {
 
     #[getter]
     fn interval_type(&self) -> &'static str {
-        "no_interval_reported"
+        self.last.as_ref().map_or("no_interval_reported", |result| result.interval_type())
     }
 }
 

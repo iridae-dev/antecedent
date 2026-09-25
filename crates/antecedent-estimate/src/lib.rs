@@ -193,9 +193,10 @@ pub use serial_dependence::{
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use statistical_transport::{
-    BayesianStatisticalTransportEstimate, PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL,
-    StatisticalTransportEstimate, TransportUncertaintyRow, evaluate_bayesian_statistical_transport,
-    evaluate_statistical_transport, percentile_interval,
+    BayesianStatisticalTransportEstimate, NominalZTransportInterval, PERCENTILE_BOOTSTRAP,
+    POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate, TransportUncertaintyRow,
+    Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_bayesian_statistical_transport,
+    evaluate_statistical_transport, nominal_z_transport_interval, percentile_interval,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,

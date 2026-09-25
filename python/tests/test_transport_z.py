@@ -97,10 +97,18 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
     result = json.loads(prepared.estimate())
     assert result["status"] == "available"
     assert result["scope"] == "single_source_z_transport_cited_joints_sound_incomplete"
-    assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
     true_mass = sum(
         p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
     )
+    if empirical:
+        interval = result["interval"]
+        assert interval["available"] is True
+        assert interval["method"] == "percentile_bootstrap"
+        assert interval["reason"] == "estimator_grid_not_measured"
+        mean = interval["mean_intervals"][0]
+        assert mean["lower"] <= true_mass <= mean["upper"]
+    else:
+        assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
     assert true_mass == pytest.approx(0.2, abs=0.002 if empirical else 1e-12)
     artifact = prepared.export()
     consumed = json.loads(transport.consume_z_transport_artifact(artifact))
@@ -224,7 +232,7 @@ def test_z_transport_stage_refuses_unregistered_selection_graph():
     assert stage.reason == "z_transport.no_checked_recursive_formula"
 
 
-def test_restricted_experiment_obstruction_requires_full_family_and_replays_snapshot():
+def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
     names = ["x", "y", "z"]
     graph = Admg.from_edges(names, [("x", "y")], [("x", "y")])
     query = transport.ZTransportQuery(
@@ -280,8 +288,10 @@ def test_restricted_experiment_obstruction_requires_full_family_and_replays_snap
         regimes=(target, source_zero),
         bindings=full.bindings[:2],
     )
-    assert stage.decide(partial)["outcome"] == "missing_evidence"
-    assert json.loads(stage.failure_snapshot(partial))["status"] == "missing_evidence"
+    partial_decision = stage.decide(partial)
+    assert partial_decision["outcome"] == "proven_non_transportable"
+    assert partial_decision["obstruction"]["terminal"] == decision["obstruction"]["terminal"]
+    assert json.loads(stage.failure_snapshot(partial))["status"] == "proof_obstruction"
 
 
 def test_z_transport_failure_snapshot_plan_and_actual_arrival():

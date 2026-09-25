@@ -66,15 +66,9 @@ pub enum ZExperimentFamilyError {
     },
 }
 
-/// Why complete theorem inputs are not yet available for a negative decision.
+/// Why a positive z-transport formula is not yet bound to the catalog.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ZTransportMissingEvidence {
-    /// No source environment declaration is available.
-    SourceEnvironment,
-    /// The target observational joint law over all observed variables is absent.
-    TargetObservationalJoint,
-    /// A required source experiment is missing or is not a joint law.
-    SourceExperiment(ZExperimentFamilyError),
     /// Line 10 would exchange this controllable, but the query names no level.
     UnassignedControllable {
         /// Controllable coordinate activated by the reduction.
@@ -87,12 +81,13 @@ pub enum ZTransportMissingEvidence {
     },
 }
 
-/// Result of the bounded TRz decision when its declared data family is checked.
+/// Result of the bounded TRz decision.
 #[derive(Clone, Debug)]
 pub enum ZTransportDecision {
-    /// A positive TRz formula was derived.
+    /// A positive TRz formula was derived and its cited factors bind.
     Identified(Box<ZTransportDerivation>),
-    /// A checked TRz line-11 obstruction was reached with the complete data family.
+    /// A checked TRz line-11 obstruction for the declared controllable set.
+    /// This is a structural claim about that set, not about which tables are present.
     ProvenNonTransportable(Box<ZTransportObstruction>),
     /// A theorem input law is not present in the catalog.
     MissingEvidence {
@@ -106,27 +101,75 @@ pub enum ZTransportDecision {
     },
 }
 
-/// A checked bounded TRz failure tied to the complete experimental family.
+/// One source in a two-source z-transport query.
+///
+/// Each source keeps its own selection diagram, controllable set, and catalog.
+/// Factors are never combined across sources.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ZTransportSourceSpec {
+    /// Source population identity.
+    pub population: Arc<str>,
+    /// Variables this source can manipulate.
+    pub controllable: Arc<[VariableId]>,
+    /// Concrete experiment assignment for a positive formula from this source.
+    pub experiment_assignment: Arc<[CatalogInterventionAssignment]>,
+    /// Selection targets on this source's diagram.
+    pub selection_targets: Arc<[VariableId]>,
+}
+
+/// Shared target query searched once per source, with no cross-source combination.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TwoSourceZTransportQuery {
+    /// Joint outcomes in the target population.
+    pub outcomes: Arc<[VariableId]>,
+    /// Treatment coordinates of the target query.
+    pub treatments: Arc<[VariableId]>,
+    /// Target population.
+    pub target: Arc<str>,
+    /// Exactly two sources. A longer list is outside this query.
+    pub sources: [ZTransportSourceSpec; 2],
+}
+
+/// Result of searching two sources separately.
+#[derive(Clone, Debug)]
+pub enum TwoSourceZTransportDecision {
+    /// One source's single-source derivation identifies and its cited factors bind.
+    Identified {
+        /// Population that supplied the formula.
+        source: Arc<str>,
+        /// Checked derivation for that source alone.
+        derivation: Box<ZTransportDerivation>,
+    },
+    /// Both sources reach a checked line-11 terminal.
+    ProvenNonTransportable {
+        /// Line-11 obstructions in source order.
+        obstructions: [ZTransportObstruction; 2],
+    },
+    /// Neither source identifies on its own, and the sources are not both line 11.
+    /// Cross-source factor combination is not searched.
+    NotCertified {
+        /// Stable reason. Combination is refused by `z_transport.multi_source_combination_not_searched`.
+        reason: &'static str,
+    },
+}
+
+/// A checked TRz line-11 failure for the declared controllable set.
 #[derive(Clone, Debug)]
 pub struct ZTransportObstruction {
     query: ZTransportQuery,
     graph_signature: String,
     selected_assignment: Vec<(u32, f64)>,
-    family_regimes: Vec<u32>,
     terminal: TrzTerminalFailure,
 }
 
-/// Portable line-11 premises. Query and catalog are supplied separately and
-/// must be identical in meaning when this record is checked.
+/// Portable line-11 premises. The query is supplied separately and must match.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ZTransportObstructionRecord {
     /// Stable graph identity, including selection targets.
     pub graph_signature: String,
-    /// Canonical finite assignment used while replaying TRz.
+    /// Declared experiment assignment used while replaying TRz.
     pub selected_assignment: Vec<(u32, f64)>,
-    /// Regime IDs supplying the complete source experimental family.
-    pub family_regimes: Vec<u32>,
     /// Reduced terminal subproblem at TRz line 11.
     pub terminal: ZTransportTerminalRecord,
 }
@@ -574,42 +617,17 @@ pub fn validate_z_experiment_family(
     Ok(required)
 }
 
-fn has_target_observational_joint(
-    diagram: &SelectionDiagram,
-    query: &ZTransportQuery,
-    catalog: &EvidenceCatalog,
-) -> bool {
-    let observed = diagram
-        .causal_graph()
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            NodeRef::Static(variable) => Some(*variable),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    catalog.regimes.iter().any(|regime| {
-        regime.kind == RegimeKind::Observational
-            && regime.evidence_kind == EvidenceKind::Available
-            && regime.population.as_ref() == query.target.as_ref()
-            && regime.interventions.is_empty()
-            && regime.intervention_values.is_empty()
-            && same_variable_set(&regime.measured, &observed)
-            && regime.conditioned_on.is_empty()
-            && regime.distribution == DistributionAvailability::Joint
-            && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
-    })
-}
-
 /// Decide a bounded single-source z-transport query against the supplied catalog.
 ///
 /// A positive result is a checked TRz formula whose cited joints are present.
 /// Unused experiments and uncited variables are not required. A negative result
-/// is certified only when search reaches TRz line 11, the complete source
-/// experiment family and target observational joint are available, and an
-/// independent checker confirms the reduced graph, C0, Z∩X, and failed line-10
-/// separation premise. Missing evidence and exhausted search remain distinct
-/// from theorem obstruction.
+/// is certified when search reaches TRz line 11 and an independent checker
+/// confirms the reduced graph, C0, Z∩X, and the failed line-10 separation
+/// premise. That obstruction is a fact about the graph and the declared
+/// controllable set; an incomplete catalog is not the obstruction. A missing
+/// cited factor, or a line-10 exchange whose controllable has no declared
+/// level, remains missing evidence. Exhausted search remains distinct from
+/// theorem obstruction.
 ///
 /// # Errors
 /// Invalid or unsupported query, cancellation, or exhausted search.
@@ -641,46 +659,77 @@ pub fn decide_z_transport_with_catalog(
             missing: ZTransportMissingEvidence::UnassignedControllable { variable },
         }),
         ZDerivation::Line11(terminal) => {
-            certify_line11_obstruction(diagram, query, catalog, terminal, limits, ctx)
+            certify_line11_obstruction(diagram, query, terminal, limits, ctx)
         }
         ZDerivation::NotCertified { reason } => Ok(ZTransportDecision::NotCertified { reason }),
     }
 }
 
+/// Search two sources separately on a shared causal graph.
+///
+/// One identifying source is enough, and the other source's catalog is not
+/// required. Both line-11 terminals become one obstruction. A result that
+/// would mix a factor from each source is refused by name. This does not call
+/// classical meta-transport, which assumes every source can experiment on
+/// every variable.
+///
+/// # Errors
+/// A source population collides with the other source or the target, a
+/// selection diagram is invalid, or a single-source search fails.
+pub fn decide_two_source_z_transport(
+    graph: &antecedent_graph::Admg,
+    query: &TwoSourceZTransportQuery,
+    catalogs: [&EvidenceCatalog; 2],
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TwoSourceZTransportDecision, IdentificationError> {
+    if query.sources[0].population == query.sources[1].population
+        || query.sources.iter().any(|source| source.population == query.target)
+    {
+        return Err(IdentificationError::msg("z_transport.two_source_population_collision"));
+    }
+    let mut decisions = Vec::with_capacity(2);
+    for (source, catalog) in query.sources.iter().zip(catalogs) {
+        let diagram =
+            SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
+                .map_err(|error| IdentificationError::msg(error.to_string()))?;
+        let single = ZTransportQuery {
+            outcomes: Arc::clone(&query.outcomes),
+            treatments: Arc::clone(&query.treatments),
+            controllable: Arc::clone(&source.controllable),
+            experiment_assignment: Arc::clone(&source.experiment_assignment),
+            source: Arc::clone(&source.population),
+            target: Arc::clone(&query.target),
+        };
+        decisions.push(decide_z_transport_with_catalog(&diagram, &single, catalog, limits, ctx)?);
+    }
+    for (source, decision) in query.sources.iter().zip(&decisions) {
+        if let ZTransportDecision::Identified(derivation) = decision {
+            return Ok(TwoSourceZTransportDecision::Identified {
+                source: Arc::clone(&source.population),
+                derivation: derivation.clone(),
+            });
+        }
+    }
+    if let [ZTransportDecision::ProvenNonTransportable(left), ZTransportDecision::ProvenNonTransportable(right)] =
+        decisions.as_slice()
+    {
+        return Ok(TwoSourceZTransportDecision::ProvenNonTransportable {
+            obstructions: [*left.clone(), *right.clone()],
+        });
+    }
+    Ok(TwoSourceZTransportDecision::NotCertified {
+        reason: "z_transport.multi_source_combination_not_searched",
+    })
+}
+
 fn certify_line11_obstruction(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
-    catalog: &EvidenceCatalog,
     terminal: TrzTerminalFailure,
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportDecision, IdentificationError> {
-    if !catalog.environments.iter().any(|environment| environment.identity == query.source) {
-        return Ok(ZTransportDecision::MissingEvidence {
-            missing: ZTransportMissingEvidence::SourceEnvironment,
-        });
-    }
-    if !has_target_observational_joint(diagram, query, catalog) {
-        return Ok(ZTransportDecision::MissingEvidence {
-            missing: ZTransportMissingEvidence::TargetObservationalJoint,
-        });
-    }
-    let family = match validate_z_experiment_family(diagram, query, catalog) {
-        Ok(family) => family,
-        Err(missing @ ZExperimentFamilyError::MissingJointLaw { .. }) => {
-            return Ok(ZTransportDecision::MissingEvidence {
-                missing: ZTransportMissingEvidence::SourceExperiment(missing),
-            });
-        }
-        Err(ZExperimentFamilyError::UnsupportedDomain { variable }) => {
-            return Err(IdentificationError::msg(format!(
-                "z_transport.unsupported_domain: {variable}"
-            )));
-        }
-        Err(ZExperimentFamilyError::FamilyExceedsBudget { .. }) => {
-            return Err(IdentificationError::msg("z_transport.exhausted_computation"));
-        }
-    };
     let obstruction = ZTransportObstruction {
         query: query.clone(),
         graph_signature: super::graph_signature(diagram),
@@ -691,10 +740,9 @@ fn certify_line11_obstruction(
                 assignment.value.as_f64().map(|value| (assignment.variable.raw(), value))
             })
             .collect(),
-        family_regimes: family.iter().map(|regime| regime.raw()).collect(),
         terminal,
     };
-    verify_z_transport_obstruction(diagram, query, catalog, &obstruction, limits, ctx)?;
+    verify_z_transport_obstruction(diagram, query, &obstruction, limits, ctx)?;
     Ok(ZTransportDecision::ProvenNonTransportable(Box::new(obstruction)))
 }
 
@@ -711,7 +759,6 @@ impl ZTransportObstruction {
         ZTransportObstructionRecord {
             graph_signature: self.graph_signature.clone(),
             selected_assignment: self.selected_assignment.clone(),
-            family_regimes: self.family_regimes.clone(),
             terminal: ZTransportTerminalRecord {
                 outcomes: self.terminal.outcomes.clone(),
                 treatments: self.terminal.treatments.clone(),
@@ -726,10 +773,10 @@ impl ZTransportObstruction {
         }
     }
 
-    /// Reconstruct an obstruction only after full-family and line-11 replay.
+    /// Reconstruct an obstruction only after line-11 replay.
     ///
     /// # Errors
-    /// Changed graph, query, source family, target law, or terminal search state.
+    /// Changed graph, query, controllable set, or terminal search state.
     pub fn from_record_checked(
         record: ZTransportObstructionRecord,
         diagram: &SelectionDiagram,
@@ -757,15 +804,13 @@ impl ZTransportObstruction {
     }
 }
 
-/// Independently replay a bounded negative z-transport certificate.
+/// Independently replay a structural negative z-transport certificate.
 ///
 /// # Errors
-/// The complete data family is absent, the query differs, or TRz does not
-/// reach the recorded line-11 state.
+/// The query differs, or TRz does not reach the recorded line-11 state.
 pub fn verify_z_transport_obstruction(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
-    catalog: &EvidenceCatalog,
     obstruction: &ZTransportObstruction,
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
@@ -774,24 +819,6 @@ pub fn verify_z_transport_obstruction(
     if obstruction.query != *query || obstruction.graph_signature != super::graph_signature(diagram)
     {
         return Err(IdentificationError::msg("z_transport.obstruction_input_mismatch"));
-    }
-    catalog
-        .validate()
-        .map_err(|_| IdentificationError::msg("z_transport.obstruction_catalog_invalid"))?;
-    if !has_target_observational_joint(diagram, query, catalog) {
-        return Err(IdentificationError::msg("z_transport.obstruction_target_law_missing"));
-    }
-    let family = match validate_z_experiment_family(diagram, query, catalog) {
-        Ok(family) => family,
-        Err(ZExperimentFamilyError::FamilyExceedsBudget { .. }) => {
-            return Err(IdentificationError::msg("z_transport.exhausted_computation"));
-        }
-        Err(_) => {
-            return Err(IdentificationError::msg("z_transport.obstruction_family_incomplete"));
-        }
-    };
-    if family.iter().map(|regime| regime.raw()).collect::<Vec<_>>() != obstruction.family_regimes {
-        return Err(IdentificationError::msg("z_transport.obstruction_family_mismatch"));
     }
     verify_trz_line11_terminal(diagram, query, &obstruction.terminal, ctx)?;
     let assignment = query
