@@ -10,9 +10,7 @@ use antecedent_estimate::{
 
 use crate::{
     CausalError,
-    analysis::checked_bayesian_temporal_effect::{
-        CheckedBayesianTemporalEffectOperation, CheckedBayesianTemporalTarget,
-    },
+    analysis::checked_bayesian_temporal_effect::CheckedBayesianTemporalEffectOperation,
     inference::resolve_bayesian_prior_with_conflict,
 };
 
@@ -40,11 +38,7 @@ pub(crate) fn fit_temporal_dag_effect(
     split: Option<&DiscoveryEstimationSplit>,
     context: &ExecutionContext,
 ) -> Result<CheckedBayesianTemporalDagFit, CausalError> {
-    let CheckedBayesianTemporalTarget::Dag(target) = operation.target() else {
-        return Err(CausalError::Unsupported {
-            message: "standalone Bayesian temporal kernel supports fixed TemporalDag targets only",
-        });
-    };
+    let target = operation.target();
     if target.query().is_multi_step_sustained()
         || target.procedure().1 != crate::strategy_table::EstimatorId::TemporalLinearAdjustment
     {
@@ -156,10 +150,9 @@ mod tests {
         )
         .unwrap();
         let operation = CheckedBayesianTemporalEffectOperation::checked(
-            CheckedBayesianTemporalTarget::Dag(target),
+            target,
             &InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(512).prior_scale(100.0)),
             super::super::super::builder::RefuteSuite::None,
-            None,
         )
         .unwrap();
         let context = ExecutionContext::for_tests(81_002);
