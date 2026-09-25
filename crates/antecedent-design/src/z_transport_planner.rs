@@ -462,6 +462,54 @@ pub fn snapshot_z_transport_failure(
             }
         }
         antecedent_identify::ZTransportResult::NotCertified { reason } => {
+            match decide_z_transport_with_catalog(
+                diagram,
+                query,
+                catalog,
+                SidLimits::default(),
+                &antecedent_core::ExecutionContext::for_tests(0),
+            )? {
+                ZTransportDecision::ProvenNonTransportable(obstruction) => {
+                    let mut snapshot = ZTransportFailureSnapshot::new(
+                        diagram,
+                        query,
+                        catalog,
+                        ZTransportFailureStatus::ProofObstruction,
+                        [Arc::from("z_transport.checked_trz_line11_obstruction")],
+                    )?;
+                    snapshot.z_obstruction = Some(obstruction.to_record());
+                    return Ok(snapshot);
+                }
+                ZTransportDecision::MissingEvidence { missing } => {
+                    return ZTransportFailureSnapshot::new(
+                        diagram,
+                        query,
+                        catalog,
+                        ZTransportFailureStatus::MissingEvidence,
+                        [Arc::from(format!("z_transport.experimental_family: {missing:?}"))],
+                    );
+                }
+                ZTransportDecision::Identified(derivation) => {
+                    return match bind_z_transport_catalog(
+                        diagram,
+                        derivation.query(),
+                        &derivation,
+                        catalog,
+                    ) {
+                        Ok(_) => Err(ZTransportPlanningError::Invalid(
+                            "catalog-aware TRz decision found an available formula; prepare from the decided derivation".into(),
+                        )),
+                        Err(error) => ZTransportFailureSnapshot::new(
+                            diagram,
+                            query,
+                            catalog,
+                            ZTransportFailureStatus::MissingEvidence,
+                            [Arc::from(error.to_string())],
+                        ),
+                    };
+                }
+                ZTransportDecision::NotCertified { .. } => {}
+            }
             if let Err(family) = validate_z_experiment_family(diagram, query, catalog) {
                 let status = match family {
                     antecedent_identify::ZExperimentFamilyError::UnsupportedDomain { .. } => {
@@ -514,54 +562,6 @@ pub fn snapshot_z_transport_failure(
                 )?;
                 snapshot.obstruction = Some(witness.to_record());
                 return Ok(snapshot);
-            }
-            match decide_z_transport_with_catalog(
-                diagram,
-                query,
-                catalog,
-                SidLimits::default(),
-                &antecedent_core::ExecutionContext::for_tests(0),
-            )? {
-                ZTransportDecision::ProvenNonTransportable(obstruction) => {
-                    let mut snapshot = ZTransportFailureSnapshot::new(
-                        diagram,
-                        query,
-                        catalog,
-                        ZTransportFailureStatus::ProofObstruction,
-                        [Arc::from("z_transport.checked_trz_line11_obstruction")],
-                    )?;
-                    snapshot.z_obstruction = Some(obstruction.to_record());
-                    return Ok(snapshot);
-                }
-                ZTransportDecision::MissingEvidence { missing } => {
-                    return ZTransportFailureSnapshot::new(
-                        diagram,
-                        query,
-                        catalog,
-                        ZTransportFailureStatus::MissingEvidence,
-                        [Arc::from(format!("z_transport.experimental_family: {missing:?}"))],
-                    );
-                }
-                ZTransportDecision::Identified(derivation) => {
-                    return match bind_z_transport_catalog(
-                        diagram,
-                        derivation.query(),
-                        &derivation,
-                        catalog,
-                    ) {
-                        Ok(_) => Err(ZTransportPlanningError::Invalid(
-                            "catalog-aware TRz decision found an available formula; prepare from the decided derivation".into(),
-                        )),
-                        Err(error) => ZTransportFailureSnapshot::new(
-                            diagram,
-                            query,
-                            catalog,
-                            ZTransportFailureStatus::MissingEvidence,
-                            [Arc::from(error.to_string())],
-                        ),
-                    };
-                }
-                ZTransportDecision::NotCertified { .. } => {}
             }
             ZTransportFailureSnapshot::new(
                 diagram,
@@ -1055,7 +1055,7 @@ mod tests {
     use antecedent_graph::{Admg, DenseNodeId};
 
     #[test]
-    fn stronger_family_obstruction_requires_complete_actual_experiments() {
+    fn line11_obstruction_is_structural_with_or_without_the_experiment_family() {
         let mut graph = Admg::with_variables(3);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1122,14 +1122,16 @@ mod tests {
         let checked = snapshot_z_transport_failure(&diagram, &query, &complete).unwrap();
         assert_eq!(checked.status(), &ZTransportFailureStatus::ProofObstruction);
         let wire = checked.to_wire().unwrap();
-        assert!(wire.obstruction.is_some());
+        assert!(wire.z_obstruction.is_some());
+        assert!(wire.obstruction.is_none());
         ZTransportFailureSnapshot::from_wire(&wire).unwrap();
 
         let mut incomplete = complete;
         incomplete.regimes = incomplete.regimes[..2].to_vec().into();
         incomplete.bindings = incomplete.bindings[..2].to_vec().into();
         let unresolved = snapshot_z_transport_failure(&diagram, &query, &incomplete).unwrap();
-        assert_eq!(unresolved.status(), &ZTransportFailureStatus::MissingEvidence);
+        assert_eq!(unresolved.status(), &ZTransportFailureStatus::ProofObstruction);
+        assert!(unresolved.to_wire().unwrap().z_obstruction.is_some());
     }
 
     #[test]

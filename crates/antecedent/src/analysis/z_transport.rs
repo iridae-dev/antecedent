@@ -1,4 +1,4 @@
-//! Prepared execution for the registered point-only z-transport specialization.
+//! Prepared execution for the registered z-transport specialization.
 //!
 //! This route intentionally has a separate state type from classical transport:
 //! its checked proof covers only one surrogate graph and is not a complete sIDz
@@ -10,13 +10,13 @@ use antecedent_expr::{
     FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{BoundZTransportFunctional, verify_z_transport_derivation};
+use antecedent_identify::{verify_z_transport_derivation, BoundZTransportFunctional};
 use antecedent_io::IoError;
 use std::sync::Arc;
 
 use super::transport_common::err;
 
-/// Prepared exact or empirical plug-in evaluation of the registered zTR graph.
+/// Prepared exact or empirical evaluation of the registered zTR graph.
 #[derive(Clone, Debug)]
 pub struct PreparedZTransport {
     diagram: SelectionDiagram,
@@ -28,10 +28,15 @@ pub struct PreparedZTransport {
     plan: ExactEvaluationPlan,
 }
 
-/// Executed point distribution with no sampling interval claim.
+/// Executed point distribution. An empirical cited table may also carry a
+/// nominal percentile interval that is not a coverage claim.
 #[derive(Clone, Debug)]
 pub struct ZTransportResult {
     distribution: ExactDistribution,
+    interval_method: Option<&'static str>,
+    interval_reason: &'static str,
+    coverage_target: Option<f64>,
+    mean_intervals: Vec<(antecedent_core::VariableId, f64, f64)>,
 }
 
 impl ZTransportResult {
@@ -41,10 +46,28 @@ impl ZTransportResult {
         &self.distribution
     }
 
-    /// Sampling uncertainty is not reported by this route.
+    /// Interval constructor, or the reason none was published.
     #[must_use]
-    pub const fn interval_type(&self) -> &'static str {
-        "no_interval_reported"
+    pub fn interval_type(&self) -> &'static str {
+        self.interval_method.unwrap_or(self.interval_reason)
+    }
+
+    /// Why the interval is withheld, or why a published interval is uncalibrated.
+    #[must_use]
+    pub const fn interval_reason(&self) -> &'static str {
+        self.interval_reason
+    }
+
+    /// Nominal coverage of a published percentile interval.
+    #[must_use]
+    pub const fn coverage_target(&self) -> Option<f64> {
+        self.coverage_target
+    }
+
+    /// Pointwise outcome-mean intervals, empty when no interval is published.
+    #[must_use]
+    pub fn mean_intervals(&self) -> &[(antecedent_core::VariableId, f64, f64)] {
+        &self.mean_intervals
     }
 
     /// Export this point result with its checked proof, catalog, and source laws.
@@ -69,7 +92,16 @@ pub fn consume_z_transport_artifact(
 ) -> Result<(SelectionDiagram, ZTransportResult), IoError> {
     let (diagram, distribution) =
         antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume(bytes, ctx)?;
-    Ok((diagram, ZTransportResult { distribution }))
+    Ok((
+        diagram,
+        ZTransportResult {
+            distribution,
+            interval_method: None,
+            interval_reason: "no_interval_reported",
+            coverage_target: None,
+            mean_intervals: Vec::new(),
+        },
+    ))
 }
 
 impl PreparedZTransport {
@@ -81,12 +113,49 @@ impl PreparedZTransport {
 
     /// Re-evaluate the frozen functional against retained source laws.
     ///
-    /// Exact and empirical plugin tables share the checked evaluator; empirical
-    /// tables remain point-only and do not acquire a sampling interval here.
+    /// Exact laws stay point-only. When every cited law carries empirical
+    /// counts, an uncalibrated equal-tail percentile bootstrap is attached.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
         verify_plan_program(&self.plan, &self.program)?;
         let distribution = self.plan.evaluate(ctx).map_err(err)?;
-        Ok(ZTransportResult { distribution })
+        let empirical = self.data.laws().iter().all(|law| law.empirical_counts().is_some())
+            && !self.data.laws().is_empty();
+        if !empirical {
+            return Ok(ZTransportResult {
+                distribution,
+                interval_method: None,
+                interval_reason: "no_interval_reported",
+                coverage_target: None,
+                mean_intervals: Vec::new(),
+            });
+        }
+        let options = antecedent_estimate::EmpiricalTableOptions::default();
+        match antecedent_estimate::nominal_z_transport_interval(
+            &self.functional,
+            &self.data,
+            self.request.clone(),
+            self.limits,
+            options.bootstrap_replicates,
+            options.coverage_level,
+            ctx,
+        )
+        .map_err(err)?
+        {
+            Ok(interval) => Ok(ZTransportResult {
+                distribution,
+                interval_method: Some(antecedent_estimate::PERCENTILE_BOOTSTRAP),
+                interval_reason: antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+                coverage_target: Some(interval.coverage_target),
+                mean_intervals: interval.mean_intervals.to_vec(),
+            }),
+            Err(reason) => Ok(ZTransportResult {
+                distribution,
+                interval_method: None,
+                interval_reason: reason,
+                coverage_target: None,
+                mean_intervals: Vec::new(),
+            }),
+        }
     }
 
     /// Replace providers after revalidating their catalog bindings and compile a
@@ -235,8 +304,8 @@ mod tests {
     use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{
-        ZTransportQuery, ZTransportResult as Identified, bind_z_transport_catalog,
-        identify_z_transport_surrogate,
+        bind_z_transport_catalog, identify_z_transport_surrogate, ZTransportQuery,
+        ZTransportResult as Identified,
     };
     use std::sync::Arc;
 
@@ -388,7 +457,17 @@ mod tests {
                 .map(|(_, p)| p)
                 .sum::<f64>();
             assert!((true_mass - 0.20).abs() < if empirical { 0.002 } else { 1e-12 });
-            assert_eq!(result.interval_type(), "no_interval_reported");
+            if empirical {
+                assert_eq!(result.interval_type(), antecedent_estimate::PERCENTILE_BOOTSTRAP);
+                assert_eq!(
+                    result.interval_reason(),
+                    antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED
+                );
+                let (_, lower, upper) = result.mean_intervals()[0];
+                assert!(lower <= true_mass && true_mass <= upper);
+            } else {
+                assert_eq!(result.interval_type(), "no_interval_reported");
+            }
             let artifact = result.export(&prepared).unwrap();
             let (_diagram, consumed) =
                 consume_z_transport_artifact(&artifact, &ExecutionContext::for_tests(8)).unwrap();
@@ -396,44 +475,36 @@ mod tests {
             let mut forged: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
                 antecedent_io::from_cbor(&artifact).unwrap();
             forged.result.probabilities[0] += 0.01;
-            assert!(
-                consume_z_transport_artifact(
-                    &forged.export().unwrap(),
-                    &ExecutionContext::for_tests(8),
-                )
-                .is_err()
-            );
+            assert!(consume_z_transport_artifact(
+                &forged.export().unwrap(),
+                &ExecutionContext::for_tests(8),
+            )
+            .is_err());
             let mut forged_proof: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
                 antecedent_io::from_cbor(&artifact).unwrap();
             forged_proof.proof.root = forged_proof.proof.root.wrapping_add(1);
-            assert!(
-                consume_z_transport_artifact(
-                    &forged_proof.export().unwrap(),
-                    &ExecutionContext::for_tests(8),
-                )
-                .is_err()
-            );
+            assert!(consume_z_transport_artifact(
+                &forged_proof.export().unwrap(),
+                &ExecutionContext::for_tests(8),
+            )
+            .is_err());
             let mut forged_program: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
                 antecedent_io::from_cbor(&artifact).unwrap();
             let program = forged_program.program.as_mut().unwrap();
             program.executable = program.executable.wrapping_add(1);
-            assert!(
-                consume_z_transport_artifact(
-                    &forged_program.export().unwrap(),
-                    &ExecutionContext::for_tests(8),
-                )
-                .is_err()
-            );
+            assert!(consume_z_transport_artifact(
+                &forged_program.export().unwrap(),
+                &ExecutionContext::for_tests(8),
+            )
+            .is_err());
             let mut forged_schema: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
                 antecedent_io::from_cbor(&artifact).unwrap();
             forged_schema.program.as_mut().unwrap().variables[0].1 = "forged-coordinate".into();
-            assert!(
-                consume_z_transport_artifact(
-                    &forged_schema.export().unwrap(),
-                    &ExecutionContext::for_tests(8),
-                )
-                .is_err()
-            );
+            assert!(consume_z_transport_artifact(
+                &forged_schema.export().unwrap(),
+                &ExecutionContext::for_tests(8),
+            )
+            .is_err());
             assert_eq!(
                 prepared.theorem_scope().outcome_guarantees,
                 antecedent_core::query::OutcomeGuarantee::SoundIncomplete
@@ -498,21 +569,19 @@ mod tests {
         assert_eq!(consumed.distribution().probabilities, result.distribution().probabilities);
 
         let (a, b, diagram, functional, data) = direct_joint_fixture();
-        assert!(
-            StudyBuilder::z_transport(
-                diagram,
-                functional,
-                data,
-                Assignment::from_pairs([(a, Value::Bool(false)), (b, Value::Bool(false))]),
-                ExactEvaluationLimits::default(),
-                &ExecutionContext::for_tests(17),
-            )
-            .is_err()
-        );
+        assert!(StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data,
+            Assignment::from_pairs([(a, Value::Bool(false)), (b, Value::Bool(false))]),
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(17),
+        )
+        .is_err());
     }
 
-    fn direct_joint_fixture()
-    -> (VariableId, VariableId, SelectionDiagram, BoundZTransportFunctional, ExactTransportData)
+    fn direct_joint_fixture(
+    ) -> (VariableId, VariableId, SelectionDiagram, BoundZTransportFunctional, ExactTransportData)
     {
         let (a, b, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
         let diagram =
@@ -621,38 +690,32 @@ mod tests {
 
         let mut changed_range = wire.clone();
         changed_range.assumption_range[0] -= 0.01;
-        assert!(
-            super::super::ZTransportSensitivityArtifactWire::consume(
-                &changed_range.export().unwrap(),
-                &ExecutionContext::for_tests(12),
-            )
-            .is_err()
-        );
+        assert!(super::super::ZTransportSensitivityArtifactWire::consume(
+            &changed_range.export().unwrap(),
+            &ExecutionContext::for_tests(12),
+        )
+        .is_err());
         let mut changed_baseline = wire;
         changed_baseline.baseline_artifact[0] ^= 1;
-        assert!(
-            super::super::ZTransportSensitivityArtifactWire::consume(
-                &changed_baseline.export().unwrap(),
-                &ExecutionContext::for_tests(12),
-            )
-            .is_err()
-        );
+        assert!(super::super::ZTransportSensitivityArtifactWire::consume(
+            &changed_baseline.export().unwrap(),
+            &ExecutionContext::for_tests(12),
+        )
+        .is_err());
     }
 
     #[test]
     fn prepared_z_route_refuses_a_request_missing_treatment_binding() {
         let (diagram, functional, data, _) = fixture(false);
         let wrong = Assignment::new();
-        assert!(
-            StudyBuilder::z_transport(
-                diagram,
-                functional,
-                data,
-                wrong,
-                ExactEvaluationLimits::default(),
-                &ExecutionContext::for_tests(7),
-            )
-            .is_err()
-        );
+        assert!(StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data,
+            wrong,
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(7),
+        )
+        .is_err());
     }
 }

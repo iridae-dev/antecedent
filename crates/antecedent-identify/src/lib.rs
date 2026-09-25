@@ -47,7 +47,8 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
-    bind_z_transport_catalog, decide_z_transport_with_catalog, identify_catalog_transport,
+    bind_z_transport_catalog, decide_two_source_z_transport, decide_z_transport_with_catalog,
+    identify_catalog_transport,
     identify_classical_transport, identify_meta_catalog, identify_meta_transport,
     identify_z_transport, identify_z_transport_surrogate, identify_z_transport_with_limits,
     validate_z_experiment_family, validate_z_transport_query, verify_classical_transport,
@@ -55,7 +56,8 @@ pub use sid::{
     verify_z_transport_obstruction, BoundTransportFunctional, BoundZTransportFunctional,
     CatalogTransportResult, CheckedTransportDerivation, ClassicalTransportDerivation,
     ClassicalTransportQuery, ClassicalTransportResult, MetaSource, MetaTransportQuery, SidLimits,
-    ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportDecision,
+    TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZExperimentFamilyError,
+    ZFactorObligation, ZProofOperation, ZTransportDecision, ZTransportSourceSpec,
     ZTransportDerivation, ZTransportDerivationRecord, ZTransportMissingEvidence,
     ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
     ZTransportResult, ZTransportTerminalRecord, Z_TRANSPORT_MAX_CONTROLLABLE,

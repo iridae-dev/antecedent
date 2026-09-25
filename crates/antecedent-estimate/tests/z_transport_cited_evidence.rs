@@ -11,7 +11,9 @@ use antecedent_core::{
     EvidenceRegime, ExecutionContext, InterventionAssignment, RegimeBinding, RegimeId, RegimeKind,
     SamplingDesign, Value, VariableCoordinate, VariableDomain, VariableId,
 };
-use antecedent_estimate::evaluate_exact_z_transport;
+use antecedent_estimate::{
+    evaluate_exact_z_transport, nominal_z_transport_interval, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
     LawTolerance,
@@ -163,6 +165,97 @@ fn surrogate_decision_uses_only_the_cited_source_margin() {
     .unwrap();
     let risk = y_risk(&result);
     assert!((risk - 0.2).abs() < 1e-12, "P(Y=1 | do(X=0))={risk}");
+}
+
+#[test]
+fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() {
+    let diagram = surrogate_diagram();
+    let query = surrogate_query();
+    let regime = EvidenceRegime::try_new(
+        RegimeId::from_raw(0),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [Z],
+        [InterventionAssignment { variable: Z, value: Value::Bool(false) }],
+        [W, X, Y],
+        "source",
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    let catalog = EvidenceCatalog::try_new(
+        [environment("source", [W, Z, X, Y])],
+        [regime],
+        [binding(0)],
+        None,
+    )
+    .unwrap();
+    let probabilities = cited_wyx_probabilities();
+    let counts = probabilities.iter().map(|p| (p * 20_000.0).round() as u64).collect::<Vec<_>>();
+    let total = counts.iter().sum::<u64>() as f64;
+    let empirical = counts.iter().map(|count| *count as f64 / total).collect::<Vec<_>>();
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary_axis(W), binary_axis(X), binary_axis(Y)],
+        empirical,
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap();
+    let data = ExactTransportData::try_new([law], 64).unwrap();
+    let context = ExecutionContext::for_tests(64);
+    let ZTransportDecision::Identified(derivation) =
+        decide_z_transport_with_catalog(&diagram, &query, &catalog, SidLimits::default(), &context)
+            .unwrap()
+    else {
+        panic!("cited margin identifies");
+    };
+    let bound = bind_z_transport_catalog(&diagram, &query, &derivation, &catalog).unwrap();
+    let request = Assignment::from_pairs([(X, Value::Bool(false))]);
+    let point = evaluate_exact_z_transport(
+        &bound,
+        data.clone(),
+        request.clone(),
+        ExactEvaluationLimits::default(),
+        &context,
+    )
+    .unwrap();
+    let risk = y_risk(&point);
+    let interval = nominal_z_transport_interval(
+        &bound,
+        &data,
+        request,
+        ExactEvaluationLimits::default(),
+        99,
+        0.95,
+        &context,
+    )
+    .unwrap()
+    .expect("iid counts publish a nominal interval");
+    assert_eq!(interval.reason.as_ref(), Z_TRANSPORT_INTERVAL_NOT_MEASURED);
+    assert!(interval.mean_intervals[0].1 <= risk && risk <= interval.mean_intervals[0].2);
+    assert!((0.2 - risk).abs() < 1e-3);
+
+    let mut dependent = catalog;
+    let mut bindings = dependent.bindings.to_vec();
+    bindings[0].dependence = DependenceGroup::LinkedUnits;
+    dependent.bindings = bindings.into();
+    let bound = bind_z_transport_catalog(&diagram, &query, &derivation, &dependent).unwrap();
+    let withheld = nominal_z_transport_interval(
+        &bound,
+        &data,
+        Assignment::from_pairs([(X, Value::Bool(false))]),
+        ExactEvaluationLimits::default(),
+        99,
+        0.95,
+        &context,
+    )
+    .unwrap()
+    .unwrap_err();
+    assert_eq!(withheld, "transport.unsupported_dependence");
 }
 
 #[test]

@@ -15,7 +15,7 @@ per family:
 | Classical single-source sID | complete in the paper experimental-information family | `antecedent.transport.advanced.identify_classical` → [arXiv:1312.7485v1](https://arxiv.org/abs/1312.7485v1) |
 | Classical meta-transport | complete in the multi-source experimental family | `antecedent.transport.advanced.identify_meta` → [Bareinboim 2013](https://proceedings.mlr.press/v31/bareinboim13a.pdf) |
 | Finite catalog search | sound and incomplete | closed as `transport.finite_catalog_search` |
-| Limited / z-experiment | sound and incomplete within 12 observed and 4 controllable variables; positives use cited joints, line-11 obstructions use the complete source family | `antecedent.transport.advanced.identify_z_transport` → [arXiv:1309.6842](https://arxiv.org/abs/1309.6842) |
+| Limited / z-experiment | sound and incomplete within 12 observed and 4 controllable variables; positives use cited joints; a line-11 obstruction is structural in the declared controllable set; two sources are searched separately and cross-source combination is refused by name | `antecedent.transport.advanced.identify_z_transport` → [arXiv:1309.6842](https://arxiv.org/abs/1309.6842) |
 
 Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent. The static checker in
 `scripts/check_transport_stages.py` refuses a completeness guarantee that

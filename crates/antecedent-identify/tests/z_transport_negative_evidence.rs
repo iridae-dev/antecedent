@@ -11,9 +11,9 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, ZTransportDecision,
-    ZTransportMissingEvidence, ZTransportQuery, decide_z_transport_with_catalog,
-    identify_classical_transport, validate_z_transport_query,
+    decide_z_transport_with_catalog, identify_classical_transport, validate_z_experiment_family,
+    validate_z_transport_query, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
+    ZExperimentFamilyError, ZTransportDecision, ZTransportQuery,
 };
 use std::sync::Arc;
 
@@ -259,20 +259,34 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
         .is_err(),
         "tampered C0 and Z∩X premises must not replay as a checked obstruction"
     );
-    let mut changed_family = record.clone();
-    changed_family.family_regimes.pop();
-    assert!(
-        antecedent_identify::ZTransportObstruction::from_record_checked(
-            changed_family,
-            &diagram,
-            &query,
-            &catalog,
-            limits,
-            &ExecutionContext::for_tests(22),
-        )
-        .is_err(),
-        "changed source-family identities must not replay as a checked obstruction"
-    );
+    let empty = EvidenceCatalog::try_new(
+        [catalog.environments[0].clone(), catalog.environments[1].clone()],
+        [],
+        [],
+        None,
+    )
+    .unwrap();
+    let empty_decision =
+        decide_z_transport_with_catalog(&diagram, &query, &empty, limits, &ctx).unwrap();
+    let ZTransportDecision::ProvenNonTransportable(empty_obstruction) = empty_decision else {
+        panic!("an empty catalog must reach the same structural line-11 obstruction")
+    };
+    assert_eq!(record, empty_obstruction.to_record());
+    let missing_target = full_experiment_catalog(false, true);
+    let missing_target_decision = decide_z_transport_with_catalog(
+        &diagram,
+        &query,
+        &missing_target,
+        limits,
+        &ExecutionContext::for_tests(24),
+    )
+    .unwrap();
+    let ZTransportDecision::ProvenNonTransportable(missing_target_obstruction) =
+        missing_target_decision
+    else {
+        panic!("a missing target joint must not hide the structural line-11 obstruction")
+    };
+    assert_eq!(record, missing_target_obstruction.to_record());
 
     let exhausted = decide_z_transport_with_catalog(
         &diagram,
@@ -285,34 +299,19 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
     assert_eq!(exhausted.to_string(), "z_transport.exhausted_computation");
 
     let incomplete = full_experiment_catalog(true, false);
-    assert!(matches!(
-        decide_z_transport_with_catalog(
-            &diagram,
-            &query,
-            &incomplete,
-            limits,
-            &ExecutionContext::for_tests(20),
-        )
-        .unwrap(),
-        ZTransportDecision::MissingEvidence {
-            missing: ZTransportMissingEvidence::SourceExperiment(_),
-        }
-    ));
-
-    let missing_target = full_experiment_catalog(false, true);
-    assert!(matches!(
-        decide_z_transport_with_catalog(
-            &diagram,
-            &query,
-            &missing_target,
-            limits,
-            &ExecutionContext::for_tests(24),
-        )
-        .unwrap(),
-        ZTransportDecision::MissingEvidence {
-            missing: ZTransportMissingEvidence::TargetObservationalJoint,
-        }
-    ));
+    let incomplete_decision = decide_z_transport_with_catalog(
+        &diagram,
+        &query,
+        &incomplete,
+        limits,
+        &ExecutionContext::for_tests(20),
+    )
+    .unwrap();
+    let ZTransportDecision::ProvenNonTransportable(incomplete_obstruction) = incomplete_decision
+    else {
+        panic!("an incomplete experiment family must reach the same structural obstruction")
+    };
+    assert_eq!(record, incomplete_obstruction.to_record());
 
     // The target observational law is identical in the two SCMs.
     assert_eq!(enumerate_law(first, observational), enumerate_law(second, observational));
@@ -436,7 +435,7 @@ fn a_source_experiment_that_controls_x_separates_the_two_models() {
 }
 
 #[test]
-fn negative_decision_refuses_a_continuous_observed_coordinate() {
+fn negative_decision_does_not_read_a_continuous_coordinate() {
     let (diagram, query) = fig2b_style_contract();
     let mut catalog = full_experiment_catalog(false, false);
     let mut environments = catalog.environments.to_vec();
@@ -446,13 +445,15 @@ fn negative_decision_refuses_a_continuous_observed_coordinate() {
         *environment = Environment::try_new(environment.identity.clone(), coordinates, []).unwrap();
     }
     catalog.environments = environments.into();
-    let error = decide_z_transport_with_catalog(
+    let decision = decide_z_transport_with_catalog(
         &diagram,
         &query,
         &catalog,
         SidLimits::default(),
         &ExecutionContext::for_tests(25),
     )
-    .unwrap_err();
-    assert!(error.to_string().starts_with("z_transport.unsupported_domain"), "{error}");
+    .unwrap();
+    assert!(matches!(decision, ZTransportDecision::ProvenNonTransportable(_)));
+    let family = validate_z_experiment_family(&diagram, &query, &catalog).unwrap_err();
+    assert!(matches!(family, ZExperimentFamilyError::UnsupportedDomain { .. }));
 }

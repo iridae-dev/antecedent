@@ -4,16 +4,16 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
-use antecedent_data::{ResamplingPlan, fill_resample_indexes};
+use antecedent_data::{fill_resample_indexes, ResamplingPlan};
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits};
 use antecedent_identify::BoundTransportFunctional;
-use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
+use antecedent_stats::{equal_tail_interval_sorted, QuantileRule};
 
 use crate::empirical_table::{
-    BayesianTransportLawProvider, EmpiricalTableOptions, StatisticalTransportInput,
     assemble_point_laws, assemble_statistical_laws, bound_sample_key, dependence_refusal,
-    draw_bayesian_transport_laws, licensed_iid_dependence, validate_dataset_aliases,
-    validate_options,
+    draw_bayesian_transport_laws, licensed_iid_dependence, licensed_iid_regimes,
+    validate_dataset_aliases, validate_options, BayesianTransportLawProvider,
+    EmpiricalTableOptions, StatisticalTransportInput,
 };
 use crate::error::EstimationError;
 use crate::transport::prepare_exact_transport;
@@ -732,6 +732,200 @@ fn pointwise_intervals(replicates: &[Arc<[f64]>], level: f64) -> Arc<[(f64, f64)
             percentile_interval(&column, level)
         })
         .collect()
+}
+
+/// Why a published z-transport percentile interval is not a coverage claim.
+pub const Z_TRANSPORT_INTERVAL_NOT_MEASURED: &str = "estimator_grid_not_measured";
+
+/// Equal-tail percentile interval for an empirical z-transport functional.
+///
+/// The point law is unchanged. The interval resamples each cited count table
+/// with the same iid row bootstrap the classical joint outer bootstrap uses,
+/// re-evaluates the bound formula, and takes an equal-tail percentile. It is
+/// not a calibrated coverage statement.
+#[derive(Clone, Debug)]
+pub struct NominalZTransportInterval {
+    /// `percentile_bootstrap`.
+    pub method: Arc<str>,
+    /// Always [`Z_TRANSPORT_INTERVAL_NOT_MEASURED`].
+    pub reason: Arc<str>,
+    /// Nominal equal-tail level.
+    pub coverage_target: f64,
+    /// Pointwise atom intervals in distribution order.
+    pub atom_intervals: Arc<[(f64, f64)]>,
+    /// Pointwise outcome-mean intervals.
+    pub mean_intervals: Arc<[(VariableId, f64, f64)]>,
+    /// Requested replicates.
+    pub replicates_requested: u32,
+    /// Replicates whose formula evaluation succeeded.
+    pub replicates_ok: u32,
+    /// Support or numeric failures, retained in the accounting.
+    pub replicates_failed: u32,
+}
+
+/// Publish a nominal percentile interval when every cited law has counts.
+///
+/// Exact laws and dependence the classical empirical path already refuses stay
+/// without an interval. The withheld reason is that path's reason.
+///
+/// # Errors
+/// Invalid interval settings, a cited law whose counts do not match its atoms,
+/// cancellation, or a bootstrap that cannot evaluate two replicates.
+pub fn nominal_z_transport_interval(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: &antecedent_expr::ExactTransportData,
+    request: Assignment,
+    limits: ExactEvaluationLimits,
+    replicates: u32,
+    coverage_level: f64,
+    ctx: &ExecutionContext,
+) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
+    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
+        return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
+    }
+    if replicates < 2 || !coverage_level.is_finite() || !(0.0..1.0).contains(&coverage_level) {
+        return Err(EstimationError::data_msg(
+            "z-transport percentile interval requires at least two replicates and coverage strictly between zero and one",
+        ));
+    }
+    let regimes = data.laws().iter().map(|law| law.regime());
+    if !licensed_iid_regimes(functional.catalog(), regimes) {
+        return Ok(Err("transport.unsupported_dependence"));
+    }
+    let outcomes = functional.derivation().query().outcomes.clone();
+    let mut atom_columns: Vec<Vec<f64>> = Vec::new();
+    let mut mean_columns: Vec<Vec<f64>> = vec![Vec::new(); outcomes.len()];
+    let mut failed = 0u32;
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            return Err(EstimationError::data_msg("z-transport bootstrap cancelled"));
+        }
+        let mut laws = Vec::with_capacity(data.laws().len());
+        let mut draw_failed = false;
+        for (dataset, law) in data.laws().iter().enumerate() {
+            let counts = law.empirical_counts().expect("counted law");
+            let mut resampled = vec![0u64; counts.len()];
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::Transport,
+                ((dataset as u64) << 32) | u64::from(replicate),
+            );
+            if !resample_cited_counts(counts, &mut rng, &mut resampled) {
+                draw_failed = true;
+                break;
+            }
+            let total = resampled.iter().sum::<u64>();
+            let probabilities =
+                resampled.iter().map(|count| *count as f64 / total as f64).collect::<Vec<_>>();
+            let rebuilt = antecedent_expr::ExactDiscreteLaw::try_empirical(
+                law.population(),
+                law.regime(),
+                law.interventions().to_vec(),
+                law.axes().to_vec(),
+                probabilities,
+                law.snapshot_identity(),
+                law.tolerance(),
+            )
+            .and_then(|rebuilt| rebuilt.with_empirical_counts(resampled))
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+            laws.push(rebuilt);
+        }
+        if draw_failed {
+            failed += 1;
+            continue;
+        }
+        let draw = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        match crate::transport::evaluate_exact_z_transport(
+            functional,
+            draw,
+            request.clone(),
+            limits,
+            ctx,
+        ) {
+            Ok(distribution) => {
+                if !atom_columns.is_empty()
+                    && atom_columns.len() != distribution.probabilities.len()
+                {
+                    return Err(EstimationError::data_msg(
+                        "z-transport bootstrap atom support changed between draws",
+                    ));
+                }
+                for (outcome_index, outcome) in outcomes.iter().enumerate() {
+                    let mean = distribution
+                        .mean(*outcome)
+                        .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+                    mean_columns[outcome_index].push(mean);
+                }
+                for (atom, probability) in distribution.probabilities.iter().enumerate() {
+                    if atom_columns.len() == atom {
+                        atom_columns.push(Vec::new());
+                    }
+                    atom_columns[atom].push(*probability);
+                }
+            }
+            Err(antecedent_expr::EvalError::ExactLaw(_))
+            | Err(antecedent_expr::EvalError::ExactRatioSupport { .. })
+            | Err(antecedent_expr::EvalError::DivisionByZero) => failed += 1,
+            Err(error) => return Err(EstimationError::data_msg(error.to_string())),
+        }
+    }
+    let ok = u32::try_from(atom_columns.first().map_or(0, Vec::len)).unwrap_or(u32::MAX);
+    let attempted = ok.saturating_add(failed);
+    let fail_frac = if attempted == 0 { 1.0 } else { f64::from(failed) / f64::from(attempted) };
+    if ok < 2 || fail_frac > BOOTSTRAP_MAX_FAILURE_FRAC {
+        return Err(EstimationError::data_msg("z_transport.bootstrap_failure_fraction"));
+    }
+    let atom_intervals = atom_columns
+        .iter()
+        .map(|column| percentile_interval(column, coverage_level))
+        .collect::<Arc<[_]>>();
+    let mean_intervals = outcomes
+        .iter()
+        .zip(mean_columns)
+        .map(|(outcome, column)| {
+            let (lower, upper) = percentile_interval(&column, coverage_level);
+            (*outcome, lower, upper)
+        })
+        .collect::<Arc<[_]>>();
+    Ok(Ok(NominalZTransportInterval {
+        method: Arc::from(PERCENTILE_BOOTSTRAP),
+        reason: Arc::from(Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+        coverage_target: coverage_level,
+        atom_intervals,
+        mean_intervals,
+        replicates_requested: replicates,
+        replicates_ok: ok,
+        replicates_failed: failed,
+    }))
+}
+
+fn resample_cited_counts(
+    counts: &[u64],
+    rng: &mut antecedent_core::CausalRng,
+    out: &mut [u64],
+) -> bool {
+    let total = counts.iter().sum::<u64>();
+    if total == 0 || usize::try_from(total).is_err() || out.len() != counts.len() {
+        return false;
+    }
+    let total = total as usize;
+    let mut rows = Vec::with_capacity(total);
+    for (cell, count) in counts.iter().enumerate() {
+        let cell = u32::try_from(cell).unwrap_or(u32::MAX);
+        rows.extend(std::iter::repeat(cell).take(*count as usize));
+    }
+    let mut indexes = Vec::new();
+    if fill_resample_indexes(ResamplingPlan::IidBootstrap, total, rng, &mut indexes).is_err()
+        || indexes.len() != total
+    {
+        return false;
+    }
+    out.fill(0);
+    for index in indexes {
+        let Some(cell) = rows.get(index as usize).copied() else { return false };
+        out[cell as usize] += 1;
+    }
+    true
 }
 
 /// Linear-interpolation (type-7) percentile interval of resampled replicates.

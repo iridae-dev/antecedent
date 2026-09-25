@@ -25,14 +25,16 @@ pub use meta::{
 };
 use meta::{validate_meta_sources, CLASSICAL_SETTING, META_SETTING};
 pub use z_transport::{
-    bind_z_transport_catalog, decide_z_transport_with_catalog, identify_z_transport,
-    identify_z_transport_surrogate, identify_z_transport_with_limits, validate_z_experiment_family,
-    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
-    BoundZTransportFunctional, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
+    bind_z_transport_catalog, decide_two_source_z_transport, decide_z_transport_with_catalog,
+    identify_z_transport, identify_z_transport_surrogate, identify_z_transport_with_limits,
+    validate_z_experiment_family, validate_z_transport_query, verify_z_transport_derivation,
+    verify_z_transport_obstruction, BoundZTransportFunctional, TwoSourceZTransportDecision,
+    TwoSourceZTransportQuery, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
     ZTransportDecision, ZTransportDerivation, ZTransportDerivationRecord,
     ZTransportMissingEvidence, ZTransportObstruction, ZTransportObstructionRecord,
-    ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportTerminalRecord,
-    Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED,
+    ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportSourceSpec,
+    ZTransportTerminalRecord, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES,
+    Z_TRANSPORT_MAX_OBSERVED,
 };
 
 /// Theoretical query under the classical family of all source experiments.

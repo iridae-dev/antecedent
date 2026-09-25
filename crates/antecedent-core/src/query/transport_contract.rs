@@ -267,11 +267,12 @@ impl TheoremScope {
     /// Single-source z-transportability within 12 observed and 4 controllable variables.
     ///
     /// A positive result is a checked TRz formula executable from the joints it
-    /// cites. A line-11 obstruction is replayable only after the complete source
-    /// experimental family and the target observational joint are checked. The
-    /// guarantee stays sound and incomplete: this is not a completeness proof.
-    /// Outcome-kernel sensitivity applies only to the registered surrogate
-    /// factorization. There is no interval and no multi-source claim.
+    /// cites. A line-11 obstruction is structural in the declared controllable
+    /// set and does not require the experiment power set. Two sources may be
+    /// searched separately; cross-source combination is refused by name. An
+    /// empirical interval is a nominal percentile bootstrap, not a coverage
+    /// claim. The guarantee stays sound and incomplete. Outcome-kernel
+    /// sensitivity applies only to the registered surrogate factorization.
     #[must_use]
     pub fn z_transportability() -> Self {
         Self {
