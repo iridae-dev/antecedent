@@ -726,7 +726,25 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
+        unresolved.push(Arc::from(
+            if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag") {
+                "dependencies.checked_class_graph_posterior_effect_operation"
+            } else {
+                "dependencies.checked_graph_posterior_effect_operation"
+            },
+        ));
+    }
+    if contract.structure_source == "graph_posterior"
+        && contract.graph_class == "Dag"
+        && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
+        && resolved_estimator == Some("bayesian.gcomp")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("bayesian")
+        })
+    {
+        unresolved.push(Arc::from(
+            "dependencies.checked_bayesian_graph_posterior_ate_operation",
+        ));
     }
     if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1169,6 +1187,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_intervention_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 | "dependencies.checked_graph_posterior_effect_operation"
+                | "dependencies.checked_class_graph_posterior_effect_operation"
                 | "dependencies.checked_static_class_effect_operation"
                 | "dependencies.checked_admg_graph_posterior_response_operation"
                 | "dependencies.checked_conditional_effect_operation"
@@ -1183,6 +1202,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_temporal_mediation_operation"
                 | "dependencies.checked_interference_operation"
                 | "dependencies.checked_unknown_tiered_average_operation"
+                | "dependencies.checked_bayesian_graph_posterior_ate_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay

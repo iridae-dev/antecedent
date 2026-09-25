@@ -51,7 +51,8 @@ use super::helpers::{
 };
 use super::stage::{STAGE_ESTIMATE_POINT, STAGE_VALIDATE, StageClock};
 use super::{
-    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
+    CheckedAdmgGraphPosteriorResponse, CheckedBayesianGraphPosteriorAte,
+    CheckedClassGraphPosteriorEffect, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
     StaticClassGraph, StaticClassIdentification,
 };
 use super::{CheckedConditionalOperation, ConditionalProcedure};
@@ -1167,6 +1168,47 @@ pub struct CheckedGraphPosteriorEffectInfo {
     pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
     /// Procedure-specific bootstrap count retained by preparation.
     pub bootstrap_replicates: u32,
+}
+
+/// Read-only CPDAG/PAG posterior samples and completion envelopes retained for
+/// a frequentist average effect.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedClassGraphPosteriorEffectInfo {
+    /// Target query sealed during preparation.
+    pub query: AverageEffectQuery,
+    /// Static estimator used inside each identified completion.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite applied to the atom-wise estimates.
+    pub validation: RefuteSuite,
+    /// Posterior sample key, including repeated and unidentified samples.
+    pub graph_keys: Arc<[u64]>,
+    /// Frozen posterior sample weights.
+    pub weights: Arc<[f64]>,
+    /// Sample-level identification flags, preserving unidentified mass.
+    pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Number of identified CPDAG/PAG completion envelopes retained.
+    pub class_atom_count: usize,
+    /// Procedure-specific bootstrap count.
+    pub bootstrap_replicates: u32,
+}
+
+/// Read-only target and atom identities retained for Bayesian DAG graph-posterior ATE.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianGraphPosteriorAteInfo {
+    /// ATE target bound to the graph posterior.
+    pub query: AverageEffectQuery,
+    /// Bayesian estimator applied to each identified atom.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite frozen at preparation.
+    pub validation: RefuteSuite,
+    /// Frozen graph identity per posterior sample.
+    pub graph_keys: Arc<[u64]>,
+    /// Posterior weight per graph sample.
+    pub weights: Arc<[f64]>,
+    /// Identification state per sample, retaining failed atom mass.
+    pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Backend label for the frozen Bayesian configuration.
+    pub inference: Arc<str>,
 }
 
 /// Frozen ADMG response posterior, including atom weights and identification flags.
@@ -3471,6 +3513,8 @@ pub(crate) enum PreparedExecution {
     CheckedConditional(CheckedConditionalOperation),
     BayesianConditional(super::execute::CheckedBayesianConditionalOperation),
     GraphPosteriorEffect(CheckedGraphPosteriorEffect),
+    ClassGraphPosteriorEffect(CheckedClassGraphPosteriorEffect),
+    BayesianGraphPosteriorAte(Box<CheckedBayesianGraphPosteriorAte>),
     StaticClassEffect(CheckedStaticClassEffect),
     CheckedAipw(CheckedAipwOperation),
     Counterfactual(super::execute::CheckedCounterfactualPlan),
@@ -3554,11 +3598,13 @@ impl PreparedExecution {
             | Self::Interference(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
+            | Self::BayesianGraphPosteriorAte(_)
             | Self::BayesianConditional(_)
             | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
             Self::GraphPosteriorEffect(_) | Self::StaticClassEffect(_) => {
                 CheckedProgramBinding::None
             }
+            Self::ClassGraphPosteriorEffect(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -3766,6 +3812,15 @@ impl PreparedExecution {
     }
     pub(crate) fn graph_posterior_effect(&self) -> Option<&CheckedGraphPosteriorEffect> {
         if let Self::GraphPosteriorEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+    pub(crate) fn class_graph_posterior_effect(
+        &self,
+    ) -> Option<&CheckedClassGraphPosteriorEffect> {
+        if let Self::ClassGraphPosteriorEffect(value) = self {
             Some(value)
         } else {
             None
@@ -4054,6 +4109,12 @@ impl PreparedStudy {
         matches!(self.execution, PreparedExecution::GraphPosteriorEffect(_))
     }
 
+    /// Whether preparation retained a frequentist CPDAG/PAG graph-posterior ATE plan.
+    #[must_use]
+    pub fn has_checked_class_graph_posterior_effect_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::ClassGraphPosteriorEffect(_))
+    }
+
     /// Returns whether the static CPDAG/PAG average effect is bound to a
     /// completion envelope retained at preparation time.
     #[must_use]
@@ -4080,6 +4141,49 @@ impl PreparedStudy {
             weights: Arc::from(weights),
             identified: Arc::from(identified),
             bootstrap_replicates: operation.bootstrap_replicates(),
+        })
+    }
+
+    /// Inspect the frozen sample masses and completion envelopes for a class
+    /// graph-posterior average effect.
+    #[must_use]
+    pub fn checked_class_graph_posterior_effect_info(
+        &self,
+    ) -> Option<CheckedClassGraphPosteriorEffectInfo> {
+        let operation = self.execution.class_graph_posterior_effect()?;
+        let (graph_keys, weights, identified) = operation.sample_mass();
+        Some(CheckedClassGraphPosteriorEffectInfo {
+            query: operation.query().clone(),
+            estimator: operation.procedure().id(),
+            validation: operation.validation(),
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            class_atom_count: operation.class_atoms().len(),
+            bootstrap_replicates: operation.bootstrap_replicates(),
+        })
+    }
+
+    /// Inspect the retained Bayesian DAG posterior target, atoms, and validation suite.
+    #[must_use]
+    pub fn checked_bayesian_graph_posterior_ate_info(
+        &self,
+    ) -> Option<CheckedBayesianGraphPosteriorAteInfo> {
+        let PreparedExecution::BayesianGraphPosteriorAte(operation) = &self.execution else {
+            return None;
+        };
+        let inference = match operation.inference() {
+            InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
+            InferenceMode::Frequentist => "frequentist".to_owned(),
+        };
+        Some(CheckedBayesianGraphPosteriorAteInfo {
+            query: operation.query().clone(),
+            estimator: operation.procedure().id(),
+            validation: operation.validation(),
+            graph_keys: Arc::clone(&operation.identification().graphs.graph_keys),
+            weights: Arc::clone(&operation.identification().graphs.weights),
+            identified: Arc::clone(&operation.identification().graphs.identified),
+            inference: Arc::from(inference),
         })
     }
 
@@ -5811,6 +5915,51 @@ impl PreparedStudy {
             };
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::ClassGraphPosteriorEffect(operation) = &self.execution {
+            let mut click_analysis = self.analysis.clone();
+            click_analysis.data = DataInput::Tabular(data.clone());
+            click_analysis.query = CausalQuery::AverageEffect(operation.query().clone());
+            click_analysis.graph_posterior = Some(operation.posterior().clone());
+            click_analysis.graph_posterior_identification_cache =
+                Some(Arc::new(operation.identification().clone()));
+            click_analysis.inference = InferenceMode::Frequentist;
+            click_analysis.estimator_spec = Some(operation.procedure().clone());
+            click_analysis.estimator = Some(operation.procedure().id());
+            click_analysis.refute = operation.validation();
+            click_analysis.overlap_policy = Some(operation.overlap());
+            click_analysis.population_registry = operation.population_registry().cloned();
+            click_analysis.latency_mode = operation.latency_mode();
+            let result = click_analysis.execute_class_graph_posterior(
+                data,
+                operation.posterior(),
+                operation.query(),
+                &self.plan,
+                ctx,
+            )?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianGraphPosteriorAte(operation) = &self.execution {
+            let mut click_analysis = self.analysis.clone();
+            click_analysis.data = DataInput::Tabular(data.clone());
+            click_analysis.query = CausalQuery::AverageEffect(operation.query().clone());
+            click_analysis.graph_posterior = Some(operation.posterior().clone());
+            click_analysis.graph_posterior_identification_cache =
+                Some(Arc::new(operation.identification().clone()));
+            click_analysis.inference = operation.inference().clone();
+            click_analysis.estimator_spec = Some(operation.procedure().clone());
+            click_analysis.estimator = Some(operation.procedure().id());
+            click_analysis.refute = operation.validation();
+            click_analysis.overlap_policy = Some(operation.overlap());
+            click_analysis.latency_mode = operation.latency_mode();
+            let result = click_analysis.execute_graph_posterior_bayesian(
+                data,
+                operation.posterior(),
+                operation.query(),
+                operation.physical(),
+                ctx,
+            )?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         if let PreparedExecution::StaticClassEffect(operation) = &self.execution {
             let mut click_analysis = self.analysis.clone();
             click_analysis.data = DataInput::Tabular(data.clone());
@@ -6662,6 +6811,127 @@ impl Study {
             }
             _ => None,
         })
+    }
+
+    #[inline(never)]
+    fn seal_class_graph_posterior_effect(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<CheckedClassGraphPosteriorEffect>, CausalError> {
+        let (
+            Some(posterior),
+            CausalQuery::AverageEffect(query),
+            Some(identification),
+            InferenceMode::Frequentist,
+        ) = (
+            analysis.graph_posterior.as_ref(),
+            &analysis.query,
+            analysis.graph_posterior_identification_cache.as_deref(),
+            &analysis.inference,
+        ) else {
+            return Ok(None);
+        };
+        if !matches!(
+            posterior.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                | antecedent_discovery::GraphPosteriorAtomKind::Pag
+        )
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(analysis.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !analysis.custom_validators.is_empty()
+            || !matches!(
+                analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
+                None | Some(EstimatorId::LinearAdjustmentAte)
+            )
+            || !matches!(analysis.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
+        {
+            return Ok(None);
+        }
+        let identifier = crate::strategy_table::IdentifierId::GeneralizedAdjustment;
+        let estimator = EstimatorId::LinearAdjustmentAte;
+        if plan.logical.record.identifier.as_deref() != Some(identifier.as_str())
+            || plan.logical.record.estimator.as_deref() != Some(estimator.as_str())
+        {
+            return Ok(None);
+        }
+        Ok(Some(CheckedClassGraphPosteriorEffect::prepare(
+            posterior.clone(),
+            query.clone(),
+            identification.clone(),
+            analysis
+                .estimator_spec
+                .clone()
+                .unwrap_or(crate::EstimatorSpec::Default(estimator)),
+            analysis.bootstrap_replicates,
+            analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+            analysis.population_registry.clone(),
+            analysis.latency_mode,
+            analysis.refute,
+        )?))
+    }
+
+    #[inline(never)]
+    fn seal_bayesian_graph_posterior_ate(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<Box<CheckedBayesianGraphPosteriorAte>>, CausalError> {
+        let (
+            Some(posterior),
+            CausalQuery::AverageEffect(query),
+            Some(identification),
+            InferenceMode::Bayesian(_),
+        ) = (
+            analysis.graph_posterior.as_ref(),
+            &analysis.query,
+            analysis.graph_posterior_identification_cache.as_deref(),
+            &analysis.inference,
+        )
+        else {
+            return Ok(None);
+        };
+        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Dag
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || !matches!(
+                analysis.refute,
+                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+            )
+            || !analysis.custom_validators.is_empty()
+            || !matches!(
+                analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
+                None | Some(crate::strategy_table::EstimatorId::BayesianGcomp)
+            )
+            || !matches!(
+                analysis.estimator,
+                None | Some(crate::strategy_table::EstimatorId::BayesianGcomp)
+            )
+            || plan
+                .logical
+                .record
+                .identifier
+                .as_deref()
+                .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER)
+                != crate::strategy_table::IdentifierId::BackdoorAdjustment.as_str()
+            || plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR)
+                != crate::strategy_table::EstimatorId::BayesianGcomp.as_str()
+        {
+            return Ok(None);
+        }
+        let procedure = analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(
+            crate::strategy_table::EstimatorId::BayesianGcomp,
+        ));
+        Ok(Some(Box::new(CheckedBayesianGraphPosteriorAte::prepare(
+            posterior.clone(),
+            query.clone(),
+            identification.clone(),
+            analysis.inference.clone(),
+            procedure,
+            plan.clone(),
+            analysis.refute,
+            analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+            analysis.latency_mode,
+        )?)))
     }
 
     fn seal_admg_graph_posterior_response(
@@ -8588,6 +8858,10 @@ impl Study {
             None
         };
         let checked_graph_posterior_effect = Self::seal_graph_posterior_effect(&analysis, &plan)?;
+        let checked_class_graph_posterior_effect =
+            Self::seal_class_graph_posterior_effect(&analysis, &plan)?;
+        let checked_bayesian_graph_posterior_ate =
+            Self::seal_bayesian_graph_posterior_ate(&analysis, &plan)?;
         let checked_static_class_effect = Self::seal_static_class_effect(&analysis, &plan)?;
         let checked_admg_graph_posterior_response =
             Self::seal_admg_graph_posterior_response(&analysis, &plan)?;
@@ -8699,6 +8973,10 @@ impl Study {
             PreparedExecution::CheckedConditional(operation)
         } else if let Some(operation) = checked_graph_posterior_effect {
             PreparedExecution::GraphPosteriorEffect(operation)
+        } else if let Some(operation) = checked_class_graph_posterior_effect {
+            PreparedExecution::ClassGraphPosteriorEffect(operation)
+        } else if let Some(operation) = checked_bayesian_graph_posterior_ate {
+            PreparedExecution::BayesianGraphPosteriorAte(operation)
         } else if let Some(operation) = checked_static_class_effect {
             PreparedExecution::StaticClassEffect(operation)
         } else if let Some(operation) = checked_aipw {

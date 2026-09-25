@@ -23,7 +23,7 @@ struct ClassAtomEval {
 
 impl super::Study {
     /// Mix CPDAG/PAG posterior atoms through the existing class ATE evaluator.
-    pub(super) fn execute_class_graph_posterior(
+    pub(in crate::analysis) fn execute_class_graph_posterior(
         &self,
         data: &TabularData,
         gp: &GraphPosterior,
