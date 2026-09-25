@@ -6140,20 +6140,6 @@ builder_independent = "unverified"
 execution_semantics = "unverified"
 
 [[route]]
-coordinate = "AverageEffect:CoDetermined:explicit:Frequentist:none::estimator=cell.aipw"
-source_registry = "parity/support_licensed.toml"
-base_coordinate = "AverageEffect:CoDetermined:explicit:Frequentist:none"
-query = "AverageEffect"
-identifier = "selected_at_preparation"
-estimator = "cell.aipw"
-kind = "specialized_estimation"
-classification_reason = "route selects a named estimator family or procedure"
-migration_status = "pending"
-checked_execution = "unverified"
-builder_independent = "unverified"
-execution_semantics = "unverified"
-
-[[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:cheap::estimator=aipw"
 source_registry = "parity/support_licensed.toml"
 base_coordinate = "AverageEffect:Dag:accepted:Frequentist:cheap"
