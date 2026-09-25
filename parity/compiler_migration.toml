@@ -398,9 +398,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
 evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+
 [[route]]
 coordinate = "AverageEffect:Cpdag:accepted:Frequentist:full"
 query = "AverageEffect"
@@ -412,9 +412,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
 evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+
 [[route]]
 coordinate = "AverageEffect:Cpdag:accepted:Frequentist:none"
 query = "AverageEffect"
@@ -426,9 +426,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
 evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+
 [[route]]
 coordinate = "AverageEffect:Cpdag:explicit:Bayesian:cheap"
 query = "AverageEffect"
@@ -476,9 +476,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
 evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+
 [[route]]
 coordinate = "AverageEffect:Cpdag:explicit:Frequentist:full"
 query = "AverageEffect"
@@ -490,9 +490,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
 evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+
 [[route]]
 coordinate = "AverageEffect:Cpdag:explicit:Frequentist:none"
 query = "AverageEffect"
@@ -504,9 +504,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
 evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+
 [[route]]
 coordinate = "AverageEffect:Cpdag:graph_posterior:Bayesian:cheap"
 query = "AverageEffect"
@@ -884,9 +884,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
 evidence_assertion = "pag_identified_envelope_average_effect_pins"
+
 [[route]]
 coordinate = "AverageEffect:Pag:accepted:Frequentist:full"
 query = "AverageEffect"
@@ -898,9 +898,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
 evidence_assertion = "pag_identified_envelope_average_effect_pins"
+
 [[route]]
 coordinate = "AverageEffect:Pag:accepted:Frequentist:none"
 query = "AverageEffect"
@@ -912,9 +912,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
 evidence_assertion = "pag_identified_envelope_average_effect_pins"
+
 [[route]]
 coordinate = "AverageEffect:Pag:explicit:Bayesian:cheap"
 query = "AverageEffect"
@@ -962,9 +962,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
 evidence_assertion = "pag_identified_envelope_average_effect_pins"
+
 [[route]]
 coordinate = "AverageEffect:Pag:explicit:Frequentist:full"
 query = "AverageEffect"
@@ -976,9 +976,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
 evidence_assertion = "pag_identified_envelope_average_effect_pins"
+
 [[route]]
 coordinate = "AverageEffect:Pag:explicit:Frequentist:none"
 query = "AverageEffect"
@@ -990,9 +990,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
 evidence_assertion = "pag_identified_envelope_average_effect_pins"
+
 [[route]]
 coordinate = "AverageEffect:Pag:graph_posterior:Bayesian:cheap"
 query = "AverageEffect"
@@ -1160,9 +1160,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:accepted:Frequentist:full"
 query = "ConditionalEffect"
@@ -1174,9 +1174,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:accepted:Frequentist:none"
 query = "ConditionalEffect"
@@ -1188,9 +1188,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:explicit:Bayesian:cheap"
 query = "ConditionalEffect"
@@ -1238,9 +1238,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:explicit:Frequentist:full"
 query = "ConditionalEffect"
@@ -1252,9 +1252,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:explicit:Frequentist:none"
 query = "ConditionalEffect"
@@ -1266,9 +1266,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Cpdag:graph_posterior:Bayesian:cheap"
 query = "ConditionalEffect"
@@ -1628,9 +1628,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Pag:accepted:Frequentist:full"
 query = "ConditionalEffect"
@@ -1642,9 +1642,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Pag:accepted:Frequentist:none"
 query = "ConditionalEffect"
@@ -1656,9 +1656,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Pag:explicit:Bayesian:cheap"
 query = "ConditionalEffect"
@@ -1706,9 +1706,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Pag:explicit:Frequentist:full"
 query = "ConditionalEffect"
@@ -1720,9 +1720,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Pag:explicit:Frequentist:none"
 query = "ConditionalEffect"
@@ -1734,9 +1734,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_conditional_effect_route_evidence.rs"
 evidence_assertion = "fully_identified_class_conditional_effect_is_sealed_across_lifecycle"
+
 [[route]]
 coordinate = "ConditionalEffect:Pag:graph_posterior:Bayesian:cheap"
 query = "ConditionalEffect"
@@ -2180,12 +2180,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:graph_posterior:Bayesian:full"
@@ -2194,12 +2194,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:graph_posterior:Bayesian:none"
@@ -2208,12 +2208,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:graph_posterior:Frequentist:cheap"
@@ -2222,12 +2222,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:graph_posterior:Frequentist:full"
@@ -2236,12 +2236,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:graph_posterior:Frequentist:none"
@@ -2250,12 +2250,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_intervention_response_is_sealed_across_refuters"
 
 [[route]]
 coordinate = "InterventionResponse:CoDetermined:explicit:Frequentist:none"
@@ -4414,12 +4414,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes"
 
 [[route]]
 coordinate = "ResponseCurve:Admg:graph_posterior:Frequentist:none"
@@ -4428,12 +4428,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "composition"
 classification_reason = "route composes checked results across graph-posterior members"
-evidence_test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs"
-evidence_assertion = "graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes"
 migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs"
+evidence_assertion = "graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes"
 
 [[route]]
 coordinate = "ResponseCurve:Cpdag:accepted:Bayesian:none"
@@ -7228,6 +7228,20 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "python/tests/test_transport_meta_grid.py"
 evidence_assertion = "test_checked_meta_statistical_plan_survives_builder_and_independent_consume"
+
+[[route]]
+coordinate = "transport-stage:antecedent.transport.consume_z_transport"
+source_registry = "parity/transport_stages.toml"
+route = "antecedent.transport.consume_z_transport"
+stage = "consume"
+kind = "composition"
+classification_reason = "public transport consume route composes checked proof, binding, or artifact contracts"
+migration_status = "pending"
+checked_execution = "unverified"
+builder_independent = "unverified"
+execution_semantics = "unverified"
+evidence_test = "python/tests/test_transport_z.py"
+evidence_assertion = "test_z_transport_prepared_native_route_matches_independent_truth"
 
 [[route]]
 coordinate = "transport-stage:antecedent.transport.evaluate_empirical_table"
