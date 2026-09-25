@@ -192,7 +192,7 @@ fn surrogate_cited_margin_nominal_coverage() {
         nominal_z_transport_interval(
             &functional,
             &data,
-            Assignment::from_pairs([(X, Value::Bool(false))]),
+            &Assignment::from_pairs([(X, Value::Bool(false))]),
             ExactEvaluationLimits::default(),
             199,
             REPORTED_LEVEL,

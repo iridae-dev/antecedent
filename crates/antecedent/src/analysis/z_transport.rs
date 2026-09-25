@@ -156,11 +156,13 @@ impl PreparedZTransport {
             antecedent_estimate::bayesian_z_transport_interval(
                 &self.functional,
                 &self.data,
-                self.request.clone(),
+                &self.request,
                 self.limits,
-                provider,
-                draws,
-                options.coverage_level,
+                antecedent_estimate::statistical_transport::BayesianZTransportIntervalOptions {
+                    provider,
+                    draws,
+                    coverage_level: options.coverage_level,
+                },
                 ctx,
             )
             .map_err(err)?
@@ -168,7 +170,7 @@ impl PreparedZTransport {
             antecedent_estimate::nominal_z_transport_interval(
                 &self.functional,
                 &self.data,
-                self.request.clone(),
+                &self.request,
                 self.limits,
                 options.bootstrap_replicates,
                 options.coverage_level,

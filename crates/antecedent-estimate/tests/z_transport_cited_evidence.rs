@@ -14,6 +14,7 @@ use antecedent_core::{
 use antecedent_estimate::{
     BayesianTransportLawProvider, POSTERIOR_EQUAL_TAIL, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
     bayesian_z_transport_interval, evaluate_exact_z_transport, nominal_z_transport_interval,
+    statistical_transport::BayesianZTransportIntervalOptions,
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
@@ -113,6 +114,15 @@ fn cited_wyx_probabilities() -> Vec<f64> {
     probabilities
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "The fixture probabilities are nonnegative and the chosen sample sizes fit u64."
+)]
+fn scaled_fixture_counts(probabilities: &[f64], sample_size: f64) -> Vec<u64> {
+    probabilities.iter().map(|probability| (probability * sample_size).round() as u64).collect()
+}
+
 #[test]
 fn surrogate_decision_uses_only_the_cited_source_margin() {
     let diagram = surrogate_diagram();
@@ -191,7 +201,7 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
     )
     .unwrap();
     let probabilities = cited_wyx_probabilities();
-    let counts = probabilities.iter().map(|p| (p * 20_000.0).round() as u64).collect::<Vec<_>>();
+    let counts = scaled_fixture_counts(&probabilities, 20_000.0);
     let total = counts.iter().sum::<u64>() as f64;
     let empirical = counts.iter().map(|count| *count as f64 / total).collect::<Vec<_>>();
     let law = ExactDiscreteLaw::try_empirical(
@@ -228,7 +238,7 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
     let interval = nominal_z_transport_interval(
         &bound,
         &data,
-        request,
+        &request,
         ExactEvaluationLimits::default(),
         99,
         0.95,
@@ -248,7 +258,7 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
     let withheld = nominal_z_transport_interval(
         &bound,
         &data,
-        Assignment::from_pairs([(X, Value::Bool(false))]),
+        &Assignment::from_pairs([(X, Value::Bool(false))]),
         ExactEvaluationLimits::default(),
         99,
         0.95,
@@ -260,6 +270,7 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // One staged artifact lifecycle covers both posterior providers.
 fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
     let diagram = surrogate_diagram();
     let query = surrogate_query();
@@ -281,7 +292,7 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
     )
     .unwrap();
     let probabilities = cited_wyx_probabilities();
-    let counts = probabilities.iter().map(|p| (p * 4_000.0).round() as u64).collect::<Vec<_>>();
+    let counts = scaled_fixture_counts(&probabilities, 4_000.0);
     let total = counts.iter().sum::<u64>() as f64;
     let empirical = counts.iter().map(|count| *count as f64 / total).collect::<Vec<_>>();
     let law = ExactDiscreteLaw::try_empirical(
@@ -322,11 +333,9 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
         let interval = bayesian_z_transport_interval(
             &bound,
             &data,
-            request.clone(),
+            &request,
             ExactEvaluationLimits::default(),
-            provider,
-            40,
-            0.95,
+            BayesianZTransportIntervalOptions { provider, draws: 40, coverage_level: 0.95 },
             &context,
         )
         .unwrap()
@@ -360,11 +369,13 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
     let withheld = bayesian_z_transport_interval(
         &bound,
         &data,
-        request,
+        &request,
         ExactEvaluationLimits::default(),
-        BayesianTransportLawProvider::EmpiricalSupport,
-        8,
-        0.95,
+        BayesianZTransportIntervalOptions {
+            provider: BayesianTransportLawProvider::EmpiricalSupport,
+            draws: 8,
+            coverage_level: 0.95,
+        },
         &context,
     )
     .unwrap()
@@ -373,6 +384,7 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // Couple the negative selection case with the independent SCM check.
 fn selection_on_a_non_outcome_still_transports_and_matches_scm_truth() {
     let mut graph = Admg::with_variables(5);
     for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
