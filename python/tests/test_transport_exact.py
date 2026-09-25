@@ -336,7 +336,6 @@ def test_catalog_standardization_uses_only_supplied_target_covariate_marginal():
         outcomes=["y"],
         treatments=["x"],
     )
-    builder = identified
     del graph
     catalog = transport.EvidenceCatalog(
         regimes=[
@@ -553,10 +552,15 @@ def test_classical_checked_program_and_catalog_proof_survive_graph_builder_dispo
     # The native checked derivation and executable wire are retained independently
     # of the graph/query objects used to ask for identification.
     data = transport.ExactTransportData(
-        (transport.ExactDiscreteLaw(
-            "target", "obs", (("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
-            (0.4, 0.1, 0.15, 0.35), "proof-bound-law",
-        ),)
+        (
+            transport.ExactDiscreteLaw(
+                "target",
+                "obs",
+                (("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+                (0.4, 0.1, 0.15, 0.35),
+                "proof-bound-law",
+            ),
+        )
     )
     prepared = transport.prepare_exact(builder, catalog, data, at={"x": 1.0})
     del builder, identified

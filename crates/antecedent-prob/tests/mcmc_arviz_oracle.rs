@@ -1,4 +1,4 @@
-//! Numerical comparison with pinned ArviZ rank diagnostics on shared chains.
+//! Numerical comparison with pinned `ArviZ` rank diagnostics on shared chains.
 
 use antecedent_prob::mcmc_summary;
 
@@ -17,8 +17,10 @@ fn rank_rhat_bulk_and_tail_ess_match_pinned_arviz_chains() {
             .iter()
             .map(|value| value.as_f64().unwrap())
             .collect();
-        let n_chains = case["chains"].as_u64().unwrap() as usize;
-        let n_draws = case["draws"].as_u64().unwrap() as usize;
+        let n_chains = usize::try_from(case["chains"].as_u64().unwrap())
+            .expect("fixture chain count fits usize");
+        let n_draws = usize::try_from(case["draws"].as_u64().unwrap())
+            .expect("fixture draw count fits usize");
         let observed = mcmc_summary(&samples, n_chains, n_draws, 1);
         let expected = &case["arviz"];
         let rhat = expected["rhat_rank"].as_f64().unwrap();
