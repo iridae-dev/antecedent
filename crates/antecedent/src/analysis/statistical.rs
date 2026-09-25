@@ -762,10 +762,12 @@ impl PreparedStudy<StatisticalPreparedState> {
             &self.state.input,
             requests,
             self.state.limits,
-            provider,
-            self.state.options.posterior_draws,
-            self.state.options.coverage_level,
-            self.state.options.max_joint_cells,
+            antecedent_estimate::statistical_transport::BayesianStatisticalTransportOptions {
+                provider,
+                draws: self.state.options.posterior_draws,
+                coverage_level: self.state.options.coverage_level,
+                max_joint_cells: self.state.options.max_joint_cells,
+            },
             ctx,
         )
         .map_err(err)?;
@@ -2139,12 +2141,14 @@ mod tests {
         let withheld = antecedent_estimate::evaluate_bayesian_statistical_transport(
             &study.state.functional,
             &study.state.input,
-            study.state.request.clone(),
+            &study.state.request,
             study.state.limits,
-            antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
-            8,
-            0.95,
-            study.state.options.max_joint_cells,
+            antecedent_estimate::statistical_transport::BayesianStatisticalTransportOptions {
+                provider: antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
+                draws: 8,
+                coverage_level: 0.95,
+                max_joint_cells: study.state.options.max_joint_cells,
+            },
             &ctx,
         )
         .unwrap();

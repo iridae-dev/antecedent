@@ -47,6 +47,19 @@ pub struct BayesianStatisticalTransportEstimate {
     pub draws_failed: u32,
 }
 
+/// Settings shared by every request in a Bayesian statistical transport grid.
+#[derive(Clone, Copy, Debug)]
+pub struct BayesianStatisticalTransportOptions {
+    /// Finite-joint posterior law provider.
+    pub provider: BayesianTransportLawProvider,
+    /// Number of shared posterior law draws.
+    pub draws: u32,
+    /// Equal-tail interval probability mass.
+    pub coverage_level: f64,
+    /// Maximum cells in a materialized joint law.
+    pub max_joint_cells: usize,
+}
+
 /// Evaluate finite-discrete structural transport under joint Bayesian law draws.
 ///
 /// Each independent dataset is drawn once per iteration and aliases resolve to that same
@@ -58,23 +71,17 @@ pub struct BayesianStatisticalTransportEstimate {
 pub fn evaluate_bayesian_statistical_transport(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
-    request: Assignment,
+    request: &Assignment,
     limits: ExactEvaluationLimits,
-    provider: BayesianTransportLawProvider,
-    draws: u32,
-    coverage_level: f64,
-    max_joint_cells: usize,
+    options: BayesianStatisticalTransportOptions,
     ctx: &ExecutionContext,
 ) -> Result<BayesianStatisticalTransportEstimate, EstimationError> {
     let mut estimates = evaluate_bayesian_statistical_transport_grid(
         functional,
         input,
-        std::slice::from_ref(&request),
+        std::slice::from_ref(request),
         limits,
-        provider,
-        draws,
-        coverage_level,
-        max_joint_cells,
+        options,
         ctx,
     )?;
     Ok(estimates.remove(0))
@@ -94,21 +101,21 @@ pub fn evaluate_bayesian_statistical_transport_grid(
     input: &StatisticalTransportInput,
     requests: &[Assignment],
     limits: ExactEvaluationLimits,
-    provider: BayesianTransportLawProvider,
-    draws: u32,
-    coverage_level: f64,
-    max_joint_cells: usize,
+    options: BayesianStatisticalTransportOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<BayesianStatisticalTransportEstimate>, EstimationError> {
     if requests.is_empty() {
         return Err(EstimationError::data_msg("Bayesian transport grid is empty"));
     }
-    if draws < 2 || !coverage_level.is_finite() || !(0.0..1.0).contains(&coverage_level) {
+    if options.draws < 2
+        || !options.coverage_level.is_finite()
+        || !(0.0..1.0).contains(&options.coverage_level)
+    {
         return Err(EstimationError::data_msg(
             "Bayesian transport requires at least two draws and coverage strictly between zero and one",
         ));
     }
-    let estimator: Arc<str> = Arc::from(match provider {
+    let estimator: Arc<str> = Arc::from(match options.provider {
         BayesianTransportLawProvider::EmpiricalSupport => {
             crate::empirical_table::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
         }
@@ -117,20 +124,25 @@ pub fn evaluate_bayesian_statistical_transport_grid(
         }
     });
     if let Some(reason) = dependence_refusal(functional.catalog(), &input.samples) {
-        return Ok(withheld_bayesian_grid(&estimator, draws, 0, 0, reason, requests.len()));
+        return Ok(withheld_bayesian_grid(&estimator, options.draws, 0, 0, reason, requests.len()));
     }
     let mut per_request: Vec<Vec<antecedent_expr::ExactDistribution>> =
         (0..requests.len()).map(|_| Vec::new()).collect();
     let mut failed = 0u32;
-    for draw_id in 0..draws {
+    for draw_id in 0..options.draws {
         if ctx.cancellation.is_cancelled() {
             return Err(EstimationError::data_msg("Bayesian transport execution cancelled"));
         }
         let mut rng = ctx.rng.stream_for(StreamDomain::Transport, 0xBAE5_0000 | u64::from(draw_id));
-        let (mut laws, by_sample) =
-            draw_bayesian_transport_laws(input, functional, provider, &mut rng, max_joint_cells)?;
+        let (mut laws, by_sample) = draw_bayesian_transport_laws(
+            input,
+            functional,
+            options.provider,
+            &mut rng,
+            options.max_joint_cells,
+        )?;
         laws.extend(by_sample.into_values());
-        let data = antecedent_expr::ExactTransportData::try_new(laws, max_joint_cells)
+        let data = antecedent_expr::ExactTransportData::try_new(laws, options.max_joint_cells)
             .map_err(|error| EstimationError::data_msg(error.to_string()))?;
         let mut request_distributions = Vec::with_capacity(requests.len());
         let mut draw_failed = false;
@@ -158,18 +170,18 @@ pub fn evaluate_bayesian_statistical_transport_grid(
             slot.push(distribution);
         }
     }
-    let successful = draws.saturating_sub(failed);
-    let withhold = bayesian_draw_interval_reason(draws, successful);
+    let successful = options.draws.saturating_sub(failed);
+    let withhold = bayesian_draw_interval_reason(options.draws, successful);
     per_request
         .into_iter()
         .map(|distributions| {
             let mut estimate = finish_bayesian_estimate(
                 &estimator,
                 distributions,
-                draws,
+                options.draws,
                 successful,
                 failed,
-                coverage_level,
+                options.coverage_level,
             )?;
             if let Some(reason) = withhold {
                 estimate.atom_intervals = Arc::from([]);
@@ -877,6 +889,75 @@ pub struct NominalZTransportInterval {
     pub replicates_failed: u32,
 }
 
+/// Settings for a posterior z-transport interval.
+#[derive(Clone, Copy, Debug)]
+pub struct BayesianZTransportIntervalOptions {
+    /// Finite-joint posterior law provider.
+    pub provider: BayesianTransportLawProvider,
+    /// Number of posterior law draws.
+    pub draws: u32,
+    /// Equal-tail interval probability mass.
+    pub coverage_level: f64,
+}
+
+struct ZTransportDrawSummary {
+    atom_columns: Vec<Vec<f64>>,
+    mean_columns: Vec<Vec<f64>>,
+}
+
+impl ZTransportDrawSummary {
+    fn new(outcome_count: usize) -> Self {
+        Self { atom_columns: Vec::new(), mean_columns: vec![Vec::new(); outcome_count] }
+    }
+
+    fn evaluate_and_record(
+        &mut self,
+        functional: &antecedent_identify::BoundZTransportFunctional,
+        draw: antecedent_expr::ExactTransportData,
+        request: &Assignment,
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+        outcomes: &[VariableId],
+    ) -> Result<bool, EstimationError> {
+        match crate::transport::evaluate_exact_z_transport(
+            functional,
+            draw,
+            request.clone(),
+            limits,
+            ctx,
+        ) {
+            Ok(distribution) => {
+                if !self.atom_columns.is_empty()
+                    && self.atom_columns.len() != distribution.probabilities.len()
+                {
+                    return Err(EstimationError::data_msg(
+                        "z-transport draw atom support changed between draws",
+                    ));
+                }
+                for (outcome_index, outcome) in outcomes.iter().enumerate() {
+                    let mean = distribution
+                        .mean(*outcome)
+                        .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+                    self.mean_columns[outcome_index].push(mean);
+                }
+                for (atom, probability) in distribution.probabilities.iter().enumerate() {
+                    if self.atom_columns.len() == atom {
+                        self.atom_columns.push(Vec::new());
+                    }
+                    self.atom_columns[atom].push(*probability);
+                }
+                Ok(true)
+            }
+            Err(
+                antecedent_expr::EvalError::ExactLaw(_)
+                | antecedent_expr::EvalError::ExactRatioSupport { .. }
+                | antecedent_expr::EvalError::DivisionByZero,
+            ) => Ok(false),
+            Err(error) => Err(EstimationError::data_msg(error.to_string())),
+        }
+    }
+}
+
 /// Publish a nominal percentile interval when every cited law has counts.
 ///
 /// Exact laws and dependence the classical empirical path already refuses stay
@@ -888,7 +969,7 @@ pub struct NominalZTransportInterval {
 pub fn nominal_z_transport_interval(
     functional: &antecedent_identify::BoundZTransportFunctional,
     data: &antecedent_expr::ExactTransportData,
-    request: Assignment,
+    request: &Assignment,
     limits: ExactEvaluationLimits,
     replicates: u32,
     coverage_level: f64,
@@ -902,13 +983,12 @@ pub fn nominal_z_transport_interval(
             "z-transport percentile interval requires at least two replicates and coverage strictly between zero and one",
         ));
     }
-    let regimes = data.laws().iter().map(|law| law.regime());
+    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
     if !licensed_iid_regimes(functional.catalog(), regimes) {
         return Ok(Err("transport.unsupported_dependence"));
     }
     let outcomes = functional.derivation().query().outcomes.clone();
-    let mut atom_columns: Vec<Vec<f64>> = Vec::new();
-    let mut mean_columns: Vec<Vec<f64>> = vec![Vec::new(); outcomes.len()];
+    let mut summary = ZTransportDrawSummary::new(outcomes.len());
     let mut failed = 0u32;
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() {
@@ -949,55 +1029,24 @@ pub fn nominal_z_transport_interval(
         }
         let draw = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
             .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-        match crate::transport::evaluate_exact_z_transport(
-            functional,
-            draw,
-            request.clone(),
-            limits,
-            ctx,
-        ) {
-            Ok(distribution) => {
-                if !atom_columns.is_empty()
-                    && atom_columns.len() != distribution.probabilities.len()
-                {
-                    return Err(EstimationError::data_msg(
-                        "z-transport bootstrap atom support changed between draws",
-                    ));
-                }
-                for (outcome_index, outcome) in outcomes.iter().enumerate() {
-                    let mean = distribution
-                        .mean(*outcome)
-                        .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-                    mean_columns[outcome_index].push(mean);
-                }
-                for (atom, probability) in distribution.probabilities.iter().enumerate() {
-                    if atom_columns.len() == atom {
-                        atom_columns.push(Vec::new());
-                    }
-                    atom_columns[atom].push(*probability);
-                }
-            }
-            Err(
-                antecedent_expr::EvalError::ExactLaw(_)
-                | antecedent_expr::EvalError::ExactRatioSupport { .. }
-                | antecedent_expr::EvalError::DivisionByZero,
-            ) => failed += 1,
-            Err(error) => return Err(EstimationError::data_msg(error.to_string())),
+        if !summary.evaluate_and_record(functional, draw, request, limits, ctx, &outcomes)? {
+            failed += 1;
         }
     }
-    let ok = u32::try_from(atom_columns.first().map_or(0, Vec::len)).unwrap_or(u32::MAX);
+    let ok = u32::try_from(summary.atom_columns.first().map_or(0, Vec::len)).unwrap_or(u32::MAX);
     let attempted = ok.saturating_add(failed);
     let fail_frac = if attempted == 0 { 1.0 } else { f64::from(failed) / f64::from(attempted) };
     if ok < 2 || fail_frac > BOOTSTRAP_MAX_FAILURE_FRAC {
         return Err(EstimationError::data_msg("z_transport.bootstrap_failure_fraction"));
     }
-    let atom_intervals = atom_columns
+    let atom_intervals = summary
+        .atom_columns
         .iter()
         .map(|column| percentile_interval(column, coverage_level))
         .collect::<Arc<[_]>>();
     let mean_intervals = outcomes
         .iter()
-        .zip(mean_columns)
+        .zip(summary.mean_columns)
         .map(|(outcome, column)| {
             let (lower, upper) = percentile_interval(&column, coverage_level);
             (*outcome, lower, upper)
@@ -1028,32 +1077,32 @@ pub fn nominal_z_transport_interval(
 pub fn bayesian_z_transport_interval(
     functional: &antecedent_identify::BoundZTransportFunctional,
     data: &antecedent_expr::ExactTransportData,
-    request: Assignment,
+    request: &Assignment,
     limits: ExactEvaluationLimits,
-    provider: BayesianTransportLawProvider,
-    draws: u32,
-    coverage_level: f64,
+    options: BayesianZTransportIntervalOptions,
     ctx: &ExecutionContext,
 ) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
     }
-    if draws < 2 || !coverage_level.is_finite() || !(0.0..1.0).contains(&coverage_level) {
+    if options.draws < 2
+        || !options.coverage_level.is_finite()
+        || !(0.0..1.0).contains(&options.coverage_level)
+    {
         return Err(EstimationError::data_msg(
             "z-transport posterior interval requires at least two draws and coverage strictly between zero and one",
         ));
     }
-    let regimes = data.laws().iter().map(|law| law.regime());
+    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
     if !licensed_iid_regimes(functional.catalog(), regimes) {
         return Ok(Err("transport.unsupported_dependence"));
     }
     let include_unseen =
-        matches!(provider, BayesianTransportLawProvider::DeclaredStateSpaceDirichlet);
+        matches!(options.provider, BayesianTransportLawProvider::DeclaredStateSpaceDirichlet);
     let outcomes = functional.derivation().query().outcomes.clone();
-    let mut atom_columns: Vec<Vec<f64>> = Vec::new();
-    let mut mean_columns: Vec<Vec<f64>> = vec![Vec::new(); outcomes.len()];
+    let mut summary = ZTransportDrawSummary::new(outcomes.len());
     let mut failed = 0u32;
-    for draw_id in 0..draws {
+    for draw_id in 0..options.draws {
         if ctx.cancellation.is_cancelled() {
             return Err(EstimationError::data_msg("z-transport posterior cancelled"));
         }
@@ -1061,9 +1110,14 @@ pub fn bayesian_z_transport_interval(
         let mut draw_failed = false;
         for (dataset, law) in data.laws().iter().enumerate() {
             let counts = law.empirical_counts().expect("counted law");
+            let dataset = u32::try_from(dataset).map_err(|_| {
+                EstimationError::data_msg(
+                    "z-transport has more datasets than its RNG stream supports",
+                )
+            })?;
             let mut rng = ctx.rng.stream_for(
                 StreamDomain::Transport,
-                0xBAE5_7A00_0000 | ((dataset as u64) << 32) | u64::from(draw_id),
+                0xBAE5_7A00_0000 | (u64::from(dataset) << 32) | u64::from(draw_id),
             );
             let Some(probabilities) =
                 posterior_cell_probabilities(counts, include_unseen, &mut rng)
@@ -1090,65 +1144,34 @@ pub fn bayesian_z_transport_interval(
         }
         let draw = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
             .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-        match crate::transport::evaluate_exact_z_transport(
-            functional,
-            draw,
-            request.clone(),
-            limits,
-            ctx,
-        ) {
-            Ok(distribution) => {
-                if !atom_columns.is_empty()
-                    && atom_columns.len() != distribution.probabilities.len()
-                {
-                    return Err(EstimationError::data_msg(
-                        "z-transport posterior atom support changed between draws",
-                    ));
-                }
-                for (outcome_index, outcome) in outcomes.iter().enumerate() {
-                    let mean = distribution
-                        .mean(*outcome)
-                        .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-                    mean_columns[outcome_index].push(mean);
-                }
-                for (atom, probability) in distribution.probabilities.iter().enumerate() {
-                    if atom_columns.len() == atom {
-                        atom_columns.push(Vec::new());
-                    }
-                    atom_columns[atom].push(*probability);
-                }
-            }
-            Err(
-                antecedent_expr::EvalError::ExactLaw(_)
-                | antecedent_expr::EvalError::ExactRatioSupport { .. }
-                | antecedent_expr::EvalError::DivisionByZero,
-            ) => failed += 1,
-            Err(error) => return Err(EstimationError::data_msg(error.to_string())),
+        if !summary.evaluate_and_record(functional, draw, request, limits, ctx, &outcomes)? {
+            failed += 1;
         }
     }
-    let ok = u32::try_from(atom_columns.first().map_or(0, Vec::len)).unwrap_or(u32::MAX);
-    if let Some(reason) = bayesian_draw_interval_reason(draws, ok) {
+    let ok = u32::try_from(summary.atom_columns.first().map_or(0, Vec::len)).unwrap_or(u32::MAX);
+    if let Some(reason) = bayesian_draw_interval_reason(options.draws, ok) {
         return Ok(Err(reason));
     }
-    let atom_intervals = atom_columns
+    let atom_intervals = summary
+        .atom_columns
         .iter()
-        .map(|column| percentile_interval(column, coverage_level))
+        .map(|column| percentile_interval(column, options.coverage_level))
         .collect::<Arc<[_]>>();
     let mean_intervals = outcomes
         .iter()
-        .zip(mean_columns)
+        .zip(summary.mean_columns)
         .map(|(outcome, column)| {
-            let (lower, upper) = percentile_interval(&column, coverage_level);
+            let (lower, upper) = percentile_interval(&column, options.coverage_level);
             (*outcome, lower, upper)
         })
         .collect::<Arc<[_]>>();
     Ok(Ok(NominalZTransportInterval {
         method: Arc::from(POSTERIOR_EQUAL_TAIL),
         reason: Arc::from(Z_TRANSPORT_INTERVAL_NOT_MEASURED),
-        coverage_target: coverage_level,
+        coverage_target: options.coverage_level,
         atom_intervals,
         mean_intervals,
-        replicates_requested: draws,
+        replicates_requested: options.draws,
         replicates_ok: ok,
         replicates_failed: failed,
     }))
@@ -1190,14 +1213,17 @@ fn resample_cited_counts(
     out: &mut [u64],
 ) -> bool {
     let total = counts.iter().sum::<u64>();
-    if total == 0 || usize::try_from(total).is_err() || out.len() != counts.len() {
+    let Ok(total) = usize::try_from(total) else {
+        return false;
+    };
+    if total == 0 || out.len() != counts.len() {
         return false;
     }
-    let total = total as usize;
     let mut rows = Vec::with_capacity(total);
     for (cell, count) in counts.iter().enumerate() {
-        let cell = u32::try_from(cell).unwrap_or(u32::MAX);
-        rows.extend(std::iter::repeat(cell).take(*count as usize));
+        let Ok(cell) = u32::try_from(cell) else { return false };
+        let Ok(count) = usize::try_from(*count) else { return false };
+        rows.extend(std::iter::repeat_n(cell, count));
     }
     let mut indexes = Vec::new();
     if fill_resample_indexes(ResamplingPlan::IidBootstrap, total, rng, &mut indexes).is_err()
@@ -1207,8 +1233,10 @@ fn resample_cited_counts(
     }
     out.fill(0);
     for index in indexes {
-        let Some(cell) = rows.get(index as usize).copied() else { return false };
-        out[cell as usize] += 1;
+        let Ok(index) = usize::try_from(index) else { return false };
+        let Some(cell) = rows.get(index).copied() else { return false };
+        let Ok(cell) = usize::try_from(cell) else { return false };
+        out[cell] += 1;
     }
     true
 }
