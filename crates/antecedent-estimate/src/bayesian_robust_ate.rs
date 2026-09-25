@@ -95,7 +95,7 @@ pub fn estimate_bayesian_robust_ate(
 ) -> Result<BayesianRobustAteResult, EstimationError> {
     validate(input, options)?;
     let n = input.row_ids.len();
-    let fold_ids = fixed_folds(input, options.folds);
+    let fold_ids = plan_bayesian_robust_ate_folds(input, options.folds)?;
     let x = make_design(input);
     let mut effects = Vec::with_capacity(options.draws);
     let mut refits = Vec::with_capacity(options.draws);
@@ -137,6 +137,21 @@ pub fn estimate_bayesian_robust_ate(
         refits,
         interval_interpretation: "modular Bayesian-bootstrap pushforward; nuisance refits and orthogonal score share each draw's Exp(1) row weights",
     })
+}
+
+/// Bind the deterministic treatment-stratified cross-fit assignment for an
+/// input. Checked preparation can retain this vector and verify it on refresh.
+///
+/// # Errors
+/// Returns the same input and fold-count refusals as the estimator.
+pub fn plan_bayesian_robust_ate_folds(
+    input: &BayesianRobustAteInput,
+    folds: usize,
+) -> Result<Vec<u16>, EstimationError> {
+    let mut options = BayesianRobustAteOptions::default();
+    options.folds = folds;
+    validate(input, options)?;
+    Ok(fixed_folds(input, folds))
 }
 
 fn validate(
