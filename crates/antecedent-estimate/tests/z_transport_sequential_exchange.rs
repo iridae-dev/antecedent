@@ -38,7 +38,7 @@ fn diagram() -> SelectionDiagram {
     // X -> Z -> Y, X <-> Z, X <-> Y, Z <-> V. R is an isolated measured
     // coordinate. The graph makes a multi-step recursive source exchange
     // necessary even though no selection node is present.
-    let mut graph = Admg::with_variables(N as u32);
+    let mut graph = Admg::with_variables(u32::try_from(N).unwrap());
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -135,6 +135,10 @@ fn independently_enumerated_target_y_risk(do_x: bool) -> f64 {
     f64::from(y_ones) / f64::from(states)
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the fixture setup keeps its catalog, binding, and exact laws visibly aligned"
+)]
 fn setup() -> (SelectionDiagram, ZTransportQuery, EvidenceCatalog, ExactTransportData) {
     let diagram = diagram();
     let query = ZTransportQuery {

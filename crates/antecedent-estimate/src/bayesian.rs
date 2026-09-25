@@ -2143,7 +2143,7 @@ mod tests {
         assert_eq!(prep.design.ncols, 6);
         let nrows = prep.design.nrows;
         let at = |column: usize, row: usize| prep.design.matrix[column * nrows + row];
-        assert_eq!(at(1, 0), treatment[0]);
+        assert!((at(1, 0) - treatment[0]).abs() < 1e-12);
         assert!((at(2, 0) - first[0]).abs() < 1e-12);
         assert!((at(3, 0) - second[0]).abs() < 1e-12);
         assert!((at(4, 0) - treatment[0] * (first[0] - 5.5)).abs() < 1e-12);

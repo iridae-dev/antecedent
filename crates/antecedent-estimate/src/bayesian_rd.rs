@@ -324,7 +324,7 @@ mod tests {
     use super::*;
     #[test]
     fn local_linear_jump_recovers_known_truth_and_reports_bandwidth_sensitivity() {
-        let n = 400;
+        let n: usize = 400;
         let running: Vec<f64> = (0..n)
             .map(|i| (f64::from(i32::try_from(i).expect("test index fits i32")) - 200.0) / 100.0)
             .collect();
