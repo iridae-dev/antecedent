@@ -6386,11 +6386,12 @@ impl PreparedStudy {
                 }
                 _ => None,
             };
-            let scores = if matches!(self.execution, PreparedExecution::CheckedAipw(_)) {
-                refreshed.prepare_score_table(ctx)?
-            } else {
-                None
-            };
+            // Any prepared route that retained scores before execution must
+            // rebuild them against the refreshed rows. Cell-AIPW response
+            // operations are sealed too, but their row scores remain the
+            // source for retargeting after the click.
+            let scores =
+                if self.score_table.is_some() { refreshed.prepare_score_table(ctx)? } else { None };
             self.replace_study(refreshed);
             if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
                 if let DataInput::Tabular(data) = &self.analysis.data {

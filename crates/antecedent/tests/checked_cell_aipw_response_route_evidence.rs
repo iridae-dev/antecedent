@@ -110,6 +110,11 @@ fn accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh() {
             let refreshed_data = data(0.4);
             let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
             assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
+            let refreshed_scores = prepared.score_table().expect("refresh retains cell scores");
+            let refreshed_retargeted = prepared
+                .retarget(&vec![1.0; refreshed_scores.n_rows], &[], &context)
+                .expect("refresh must rebuild the scores used for retargeting");
+            assert!((result_value(&refreshed_retargeted) - result_value(&refreshed)).abs() < 1e-12);
             assert!(prepared.checked_cell_aipw_response_info().is_some());
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-cell-aipw", &context)
