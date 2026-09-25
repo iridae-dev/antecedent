@@ -636,10 +636,14 @@ def _catalog_from_statistical(
 
 
 def identify_transport(
-    graph: Admg, query: Transport
-) -> tuple[ClassicalTransportIdentification, EvidenceCatalog]:
+    graph: Admg, query: Transport, data: Any | None = None
+) -> tuple[Any, EvidenceCatalog]:
     if not isinstance(graph, Admg):
         raise CausalTypeError("transport identify requires graph=Admg(...)")
+    from ._restricted import identify_restricted, restricted_experiment
+
+    if restricted_experiment(query):
+        return identify_restricted(graph, query, data)
     catalog, _bound = catalog_from_evidence(query, graph=graph)
     treatments, outcomes = _question_parts(query.question)
     sources = query.evidence.sources
@@ -703,8 +707,12 @@ def not_certified_detail(
 ) -> str:
     phrase = _inner_phrase(query)
     target = query.target if query is not None else "the target"
+    reason = getattr(identified, "reason", None)
     if identified.outcome == "proven_non_transportable":
-        return f"{phrase} is not transportable into {target} under this selection diagram."
+        base = f"{phrase} is not transportable into {target} under this selection diagram."
+        return f"{base} ({reason})" if reason else base
+    if reason:
+        return f"{phrase} is not certified for transport into {target} ({reason})."
     return f"{phrase} is not certified for transport into {target} (conservative refusal)."
 
 
@@ -761,9 +769,15 @@ def prepare_transport(
     """Compile the T5–T9 request that PreparedAnalysis already knows."""
 
     from ..estimation import PreparedAnalysis
+    from ._restricted import prepare_restricted, restricted_experiment
+
+    if restricted_experiment(query):
+        return prepare_restricted(
+            data, query=query, graph=graph, provider=provider, controls=controls or TransportControls()
+        )
 
     catalog, bound = catalog_from_evidence(query, data, graph=graph)
-    identified, _catalog = identify_transport(graph, query)
+    identified, _catalog = identify_transport(graph, query, data)
     catalog = _catalog if bound is None else catalog
     shape, worlds = lower_question(query.question)
     resolved = default_provider(bound if bound is not None else data, provider)
@@ -929,6 +943,55 @@ def _catalog_search_incomplete_detail(query: Transport | None, reason: str) -> s
     )
 
 
+def _identification_from_restricted(graph: Admg, query: Transport, identified: Any) -> Any:
+    from ..identify import Identification
+
+    outcome = identified.outcome
+    if outcome == "identified":
+        status = "NonparametricallyIdentified"
+        note = "identified"
+    elif outcome == "missing_evidence":
+        status = "NotIdentified"
+        note = "missing_evidence"
+    else:
+        status = "NotIdentified"
+        note = outcome
+    certificate = {
+        "outcome": note,
+        "rules": list(identified.rules),
+        "native_outcome": outcome,
+        "scope": identified.scope,
+        "source": identified.source,
+        "missing_detail": (
+            f"{_inner_phrase(query)} is identified for {query.target}, but {identified.reason} is unbound."
+            if note == "missing_evidence"
+            else None
+        ),
+        "not_certified_detail": None
+        if note not in {"not_certified", "proven_non_transportable"}
+        else not_certified_detail(identified, query=query),
+        "engine": {
+            "formula": identified.formula,
+            "scope": identified.scope,
+            "source": identified.source,
+            "rules": list(identified.rules),
+            "native_outcome": outcome,
+            "reason": identified.reason,
+        },
+    }
+    return Identification(
+        status=status,
+        method="identify.transport_sid",
+        adjustment_set=[],
+        graph=graph,
+        query=query,
+        identifier="transport.sid",
+        certificate=certificate,
+        assumption_count=len(identified.rules),
+        derivation_step_count=len(identified.rules),
+    )
+
+
 def identification_from_transport(
     graph: Admg,
     query: Transport,
@@ -944,6 +1007,10 @@ def identification_from_transport(
         else identify_transport(graph, query)
     )
     catalog = built if catalog is None else catalog
+    from ._restricted import RestrictedTransportIdentification
+
+    if isinstance(identified, RestrictedTransportIdentification):
+        return _identification_from_restricted(graph, query, identified)
     search = None
     search_incomplete_reason: str | None = None
     try:
