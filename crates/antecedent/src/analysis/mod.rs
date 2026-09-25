@@ -6,6 +6,7 @@
 
 mod batch;
 mod builder;
+mod checked_bayesian_temporal_effect;
 mod checked_conditional;
 mod checked_graph_posterior;
 mod checked_propensity;
@@ -21,9 +22,13 @@ mod statistical;
 mod transport_grid;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
+pub(crate) use checked_bayesian_temporal_effect::{
+    CheckedBayesianTemporalEffectOperation, CheckedBayesianTemporalTarget,
+};
 pub(crate) use checked_conditional::{CheckedConditionalOperation, ConditionalProcedure};
 pub(crate) use checked_graph_posterior::{
-    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect,
+    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
+    StaticClassGraph, StaticClassIdentification,
 };
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;

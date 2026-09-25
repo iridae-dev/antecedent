@@ -185,7 +185,9 @@ fn run_prepared(
     let (ctx, sink) = recording_ctx(seed);
     let fresh = study.clone().run(&ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1, "a fresh run identifies exactly once");
-    let mut prepared: PreparedStudy = study.prepare(&ctx).unwrap();
+    let prepared_builder = study.clone();
+    let mut prepared: PreparedStudy = prepared_builder.prepare(&ctx).unwrap();
+    drop(prepared_builder);
     assert_eq!(identify_computations(&sink), 2, "prepare identifies exactly once");
     assert_eq!(
         prepared.plan().logical.record.identifier.as_deref(),
@@ -197,7 +199,19 @@ fn run_prepared(
         Some(expected_estimator),
         "prepared plan must record the pinned estimator"
     );
+    if expected_estimator == "linear.adjustment.ate" {
+        assert!(prepared.has_checked_static_class_effect_operation());
+    }
     let click = prepared.estimate(data, &ctx).unwrap();
+    if expected_estimator == "linear.adjustment.ate" {
+        let artifact =
+            prepared.encode_contracted_result(&click, "checked-static-class-effect", &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_static_class_effect_operation"
+        }));
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+    }
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert_eq!(
         identify_computations(&sink),
@@ -319,6 +333,41 @@ fn cpdag_ate_envelope_numeric_pin() {
             }
         }
     }
+}
+
+#[test]
+fn cpdag_effect_executes_from_retained_plan_after_builder_is_dropped() {
+    let pin = cpdag_pin();
+    let data = expand_contingency(&pin);
+    let graph = cpdag_from_pin(&pin);
+    let query = query_from_pin(&pin);
+    let expected = pin["frequentist"]["expected_ate"].as_f64().unwrap();
+    let context = ExecutionContext::for_tests(19);
+    let builder = Study::tabular(data.clone())
+        .graph(graph)
+        .query(query)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let prepared = builder.prepare(&context).unwrap();
+    assert!(prepared.has_checked_static_class_effect_operation());
+    let plan = prepared.plan().clone();
+    assert_eq!(plan.logical.record.identifier.as_deref(), Some("generalized.adjustment"));
+    drop(builder);
+
+    let result = prepared.estimate(&data, &context).unwrap();
+    assert!((result.estimate.ate - expected).abs() < 1e-12);
+    assert!(result.diagnostics.iter().any(|item| { item.code.as_ref() == "exec.identify.cached" }));
+    let artifact = prepared
+        .encode_contracted_result(&result, "checked-static-class-effect", &context)
+        .unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    assert!(
+        consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_static_class_effect_operation"
+        })
+    );
+    assert!(!consumed.acceptance.accepts_as_verified_program());
 }
 
 /// The frozen 64-draw Bayesian pin is checked against the table's own closed forms,

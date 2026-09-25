@@ -728,6 +728,16 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
     }
+    if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
+        && resolved_estimator == Some("linear.adjustment.ate")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from("dependencies.checked_static_class_effect_operation"));
+    }
     if contract.structure_source == "graph_posterior"
         && contract.graph_class == "Admg"
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
@@ -740,9 +750,7 @@ pub fn verify_contract_against_body(
         && matches!(contract.target.query, CausalQueryWire::Response(_))
         && resolved_estimator == Some("functional.effect")
     {
-        unresolved.push(Arc::from(
-            "dependencies.checked_admg_graph_posterior_response_operation",
-        ));
+        unresolved.push(Arc::from("dependencies.checked_admg_graph_posterior_response_operation"));
     }
     if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1008,10 +1016,7 @@ pub fn verify_contract_against_body(
             }
         }
     }
-    if functional_effect
-        && !posterior_functional_effect
-        && !graph_posterior_functional_effect
-    {
+    if functional_effect && !posterior_functional_effect && !graph_posterior_functional_effect {
         match (
             contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
             contract
@@ -1164,6 +1169,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_intervention_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 | "dependencies.checked_graph_posterior_effect_operation"
+                | "dependencies.checked_static_class_effect_operation"
                 | "dependencies.checked_admg_graph_posterior_response_operation"
                 | "dependencies.checked_conditional_effect_operation"
                 | "dependencies.checked_mediation_operation"
