@@ -2852,13 +2852,15 @@ mod tests {
             let oracle = &fixture["contracts"];
             let oracle_rhat = oracle["mcmc_max_rhat"].as_f64().unwrap();
             let oracle_ess = oracle["mcmc_min_bulk_ess"].as_f64().unwrap();
-            assert_eq!(oracle_rhat, 1.05);
-            assert_eq!(oracle_ess, 10.0);
+            assert!((oracle_rhat - 1.05).abs() < f64::EPSILON);
+            assert!((oracle_ess - 10.0).abs() < f64::EPSILON);
             // These oracle bounds define only whether ArviZ-style diagnostic
             // values agree with the pinned external contract. The production
             // publication gate remains 1.01 and 100 effective draws per chain.
-            assert!(1.05 <= oracle_rhat && 10.0 >= oracle_ess);
-            assert!(!(1.05 <= 1.01 && 10.0 >= 400.0));
+            let publication_rhat_limit = 1.01;
+            let publication_ess_limit_per_chain = 100.0;
+            assert!(oracle_rhat > publication_rhat_limit);
+            assert!(oracle_ess < publication_ess_limit_per_chain);
         }
 
         #[test]
