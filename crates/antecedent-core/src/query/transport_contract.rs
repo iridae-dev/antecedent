@@ -266,7 +266,7 @@ impl TheoremScope {
 
     /// Single-source z-transportability within 12 observed and 4 controllable variables.
     ///
-    /// A positive result is a checked TRz formula executable from the joints it
+    /// A positive result is a checked `TRz` formula executable from the joints it
     /// cites. A line-11 obstruction is structural in the declared controllable
     /// set and does not require the experiment power set. Two sources may be
     /// searched separately; cross-source combination is refused by name. An
