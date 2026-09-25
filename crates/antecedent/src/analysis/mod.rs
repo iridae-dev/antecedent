@@ -77,6 +77,7 @@ pub use latency::{
 pub use prepared::{
     CachedTemporalIdentification, CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo,
     CheckedBayesianBasisAteInfo, CheckedBayesianGraphPosteriorAteInfo,
+    CheckedBayesianRobustAteInfo,
     CheckedCellAipwResponseInfo,
     CheckedClassGraphPosteriorEffectInfo, CheckedConditionalEffectInfo,
     CheckedGraphPosteriorEffectInfo, CheckedInterferenceInfo,

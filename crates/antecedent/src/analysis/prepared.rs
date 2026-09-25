@@ -1267,6 +1267,21 @@ pub struct CheckedBayesianBasisAteInfo {
     pub prior_scale: f64,
 }
 
+/// Target and fixed row/fold bindings for the checked robust Bayesian ATE.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianRobustAteInfo {
+    /// Mean binary ATE retained by preparation.
+    pub query: AverageEffectQuery,
+    /// Number of bootstrap pushforward draws requested.
+    pub posterior_draws: usize,
+    /// Back-door adjustment variables bound to the nuisance design.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Stable row identities bound to the prepared fold plan.
+    pub row_ids: Arc<[u64]>,
+    /// Treatment-stratified fold identity in row order.
+    pub fold_ids: Arc<[u16]>,
+}
+
 /// Inspection receipt for a prepared Bayesian DAG conditional-effect route.
 #[derive(Clone, Debug)]
 pub struct CheckedBayesianConditionalInfo {
@@ -3589,6 +3604,7 @@ pub(crate) enum PreparedExecution {
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
     BayesianBasisAte(super::execute::CheckedBayesianBasisAteExecution),
     BayesianBasisCate(super::execute::CheckedBayesianBasisCateExecution),
+    BayesianRobustAte(super::execute::CheckedBayesianRobustAteExecution),
     StaticResponseCurve(CheckedStaticResponseCurve),
     FrontDoorLinear(CheckedFrontDoorOperation),
     Iv(CheckedIvOperation),
@@ -3658,6 +3674,7 @@ impl PreparedExecution {
             | Self::BayesianGcomp(_)
             | Self::BayesianBasisAte(_)
             | Self::BayesianBasisCate(_)
+            | Self::BayesianRobustAte(_)
             | Self::BayesianGraphPosteriorAte(_)
             | Self::BayesianConditional(_)
             | Self::StaticResponseCurve(_)
@@ -4038,6 +4055,23 @@ impl PreparedStudy {
     ) -> Option<&antecedent_core::ConditionalEffectQuery> {
         match &self.execution {
             PreparedExecution::BayesianBasisCate(operation) => Some(operation.query()),
+            _ => None,
+        }
+    }
+
+    /// Inspect the retained target and row/fold plan for Bayesian robust ATE.
+    #[must_use]
+    pub fn checked_bayesian_robust_ate_info(&self) -> Option<CheckedBayesianRobustAteInfo> {
+        match &self.execution {
+            PreparedExecution::BayesianRobustAte(operation) => {
+                Some(CheckedBayesianRobustAteInfo {
+                    query: operation.query().clone(),
+                    posterior_draws: operation.posterior_draws(),
+                    adjustment_set: Arc::from(operation.adjustment_set()),
+                    row_ids: Arc::from(operation.row_ids()),
+                    fold_ids: Arc::from(operation.fold_ids()),
+                })
+            }
             _ => None,
         }
     }
@@ -5992,6 +6026,10 @@ impl PreparedStudy {
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::BayesianBasisCate(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianRobustAte(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
@@ -8539,6 +8577,44 @@ impl Study {
             }
             _ => None,
         };
+        let bayesian_robust_ate_execution = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            &analysis.inference,
+            analysis.graph.class(),
+            plan.logical.record.estimator.as_deref(),
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                InferenceMode::Bayesian(_),
+                GraphClass::Dag,
+                Some(estimator),
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.refute == RefuteSuite::None
+                && analysis.custom_validators.is_empty()
+                && estimator == crate::strategy_table::EstimatorId::BayesianRobustAte.as_str() =>
+            {
+                let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
+                    message: "checked Bayesian robust ATE requires its retained DAG".into(),
+                })?;
+                Some(super::execute::CheckedBayesianRobustAteExecution::checked(
+                    data,
+                    graph,
+                    query.clone(),
+                    cache.identification.clone(),
+                    cache.estimand.clone(),
+                    analysis.inference.clone(),
+                    super::execute::IdentifiedResultContext::from_study(&analysis),
+                    plan.clone(),
+                )?)
+            }
+            _ => None,
+        };
         let bayesian_conditional_execution = match (
             &self.data,
             &self.query,
@@ -9360,6 +9436,8 @@ impl Study {
             PreparedExecution::BayesianBasisAte(operation)
         } else if let Some(operation) = bayesian_basis_cate_execution {
             PreparedExecution::BayesianBasisCate(operation)
+        } else if let Some(operation) = bayesian_robust_ate_execution {
+            PreparedExecution::BayesianRobustAte(operation)
         } else if let Some(operation) = bayesian_gcomp_execution {
             PreparedExecution::BayesianGcomp(operation)
         } else if let Some(operation) = bayesian_conditional_execution {

@@ -994,6 +994,29 @@ impl super::Study {
             && self.graph.class() == GraphClass::Dag
             && self.structure_source == crate::support::StructureSource::Explicit
             && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.estimator == Some(EstimatorId::BayesianRobustAte)
+            && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::AverageEffect(query)
+                if query.target_population == antecedent_core::TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_bayesian_robust_ate_info().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot Bayesian robust ATE did not retain its checked operation".into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && self.structure_source == crate::support::StructureSource::Explicit
+            && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
             && self.identifier.is_none_or(|id| id == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
