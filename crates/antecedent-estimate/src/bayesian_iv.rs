@@ -37,10 +37,6 @@ pub struct BayesianIvEstimate {
 /// binary or continuous; the first-stage design includes an intercept. The structural model
 /// currently uses one instrument and a homoskedastic Gaussian likelihood. This function does
 /// not claim generic IV robustness or identification outside that model.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the documented model contract"
-)]
 pub fn fit_bayesian_iv(
     instrument: &[f64],
     treatment: &[f64],
@@ -248,6 +244,10 @@ fn invert4(a: [[f64; 4]; 4]) -> Result<[[f64; 4]; 4], EstimationError> {
     Ok(std::array::from_fn(|i| std::array::from_fn(|j| aug[i][j + 4])))
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "shared private fitter receives the exact variance and model settings of each public contract"
+)]
 fn fit_bayesian_iv_inner(
     instrument: &[f64],
     treatment: &[f64],
@@ -331,10 +331,6 @@ fn fit_bayesian_iv_inner(
 }
 
 /// Evaluate structural-prior sensitivity on caller-declared scales.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "sensitivity forwards the same explicit fit contract"
-)]
 pub fn bayesian_iv_prior_sensitivity(
     instrument: &[f64],
     treatment: &[f64],
