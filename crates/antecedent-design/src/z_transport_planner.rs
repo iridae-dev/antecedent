@@ -73,7 +73,7 @@ pub struct ZTransportFailureSnapshotWire {
     /// Checked stronger-family s-hedge, if one proves this z query impossible.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub obstruction: Option<antecedent_identify::sid::SHedgeRecord>,
-    /// Checked bounded TRz line-11 obstruction, with complete-family evidence.
+    /// Checked bounded `TRz` line-11 obstruction, with complete-family evidence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub z_obstruction: Option<ZTransportObstructionRecord>,
     /// Canonical digest of the frozen catalog.
@@ -181,6 +181,12 @@ impl ZTransportFailureSnapshot {
     }
 
     /// Restore and verify a portable failure snapshot.
+    // This is intentionally one validation transaction: decomposing it risks
+    // obscuring the order in which nested proofs are checked against frozen inputs.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "keeps snapshot reconstruction and validation atomic"
+    )]
     pub fn from_wire(
         wire: &ZTransportFailureSnapshotWire,
     ) -> Result<Self, ZTransportPlanningError> {
@@ -249,7 +255,7 @@ impl ZTransportFailureSnapshot {
                 .collect::<Vec<_>>(),
         )?;
         let mut snapshot = snapshot;
-        snapshot.proof_graph = wire.proof_graph.clone();
+        snapshot.proof_graph.clone_from(&wire.proof_graph);
         if let Some(record) = &wire.obstruction {
             let classical = ClassicalTransportQuery {
                 outcomes: Arc::clone(&query.outcomes),
@@ -346,6 +352,8 @@ pub struct ZTransportArrival {
 
 /// One candidate's result when planning from a frozen z-transport failure.
 #[derive(Clone, Debug)]
+// Keep the public outcome payload inline to preserve the existing planner API.
+#[expect(clippy::large_enum_variant, reason = "preserves the public z-transport planner API")]
 pub enum ZTransportCandidateOutcome {
     /// Hypothetical catalog binds a checked formula.
     VerifiedSufficient(ZTransportProposal),
@@ -394,6 +402,12 @@ pub enum ZTransportPlanningError {
 }
 
 /// Capture an explicit failed outcome from the currently supported identifier.
+// This routine classifies one bounded theorem/availability result and attaches
+// the corresponding checked proof; keep that mapping visible in one place.
+#[expect(
+    clippy::too_many_lines,
+    reason = "keeps failure classification and proof attachment together"
+)]
 pub fn snapshot_z_transport_failure(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -667,8 +681,11 @@ fn valid_intervention_values(
         };
         let Some(value) = assignment.value.as_f64() else { return false };
         match coordinate.domain {
-            antecedent_core::VariableDomain::Unspecified => value.is_finite(),
-            antecedent_core::VariableDomain::Continuous => value.is_finite(),
+            antecedent_core::VariableDomain::Unspecified
+            | antecedent_core::VariableDomain::Continuous => value.is_finite(),
+            // These are discrete domain membership checks: approximate equality
+            // would admit values that are not members of the declared support.
+            #[expect(clippy::float_cmp, reason = "binary support membership requires exact values")]
             antecedent_core::VariableDomain::Binary => value == 0.0 || value == 1.0,
             antecedent_core::VariableDomain::Count => value >= 0.0 && value.fract() == 0.0,
             antecedent_core::VariableDomain::Categorical { cardinality } => {
@@ -708,6 +725,7 @@ pub fn propose_z_transport_evidence(
 }
 
 /// Evaluate every candidate against the frozen failure and rank only checked proposals.
+#[must_use]
 pub fn plan_z_transport_evidence(
     snapshot: &ZTransportFailureSnapshot,
     candidates: &[TransportEvidenceCandidate],
@@ -715,15 +733,15 @@ pub fn plan_z_transport_evidence(
     let mut ids = BTreeSet::new();
     let mut assessments = Vec::with_capacity(candidates.len());
     for candidate in candidates {
-        let outcome = if !ids.insert(candidate.id.clone()) {
-            ZTransportCandidateOutcome::Rejected { reason: Arc::from("duplicate candidate ID") }
-        } else {
+        let outcome = if ids.insert(candidate.id.clone()) {
             match propose_z_transport_evidence(snapshot, candidate) {
                 Ok(proposal) => ZTransportCandidateOutcome::VerifiedSufficient(proposal),
                 Err(error) => {
                     ZTransportCandidateOutcome::Rejected { reason: Arc::from(error.to_string()) }
                 }
             }
+        } else {
+            ZTransportCandidateOutcome::Rejected { reason: Arc::from("duplicate candidate ID") }
         };
         assessments.push(ZTransportCandidateAssessment {
             id: Arc::clone(&candidate.id),
