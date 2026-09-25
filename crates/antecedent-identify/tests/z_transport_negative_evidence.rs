@@ -314,6 +314,99 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
 }
 
 #[test]
+fn completed_search_with_a_control_connected_to_the_hedge_stays_uncertified() {
+    let (mut diagram, query) = fig2b_style_contract();
+    let mut graph = diagram.causal_graph().clone();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+
+    let decision = decide_z_transport_with_catalog(
+        &diagram,
+        &query,
+        &full_experiment_catalog(false, false),
+        SidLimits::default(),
+        &ExecutionContext::for_tests(27),
+    )
+    .unwrap();
+    assert!(matches!(
+        decision,
+        ZTransportDecision::NotCertified {
+            reason: "z_transport.negative_outside_checked_hedge_subset"
+        }
+    ));
+}
+
+#[test]
+fn disconnected_control_obstruction_contains_a_replayable_target_hedge() {
+    let (diagram, query) = fig2b_style_contract();
+    let selected = SelectionDiagram::try_new(
+        diagram.causal_graph().clone(),
+        Arc::<[VariableId]>::from((0..4).map(VariableId::from_raw).collect::<Vec<_>>()),
+    )
+    .unwrap();
+    let classical_query = ClassicalTransportQuery {
+        outcomes: Arc::clone(&query.outcomes),
+        treatments: Arc::clone(&query.treatments),
+        source: Arc::clone(&query.source),
+        target: Arc::clone(&query.target),
+    };
+    let result = identify_classical_transport(
+        &selected,
+        &classical_query,
+        SidLimits::default(),
+        &ExecutionContext::for_tests(29),
+    )
+    .unwrap();
+    let ClassicalTransportResult::ProvenNonTransportable(hedge) = result else {
+        panic!("the all-selected diagram must return its checked nested-forest witness")
+    };
+    assert_eq!(hedge.larger.nodes.as_ref(), &[VariableId::from_raw(0), VariableId::from_raw(1)]);
+    assert_eq!(hedge.smaller.nodes.as_ref(), &[VariableId::from_raw(1)]);
+
+    // Dropping the selector-membership premise leaves the ordinary ID hedge:
+    // F={X,Y}, F'={Y}, common root Y, with X only in F.
+    assert!(hedge.larger.nodes.contains(&query.treatments[0]));
+    assert!(!hedge.smaller.nodes.contains(&query.treatments[0]));
+    assert!(hedge.smaller.nodes.iter().all(|node| hedge.larger.nodes.contains(node)));
+}
+
+#[test]
+fn disconnected_controls_cannot_resolve_a_selected_hedge_component() {
+    let (diagram, query) = fig2b_style_contract();
+    let diagram = SelectionDiagram::try_new(
+        diagram.causal_graph().clone(),
+        Arc::<[VariableId]>::from([VariableId::from_raw(1)]),
+    )
+    .unwrap();
+    let decision = decide_z_transport_with_catalog(
+        &diagram,
+        &query,
+        &full_experiment_catalog(false, false),
+        SidLimits::default(),
+        &ExecutionContext::for_tests(31),
+    )
+    .unwrap();
+    assert!(matches!(decision, ZTransportDecision::ProvenNonTransportable(_)));
+
+    // The selected target component still has the observationally equivalent
+    // SCM pair, while controls Z and W live in separate ADMG components.
+    assert_eq!(
+        enumerate_law(
+            OutcomeMechanism::CopiesObservedTreatment,
+            Regime { do_x: None, do_z: Some(0), do_w: Some(1) }
+        ),
+        enumerate_law(
+            OutcomeMechanism::CopiesTreatmentLatent,
+            Regime { do_x: None, do_z: Some(0), do_w: Some(1) }
+        )
+    );
+    assert_ne!(
+        target_y_risk(OutcomeMechanism::CopiesObservedTreatment, 0),
+        target_y_risk(OutcomeMechanism::CopiesTreatmentLatent, 0)
+    );
+}
+
+#[test]
 fn a_source_experiment_that_controls_x_separates_the_two_models() {
     let first = OutcomeMechanism::CopiesObservedTreatment;
     let second = OutcomeMechanism::CopiesTreatmentLatent;
