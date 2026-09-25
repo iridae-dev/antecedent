@@ -67,7 +67,7 @@ pub use prepared::{
     CachedTemporalIdentification, CheckedAttributionInfo, CheckedCellAipwResponseInfo,
     CheckedConditionalEffectInfo, CheckedGraphPosteriorEffectInfo, CheckedStaticMediationInfo,
     CheckedTemporalClassEffectInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
-    PreparedStudy,
+    CheckedTemporalMediationInfo, PreparedStudy,
 };
 pub use stage::{StageEvent, StageResultSink};
 

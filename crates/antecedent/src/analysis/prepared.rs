@@ -987,6 +987,23 @@ pub struct CheckedTemporalDagEffectInfo {
     pub graph_signature: Arc<str>,
 }
 
+/// Read-only target and procedure for a checked temporal mediation family.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalMediationInfo {
+    /// Exact mediation target and requested horizon family.
+    pub query: MediationQuery,
+    /// Signature of the fixed TemporalDag.
+    pub graph_signature: Arc<str>,
+    /// Validation suite selected at preparation.
+    pub validation: RefuteSuite,
+    /// Horizon members retained in order.
+    pub horizons: Arc<[u32]>,
+    /// Estimator family fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Number of graph-derived adjustment columns retained at each horizon.
+    pub adjustment_widths: Arc<[(u32, usize)]>,
+}
+
 /// Read-only source graph, completion proof, and procedure for a temporal
 /// Cpdag/Pag pulse or sustained effect.
 #[derive(Clone, Debug)]
@@ -3343,6 +3360,7 @@ pub(crate) enum PreparedExecution {
     Attribution(super::execute::CheckedAttributionOperation),
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
     TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
+    TemporalMediation(super::execute::CheckedTemporalMediationOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
@@ -3405,6 +3423,7 @@ impl PreparedExecution {
             | Self::Attribution(_)
             | Self::TemporalDagResponse(_)
             | Self::TemporalDagEffect(_)
+            | Self::TemporalMediation(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
             | Self::BayesianConditional(_)
@@ -3502,6 +3521,11 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedTemporalEffectExecution> {
         if let Self::TemporalDagEffect(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn temporal_mediation(
+        &self,
+    ) -> Option<&super::execute::CheckedTemporalMediationOperation> {
+        if let Self::TemporalMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_class_effect(
         &self,
@@ -3928,6 +3952,26 @@ impl PreparedStudy {
             uncertainty: Arc::from(uncertainty),
             grid_members: Arc::from(operation.grid()),
             horizons: Arc::from(operation.query().temporal.as_ref()?.horizons.as_ref()),
+        })
+    }
+
+    /// Inspect the retained checked temporal mediation target before execution.
+    #[must_use]
+    pub fn checked_temporal_mediation_info(&self) -> Option<CheckedTemporalMediationInfo> {
+        let operation = self.execution.temporal_mediation()?;
+        let (query, graph, validation, horizons) = operation.inspect();
+        Some(CheckedTemporalMediationInfo {
+            query: query.clone(),
+            graph_signature: Arc::from(format!("{:?}", graph)),
+            validation,
+            horizons: Arc::from(horizons),
+            estimator: operation.estimator(),
+            adjustment_widths: Arc::from(
+                operation
+                    .horizon_contracts()
+                    .map(|(horizon, _, _, _, design)| (horizon, design.len()))
+                    .collect::<Vec<_>>(),
+            ),
         })
     }
 
@@ -5770,6 +5814,24 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
         let input = self.series_input(data.clone());
+        if let PreparedExecution::TemporalMediation(operation) = &self.execution {
+            let graph =
+                self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                    message: "checked temporal mediation lost its prepared TemporalDag".into(),
+                })?;
+            if !operation.matches_graph(graph) {
+                return Err(CausalError::Compile {
+                    message: "checked temporal mediation graph differs from the prepared graph"
+                        .into(),
+                });
+            }
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &input else {
+                return Err(CausalError::Compile {
+                    message: "checked temporal mediation requires series data".into(),
+                });
+            };
+            return self.stamp(&input, operation.execute(series, ctx)?);
+        }
         if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
             let graph =
                 self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
@@ -5955,7 +6017,22 @@ impl PreparedStudy {
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = self.series_input(data);
-        let result = if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
+        let result = if let PreparedExecution::TemporalMediation(operation) = &self.execution {
+            let graph = refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                message: "checked temporal mediation refresh lost its TemporalDag".into(),
+            })?;
+            if !operation.matches_graph(graph) {
+                return Err(CausalError::Compile {
+                    message:
+                        "checked temporal mediation refresh graph differs from its retained proof"
+                            .into(),
+                });
+            }
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &refreshed.data else {
+                unreachable!("refresh_series constructs temporal data")
+            };
+            operation.execute(series, ctx)?
+        } else if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
             let graph = refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
                 message: "checked temporal effect refresh lost its TemporalDag".into(),
             })?;
@@ -7510,6 +7587,37 @@ impl Study {
             }
             _ => None,
         };
+        let temporal_mediation_operation = match (
+            &self.data,
+            &self.query,
+            analysis.temporal_identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::Mediation(_),
+                Some(cache),
+                GraphClass::TemporalDag,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                ) =>
+            {
+                Some(super::execute::CheckedTemporalMediationOperation::checked(
+                    &analysis, data, &plan, cache,
+                )?)
+            }
+            _ => None,
+        };
         let temporal_dag_effect_operation = match (
             &self.data,
             &self.query,
@@ -7966,6 +8074,8 @@ impl Study {
             PreparedExecution::Attribution(operation)
         } else if let Some(operation) = temporal_dag_response_operation {
             PreparedExecution::TemporalDagResponse(operation)
+        } else if let Some(operation) = temporal_mediation_operation {
+            PreparedExecution::TemporalMediation(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {
             PreparedExecution::TemporalDagEffect(operation)
         } else if let Some(operation) = temporal_class_effect_operation {
