@@ -195,7 +195,8 @@ pub use serial_dependence::{
 pub use statistical_transport::{
     BayesianStatisticalTransportEstimate, NominalZTransportInterval, PERCENTILE_BOOTSTRAP,
     POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate, TransportUncertaintyRow,
-    Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_bayesian_statistical_transport,
+    Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
+    evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
     evaluate_statistical_transport, nominal_z_transport_interval, percentile_interval,
 };
 pub use temporal_adjustment::{

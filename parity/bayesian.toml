@@ -367,8 +367,18 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/bayesian_structural_transport/expected.json"
 evidence_test = "crates/antecedent/src/analysis/statistical.rs"
 evidence_assertion = "bayesian_transport_providers_match_independent_dirichlet_moments"
-limitations = "Distinct empirical-support Bayesian bootstrap and declared-state-space Dirichlet providers share draws across aliased factors. A sparse binary-table fixture compares each provider with an independent exact Dirichlet posterior mean; the composed transport evaluator and its intervals remain unlicensed pending calibrated grid contracts and a minimum-successful-draw policy."
-notes = "Both providers pass public Python prepare, estimate, export, consume and refresh tests with explicit unlicensed calibration status."
+limitations = "Distinct empirical-support Bayesian bootstrap and declared-state-space Dirichlet providers share one draw sequence across a treatment grid. Intervals are withheld when fewer than two draws succeed or the failure fraction exceeds the bootstrap rule. A published equal-tail interval is pointwise and its reason is estimator_grid_not_measured until the release calibration pass."
+notes = "Both providers pass public Python prepare, estimate, export, consume and refresh tests. Coverage is not measured here."
+
+[[capabilities]]
+id = "bayes.transport.z_cited_laws"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "crates/antecedent-estimate/tests/z_transport_cited_evidence.rs"
+evidence_test = "crates/antecedent-estimate/tests/z_transport_cited_evidence.rs"
+evidence_assertion = "bayesian_cited_margin_publishes_an_unmeasured_posterior"
+limitations = "Single-source z-transport cited count tables. The empirical-support Bayesian bootstrap and the declared-state-space Dirichlet each re-evaluate the bound formula. Intervals are withheld when fewer than two draws succeed, the failure fraction exceeds the bootstrap rule, or the draw count is below the percentile floor. A published equal-tail interval is pointwise and its reason is estimator_grid_not_measured until the release calibration pass. Exact laws stay point-only."
+notes = "The default empirical interval remains the percentile bootstrap. Coverage is not measured here."
 
 [[capabilities]]
 id = "bayes.response.simultaneous_joint_band"

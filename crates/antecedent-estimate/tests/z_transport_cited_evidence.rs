@@ -12,7 +12,8 @@ use antecedent_core::{
     SamplingDesign, Value, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_estimate::{
-    evaluate_exact_z_transport, nominal_z_transport_interval, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+    BayesianTransportLawProvider, POSTERIOR_EQUAL_TAIL, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+    bayesian_z_transport_interval, evaluate_exact_z_transport, nominal_z_transport_interval,
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
@@ -20,8 +21,8 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    bind_z_transport_catalog, decide_z_transport_with_catalog, identify_z_transport, SidLimits,
-    ZTransportDecision, ZTransportQuery, ZTransportResult,
+    SidLimits, ZTransportDecision, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+    decide_z_transport_with_catalog, identify_z_transport,
 };
 
 const W: VariableId = VariableId::from_raw(0);
@@ -256,6 +257,119 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
     .unwrap()
     .unwrap_err();
     assert_eq!(withheld, "transport.unsupported_dependence");
+}
+
+#[test]
+fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
+    let diagram = surrogate_diagram();
+    let query = surrogate_query();
+    let catalog = EvidenceCatalog::try_new(
+        [environment("source", [W, Z, X, Y])],
+        [EvidenceRegime::try_new(
+            RegimeId::from_raw(0),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [Z],
+            [InterventionAssignment { variable: Z, value: Value::Bool(false) }],
+            [W, X, Y],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap()],
+        [binding(0)],
+        None,
+    )
+    .unwrap();
+    let probabilities = cited_wyx_probabilities();
+    let counts = probabilities.iter().map(|p| (p * 4_000.0).round() as u64).collect::<Vec<_>>();
+    let total = counts.iter().sum::<u64>() as f64;
+    let empirical = counts.iter().map(|count| *count as f64 / total).collect::<Vec<_>>();
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary_axis(W), binary_axis(X), binary_axis(Y)],
+        empirical,
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts.clone())
+    .unwrap();
+    let data = ExactTransportData::try_new([law], 64).unwrap();
+    let context = ExecutionContext::for_tests(11);
+    let ZTransportDecision::Identified(derivation) =
+        decide_z_transport_with_catalog(&diagram, &query, &catalog, SidLimits::default(), &context)
+            .unwrap()
+    else {
+        panic!("cited margin identifies");
+    };
+    let bound = bind_z_transport_catalog(&diagram, &query, &derivation, &catalog).unwrap();
+    let request = Assignment::from_pairs([(X, Value::Bool(false))]);
+    let point = evaluate_exact_z_transport(
+        &bound,
+        data.clone(),
+        request.clone(),
+        ExactEvaluationLimits::default(),
+        &context,
+    )
+    .unwrap();
+    let risk = y_risk(&point);
+    for provider in [
+        BayesianTransportLawProvider::EmpiricalSupport,
+        BayesianTransportLawProvider::DeclaredStateSpaceDirichlet,
+    ] {
+        let interval = bayesian_z_transport_interval(
+            &bound,
+            &data,
+            request.clone(),
+            ExactEvaluationLimits::default(),
+            provider,
+            40,
+            0.95,
+            &context,
+        )
+        .unwrap()
+        .expect("iid counts publish a posterior interval");
+        assert_eq!(interval.method.as_ref(), POSTERIOR_EQUAL_TAIL);
+        assert_eq!(interval.reason.as_ref(), Z_TRANSPORT_INTERVAL_NOT_MEASURED);
+        assert!(interval.mean_intervals[0].1 <= risk && risk <= interval.mean_intervals[0].2);
+    }
+
+    let mut empty_arm = counts;
+    for (index, count) in empty_arm.iter_mut().enumerate() {
+        if index % 4 < 2 {
+            *count = 0;
+        }
+    }
+    let total = empty_arm.iter().sum::<u64>() as f64;
+    let empirical = empty_arm.iter().map(|count| *count as f64 / total).collect::<Vec<_>>();
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary_axis(W), binary_axis(X), binary_axis(Y)],
+        empirical,
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(empty_arm)
+    .unwrap();
+    let data = ExactTransportData::try_new([law], 64).unwrap();
+    let withheld = bayesian_z_transport_interval(
+        &bound,
+        &data,
+        request,
+        ExactEvaluationLimits::default(),
+        BayesianTransportLawProvider::EmpiricalSupport,
+        8,
+        0.95,
+        &context,
+    )
+    .unwrap()
+    .unwrap_err();
+    assert_eq!(withheld, "bootstrap_failure_fraction");
 }
 
 #[test]

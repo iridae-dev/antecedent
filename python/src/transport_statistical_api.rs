@@ -85,7 +85,7 @@ impl PreparedStatisticalStage {
                 "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
                 "atom_intervals": posterior.atom_intervals.to_vec(),
                 "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
-                "calibration_status": "not_licensed",
+                "calibration_status": posterior.interval_reason.as_deref().unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
             })),
         });
         Ok((
@@ -125,7 +125,7 @@ impl PreparedStatisticalStage {
                 "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
                 "atom_intervals": posterior.atom_intervals.to_vec(),
                 "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
-                "calibration_status": "not_licensed",
+                "calibration_status": posterior.interval_reason.as_deref().unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
             }).to_string()
         })
     }
@@ -241,16 +241,31 @@ impl PreparedStatisticalStage {
             "assignment": record.assignment.iter().map(|(v,x)| (self.graph.names[v.as_usize()].as_str(), x.as_f64())).collect::<Vec<_>>()
         })).collect();
         let uncertainty = if let Some(result) = &self.last {
-            let est = result.estimate();
-            serde_json::json!({
-                "available": est.uncertainty.is_some() && est.uncertainty_reason.is_none(),
-                "reason": est.uncertainty_reason.as_deref(),
-                "summary": if est.uncertainty.is_some() && est.uncertainty_reason.is_none() {
-                    "percentile_bootstrap"
-                } else {
-                    "unavailable"
-                },
-            })
+            if result.bayesian_estimate().is_some() {
+                let available = result.reasoning().uncertainty.is_available();
+                let reason = match &result.reasoning().uncertainty {
+                    antecedent_core::SlotAvailability::Unavailable { reason } => {
+                        Some(reason.as_ref())
+                    }
+                    _ => None,
+                };
+                serde_json::json!({
+                    "available": available,
+                    "reason": reason,
+                    "summary": if available { "posterior_equal_tail" } else { "unavailable" },
+                })
+            } else {
+                let est = result.estimate();
+                serde_json::json!({
+                    "available": est.uncertainty.is_some() && est.uncertainty_reason.is_none(),
+                    "reason": est.uncertainty_reason.as_deref(),
+                    "summary": if est.uncertainty.is_some() && est.uncertainty_reason.is_none() {
+                        "percentile_bootstrap"
+                    } else {
+                        "unavailable"
+                    },
+                })
+            }
         } else {
             let licensed = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {

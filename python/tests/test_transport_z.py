@@ -131,6 +131,29 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
         transport.consume_z_transport_sensitivity_artifact(bytes(tampered_sensitivity))
 
 
+@pytest.mark.parametrize(
+    "estimator",
+    ["empirical_support_bayesian_bootstrap", "state_space_dirichlet"],
+)
+def test_bayesian_z_transport_publishes_an_unmeasured_posterior(estimator):
+    _, _, _, prepared, _ = fixture(True)
+    plugin = json.loads(prepared.estimate())
+    posterior = json.loads(prepared.estimate(estimator=estimator, posterior_draws=40))
+    assert posterior["probabilities"] == pytest.approx(plugin["probabilities"])
+    interval = posterior["interval"]
+    assert interval["available"] is True
+    assert interval["method"] == "posterior_equal_tail"
+    assert interval["reason"] == "estimator_grid_not_measured"
+    mean = interval["mean_intervals"][0]
+    true_mass = sum(
+        p
+        for atom, p in zip(posterior["atoms"], posterior["probabilities"], strict=True)
+        if atom == [1.0]
+    )
+    assert mean["lower"] <= true_mass <= mean["upper"]
+    assert prepared.interval_type == "posterior_equal_tail"
+
+
 def test_z_transport_estimate_refresh_executes_retained_program_after_builder_disposal():
     """The zTR handle keeps its proof and provider binding through refresh and replay."""
     _, builder, catalog, prepared, laws = fixture(False)
@@ -142,7 +165,10 @@ def test_z_transport_estimate_refresh_executes_retained_program_after_builder_di
     retained_plan = prepared.export()
     independently_consumed = json.loads(transport.consume_z_transport_artifact(retained_plan))
     assert independently_consumed["probabilities"] == pytest.approx(first["probabilities"])
-    assert independently_consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
+    assert independently_consumed["interval"] == {
+        "available": False,
+        "reason": "no_interval_reported",
+    }
 
     prepared.refresh(laws)
     refreshed = json.loads(prepared.estimate())
@@ -173,8 +199,12 @@ def test_z_transport_identification_proof_and_binding_survive_query_disposal():
     coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
     regimes = tuple(
         transport.EvidenceRegime(
-            f"do_z_{value}", "source", kind="experimental", interventions=["z"],
-            intervention_values={"z": float(value)}, measured=names,
+            f"do_z_{value}",
+            "source",
+            kind="experimental",
+            interventions=["z"],
+            intervention_values={"z": float(value)},
+            measured=names,
         )
         for value in (0, 1)
     )
@@ -183,8 +213,11 @@ def test_z_transport_identification_proof_and_binding_survive_query_disposal():
         regimes=regimes,
         bindings=tuple(
             transport.RegimeBinding(
-                regime.id, f"snapshot_{regime.id}", schema_names=names,
-                sampling="independent", dependence="independent_studies",
+                regime.id,
+                f"snapshot_{regime.id}",
+                schema_names=names,
+                sampling="independent",
+                dependence="independent_studies",
             )
             for regime in regimes
         ),
@@ -195,17 +228,23 @@ def test_z_transport_identification_proof_and_binding_survive_query_disposal():
     assert all(factor["supplied_by"] is not None for factor in plan["factors"])
 
     # Keep only the identified stage, checked catalog, and laws after this point.
-    laws = (transport.ExactDiscreteLaw(
-        "source", "do_z_0", (("w", (0.0, 1.0)), ("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
-        (0.15, 0.10, 0.10, 0.15, 0.15, 0.10, 0.10, 0.15),
-        "snapshot_do_z_0", interventions=(("z", 0.0),),
-    ),)
+    laws = (
+        transport.ExactDiscreteLaw(
+            "source",
+            "do_z_0",
+            (("w", (0.0, 1.0)), ("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+            (0.15, 0.10, 0.10, 0.15, 0.15, 0.10, 0.10, 0.15),
+            "snapshot_do_z_0",
+            interventions=(("z", 0.0),),
+        ),
+    )
     prepared = builder.prepare_exact(catalog, laws, {"x": 0.0})
     del builder, stage
     result = json.loads(prepared.estimate())
     assert result["status"] == "available"
-    assert sum(p for atom, p in zip(result["atoms"], result["probabilities"], strict=True)
-               if atom == [1.0]) == pytest.approx(0.4)
+    assert sum(
+        p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
+    ) == pytest.approx(0.4)
     prepared.refresh(laws)
     assert json.loads(prepared.estimate())["probabilities"] == pytest.approx(
         result["probabilities"]
@@ -237,20 +276,32 @@ def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
     graph = Admg.from_edges(names, [("x", "y")], [("x", "y")])
     query = transport.ZTransportQuery(
         transport.SelectionDiagram("source", "target", []),
-        outcomes=["y"], treatments=["x"], controllable=["z"],
+        outcomes=["y"],
+        treatments=["x"],
+        controllable=["z"],
         experiment_assignment={},
     )
     stage = transport.identify_z_transport(graph=graph, query=query)
     assert stage.outcome == "not_certified"
     coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
-    target = transport.EvidenceRegime("target_joint", "target", kind="observational", measured=names)
+    target = transport.EvidenceRegime(
+        "target_joint", "target", kind="observational", measured=names
+    )
     source_zero = transport.EvidenceRegime(
-        "do_z_0", "source", kind="experimental", interventions=["z"],
-        intervention_values={"z": 0.0}, measured=names,
+        "do_z_0",
+        "source",
+        kind="experimental",
+        interventions=["z"],
+        intervention_values={"z": 0.0},
+        measured=names,
     )
     source_one = transport.EvidenceRegime(
-        "do_z_1", "source", kind="experimental", interventions=["z"],
-        intervention_values={"z": 1.0}, measured=names,
+        "do_z_1",
+        "source",
+        kind="experimental",
+        interventions=["z"],
+        intervention_values={"z": 1.0},
+        measured=names,
     )
     full = transport.EvidenceCatalog(
         environments=(
@@ -259,8 +310,13 @@ def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
         ),
         regimes=(target, source_zero, source_one),
         bindings=tuple(
-            transport.RegimeBinding(regime, f"snapshot_{regime}", schema_names=names,
-                                    sampling="independent", dependence="independent_studies")
+            transport.RegimeBinding(
+                regime,
+                f"snapshot_{regime}",
+                schema_names=names,
+                sampling="independent",
+                dependence="independent_studies",
+            )
             for regime in ("target_joint", "do_z_0", "do_z_1")
         ),
     )
@@ -279,7 +335,7 @@ def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
 
     tampered = json.loads(snapshot)
     tampered["z_obstruction"]["terminal"]["treatments"] = []
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="z_transport.obstruction_record_mismatch"):
         transport.plan_z_transport_evidence(
             stage, full, [], failure_snapshot=json.dumps(tampered).encode()
         )
@@ -313,18 +369,34 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     )
     coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
     high = transport.EvidenceRegime(
-        "do_z_1", "source", kind="experimental", interventions=["z"],
-        intervention_values={"z": 1.0}, measured=names,
+        "do_z_1",
+        "source",
+        kind="experimental",
+        interventions=["z"],
+        intervention_values={"z": 1.0},
+        measured=names,
     )
     base = transport.EvidenceCatalog(
         environments=(transport.Environment("source", coordinates),),
         regimes=(high,),
-        bindings=(transport.RegimeBinding("do_z_1", "snapshot_z1", schema_names=names,
-            sampling="independent", dependence="independent_studies"),),
+        bindings=(
+            transport.RegimeBinding(
+                "do_z_1",
+                "snapshot_z1",
+                schema_names=names,
+                sampling="independent",
+                dependence="independent_studies",
+            ),
+        ),
     )
     low_proposed = transport.EvidenceRegime(
-        "do_z_0", "source", kind="experimental", evidence_kind="proposed",
-        interventions=["z"], intervention_values={"z": 0.0}, measured=names,
+        "do_z_0",
+        "source",
+        kind="experimental",
+        evidence_kind="proposed",
+        interventions=["z"],
+        intervention_values={"z": 0.0},
+        measured=names,
     )
     hypothetical = transport.EvidenceCatalog(
         environments=base.environments,
@@ -332,8 +404,13 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
         bindings=base.bindings,
     )
     candidate = transport.ZTransportCandidate(
-        "joint_z0", hypothetical, "intervene", targets=["z"], cost=1.0,
-        sample_budget=100, recruitment_sampling="randomized source study",
+        "joint_z0",
+        hypothetical,
+        "intervene",
+        targets=["z"],
+        cost=1.0,
+        sample_budget=100,
+        recruitment_sampling="randomized source study",
         feasibility_constraints=["z is manipulable"],
     )
     snapshot = stage.failure_snapshot(base)
@@ -360,30 +437,48 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
         transport.replay_z_transport_proposal(bytes(tampered_proposal))
 
     low_available = transport.EvidenceRegime(
-        "do_z_0", "source", kind="experimental", evidence_kind="available",
-        interventions=["z"], intervention_values={"z": 0.0}, measured=names,
+        "do_z_0",
+        "source",
+        kind="experimental",
+        evidence_kind="available",
+        interventions=["z"],
+        intervention_values={"z": 0.0},
+        measured=names,
     )
     actual = transport.EvidenceCatalog(
         environments=base.environments,
         regimes=(high, low_available),
         bindings=(
             base.bindings[0],
-            transport.RegimeBinding("do_z_0", "snapshot_z0_arrival", schema_names=names,
-                sampling="independent", dependence="independent_studies"),
+            transport.RegimeBinding(
+                "do_z_0",
+                "snapshot_z0_arrival",
+                schema_names=names,
+                sampling="independent",
+                dependence="independent_studies",
+            ),
         ),
     )
     probabilities = []
     for w in (0, 1):
         for x in (0, 1):
             for y in (0, 1):
-                probabilities.append((0.25 if w else 0.75) * (0.35 if x else 0.65) * (0.8 if y == x else 0.2))
+                probabilities.append(
+                    (0.25 if w else 0.75) * (0.35 if x else 0.65) * (0.8 if y == x else 0.2)
+                )
     law = transport.ExactDiscreteLaw(
-        "source", "do_z_0", (("w", (0.0, 1.0)), ("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
-        tuple(probabilities), "snapshot_z0_arrival", interventions=(("z", 0.0),),
+        "source",
+        "do_z_0",
+        (("w", (0.0, 1.0)), ("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        tuple(probabilities),
+        "snapshot_z0_arrival",
+        interventions=(("z", 0.0),),
     )
     arrived = proposal.receive(actual, (law,), {"x": 0.0}, "snapshot_z0_arrival")
     result = json.loads(arrived.estimate())
-    y1 = sum(p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0])
+    y1 = sum(
+        p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
+    )
     assert y1 == pytest.approx(0.2)
     assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
 

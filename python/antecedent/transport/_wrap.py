@@ -493,6 +493,7 @@ def _wrap_restricted(
     treatment = query.question.treatment  # type: ignore[union-attr]
     shape = stage.get("shape") or "scalar"
     points = list(specialist.points)
+    result: AnalysisResult | CausalResponseView
     if shape == "contrast":
         if len(points) != 2 or any(point.status != "available" for point in points):
             return _unavailable_result(
@@ -571,7 +572,9 @@ def _wrap_restricted(
             stage=stage,
         )
     support_status = (
-        "supported" if all(item == "supported" for item in statuses) else "outside_empirical_support"
+        "supported"
+        if all(item == "supported" for item in statuses)
+        else "outside_empirical_support"
     )
     region = {treatment: (min(p[0] for p in coordinates), max(p[0] for p in coordinates))}
     result = CausalResponseView(
@@ -618,7 +621,10 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
         shape=shape,
     )
     view = _identification_view(stage, query)
-    if getattr(specialist, "scope", None) == "single_source_z_transport_cited_joints_sound_incomplete":
+    if (
+        getattr(specialist, "scope", None)
+        == "single_source_z_transport_cited_joints_sound_incomplete"
+    ):
         return _wrap_restricted(study, query, specialist, section, view, stage)
     if isinstance(specialist, LearnedTrialEstimate):
         section = replace(
@@ -823,7 +829,12 @@ def unavailable_from_stage(study: Any) -> AnalysisResult | CausalResponseView:
     identified = stage.get("identified")
     catalog = stage.get("catalog")
     shape = stage.get("shape") or "scalar"
-    if getattr(identified, "scope", None) == "single_source_z_transport_cited_joints_sound_incomplete":
+    if identified is None:
+        raise CausalUnsupportedError("transport study has no identification stage")
+    if (
+        getattr(identified, "scope", None)
+        == "single_source_z_transport_cited_joints_sound_incomplete"
+    ):
         detail = identified.reason or not_certified_detail(identified, query=query)
         if identified.outcome == "missing_evidence":
             detail = (
@@ -831,15 +842,11 @@ def unavailable_from_stage(study: Any) -> AnalysisResult | CausalResponseView:
                 or f"{_inner_phrase(query)} is identified for {query.target}, but a cited joint is unbound."
             )
         return _unavailable_result(study, query, detail, shape=shape, stage=stage)
-    if identified is None:
-        raise CausalUnsupportedError("transport study has no identification stage")
     if identified.outcome in {"identified", "missing_evidence"}:
         if catalog is None:
             raise CausalUnsupportedError("transport study has no bound evidence catalog")
         detail = missing_evidence_detail(identified, catalog, query=query)
     else:
-        from ._day1 import not_certified_detail
-
         detail = not_certified_detail(identified, query=query)
     return _unavailable_result(study, query, detail, shape=shape, stage=stage)
 

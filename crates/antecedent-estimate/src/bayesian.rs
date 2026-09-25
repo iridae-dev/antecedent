@@ -3686,7 +3686,7 @@ mod tests {
         assert!(
             hydrate_prior(
                 &HydrateMapping::NamedParameters {
-                    pairs: vec![("ate".into(), "no_such_coef".into())],
+                    pairs: vec![("ate".into(), "no_such_coef".into())]
                 },
                 &quantities,
                 &mean,
@@ -3702,7 +3702,7 @@ mod tests {
         assert!(
             hydrate_prior(
                 &HydrateMapping::NamedParameters {
-                    pairs: vec![("no_src".into(), "coef_t".into())],
+                    pairs: vec![("no_src".into(), "coef_t".into())]
                 },
                 &quantities,
                 &mean,

@@ -100,9 +100,7 @@ def test_empirical_table_execution_survives_identification_builder_disposal():
         interventions=(("x", 1.0),),
     )
     data = transport.StatisticalTransportData(samples=(sample,))
-    prepared = transport.prepare_statistical(
-        identified, catalog, data, at={"x": 1.0}, bootstrap=0
-    )
+    prepared = transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, bootstrap=0)
     plan = prepared.inspect()
     assert plan.identification.available
     result = prepared.estimate()
@@ -136,16 +134,17 @@ def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, esti
         seed=23,
     )
 
-    assert not study.inspect().uncertainty.available
+    assert study.inspect().uncertainty.available
     result = study.estimate()
     posterior = result.uncertainty["bayesian_posterior"]
     assert posterior["estimator"] == estimator_id
     assert posterior["interval_method"] == "posterior_equal_tail"
     assert posterior["draws_requested"] == posterior["draws_ok"] == 199
     assert posterior["draws_failed"] == 0
-    assert posterior["calibration_status"] == "not_licensed"
+    assert posterior["calibration_status"] == "estimator_grid_not_measured"
+    assert posterior["mean_intervals"]
     assert result.uncertainty["available"] is False
-    assert not study.inspect().uncertainty.available
+    assert study.inspect().uncertainty.available
 
     # The portable transport artifact retains the posterior summaries and provider identity.
     consumed = transport.consume_statistical(result.export())
@@ -153,7 +152,7 @@ def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, esti
     replayed = refreshed.uncertainty["bayesian_posterior"]
     assert replayed["estimator"] == estimator_id
     assert replayed["draws_requested"] == replayed["draws_ok"] == 199
-    assert replayed["calibration_status"] == "not_licensed"
+    assert replayed["calibration_status"] == "estimator_grid_not_measured"
 
 
 def test_unknown_dependence_keeps_identification_and_withholds_interval():
@@ -358,6 +357,39 @@ def test_sample_intervention_must_belong_to_declared_domain(value):
             at={"x": value},
             bootstrap=0,
         )
+
+
+def test_bayesian_grid_reuses_one_draw_sequence():
+    from dataclasses import replace
+
+    identified, catalog, data = fixture()
+    zero = replace(
+        data.samples[0], columns={"y": [0.0] * 40 + [1.0] * 10}, interventions=(("x", 0.0),)
+    )
+    both = transport.StatisticalTransportData((zero, data.samples[0]))
+    points = transport.evaluate_statistical_grid(
+        identified,
+        catalog,
+        both,
+        at=[{"x": 0.0}, {"x": 1.0}],
+        estimator="state_space_dirichlet",
+        bootstrap=0,
+        seed=17,
+    )
+    alone = transport.prepare_statistical(
+        identified,
+        catalog,
+        both,
+        at={"x": 0.0},
+        estimator="state_space_dirichlet",
+        bootstrap=0,
+        seed=17,
+    ).estimate()
+    shared = points[0].uncertainty["bayesian_posterior"]
+    separate = alone.uncertainty["bayesian_posterior"]
+    assert shared["probabilities"] == separate["probabilities"]
+    assert shared["calibration_status"] == "estimator_grid_not_measured"
+    assert points[1].uncertainty["bayesian_posterior"]["draws_ok"] == shared["draws_ok"]
 
 
 def test_transport_query_defaults_are_read_from_the_native_table():

@@ -723,7 +723,11 @@ impl StudyResult {
         if !self.estimate.ate.is_finite() {
             if let Some(bands) = self.estimate.scenario_intervals.as_deref() {
                 if !bands.is_empty() {
-                    return IntervalBinding::new(M::SimultaneousBand, REPORTED_SE_INTERVAL_LEVEL, base);
+                    return IntervalBinding::new(
+                        M::SimultaneousBand,
+                        REPORTED_SE_INTERVAL_LEVEL,
+                        base,
+                    );
                 }
             }
         }
