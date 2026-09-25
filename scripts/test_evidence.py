@@ -564,6 +564,7 @@ def static_python_test(path: Path, name: str) -> list[str]:
     return problems
 
 
+@functools.cache
 def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
     problems = static_python_test(path, name)
     if problems:
