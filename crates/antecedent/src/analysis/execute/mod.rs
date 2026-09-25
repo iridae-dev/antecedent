@@ -277,6 +277,8 @@ mod checked_attribution;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
 pub(crate) use checked_attribution::CheckedAttributionOperation;
 mod bayesian_basis_path;
+mod checked_bayesian_basis_ate;
+pub(crate) use checked_bayesian_basis_ate::CheckedBayesianBasisAteExecution;
 mod checked_bayesian_dag_ate;
 pub(crate) use checked_bayesian_dag_ate::CheckedBayesianDagAteExecution;
 mod bayesian_graph_posterior_atoms;
