@@ -783,7 +783,7 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_admg_graph_posterior_response_operation"));
     }
-    if contract.graph_class == "Dag"
+    if matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. })
         && resolved_estimator == Some("conditional.linear.adjustment")

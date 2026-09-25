@@ -17,6 +17,21 @@ use crate::planner::PhysicalExecutionPlan;
 use crate::support::{CellStatus, StructureSource};
 use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
 
+/// Completion proof retained for a conditional effect identified on a static
+/// equivalence class. The class graph and its complete prepare-time envelope
+/// stay bound together through execution and refresh.
+#[derive(Clone, Debug)]
+pub(crate) enum ConditionalClassProof {
+    Cpdag {
+        graph: antecedent_graph::Cpdag,
+        cache: crate::analysis::prepared::CachedCpdagIdentification,
+    },
+    Pag {
+        graph: antecedent_graph::Pag,
+        cache: crate::analysis::prepared::CachedPagIdentification,
+    },
+}
+
 /// The actual point and uncertainty procedure is determined by the functional and arms.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ConditionalProcedure {
@@ -44,6 +59,7 @@ pub(crate) struct CheckedConditionalOperation {
     pub(crate) structure_source: StructureSource,
     pub(crate) population_registry: Option<antecedent_core::PopulationRegistry>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
+    pub(crate) class_proof: Option<ConditionalClassProof>,
 }
 
 impl CheckedConditionalOperation {
@@ -60,10 +76,12 @@ impl CheckedConditionalOperation {
         structure_source: StructureSource,
         population_registry: Option<antecedent_core::PopulationRegistry>,
         latency_mode: Option<super::latency::LatencyMode>,
+        class_proof: Option<ConditionalClassProof>,
     ) -> Result<Self, CausalError> {
         let source_query = CausalQuery::ConditionalEffect(query.clone());
         if identification.status != IdentificationStatus::NonparametricallyIdentified
-            || identification.average_effect() != Some(&query.inner)
+            || (identification.query != source_query
+                && identification.query != CausalQuery::AverageEffect(query.inner.clone()))
             || !identification.estimands.iter().any(|candidate| {
                 candidate.functional == estimand.functional
                     && candidate.method == estimand.method
@@ -88,10 +106,35 @@ impl CheckedConditionalOperation {
             .as_deref()
             .unwrap_or(crate::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER)
             .parse()?;
-        if identifier != IdentifierId::BackdoorAdjustment {
+        let expected_identifier = if class_proof.is_some() {
+            IdentifierId::GeneralizedAdjustment
+        } else {
+            IdentifierId::BackdoorAdjustment
+        };
+        if identifier != expected_identifier {
             return Err(compile_error(
-                "checked conditional effect requires backdoor identification",
+                "checked conditional effect identifier does not match its graph contract",
             ));
+        }
+        if let Some(proof) = &class_proof {
+            let class_identification = match proof {
+                ConditionalClassProof::Cpdag { cache, .. } => &cache.identification,
+                ConditionalClassProof::Pag { cache, .. } => &cache.identification,
+            };
+            if class_identification.query != source_query
+                || class_identification.status != IdentificationStatus::NonparametricallyIdentified
+                || !class_identification.estimands.iter().any(|candidate| {
+                    candidate.functional == estimand.functional
+                        && candidate.method == estimand.method
+                        && candidate.adjustment_set == estimand.adjustment_set
+                        && candidate.is_adjustment_shaped()
+                })
+                || !estimand.is_adjustment_shaped()
+            {
+                return Err(compile_error(
+                    "conditional class proof does not identify the retained adjustment target",
+                ));
+            }
         }
         let mut design_roles =
             vec![query.inner.treatment, query.inner.outcome, query.inner.effect_modifiers[0]];
@@ -131,6 +174,7 @@ impl CheckedConditionalOperation {
             structure_source,
             population_registry,
             latency_mode,
+            class_proof,
         })
     }
 
@@ -155,11 +199,45 @@ impl CheckedConditionalOperation {
         Ok(rebound)
     }
 
+    pub(crate) fn graph_class(&self) -> crate::GraphClass {
+        match &self.class_proof {
+            Some(ConditionalClassProof::Cpdag { .. }) => crate::GraphClass::Cpdag,
+            Some(ConditionalClassProof::Pag { .. }) => crate::GraphClass::Pag,
+            None => crate::GraphClass::Dag,
+        }
+    }
+
+    fn verify_class_proof(&self) -> Result<(), CausalError> {
+        let matches = match &self.class_proof {
+            Some(ConditionalClassProof::Cpdag { graph, cache }) => {
+                let fresh = crate::strategy_table::identify_cpdag(
+                    self.identifier,
+                    graph,
+                    &self.query.inner,
+                )?;
+                same_class_envelope(&fresh, &cache.envelope)
+            }
+            Some(ConditionalClassProof::Pag { graph, cache }) => {
+                let fresh =
+                    crate::strategy_table::identify_pag(self.identifier, graph, &self.query.inner)?;
+                same_class_envelope(&fresh, &cache.envelope)
+            }
+            None => true,
+        };
+        if !matches {
+            return Err(compile_error(
+                "retained conditional class graph no longer verifies its identification envelope",
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn execute(
         &self,
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, CausalError> {
+        self.verify_class_proof()?;
         let data_est = super::helpers::apply_scalar_outcome_functional(
             data,
             self.query.inner.outcome,
@@ -177,6 +255,40 @@ impl CheckedConditionalOperation {
             ctx,
         )
     }
+}
+
+fn same_class_envelope<G: std::fmt::Debug>(
+    actual: &antecedent_identify::IdentificationEnvelope<G>,
+    retained: &antecedent_identify::IdentificationEnvelope<G>,
+) -> bool {
+    let same_invariant = match (&actual.invariant, &retained.invariant) {
+        (Some(a), Some(b)) => {
+            a.method == b.method
+                && a.adjustment_set == b.adjustment_set
+                && a.functional == b.functional
+        }
+        (None, None) => true,
+        _ => false,
+    };
+    same_invariant
+        && actual.status == retained.status
+        && actual.truncated_completions == retained.truncated_completions
+        && (actual.identified_weight.0 - retained.identified_weight.0).abs() <= f64::EPSILON
+        && (actual.unidentified_weight.0 - retained.unidentified_weight.0).abs() <= f64::EPSILON
+        && actual.cases.len() == retained.cases.len()
+        && actual.cases.iter().zip(&retained.cases).all(|(a, b)| {
+            format!("{:?}", a.graph) == format!("{:?}", b.graph)
+                && (a.weight.0 - b.weight.0).abs() <= f64::EPSILON
+                && a.result.status == b.result.status
+                && a.result.estimands.iter().any(|candidate| {
+                    b.result.estimands.iter().any(|expected| {
+                        candidate.method == expected.method
+                            && candidate.adjustment_set == expected.adjustment_set
+                            && candidate.functional == expected.functional
+                    })
+                })
+                && a.result.required_assumptions == b.result.required_assumptions
+        })
 }
 
 fn program_schema(data: &TabularData) -> ProgramSchema {

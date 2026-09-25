@@ -1148,17 +1148,27 @@ pub struct CheckedPropensityInfo {
     pub bootstrap_replicates: Option<u32>,
 }
 
-/// Read-only checked target and procedure for a frequentist DAG conditional effect.
+/// Read-only checked target and procedure for a frequentist static conditional effect.
 #[derive(Clone, Debug)]
 pub struct CheckedConditionalEffectInfo {
     /// Exact conditional query, including modifiers, arms, and outcome functional.
     pub query: antecedent_core::ConditionalEffectQuery,
+    /// Source graph class retained with the identification proof.
+    pub graph_class: GraphClass,
     /// Selected identification procedure.
     pub identifier: crate::strategy_table::IdentifierId,
     /// Selected estimator identity.
     pub estimator: crate::strategy_table::EstimatorId,
     /// Actual scalar or distribution score procedure.
     pub procedure: Arc<str>,
+    /// Invariant adjustment variables retained by the checked proof.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Number of class completions checked, or `None` for a fixed DAG.
+    pub completion_count: Option<usize>,
+    /// Identified completion mass for a class proof.
+    pub identified_mass: Option<f64>,
+    /// Unresolved completion mass for a class proof.
+    pub unresolved_mass: Option<f64>,
     /// Prepared refutation suite.
     pub validation: RefuteSuite,
     /// Variables in the physical design, retaining their semantic IDs.
@@ -2150,6 +2160,26 @@ pub(crate) struct CachedCpdagIdentification {
     pub envelope: IdentificationEnvelope<antecedent_graph::Dag>,
     /// Public aggregate identification result derived from [`Self::envelope`].
     pub identification: IdentificationResult,
+}
+
+/// A class conditional effect is sealed only when every enumerated completion
+/// has full nonparametric identification with the same adjustment target.
+fn conditional_class_proof_is_complete<G>(envelope: &IdentificationEnvelope<G>) -> bool {
+    let Some(invariant) = envelope.invariant.as_ref() else { return false };
+    envelope.status == antecedent_identify::IdentificationStatus::NonparametricallyIdentified
+        && envelope.truncated_completions == 0
+        && envelope.unidentified_weight.0 <= f64::EPSILON
+        && envelope.identified_weight.0 >= 1.0 - f64::EPSILON
+        && !envelope.cases.is_empty()
+        && envelope.cases.iter().all(|case| {
+            case.result.status
+                == antecedent_identify::IdentificationStatus::NonparametricallyIdentified
+                && case.result.estimands.iter().any(|candidate| {
+                    candidate.is_adjustment_shaped()
+                        && candidate.method == invariant.method
+                        && candidate.adjustment_set == invariant.adjustment_set
+                })
+        })
 }
 
 /// Prepare-time TemporalCpdag/Pag envelope (completions + unfold indexers).
@@ -4365,8 +4395,22 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_conditional_effect_info(&self) -> Option<CheckedConditionalEffectInfo> {
         let operation = self.execution.conditional()?;
+        let (completion_count, identified_mass, unresolved_mass) = match &operation.class_proof {
+            Some(super::checked_conditional::ConditionalClassProof::Cpdag { cache, .. }) => (
+                Some(cache.envelope.cases.len()),
+                Some(cache.envelope.identified_weight.0),
+                Some(cache.envelope.unidentified_weight.0),
+            ),
+            Some(super::checked_conditional::ConditionalClassProof::Pag { cache, .. }) => (
+                Some(cache.envelope.cases.len()),
+                Some(cache.envelope.identified_weight.0),
+                Some(cache.envelope.unidentified_weight.0),
+            ),
+            None => (None, None, None),
+        };
         Some(CheckedConditionalEffectInfo {
             query: operation.query.clone(),
+            graph_class: operation.graph_class(),
             identifier: operation.identifier,
             estimator: operation.estimator,
             procedure: Arc::from(match operation.procedure {
@@ -4375,6 +4419,10 @@ impl PreparedStudy {
                     "crossfit_aipw_distribution_scores"
                 }
             }),
+            adjustment_set: Arc::clone(&operation.estimand.adjustment_set),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
             validation: operation.refute,
             design_roles: Arc::clone(&operation.design_roles),
             source_rows: Arc::clone(&operation.source_rows),
@@ -5097,7 +5145,7 @@ impl PreparedStudy {
                 identifier: operation.identifier,
                 estimator,
                 physical: &operation.physical,
-                graph_class: GraphClass::Dag,
+                graph_class: operation.graph_class(),
                 graph_version: operation.graph_version,
                 support_status: operation.support_status,
                 structure_source: operation.structure_source,
@@ -7765,18 +7813,17 @@ impl Study {
         let checked_conditional = match (
             &self.data,
             &self.query,
-            analysis.identification_cache.as_deref(),
             analysis.graph.class(),
             &analysis.inference,
         ) {
             (
                 DataInput::Tabular(data),
                 CausalQuery::ConditionalEffect(query),
-                Some(cache),
-                GraphClass::Dag,
+                graph_class,
                 InferenceMode::Frequentist,
             ) if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
+                && matches!(graph_class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag)
                 && query.inner.effect_modifiers.len() == 1
                 && analysis.custom_validators.is_empty()
                 && matches!(
@@ -7793,19 +7840,106 @@ impl Study {
                         crate::strategy_table::EstimatorId::ConditionalLinearAdjustment.as_str(),
                     ) =>
             {
-                Some(CheckedConditionalOperation::prepare(
-                    data,
-                    query.clone(),
-                    cache.identification.clone(),
-                    cache.estimand.clone(),
-                    plan.clone(),
-                    analysis.refute,
-                    analysis.graph.version(),
-                    analysis.support_status,
-                    analysis.structure_source,
-                    analysis.population_registry.clone(),
-                    analysis.latency_mode,
-                )?)
+                let class_proof = match graph_class {
+                    GraphClass::Cpdag => {
+                        let (Some(graph), Some(cache)) = (
+                            analysis.graph.as_cpdag(),
+                            analysis.cpdag_identification_cache.as_deref(),
+                        ) else {
+                            return Err(CausalError::Compile {
+                                message: "conditional CPDAG preparation lost its graph proof".into(),
+                            });
+                        };
+                        Some(super::checked_conditional::ConditionalClassProof::Cpdag {
+                            graph: graph.clone(),
+                            cache: cache.clone(),
+                        })
+                    }
+                    GraphClass::Pag => {
+                        let (Some(graph), Some(cache)) = (
+                            plan.static_pag(),
+                            analysis.pag_identification_cache.as_deref(),
+                        ) else {
+                            return Err(CausalError::Compile {
+                                message: "conditional PAG preparation lost its graph proof".into(),
+                            });
+                        };
+                        Some(super::checked_conditional::ConditionalClassProof::Pag {
+                            graph: graph.clone(),
+                            cache: cache.clone(),
+                        })
+                    }
+                    _ => None,
+                };
+                let target = match (&class_proof, graph_class) {
+                    (None, GraphClass::Dag) => analysis
+                        .identification_cache
+                        .as_deref()
+                        .map(|cache| (cache.identification.clone(), cache.estimand.clone())),
+                    (
+                        Some(super::checked_conditional::ConditionalClassProof::Cpdag {
+                            cache, ..
+                        }),
+                        GraphClass::Cpdag,
+                    ) => {
+                        let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
+                            cache.identification.estimands.iter().find(|candidate| {
+                                candidate.is_adjustment_shaped()
+                                    && candidate.method == invariant.method
+                                    && candidate.adjustment_set == invariant.adjustment_set
+                            })
+                            .cloned()
+                        });
+                        (conditional_class_proof_is_complete(&cache.envelope)
+                            && cache.identification.status
+                                == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
+                            .then(|| {
+                                estimand.map(|estimand| (cache.identification.clone(), estimand))
+                            })
+                            .flatten()
+                    }
+                    (
+                        Some(super::checked_conditional::ConditionalClassProof::Pag {
+                            cache, ..
+                        }),
+                        GraphClass::Pag,
+                    ) => {
+                        let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
+                            cache.identification.estimands.iter().find(|candidate| {
+                                candidate.is_adjustment_shaped()
+                                    && candidate.method == invariant.method
+                                    && candidate.adjustment_set == invariant.adjustment_set
+                            })
+                            .cloned()
+                        });
+                        (conditional_class_proof_is_complete(&cache.envelope)
+                            && cache.identification.status
+                                == antecedent_identify::IdentificationStatus::NonparametricallyIdentified)
+                            .then(|| {
+                                estimand.map(|estimand| (cache.identification.clone(), estimand))
+                            })
+                            .flatten()
+                    }
+                    _ => None,
+                };
+                target
+                    .map(|(identification, estimand)| {
+                        CheckedConditionalOperation::prepare(
+                            data,
+                            query.clone(),
+                            identification,
+                            estimand,
+                            plan.clone(),
+                            analysis.refute,
+                            analysis.graph.version(),
+                            analysis.support_status,
+                            analysis.structure_source,
+                            analysis.population_registry.clone(),
+                            analysis.latency_mode,
+                            class_proof,
+                        )
+                    })
+                    .transpose()?
             }
             _ => None,
         };

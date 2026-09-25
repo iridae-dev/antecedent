@@ -7,7 +7,7 @@ use antecedent_core::{
     StreamDomain, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use antecedent_kernels::standard_normal;
 
 fn data(outcome_shift: f64) -> TabularData {
@@ -28,6 +28,38 @@ fn graph() -> Dag {
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
     graph
+}
+
+enum ClassGraph {
+    Cpdag(Cpdag),
+    Pag(Pag),
+}
+
+fn class_graphs() -> [(antecedent::GraphClass, ClassGraph); 2] {
+    let mut cpdag = Cpdag::with_variables(6);
+    cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    cpdag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    cpdag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(0)).unwrap();
+    cpdag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap();
+    cpdag.insert_undirected(DenseNodeId::from_raw(4), DenseNodeId::from_raw(5)).unwrap();
+    let mut pag = Pag::with_variables(6);
+    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    pag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap();
+    for source in [3, 4] {
+        pag.insert_marked(antecedent_graph::MarkedEdge {
+            a: DenseNodeId::from_raw(source),
+            b: DenseNodeId::from_raw(0),
+            at_a: antecedent_graph::Endpoint::Circle,
+            at_b: antecedent_graph::Endpoint::Arrow,
+            middle: antecedent_graph::MiddleMark::Empty,
+        })
+        .unwrap();
+    }
+    [
+        (antecedent::GraphClass::Cpdag, ClassGraph::Cpdag(cpdag)),
+        (antecedent::GraphClass::Pag, ClassGraph::Pag(pag)),
+    ]
 }
 
 fn quantile_data() -> TabularData {
@@ -52,6 +84,30 @@ fn query(functional: OutcomeFunctional) -> ConditionalEffectQuery {
             .with_effect_modifiers([VariableId::from_raw(2)])
             .with_outcome_functional(functional),
     )
+    .unwrap()
+}
+
+fn class_data(outcome_shift: f64) -> TabularData {
+    let n = 600usize;
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let w: Vec<f64> = (0..n).map(|i| (i % 5) as f64).collect();
+    let z: Vec<f64> = (0..n).map(|i| (i % 7) as f64 - 3.0).collect();
+    let u: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+    let v: Vec<f64> = (0..n).map(|i| (i % 4) as f64).collect();
+    let y: Vec<f64> = t
+        .iter()
+        .zip(&w)
+        .zip(&z)
+        .map(|((t, w), z)| 1.0 + outcome_shift + 0.25 * z + 2.0 * t + 0.5 * t * w)
+        .collect();
+    TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("w", w.as_slice()),
+        ("z", z.as_slice()),
+        ("u", u.as_slice()),
+        ("v", v.as_slice()),
+    ])
     .unwrap()
 }
 
@@ -177,4 +233,99 @@ fn conditional_grid_and_quantile_retain_distribution_score_procedure() {
         assert_eq!(prepared.checked_conditional_effect_info().unwrap().query, plan.query);
         assert!(refreshed.estimate.exceedance_cdf.is_some());
     }
+}
+
+#[test]
+fn fully_identified_class_conditional_effect_is_sealed_across_lifecycle() {
+    let original = class_data(0.0);
+    let ctx = ExecutionContext::for_tests(911);
+    let conditional = query(OutcomeFunctional::Mean);
+    for (expected_class, graph) in class_graphs() {
+        for accepted in [false, true] {
+            for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+                let base = Study::tabular(original.clone());
+                let base = match (&graph, accepted) {
+                    (ClassGraph::Cpdag(graph), true) => {
+                        base.graph(AcceptedGraph::from(graph.clone()))
+                    }
+                    (ClassGraph::Cpdag(graph), false) => base.graph(graph.clone()),
+                    (ClassGraph::Pag(graph), true) => {
+                        base.graph(AcceptedGraph::from(graph.clone()))
+                    }
+                    (ClassGraph::Pag(graph), false) => base.graph(graph.clone()),
+                };
+                let builder = base
+                    .query(CausalQuery::ConditionalEffect(conditional.clone()))
+                    .identifier(IdentifierId::GeneralizedAdjustment)
+                    .estimator(EstimatorId::ConditionalLinearAdjustment)
+                    .refute(suite)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap();
+                let one_shot = builder.clone().run(&ctx).unwrap();
+                let mut prepared = builder.prepare(&ctx).unwrap();
+                drop(builder);
+                let plan = prepared
+                    .checked_conditional_effect_info()
+                    .expect("fully identified class conditional operation is sealed");
+                assert_eq!(plan.graph_class, expected_class);
+                assert_eq!(plan.identifier, IdentifierId::GeneralizedAdjustment);
+                assert_eq!(plan.estimator, EstimatorId::ConditionalLinearAdjustment);
+                assert_eq!(plan.validation, suite);
+                assert_eq!(plan.procedure.as_ref(), "linear_interaction_plugin");
+                assert!(plan.adjustment_set.contains(&VariableId::from_raw(3)));
+                assert!(plan.completion_count.is_some_and(|count| count > 1));
+                assert!(plan.identified_mass.unwrap() > 0.0, "{expected_class:?}: {plan:?}");
+                assert!(plan.unresolved_mass.unwrap().abs() < 1e-12);
+
+                let result = prepared.estimate(&original, &ctx).unwrap();
+                // Independent linear SCM truth: E[2 + 0.5 W] for balanced W=0..4.
+                assert!((result.effect() - 3.0).abs() < 1e-9);
+                assert!((one_shot.effect() - result.effect()).abs() < 1e-10);
+                assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
+
+                let refreshed = prepared.refresh(class_data(0.35), &ctx).unwrap();
+                assert!((refreshed.effect() - 3.0).abs() < 1e-9);
+                let rebound = prepared.checked_conditional_effect_info().unwrap();
+                assert_eq!(rebound.graph_class, expected_class);
+                assert_eq!(rebound.query, plan.query);
+                assert_eq!(rebound.identifier, plan.identifier);
+                assert_eq!(rebound.procedure, plan.procedure);
+                assert_eq!(rebound.adjustment_set, plan.adjustment_set);
+                assert_eq!(rebound.completion_count, plan.completion_count);
+                assert_eq!(rebound.identified_mass, plan.identified_mass);
+                assert_eq!(rebound.unresolved_mass, plan.unresolved_mass);
+
+                let artifact = prepared
+                    .encode_contracted_result(&refreshed, "checked-class-conditional", &ctx)
+                    .unwrap();
+                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                assert!(consumed.contract.is_some());
+                assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
+                    dependency.as_ref() == "dependencies.checked_conditional_effect_operation"
+                }));
+                assert!(!consumed.acceptance.accepts_as_verified_program());
+            }
+        }
+    }
+}
+
+#[test]
+fn partially_identified_cpdag_conditional_effect_is_not_sealed_as_a_point_plan() {
+    let data = class_data(0.0);
+    let mut cpdag = Cpdag::with_variables(6);
+    cpdag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    cpdag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    cpdag.insert_undirected(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    let prepared = Study::tabular(data)
+        .graph(cpdag)
+        .query(CausalQuery::ConditionalEffect(query(OutcomeFunctional::Mean)))
+        .identifier(IdentifierId::GeneralizedAdjustment)
+        .estimator(EstimatorId::ConditionalLinearAdjustment)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ExecutionContext::for_tests(912))
+        .unwrap();
+    assert!(prepared.checked_conditional_effect_info().is_none());
 }
