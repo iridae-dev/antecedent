@@ -140,6 +140,22 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
         self.assertIn("tests/test_transport_exact.py::test_one", pytest)
         self.assertIn("tests/test_transport_z.py::test_two", pytest)
 
+    def test_python_citation_validation_uses_static_checks_before_batched_execution(self) -> None:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import test_evidence
+
+        with (
+            patch.object(test_evidence, "static_python_test", return_value=[]) as static,
+            patch.object(test_evidence, "resolve_python_test", side_effect=AssertionError("per-citation collection")),
+            patch.object(test_evidence, "python_closure", return_value="test body"),
+            patch.object(compiler_migration, "validate_evidence_body", return_value=[]),
+        ):
+            self.assertEqual(
+                compiler_migration.validate_route_evidence("python/tests/test_route.py", "test_route"),
+                [],
+            )
+        static.assert_called_once_with(ROOT / "python/tests/test_route.py", "test_route")
+
     def test_failed_batch_isolates_the_cited_coordinate(self) -> None:
         sys.path.insert(0, str(ROOT / "scripts"))
         import test_evidence
