@@ -3634,11 +3634,10 @@ impl PreparedExecution {
             | Self::BayesianBasisAte(_)
             | Self::BayesianGraphPosteriorAte(_)
             | Self::BayesianConditional(_)
-            | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
-            Self::GraphPosteriorEffect(_) | Self::StaticClassEffect(_) => {
-                CheckedProgramBinding::None
-            }
-            Self::ClassGraphPosteriorEffect(_) => CheckedProgramBinding::None,
+            | Self::StaticResponseCurve(_)
+            | Self::GraphPosteriorEffect(_)
+            | Self::StaticClassEffect(_)
+            | Self::ClassGraphPosteriorEffect(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -5947,7 +5946,12 @@ impl PreparedStudy {
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::BayesianBasisAte(operation) = &self.execution {
-            let result = operation.execute(data, ctx)?;
+            let mut result = operation.execute(data, ctx)?;
+            super::execute::push_gaussian_likelihood_disclosure(
+                &mut result,
+                &operation.inference(),
+                &DataInput::Tabular(data.clone()),
+            );
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::BayesianConditional(operation) = &self.execution {
