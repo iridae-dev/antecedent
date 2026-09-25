@@ -224,6 +224,66 @@ def test_z_transport_stage_refuses_unregistered_selection_graph():
     assert stage.reason == "z_transport.no_checked_recursive_formula"
 
 
+def test_restricted_experiment_obstruction_requires_full_family_and_replays_snapshot():
+    names = ["x", "y", "z"]
+    graph = Admg.from_edges(names, [("x", "y")], [("x", "y")])
+    query = transport.ZTransportQuery(
+        transport.SelectionDiagram("source", "target", []),
+        outcomes=["y"], treatments=["x"], controllable=["z"],
+        experiment_assignment={},
+    )
+    stage = transport.identify_z_transport(graph=graph, query=query)
+    assert stage.outcome == "not_certified"
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    target = transport.EvidenceRegime("target_joint", "target", kind="observational", measured=names)
+    source_zero = transport.EvidenceRegime(
+        "do_z_0", "source", kind="experimental", interventions=["z"],
+        intervention_values={"z": 0.0}, measured=names,
+    )
+    source_one = transport.EvidenceRegime(
+        "do_z_1", "source", kind="experimental", interventions=["z"],
+        intervention_values={"z": 1.0}, measured=names,
+    )
+    full = transport.EvidenceCatalog(
+        environments=(
+            transport.Environment("source", coordinates),
+            transport.Environment("target", coordinates),
+        ),
+        regimes=(target, source_zero, source_one),
+        bindings=tuple(
+            transport.RegimeBinding(regime, f"snapshot_{regime}", schema_names=names,
+                                    sampling="independent", dependence="independent_studies")
+            for regime in ("target_joint", "do_z_0", "do_z_1")
+        ),
+    )
+    decision = stage.decide(full)
+    assert decision["outcome"] == "proven_non_transportable"
+    assert decision["obstruction"]["terminal"]["treatments"]
+    snapshot = stage.failure_snapshot(full)
+    wire = json.loads(snapshot)
+    assert wire["version"] == 2
+    assert wire["status"] == "proof_obstruction"
+    assert wire["z_obstruction"] == decision["obstruction"]
+    summary, proposals = transport.plan_z_transport_evidence(
+        stage, full, [], failure_snapshot=snapshot
+    )
+    assert not summary["ranked_sufficient"] and not proposals
+
+    tampered = json.loads(snapshot)
+    tampered["z_obstruction"]["terminal"]["treatments"] = []
+    with pytest.raises(ValueError):
+        transport.plan_z_transport_evidence(
+            stage, full, [], failure_snapshot=json.dumps(tampered).encode()
+        )
+    partial = transport.EvidenceCatalog(
+        environments=full.environments,
+        regimes=(target, source_zero),
+        bindings=full.bindings[:2],
+    )
+    assert stage.decide(partial)["outcome"] == "missing_evidence"
+    assert json.loads(stage.failure_snapshot(partial))["status"] == "missing_evidence"
+
+
 def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     names = ["w", "z", "x", "y"]
     graph = Admg.from_edges(

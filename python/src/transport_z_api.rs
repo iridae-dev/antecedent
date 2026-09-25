@@ -11,7 +11,8 @@ use antecedent_expr::{
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    ZTransportQuery, ZTransportResult, bind_z_transport_catalog, identify_z_transport_surrogate,
+    SidLimits, ZTransportDecision, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+    decide_z_transport_with_catalog, identify_z_transport_surrogate,
 };
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::collections::BTreeMap;
@@ -86,6 +87,40 @@ struct ZTransportStage {
 
 #[pymethods]
 impl ZTransportStage {
+    /// Decide the bounded theorem against the actual complete catalog.
+    /// A missing experiment is reported separately from a checked obstruction.
+    fn decide(&self, py: Python<'_>, catalog: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        let catalog = parse_catalog(catalog, &self.graph)?;
+        let decision = decide_z_transport_with_catalog(
+            &self.diagram,
+            &self.query,
+            &catalog,
+            SidLimits::default(),
+            &ExecutionContext::for_tests(0),
+        )
+        .map_err(error)?;
+        let value = match decision {
+            ZTransportDecision::Identified(proof) => serde_json::json!({
+                "outcome": "identified",
+                "proof": proof.to_record(),
+                "inspection": proof.inspect_proof(&catalog),
+            }),
+            ZTransportDecision::ProvenNonTransportable(obstruction) => serde_json::json!({
+                "outcome": "proven_non_transportable",
+                "obstruction": obstruction.to_record(),
+            }),
+            ZTransportDecision::MissingEvidence { missing } => serde_json::json!({
+                "outcome": "missing_evidence",
+                "reason": format!("{missing:?}"),
+            }),
+            ZTransportDecision::NotCertified { reason } => serde_json::json!({
+                "outcome": "not_certified",
+                "reason": reason,
+            }),
+        };
+        Ok(py.import("json")?.call_method1("loads", (value.to_string(),))?.unbind())
+    }
+
     #[getter]
     fn outcome(&self) -> &'static str {
         match &self.result {

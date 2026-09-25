@@ -26,11 +26,13 @@ pub use meta::{
 };
 pub use z_transport::{
     BoundZTransportFunctional, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED,
-    ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportDerivation,
-    ZTransportDerivationRecord, ZTransportProofInspection, ZTransportQuery, ZTransportResult,
-    bind_z_transport_catalog, identify_z_transport, identify_z_transport_surrogate,
+    ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportDecision,
+    ZTransportDerivation, ZTransportDerivationRecord, ZTransportMissingEvidence,
+    ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
+    ZTransportResult, ZTransportTerminalRecord, bind_z_transport_catalog,
+    decide_z_transport_with_catalog, identify_z_transport, identify_z_transport_surrogate,
     identify_z_transport_with_limits, validate_z_experiment_family, validate_z_transport_query,
-    verify_z_transport_derivation,
+    verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 
 /// Theoretical query under the classical family of all source experiments.
