@@ -819,6 +819,14 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_temporal_dag_effect_operation"));
     }
+    if contract.graph_class == "TemporalDag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::Mediation { .. })
+        && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
+        && matches!(resolved_estimator, Some("temporal.mediation" | "temporal.mediation.bayesian"))
+    {
+        unresolved.push(Arc::from("dependencies.checked_temporal_mediation_operation"));
+    }
     if matches!(contract.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && matches!(contract.target.query, CausalQueryWire::TemporalEffect { .. })
@@ -1112,6 +1120,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_temporal_dag_effect_operation"
                 | "dependencies.checked_temporal_class_effect_operation"
                 | "dependencies.checked_temporal_response_operation"
+                | "dependencies.checked_temporal_mediation_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay

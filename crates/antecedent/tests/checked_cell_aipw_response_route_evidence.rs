@@ -77,19 +77,19 @@ fn accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh() {
             [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full].into_iter().enumerate()
         {
             let initial = data(0.0);
-            let study = builder(initial.clone(), query.clone(), suite, accepted);
+            let builder = builder(initial.clone(), query.clone(), suite, accepted);
             let seed = 820 + u64::try_from(suite_index).unwrap();
             let context = antecedent_core::ExecutionContext::for_tests(seed);
-            let one_shot = study.run(&context).unwrap();
-            let mut prepared = study.prepare(&context).unwrap();
-            drop(study);
-            let route = prepared
+            let one_shot = builder.run(&context).unwrap();
+            let mut prepared = builder.prepare(&context).unwrap();
+            drop(builder);
+            let plan = prepared
                 .checked_cell_aipw_response_info()
                 .expect("preparation retains the checked cell AIPW route");
-            assert_eq!(route.estimator, EstimatorId::CellAipw);
-            assert_eq!(route.requested_arm, 3);
+            assert_eq!(plan.estimator, EstimatorId::CellAipw);
+            assert_eq!(plan.requested_arm, 3);
             assert_eq!(
-                route.origin,
+                plan.origin,
                 if accepted {
                     antecedent::analysis::DagResponseOrigin::Accepted
                 } else {

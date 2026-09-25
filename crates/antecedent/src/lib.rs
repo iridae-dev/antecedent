@@ -82,15 +82,15 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
-    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, ExactFactorRequirement,
-    ExactPreparedState, ExactStudyIdentities, ExactStudyInspection, ExactStudyResult,
-    InterferenceSpec, LatencyMode, LearnedTrialResult, LearnedTrialState, LicensedNeighbor,
-    NextAction, OperationKind, OperationReadiness, OperationReport, PremiseChange, PreparedBatch,
-    PreparedStudy, PreparedZTransport, RdConfig, RefuteSuite, SemanticApplicability,
-    SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
-    StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
-    StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec, ZTransportResult,
-    ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
+    CandidateSelection, CausalContract, CellFamilyContrast, CheckedTemporalMediationInfo,
+    ComputeBudget, ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities,
+    ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode, LearnedTrialResult,
+    LearnedTrialState, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
+    OperationReport, PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig,
+    RefuteSuite, SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent,
+    StageResultSink, StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
+    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
+    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
