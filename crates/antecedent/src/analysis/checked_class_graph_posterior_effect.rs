@@ -181,7 +181,6 @@ fn validate_identification_binding(
             || !class_keys.insert(atom.key)
             || !atom.identified_weight.is_finite()
             || atom.identified_weight <= 0.0
-            || atom.identified_weight > 1.0
             || atom.cases.is_empty()
         {
             return Err(CausalError::Unsupported {
@@ -197,7 +196,8 @@ fn validate_identification_binding(
             .sum::<f64>();
         if atom.cases.iter().any(|case| !case.weight.is_finite() || case.weight < 0.0)
             || !completion_mass.is_finite()
-            || (completion_mass - 1.0).abs() > 1e-10
+            || completion_mass <= 0.0
+            || atom.identified_weight > completion_mass + 1e-10
             || (identified_completion_mass - atom.identified_weight).abs() > 1e-10
         {
             return Err(CausalError::Unsupported {
@@ -361,6 +361,25 @@ mod tests {
         assert_eq!(atom.cases.iter().map(|case| case.weight).sum::<f64>(), 1.0);
         assert!(atom.identified_weight > 0.0);
         assert_eq!(operation.sample_mass().2, &[GraphIdentFlag::Identified; 2]);
+    }
+
+    #[test]
+    fn accepts_count_weighted_completion_envelopes() {
+        let graphs = posterior(GraphPosteriorAtomKind::Cpdag);
+        let mut cache = identified_cpdag_cache(&graphs);
+        let mut atom = cache.class_atoms[0].clone();
+        let case = atom.cases[0].clone();
+        atom.cases = Arc::from([case.clone(), case]);
+        atom.identified_weight = 2.0;
+        cache.class_atoms = Arc::from([atom]);
+
+        let operation =
+            prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte))
+                .expect("enumerated completion counts need not be normalized probabilities");
+        let completion_mass =
+            operation.class_atoms()[0].cases.iter().map(|case| case.weight).sum::<f64>();
+        assert!((completion_mass - 2.0).abs() < 1e-12);
+        assert!((operation.class_atoms()[0].identified_weight - 2.0).abs() < 1e-12);
     }
 
     #[test]
