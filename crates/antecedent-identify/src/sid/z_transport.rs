@@ -70,12 +70,12 @@ pub enum ZTransportMissingEvidence {
     SourceExperiment(ZExperimentFamilyError),
 }
 
-/// Result of the bounded z-transport search when its declared data family is checked.
+/// Result of the bounded TRz decision when its declared data family is checked.
 #[derive(Clone, Debug)]
 pub enum ZTransportDecision {
     /// A positive TRz formula was derived.
     Identified(Box<ZTransportDerivation>),
-    /// A checked restricted-experiment obstruction was reached with the complete data family.
+    /// A checked TRz line-11 obstruction was reached with the complete data family.
     ProvenNonTransportable(Box<ZTransportObstruction>),
     /// A theorem input law is not present in the catalog.
     MissingEvidence {
@@ -124,8 +124,14 @@ pub struct ZTransportTerminalRecord {
     pub treatments: Vec<u32>,
     /// Vertices in the reduced selection diagram.
     pub vertices: Vec<u32>,
+    /// The sole c-component of the reduced graph after removing treatments (C0).
+    #[serde(default)]
+    pub c0: Vec<u32>,
     /// Controllable coordinates remaining after previous exchanges.
     pub remaining_controllable: Vec<u32>,
+    /// Remaining controllables overlapping the reduced treatment set (Z ∩ X).
+    #[serde(default)]
+    pub candidate_active: Vec<u32>,
     /// Previously activated intervention coordinates and values.
     pub active_interventions: Vec<(u32, f64)>,
     /// Whether selection nodes are separated from outcomes given treatments.
@@ -616,14 +622,12 @@ fn query_with_complete_assignment(
 /// Decide the bounded single-source z-transport problem under the complete
 /// discrete source experiment family and the target observational joint law.
 ///
-/// Positive formulas are structural theorem results. A negative result is
-/// certified only for the currently checked hedge subset: the target query has
-/// a checked ID hedge and every controllable variable lies in a different
-/// undirected ADMG component from that hedge. In this case, interventions on
-/// the declared controls cannot add information about the hedge component.
-/// Other completed search misses remain `NotCertified`; the <=6/<=2 input bound
-/// alone does not imply complete negative coverage. Missing catalog laws are
-/// reported separately and never imply obstruction.
+/// Positive formulas follow the recursive TRz rules. A negative result is
+/// certified only when the recursive search reaches TRz line 11, the complete
+/// source experiment family and target observational joint are available, and
+/// an independent checker confirms the reduced graph, C0, Z∩X, and failed
+/// line-10 separation premise. Missing evidence and exhausted search remain
+/// distinct from theorem obstruction.
 ///
 /// # Errors
 /// Invalid or unsupported query, cancellation, or exhausted search.
@@ -715,11 +719,6 @@ pub fn decide_z_transport_with_catalog(
             reason: "z_transport.no_replayable_line11_failure",
         });
     };
-    if !has_disconnected_target_hedge(diagram, query, limits, ctx)? {
-        return Ok(ZTransportDecision::NotCertified {
-            reason: "z_transport.negative_outside_checked_hedge_subset",
-        });
-    }
     let obstruction = ZTransportObstruction {
         query: query.clone(),
         graph_signature: super::graph_signature(diagram),
@@ -755,7 +754,9 @@ impl ZTransportObstruction {
                 outcomes: self.terminal.outcomes.clone(),
                 treatments: self.terminal.treatments.clone(),
                 vertices: self.terminal.vertices.clone(),
+                c0: self.terminal.c0.clone(),
                 remaining_controllable: self.terminal.remaining_controllable.clone(),
+                candidate_active: self.terminal.candidate_active.clone(),
                 active_interventions: self.terminal.active_interventions.clone(),
                 selection_separated: self.terminal.selection_separated,
                 rules: self.terminal.rules.clone(),
@@ -823,9 +824,7 @@ pub fn verify_z_transport_obstruction(
     if family.iter().map(|regime| regime.raw()).collect::<Vec<_>>() != obstruction.family_regimes {
         return Err(IdentificationError::msg("z_transport.obstruction_family_mismatch"));
     }
-    if !has_disconnected_target_hedge(diagram, query, limits, ctx)? {
-        return Err(IdentificationError::msg("z_transport.obstruction_without_checked_hedge"));
-    }
+    verify_trz_line11_terminal(diagram, query, &obstruction.terminal, ctx)?;
     let search_query = query_with_complete_assignment(query, catalog)?;
     let assignment = search_query
         .experiment_assignment
@@ -846,79 +845,74 @@ pub fn verify_z_transport_obstruction(
     Ok(())
 }
 
-/// Restrict negative certification to a graph-theoretic subset with a checked
-/// target ID hedge. The temporary all-selected diagram asks the existing
-/// independent hedge checker for the pair of nested forests; the selection
-/// markers are discarded after checking, because an ID hedge is the same
-/// forest condition without the selector-membership premise. Controls must be
-/// outside the undirected component containing that hedge, so their complete
-/// intervention family is informationally separate from its SCM mechanisms.
-fn has_disconnected_target_hedge(
+/// Check the local graph premises of Bareinboim–Pearl TRz Figure 4 line 11
+/// independently of the recursive search's terminal flag and separation
+/// helper. Their Theorem 5 maps this failed line-11 state `(D, C0)` to a
+/// zs-hedge; `verify_z_transport_obstruction` separately replays the prefix.
+fn verify_trz_line11_terminal(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
-    limits: super::SidLimits,
+    terminal: &TrzTerminalFailure,
     ctx: &antecedent_core::ExecutionContext,
-) -> Result<bool, IdentificationError> {
-    let graph = diagram.causal_graph();
-    let nodes = graph
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            NodeRef::Static(variable) => Some(*variable),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if nodes.len() != graph.node_count() {
-        return Ok(false);
-    }
-    let all_selected =
-        SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from(nodes.clone()))?;
+) -> Result<(), IdentificationError> {
+    let bad = || IdentificationError::msg("z_transport.invalid_line11_terminal");
     let classical_query = super::ClassicalTransportQuery {
         outcomes: Arc::clone(&query.outcomes),
         treatments: Arc::clone(&query.treatments),
         source: Arc::clone(&query.source),
         target: Arc::clone(&query.target),
     };
-    let result = super::identify_classical_transport(&all_selected, &classical_query, limits, ctx)?;
-    let super::ClassicalTransportResult::ProvenNonTransportable(hedge) = result else {
-        return Ok(false);
-    };
-    let hedge_nodes = &hedge.larger.nodes;
-    let mut reachable = vec![false; graph.node_count()];
-    let mut pending = Vec::new();
-    for variable in hedge_nodes.iter().copied() {
-        let Some(index) = graph.nodes().iter().position(|node| *node == NodeRef::Static(variable))
-        else {
-            return Ok(false);
-        };
-        if !reachable[index] {
-            reachable[index] = true;
-            pending.push(antecedent_graph::DenseNodeId::from_raw(index as u32));
-        }
-    }
-    while let Some(node) = pending.pop() {
-        for neighbor in graph
-            .parents(node)
-            .iter()
-            .chain(graph.children(node))
-            .chain(graph.bidirected_neighbors(node))
+    let engine = super::Engine::new(diagram, &classical_query, super::SidLimits::default(), ctx)?;
+    let set = |raws: &[u32]| -> Result<BitSet, IdentificationError> {
+        let variables = raws.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
+        if variables.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
+            != variables.len()
         {
-            if !reachable[neighbor.as_usize()] {
-                reachable[neighbor.as_usize()] = true;
-                pending.push(*neighbor);
-            }
+            return Err(bad());
+        }
+        engine.set(&variables).map_err(|_| bad())
+    };
+    let y = set(&terminal.outcomes)?;
+    let x = set(&terminal.treatments)?;
+    let v = set(&terminal.vertices)?;
+    if !y.any()
+        || !x.any()
+        || y.to_dense_ids().iter().any(|node| !v.contains(*node))
+        || x.to_dense_ids().iter().any(|node| !v.contains(*node))
+    {
+        return Err(bad());
+    }
+    let mut candidate_active = Vec::new();
+    for raw in &terminal.remaining_controllable {
+        let variable = VariableId::from_raw(*raw);
+        let dense = engine.prepared.var_to_dense(variable).map_err(|_| bad())?;
+        if x.contains(dense) {
+            candidate_active.push(*raw);
         }
     }
-    for control in query.controllable.iter().copied() {
-        let Some(index) = graph.nodes().iter().position(|node| *node == NodeRef::Static(control))
-        else {
-            return Ok(false);
-        };
-        if reachable[index] {
-            return Ok(false);
-        }
+    candidate_active.sort_unstable();
+    if candidate_active != terminal.candidate_active {
+        return Err(bad());
     }
-    Ok(true)
+    let c0 = super::difference(&v, &x);
+    let districts = engine.prepared.c_components(&c0);
+    if districts.len() != 1 || engine.prepared.c_components(&v).len() != 1 {
+        return Err(bad());
+    }
+    let mut c0_variables = engine.vars(&districts[0])?.iter().map(|v| v.raw()).collect::<Vec<_>>();
+    c0_variables.sort_unstable();
+    if c0_variables != terminal.c0 {
+        return Err(bad());
+    }
+    let state = super::State { y, x, v, kernel: ExprId::from_raw(0) };
+    let separation = engine.independently_admissible(&state, &[], diagram.selection_targets())?;
+    if separation != terminal.selection_separated
+        || (!candidate_active.is_empty() && separation)
+        || terminal.rules.last().map(String::as_str) != Some("ztr.line11.fail")
+    {
+        return Err(bad());
+    }
+    Ok(())
 }
 
 /// Identify a bounded single-source restricted-experiment query.
@@ -1758,9 +1752,11 @@ fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
     left.len() == right.len() && left.iter().all(|variable| right.contains(variable))
 }
 
-// TRz recursion uses the ordinary ID kernel operations for lines 1–8. At line
-// 10, the restricted source exchange changes the carried law to a joint source
-// experiment and recurses with the remaining controllables still available.
+// Bareinboim–Pearl (AAAI 2013, Figure 4) rules 1–4 map to the marginal,
+// ancestor, enlargement, and district branches below; rules 5–8 map to the
+// C-component, factor, and subdistrict branches. Rule 10 exchanges the active
+// controllables in X and recurses on the reduced graph; rule 11 is recorded
+// only when that exchange's separation premise fails or Z∩X is empty.
 #[allow(dead_code)]
 fn search_trz(
     diagram: &SelectionDiagram,
@@ -1776,7 +1772,9 @@ struct TrzTerminalFailure {
     outcomes: Vec<u32>,
     treatments: Vec<u32>,
     vertices: Vec<u32>,
+    c0: Vec<u32>,
     remaining_controllable: Vec<u32>,
+    candidate_active: Vec<u32>,
     active_interventions: Vec<(u32, f64)>,
     selection_separated: bool,
     rules: Vec<String>,
@@ -1833,11 +1831,13 @@ fn search_trz_state(
 ) -> Result<Option<ExprId>, IdentificationError> {
     engine.charge(depth)?;
     let mut ws = antecedent_graph::GraphWorkspace::default();
+    // TRz rule 1: no active treatment coordinates remain.
     if !state.x.any() {
         trace.push("ztr.line1.marginal".into());
         return Ok(Some(engine.marginal(state.kernel, &super::difference(&state.v, &state.y))?));
     }
     let ancestors = engine.prepared.ancestors_within(&state.y, &state.v, &mut ws);
+    // TRz rule 2: restrict to ancestors of the current outcomes.
     if !ancestors.equal_set(&state.v) {
         trace.push("ztr.line2.ancestors".into());
         let next = super::State {
@@ -1860,6 +1860,7 @@ fn search_trz_state(
     let mut irrelevant = super::difference(&state.v, &state.x);
     let bar = engine.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
     irrelevant.difference_with(&bar);
+    // TRz rule 3: add non-treatment vertices outside An(Y) in D_X.
     if irrelevant.any() {
         trace.push("ztr.line3.enlarge".into());
         let mut next = state.clone();
@@ -1880,6 +1881,7 @@ fn search_trz_state(
         return Ok(Some(engine.enlarge_output(&state, &irrelevant, child)?));
     }
     let districts = engine.prepared.c_components(&super::difference(&state.v, &state.x));
+    // TRz rule 4: factor over multiple districts in D \ X.
     if districts.len() > 1 {
         trace.push("ztr.line4.districts".into());
         let mut expressions = Vec::with_capacity(districts.len());
@@ -1913,8 +1915,10 @@ fn search_trz_state(
     let district =
         districts.first().ok_or_else(|| IdentificationError::msg("z_transport.empty_district"))?;
     let containing = engine.prepared.c_components(&state.v);
+    // TRz rules 5–6 establish C0 and whether D is a single c-component.
     if containing.len() > 1 {
         if containing.iter().any(|d| d.equal_set(district)) {
+            // TRz rule 7: C0 is a c-component of D, so its kernel is available.
             trace.push("ztr.line7.factor".into());
             let kernel = engine.factor(&state, district)?;
             return Ok(Some(engine.marginal(kernel, &super::difference(district, &state.y))?));
@@ -1929,6 +1933,7 @@ fn search_trz_state(
             v: larger.clone(),
             kernel: engine.factor(&state, larger)?,
         };
+        // TRz rule 8: recurse into the containing c-component of D.
         trace.push("ztr.line8.recurse".into());
         return search_trz_state(
             engine,
@@ -1951,12 +1956,21 @@ fn search_trz_state(
     }
     let selection_separated = engine.source_admissible(&state)?;
     if !activated.any() || !selection_separated {
+        // TRz rule 11: rule 10 cannot exchange an active experiment.
         if terminal_failure.is_none() {
+            let mut c0 = engine.vars(district)?.iter().map(|v| v.raw()).collect::<Vec<_>>();
+            c0.sort_unstable();
+            let mut candidate_active =
+                engine.vars(&activated)?.iter().map(|v| v.raw()).collect::<Vec<_>>();
+            candidate_active.sort_unstable();
+            trace.push("ztr.line11.fail".into());
             *terminal_failure = Some(TrzTerminalFailure {
                 outcomes: engine.vars(&state.y)?.iter().map(|v| v.raw()).collect(),
                 treatments: engine.vars(&state.x)?.iter().map(|v| v.raw()).collect(),
                 vertices: engine.vars(&state.v)?.iter().map(|v| v.raw()).collect(),
+                c0,
                 remaining_controllable: remaining_controllable.iter().map(|v| v.raw()).collect(),
+                candidate_active,
                 active_interventions: active_interventions
                     .iter()
                     .filter_map(|a| a.value.as_f64().map(|value| (a.variable.raw(), value)))
@@ -1979,6 +1993,7 @@ fn search_trz_state(
         "ztr.line10.source_exchange:{:?}",
         assignments.iter().map(|a| (a.variable.raw(), a.value.as_f64())).collect::<Vec<_>>()
     ));
+    // TRz rule 10: exchange Z∩X and recurse with Z\X and active set I=Z∩X.
     let remaining = super::difference(&state.v, &activated);
     let variables = engine.arena.intern_var_set(engine.vars(&remaining)?);
     // A district kernel can retain external parent coordinates after line 8.

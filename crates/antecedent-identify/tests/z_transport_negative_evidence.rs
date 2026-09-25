@@ -216,6 +216,9 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
         panic!("complete {query:?} source family must reach a checked TRz obstruction")
     };
     let record = obstruction.to_record();
+    assert_eq!(record.terminal.c0, [1]);
+    assert_eq!(record.terminal.candidate_active, []);
+    assert_eq!(record.terminal.rules.last().map(String::as_str), Some("ztr.line11.fail"));
     let replayed = antecedent_identify::ZTransportObstruction::from_record_checked(
         record.clone(),
         &diagram,
@@ -240,6 +243,21 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
         )
         .is_err(),
         "changed terminal reasoning must not replay as a checked obstruction"
+    );
+    let mut changed_line11 = record.clone();
+    changed_line11.terminal.c0.clear();
+    changed_line11.terminal.candidate_active.push(2);
+    assert!(
+        antecedent_identify::ZTransportObstruction::from_record_checked(
+            changed_line11,
+            &diagram,
+            &query,
+            &catalog,
+            limits,
+            &ExecutionContext::for_tests(25),
+        )
+        .is_err(),
+        "tampered C0 and Z∩X premises must not replay as a checked obstruction"
     );
     let mut changed_family = record.clone();
     changed_family.family_regimes.pop();
@@ -314,7 +332,7 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
 }
 
 #[test]
-fn completed_search_with_a_control_connected_to_the_hedge_stays_uncertified() {
+fn parent_control_removed_by_do_treatment_still_reaches_checked_line11() {
     let (mut diagram, query) = fig2b_style_contract();
     let mut graph = diagram.causal_graph().clone();
     graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
@@ -328,12 +346,11 @@ fn completed_search_with_a_control_connected_to_the_hedge_stays_uncertified() {
         &ExecutionContext::for_tests(27),
     )
     .unwrap();
-    assert!(matches!(
-        decision,
-        ZTransportDecision::NotCertified {
-            reason: "z_transport.negative_outside_checked_hedge_subset"
-        }
-    ));
+    let ZTransportDecision::ProvenNonTransportable(obstruction) = decision else {
+        panic!("the parent control is removed from the reduced graph after do(X)")
+    };
+    assert_eq!(obstruction.to_record().terminal.vertices, [0, 1]);
+    assert_eq!(obstruction.to_record().terminal.candidate_active, []);
 }
 
 #[test]
