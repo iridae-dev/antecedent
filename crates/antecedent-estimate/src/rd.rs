@@ -141,26 +141,32 @@ pub struct CheckedRdPreparation {
 
 impl CheckedRdPreparation {
     /// Selected RD target.
+    #[must_use]
     pub fn target(&self) -> &IdentifiedEstimand {
         &self.target
     }
     /// Structurally checked boundary functional program.
+    #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
         &self.program
     }
     /// Provider factor requirements.
+    #[must_use]
     pub fn factor_requirements(&self) -> &[FactorRequirement] {
         &self.factor_requirements
     }
     /// Typed RD operation and geometry.
+    #[must_use]
     pub fn lowering(&self) -> &CheckedRdLowering {
         &self.lowering
     }
     /// Selected identification assumptions.
+    #[must_use]
     pub fn required_assumptions(&self) -> &AssumptionSet {
         &self.required_assumptions
     }
     /// Prepared local-linear design.
+    #[must_use]
     pub fn problem(&self) -> &PreparedRdProblem {
         &self.problem
     }

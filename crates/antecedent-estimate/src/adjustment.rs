@@ -87,34 +87,42 @@ pub struct CheckedLinearAdjustmentAte {
 
 impl CheckedLinearAdjustmentAte {
     /// Selected causal target.
+    #[must_use]
     pub fn target(&self) -> &IdentifiedEstimand {
         &self.target
     }
     /// Checked program that owns the target and observational execution root.
+    #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
         &self.program
     }
     /// Checked source root.
+    #[must_use]
     pub fn source_functional(&self) -> ExprId {
         self.source_functional
     }
     /// Checked executable arm root.
+    #[must_use]
     pub fn executable_functional(&self) -> ExprId {
         self.executable_functional
     }
     /// Typed source-to-executable lowering.
+    #[must_use]
     pub fn lowering(&self) -> &CheckedAdjustmentLowering {
         &self.lowering
     }
     /// Checked provider factor requirements.
+    #[must_use]
     pub fn factor_requirements(&self) -> &[FactorRequirement] {
         &self.factor_requirements
     }
     /// Selected identification assumptions.
+    #[must_use]
     pub fn required_assumptions(&self) -> &AssumptionSet {
         &self.required_assumptions
     }
     /// Prepared numerical design.
+    #[must_use]
     pub fn problem(&self) -> &PreparedEstimationProblem {
         &self.problem
     }
