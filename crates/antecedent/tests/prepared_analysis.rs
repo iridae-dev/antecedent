@@ -365,7 +365,10 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
     assert!(contract.identities.identification_product.is_some());
     let bytes = prepared.encode_contracted_result(&click, "prepared-pulse", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
+    );
     let labels: std::collections::HashMap<_, _> = executed_functional_labels(
         &consumed.contract.as_ref().expect("verified contract").target.query,
     )
@@ -587,6 +590,7 @@ fn assert_prepared_contract_consume(
     ctx: &ExecutionContext,
     artifact_id: &str,
     query_kind: &str,
+    expected_dependency: Option<&str>,
 ) {
     let inspected_id = prepared.contract().unwrap().identities.target;
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
@@ -597,11 +601,18 @@ fn assert_prepared_contract_consume(
     assert_eq!(claim.identities.program, contract.identities.program);
     let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{query_kind} artifact unresolved: {:?}",
-        consumed.acceptance.unresolved
-    );
+    if let Some(dependency) = expected_dependency {
+        assert_eq!(
+            consumed.acceptance.unresolved.as_ref(),
+            &[std::sync::Arc::<str>::from(dependency)]
+        );
+    } else {
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "{query_kind} artifact unresolved: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
     let labels: std::collections::HashMap<_, _> = executed_functional_labels(
         &consumed.contract.as_ref().expect("verified contract").target.query,
     )
@@ -662,9 +673,18 @@ fn prepared_conditional_effect_reestimate_matches_fresh() {
     assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
-    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    for result in [&fresh, &first, &second] {
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    }
     assert!((first.effect() - 3.0).abs() < 1e-8);
-    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-ce", "conditional_effect");
+    assert_prepared_contract_consume(
+        &prepared,
+        &first,
+        &ctx,
+        "prepared-ce",
+        "conditional_effect",
+        Some("dependencies.checked_conditional_effect_operation"),
+    );
 }
 
 #[test]
@@ -693,6 +713,7 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
         &ctx,
         "prepared-ce-b",
         "conditional_effect",
+        None,
     );
 }
 
@@ -721,7 +742,14 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
     assert_cached_on_one_shot_and_prepared(&fresh, &[&first, &second]);
-    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-path", "path_specific");
+    assert_prepared_contract_consume(
+        &prepared,
+        &first,
+        &ctx,
+        "prepared-path",
+        "path_specific",
+        None,
+    );
 }
 
 #[test]
@@ -802,7 +830,14 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     assert!(
         (prepared.estimate(&data, &ctx).unwrap().distribution.unwrap().mean - 0.7).abs() < 1e-12
     );
-    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-dist", "distribution");
+    assert_prepared_contract_consume(
+        &prepared,
+        &first,
+        &ctx,
+        "prepared-dist",
+        "distribution",
+        None,
+    );
 
     // Independent replay retains the complete distribution and its empirical
     // factor laws, so the consumer can verify both atom probabilities.

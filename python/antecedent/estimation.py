@@ -3354,9 +3354,19 @@ class PreparedAnalysis(Generic[ResultT]):
         info = self._native.checked_static_dag_response_info()
         return None if info is None else dict(info)
 
+    def checked_conditional_effect_info(self) -> dict[str, Any] | None:
+        """Inspect the retained DAG conditional target, procedure, and bound rows."""
+        info = self._native.checked_conditional_effect_info()
+        return None if info is None else dict(info)
+
     def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None:
         """Inspect frozen graph atoms, weights, and the selected effect procedure."""
         info = self._native.checked_graph_posterior_effect_info()
+        return None if info is None else dict(info)
+
+    def checked_temporal_effect_info(self) -> dict[str, Any] | None:
+        """Inspect the retained temporal contrast, graph, and estimator choice."""
+        info = self._native.checked_temporal_effect_info()
         return None if info is None else dict(info)
 
     def checked_temporal_response_info(self) -> dict[str, Any] | None:

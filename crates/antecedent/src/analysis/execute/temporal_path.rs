@@ -5639,7 +5639,7 @@ const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
 /// circular-block bootstrap used; the rule length when `replicates == 0`, since
 /// the score scan only runs for a bootstrap). An estimate without them reports
 /// NaN effective rows, which warns.
-fn sequential_dependence_se_diagnostics(
+pub(super) fn sequential_dependence_se_diagnostics(
     estimate: &EffectEstimate,
     replicates: u32,
 ) -> Vec<Diagnostic> {
@@ -5676,7 +5676,7 @@ fn sequential_dependence_se_diagnostics(
 /// `dependence_aware` says whether `block_length` came from the score scan
 /// ([`antecedent_estimate::dependence_block_length`]); without replicates the
 /// scan is skipped and the length is the plain rule, which the text says.
-fn temporal_dependence_se_diagnostics(
+pub(super) fn temporal_dependence_se_diagnostics(
     family: antecedent_estimate::CircularBlockFamily,
     block_length: usize,
     rows: usize,
