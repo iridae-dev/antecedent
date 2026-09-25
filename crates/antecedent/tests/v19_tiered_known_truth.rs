@@ -156,7 +156,8 @@ fn codetermined_average_effect_known_truth() {
     let data = codetermined_data(4_000, 19);
     let ctx = ExecutionContext::for_tests(19);
     // The support matrix licenses `AverageEffect x CoDetermined x explicit x Frequentist`
-    // for `["aipw", "cell.aipw"]` only (crates/antecedent/src/support_matrix_data.rs);
+    // with AIPW. `cell.aipw` is reserved for joint InterventionResponse queries;
+    // scalar AverageEffect is refused by the builder.
     // `linear.adjustment.ate` was never evidenced for a CoDetermined tier closure, so a
     // caller-selected `LinearAdjustmentAte` here is refused by the licensed-route/estimator
     // check even though the tier-closure identification itself succeeds
@@ -213,6 +214,17 @@ fn codetermined_average_effect_known_truth() {
             consumed.acceptance.unresolved
         );
     }
+
+    let scalar_cell_aipw = Study::tabular(data.clone())
+        .tiered_background(codetermined_background(&data))
+        .unwrap()
+        .query(query(&data))
+        .estimator(EstimatorId::CellAipw)
+        .build();
+    assert!(
+        matches!(scalar_cell_aipw, Err(CausalError::Unsupported { .. })),
+        "cell.aipw is limited to joint intervention-response queries"
+    );
 }
 
 #[test]
