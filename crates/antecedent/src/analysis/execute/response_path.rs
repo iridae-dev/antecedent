@@ -2,6 +2,8 @@
 
 use super::*;
 
+const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
+
 /// Sealed static derivative response plan. It retains the scientific query,
 /// identification claim, adjustment basis, selected estimator, and inference
 /// procedure together so execution cannot reconstruct a different derivative
@@ -59,7 +61,6 @@ impl CheckedDerivativeResponseOperation {
         // outcome-treatment coordinates. At one million cells the unavoidable
         // f64 result/lower/upper arrays remain in the same memory class as the
         // existing response-grid materialization ceiling.
-        const MAX_DERIVATIVE_CELLS: usize = 1_000_000;
         if max_derivative_cells == 0 || max_derivative_cells > MAX_DERIVATIVE_CELLS {
             return Err(CausalError::Unsupported {
                 message: "checked derivative response exceeds the 1000000-cell materialization limit",
@@ -185,7 +186,7 @@ impl CheckedDerivativeResponseOperation {
 fn dag_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
     let mut edges = graph
         .edges()
-        .filter_map(|edge| edge.parent_child())
+        .filter_map(antecedent_graph::MarkedEdge::parent_child)
         .map(|(parent, child)| (parent.raw(), child.raw()))
         .collect::<Vec<_>>();
     edges.sort_unstable();
@@ -1180,12 +1181,10 @@ impl super::Study {
             .transpose()?;
         let identifier_id: IdentifierId = checked_identity
             .as_ref()
-            .map(|(_, _, identifier, _)| *identifier)
-            .unwrap_or(identifier.parse()?);
+            .map_or_else(|| identifier.parse(), |(_, _, identifier, _)| Ok(*identifier))?;
         let estimator_id: EstimatorId = checked_identity
             .as_ref()
-            .map(|(_, _, _, estimator)| *estimator)
-            .unwrap_or(estimator.parse()?);
+            .map_or_else(|| estimator.parse(), |(_, _, _, estimator)| Ok(*estimator))?;
         let cell_aipw = matches!(estimator_id, EstimatorId::CellAipw);
 
         let (identification, estimand, identify_cached) =

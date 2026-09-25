@@ -6,6 +6,10 @@ use antecedent_estimate::bayesian_robust_ate::{
 };
 
 impl super::Study {
+    #[expect(
+        clippy::float_cmp,
+        reason = "the Bernoulli treatment contract requires exact 0/1 coding"
+    )]
     pub(super) fn execute_bayesian_robust_ate(
         &self,
         data: &TabularData,
@@ -65,8 +69,17 @@ impl super::Study {
         let outcome = data_est
             .float64_values(query_est.outcome)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let covariates = (0..data_est.schema().len())
-            .map(|i| antecedent_core::VariableId::from_raw(i as u32))
+        let covariate_ids = (0..data_est.schema().len())
+            .map(|i| {
+                u32::try_from(i).map(antecedent_core::VariableId::from_raw).map_err(|_| {
+                    CausalError::Compile {
+                        message: "Bayesian robust ATE schema exceeds variable id capacity".into(),
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let covariates = covariate_ids
+            .into_iter()
             .filter(|id| *id != query_est.treatment && *id != query_est.outcome)
             .map(|id| {
                 data_est
@@ -74,9 +87,10 @@ impl super::Study {
                     .map_err(|e| CausalError::Compile { message: e.to_string() })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let cfg = match &self.inference {
-            InferenceMode::Bayesian(cfg) => cfg,
-            _ => unreachable!(),
+        let InferenceMode::Bayesian(cfg) = &self.inference else {
+            return Err(CausalError::Compile {
+                message: "bayesian.robust_ate requires Bayesian inference".into(),
+            });
         };
         if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
             return Err(CausalError::Unsupported {

@@ -4,6 +4,10 @@ use super::*;
 use crate::estimator_spec::EstimatorSpec;
 
 impl super::Study {
+    #[expect(
+        clippy::float_cmp,
+        reason = "IV query intervention values are exact discrete declared values"
+    )]
     pub(super) fn execute_static(
         &self,
         data: &TabularData,
@@ -1666,7 +1670,7 @@ impl super::Study {
         {
             return Err(CausalError::Conflict {
                 what: "checked Unknown-tier operation",
-                detail: "retained target, tier interpretation, or scenario envelope changed".into(),
+                detail: "retained target, tier interpretation, or scenario envelope changed",
             });
         }
         self.finish_tiered_unknown(

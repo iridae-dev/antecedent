@@ -201,7 +201,7 @@ impl CheckedBayesianBasisCateExecution {
                 },
                 ctx,
             )
-            .map_err(|e| CausalError::Compile { message: e.to_string().into() })?;
+            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let n_draws = fit.ate_draws.len();
         let mut quantities = Vec::with_capacity(rows.len() + 1);
         quantities.push(antecedent_prob::PosteriorQuantityKind::Effect { name: Arc::from("ate") });
@@ -222,7 +222,7 @@ impl CheckedBayesianBasisCateExecution {
             n_draws,
             Arc::<[f64]>::from(columns),
         )
-        .map_err(|e| CausalError::Compile { message: e.to_string().into() })?;
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let summaries = draws.summarize();
         let mut assumptions = self.identification.required_assumptions.clone();
         assumptions.push(AssumptionRecord { assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.basis_gcomp.quadratic_outcome"), description: Arc::from("Gaussian identity-link outcome regression with quadratic covariate terms and treatment-by-covariate interactions.") }), source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(model.estimator_id()) }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared });

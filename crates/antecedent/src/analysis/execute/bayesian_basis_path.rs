@@ -114,7 +114,7 @@ impl Study {
                 },
                 ctx,
             )
-            .map_err(|error| CausalError::Compile { message: error.to_string().into() })?;
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
 
         let n_draws = fit.ate_draws.len();
         let mut quantities = Vec::with_capacity(rows.len() + 1);
@@ -137,7 +137,7 @@ impl Study {
             n_draws,
             Arc::<[f64]>::from(columns),
         )
-        .map_err(|error| CausalError::Compile { message: error.to_string().into() })?;
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let summaries = draws.summarize();
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(AssumptionRecord {
@@ -235,9 +235,7 @@ fn binary_levels(query: &AverageEffectQuery) -> Result<(f64, f64), CausalError> 
             antecedent_core::Intervention::Set { variable, value }
                 if *variable == query.treatment =>
             {
-                match value {
-                    value => value.as_f64(),
-                }
+                value.as_f64()
             }
             _ => None,
         }

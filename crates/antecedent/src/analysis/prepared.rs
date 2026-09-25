@@ -920,7 +920,6 @@ impl CheckedStaticResponseCurve {
                     .into(),
             });
         }
-        let _procedure = (self.identifier, self.estimator);
         Ok((&self.identification, &self.estimand))
     }
 
@@ -3738,11 +3737,6 @@ impl PreparedExecution {
             }
             Self::Iv(operation) => CheckedProgramBinding::Iv(operation.preparation()),
             Self::CheckedLinear(operation) => CheckedProgramBinding::Linear(operation),
-            Self::CheckedGlmAdjustment(_)
-            | Self::CheckedRd(_)
-            | Self::CheckedPropensity(_)
-            | Self::CheckedConditional(_)
-            | Self::UnknownTieredAverage(_) => CheckedProgramBinding::None,
             Self::FunctionalEffect(operation) => {
                 CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
             }
@@ -3752,7 +3746,6 @@ impl PreparedExecution {
             Self::AdmgResponseCurve(operation) => {
                 CheckedProgramBinding::FunctionalResponse(&operation.members)
             }
-            Self::AdmgGraphPosteriorResponse(_) => CheckedProgramBinding::None,
             Self::Distribution(operation) => {
                 CheckedProgramBinding::Distribution(operation.prepared.program())
             }
@@ -3782,7 +3775,13 @@ impl PreparedExecution {
             | Self::StaticResponseCurve(_)
             | Self::GraphPosteriorEffect(_)
             | Self::StaticClassEffect(_)
-            | Self::ClassGraphPosteriorEffect(_) => CheckedProgramBinding::None,
+            | Self::ClassGraphPosteriorEffect(_)
+            | Self::CheckedGlmAdjustment(_)
+            | Self::CheckedRd(_)
+            | Self::CheckedPropensity(_)
+            | Self::CheckedConditional(_)
+            | Self::UnknownTieredAverage(_)
+            | Self::AdmgGraphPosteriorResponse(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -3920,18 +3919,16 @@ impl PreparedExecution {
 }
 
 pub(crate) fn checked_aipw_fitter(study: &Study) -> AipwAte {
-    match &study.estimator_spec {
-        Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => (**config).clone(),
-        _ => {
-            let mut fitter = AipwAte::new();
-            fitter.bootstrap_replicates = study.bootstrap_replicates;
-            if let Some(overlap) = study.overlap_policy {
-                fitter.overlap = overlap;
-            }
-            fitter.population_registry = study.population_registry.clone();
-            fitter
-        }
+    if let Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) = &study.estimator_spec {
+        return (**config).clone();
     }
+    let mut fitter = AipwAte::new();
+    fitter.bootstrap_replicates = study.bootstrap_replicates;
+    if let Some(overlap) = study.overlap_policy {
+        fitter.overlap = overlap;
+    }
+    fitter.population_registry.clone_from(&study.population_registry);
+    fitter
 }
 
 /// Retained state for sampled-data modalities of the common prepared handle.
@@ -4147,7 +4144,7 @@ impl PreparedStudy {
             self.execution.static_mediation()?.inspect();
         let mut edges: Vec<_> = graph
             .edges()
-            .filter_map(|edge| edge.parent_child())
+            .filter_map(antecedent_graph::MarkedEdge::parent_child)
             .map(|(a, b)| (a.raw(), b.raw()))
             .collect();
         edges.sort_unstable();
@@ -4171,7 +4168,7 @@ impl PreparedStudy {
         let mut edges: Vec<_> = operation
             .graph()
             .edges()
-            .filter_map(|edge| edge.parent_child())
+            .filter_map(antecedent_graph::MarkedEdge::parent_child)
             .map(|(a, b)| (a.raw(), b.raw()))
             .collect();
         edges.sort_unstable();
@@ -4194,7 +4191,7 @@ impl PreparedStudy {
         let mut edges: Vec<_> = operation
             .graph()
             .edges()
-            .filter_map(|edge| edge.parent_child())
+            .filter_map(antecedent_graph::MarkedEdge::parent_child)
             .map(|(a, b)| (a.raw(), b.raw()))
             .collect();
         edges.sort_unstable();
@@ -4461,13 +4458,18 @@ impl PreparedStudy {
     }
 
     /// Inspect the retained checked temporal mediation target before execution.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the sealed operation contains a temporal lag that cannot
+    /// be represented as an `i32`; preparation rejects such lags.
     #[must_use]
     pub fn checked_temporal_mediation_info(&self) -> Option<CheckedTemporalMediationInfo> {
         let operation = self.execution.temporal_mediation()?;
         let (query, graph, validation, horizons) = operation.inspect();
         Some(CheckedTemporalMediationInfo {
             query: query.clone(),
-            graph_signature: Arc::from(format!("{:?}", graph)),
+            graph_signature: Arc::from(format!("{graph:?}")),
             validation,
             horizons: Arc::from(horizons),
             estimator: operation.estimator(),
@@ -4923,9 +4925,9 @@ impl PreparedStudy {
                 operation.identification.required_assumptions.clone(),
             )
             .map_err(CausalError::from)?;
-        self.assemble_checked_operation_effect(
+        Self::assemble_checked_operation_effect(
             data,
-            CheckedStaticResultMetadata {
+            &CheckedStaticResultMetadata {
                 source_query: &operation.source_query,
                 query: &operation.query,
                 identification: &operation.identification,
@@ -4990,9 +4992,9 @@ impl PreparedStudy {
             .fit_checked(&operation.preparation, &mut workspace, ctx)
             .map_err(CausalError::from)?;
         let source_query = CausalQuery::AverageEffect(operation.source_query.clone());
-        self.assemble_checked_operation_effect(
+        Self::assemble_checked_operation_effect(
             data,
-            CheckedStaticResultMetadata {
+            &CheckedStaticResultMetadata {
                 source_query: &source_query,
                 query: &operation.query,
                 identification: &operation.identification,
@@ -5051,9 +5053,9 @@ impl PreparedStudy {
             CheckedPropensityUncertainty::AbadieImbensAnalytic { .. } => None,
         };
         let estimate = operation.execute(ctx)?;
-        self.assemble_checked_operation_effect(
+        Self::assemble_checked_operation_effect(
             data,
-            CheckedStaticResultMetadata {
+            &CheckedStaticResultMetadata {
                 source_query: &retained.source_query,
                 query: operation.query(),
                 identification: &retained.identification,
@@ -5098,9 +5100,9 @@ impl PreparedStudy {
         } else {
             operation.estimator
         };
-        let mut result = self.assemble_checked_operation_effect(
+        let mut result = Self::assemble_checked_operation_effect(
             data,
-            CheckedStaticResultMetadata {
+            &CheckedStaticResultMetadata {
                 source_query: &operation.source_query,
                 query: &operation.query.inner,
                 identification: &operation.identification,
@@ -5313,9 +5315,8 @@ impl PreparedStudy {
     }
 
     fn assemble_checked_operation_effect(
-        &self,
         data: &TabularData,
-        metadata: CheckedStaticResultMetadata<'_>,
+        metadata: &CheckedStaticResultMetadata<'_>,
         estimate: EffectEstimate,
         bootstrap_requested: Option<u32>,
         started: Instant,
@@ -7293,6 +7294,11 @@ impl Study {
     /// # Errors
     ///
     /// Unsupported combination, compile failure, or review-required plan.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if an internal route invariant that preparation validates
+    /// is violated while sealing the execution plan.
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
         let plan = self.compile(ctx)?;
@@ -7679,19 +7685,18 @@ impl Study {
                         | RefuteSuite::Full
                 ) =>
             {
-                let mut fitter = match &analysis.estimator_spec {
-                    Some(crate::estimator_spec::EstimatorSpec::GlmAdjustment(config)) => {
+                let mut fitter =
+                    if let Some(crate::estimator_spec::EstimatorSpec::GlmAdjustment(config)) =
+                        &analysis.estimator_spec
+                    {
                         (**config).clone()
-                    }
-                    _ => {
+                    } else {
                         let mut fitter = antecedent_estimate::GlmAdjustmentAte::new();
                         fitter.bootstrap_replicates = analysis.bootstrap_replicates;
-                        fitter.population_registry = analysis.population_registry.clone();
                         fitter
-                    }
-                };
+                    };
                 if fitter.population_registry.is_none() {
-                    fitter.population_registry = analysis.population_registry.clone();
+                    fitter.population_registry.clone_from(&analysis.population_registry);
                 }
                 let preparation = fitter.prepare(data, &cache.estimand, query)?;
                 let identifier = plan
@@ -8217,9 +8222,9 @@ impl Study {
                             preparation: (**cfg).prepare_checked(data, &cache.identification, 0)?,
                         })
                     }
-                    (None, "iv.wald")
-                    | (
-                        Some(crate::estimator_spec::EstimatorSpec::Default(
+                    (
+                        None
+                        | Some(crate::estimator_spec::EstimatorSpec::Default(
                             crate::EstimatorId::IvWald,
                         )),
                         "iv.wald",
@@ -8241,9 +8246,9 @@ impl Study {
                             Err(error) => return Err(error.into()),
                         }
                     }
-                    (None, "iv.2sls")
-                    | (
-                        Some(crate::estimator_spec::EstimatorSpec::Default(
+                    (
+                        None
+                        | Some(crate::estimator_spec::EstimatorSpec::Default(
                             crate::EstimatorId::Iv2Sls,
                         )),
                         "iv.2sls",
@@ -8481,14 +8486,14 @@ impl Study {
                     && query.observation == antecedent_core::ObservationSpec::Complete
                     && query.target_population == TargetPopulation::AllObserved
                     && query.outcome_functional == OutcomeFunctional::Mean
-                    && match (&query.functional, analysis.refute) {
-                        (_, RefuteSuite::None) => true,
-                        (
-                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
-                            RefuteSuite::Cheap | RefuteSuite::Full,
-                        ) => true,
-                        _ => false,
-                    }
+                    && matches!(
+                        (&query.functional, analysis.refute),
+                        (_, RefuteSuite::None)
+                            | (
+                                antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                                RefuteSuite::Cheap | RefuteSuite::Full,
+                            )
+                    )
                     && plan
                         .logical
                         .record
@@ -9262,12 +9267,12 @@ impl Study {
                     let operation = super::CheckedTemporalClassEffectOperation::checked(
                         analysis.graph.clone(),
                         query,
-                        cache.clone(),
+                        cache,
                         analysis.max_completions,
                         identifier,
                         estimator,
                         analysis.bootstrap_replicates,
-                        analysis.split.clone(),
+                        analysis.split,
                         analysis.refute,
                         analysis.custom_validators.clone(),
                     )?;
@@ -9305,7 +9310,6 @@ impl Study {
                 && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
                     antecedent_core::TemporalPolicy::Pulse { .. } => true,
                     antecedent_core::TemporalPolicy::Sustained { from, until } => from == until,
-                    antecedent_core::TemporalPolicy::Dynamic { .. } => false,
                     _ => false,
                 })
                 && query.observation == antecedent_core::ObservationSpec::Complete

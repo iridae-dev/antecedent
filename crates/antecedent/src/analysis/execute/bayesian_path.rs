@@ -1214,7 +1214,8 @@ impl super::Study {
         };
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
-            checked.map_or(self.latency_mode, |operation| operation.latency_mode()),
+            checked
+                .map_or(self.latency_mode, super::super::CheckedGraphPosteriorEffect::latency_mode),
             identified.graphs.clone(),
             ctx,
             &mut subsample_notes,
@@ -1435,7 +1436,10 @@ impl super::Study {
                         std::slice::from_ref(atom),
                         &mut refute_ws,
                         ctx,
-                        checked.map_or(self.refute, |operation| operation.validation()),
+                        checked.map_or(
+                            self.refute,
+                            super::super::CheckedGraphPosteriorEffect::validation,
+                        ),
                         estimator,
                         if checked.is_some() { &[] } else { &self.custom_validators },
                         None,
@@ -1462,7 +1466,8 @@ impl super::Study {
                     &refute_atoms,
                     &mut refute_ws,
                     ctx,
-                    checked.map_or(self.refute, |operation| operation.validation()),
+                    checked
+                        .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
                     estimator,
                     if checked.is_some() { &[] } else { &self.custom_validators },
                     None,

@@ -75,8 +75,7 @@ impl BayesianGraphPosteriorAtomFits {
         if inputs.is_empty() {
             return Err(CausalError::Conflict {
                 what: "Bayesian graph-posterior prior anchor",
-                detail: "an anchored prior and at least one retained identified atom are required"
-                    .into(),
+                detail: "an anchored prior and at least one retained identified atom are required",
             });
         }
         if inputs
@@ -86,8 +85,7 @@ impl BayesianGraphPosteriorAtomFits {
         {
             return Err(CausalError::Conflict {
                 what: "Bayesian graph-posterior prior anchor",
-                detail: "when retained, the original first identified atom must remain first"
-                    .into(),
+                detail: "when retained, the original first identified atom must remain first",
             });
         }
         let mut keys = std::collections::HashSet::with_capacity(inputs.len());
