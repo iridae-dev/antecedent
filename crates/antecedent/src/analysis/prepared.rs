@@ -51,6 +51,7 @@ use super::helpers::{
     run_refuters,
 };
 use super::stage::{STAGE_ESTIMATE_POINT, STAGE_VALIDATE, StageClock};
+use super::{CheckedConditionalOperation, ConditionalProcedure};
 
 /// Prepare-time identification products for the static ATE / response path.
 ///
@@ -912,6 +913,25 @@ pub struct CheckedTemporalDagResponseInfo {
     pub horizons: Arc<[u32]>,
 }
 
+/// Read-only target, proof, and procedure of a prepared TemporalDag effect.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalDagEffectInfo {
+    /// Exact temporal policy, intervention levels, horizon, and population.
+    pub query: TemporalEffectQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: RefuteSuite,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+    /// Graph-derived adjustment variables in the unfolded proof.
+    pub adjustment_set: Arc<[antecedent_core::TemporalNodeKey]>,
+    /// Canonical node and edge signature of the prepared temporal graph.
+    pub graph_signature: Arc<str>,
+}
+
 /// Read-only target and uncertainty binding for a prepared propensity route.
 #[derive(Clone, Debug)]
 pub struct CheckedPropensityInfo {
@@ -927,6 +947,25 @@ pub struct CheckedPropensityInfo {
     pub uncertainty: Arc<str>,
     /// Bootstrap count only when the weighting procedure can use it.
     pub bootstrap_replicates: Option<u32>,
+}
+
+/// Read-only checked target and procedure for a frequentist DAG conditional effect.
+#[derive(Clone, Debug)]
+pub struct CheckedConditionalEffectInfo {
+    /// Exact conditional query, including modifiers, arms, and outcome functional.
+    pub query: antecedent_core::ConditionalEffectQuery,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Actual scalar or distribution score procedure.
+    pub procedure: Arc<str>,
+    /// Prepared refutation suite.
+    pub validation: RefuteSuite,
+    /// Variables in the physical design, retaining their semantic IDs.
+    pub design_roles: Arc<[antecedent_core::VariableId]>,
+    /// Complete source row indices at preparation or latest refresh.
+    pub source_rows: Arc<[u32]>,
 }
 
 /// Read-only graph atoms, frozen weights and procedure retained for a
@@ -3161,6 +3200,7 @@ pub(crate) enum PreparedExecution {
     CheckedGlmAdjustment(CheckedGlmAdjustmentOperation),
     CheckedRd(CheckedRdOperation),
     CheckedPropensity(CheckedPropensityOperation),
+    CheckedConditional(CheckedConditionalOperation),
     GraphPosteriorEffect(CheckedGraphPosteriorEffect),
     CheckedAipw(CheckedAipwOperation),
     Counterfactual(super::execute::CheckedCounterfactualPlan),
@@ -3168,6 +3208,7 @@ pub(crate) enum PreparedExecution {
     DerivativeResponse(super::execute::CheckedDerivativeResponseOperation),
     StaticDagResponse(super::execute::CheckedStaticDagResponseOperation),
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
+    TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(CheckedBayesianGcompOperation),
     StaticResponseCurve(CheckedStaticResponseCurve),
@@ -3200,9 +3241,10 @@ impl PreparedExecution {
             }
             Self::Iv(operation) => CheckedProgramBinding::Iv(operation.preparation()),
             Self::CheckedLinear(operation) => CheckedProgramBinding::Linear(operation),
-            Self::CheckedGlmAdjustment(_) | Self::CheckedRd(_) | Self::CheckedPropensity(_) => {
-                CheckedProgramBinding::None
-            }
+            Self::CheckedGlmAdjustment(_)
+            | Self::CheckedRd(_)
+            | Self::CheckedPropensity(_)
+            | Self::CheckedConditional(_) => CheckedProgramBinding::None,
             Self::FunctionalEffect(operation) => {
                 CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
             }
@@ -3223,6 +3265,7 @@ impl PreparedExecution {
             | Self::DerivativeResponse(_)
             | Self::StaticDagResponse(_)
             | Self::TemporalDagResponse(_)
+            | Self::TemporalDagEffect(_)
             | Self::BayesianGcomp(_)
             | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
             Self::GraphPosteriorEffect(_) => CheckedProgramBinding::None,
@@ -3296,8 +3339,16 @@ impl PreparedExecution {
     ) -> Option<&super::execute::CheckedTemporalResponseExecution> {
         if let Self::TemporalDagResponse(value) = self { Some(value) } else { None }
     }
+    pub(crate) fn temporal_dag_effect(
+        &self,
+    ) -> Option<&super::execute::CheckedTemporalEffectExecution> {
+        if let Self::TemporalDagEffect(value) = self { Some(value) } else { None }
+    }
     pub(crate) fn propensity(&self) -> Option<&CheckedPropensityOperation> {
         if let Self::CheckedPropensity(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn conditional(&self) -> Option<&CheckedConditionalOperation> {
+        if let Self::CheckedConditional(value) = self { Some(value) } else { None }
     }
     pub(crate) fn graph_posterior_effect(&self) -> Option<&CheckedGraphPosteriorEffect> {
         if let Self::GraphPosteriorEffect(value) = self { Some(value) } else { None }
@@ -3472,6 +3523,10 @@ impl PreparedStudy {
         matches!(self.execution, PreparedExecution::TemporalDagResponse(_))
     }
 
+    pub(crate) fn has_checked_temporal_dag_effect_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::TemporalDagEffect(_))
+    }
+
     pub(crate) fn has_checked_propensity_operation(&self) -> bool {
         matches!(self.execution, PreparedExecution::CheckedPropensity(_))
     }
@@ -3535,6 +3590,26 @@ impl PreparedStudy {
         })
     }
 
+    /// Inspect the retained conditional target, procedure, and bound design.
+    #[must_use]
+    pub fn checked_conditional_effect_info(&self) -> Option<CheckedConditionalEffectInfo> {
+        let operation = self.execution.conditional()?;
+        Some(CheckedConditionalEffectInfo {
+            query: operation.query.clone(),
+            identifier: operation.identifier,
+            estimator: operation.estimator,
+            procedure: Arc::from(match operation.procedure {
+                ConditionalProcedure::LinearInteraction => "linear_interaction_plugin",
+                ConditionalProcedure::CrossfitAipwDistribution => {
+                    "crossfit_aipw_distribution_scores"
+                }
+            }),
+            validation: operation.refute,
+            design_roles: Arc::clone(&operation.design_roles),
+            source_rows: Arc::clone(&operation.source_rows),
+        })
+    }
+
     /// Read-only view of the checked static derivative-response route, when
     /// preparation retained one.
     #[must_use]
@@ -3580,6 +3655,34 @@ impl PreparedStudy {
             grid_members: Arc::from(operation.grid()),
             horizons: Arc::from(operation.query().temporal.as_ref()?.horizons.as_ref()),
         })
+    }
+
+    /// Inspect the retained checked temporal effect before execution.
+    #[must_use]
+    pub fn checked_temporal_dag_effect_info(&self) -> Option<CheckedTemporalDagEffectInfo> {
+        let operation = self.execution.temporal_dag_effect()?.operation();
+        let (identifier, estimator, validation, bootstrap_replicates) = operation.procedure();
+        let adjustment_set = operation
+            .estimand()
+            .adjustment_set
+            .iter()
+            .filter_map(|id| operation.indexer().key_of(id.raw()).ok())
+            .collect::<Vec<_>>();
+        Some(CheckedTemporalDagEffectInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            validation,
+            bootstrap_replicates,
+            adjustment_set: adjustment_set.into(),
+            graph_signature: Arc::from(operation.graph_signature()),
+        })
+    }
+
+    /// Compatibility spelling emphasizing the temporal effect operation family.
+    #[must_use]
+    pub fn checked_temporal_effect_info(&self) -> Option<CheckedTemporalDagEffectInfo> {
+        self.checked_temporal_dag_effect_info()
     }
 
     /// Compatibility spelling emphasizing the response operation family.
@@ -4063,6 +4166,82 @@ impl PreparedStudy {
             started,
             ctx,
         )
+    }
+
+    fn execute_checked_conditional(
+        &self,
+        data: &TabularData,
+        operation: &CheckedConditionalOperation,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if self.analysis.query != operation.source_query
+            || self.plan.logical.record.estimator != operation.physical.logical.record.estimator
+            || operation.program.mapping().source != operation.estimand.functional
+        {
+            return Err(CausalError::Compile {
+                message: "retained conditional operation no longer matches its checked target or procedure".into(),
+            });
+        }
+        let estimate = operation.execute(data, ctx)?;
+        let estimator = if operation.procedure == ConditionalProcedure::CrossfitAipwDistribution {
+            crate::strategy_table::EstimatorId::Aipw
+        } else {
+            operation.estimator
+        };
+        let mut result = self.assemble_checked_operation_effect(
+            data,
+            CheckedStaticResultMetadata {
+                source_query: &operation.source_query,
+                query: &operation.query.inner,
+                identification: &operation.identification,
+                estimand: &operation.estimand,
+                identifier: operation.identifier,
+                estimator,
+                physical: &operation.physical,
+                graph_class: GraphClass::Dag,
+                graph_version: operation.graph_version,
+                support_status: operation.support_status,
+                structure_source: operation.structure_source,
+                population_registry: operation.population_registry.as_ref(),
+                latency_mode: operation.latency_mode,
+                refute: operation.refute,
+                custom_validator_names: &[],
+            },
+            estimate,
+            None,
+            started,
+            ctx,
+        )?;
+        if let Some(diagnostic) = super::helpers::conditional_quantile_grid_diagnostic(
+            data,
+            &operation.query,
+            operation.estimand.adjustment_set.iter().copied(),
+        )? {
+            result.diagnostics.push(diagnostic);
+        }
+        result
+            .diagnostics
+            .extend(super::helpers::conditional_score_estimator_diagnostic(&operation.query));
+        if result.estimate.score_inference.is_some() {
+            result.diagnostics.push(antecedent_core::Diagnostic::new(
+                "estimate.functional.cdf_inference",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "per-arm F_a(c) simultaneous bands describe raw CDF coordinates; rearranged exceedance_cdf values are not mixed with those intervals",
+            ));
+        }
+        if result.estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
+            && !result.estimate.ate.is_finite()
+        {
+            result.diagnostics.push(antecedent_core::Diagnostic::new(
+                "estimate.functional.grid_scalar_cleared",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
+            ));
+        }
+        Ok(result)
     }
 
     fn checked_static_target(
@@ -4905,6 +5084,11 @@ impl PreparedStudy {
             let result = self.execute_checked_propensity(data, &rebound, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::CheckedConditional(operation) = &self.execution {
+            let rebound = operation.rebind(data)?;
+            let result = self.execute_checked_conditional(data, &rebound, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         if let PreparedExecution::GraphPosteriorEffect(operation) = &self.execution {
             let mut click_analysis = self.analysis.clone();
             click_analysis.data = DataInput::Tabular(data.clone());
@@ -4971,12 +5155,21 @@ impl PreparedStudy {
             refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
         if let Some(result) = checked_result {
+            let rebound_conditional = match (&self.execution, &refreshed.data) {
+                (PreparedExecution::CheckedConditional(operation), DataInput::Tabular(data)) => {
+                    Some(operation.rebind(data)?)
+                }
+                _ => None,
+            };
             let scores = if matches!(self.execution, PreparedExecution::CheckedAipw(_)) {
                 refreshed.prepare_score_table(ctx)?
             } else {
                 None
             };
             self.replace_study(refreshed);
+            if let Some(operation) = rebound_conditional {
+                self.execution = PreparedExecution::CheckedConditional(operation);
+            }
             self.score_table = scores;
             return Ok(result);
         }
@@ -5228,6 +5421,18 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
         let input = self.series_input(data.clone());
+        if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
+            let graph =
+                self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                    message: "checked temporal effect lost its prepared TemporalDag".into(),
+                })?;
+            if !operation.operation().matches_graph(graph) {
+                return Err(CausalError::Compile {
+                    message: "checked temporal effect graph differs from prepared graph".into(),
+                });
+            }
+            return self.stamp(&input, operation.execute(data, ctx)?);
+        }
         if let PreparedExecution::TemporalDagResponse(operation) = &self.execution {
             let graph =
                 self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
@@ -5392,7 +5597,21 @@ impl PreparedStudy {
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = self.series_input(data);
-        let result = if let PreparedExecution::TemporalDagResponse(operation) = &self.execution {
+        let result = if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
+            let graph = refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                message: "checked temporal effect refresh lost its TemporalDag".into(),
+            })?;
+            if !operation.operation().matches_graph(graph) {
+                return Err(CausalError::Compile {
+                    message: "checked temporal effect refresh graph differs from prepared graph"
+                        .into(),
+                });
+            }
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &refreshed.data else {
+                unreachable!("refresh_series constructs temporal data")
+            };
+            operation.execute(series, ctx)?
+        } else if let PreparedExecution::TemporalDagResponse(operation) = &self.execution {
             let temporal_graph =
                 refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
                     message: "checked temporal response refresh lost its TemporalDag".into(),
@@ -6002,6 +6221,53 @@ impl Study {
                             .collect::<Vec<_>>(),
                     ),
                 })
+            }
+            _ => None,
+        };
+        let checked_conditional = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::ConditionalEffect(query),
+                Some(cache),
+                GraphClass::Dag,
+                InferenceMode::Frequentist,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && query.inner.effect_modifiers.len() == 1
+                && analysis.custom_validators.is_empty()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                )
+                && plan.logical.record.estimator.as_deref()
+                    == Some(
+                        crate::strategy_table::EstimatorId::ConditionalLinearAdjustment.as_str(),
+                    ) =>
+            {
+                Some(CheckedConditionalOperation::prepare(
+                    data,
+                    query.clone(),
+                    cache.identification.clone(),
+                    cache.estimand.clone(),
+                    plan.clone(),
+                    analysis.refute,
+                    analysis.graph.version(),
+                    analysis.support_status,
+                    analysis.structure_source,
+                    analysis.population_registry.clone(),
+                    analysis.latency_mode,
+                )?)
             }
             _ => None,
         };
@@ -6750,6 +7016,82 @@ impl Study {
             }
             _ => None,
         };
+        let temporal_dag_effect_operation = match (
+            &self.data,
+            &self.query,
+            analysis.temporal_identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::TemporalEffect(query),
+                Some(cache),
+                GraphClass::TemporalDag,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.split.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                )
+                && matches!(
+                    query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { .. }
+                        | antecedent_core::TemporalPolicy::Sustained { .. }
+                ) =>
+            {
+                let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
+                let estimator = if query.is_multi_step_sustained() {
+                    crate::strategy_table::EstimatorId::TemporalSequentialGcomp
+                } else {
+                    crate::strategy_table::EstimatorId::TemporalLinearAdjustment
+                };
+                if plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .is_some_and(|name| name != identifier.as_str())
+                    || plan
+                        .logical
+                        .record
+                        .estimator
+                        .as_deref()
+                        .is_some_and(|name| name != estimator.as_str())
+                {
+                    None
+                } else {
+                    let member =
+                        cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                            message: "prepared temporal effect lacks its horizon proof".into(),
+                        })?;
+                    let operation = super::CheckedTemporalEffectOperation::checked(
+                        analysis.graph.as_temporal_dag().expect("guarded TemporalDag"),
+                        query,
+                        member.identification.clone(),
+                        member.estimand.clone(),
+                        member.indexer.clone(),
+                        identifier,
+                        estimator,
+                        analysis.bootstrap_replicates,
+                        analysis.refute,
+                    )?;
+                    Some(super::execute::CheckedTemporalEffectExecution::checked(
+                        operation,
+                        super::execute::IdentifiedResultContext::from_study(&analysis),
+                        plan.clone(),
+                    )?)
+                }
+            }
+            _ => None,
+        };
         let temporal_dag_response_operation = match (
             &self.data,
             &self.query,
@@ -6978,6 +7320,8 @@ impl Study {
             PreparedExecution::CheckedRd(operation)
         } else if let Some(operation) = checked_propensity {
             PreparedExecution::CheckedPropensity(operation)
+        } else if let Some(operation) = checked_conditional {
+            PreparedExecution::CheckedConditional(operation)
         } else if let Some(operation) = checked_graph_posterior_effect {
             PreparedExecution::GraphPosteriorEffect(operation)
         } else if let Some(operation) = checked_aipw {
@@ -6996,6 +7340,8 @@ impl Study {
             PreparedExecution::StaticDagResponse(operation)
         } else if let Some(operation) = temporal_dag_response_operation {
             PreparedExecution::TemporalDagResponse(operation)
+        } else if let Some(operation) = temporal_dag_effect_operation {
+            PreparedExecution::TemporalDagEffect(operation)
         } else if let Some(operation) = distribution_operation {
             PreparedExecution::Distribution(operation)
         } else if let Some(operation) = functional_effect_operation {

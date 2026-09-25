@@ -1025,6 +1025,39 @@ impl PyPreparedAnalysis {
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// Inspect the checked conditional target and its bound scalar procedure.
+    fn checked_conditional_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(info) = self.inner.checked_conditional_effect_info() else {
+            return Ok(None);
+        };
+        let name = |id: antecedent_core::VariableId| {
+            self.names.get(id.as_usize()).cloned().unwrap_or_else(|| id.to_string())
+        };
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{:?}", info.query))?;
+        descriptor.set_item("treatment", name(info.query.inner.treatment))?;
+        descriptor.set_item("outcome", name(info.query.inner.outcome))?;
+        descriptor.set_item(
+            "modifiers",
+            info.query.inner.effect_modifiers.iter().copied().map(&name).collect::<Vec<_>>(),
+        )?;
+        descriptor.set_item("control", format!("{:?}", info.query.inner.control))?;
+        descriptor.set_item("active", format!("{:?}", info.query.inner.active))?;
+        descriptor.set_item("functional", format!("{:?}", info.query.inner.outcome_functional))?;
+        descriptor.set_item("population", format!("{:?}", info.query.inner.target_population))?;
+        descriptor.set_item("identifier", info.identifier.as_str())?;
+        descriptor.set_item("estimator", info.estimator.as_str())?;
+        descriptor.set_item("procedure", info.procedure.as_ref())?;
+        descriptor
+            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
+        descriptor.set_item(
+            "design_roles",
+            info.design_roles.iter().copied().map(&name).collect::<Vec<_>>(),
+        )?;
+        descriptor.set_item("source_rows", info.source_rows.as_ref())?;
+        Ok(Some(descriptor.unbind()))
+    }
+
     /// Read-only inspection of a retained checked static DAG response operation.
     ///
     /// The descriptor is built from the prepared handle rather than the Python
@@ -1061,6 +1094,31 @@ impl PyPreparedAnalysis {
             info.identified.iter().map(|flag| format!("{flag:?}")).collect::<Vec<_>>(),
         )?;
         descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
+        Ok(Some(descriptor.unbind()))
+    }
+
+    /// Inspect the frozen temporal contrast, proof binding, and estimator choice.
+    fn checked_temporal_effect_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(info) = self.inner.checked_temporal_effect_info() else {
+            return Ok(None);
+        };
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{:?}", info.query))?;
+        descriptor.set_item("policy", format!("{:?}", info.query.policy))?;
+        descriptor.set_item("control", format!("{:?}", info.query.control))?;
+        descriptor.set_item("active", format!("{:?}", info.query.active))?;
+        descriptor.set_item("horizon_steps", info.query.horizon_steps)?;
+        descriptor.set_item("population", format!("{:?}", info.query.target_population))?;
+        descriptor.set_item("identifier", info.identifier.as_str())?;
+        descriptor.set_item("estimator", info.estimator.as_str())?;
+        descriptor
+            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
+        descriptor.set_item("bootstrap_replicates", info.bootstrap_replicates)?;
+        descriptor.set_item(
+            "adjustment_set",
+            info.adjustment_set.iter().map(|key| format!("{key:?}")).collect::<Vec<_>>(),
+        )?;
+        descriptor.set_item("graph_signature", info.graph_signature.as_ref())?;
         Ok(Some(descriptor.unbind()))
     }
 

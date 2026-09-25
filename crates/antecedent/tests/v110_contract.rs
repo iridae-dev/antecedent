@@ -847,6 +847,8 @@ fn consume_licensed_family(
                 | "dependencies.checked_response_grid_operation"
                 | "dependencies.checked_intervention_response_operation"
                 | "dependencies.checked_temporal_response_operation"
+                | "dependencies.checked_conditional_effect_operation"
+                | "dependencies.checked_temporal_dag_effect_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 // The portable result is readable and preserves the posterior
                 // claim, but does not carry joint factor draws for replay.
@@ -912,6 +914,10 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
     );
     assert!((result.effect() - 3.0).abs() < 1e-8);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation")]
+    );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -1523,6 +1529,10 @@ fn licensed_family_pulse_temporal_consumes() {
         consume_series_family(&series, graph, pulse_query(), "pulse-f", InferenceMode::Frequentist);
     assert!(result.effect().is_finite());
     assert!((result.effect() - 0.5).abs() < 0.15);
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
+    );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -1540,6 +1550,10 @@ fn licensed_family_sustained_temporal_consumes() {
     let (result, consumed) =
         consume_series_family(&series, graph, query, "sustained-f", InferenceMode::Frequentist);
     assert!((result.effect() - 0.5).abs() < 0.15);
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
+    );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -5602,11 +5616,20 @@ fn producer_and_consumer_agree_on_the_calibration_slot() {
             claim.calibration,
             "{label}: the consumer re-derives a different slot"
         );
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "{label}: {:?}",
-            consumed.acceptance.unresolved
-        );
+        if label == "series" {
+            assert_eq!(
+                consumed.acceptance.unresolved.as_ref(),
+                &[std::sync::Arc::<str>::from(
+                    "dependencies.checked_temporal_dag_effect_operation"
+                )]
+            );
+        } else {
+            assert!(
+                consumed.acceptance.accepts_as_verified_program(),
+                "{label}: {:?}",
+                consumed.acceptance.unresolved
+            );
+        }
     }
 }
 

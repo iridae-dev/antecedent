@@ -963,6 +963,41 @@ impl super::Study {
                     | crate::support::StructureSource::Accepted
             )
             && matches!(self.inference, InferenceMode::Frequentist)
+            && self.split.is_none()
+            && self.custom_validators.is_empty()
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && matches!(&self.query, CausalQuery::TemporalEffect(query)
+                if matches!(&query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { .. }
+                    | antecedent_core::TemporalPolicy::Sustained { .. }))
+            && self.estimator.is_none_or(|id| match &self.query {
+                CausalQuery::TemporalEffect(query) if query.is_multi_step_sustained() => {
+                    id == EstimatorId::TemporalSequentialGcomp
+                }
+                _ => id == EstimatorId::TemporalLinearAdjustment,
+            })
+        {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_temporal_dag_effect_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot temporal DAG effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::TemporalDag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && matches!(&self.query, CausalQuery::Response(query)
@@ -1006,6 +1041,32 @@ impl super::Study {
                         message:
                             "one-shot graph-posterior effect did not retain its checked operation"
                                 .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(&self.query, CausalQuery::ConditionalEffect(query)
+                if query.inner.effect_modifiers.len() == 1)
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && self.custom_validators.is_empty()
+            && self.estimator.is_none_or(|id| id == EstimatorId::ConditionalLinearAdjustment)
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_conditional_effect_info().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot conditional effect did not retain its checked operation"
+                            .into(),
                     });
                 }
                 return prepared.estimate(data, ctx);

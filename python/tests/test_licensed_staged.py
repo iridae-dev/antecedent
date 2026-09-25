@@ -602,6 +602,88 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+@pytest.mark.parametrize(
+    ("refute", "validation"),
+    [(False, "none"), ("cheap", "overlap+evalue"), ("full", "validation.full")],
+    ids=["none", "cheap", "full"],
+)
+def test_checked_conditional_effect_retains_interaction_target_and_refresh(
+    accepted: bool, refute: bool | str, validation: str
+):
+    data = _conditional_table()
+    builder_graph = _CONDITIONAL_ACCEPTED if accepted else _CONDITIONAL_DAG
+    builder_query = antecedent.ConditionalEffect(treatment="t", outcome="y", modifier="w")
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        refute=refute,
+        bootstrap=0,
+        seed=7,
+    )
+    del builder_graph, builder_query
+    plan = prepared.checked_conditional_effect_info()
+    assert plan is not None
+    assert (plan["treatment"], plan["outcome"], plan["modifiers"]) == ("t", "y", ["w"])
+    assert plan["estimator"] == "conditional.linear.adjustment"
+    assert plan["procedure"] == "linear_interaction_plugin"
+    assert plan["validation"] == validation
+    assert set(plan["design_roles"]) == {"t", "y", "w"}
+    assert len(plan["source_rows"]) == len(data["t"])
+    assert prepared.structure_source == ("accepted" if accepted else "explicit")
+
+    result = prepared.estimate(data, seed=7)
+    # The data generator is the exact SCM y = 1 + 2t + 0.5tw. Averaging its
+    # conditional contrast 2 + 0.5w over the balanced w=0..4 gives 3.
+    assert result.ate == pytest.approx(3.0, abs=1e-8)
+    changed = {**data, "y": data["y"] + 0.4 * data["t"]}
+    refreshed = prepared.refresh(changed, seed=7)
+    assert refreshed.ate == pytest.approx(3.4, abs=1e-8)
+    assert prepared.checked_conditional_effect_info()["source_rows"] == plan["source_rows"]
+    consumed = antecedent.artifacts.accept(refreshed.export())
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_conditional_effect_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+@pytest.mark.parametrize(
+    ("query", "policy"),
+    [(_PULSE, "Pulse"), (_SUSTAINED, "Sustained")],
+    ids=["pulse", "sustained"],
+)
+def test_checked_temporal_effect_retains_policy_and_refresh(accepted, query, policy):
+    data = _pulse_table(160)
+    builder_graph = _PULSE_ACCEPTED if accepted else _PULSE_TDAG
+    builder_query = query
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=builder_graph,
+        query=builder_query,
+        refute=False,
+        bootstrap=0,
+        seed=9,
+    )
+    del builder_graph, builder_query
+    plan = prepared.checked_temporal_effect_info()
+    assert plan is not None
+    assert policy in plan["policy"]
+    assert plan["horizon_steps"] == 1
+    assert plan["estimator"] == "temporal.linear.adjustment"
+    assert plan["identifier"] == "temporal.backdoor.unfolded"
+    assert plan["validation"] == "none"
+    assert plan["graph_signature"]
+
+    result = prepared.estimate(data, seed=9)
+    assert result.ate == pytest.approx(0.5, abs=1e-6)
+    changed = {**data, "y": data["y"] * 1.2}
+    refreshed = prepared.refresh(changed, seed=9)
+    assert refreshed.ate == pytest.approx(0.6, abs=1e-6)
+    consumed = antecedent.artifacts.accept(refreshed.export())
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_temporal_dag_effect_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
 def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepted: bool):
     data = _pulse_table(160)
     graph = _PULSE_ACCEPTED if accepted else _PULSE_TDAG
