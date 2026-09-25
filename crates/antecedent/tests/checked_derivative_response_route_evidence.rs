@@ -3,10 +3,12 @@
 
 use std::sync::Arc;
 
-use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
+use antecedent::{
+    AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
+};
 use antecedent_core::{
     CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, ResponseFunctional as F,
-    ResponseIdentification, ResponseQuery, ResponseValue, VariableId,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
@@ -204,6 +206,158 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                 "{case}"
             );
             assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+        }
+    }
+}
+
+#[test]
+fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() {
+    let (data, graph) = fixture();
+    let cases = vec![
+        (
+            "AverageDerivative",
+            F::AverageDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                weighting: DerivativeWeighting::Observed,
+            },
+            vec![2.0],
+            EstimatorId::ResponseRieszAde,
+        ),
+        (
+            "PointDerivative",
+            F::PointDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                at: 2.0,
+                order: 1,
+                scale: DerivativeScale::Identity,
+            },
+            vec![2.0],
+            EstimatorId::ResponseKennedyDr,
+        ),
+        (
+            "Elasticity",
+            F::PointDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                at: 2.0,
+                order: 1,
+                scale: DerivativeScale::LogLog,
+            },
+            vec![4.0 / 9.0],
+            EstimatorId::ResponseKennedyDr,
+        ),
+        (
+            "SemiElasticityTreatment",
+            F::PointDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                at: 2.0,
+                order: 1,
+                scale: DerivativeScale::LogTreatment,
+            },
+            vec![4.0],
+            EstimatorId::ResponseKennedyDr,
+        ),
+        (
+            "SemiElasticityOutcome",
+            F::PointDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                at: 2.0,
+                order: 1,
+                scale: DerivativeScale::LogOutcome,
+            },
+            vec![2.0 / 9.0],
+            EstimatorId::ResponseKennedyDr,
+        ),
+        (
+            "DirectionalDerivative",
+            F::DirectionalDerivative {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([2.0, 0.0]),
+                direction: Arc::from([1.0, 2.0]),
+            },
+            vec![1.0, 3.25],
+            EstimatorId::ResponseGamDerivative,
+        ),
+        (
+            "ResponseJacobian",
+            F::Jacobian {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([2.0, 0.0]),
+                scale: DerivativeScale::Identity,
+            },
+            vec![2.0, -0.5, 0.25, 1.5],
+            EstimatorId::ResponseGamDerivative,
+        ),
+    ];
+
+    for accepted in [false, true] {
+        for (case, functional, expected, expected_estimator) in &cases {
+            let query = ResponseQuery::new(functional.clone());
+            let base = Study::tabular(data.clone());
+            let builder = if accepted {
+                base.graph(AcceptedGraph::from(graph.clone()))
+            } else {
+                base.graph(graph.clone())
+            }
+            .query(CausalQuery::Response(query.clone()))
+            .response_options(ContinuousResponseOptions {
+                bandwidth: Some(0.35),
+                ..Default::default()
+            })
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+            let context = ExecutionContext::for_tests(804);
+            let mut prepared = builder
+                .prepare(&context)
+                .unwrap_or_else(|error| panic!("{case} accepted={accepted}: {error:?}"));
+            let plan = prepared
+                .checked_derivative_response_info()
+                .unwrap_or_else(|| panic!("{case}: missing retained checked operation"));
+            assert_eq!(plan.query, query, "{case}");
+            assert_eq!(plan.identifier, IdentifierId::ResponseBackdoor, "{case}");
+            assert_eq!(plan.estimator, *expected_estimator, "{case}");
+            drop(builder);
+
+            let result = prepared.estimate(&data, &context).unwrap();
+            assert!(
+                !matches!(result.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None),
+                "{case}: expected posterior uncertainty"
+            );
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some(expected_estimator.as_str()));
+            let values = match &result.response.as_ref().unwrap().estimate {
+                ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
+                    vec![*value]
+                }
+                ResponseIdentification::PointIdentified(ResponseValue::Vector(values)) => {
+                    values.to_vec()
+                }
+                ResponseIdentification::PointIdentified(ResponseValue::Jacobian {
+                    values, ..
+                }) => values.to_vec(),
+                other => panic!("{case}: unexpected result {other:?}"),
+            };
+            assert_eq!(values.len(), expected.len(), "{case}");
+            for (actual, truth) in values.iter().zip(expected) {
+                assert!((actual - truth).abs() < 0.15, "{case}: {actual} != {truth}");
+            }
+
+            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let artifact = prepared
+                .encode_contracted_result(&refreshed, "checked-bayesian-derivative", &context)
+                .unwrap();
+            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+                reason.as_ref() == "dependencies.checked_derivative_response_operation"
+            }));
+            assert!(!consumed.acceptance.accepts_as_verified_program());
         }
     }
 }

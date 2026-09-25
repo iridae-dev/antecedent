@@ -7244,7 +7244,10 @@ impl Study {
                     && analysis.tiered.is_none()
                     && analysis.refute == RefuteSuite::None
                     && analysis.custom_validators.is_empty()
-                    && matches!(analysis.inference, InferenceMode::Frequentist)
+                    && matches!(
+                        analysis.inference,
+                        InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                    )
                     && query.temporal.is_none()
                     && query.observation == antecedent_core::ObservationSpec::Complete
                     && query.target_population == TargetPopulation::AllObserved
