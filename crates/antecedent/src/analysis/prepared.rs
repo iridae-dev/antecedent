@@ -5586,7 +5586,7 @@ impl PreparedStudy {
         refreshed.interference =
             refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
-        if let Some(result) = checked_result {
+        if let Some(mut result) = checked_result {
             let rebound_conditional = match (&self.execution, &refreshed.data) {
                 (PreparedExecution::CheckedConditional(operation), DataInput::Tabular(data)) => {
                     Some(operation.rebind(data)?)
@@ -5613,6 +5613,13 @@ impl PreparedStudy {
                 self.execution = PreparedExecution::CheckedConditional(operation);
             }
             self.score_table = scores;
+            // `checked_result` was stamped while this handle still referenced
+            // its previous study snapshot. Refresh has now replaced the
+            // retained data and any data-bound evidence (such as the fixed
+            // interference network), so bind the result to the snapshot the
+            // handle actually retains before returning it to callers.
+            result.executed_contract =
+                Some(self.executed_contract(&self.analysis.data, self.analysis.refute, None)?);
             return Ok(result);
         }
         let mut result = refreshed.execute(&self.plan, ctx)?;

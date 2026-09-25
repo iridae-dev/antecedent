@@ -183,6 +183,17 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
             <= tolerance
     );
     assert_eq!(prepared.checked_interference_info().unwrap().network_edge_count, 2);
+    let refreshed_artifact = prepared
+        .encode_contracted_result(&refreshed, "checked-interference-design-refresh", &context)
+        .unwrap();
+    assert!(
+        consume_analysis_result(&refreshed_artifact)
+            .unwrap()
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
+    );
     assert!(prepared.refresh(wrong_unit_count(), &context).is_err());
 }
 
@@ -230,5 +241,16 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     let refreshed = prepared.refresh(shifted_outcomes(&data, 0.5), &context).unwrap();
     assert!((refreshed.estimate.ate - result.estimate.ate).abs() < tolerance);
     assert_eq!(prepared.checked_interference_info().unwrap().unit_count, 4);
+    let refreshed_artifact = prepared
+        .encode_contracted_result(&refreshed, "checked-interference-bayesian-refresh", &context)
+        .unwrap();
+    assert!(
+        consume_analysis_result(&refreshed_artifact)
+            .unwrap()
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|dependency| dependency.as_ref() == "dependencies.checked_interference_operation")
+    );
     assert!(prepared.refresh(wrong_unit_count(), &context).is_err());
 }
