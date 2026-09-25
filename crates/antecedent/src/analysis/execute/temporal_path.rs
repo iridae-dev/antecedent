@@ -630,7 +630,8 @@ impl super::Study {
                     || cfg.external_compose.is_some()
                 {
                     return Err(CausalError::Unsupported {
-                        message: "multi-step sustained inference requires isotropic per-mechanism priors",
+                        message:
+                            "multi-step sustained inference requires isotropic per-mechanism priors",
                     });
                 }
                 Some(bayesian_gcomp(cfg, ctx))
@@ -1779,7 +1780,8 @@ impl super::Study {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
                 return Err(CausalError::Unsupported {
-                    message: "multi-step Sequence inference requires isotropic per-mechanism priors",
+                    message:
+                        "multi-step Sequence inference requires isotropic per-mechanism priors",
                 });
             }
             Some(bayesian_gcomp(cfg, ctx))
@@ -4062,7 +4064,8 @@ impl ClassResponseAssembly {
             ResponseFunctional::InterventionResponse { .. } => 1,
             _ => {
                 return Err(CausalError::Unsupported {
-                    message: "class-aware temporal response supports curves and intervention responses",
+                    message:
+                        "class-aware temporal response supports curves and intervention responses",
                 });
             }
         };
@@ -4239,7 +4242,8 @@ impl ClassResponseAssembly {
             }
             _ => {
                 return Err(CausalError::Unsupported {
-                    message: "class-aware temporal response supports curves and intervention responses",
+                    message:
+                        "class-aware temporal response supports curves and intervention responses",
                 });
             }
         };
@@ -4282,7 +4286,16 @@ impl ClassResponseAssembly {
                     response_envelope.clone(),
                 ))
             },
-            uncertainty: ResponseUncertainty::None,
+            uncertainty: if incomplete {
+                ResponseUncertainty::None
+            } else {
+                shared_temporal_class_uncertainty(
+                    &self.structural_atoms,
+                    self.n_horizons,
+                    self.cells_per_horizon,
+                )
+                .unwrap_or(ResponseUncertainty::None)
+            },
             support,
             assumptions,
             provenance_id: Arc::from(provenance_id),
@@ -4309,6 +4322,80 @@ impl ClassResponseAssembly {
             unevaluable_mass,
         })
     }
+}
+
+/// The band every completion shares, laid out over the class surface, when each
+/// horizon's evaluated completions publish the same estimate and the same
+/// pointwise band. A horizon whose completions disagree, or that publishes no
+/// band, leaves the class unbanded.
+fn shared_temporal_class_uncertainty(
+    atoms: &[crate::result::StructuralResponseAtom],
+    n_horizons: usize,
+    cells_per_horizon: usize,
+) -> Option<ResponseUncertainty> {
+    if n_horizons == 0 || cells_per_horizon == 0 {
+        return None;
+    }
+    let mut exemplars: Vec<Option<&CausalResponse>> = vec![None; n_horizons];
+    for atom in atoms {
+        if atom.weight <= 0.0 {
+            continue;
+        }
+        let response = atom.response.as_ref()?;
+        let horizon = usize::try_from(atom.graph_key >> 32).ok()?;
+        let slot = exemplars.get_mut(horizon)?;
+        if matches!(response.uncertainty, ResponseUncertainty::None) {
+            return None;
+        }
+        if let Some(first) = slot {
+            if response.estimate != first.estimate || response.uncertainty != first.uncertainty {
+                return None;
+            }
+        } else {
+            *slot = Some(response);
+        }
+    }
+    let exemplars = exemplars.into_iter().collect::<Option<Vec<_>>>()?;
+    let mut lower = vec![0.0; cells_per_horizon * n_horizons];
+    let mut upper = vec![0.0; cells_per_horizon * n_horizons];
+    let (mut level, mut interpretation) = (None, None);
+    for (horizon, response) in exemplars.iter().enumerate() {
+        let ResponseUncertainty::PointwiseBand {
+            level: horizon_level,
+            lower: horizon_lower,
+            upper: horizon_upper,
+            interpretation: horizon_interpretation,
+            draws: None,
+        } = &response.uncertainty
+        else {
+            return None;
+        };
+        if horizon_lower.len() != cells_per_horizon || horizon_upper.len() != cells_per_horizon {
+            return None;
+        }
+        match (level, interpretation) {
+            (None, None) => {
+                level = Some(*horizon_level);
+                interpretation = Some(*horizon_interpretation);
+            }
+            (Some(shared_level), Some(shared_interpretation))
+                if shared_level == *horizon_level
+                    && shared_interpretation == *horizon_interpretation => {}
+            _ => return None,
+        }
+        for cell in 0..cells_per_horizon {
+            let index = cell * n_horizons + horizon;
+            lower[index] = horizon_lower[cell];
+            upper[index] = horizon_upper[cell];
+        }
+    }
+    Some(ResponseUncertainty::PointwiseBand {
+        level: level?,
+        lower: Arc::from(lower),
+        upper: Arc::from(upper),
+        interpretation: interpretation?,
+        draws: None,
+    })
 }
 
 /// The completion-envelope diagnostic every class response publishes, plus the
