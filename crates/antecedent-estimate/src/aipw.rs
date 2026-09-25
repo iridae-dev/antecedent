@@ -137,26 +137,32 @@ pub struct CheckedAipwPreparation {
 
 impl CheckedAipwPreparation {
     /// Selected identified target.
+    #[must_use]
     pub fn target(&self) -> &IdentifiedEstimand {
         &self.target
     }
     /// Checked owner of the selected causal functional.
+    #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
         &self.program
     }
     /// Checked provider requirements of the retained target program.
+    #[must_use]
     pub fn factor_requirements(&self) -> &[FactorRequirement] {
         &self.factor_requirements
     }
     /// Retained typed procedure and role bindings.
+    #[must_use]
     pub fn lowering(&self) -> &CheckedAipwLowering {
         &self.lowering
     }
     /// Selected identification assumptions.
+    #[must_use]
     pub fn required_assumptions(&self) -> &AssumptionSet {
         &self.required_assumptions
     }
     /// Bound numerical design, including complete-case row identities.
+    #[must_use]
     pub fn problem(&self) -> &PreparedPropensityProblem {
         &self.problem
     }

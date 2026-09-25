@@ -207,30 +207,37 @@ impl CheckedIvPreparation {
     }
 
     /// Selected IV target.
+    #[must_use]
     pub fn target(&self) -> &IdentifiedEstimand {
         &self.target
     }
     /// Checked observational outcome-mean child program.
+    #[must_use]
     pub fn outcome_program(&self) -> &FunctionalProgram {
         &self.lowering.outcome_program
     }
     /// Checked observational treatment-mean child program.
+    #[must_use]
     pub fn treatment_program(&self) -> &FunctionalProgram {
         &self.lowering.treatment_program
     }
     /// Provider factor requirements.
+    #[must_use]
     pub fn factor_requirements(&self) -> &[FactorRequirement] {
         &self.factor_requirements
     }
     /// Typed IV lowering.
+    #[must_use]
     pub fn lowering(&self) -> &CheckedIvLowering {
         &self.lowering
     }
     /// Selected identification assumptions.
+    #[must_use]
     pub fn required_assumptions(&self) -> &AssumptionSet {
         &self.required_assumptions
     }
     /// Prepared numerical design.
+    #[must_use]
     pub fn problem(&self) -> &PreparedIvProblem {
         &self.problem
     }
