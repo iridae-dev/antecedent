@@ -54,5 +54,6 @@ def transport_lifecycle(kind: str) -> TransportLifecycle | None:
         "exact_transport": TransportLifecycle(_exact_distribution, lambda data: data.laws),
         "statistical_transport": TransportLifecycle(_statistical_distribution, lambda data: data),
         "transport_grid": TransportLifecycle(_response_grid, lambda data: data),
+        "z_transport": TransportLifecycle(lambda _native, payload: payload, lambda data: data),
     }
     return adapters.get(kind)

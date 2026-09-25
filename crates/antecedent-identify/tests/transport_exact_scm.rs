@@ -14,7 +14,7 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
+    identify_classical_transport, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
 };
 use std::sync::Arc;
 fn v(i: u32) -> VariableId {
@@ -24,7 +24,11 @@ fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
 }
 fn bernoulli(value: usize, probability: f64) -> f64 {
-    if value == 1 { probability } else { 1.0 - probability }
+    if value == 1 {
+        probability
+    } else {
+        1.0 - probability
+    }
 }
 
 #[test]
@@ -152,12 +156,10 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
     .unwrap();
     let mut altered = witness.to_record();
     altered.evidence_setting = "finite_catalog".into();
-    assert!(
-        antecedent_identify::sid::SHedgeCertificate::from_record_checked(
-            altered, &diagram, &query, &ctx
-        )
-        .is_err()
-    );
+    assert!(antecedent_identify::sid::SHedgeCertificate::from_record_checked(
+        altered, &diagram, &query, &ctx
+    )
+    .is_err());
 
     let mut mutated = witness.clone();
     mutated.larger.bidirected = Arc::from([]);
@@ -506,7 +508,7 @@ fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactD
 
 #[test]
 fn two_population_district_recursion_fails_truth_under_kernel_population_substitution() {
-    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
+    use antecedent_identify::{identify_catalog_transport, CatalogTransportResult};
     const TARGET_Y_SHIFT: f64 = 0.25;
     let mut graph = Admg::with_variables(3);
     graph.insert_directed(d(0), d(1)).unwrap();
@@ -681,7 +683,7 @@ fn original_coordinates_and_intervention_enlargement_are_preserved() {
 
 #[test]
 fn unavailable_target_formula_does_not_hide_available_source_alternative() {
-    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
+    use antecedent_identify::{identify_catalog_transport, CatalogTransportResult};
     let mut graph = Admg::with_variables(2);
     graph.insert_directed(d(0), d(1)).unwrap();
     let diagram = SelectionDiagram::try_new(graph, []).unwrap();
@@ -709,13 +711,11 @@ fn unavailable_target_formula_does_not_hide_available_source_alternative() {
     else {
         panic!("source alternative must bind");
     };
-    assert!(
-        bound
-            .arena()
-            .leaf_bindings(bound.root())
-            .iter()
-            .all(|binding| binding.population.as_ref() == "source")
-    );
+    assert!(bound
+        .arena()
+        .leaf_bindings(bound.root())
+        .iter()
+        .all(|binding| binding.population.as_ref() == "source"));
     // Empty standardization is direct transport, not Figure 5 line 10.
     assert_eq!(bound.derivation().rules(), ["transport.direct"]);
     let empty = identify_catalog_transport(
@@ -794,6 +794,360 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
     {
         assert!(rules.contains(rule), "missing branch {rule}");
     }
+}
+
+/// Same ordered four-node family as [`four_node_branch_conformance_has_no_unchecked_obstructions`],
+/// with every identified formula compared to an independent latent-SCM oracle.
+/// A parameterization is skipped when a node's Bernoulli weight would leave `(0, 1)`.
+#[test]
+fn four_node_branch_positives_match_latent_scm_truth() {
+    const PARAMS: [(f64, f64, f64, f64); 3] =
+        [(0.12, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07), (0.18, 0.10, 0.08, 0.05)];
+    let failed = std::sync::atomic::AtomicBool::new(false);
+    let message = std::sync::Mutex::new(String::new());
+    let checked = std::sync::atomic::AtomicU64::new(0);
+    std::thread::scope(|scope| {
+        for worker in 0..8u32 {
+            let failed = &failed;
+            let message = &message;
+            let checked = &checked;
+            scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(u64::from(worker));
+                let catalog = four_node_power_set_catalog();
+                let query = ClassicalTransportQuery {
+                    outcomes: Arc::from([v(3)]),
+                    treatments: Arc::from([v(0)]),
+                    source: Arc::from("source"),
+                    target: Arc::from("target"),
+                };
+                for directed in (worker..64).step_by(8) {
+                    for bidirected in 0..64u32 {
+                        if failed.load(std::sync::atomic::Ordering::Relaxed) {
+                            return;
+                        }
+                        let graph = four_node_graph(directed, bidirected);
+                        for selections in 0..16u32 {
+                            let diagram = SelectionDiagram::try_new(
+                                graph.clone(),
+                                (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
+                            )
+                            .unwrap();
+                            let proof = match identify_classical_transport(
+                                &diagram,
+                                &query,
+                                SidLimits::default(),
+                                &ctx,
+                            )
+                            .unwrap()
+                            {
+                                ClassicalTransportResult::Identified(proof) => proof,
+                                ClassicalTransportResult::ProvenNonTransportable(_) => continue,
+                                ClassicalTransportResult::NotCertified => {
+                                    *message.lock().unwrap() = format!(
+                                        "unchecked obstruction directed={directed} bidirected={bidirected} selections={selections}"
+                                    );
+                                    failed.store(true, std::sync::atomic::Ordering::Relaxed);
+                                    return;
+                                }
+                            };
+                            for (base, parent_w, shared_w, sel_w) in PARAMS {
+                                if !four_node_param_in_unit_interval(
+                                    directed, bidirected, selections, base, parent_w, shared_w, sel_w,
+                                ) {
+                                    continue;
+                                }
+                                if let Err(err) = four_node_formula_matches_scm(
+                                    &proof,
+                                    &catalog,
+                                    directed,
+                                    bidirected,
+                                    selections,
+                                    base,
+                                    parent_w,
+                                    shared_w,
+                                    sel_w,
+                                    &ctx,
+                                ) {
+                                    *message.lock().unwrap() = err;
+                                    failed.store(true, std::sync::atomic::Ordering::Relaxed);
+                                    return;
+                                }
+                                checked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+    assert!(!failed.load(std::sync::atomic::Ordering::Relaxed), "{}", message.lock().unwrap());
+    assert!(checked.load(std::sync::atomic::Ordering::Relaxed) > 0);
+}
+
+const FOUR_EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+
+fn four_node_graph(directed: u32, bidirected: u32) -> Admg {
+    let mut graph = Admg::with_variables(4);
+    for (index, (a, b)) in FOUR_EDGES.iter().enumerate() {
+        if directed & (1 << index) != 0 {
+            graph.insert_directed(d(*a as u32), d(*b as u32)).unwrap();
+        }
+        if bidirected & (1 << index) != 0 {
+            graph.insert_bidirected(d(*a as u32), d(*b as u32)).unwrap();
+        }
+    }
+    graph
+}
+
+fn four_node_param_in_unit_interval(
+    directed: u32,
+    bidirected: u32,
+    selections: u32,
+    base: f64,
+    parent_w: f64,
+    shared_w: f64,
+    sel_w: f64,
+) -> bool {
+    (0..4).all(|node| {
+        let parents = FOUR_EDGES
+            .iter()
+            .enumerate()
+            .filter(|(e, (_, b))| *b == node && directed & (1 << e) != 0)
+            .count() as f64;
+        let shared = FOUR_EDGES
+            .iter()
+            .enumerate()
+            .filter(|(e, (a, b))| (*a == node || *b == node) && bidirected & (1 << e) != 0)
+            .count() as f64;
+        let sel = if selections & (1 << node) != 0 { sel_w } else { 0.0 };
+        let max = base + parent_w * parents + shared_w * shared + sel;
+        (0.0..=1.0).contains(&base) && (0.0..=1.0).contains(&max)
+    })
+}
+
+fn four_node_power_set_catalog() -> EvidenceCatalog {
+    let mut regimes = Vec::with_capacity(17);
+    for mask in 0..16u32 {
+        let interventions: Vec<_> = (0..4).filter(|i| mask & (1 << i) != 0).map(v).collect();
+        let measured: Vec<_> = (0..4).filter(|i| mask & (1 << i) == 0).map(v).collect();
+        regimes.push(
+            EvidenceRegime::try_new(
+                RegimeId::from_raw(mask),
+                if mask == 0 { RegimeKind::Observational } else { RegimeKind::Experimental },
+                EvidenceKind::Available,
+                interventions,
+                [],
+                measured,
+                "source",
+                DistributionAvailability::Joint,
+            )
+            .unwrap(),
+        );
+    }
+    regimes.push(
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(16),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [v(0), v(1), v(2), v(3)],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap(),
+    );
+    EvidenceCatalog::try_new([], regimes, [], None).unwrap()
+}
+
+fn four_node_weight(
+    node: usize,
+    values: usize,
+    latent: usize,
+    directed: u32,
+    bidirected: u32,
+    base: f64,
+    parent_w: f64,
+    shared_w: f64,
+    sel: f64,
+) -> f64 {
+    let mut parents = 0.0;
+    let mut shared = 0.0;
+    for (edge, &(from, to)) in FOUR_EDGES.iter().enumerate() {
+        if to == node && directed & (1 << edge) != 0 {
+            parents += ((values >> from) & 1) as f64;
+        }
+        if (from == node || to == node) && bidirected & (1 << edge) != 0 {
+            shared += ((latent >> edge) & 1) as f64;
+        }
+    }
+    base + parent_w * parents + shared_w * shared + sel
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn four_node_formula_matches_scm(
+    proof: &antecedent_identify::ClassicalTransportDerivation,
+    catalog: &EvidenceCatalog,
+    directed: u32,
+    bidirected: u32,
+    selections: u32,
+    base: f64,
+    parent_w: f64,
+    shared_w: f64,
+    sel_w: f64,
+    ctx: &ExecutionContext,
+) -> Result<(), String> {
+    let mut source = vec![Vec::new(); 81];
+    for mask in 0..16usize {
+        let free = 4 - mask.count_ones() as usize;
+        for values in 0..16usize {
+            if values & !mask != 0 {
+                continue;
+            }
+            source[four_node_slot(mask, values)] = vec![0.0; 1 << free];
+        }
+    }
+    let mut target = vec![0.0; 16];
+    let mut truth = [0.0; 2];
+    let prior = 1.0 / 64.0;
+    for latent in 0..64usize {
+        for values in 0..16usize {
+            let source_p: [f64; 4] = std::array::from_fn(|node| {
+                four_node_weight(
+                    node, values, latent, directed, bidirected, base, parent_w, shared_w, 0.0,
+                )
+            });
+            let target_p: [f64; 4] = std::array::from_fn(|node| {
+                let sel = if selections & (1 << node) != 0 { sel_w } else { 0.0 };
+                four_node_weight(
+                    node, values, latent, directed, bidirected, base, parent_w, shared_w, sel,
+                )
+            });
+            let mut observational = prior;
+            for node in 0..4 {
+                observational *= bernoulli((values >> node) & 1, target_p[node]);
+            }
+            target[four_node_free_row(values, 0)] += observational;
+            for mask in 0..16usize {
+                let mut mass = prior;
+                for node in 0..4 {
+                    if mask & (1 << node) != 0 {
+                        continue;
+                    }
+                    mass *= bernoulli((values >> node) & 1, source_p[node]);
+                }
+                let row = four_node_free_row(values, mask);
+                source[four_node_slot(mask, values & mask)][row] += mass;
+            }
+            let x = values & 1;
+            if (values >> 3) & 1 == 1 {
+                let mut mass = prior;
+                for node in 1..4 {
+                    mass *= bernoulli((values >> node) & 1, target_p[node]);
+                }
+                truth[x] += mass;
+            }
+        }
+    }
+    let mut laws = Vec::with_capacity(82);
+    for mask in 0..16usize {
+        for values in 0..16usize {
+            if values & !mask != 0 {
+                continue;
+            }
+            let interventions = (0..4)
+                .filter(|node| mask & (1 << node) != 0)
+                .map(|node| antecedent_expr::InterventionAssignment {
+                    variable: v(node as u32),
+                    value: Value::Int64(((values >> node) & 1) as i64),
+                })
+                .collect::<Vec<_>>();
+            let axes = (0..4)
+                .filter(|node| mask & (1 << node) == 0)
+                .map(|node| DiscreteAxis {
+                    variable: v(node as u32),
+                    values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                })
+                .collect::<Vec<_>>();
+            laws.push(
+                ExactDiscreteLaw::try_new(
+                    "source",
+                    RegimeId::from_raw(mask as u32),
+                    interventions,
+                    axes,
+                    source[four_node_slot(mask, values)].clone(),
+                    "oracle",
+                    LawTolerance::default(),
+                )
+                .map_err(|err| {
+                    format!("source law directed={directed} bidirected={bidirected} selections={selections} mask={mask} values={values}: {err}")
+                })?,
+            );
+        }
+    }
+    laws.push(
+        ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(16),
+            [],
+            (0..4)
+                .map(|node| DiscreteAxis {
+                    variable: v(node as u32),
+                    values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                })
+                .collect::<Vec<_>>(),
+            target,
+            "oracle",
+            LawTolerance::default(),
+        )
+        .map_err(|err| format!("target law directed={directed} bidirected={bidirected}: {err}"))?,
+    );
+    let bound = proof.bind_catalog(catalog).map_err(|err| format!("bind: {err}"))?;
+    let data = ExactTransportData::try_new(laws, 10_000).map_err(|err| format!("data: {err}"))?;
+    for x in 0..2usize {
+        let result = ExactEvaluationPlan::compile(
+            bound.arena(),
+            bound.root(),
+            data.clone(),
+            [v(3)],
+            Assignment::from_pairs([(v(0), Value::Int64(x as i64))]),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            ctx,
+        )
+        .and_then(|plan| plan.evaluate(ctx))
+        .map_err(|err| format!("evaluate x={x} directed={directed} bidirected={bidirected} selections={selections}: {err}"))?;
+        let got = result.mean(v(3)).map_err(|err| format!("mean: {err}"))?;
+        if (got - truth[x]).abs() > 1e-8 {
+            return Err(format!(
+                "directed={directed} bidirected={bidirected} selections={selections} x={x} base={base} got={got} truth={}",
+                truth[x]
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn four_node_slot(mask: usize, values: usize) -> usize {
+    let mut slot = 0;
+    let mut place = 1;
+    for node in 0..4 {
+        let digit = if mask & (1 << node) == 0 { 0 } else { 1 + ((values >> node) & 1) };
+        slot += digit * place;
+        place *= 3;
+    }
+    slot
+}
+
+fn four_node_free_row(values: usize, mask: usize) -> usize {
+    let mut row = 0;
+    for node in 0..4 {
+        if mask & (1 << node) != 0 {
+            continue;
+        }
+        row = row * 2 + ((values >> node) & 1);
+    }
+    row
 }
 
 #[test]
@@ -1366,7 +1720,7 @@ fn a_direct_transport_step_cannot_be_relabelled_as_figure_five_line_ten() {
 
 #[test]
 fn exhausting_the_standardizer_subset_budget_is_an_obligation_not_an_error() {
-    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
+    use antecedent_identify::{identify_catalog_transport, CatalogTransportResult};
     // X, Y and 17 pretreatment parents of Y; the first parent's mechanism is selected, so
     // every admissible standardizer contains it and none can be bound from a catalog that
     // holds only the source experiment. 2^17 subsets exceed the step budget.

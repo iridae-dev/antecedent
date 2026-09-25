@@ -25,7 +25,15 @@ from ..results import (
     ValidationView,
 )
 from ..results._execution import Answer
-from ._day1 import Evidence, Source, Transport, lower_question, missing_evidence_detail
+from ._day1 import (
+    Evidence,
+    Source,
+    Transport,
+    _inner_phrase,
+    lower_question,
+    missing_evidence_detail,
+    not_certified_detail,
+)
 from ._impl import (
     EmpiricalTable,
     ExactTransportDistribution,
@@ -255,7 +263,7 @@ def _identification_bytes(result: Any) -> bytes | None:
     study = getattr(result, "_prepared", None)
     stage = getattr(study, "_transport_stage", None) or {}
     identified = stage.get("identified")
-    if identified is None:
+    if identified is None or getattr(identified, "_native", None) is None:
         return None
     return bytes(identified._native.export())
 
@@ -473,6 +481,123 @@ def _replicates(specialist: Any) -> tuple[int, ...]:
     return ()
 
 
+def _wrap_restricted(
+    study: Any,
+    query: Transport,
+    specialist: Any,
+    section: TransportSection,
+    view: IdentificationView,
+    stage: Mapping[str, Any],
+) -> AnalysisResult | CausalResponseView:
+    outcome = query.question.outcome  # type: ignore[union-attr]
+    treatment = query.question.treatment  # type: ignore[union-attr]
+    shape = stage.get("shape") or "scalar"
+    points = list(specialist.points)
+    if shape == "contrast":
+        if len(points) != 2 or any(point.status != "available" for point in points):
+            return _unavailable_result(
+                study,
+                query,
+                "restricted-experiment contrast needs both treatment levels",
+                shape="contrast",
+                stage=stage,
+            )
+        estimate = float(points[1].means[outcome]) - float(points[0].means[outcome])
+        section = replace(section, interval=None, uncertainty_reason="no_interval_reported")
+        result = AnalysisResult(
+            identification=view,
+            estimate=EstimateView(
+                ate=estimate,
+                se_analytic=_NO_ANALYTIC_SE,
+                se_bootstrap=None,
+                estimator_id=f"transport.{section.provider}",
+                method="transport.contrast",
+            ),
+            posterior=None,
+            validation=_empty_validation(),
+            performance=_empty_performance(),
+            diagnostics=[],
+            provenance={"operation_ids": ["estimate.transport"]},
+            transport=section,
+            reasoning=_reasoning_from_specialist(specialist),
+        )
+        return _attach(result, study, specialist, section)
+    if shape == "scalar":
+        value = specialist.mean(outcome)
+        interval, uncertainty_reason = _plugin_uncertainty(specialist, outcome)
+        section = replace(section, interval=interval, uncertainty_reason=uncertainty_reason)
+        result = AnalysisResult(
+            identification=view,
+            estimate=EstimateView(
+                ate=value,
+                se_analytic=_NO_ANALYTIC_SE,
+                se_bootstrap=None,
+                estimator_id=f"transport.{section.provider}",
+                method="transport.plugin",
+            ),
+            posterior=None,
+            validation=_empty_validation(),
+            performance=_empty_performance(),
+            diagnostics=[],
+            provenance={"operation_ids": ["estimate.transport"]},
+            transport=section,
+            reasoning=_reasoning_from_specialist(specialist),
+        )
+        return _attach(result, study, specialist, section)
+    coordinates: list[list[float]] = []
+    values: list[list[float]] = []
+    statuses: list[str] = []
+    diagnostics: list[SupportDiagnostic] = []
+    warnings: list[str] = []
+    for index, point in enumerate(points):
+        at = point.at
+        coordinate = float(at.get(treatment, index))
+        if point.status != "available":
+            statuses.append("outside_empirical_support")
+            diagnostics.append(
+                SupportDiagnostic(id=f"grid:{index}", values=(coordinate,), detail=point.status)
+            )
+            warnings.append(point.status)
+            continue
+        coordinates.append([coordinate])
+        values.append([float(point.means[outcome])])
+        statuses.append("supported")
+    if not coordinates:
+        return _unavailable_result(
+            study,
+            query,
+            warnings[0] if warnings else "every requested grid point is unbound",
+            shape="grid",
+            stage=stage,
+        )
+    support_status = (
+        "supported" if all(item == "supported" for item in statuses) else "outside_empirical_support"
+    )
+    region = {treatment: (min(p[0] for p in coordinates), max(p[0] for p in coordinates))}
+    result = CausalResponseView(
+        estimand=query.question,
+        response=ResponseView(
+            treatments=[treatment],
+            outcomes=[outcome],
+            points=coordinates,
+            values=values,
+        ),
+        estimate=[row[0] for row in values],
+        uncertainty=ResponseUncertainty(kind="none"),
+        support=SupportReport(
+            status=support_status,
+            query_region=region,
+            diagnostics=diagnostics,
+            warnings=warnings,
+            point_status=tuple(statuses),
+        ),
+        identification=view,
+        transport=section,
+        reasoning=_reasoning_from_specialist(specialist),
+    )
+    return _attach(result, study, specialist, section)
+
+
 def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | CausalResponseView:
     query = study._query
     if not isinstance(query, Transport):
@@ -493,6 +618,8 @@ def wrap_transport_result(study: Any, specialist: Any) -> AnalysisResult | Causa
         shape=shape,
     )
     view = _identification_view(stage, query)
+    if getattr(specialist, "scope", None) == "single_source_z_transport_cited_joints_sound_incomplete":
+        return _wrap_restricted(study, query, specialist, section, view, stage)
     if isinstance(specialist, LearnedTrialEstimate):
         section = replace(
             section, interval=specialist.interval, uncertainty_reason=specialist.uncertainty_reason
@@ -696,6 +823,14 @@ def unavailable_from_stage(study: Any) -> AnalysisResult | CausalResponseView:
     identified = stage.get("identified")
     catalog = stage.get("catalog")
     shape = stage.get("shape") or "scalar"
+    if getattr(identified, "scope", None) == "single_source_z_transport_cited_joints_sound_incomplete":
+        detail = identified.reason or not_certified_detail(identified, query=query)
+        if identified.outcome == "missing_evidence":
+            detail = (
+                identified.reason
+                or f"{_inner_phrase(query)} is identified for {query.target}, but a cited joint is unbound."
+            )
+        return _unavailable_result(study, query, detail, shape=shape, stage=stage)
     if identified is None:
         raise CausalUnsupportedError("transport study has no identification stage")
     if identified.outcome in {"identified", "missing_evidence"}:

@@ -2803,6 +2803,7 @@ class PreparedAnalysis(Generic[ResultT]):
             "statistical_transport",
             "transport_grid",
             "learned_trial",
+            "z_transport",
         ] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
@@ -3408,6 +3409,22 @@ class PreparedAnalysis(Generic[ResultT]):
         its ``calibration`` is unavailable (``not_executed``) until an estimate
         runs. :meth:`preflight` is the cheap structural-only view.
         """
+        if self._kind == "z_transport":
+            from .transport._day1 import identification_from_transport
+
+            query = self._query
+            if not isinstance(query, Transport):
+                raise CausalValueError("transport inspect requires a Transport query")
+            stage = getattr(self, "_transport_stage", None) or {}
+            graph = stage.get("graph")
+            if graph is None:
+                raise CausalValueError("transport inspect requires a retained graph")
+            return identification_from_transport(
+                graph,
+                query,
+                catalog=stage.get("catalog"),
+                identified=stage.get("identified"),
+            ).inspect()
         if self._transport is not None:
             if getattr(self, "_native", None) is None:
                 from .transport._day1 import identification_from_transport
