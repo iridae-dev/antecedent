@@ -1004,6 +1004,21 @@ pub struct CheckedTemporalMediationInfo {
     pub adjustment_sets: Arc<[(u32, Arc<[antecedent_core::TemporalNodeKey]>)]>,
 }
 
+/// Read-only target and fixed design for checked interference execution.
+#[derive(Clone, Debug)]
+pub struct CheckedInterferenceInfo {
+    /// Exposure contrast, assignment mechanism, and outcome.
+    pub query: antecedent_core::InterferenceQuery,
+    /// Identifier selected during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator selected during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Number of units in the fixed network.
+    pub unit_count: usize,
+    /// Number of directed network edges.
+    pub network_edge_count: usize,
+}
+
 /// Read-only source graph, completion proof, and procedure for a temporal
 /// Cpdag/Pag pulse or sustained effect.
 #[derive(Clone, Debug)]
@@ -3361,6 +3376,7 @@ pub(crate) enum PreparedExecution {
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
     TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
     TemporalMediation(super::execute::CheckedTemporalMediationOperation),
+    Interference(super::execute::CheckedInterferenceOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
@@ -3424,6 +3440,7 @@ impl PreparedExecution {
             | Self::TemporalDagResponse(_)
             | Self::TemporalDagEffect(_)
             | Self::TemporalMediation(_)
+            | Self::Interference(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
             | Self::BayesianConditional(_)
@@ -3526,6 +3543,9 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedTemporalMediationOperation> {
         if let Self::TemporalMediation(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn interference(&self) -> Option<&super::execute::CheckedInterferenceOperation> {
+        if let Self::Interference(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_class_effect(
         &self,
@@ -3982,6 +4002,21 @@ impl PreparedStudy {
                     })
                     .collect::<Vec<_>>(),
             ),
+        })
+    }
+
+    /// Inspect the retained fixed-network interference target and procedure.
+    #[must_use]
+    pub fn checked_interference_info(&self) -> Option<CheckedInterferenceInfo> {
+        let operation = self.execution.interference()?;
+        let (identifier, estimator) = operation.procedure();
+        let (unit_count, network_edge_count) = operation.counts();
+        Some(CheckedInterferenceInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            unit_count,
+            network_edge_count,
         })
     }
 
@@ -5438,6 +5473,10 @@ impl PreparedStudy {
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::Attribution(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::Interference(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
@@ -7597,6 +7636,17 @@ impl Study {
             }
             _ => None,
         };
+        let checked_interference = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::Interference(_), GraphClass::Dag)
+                if analysis.structure_source == crate::support::StructureSource::Explicit
+                    && analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedInterferenceOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let temporal_mediation_operation = match (
             &self.data,
             &self.query,
@@ -8084,6 +8134,8 @@ impl Study {
             PreparedExecution::Attribution(operation)
         } else if let Some(operation) = temporal_dag_response_operation {
             PreparedExecution::TemporalDagResponse(operation)
+        } else if let Some(operation) = checked_interference {
+            PreparedExecution::Interference(operation)
         } else if let Some(operation) = temporal_mediation_operation {
             PreparedExecution::TemporalMediation(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {

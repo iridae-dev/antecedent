@@ -695,6 +695,11 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
+        Some("interference.ht_hajek" | "interference.bayesian_gaussian")
+            if matches!(contract.target.query, CausalQueryWire::Interference { .. }) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_interference_operation"));
+        }
         Some("cell.aipw")
             if matches!(&contract.target.query, CausalQueryWire::Response(query)
                 if matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
@@ -1121,6 +1126,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_temporal_class_effect_operation"
                 | "dependencies.checked_temporal_response_operation"
                 | "dependencies.checked_temporal_mediation_operation"
+                | "dependencies.checked_interference_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay
