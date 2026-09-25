@@ -553,7 +553,7 @@ checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs"
-evidence_assertion = "frequentist_class_graph_posterior_ate_is_sealed_across_validation_lifecycle"
+evidence_assertion = "frequentist_cpdag_graph_posterior_effect_is_sealed_and_preserves_completion_mass"
 
 [[route]]
 coordinate = "AverageEffect:Cpdag:graph_posterior:Frequentist:full"
@@ -567,7 +567,7 @@ checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs"
-evidence_assertion = "frequentist_class_graph_posterior_ate_is_sealed_across_validation_lifecycle"
+evidence_assertion = "frequentist_cpdag_graph_posterior_effect_is_sealed_and_preserves_completion_mass"
 
 [[route]]
 coordinate = "AverageEffect:Cpdag:graph_posterior:Frequentist:none"
@@ -581,7 +581,7 @@ checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs"
-evidence_assertion = "frequentist_class_graph_posterior_ate_is_sealed_across_validation_lifecycle"
+evidence_assertion = "frequentist_cpdag_graph_posterior_effect_is_sealed_and_preserves_completion_mass"
 
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Bayesian:cheap"
@@ -1039,7 +1039,7 @@ checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs"
-evidence_assertion = "frequentist_class_graph_posterior_ate_is_sealed_across_validation_lifecycle"
+evidence_assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass"
 
 [[route]]
 coordinate = "AverageEffect:Pag:graph_posterior:Frequentist:full"
@@ -1053,7 +1053,7 @@ checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs"
-evidence_assertion = "frequentist_class_graph_posterior_ate_is_sealed_across_validation_lifecycle"
+evidence_assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass"
 
 [[route]]
 coordinate = "AverageEffect:Pag:graph_posterior:Frequentist:none"
@@ -1067,7 +1067,7 @@ checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_class_graph_posterior_effect_route_evidence.rs"
-evidence_assertion = "frequentist_class_graph_posterior_ate_is_sealed_across_validation_lifecycle"
+evidence_assertion = "frequentist_pag_graph_posterior_effect_is_sealed_and_preserves_unidentified_mass"
 
 [[route]]
 coordinate = "AverageEffect:Unknown:explicit:Frequentist:none"
