@@ -69,7 +69,7 @@ impl CheckedTemporalClassEffectExecution {
             return Err(CausalError::not_identified(
                 envelope.status,
                 envelope.truncated_completions > 0,
-                "temporal class effect has no identified completion mass",
+                "temporal class effect has no identified mass (no identified completion mass)",
             ));
         }
         let (identifier_id, estimator_id, bootstrap_replicates, split, refute, custom_validators) =

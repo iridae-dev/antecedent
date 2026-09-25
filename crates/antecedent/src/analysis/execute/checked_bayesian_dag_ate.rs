@@ -35,6 +35,13 @@ impl std::fmt::Debug for CheckedBayesianDagAteExecution {
 }
 
 impl CheckedBayesianDagAteExecution {
+    pub(crate) fn set_stage_sink(
+        &mut self,
+        sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+    ) {
+        self.stage_sink = sink;
+    }
+
     pub(crate) fn checked(
         graph: &Dag,
         operation: super::super::prepared::CheckedBayesianGcompOperation,

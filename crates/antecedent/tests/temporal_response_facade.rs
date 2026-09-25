@@ -377,8 +377,8 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
         );
     }
     assert!(
-        pulse_direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
-        "fresh Pulse must identify"
+        pulse_direct.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "Study::run prepares the sealed Pulse plan before execution"
     );
     assert!(
         pulse_click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),

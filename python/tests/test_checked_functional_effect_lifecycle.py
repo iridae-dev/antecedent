@@ -50,7 +50,7 @@ def test_admg_response_grid_replays_each_member_after_refresh() -> None:
         (
             Path(__file__).resolve().parents[2]
             / "conformance/estimate/admg_frontdoor_functional/expected.json"
-        ).read_text()
+        ).read_text(encoding="utf-8")
     )
     data = {
         name: np.concatenate(
