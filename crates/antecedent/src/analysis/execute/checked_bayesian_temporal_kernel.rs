@@ -9,7 +9,7 @@ use antecedent_estimate::{
 };
 
 use crate::{
-    BayesianConfig, CausalError,
+    CausalError,
     analysis::checked_bayesian_temporal_effect::{
         CheckedBayesianTemporalEffectOperation, CheckedBayesianTemporalTarget,
     },
@@ -26,6 +26,7 @@ pub(crate) struct CheckedBayesianTemporalDagFit {
     pub(crate) estimate: EffectEstimate,
     pub(crate) posterior: CausalPosterior,
     pub(crate) prepared: PreparedBayesianProblem,
+    pub(crate) estimator: BayesianTemporalGcomp,
 }
 
 /// Fit one checked fixed-DAG temporal effect through lag-aligned Bayesian g-computation.
@@ -97,7 +98,12 @@ pub(crate) fn fit_temporal_dag_effect(
     }
     let estimate = crate::analysis::execute::effect_from_posterior(&posterior)?
         .with_n_obs(u64::try_from(prepared.design.nrows).unwrap_or(u64::MAX));
-    Ok(CheckedBayesianTemporalDagFit { estimate, posterior, prepared: problem })
+    Ok(CheckedBayesianTemporalDagFit {
+        estimate,
+        posterior,
+        prepared: problem,
+        estimator,
+    })
 }
 
 #[cfg(test)]

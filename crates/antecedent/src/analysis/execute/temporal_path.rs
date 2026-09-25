@@ -581,16 +581,29 @@ impl super::Study {
             .into())
     }
 
-    pub(super) fn execute_temporal(
+    pub(crate) fn execute_temporal(
         &self,
         data: &TimeSeriesData,
         graph: &TemporalDag,
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
+        checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
+        let (identification, estimand, indexer, identify_cached) = if let Some(operation) = checked_bayesian {
+            let crate::analysis::CheckedBayesianTemporalTarget::Dag(target) = operation.target() else {
+                return Err(CausalError::Unsupported {
+                    message: "checked Bayesian temporal DAG execution requires a fixed TemporalDag target",
+                });
+            };
+            if !target.matches_graph(graph) || !target.matches_query(&CausalQuery::TemporalEffect(query.clone())) {
+                return Err(CausalError::Compile {
+                    message: "checked Bayesian temporal target differs from the prepared graph or query".into(),
+                });
+            }
+            (target.identification().clone(), target.estimand().clone(), target.indexer().clone(), true)
+        } else if let Some(cache) =
             self.temporal_identification_cache.as_deref()
         {
             let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
@@ -741,6 +754,23 @@ impl super::Study {
         let mut dependence_se = None;
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
+                if let Some(operation) = checked_bayesian {
+                    let fit = crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
+                        operation,
+                        data,
+                        self.split.as_ref(),
+                        ctx,
+                    )?;
+                    let estimate = fit.estimate.clone();
+                    let posterior = fit.posterior.clone();
+                    bayes_fit = Some((fit.estimator, fit.prepared));
+                    (
+                        estimate,
+                        Some(posterior),
+                        "estimate.bayesian_temporal_gcomp",
+                        "estimate.bayesian.temporal.gcomp",
+                    )
+                } else {
                 let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
                 let names = antecedent_estimate::temporal_coefficient_names(
                     data, &estimand, query, &indexer,
@@ -766,6 +796,7 @@ impl super::Study {
                     "estimate.bayesian_temporal_gcomp",
                     "estimate.bayesian.temporal.gcomp",
                 )
+                }
             }
             InferenceMode::Frequentist => {
                 // One series: lagged rows are serially dependent, so the only SE is a

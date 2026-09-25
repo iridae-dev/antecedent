@@ -13,7 +13,7 @@ use crate::error::CausalError;
 
 #[path = "execute/checked_bayesian_temporal_kernel.rs"]
 mod executable_kernel;
-pub(crate) use executable_kernel::{CheckedBayesianTemporalDagFit, fit_temporal_dag_effect};
+pub(crate) use executable_kernel::fit_temporal_dag_effect;
 
 /// The target proof is retained alongside the Bayesian model settings. The
 /// wrapped checked operations own the graph, query, full identification proof,

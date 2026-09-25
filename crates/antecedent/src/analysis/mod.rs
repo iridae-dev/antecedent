@@ -79,7 +79,8 @@ pub use prepared::{
     CheckedBayesianGraphPosteriorAteInfo, CheckedCellAipwResponseInfo,
     CheckedClassGraphPosteriorEffectInfo, CheckedConditionalEffectInfo,
     CheckedGraphPosteriorEffectInfo, CheckedInterferenceInfo,
-    CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo, CheckedTemporalDagEffectInfo,
+    CheckedBayesianTemporalDagEffectInfo, CheckedStaticMediationInfo,
+    CheckedTemporalClassEffectInfo, CheckedTemporalDagEffectInfo,
     CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo, CheckedUnknownTieredAverageInfo,
     PreparedStudy,
 };
