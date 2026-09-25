@@ -30,7 +30,7 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_graph::{ensure_lagged, TemporalDag};
+use antecedent_graph::{TemporalDag, ensure_lagged};
 
 use super::calibration::{ar1_noise, gaussian};
 

@@ -1477,10 +1477,7 @@ impl CheckedAipwOperation {
             });
         }
         if let Some(background) = &self.tiered_background {
-            let checked = antecedent_identify::identify_tiered(
-                background,
-                &self.query,
-            )?;
+            let checked = antecedent_identify::identify_tiered(background, &self.query)?;
             if checked.status != self.identification.status
                 || checked.query != self.identification.query
                 || !checked.estimands.iter().any(|candidate| {
@@ -1490,7 +1487,8 @@ impl CheckedAipwOperation {
                 })
             {
                 return Err(CausalError::Compile {
-                    message: "retained CoDetermined AIPW closure no longer justifies its target".into(),
+                    message: "retained CoDetermined AIPW closure no longer justifies its target"
+                        .into(),
                 });
             }
         }
@@ -3812,222 +3810,112 @@ impl PreparedExecution {
         self.linear_operation().map(|operation| &operation.preparation)
     }
     pub(crate) fn linear_operation(&self) -> Option<&CheckedLinearOperation> {
-        if let Self::CheckedLinear(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedLinear(value) = self { Some(value) } else { None }
     }
     pub(crate) fn checked_aipw(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
         self.aipw_operation().map(|operation| &operation.preparation)
     }
     pub(crate) fn aipw_operation(&self) -> Option<&CheckedAipwOperation> {
-        if let Self::CheckedAipw(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedAipw(value) = self { Some(value) } else { None }
     }
     pub(crate) fn nested_counterfactual(
         &self,
     ) -> Option<&crate::gcm::NestedCounterfactualOperation> {
-        if let Self::NestedCounterfactual(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::NestedCounterfactual(value) = self { Some(value) } else { None }
     }
     pub(crate) fn distribution(&self) -> Option<&CheckedDistributionOperation> {
-        if let Self::Distribution(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Distribution(value) = self { Some(value) } else { None }
     }
     pub(crate) fn functional_effect_operation(&self) -> Option<&CheckedFunctionalEffectOperation> {
-        if let Self::FunctionalEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::FunctionalEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn path_specific_effect_operation(
         &self,
     ) -> Option<&CheckedPathSpecificEffectOperation> {
-        if let Self::PathSpecificEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::PathSpecificEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn admg_response_curve(&self) -> Option<&CheckedAdmgResponseCurveOperation> {
-        if let Self::AdmgResponseCurve(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::AdmgResponseCurve(value) = self { Some(value) } else { None }
     }
     pub(crate) fn admg_graph_posterior_response(
         &self,
     ) -> Option<&CheckedAdmgGraphPosteriorResponse> {
-        if let Self::AdmgGraphPosteriorResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::AdmgGraphPosteriorResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
-        if let Self::BayesianGcomp(value) = self {
-            Some(value.operation())
-        } else {
-            None
-        }
+        if let Self::BayesianGcomp(value) = self { Some(value.operation()) } else { None }
     }
     pub(crate) fn bayesian_conditional(
         &self,
     ) -> Option<&super::execute::CheckedBayesianConditionalOperation> {
-        if let Self::BayesianConditional(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianConditional(value) = self { Some(value) } else { None }
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
-        if let Self::StaticResponseCurve(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
     }
     pub(crate) fn static_dag_response(
         &self,
     ) -> Option<&super::execute::CheckedStaticDagResponseOperation> {
-        if let Self::StaticDagResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticDagResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn static_mediation(
         &self,
     ) -> Option<&super::execute::CheckedStaticMediationOperation> {
-        if let Self::StaticMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_static_mediation(
         &self,
     ) -> Option<&super::execute::CheckedBayesianStaticMediationOperation> {
-        if let Self::BayesianStaticMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianStaticMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn attribution(&self) -> Option<&super::execute::CheckedAttributionOperation> {
-        if let Self::Attribution(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Attribution(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_dag_response(
         &self,
     ) -> Option<&super::execute::CheckedTemporalResponseExecution> {
-        if let Self::TemporalDagResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalDagResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_dag_effect(
         &self,
     ) -> Option<&super::execute::CheckedTemporalEffectExecution> {
-        if let Self::TemporalDagEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalDagEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_temporal_dag_effect(
         &self,
     ) -> Option<&super::CheckedBayesianTemporalEffectOperation> {
-        if let Self::BayesianTemporalDagEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianTemporalDagEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_mediation(
         &self,
     ) -> Option<&super::execute::CheckedTemporalMediationOperation> {
-        if let Self::TemporalMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn interference(&self) -> Option<&super::execute::CheckedInterferenceOperation> {
-        if let Self::Interference(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Interference(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_class_effect(
         &self,
     ) -> Option<&super::execute::CheckedTemporalClassEffectExecution> {
-        if let Self::TemporalClassEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalClassEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn propensity(&self) -> Option<&CheckedPropensityOperation> {
-        if let Self::CheckedPropensity(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedPropensity(value) = self { Some(value) } else { None }
     }
     pub(crate) fn conditional(&self) -> Option<&CheckedConditionalOperation> {
-        if let Self::CheckedConditional(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedConditional(value) = self { Some(value) } else { None }
     }
     pub(crate) fn graph_posterior_effect(&self) -> Option<&CheckedGraphPosteriorEffect> {
-        if let Self::GraphPosteriorEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::GraphPosteriorEffect(value) = self { Some(value) } else { None }
     }
-    pub(crate) fn class_graph_posterior_effect(
-        &self,
-    ) -> Option<&CheckedClassGraphPosteriorEffect> {
-        if let Self::ClassGraphPosteriorEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+    pub(crate) fn class_graph_posterior_effect(&self) -> Option<&CheckedClassGraphPosteriorEffect> {
+        if let Self::ClassGraphPosteriorEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn frontdoor_linear(&self) -> Option<&CheckedFrontDoorOperation> {
-        if let Self::FrontDoorLinear(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::FrontDoorLinear(value) = self { Some(value) } else { None }
     }
     pub(crate) fn iv(&self) -> Option<&CheckedIvOperation> {
-        if let Self::Iv(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Iv(value) = self { Some(value) } else { None }
     }
 }
 
@@ -4172,15 +4060,13 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_bayesian_robust_ate_info(&self) -> Option<CheckedBayesianRobustAteInfo> {
         match &self.execution {
-            PreparedExecution::BayesianRobustAte(operation) => {
-                Some(CheckedBayesianRobustAteInfo {
-                    query: operation.query().clone(),
-                    posterior_draws: operation.posterior_draws(),
-                    adjustment_set: Arc::from(operation.adjustment_set()),
-                    row_ids: Arc::from(operation.row_ids()),
-                    fold_ids: Arc::from(operation.fold_ids()),
-                })
-            }
+            PreparedExecution::BayesianRobustAte(operation) => Some(CheckedBayesianRobustAteInfo {
+                query: operation.query().clone(),
+                posterior_draws: operation.posterior_draws(),
+                adjustment_set: Arc::from(operation.adjustment_set()),
+                row_ids: Arc::from(operation.row_ids()),
+                fold_ids: Arc::from(operation.fold_ids()),
+            }),
             _ => None,
         }
     }
@@ -6314,7 +6200,9 @@ impl PreparedStudy {
                 }
                 _ => {
                     return Err(CausalError::Compile {
-                        message: "checked static class effect graph and identification cache disagree".into(),
+                        message:
+                            "checked static class effect graph and identification cache disagree"
+                                .into(),
                     });
                 }
             };
@@ -6693,9 +6581,11 @@ impl PreparedStudy {
                     message: "checked Bayesian temporal query changed after preparation".into(),
                 });
             }
-            let graph = self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
-                message: "checked Bayesian temporal effect lost its prepared TemporalDag".into(),
-            })?;
+            let graph =
+                self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                    message: "checked Bayesian temporal effect lost its prepared TemporalDag"
+                        .into(),
+                })?;
             let CausalQuery::TemporalEffect(query) = &self.analysis.query else {
                 return Err(CausalError::Compile {
                     message: "checked Bayesian temporal effect lost its temporal query".into(),
@@ -6917,7 +6807,8 @@ impl PreparedStudy {
         } else if let PreparedExecution::BayesianTemporalDagEffect(operation) = &self.execution {
             if !operation.matches_query(&refreshed.query) {
                 return Err(CausalError::Compile {
-                    message: "checked Bayesian temporal refresh query changed after preparation".into(),
+                    message: "checked Bayesian temporal refresh query changed after preparation"
+                        .into(),
                 });
             }
             let graph = refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
@@ -6925,7 +6816,8 @@ impl PreparedStudy {
             })?;
             let CausalQuery::TemporalEffect(query) = &refreshed.query else {
                 return Err(CausalError::Compile {
-                    message: "checked Bayesian temporal effect refresh lost its temporal query".into(),
+                    message: "checked Bayesian temporal effect refresh lost its temporal query"
+                        .into(),
                 });
             };
             let (DataInput::Temporal(series) | DataInput::Event(series)) = &refreshed.data else {
@@ -7023,7 +6915,8 @@ impl Study {
         if analysis.graph_posterior.is_some()
             || !matches!(
                 analysis.structure_source,
-                crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
             )
             || !matches!(analysis.inference, InferenceMode::Frequentist)
             || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
@@ -7045,10 +6938,9 @@ impl Study {
         }
         let (graph, identification) = match analysis.graph.class() {
             GraphClass::Cpdag => {
-                let (Some(graph), Some(cache)) = (
-                    analysis.graph.as_cpdag(),
-                    analysis.cpdag_identification_cache.as_deref(),
-                ) else {
+                let (Some(graph), Some(cache)) =
+                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
+                else {
                     return Ok(None);
                 };
                 (
@@ -7057,10 +6949,9 @@ impl Study {
                 )
             }
             GraphClass::Pag => {
-                let (Some(graph), Some(cache)) = (
-                    plan.static_pag(),
-                    analysis.pag_identification_cache.as_deref(),
-                ) else {
+                let (Some(graph), Some(cache)) =
+                    (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                else {
                     return Ok(None);
                 };
                 (
@@ -7070,9 +6961,10 @@ impl Study {
             }
             _ => return Ok(None),
         };
-        let procedure = analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(
-            EstimatorId::LinearAdjustmentAte,
-        ));
+        let procedure = analysis
+            .estimator_spec
+            .clone()
+            .unwrap_or(crate::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte));
         Ok(Some(CheckedStaticClassEffect::prepare(
             graph,
             query.clone(),
@@ -7090,103 +6982,105 @@ impl Study {
         analysis: &Study,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CheckedGraphPosteriorEffect>, CausalError> {
-        Ok(match (
-            analysis.graph_posterior.as_ref(),
-            &analysis.query,
-            analysis.graph_posterior_identification_cache.as_deref(),
-            &analysis.inference,
-        ) {
-            (
-                Some(posterior),
-                CausalQuery::AverageEffect(query),
-                Some(identification),
-                InferenceMode::Frequentist,
-            ) if posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
-                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && query.target_population == TargetPopulation::AllObserved
-                && matches!(
-                    analysis.refute,
-                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-                )
-                && analysis.custom_validators.is_empty()
-                && matches!(
-                    analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
-                    None | Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte)
-                )
-                && matches!(
-                    analysis.estimator,
-                    None | Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte)
-                )
-                && plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER)
-                    == crate::strategy_table::IdentifierId::BackdoorAdjustment.as_str()
-                && plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR)
-                    == crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str() =>
-            {
-                let default_estimator = crate::strategy_table::EstimatorId::LinearAdjustmentAte;
-                Some(CheckedGraphPosteriorEffect::prepare(
-                    posterior.clone(),
-                    query.clone(),
-                    identification.clone(),
-                    analysis
-                        .estimator_spec
-                        .clone()
-                        .unwrap_or(crate::EstimatorSpec::Default(default_estimator)),
-                    analysis.bootstrap_replicates,
-                    analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                    analysis.population_registry.clone(),
-                    analysis.latency_mode,
-                    analysis.refute,
-                )?)
-            }
-            (
-                Some(posterior),
-                CausalQuery::AverageEffect(query),
-                Some(identification),
-                InferenceMode::Frequentist | InferenceMode::Bayesian(_),
-            ) if posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Admg
-                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && query.target_population == TargetPopulation::AllObserved
-                && matches!(
-                    analysis.refute,
-                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-                )
-                && analysis.custom_validators.is_empty()
-                && plan
-                    .logical
-                    .record
-                    .identifier
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
-                    == crate::strategy_table::IdentifierId::GeneralId.as_str()
-                && plan
-                    .logical
-                    .record
-                    .estimator
-                    .as_deref()
-                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
-                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str() =>
-            {
-                Some(CheckedGraphPosteriorEffect::prepare(
-                    posterior.clone(),
-                    query.clone(),
-                    identification.clone(),
-                    analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(
-                        crate::strategy_table::EstimatorId::FunctionalEffect,
-                    )),
-                    analysis.bootstrap_replicates,
-                    analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
-                    analysis.population_registry.clone(),
-                    analysis.latency_mode,
-                    analysis.refute,
-                )?)
-            }
-            _ => None,
-        })
+        Ok(
+            match (
+                analysis.graph_posterior.as_ref(),
+                &analysis.query,
+                analysis.graph_posterior_identification_cache.as_deref(),
+                &analysis.inference,
+            ) {
+                (
+                    Some(posterior),
+                    CausalQuery::AverageEffect(query),
+                    Some(identification),
+                    InferenceMode::Frequentist,
+                ) if posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag
+                    && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && query.target_population == TargetPopulation::AllObserved
+                    && matches!(
+                        analysis.refute,
+                        RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                    )
+                    && analysis.custom_validators.is_empty()
+                    && matches!(
+                        analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
+                        None | Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte)
+                    )
+                    && matches!(
+                        analysis.estimator,
+                        None | Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte)
+                    )
+                    && plan
+                        .logical
+                        .record
+                        .identifier
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER)
+                        == crate::strategy_table::IdentifierId::BackdoorAdjustment.as_str()
+                    && plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR)
+                        == crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str() =>
+                {
+                    let default_estimator = crate::strategy_table::EstimatorId::LinearAdjustmentAte;
+                    Some(CheckedGraphPosteriorEffect::prepare(
+                        posterior.clone(),
+                        query.clone(),
+                        identification.clone(),
+                        analysis
+                            .estimator_spec
+                            .clone()
+                            .unwrap_or(crate::EstimatorSpec::Default(default_estimator)),
+                        analysis.bootstrap_replicates,
+                        analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                        analysis.population_registry.clone(),
+                        analysis.latency_mode,
+                        analysis.refute,
+                    )?)
+                }
+                (
+                    Some(posterior),
+                    CausalQuery::AverageEffect(query),
+                    Some(identification),
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_),
+                ) if posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Admg
+                    && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                    && query.target_population == TargetPopulation::AllObserved
+                    && matches!(
+                        analysis.refute,
+                        RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                    )
+                    && analysis.custom_validators.is_empty()
+                    && plan
+                        .logical
+                        .record
+                        .identifier
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
+                        == crate::strategy_table::IdentifierId::GeneralId.as_str()
+                    && plan
+                        .logical
+                        .record
+                        .estimator
+                        .as_deref()
+                        .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
+                        == crate::strategy_table::EstimatorId::FunctionalEffect.as_str() =>
+                {
+                    Some(CheckedGraphPosteriorEffect::prepare(
+                        posterior.clone(),
+                        query.clone(),
+                        identification.clone(),
+                        analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(
+                            crate::strategy_table::EstimatorId::FunctionalEffect,
+                        )),
+                        analysis.bootstrap_replicates,
+                        analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+                        analysis.population_registry.clone(),
+                        analysis.latency_mode,
+                        analysis.refute,
+                    )?)
+                }
+                _ => None,
+            },
+        )
     }
 
     #[inline(never)]
@@ -7204,17 +7098,20 @@ impl Study {
             &analysis.query,
             analysis.graph_posterior_identification_cache.as_deref(),
             &analysis.inference,
-        ) else {
+        )
+        else {
             return Ok(None);
         };
         if !matches!(
             posterior.atom_kind,
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                 | antecedent_discovery::GraphPosteriorAtomKind::Pag
-        )
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+        ) || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
             || query.target_population != TargetPopulation::AllObserved
-            || !matches!(analysis.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !matches!(
+                analysis.refute,
+                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+            )
             || !analysis.custom_validators.is_empty()
             || !matches!(
                 analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
@@ -7235,10 +7132,7 @@ impl Study {
             posterior.clone(),
             query.clone(),
             identification.clone(),
-            analysis
-                .estimator_spec
-                .clone()
-                .unwrap_or(crate::EstimatorSpec::Default(estimator)),
+            analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(estimator)),
             analysis.bootstrap_replicates,
             analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
             analysis.population_registry.clone(),
@@ -7983,7 +7877,8 @@ impl Study {
                             analysis.cpdag_identification_cache.as_deref(),
                         ) else {
                             return Err(CausalError::Compile {
-                                message: "conditional CPDAG preparation lost its graph proof".into(),
+                                message: "conditional CPDAG preparation lost its graph proof"
+                                    .into(),
                             });
                         };
                         Some(super::checked_conditional::ConditionalClassProof::Cpdag {
@@ -7992,10 +7887,9 @@ impl Study {
                         })
                     }
                     GraphClass::Pag => {
-                        let (Some(graph), Some(cache)) = (
-                            plan.static_pag(),
-                            analysis.pag_identification_cache.as_deref(),
-                        ) else {
+                        let (Some(graph), Some(cache)) =
+                            (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                        else {
                             return Err(CausalError::Compile {
                                 message: "conditional PAG preparation lost its graph proof".into(),
                             });
@@ -8014,17 +7908,22 @@ impl Study {
                         .map(|cache| (cache.identification.clone(), cache.estimand.clone())),
                     (
                         Some(super::checked_conditional::ConditionalClassProof::Cpdag {
-                            cache, ..
+                            cache,
+                            ..
                         }),
                         GraphClass::Cpdag,
                     ) => {
                         let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
-                            cache.identification.estimands.iter().find(|candidate| {
-                                candidate.is_adjustment_shaped()
-                                    && candidate.method == invariant.method
-                                    && candidate.adjustment_set == invariant.adjustment_set
-                            })
-                            .cloned()
+                            cache
+                                .identification
+                                .estimands
+                                .iter()
+                                .find(|candidate| {
+                                    candidate.is_adjustment_shaped()
+                                        && candidate.method == invariant.method
+                                        && candidate.adjustment_set == invariant.adjustment_set
+                                })
+                                .cloned()
                         });
                         (conditional_class_proof_is_complete(&cache.envelope)
                             && cache.identification.status
@@ -8041,12 +7940,16 @@ impl Study {
                         GraphClass::Pag,
                     ) => {
                         let estimand = cache.envelope.invariant.as_ref().and_then(|invariant| {
-                            cache.identification.estimands.iter().find(|candidate| {
-                                candidate.is_adjustment_shaped()
-                                    && candidate.method == invariant.method
-                                    && candidate.adjustment_set == invariant.adjustment_set
-                            })
-                            .cloned()
+                            cache
+                                .identification
+                                .estimands
+                                .iter()
+                                .find(|candidate| {
+                                    candidate.is_adjustment_shaped()
+                                        && candidate.method == invariant.method
+                                        && candidate.adjustment_set == invariant.adjustment_set
+                                })
+                                .cloned()
                         });
                         (conditional_class_proof_is_complete(&cache.envelope)
                             && cache.identification.status
@@ -8202,14 +8105,12 @@ impl Study {
                 true,
                 tiered_background,
             ) if matches!(
-                    (graph_class, source_graph_class, tiered_background),
-                    (GraphClass::Dag, GraphClass::Dag, None)
-                        | (GraphClass::Admg, GraphClass::Admg, Some(_))
-                )
-                && tiered_background.is_none_or(|background| {
-                    background.within_tier == antecedent_graph::WithinTier::CoDetermined
-                })
-                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                (graph_class, source_graph_class, tiered_background),
+                (GraphClass::Dag, GraphClass::Dag, None)
+                    | (GraphClass::Admg, GraphClass::Admg, Some(_))
+            ) && tiered_background.is_none_or(|background| {
+                background.within_tier == antecedent_graph::WithinTier::CoDetermined
+            }) && matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && matches!(query.target_population, TargetPopulation::AllObserved)
                 && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
                         if *variable == query.treatment && value.as_f64() == Some(1.0))
@@ -9269,14 +9170,26 @@ impl Study {
                 } else {
                     crate::strategy_table::EstimatorId::BayesianTemporalGcomp
                 };
-                if plan.logical.record.identifier.as_deref().is_some_and(|name| name != identifier.as_str())
-                    || plan.logical.record.estimator.as_deref().is_some_and(|name| name != estimator.as_str())
+                if plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .is_some_and(|name| name != identifier.as_str())
+                    || plan
+                        .logical
+                        .record
+                        .estimator
+                        .as_deref()
+                        .is_some_and(|name| name != estimator.as_str())
                 {
                     None
                 } else {
-                    let member = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
-                        message: "prepared Bayesian temporal effect lacks its horizon proof".into(),
-                    })?;
+                    let member =
+                        cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                            message: "prepared Bayesian temporal effect lacks its horizon proof"
+                                .into(),
+                        })?;
                     let procedure = if query.is_multi_step_sustained() {
                         crate::strategy_table::EstimatorId::TemporalSequentialGcomp
                     } else {

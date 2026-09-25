@@ -29,12 +29,12 @@ use antecedent_graph::{
     WithinTier,
 };
 use common::calibration::{
-    gaussian, grid_n, map_replicates, n_sim, stream_seed, CoverageTally, RecordKey, SampleGrid,
+    CoverageTally, RecordKey, SampleGrid, gaussian, grid_n, map_replicates, n_sim, stream_seed,
 };
 use common::calibration_bind::{bind_all, constructions};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
 use common::reported::{
-    gate, posterior_pair, record_pair, response_band, response_scalar, skip_pair, REPORTED_LEVEL,
+    REPORTED_LEVEL, gate, posterior_pair, record_pair, response_band, response_scalar, skip_pair,
 };
 
 const MEDIATION_N: usize = 160;

@@ -66,10 +66,12 @@ impl CheckedStaticClassEffect {
         );
         let identification_binds_query = match &identification {
             StaticClassIdentification::Cpdag(cache) => {
-                cache.identification.query == antecedent_core::CausalQuery::AverageEffect(query.clone())
+                cache.identification.query
+                    == antecedent_core::CausalQuery::AverageEffect(query.clone())
             }
             StaticClassIdentification::Pag(cache) => {
-                cache.identification.query == antecedent_core::CausalQuery::AverageEffect(query.clone())
+                cache.identification.query
+                    == antecedent_core::CausalQuery::AverageEffect(query.clone())
             }
         };
         if !matching_class

@@ -591,21 +591,31 @@ impl super::Study {
         checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) = if let Some(operation) = checked_bayesian {
-            let crate::analysis::CheckedBayesianTemporalTarget::Dag(target) = operation.target() else {
+        let (identification, estimand, indexer, identify_cached) = if let Some(operation) =
+            checked_bayesian
+        {
+            let crate::analysis::CheckedBayesianTemporalTarget::Dag(target) = operation.target()
+            else {
                 return Err(CausalError::Unsupported {
                     message: "checked Bayesian temporal DAG execution requires a fixed TemporalDag target",
                 });
             };
-            if !target.matches_graph(graph) || !target.matches_query(&CausalQuery::TemporalEffect(query.clone())) {
+            if !target.matches_graph(graph)
+                || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
+            {
                 return Err(CausalError::Compile {
-                    message: "checked Bayesian temporal target differs from the prepared graph or query".into(),
+                    message:
+                        "checked Bayesian temporal target differs from the prepared graph or query"
+                            .into(),
                 });
             }
-            (target.identification().clone(), target.estimand().clone(), target.indexer().clone(), true)
-        } else if let Some(cache) =
-            self.temporal_identification_cache.as_deref()
-        {
+            (
+                target.identification().clone(),
+                target.estimand().clone(),
+                target.indexer().clone(),
+                true,
+            )
+        } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
             let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                 message: format!(
                     "prepared temporal identification missing horizon {}",
@@ -643,8 +653,7 @@ impl super::Study {
                     || cfg.external_compose.is_some()
                 {
                     return Err(CausalError::Unsupported {
-                        message:
-                            "multi-step sustained inference requires isotropic per-mechanism priors",
+                        message: "multi-step sustained inference requires isotropic per-mechanism priors",
                     });
                 }
                 Some(bayesian_gcomp(cfg, ctx))
@@ -755,12 +764,13 @@ impl super::Study {
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
                 if let Some(operation) = checked_bayesian {
-                    let fit = crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
-                        operation,
-                        data,
-                        self.split.as_ref(),
-                        ctx,
-                    )?;
+                    let fit =
+                        crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
+                            operation,
+                            data,
+                            self.split.as_ref(),
+                            ctx,
+                        )?;
                     let estimate = fit.estimate.clone();
                     let posterior = fit.posterior.clone();
                     bayes_fit = Some((fit.estimator, fit.prepared));
@@ -771,31 +781,31 @@ impl super::Study {
                         "estimate.bayesian.temporal.gcomp",
                     )
                 } else {
-                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                let names = antecedent_estimate::temporal_coefficient_names(
-                    data, &estimand, query, &indexer,
-                )
-                .map_err(CausalError::from)?;
-                let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                    let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
+                    let names = antecedent_estimate::temporal_coefficient_names(
+                        data, &estimand, query, &indexer,
+                    )
                     .map_err(CausalError::from)?;
-                let (resolved_prior, conflict_summary) =
-                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
-                bayes.inner.prior = resolved_prior;
-                let mut ws = BayesianGCompWorkspace::default();
-                let mut posterior = bayes
-                    .fit(&bprep, identification.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
-                if let Some(summary) = conflict_summary {
-                    posterior = with_conflict_summary(posterior, summary);
-                }
-                let estimate = effect_from_posterior(&posterior)?;
-                bayes_fit = Some((bayes, bprep));
-                (
-                    estimate,
-                    Some(posterior),
-                    "estimate.bayesian_temporal_gcomp",
-                    "estimate.bayesian.temporal.gcomp",
-                )
+                    let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                        .map_err(CausalError::from)?;
+                    let (resolved_prior, conflict_summary) =
+                        resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+                    bayes.inner.prior = resolved_prior;
+                    let mut ws = BayesianGCompWorkspace::default();
+                    let mut posterior = bayes
+                        .fit(&bprep, identification.status, &mut ws, ctx)
+                        .map_err(CausalError::from)?;
+                    if let Some(summary) = conflict_summary {
+                        posterior = with_conflict_summary(posterior, summary);
+                    }
+                    let estimate = effect_from_posterior(&posterior)?;
+                    bayes_fit = Some((bayes, bprep));
+                    (
+                        estimate,
+                        Some(posterior),
+                        "estimate.bayesian_temporal_gcomp",
+                        "estimate.bayesian.temporal.gcomp",
+                    )
                 }
             }
             InferenceMode::Frequentist => {
@@ -1811,8 +1821,7 @@ impl super::Study {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "multi-step Sequence inference requires isotropic per-mechanism priors",
+                    message: "multi-step Sequence inference requires isotropic per-mechanism priors",
                 });
             }
             Some(bayesian_gcomp(cfg, ctx))
@@ -4095,8 +4104,7 @@ impl ClassResponseAssembly {
             ResponseFunctional::InterventionResponse { .. } => 1,
             _ => {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "class-aware temporal response supports curves and intervention responses",
+                    message: "class-aware temporal response supports curves and intervention responses",
                 });
             }
         };
@@ -4273,8 +4281,7 @@ impl ClassResponseAssembly {
             }
             _ => {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "class-aware temporal response supports curves and intervention responses",
+                    message: "class-aware temporal response supports curves and intervention responses",
                 });
             }
         };

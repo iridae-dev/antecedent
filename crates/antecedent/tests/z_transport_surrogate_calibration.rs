@@ -21,11 +21,11 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    bind_z_transport_catalog, identify_z_transport_surrogate, ZTransportQuery, ZTransportResult,
+    ZTransportQuery, ZTransportResult, bind_z_transport_catalog, identify_z_transport_surrogate,
 };
 use common::calibration::{
-    grid_n, map_replicates, n_sim, unit_uniform, Construction, CoverageTally, RecordKey,
-    ScopeFacts, REPORTED_LEVEL,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
+    n_sim, unit_uniform,
 };
 
 const INTERVAL: &str = "percentile_bootstrap";

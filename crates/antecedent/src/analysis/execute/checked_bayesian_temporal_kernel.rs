@@ -98,12 +98,7 @@ pub(crate) fn fit_temporal_dag_effect(
     }
     let estimate = crate::analysis::execute::effect_from_posterior(&posterior)?
         .with_n_obs(u64::try_from(prepared.design.nrows).unwrap_or(u64::MAX));
-    Ok(CheckedBayesianTemporalDagFit {
-        estimate,
-        posterior,
-        prepared: problem,
-        estimator,
-    })
+    Ok(CheckedBayesianTemporalDagFit { estimate, posterior, prepared: problem, estimator })
 }
 
 #[cfg(test)]

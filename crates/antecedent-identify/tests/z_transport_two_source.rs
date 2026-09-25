@@ -10,8 +10,8 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
-    decide_two_source_z_transport, SidLimits, TwoSourceZTransportDecision,
-    TwoSourceZTransportQuery, ZTransportSourceSpec,
+    SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZTransportSourceSpec,
+    decide_two_source_z_transport,
 };
 
 const W: VariableId = VariableId::from_raw(0);

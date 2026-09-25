@@ -100,7 +100,9 @@ def test_static_dag_families_preserve_cpdag_compatibility(query, accepted):
         # Both functional-distribution and path-specific estimators require a
         # finite discrete law. Keep this graph-class compatibility fixture
         # inside those estimator contracts.
-        values = {name: (column > np.median(column)).astype(float) for name, column in values.items()}
+        values = {
+            name: (column > np.median(column)).astype(float) for name, column in values.items()
+        }
     for complete in (True, False):
         graph = ant.Cpdag.from_directed_undirected(
             ["t", "y", "m"],

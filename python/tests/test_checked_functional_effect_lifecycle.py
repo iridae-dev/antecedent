@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import antecedent as ant
 import numpy as np
 import pytest
-import json
-from pathlib import Path
 
 
 def _path_table() -> dict[str, np.ndarray]:
     cells = [
-        (0.0, 0.0, 0.0, 40), (0.0, 0.0, 1.0, 10),
-        (0.0, 1.0, 0.0, 10), (0.0, 1.0, 1.0, 40),
-        (1.0, 0.0, 0.0, 10), (1.0, 0.0, 1.0, 10),
-        (1.0, 1.0, 0.0, 10), (1.0, 1.0, 1.0, 70),
+        (0.0, 0.0, 0.0, 40),
+        (0.0, 0.0, 1.0, 10),
+        (0.0, 1.0, 0.0, 10),
+        (0.0, 1.0, 1.0, 40),
+        (1.0, 0.0, 0.0, 10),
+        (1.0, 0.0, 1.0, 10),
+        (1.0, 1.0, 0.0, 10),
+        (1.0, 1.0, 1.0, 70),
     ]
     return {
         name: np.concatenate([np.full(cell[3], cell[column]) for cell in cells])
