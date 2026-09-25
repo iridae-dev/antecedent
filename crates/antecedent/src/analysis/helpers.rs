@@ -308,6 +308,61 @@ pub(crate) fn effect_from_posterior(
     Ok(EffectEstimate::new(ate, se, posterior.assumptions.clone(), OverlapPolicy::ExplicitOverride))
 }
 
+/// 0.95 credible interval of a one-column posterior, or of its effect column.
+///
+/// A checked ADMG intervention rebuilds the retained posterior as a single
+/// scalar quantity, so the effect-column name is gone and column 0 is the
+/// intervention mean. A missing or non-finite summary publishes no interval.
+pub(crate) fn credible_scalar_uncertainty(
+    posterior: &CausalPosterior,
+) -> Option<antecedent_core::ResponseUncertainty> {
+    let column = posterior
+        .effect_column()
+        .or_else(|| (posterior.draws.schema.n_quantities() == 1).then_some(0))?;
+    let sd = *posterior.summaries.sd.get(column)?;
+    let lower = *posterior.summaries.q025.get(column)?;
+    let upper = *posterior.summaries.q975.get(column)?;
+    if ![sd, lower, upper].iter().all(|value| value.is_finite()) {
+        return None;
+    }
+    Some(antecedent_core::ResponseUncertainty::Scalar {
+        standard_error: sd,
+        level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+        lower,
+        upper,
+        interpretation: antecedent_core::IntervalInterpretation::Credible,
+        draws: None,
+    })
+}
+
+/// Pointwise 0.95 credible band, one column of `posterior` per grid level.
+///
+/// The checked ADMG curve stores each level's intervention-mean draws as its
+/// own scalar quantity, in grid order. A non-finite endpoint publishes no band.
+pub(crate) fn credible_pointwise_uncertainty(
+    posterior: &CausalPosterior,
+) -> Option<antecedent_core::ResponseUncertainty> {
+    let n = posterior.draws.schema.n_quantities();
+    if n == 0 {
+        return None;
+    }
+    let lower: Vec<f64> = posterior.summaries.q025.iter().take(n).copied().collect();
+    let upper: Vec<f64> = posterior.summaries.q975.iter().take(n).copied().collect();
+    if lower.len() != n
+        || upper.len() != n
+        || lower.iter().chain(upper.iter()).any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    Some(antecedent_core::ResponseUncertainty::PointwiseBand {
+        level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+        lower: Arc::from(lower),
+        upper: Arc::from(upper),
+        interpretation: antecedent_core::IntervalInterpretation::Credible,
+        draws: None,
+    })
+}
+
 /// Diagnostic recording which overlap policy an estimator applied.
 pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
     match overlap {

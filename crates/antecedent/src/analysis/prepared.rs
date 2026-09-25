@@ -758,7 +758,16 @@ impl CheckedAdmgResponseCurveOperation {
                     }
                 },
             ),
-            uncertainty: antecedent_core::ResponseUncertainty::None,
+            uncertainty: posterior
+                .as_ref()
+                .and_then(|posterior| {
+                    if scalar_intervention {
+                        super::helpers::credible_scalar_uncertainty(posterior)
+                    } else {
+                        super::helpers::credible_pointwise_uncertainty(posterior)
+                    }
+                })
+                .unwrap_or(antecedent_core::ResponseUncertainty::None),
             support,
             assumptions: first.identification.required_assumptions.clone(),
             provenance_id: Arc::from("estimate.response.general_id"),

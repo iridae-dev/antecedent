@@ -191,6 +191,7 @@ impl super::Study {
         let mut identify_cached = false;
         let mut extras_posterior = None;
         let mut n_draws = None;
+        let mut curve_bounds: Vec<(f64, f64)> = Vec::new();
         let mut support = None;
         let mut extra_diagnostics = Vec::new();
         for (i, level_query) in level_queries.iter().enumerate() {
@@ -260,6 +261,13 @@ impl super::Study {
                 n_draws =
                     posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
             }
+            if curve {
+                if let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
+                    posterior.as_ref().and_then(credible_scalar_uncertainty)
+                {
+                    curve_bounds.push((lower, upper));
+                }
+            }
             if support.is_none() {
                 support = Some(level_support);
             }
@@ -286,6 +294,7 @@ impl super::Study {
                 maxima: Arc::from(maxima),
             };
         }
+        let response_len = means.len();
         let estimate_payload = if curve {
             ResponseIdentification::PointIdentified(ResponseValue::Surface {
                 grid: Arc::from(grid),
@@ -301,7 +310,22 @@ impl super::Study {
             estimand: query.functional.clone(),
             identification_status: identification.status,
             estimate: estimate_payload,
-            uncertainty: ResponseUncertainty::None,
+            uncertainty: if curve && curve_bounds.len() == response_len && !curve_bounds.is_empty() {
+                ResponseUncertainty::PointwiseBand {
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    lower: Arc::from(curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>()),
+                    upper: Arc::from(curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>()),
+                    interpretation: antecedent_core::IntervalInterpretation::Credible,
+                    draws: None,
+                }
+            } else if curve {
+                ResponseUncertainty::None
+            } else {
+                extras_posterior
+                    .as_ref()
+                    .and_then(credible_scalar_uncertainty)
+                    .unwrap_or(ResponseUncertainty::None)
+            },
             support: response_support,
             assumptions: identification.required_assumptions.clone(),
             provenance_id: Arc::from("estimate.response.general_id"),

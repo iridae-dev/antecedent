@@ -30,7 +30,10 @@ impl super::Study {
         let single_horizon = query.horizons.len() == 1;
         // The contrast the completions share, when the shared-design branch
         // below fires: at one horizon it is the result's scalar estimate.
+        // The Bayesian arm also keeps the composed posterior that contrast
+        // was taken from, so the reported interval is its quantile.
         let mut class_shared_contrast: Option<TemporalMediationEstimate> = None;
+        let mut class_shared_posterior: Option<antecedent_estimate::CausalPosterior> = None;
         let mut class_shared_horizons = 0usize;
         let mut class_block_cancelled = false;
         let mut diagnostics = vec![Diagnostic::new(
@@ -353,6 +356,7 @@ impl super::Study {
                             class_shared_horizons += 1;
                             if single_horizon {
                                 class_shared_contrast = Some(mediation.clone());
+                                class_shared_posterior = Some(composed.clone());
                             }
                             let summary =
                                 |index: usize| antecedent_estimate::MediationPosteriorSummary {
@@ -404,17 +408,24 @@ impl super::Study {
         }
         // One horizon whose completions all fit the same mediation design: the
         // identified set is that single contrast, so it is the result's scalar
-        // estimate under the design's own circular-block SE — the construction
-        // the `TemporalDag` route publishes, on the same stream. The identified
-        // set stays beside it; each states its own calibration.
+        // estimate. Frequentist reports the design's circular-block SE; Bayesian
+        // reports the composed posterior's quantile. The identified set stays
+        // beside it; each states its own calibration.
         let (scalar_estimate, scalar_mediation) = if let Some(contrast) = class_shared_contrast {
+            let interval = if class_shared_posterior.is_some() {
+                "its posterior quantile is the reported interval"
+            } else {
+                "its circular-block SE is the reported interval"
+            };
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal_mediation.class_shared_design_scalar",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "every completion is identified and fits the same mediation design, so the \
-                 completion identified set is one contrast; that contrast is the scalar estimate \
-                 and its circular-block SE is the reported interval, beside the identified set",
+                format!(
+                    "every completion is identified and fits the same mediation design, so the \
+                     completion identified set is one contrast; that contrast is the scalar \
+                     estimate and {interval}, beside the identified set"
+                ),
             ));
             (
                 contrast
@@ -527,6 +538,10 @@ impl super::Study {
                 }),
                 mediation_grid: Some(grid),
                 structural_response: Some(structural),
+                n_draws: class_shared_posterior
+                    .as_ref()
+                    .and_then(|posterior| u32::try_from(posterior.draws.n_draws).ok()),
+                posterior: class_shared_posterior,
                 ..Default::default()
             },
         }))
