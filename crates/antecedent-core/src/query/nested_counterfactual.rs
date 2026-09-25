@@ -25,6 +25,11 @@ pub struct NestedCounterfactualQuery {
 
 impl NestedCounterfactualQuery {
     /// Construct the natural direct effect using treatment levels zero and one.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidIntervention`] if the variable roles are
+    /// not distinct or either treatment level is non-finite.
     pub fn new(
         treatment: VariableId,
         mediator: VariableId,
@@ -34,6 +39,11 @@ impl NestedCounterfactualQuery {
     }
 
     /// Construct with explicit finite control and active treatment values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidIntervention`] if the variable roles are
+    /// not distinct or either treatment level is non-finite.
     pub fn with_levels(
         treatment: VariableId,
         mediator: VariableId,
@@ -41,7 +51,12 @@ impl NestedCounterfactualQuery {
         control: f64,
         active: f64,
     ) -> Result<Self, QueryError> {
-        if !control.is_finite() || !active.is_finite() || control == active {
+        // Exact ordering equality is the contract here: any distinct finite
+        // levels define a valid contrast, however close they are.
+        if !control.is_finite()
+            || !active.is_finite()
+            || control.partial_cmp(&active) == Some(std::cmp::Ordering::Equal)
+        {
             return Err(QueryError::InvalidIntervention(
                 "nested treatment levels must be finite and distinct".into(),
             ));
@@ -58,6 +73,11 @@ impl NestedCounterfactualQuery {
     }
 
     /// Validate distinct treatment, mediator, and outcome roles.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidIntervention`] when a variable role is
+    /// repeated or the treatment levels are non-finite or identical.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.treatment == self.mediator
             || self.treatment == self.outcome
