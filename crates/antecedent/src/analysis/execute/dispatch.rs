@@ -536,7 +536,7 @@ impl super::Study {
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready temporal plan missing resolved graph".into(),
                 })?;
-                self.execute_temporal(data, graph, q, physical, ctx)
+                self.execute_temporal(data, graph, q, physical, ctx, None)
             }
             Some(AnalysisRoute::TemporalResponse) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {

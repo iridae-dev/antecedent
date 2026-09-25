@@ -1052,6 +1052,23 @@ pub struct CheckedTemporalDagEffectInfo {
     pub graph_signature: Arc<str>,
 }
 
+/// Read-only target and procedure of a sealed Bayesian TemporalDag effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianTemporalDagEffectInfo {
+    /// Exact pulse or one-step sustained target.
+    pub query: TemporalEffectQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: RefuteSuite,
+    /// Requested posterior draws.
+    pub posterior_draws: usize,
+    /// Signature of the retained TemporalDag.
+    pub graph_signature: Arc<str>,
+}
+
 /// Read-only target and procedure for a checked temporal mediation family.
 #[derive(Clone, Debug)]
 pub struct CheckedTemporalMediationInfo {
@@ -3527,6 +3544,7 @@ pub(crate) enum PreparedExecution {
     Attribution(super::execute::CheckedAttributionOperation),
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
     TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
+    BayesianTemporalDagEffect(Box<super::CheckedBayesianTemporalEffectOperation>),
     TemporalMediation(super::execute::CheckedTemporalMediationOperation),
     Interference(super::execute::CheckedInterferenceOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
@@ -3594,6 +3612,7 @@ impl PreparedExecution {
             | Self::Attribution(_)
             | Self::TemporalDagResponse(_)
             | Self::TemporalDagEffect(_)
+            | Self::BayesianTemporalDagEffect(_)
             | Self::TemporalMediation(_)
             | Self::Interference(_)
             | Self::TemporalClassEffect(_)
@@ -3766,6 +3785,15 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedTemporalEffectExecution> {
         if let Self::TemporalDagEffect(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+    pub(crate) fn bayesian_temporal_dag_effect(
+        &self,
+    ) -> Option<&super::CheckedBayesianTemporalEffectOperation> {
+        if let Self::BayesianTemporalDagEffect(value) = self {
             Some(value)
         } else {
             None
@@ -4405,6 +4433,25 @@ impl PreparedStudy {
             bootstrap_replicates,
             adjustment_set: adjustment_set.into(),
             graph_signature: Arc::from(operation.graph_signature()),
+        })
+    }
+
+    /// Inspect the retained Bayesian temporal DAG target and model settings.
+    #[must_use]
+    pub fn checked_bayesian_temporal_dag_effect_info(
+        &self,
+    ) -> Option<CheckedBayesianTemporalDagEffectInfo> {
+        let operation = self.execution.bayesian_temporal_dag_effect()?;
+        let super::CheckedBayesianTemporalTarget::Dag(target) = operation.target() else {
+            return None;
+        };
+        Some(CheckedBayesianTemporalDagEffectInfo {
+            query: target.query().clone(),
+            identifier: crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded,
+            estimator: crate::strategy_table::EstimatorId::BayesianTemporalGcomp,
+            validation: operation.validation(),
+            posterior_draws: operation.config().n_draws,
+            graph_signature: Arc::from(target.graph_signature()),
         })
     }
 
@@ -6363,6 +6410,33 @@ impl PreparedStudy {
             };
             return self.stamp(&input, operation.execute(series, ctx)?);
         }
+        if let PreparedExecution::BayesianTemporalDagEffect(operation) = &self.execution {
+            if !operation.matches_query(&self.analysis.query) {
+                return Err(CausalError::Compile {
+                    message: "checked Bayesian temporal query changed after preparation".into(),
+                });
+            }
+            let graph = self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                message: "checked Bayesian temporal effect lost its prepared TemporalDag".into(),
+            })?;
+            let CausalQuery::TemporalEffect(query) = &self.analysis.query else {
+                return Err(CausalError::Compile {
+                    message: "checked Bayesian temporal effect lost its temporal query".into(),
+                });
+            };
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &input else {
+                unreachable!("estimate_series constructs temporal data")
+            };
+            let result = self.analysis.execute_temporal(
+                series,
+                graph,
+                query,
+                &self.state.plan,
+                ctx,
+                Some(operation),
+            )?;
+            return self.stamp(&input, result);
+        }
         if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
             let graph =
                 self.analysis.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
@@ -6563,6 +6637,31 @@ impl PreparedStudy {
                 unreachable!("refresh_series constructs temporal data")
             };
             operation.execute(series, ctx)?
+        } else if let PreparedExecution::BayesianTemporalDagEffect(operation) = &self.execution {
+            if !operation.matches_query(&refreshed.query) {
+                return Err(CausalError::Compile {
+                    message: "checked Bayesian temporal refresh query changed after preparation".into(),
+                });
+            }
+            let graph = refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
+                message: "checked Bayesian temporal effect refresh lost its TemporalDag".into(),
+            })?;
+            let CausalQuery::TemporalEffect(query) = &refreshed.query else {
+                return Err(CausalError::Compile {
+                    message: "checked Bayesian temporal effect refresh lost its temporal query".into(),
+                });
+            };
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &refreshed.data else {
+                unreachable!("refresh_series constructs temporal data")
+            };
+            refreshed.execute_temporal(
+                series,
+                graph,
+                query,
+                &self.state.plan,
+                ctx,
+                Some(operation),
+            )?
         } else if let PreparedExecution::TemporalDagEffect(operation) = &self.execution {
             let graph = refreshed.graph.as_temporal_dag().ok_or_else(|| CausalError::Compile {
                 message: "checked temporal effect refresh lost its TemporalDag".into(),
@@ -8624,6 +8723,69 @@ impl Study {
             }
             _ => None,
         };
+        let bayesian_temporal_dag_effect_operation = match (
+            &self.data,
+            &self.query,
+            analysis.temporal_identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::TemporalEffect(query),
+                Some(cache),
+                GraphClass::TemporalDag,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && matches!(
+                    analysis.structure_source,
+                    crate::support::StructureSource::Explicit
+                        | crate::support::StructureSource::Accepted
+                )
+                && analysis.split.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(analysis.inference, InferenceMode::Bayesian(_))
+                && !query.is_multi_step_sustained()
+                && matches!(
+                    query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { .. }
+                        | antecedent_core::TemporalPolicy::Sustained { .. }
+                )
+                && matches!(
+                    analysis.refute,
+                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                ) =>
+            {
+                let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
+                let estimator = crate::strategy_table::EstimatorId::BayesianTemporalGcomp;
+                if plan.logical.record.identifier.as_deref().is_some_and(|name| name != identifier.as_str())
+                    || plan.logical.record.estimator.as_deref().is_some_and(|name| name != estimator.as_str())
+                {
+                    None
+                } else {
+                    let member = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                        message: "prepared Bayesian temporal effect lacks its horizon proof".into(),
+                    })?;
+                    let target = super::CheckedTemporalEffectOperation::checked(
+                        analysis.graph.as_temporal_dag().expect("guarded TemporalDag"),
+                        query,
+                        member.identification.clone(),
+                        member.estimand.clone(),
+                        member.indexer.clone(),
+                        identifier,
+                        crate::strategy_table::EstimatorId::TemporalLinearAdjustment,
+                        0,
+                        analysis.refute,
+                    )?;
+                    Some(super::CheckedBayesianTemporalEffectOperation::checked(
+                        super::CheckedBayesianTemporalTarget::Dag(target),
+                        &analysis.inference,
+                        analysis.refute,
+                        None,
+                    )?)
+                }
+            }
+            _ => None,
+        };
         let temporal_class_effect_operation = match (
             &self.data,
             &self.query,
@@ -9009,6 +9171,8 @@ impl Study {
             PreparedExecution::TemporalMediation(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {
             PreparedExecution::TemporalDagEffect(operation)
+        } else if let Some(operation) = bayesian_temporal_dag_effect_operation {
+            PreparedExecution::BayesianTemporalDagEffect(Box::new(operation))
         } else if let Some(operation) = temporal_class_effect_operation {
             PreparedExecution::TemporalClassEffect(operation)
         } else if let Some(operation) = distribution_operation {
