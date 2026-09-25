@@ -265,6 +265,7 @@ suite.v110_calibration_distribution_admg crates/antecedent/tests/v110_calibratio
 suite.v110_calibration_design crates/antecedent/tests/v110_calibration_design.rs
 suite.v110_calibration_estimate crates/antecedent/tests/v110_calibration_estimate.rs
 suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_temporal.rs
+suite.v110_calibration_backlog crates/antecedent/tests/v110_calibration_backlog.rs
 suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
 suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
 suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
