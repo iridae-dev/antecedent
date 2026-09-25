@@ -594,12 +594,7 @@ impl super::Study {
         let (identification, estimand, indexer, identify_cached) = if let Some(operation) =
             checked_bayesian
         {
-            let crate::analysis::CheckedBayesianTemporalTarget::Dag(target) = operation.target()
-            else {
-                return Err(CausalError::Unsupported {
-                    message: "checked Bayesian temporal DAG execution requires a fixed TemporalDag target",
-                });
-            };
+            let target = operation.target();
             if !target.matches_graph(graph)
                 || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
             {

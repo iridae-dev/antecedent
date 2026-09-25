@@ -25,9 +25,7 @@ mod transport_grid;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
-pub(crate) use checked_bayesian_temporal_effect::{
-    CheckedBayesianTemporalEffectOperation, CheckedBayesianTemporalTarget,
-};
+pub(crate) use checked_bayesian_temporal_effect::CheckedBayesianTemporalEffectOperation;
 pub(crate) use checked_class_graph_posterior_effect::CheckedClassGraphPosteriorEffect;
 pub(crate) use checked_conditional::{CheckedConditionalOperation, ConditionalProcedure};
 pub(crate) use checked_graph_posterior::{

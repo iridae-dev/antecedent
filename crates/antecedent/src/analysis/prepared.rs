@@ -4549,9 +4549,7 @@ impl PreparedStudy {
         &self,
     ) -> Option<CheckedBayesianTemporalDagEffectInfo> {
         let operation = self.execution.bayesian_temporal_dag_effect()?;
-        let super::CheckedBayesianTemporalTarget::Dag(target) = operation.target() else {
-            return None;
-        };
+        let target = operation.target();
         let estimator = if target.query().is_multi_step_sustained() {
             crate::strategy_table::EstimatorId::TemporalSequentialGcomp
         } else {
@@ -9207,10 +9205,9 @@ impl Study {
                         analysis.refute,
                     )?;
                     Some(super::CheckedBayesianTemporalEffectOperation::checked(
-                        super::CheckedBayesianTemporalTarget::Dag(target),
+                        target,
                         &analysis.inference,
                         analysis.refute,
-                        None,
                     )?)
                 }
             }
