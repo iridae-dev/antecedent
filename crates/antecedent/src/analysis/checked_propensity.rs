@@ -283,6 +283,10 @@ impl CheckedPropensityOperation {
     }
 
     /// Rebuild only the row-bound design; target and procedure selection stay frozen.
+    #[allow(
+        clippy::float_cmp,
+        reason = "copied query bounds are compared exactly to detect semantic drift on refresh"
+    )]
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         let schema = ProgramSchema::new(
             data.schema()
@@ -377,14 +381,14 @@ fn prepare_fit(
     match estimator {
         CheckedPropensityEstimator::Weighting(mut fitter) => {
             if fitter.population_registry.is_none() {
-                fitter.population_registry = context.population_registry.clone();
+                fitter.population_registry.clone_from(&context.population_registry);
             }
             let problem = fitter.prepare(data, target, query).map_err(CausalError::from)?;
             Ok(CheckedPropensityFit::Weighting { fitter, problem })
         }
         CheckedPropensityEstimator::Matching(mut fitter) => {
             if fitter.population_registry.is_none() {
-                fitter.population_registry = context.population_registry.clone();
+                fitter.population_registry.clone_from(&context.population_registry);
             }
             let problem = fitter.prepare(data, target, query).map_err(CausalError::from)?;
             Ok(CheckedPropensityFit::Matching { fitter, problem })

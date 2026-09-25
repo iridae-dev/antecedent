@@ -71,6 +71,10 @@ impl ZTransportResult {
     }
 
     /// Export this point result with its checked proof, catalog, and source laws.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the proof, provider bindings, or artifact cannot be verified.
     pub fn export(&self, prepared: &PreparedZTransport) -> Result<Vec<u8>, IoError> {
         let wire = antecedent_io::z_transport_artifact::ZTransportArtifactWire::checked(
             &prepared.diagram,
@@ -86,6 +90,10 @@ impl ZTransportResult {
 }
 
 /// Independently consume a z-transport artifact and recompute its point result.
+///
+/// # Errors
+///
+/// Returns an error if the artifact is malformed or its checked result cannot be replayed.
 pub fn consume_z_transport_artifact(
     bytes: &[u8],
     ctx: &ExecutionContext,
@@ -115,6 +123,10 @@ impl PreparedZTransport {
     ///
     /// Exact laws stay point-only. When every cited law carries empirical
     /// counts, an uncalibrated equal-tail percentile bootstrap is attached.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the checked plan or its evidence cannot be evaluated.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
         self.estimate_with(None, 0, ctx)
     }
@@ -123,6 +135,10 @@ impl PreparedZTransport {
     ///
     /// The point is still the empirical plug-in. `draws` below the percentile floor
     /// withholds the interval as `insufficient_bootstrap_replicates`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the posterior provider cannot evaluate the retained evidence.
     pub fn estimate_bayesian(
         &self,
         provider: antecedent_estimate::BayesianTransportLawProvider,
@@ -218,6 +234,10 @@ impl PreparedZTransport {
 
     /// Replace providers after revalidating their catalog bindings and compile a
     /// fresh physical plan against the retained checked program.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the refreshed evidence changes the checked program's bindings.
     pub fn refresh(
         &self,
         data: ExactTransportData,
@@ -308,6 +328,10 @@ impl StudyBuilder {
     /// This entry point accepts exact laws or empirical plugin tables. It does
     /// not license a general bounded sIDz search, interval estimates, or a
     /// PreparedStudy artifact/replay contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the theorem proof, program, or provider bindings fail validation.
     pub fn z_transport(
         diagram: SelectionDiagram,
         functional: BoundZTransportFunctional,
@@ -336,6 +360,10 @@ impl StudyBuilder {
 
     /// Prepare an empirical plugin evaluation, requiring every retained law to
     /// carry empirical counts. Results remain point-only.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a law lacks empirical counts or preparation fails.
     pub fn z_transport_empirical(
         diagram: SelectionDiagram,
         functional: BoundZTransportFunctional,
@@ -447,7 +475,7 @@ mod tests {
                         * (if xv { 0.35_f64 } else { 0.65 })
                         * (if yv == xv { 0.80_f64 } else { 0.20 });
                     probabilities.push(p);
-                    counts.push((p * 10_000.0).round() as u64);
+                    counts.push(quantized_count(p));
                 }
             }
         }
@@ -751,8 +779,11 @@ mod tests {
             &ExecutionContext::for_tests(12),
         )
         .unwrap();
-        assert_eq!(replayed.baseline, wire.baseline);
-        assert_eq!(replayed.assumption_range, wire.assumption_range);
+        assert_eq!(replayed.baseline.to_bits(), wire.baseline.to_bits());
+        assert_eq!(
+            replayed.assumption_range.map(f64::to_bits),
+            wire.assumption_range.map(f64::to_bits)
+        );
         assert_eq!(replayed.provider_snapshots, ["do-z-0"]);
         assert!(replayed.tipping_fraction.is_some());
 
@@ -774,6 +805,17 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    fn quantized_count(probability: f64) -> u64 {
+        assert!((0.0..=1.0).contains(&probability));
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "synthetic probability in [0, 1] is scaled by 10000 and rounded to a count"
+        )]
+        let count = (probability * 10_000.0).round() as u64;
+        count
     }
 
     #[test]

@@ -47,7 +47,7 @@ impl std::fmt::Debug for CheckedTemporalClassEffectOperation {
             .field("estimator", &self.estimator)
             .field("bootstrap_replicates", &self.bootstrap_replicates)
             .field("custom_validator_count", &self.custom_validators.len())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -57,7 +57,7 @@ impl CheckedTemporalClassEffectOperation {
     pub(crate) fn checked(
         source_graph: AcceptedGraph,
         query: &TemporalEffectQuery,
-        bundle: CachedTemporalClassIdentification,
+        bundle: &CachedTemporalClassIdentification,
         max_completions: Option<usize>,
         identifier: IdentifierId,
         estimator: EstimatorId,
@@ -166,7 +166,7 @@ impl CheckedTemporalClassEffectOperation {
     pub(crate) fn matches_source_graph(&self, graph: &AcceptedGraph) -> bool {
         self.source_graph.class() == graph.class()
             && self.source_graph.version() == graph.version()
-            && format!("{:?}", self.source_graph) == format!("{:?}", graph)
+            && format!("{:?}", self.source_graph) == format!("{graph:?}")
     }
 
     #[must_use]
@@ -190,16 +190,7 @@ impl CheckedTemporalClassEffectOperation {
     }
 
     #[must_use]
-    pub(crate) fn procedure(
-        &self,
-    ) -> (
-        IdentifierId,
-        EstimatorId,
-        u32,
-        Option<&DiscoveryEstimationSplit>,
-        RefuteSuite,
-        &[Arc<dyn CustomEffectValidator>],
-    ) {
+    pub(crate) fn procedure(&self) -> TemporalClassProcedure<'_> {
         (
             self.identifier,
             self.estimator,
@@ -215,6 +206,15 @@ impl CheckedTemporalClassEffectOperation {
         matches!(query, CausalQuery::TemporalEffect(candidate) if candidate == &self.query)
     }
 }
+
+type TemporalClassProcedure<'a> = (
+    IdentifierId,
+    EstimatorId,
+    u32,
+    Option<&'a DiscoveryEstimationSplit>,
+    RefuteSuite,
+    &'a [Arc<dyn CustomEffectValidator>],
+);
 
 fn same_temporal_class_proof(
     expected: &antecedent_identify::TemporalClassEnvelope,
@@ -270,7 +270,7 @@ mod tests {
         let error = CheckedTemporalClassEffectOperation::checked(
             AcceptedGraph::temporal_cpdag(antecedent_graph::TemporalCpdag::empty()).unwrap(),
             &query,
-            empty_bundle(),
+            &empty_bundle(),
             None,
             IdentifierId::GeneralizedAdjustment,
             EstimatorId::TemporalLinearAdjustment,
@@ -291,7 +291,7 @@ mod tests {
         let error = CheckedTemporalClassEffectOperation::checked(
             AcceptedGraph::temporal_dag(antecedent_graph::TemporalDag::empty()),
             &query,
-            empty_bundle(),
+            &empty_bundle(),
             None,
             IdentifierId::GeneralizedAdjustment,
             EstimatorId::TemporalLinearAdjustment,

@@ -1174,7 +1174,6 @@ impl super::Study {
                     && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
                         antecedent_core::TemporalPolicy::Pulse { .. } => true,
                         antecedent_core::TemporalPolicy::Sustained { from, until } => from == until,
-                        antecedent_core::TemporalPolicy::Dynamic { .. } => false,
                         _ => false,
                     })
                     && query.observation == antecedent_core::ObservationSpec::Complete
@@ -1377,8 +1376,10 @@ impl super::Study {
                 || (self.estimator.is_none()
                     && matches!(
                         &self.estimator_spec,
-                        Some(crate::estimator_spec::EstimatorSpec::Default(EstimatorId::Aipw))
-                            | Some(crate::estimator_spec::EstimatorSpec::Aipw(_))
+                        Some(
+                            crate::estimator_spec::EstimatorSpec::Default(EstimatorId::Aipw)
+                                | crate::estimator_spec::EstimatorSpec::Aipw(_),
+                        )
                     )))
             && matches!(
                 &self.query,
@@ -1492,9 +1493,10 @@ impl super::Study {
             && matches!(self.estimator, None | Some(EstimatorId::LinearAdjustmentAte))
             && matches!(
                 &self.estimator_spec,
-                None | Some(crate::estimator_spec::EstimatorSpec::Default(
-                    EstimatorId::LinearAdjustmentAte
-                )) | Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_))
+                None | Some(
+                    crate::estimator_spec::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte,)
+                        | crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(_),
+                )
             )
         {
             if let DataInput::Tabular(data) = &self.data {
@@ -1518,14 +1520,14 @@ impl super::Study {
                         == antecedent_core::TargetPopulation::AllObserved
                     && query.outcome_functional == antecedent_core::OutcomeFunctional::Mean =>
             {
-                match (&query.functional, self.refute) {
-                    (_, RefuteSuite::None) => true,
-                    (
-                        antecedent_core::ResponseFunctional::InterventionResponse { .. },
-                        RefuteSuite::Cheap | RefuteSuite::Full,
-                    ) => true,
-                    _ => false,
-                }
+                matches!(
+                    (&query.functional, self.refute),
+                    (_, RefuteSuite::None)
+                        | (
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            RefuteSuite::Cheap | RefuteSuite::Full,
+                        )
+                )
             }
             _ => false,
         };
