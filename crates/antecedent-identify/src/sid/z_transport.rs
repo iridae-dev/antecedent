@@ -16,6 +16,10 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{BitSet, DenseNodeId, NodeRef, SelectionDiagram};
 use std::sync::Arc;
 
+fn index_u32(index: usize) -> u32 {
+    u32::try_from(index).expect("bounded graph or expression arena index fits u32")
+}
+
 /// Fixed graph and population contract for a single-source z-transport query.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ZTransportQuery {
@@ -81,12 +85,12 @@ pub enum ZTransportMissingEvidence {
     },
 }
 
-/// Result of the bounded TRz decision.
+/// Result of the bounded `TRz` decision.
 #[derive(Clone, Debug)]
 pub enum ZTransportDecision {
-    /// A positive TRz formula was derived and its cited factors bind.
+    /// A positive `TRz` formula was derived and its cited factors bind.
     Identified(Box<ZTransportDerivation>),
-    /// A checked TRz line-11 obstruction for the declared controllable set.
+    /// A checked `TRz` line-11 obstruction for the declared controllable set.
     /// This is a structural claim about that set, not about which tables are present.
     ProvenNonTransportable(Box<ZTransportObstruction>),
     /// A theorem input law is not present in the catalog.
@@ -131,6 +135,7 @@ pub struct TwoSourceZTransportQuery {
 }
 
 /// Result of searching two sources separately.
+#[allow(clippy::large_enum_variant)] // Public result keeps both source certificates directly inspectable.
 #[derive(Clone, Debug)]
 pub enum TwoSourceZTransportDecision {
     /// One source's single-source derivation identifies and its cited factors bind.
@@ -153,7 +158,7 @@ pub enum TwoSourceZTransportDecision {
     },
 }
 
-/// A checked TRz line-11 failure for the declared controllable set.
+/// A checked `TRz` line-11 failure for the declared controllable set.
 #[derive(Clone, Debug)]
 pub struct ZTransportObstruction {
     query: ZTransportQuery,
@@ -168,13 +173,13 @@ pub struct ZTransportObstruction {
 pub struct ZTransportObstructionRecord {
     /// Stable graph identity, including selection targets.
     pub graph_signature: String,
-    /// Declared experiment assignment used while replaying TRz.
+    /// Declared experiment assignment used while replaying `TRz`.
     pub selected_assignment: Vec<(u32, f64)>,
-    /// Reduced terminal subproblem at TRz line 11.
+    /// Reduced terminal subproblem at `TRz` line 11.
     pub terminal: ZTransportTerminalRecord,
 }
 
-/// Portable reduced TRz state for the terminal failure rule.
+/// Portable reduced `TRz` state for the terminal failure rule.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ZTransportTerminalRecord {
@@ -196,7 +201,7 @@ pub struct ZTransportTerminalRecord {
     pub active_interventions: Vec<(u32, f64)>,
     /// Whether selection nodes are separated from outcomes given treatments.
     pub selection_separated: bool,
-    /// Recursive TRz rules used to reach this terminal state.
+    /// Recursive `TRz` rules used to reach this terminal state.
     pub rules: Vec<String>,
 }
 
@@ -272,7 +277,7 @@ pub struct ZFactorObligation {
 pub struct ZTransportProofInspection {
     /// Root expression node.
     pub root: u32,
-    /// Checked high-level TRz rule scope.
+    /// Checked high-level `TRz` rule scope.
     pub rules: Vec<String>,
     /// Reachable expression DAG in postorder.
     pub operations: Vec<ZProofOperation>,
@@ -490,6 +495,8 @@ pub fn validate_z_transport_query(
 /// part of this family unless a separate theorem premise requires it.
 /// Results here are catalog facts only; a successful check does not identify a
 /// query or establish that one supplied regime can substitute for another.
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::float_cmp)] // Categorical intervention labels are finite exact integers encoded as f64.
 pub fn validate_z_experiment_family(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -543,9 +550,9 @@ pub fn validate_z_experiment_family(
     let k = domains.len();
     for mask in 1..(1usize << k) {
         let mut block = 1usize;
-        for bit in 0..k {
+        for (bit, (_, levels)) in domains.iter().enumerate() {
             if mask & (1usize << bit) != 0 {
-                block = block.saturating_mul(domains[bit].1.len());
+                block = block.saturating_mul(levels.len());
             }
         }
         family_size = family_size.saturating_add(block);
@@ -619,9 +626,9 @@ pub fn validate_z_experiment_family(
 
 /// Decide a bounded single-source z-transport query against the supplied catalog.
 ///
-/// A positive result is a checked TRz formula whose cited joints are present.
+/// A positive result is a checked `TRz` formula whose cited joints are present.
 /// Unused experiments and uncited variables are not required. A negative result
-/// is certified when search reaches TRz line 11 and an independent checker
+/// is certified when search reaches `TRz` line 11 and an independent checker
 /// confirms the reduced graph, C0, Z∩X, and the failed line-10 separation
 /// premise. That obstruction is a fact about the graph and the declared
 /// controllable set; an incomplete catalog is not the obstruction. A missing
@@ -777,6 +784,7 @@ impl ZTransportObstruction {
     ///
     /// # Errors
     /// Changed graph, query, controllable set, or terminal search state.
+    #[allow(clippy::needless_pass_by_value)] // Public checked-import API consumes the untrusted record.
     pub fn from_record_checked(
         record: ZTransportObstructionRecord,
         diagram: &SelectionDiagram,
@@ -790,10 +798,7 @@ impl ZTransportObstruction {
             ZTransportDecision::MissingEvidence { .. } => {
                 return Err(IdentificationError::msg("z_transport.obstruction_missing_evidence"));
             }
-            ZTransportDecision::Identified(_) => {
-                return Err(IdentificationError::msg("z_transport.obstruction_not_reproduced"));
-            }
-            ZTransportDecision::NotCertified { .. } => {
+            ZTransportDecision::Identified(_) | ZTransportDecision::NotCertified { .. } => {
                 return Err(IdentificationError::msg("z_transport.obstruction_not_reproduced"));
             }
         };
@@ -807,7 +812,7 @@ impl ZTransportObstruction {
 /// Independently replay a structural negative z-transport certificate.
 ///
 /// # Errors
-/// The query differs, or TRz does not reach the recorded line-11 state.
+/// The query differs, or `TRz` does not reach the recorded line-11 state.
 pub fn verify_z_transport_obstruction(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -840,7 +845,7 @@ pub fn verify_z_transport_obstruction(
     Ok(())
 }
 
-/// Check the local graph premises of Bareinboim–Pearl TRz Figure 4 line 11
+/// Check the local graph premises of Bareinboim–Pearl `TRz` Figure 4 line 11
 /// independently of the recursive search's terminal flag and separation
 /// helper. Their Theorem 5 maps this failed line-11 state `(D, C0)` to a
 /// zs-hedge; `verify_z_transport_obstruction` separately replays the prefix.
@@ -914,7 +919,7 @@ fn verify_trz_line11_terminal(
 ///
 /// The registered surrogate formula and direct joint exchange have dedicated
 /// local checkers. Other in-bound graphs, including admissible selection
-/// diagrams, follow the recursive TRz reduction and are rederived on replay.
+/// diagrams, follow the recursive `TRz` reduction and are rederived on replay.
 /// Use [`decide_z_transport_with_catalog`] when a negative result must be
 /// distinguished from incomplete catalog evidence.
 ///
@@ -941,7 +946,7 @@ pub fn identify_z_transport_surrogate(
 ///
 /// The registered four-variable surrogate keeps its factorization. Every other
 /// in-bound graph, including a selection diagram whose line-10 separation
-/// holds, publishes the recursive TRz derivation. A line-11 failure without a
+/// holds, publishes the recursive `TRz` derivation. A line-11 failure without a
 /// catalog is [`ZTransportResult::NotCertified`], not an obstruction.
 ///
 /// # Errors
@@ -963,6 +968,7 @@ pub fn identify_z_transport_with_limits(
     })
 }
 
+#[allow(clippy::large_enum_variant)] // Private short-lived state; boxing would add allocation to recursive search.
 enum ZDerivation {
     Formula(ZTransportDerivation),
     Line11(TrzTerminalFailure),
@@ -1117,7 +1123,7 @@ pub fn identify_z_transport(
     identify_z_transport_surrogate(diagram, query)
 }
 
-// A direct TRz source exchange is legal when the requested intervention is a
+// A direct `TRz` source exchange is legal when the requested intervention is a
 // concrete subset of the controllable family and the population selectors are
 // separated from the outcome in the graph with incoming treatment arrows cut.
 // The source experiment must still be bound to real evidence by the caller.
@@ -1139,12 +1145,12 @@ fn direct_joint_admissible(
             .nodes()
             .iter()
             .position(|node| *node == NodeRef::Static(v))
-            .map(|i| DenseNodeId::from_raw(i as u32))
+            .map(|i| DenseNodeId::from_raw(index_u32(i)))
             .ok_or_else(|| IdentificationError::msg("z_transport.unknown_variable"))
     };
     let mut all = BitSet::with_len(graph.node_count());
     for index in 0..graph.node_count() {
-        all.insert(DenseNodeId::from_raw(index as u32));
+        all.insert(DenseNodeId::from_raw(index_u32(index)));
     }
     let mut intervened = BitSet::with_len(graph.node_count());
     for x in query.treatments.iter().copied() {
@@ -1185,6 +1191,7 @@ fn direct_joint_formula(query: &ZTransportQuery) -> (CausalExprArena, ExprId) {
 ///
 /// # Errors
 /// A changed graph, query, or formula.
+#[allow(clippy::too_many_lines)]
 pub fn verify_z_transport_derivation(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -1256,34 +1263,30 @@ pub fn verify_z_transport_derivation(
     ) {
         return Err(IdentificationError::msg("z_transport.proof_graph_mismatch"));
     }
-    let expected =
-        match identify_z_transport_surrogate_unchecked(diagram, query, derivation.confounder) {
-            Some(expected) => expected,
-            None => return Err(IdentificationError::msg("z_transport.proof_formula_mismatch")),
-        };
+    let expected = identify_z_transport_surrogate_unchecked(query, derivation.confounder);
     let same_nodes = derivation.arena.len() == expected.0.len()
         && (0..derivation.arena.len()).all(|index| {
-            let id = ExprId::from_raw(index as u32);
+            let id = ExprId::from_raw(index_u32(index));
             derivation.arena.node(id) == expected.0.node(id)
         })
         && derivation.arena.var_set_count() == expected.0.var_set_count()
         && (0..derivation.arena.var_set_count()).all(|index| {
-            let id = antecedent_expr::VarSetId::from_raw(index as u32);
+            let id = antecedent_expr::VarSetId::from_raw(index_u32(index));
             derivation.arena.var_set(id) == expected.0.var_set(id)
         })
         && derivation.arena.intervention_set_count() == expected.0.intervention_set_count()
         && (0..derivation.arena.intervention_set_count()).all(|index| {
-            let id = antecedent_expr::InterventionSetId::from_raw(index as u32);
+            let id = antecedent_expr::InterventionSetId::from_raw(index_u32(index));
             derivation.arena.intervention_assignments(id) == expected.0.intervention_assignments(id)
         })
         && derivation.arena.population_count() == expected.0.population_count()
         && (0..derivation.arena.population_count()).all(|index| {
-            let id = antecedent_expr::PopulationKeyId::from_raw(index as u32);
+            let id = antecedent_expr::PopulationKeyId::from_raw(index_u32(index));
             derivation.arena.population(id) == expected.0.population(id)
         })
         && derivation.arena.list_count() == expected.0.list_count()
         && (0..derivation.arena.list_count()).all(|index| {
-            let id = antecedent_expr::ExprListId::from_raw(index as u32);
+            let id = antecedent_expr::ExprListId::from_raw(index_u32(index));
             derivation.arena.list(id) == expected.0.list(id)
         });
     if derivation.root != expected.1 || !same_nodes {
@@ -1296,6 +1299,7 @@ pub fn verify_z_transport_derivation(
 ///
 /// # Errors
 /// Invalid catalog or a missing joint margin covering the formula variables.
+#[allow(clippy::too_many_lines)]
 pub fn bind_z_transport_catalog(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -1550,29 +1554,30 @@ fn bind_recursive_expression(
 fn same_arena(left: &CausalExprArena, right: &CausalExprArena) -> bool {
     left.len() == right.len()
         && (0..left.len()).all(|i| {
-            left.node(ExprId::from_raw(i as u32)) == right.node(ExprId::from_raw(i as u32))
+            left.node(ExprId::from_raw(index_u32(i))) == right.node(ExprId::from_raw(index_u32(i)))
         })
         && left.var_set_count() == right.var_set_count()
         && (0..left.var_set_count()).all(|i| {
-            left.var_set(antecedent_expr::VarSetId::from_raw(i as u32))
-                == right.var_set(antecedent_expr::VarSetId::from_raw(i as u32))
+            left.var_set(antecedent_expr::VarSetId::from_raw(index_u32(i)))
+                == right.var_set(antecedent_expr::VarSetId::from_raw(index_u32(i)))
         })
         && left.intervention_set_count() == right.intervention_set_count()
         && (0..left.intervention_set_count()).all(|i| {
-            left.intervention_assignments(antecedent_expr::InterventionSetId::from_raw(i as u32))
-                == right.intervention_assignments(antecedent_expr::InterventionSetId::from_raw(
-                    i as u32,
-                ))
+            left.intervention_assignments(antecedent_expr::InterventionSetId::from_raw(index_u32(
+                i,
+            ))) == right.intervention_assignments(antecedent_expr::InterventionSetId::from_raw(
+                index_u32(i),
+            ))
         })
         && left.population_count() == right.population_count()
         && (0..left.population_count()).all(|i| {
-            left.population(antecedent_expr::PopulationKeyId::from_raw(i as u32))
-                == right.population(antecedent_expr::PopulationKeyId::from_raw(i as u32))
+            left.population(antecedent_expr::PopulationKeyId::from_raw(index_u32(i)))
+                == right.population(antecedent_expr::PopulationKeyId::from_raw(index_u32(i)))
         })
         && left.list_count() == right.list_count()
         && (0..left.list_count()).all(|i| {
-            left.list(antecedent_expr::ExprListId::from_raw(i as u32))
-                == right.list(antecedent_expr::ExprListId::from_raw(i as u32))
+            left.list(antecedent_expr::ExprListId::from_raw(index_u32(i)))
+                == right.list(antecedent_expr::ExprListId::from_raw(index_u32(i)))
         })
 }
 
@@ -1674,10 +1679,9 @@ fn inspect_z_expression(
 }
 
 fn identify_z_transport_surrogate_unchecked(
-    _diagram: &SelectionDiagram,
     query: &ZTransportQuery,
     confounder: VariableId,
-) -> Option<(CausalExprArena, ExprId)> {
+) -> (CausalExprArena, ExprId) {
     let mut arena = CausalExprArena::new();
     let y_set = arena.intern_var_set([query.outcomes[0]]);
     let w_set = arena.intern_var_set([confounder]);
@@ -1707,7 +1711,7 @@ fn identify_z_transport_surrogate_unchecked(
     let factors = arena.intern_list([conditional, marginal]);
     let product = arena.intern(ExprNode::Product(factors));
     let root = arena.intern(ExprNode::SumOut { variables: w_set, expr: product });
-    Some((arena, root))
+    (arena, root)
 }
 
 fn matches_registered_surrogate_graph(
@@ -1731,7 +1735,7 @@ fn matches_registered_surrogate_graph(
         .enumerate()
         .flat_map(|(from, _)| {
             graph
-                .children(antecedent_graph::DenseNodeId::from_raw(from as u32))
+                .children(antecedent_graph::DenseNodeId::from_raw(index_u32(from)))
                 .iter()
                 .map(move |to| (from, to.as_usize()))
         })
@@ -1745,7 +1749,7 @@ fn matches_registered_surrogate_graph(
         .enumerate()
         .flat_map(|(a, _)| {
             graph
-                .bidirected_neighbors(antecedent_graph::DenseNodeId::from_raw(a as u32))
+                .bidirected_neighbors(antecedent_graph::DenseNodeId::from_raw(index_u32(a)))
                 .iter()
                 .filter(move |b| a < b.as_usize())
                 .map(move |b| (a, b.as_usize()))
@@ -1833,6 +1837,8 @@ fn search_trz_detailed(
 }
 
 #[allow(dead_code)]
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Mirrors the paper rule state explicitly.
 fn search_trz_state(
     engine: &mut super::Engine<'_>,
     state: super::State,
@@ -1846,13 +1852,13 @@ fn search_trz_state(
 ) -> Result<Option<ExprId>, IdentificationError> {
     engine.charge(depth)?;
     let mut ws = antecedent_graph::GraphWorkspace::default();
-    // TRz rule 1: no active treatment coordinates remain.
+    // `TRz` rule 1: no active treatment coordinates remain.
     if !state.x.any() {
         trace.push("ztr.line1.marginal".into());
         return Ok(Some(engine.marginal(state.kernel, &super::difference(&state.v, &state.y))?));
     }
     let ancestors = engine.prepared.ancestors_within(&state.y, &state.v, &mut ws);
-    // TRz rule 2: restrict to ancestors of the current outcomes.
+    // `TRz` rule 2: restrict to ancestors of the current outcomes.
     if !ancestors.equal_set(&state.v) {
         trace.push("ztr.line2.ancestors".into());
         let next = super::State {
@@ -1876,7 +1882,7 @@ fn search_trz_state(
     let mut irrelevant = super::difference(&state.v, &state.x);
     let bar = engine.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
     irrelevant.difference_with(&bar);
-    // TRz rule 3: add non-treatment vertices outside An(Y) in D_X.
+    // `TRz` rule 3: add non-treatment vertices outside An(Y) in D_X.
     if irrelevant.any() {
         trace.push("ztr.line3.enlarge".into());
         let mut next = state.clone();
@@ -1898,7 +1904,7 @@ fn search_trz_state(
         return Ok(Some(engine.enlarge_output(&state, &irrelevant, child)?));
     }
     let districts = engine.prepared.c_components(&super::difference(&state.v, &state.x));
-    // TRz rule 4: factor over multiple districts in D \ X.
+    // `TRz` rule 4: factor over multiple districts in D \ X.
     if districts.len() > 1 {
         trace.push("ztr.line4.districts".into());
         let mut expressions = Vec::with_capacity(districts.len());
@@ -1933,10 +1939,10 @@ fn search_trz_state(
     let district =
         districts.first().ok_or_else(|| IdentificationError::msg("z_transport.empty_district"))?;
     let containing = engine.prepared.c_components(&state.v);
-    // TRz rules 5–6 establish C0 and whether D is a single c-component.
+    // `TRz` rules 5–6 establish C0 and whether D is a single c-component.
     if containing.len() > 1 {
         if containing.iter().any(|d| d.equal_set(district)) {
-            // TRz rule 7: C0 is a c-component of D, so its kernel is available.
+            // `TRz` rule 7: C0 is a c-component of D, so its kernel is available.
             trace.push("ztr.line7.factor".into());
             let kernel = engine.factor(&state, district)?;
             return Ok(Some(engine.marginal(kernel, &super::difference(district, &state.y))?));
@@ -1951,7 +1957,7 @@ fn search_trz_state(
             v: larger.clone(),
             kernel: engine.factor(&state, larger)?,
         };
-        // TRz rule 8: recurse into the containing c-component of D.
+        // `TRz` rule 8: recurse into the containing c-component of D.
         trace.push("ztr.line8.recurse".into());
         return search_trz_state(
             engine,
@@ -1975,7 +1981,7 @@ fn search_trz_state(
     }
     let selection_separated = engine.source_admissible(&state)?;
     if !activated.any() || !selection_separated {
-        // TRz rule 11: rule 10 cannot exchange an active experiment.
+        // `TRz` rule 11: rule 10 cannot exchange an active experiment.
         if terminal_failure.is_none() {
             let mut c0 = engine.vars(district)?.iter().map(|v| v.raw()).collect::<Vec<_>>();
             c0.sort_unstable();
@@ -2023,7 +2029,7 @@ fn search_trz_state(
         "ztr.line10.source_exchange:{:?}",
         assignments.iter().map(|a| (a.variable.raw(), a.value.as_f64())).collect::<Vec<_>>()
     ));
-    // TRz rule 10: exchange Z∩X and recurse with Z\X and active set I=Z∩X.
+    // `TRz` rule 10: exchange Z∩X and recurse with Z\X and active set I=Z∩X.
     let remaining = super::difference(&state.v, &activated);
     let variables = engine.arena.intern_var_set(engine.vars(&remaining)?);
     // A district kernel can retain external parent coordinates after line 8.
@@ -2063,7 +2069,7 @@ fn search_trz_state(
         v: remaining,
         kernel,
     };
-    // Fig. 4 line 10 recurses into TRz on the reduced graph and retains
+    // Fig. 4 line 10 recurses into `TRz` on the reduced graph and retains
     // experiments over the remaining controllable variables.
     let remaining = remaining_controllable
         .iter()
@@ -2095,7 +2101,7 @@ mod tests {
 
     fn query(graph_size: usize, controllable: &[u32]) -> (SelectionDiagram, ZTransportQuery) {
         let diagram = SelectionDiagram::try_new(
-            Admg::with_variables(graph_size as u32),
+            Admg::with_variables(index_u32(graph_size)),
             Arc::<[VariableId]>::from([VariableId::from_raw(2)]),
         )
         .unwrap();
@@ -2108,15 +2114,15 @@ mod tests {
                 .map(VariableId::from_raw)
                 .collect::<Vec<_>>()
                 .into(),
-            experiment_assignment: controllable
-                .first()
-                .map(|variable| {
+            experiment_assignment: controllable.first().map_or_else(
+                || Arc::from([]),
+                |variable| {
                     Arc::from([CatalogInterventionAssignment {
                         variable: VariableId::from_raw(*variable),
                         value: Value::Bool(false),
                     }])
-                })
-                .unwrap_or_else(|| Arc::from([])),
+                },
+            ),
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
@@ -2307,9 +2313,9 @@ mod tests {
             }
         }
         let mut formula = 0.0;
-        for w in 0..=1 {
-            let pw = experiment[w].iter().flatten().sum::<f64>();
-            let y_given_w_x = experiment[w][0][1] / (experiment[w][0][0] + experiment[w][0][1]);
+        for stratum in &experiment {
+            let pw = stratum.iter().flatten().sum::<f64>();
+            let y_given_w_x = stratum[0][1] / (stratum[0][0] + stratum[0][1]);
             formula += pw * y_given_w_x;
         }
         assert!((formula - target[1]).abs() < 1e-12, "formula={formula}, truth={}", target[1]);
@@ -2329,6 +2335,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn recursive_trz_surrogate_formula_matches_independent_scm() {
         use antecedent_expr::{
             Assignment, DiscreteAxis, EvalContext, ExactDiscreteLaw, ExactTransportData,
@@ -2347,7 +2354,7 @@ mod tests {
         let mut bound = arena.clone();
         let mut remap = Vec::<ExprId>::new();
         for index in 0..arena.len() {
-            let node = match arena.node(ExprId::from_raw(index as u32)).clone() {
+            let node = match arena.node(ExprId::from_raw(index_u32(index))).clone() {
                 ExprNode::Distribution {
                     variables,
                     conditioned_on,
@@ -2535,6 +2542,7 @@ mod tests {
 
     struct SequentialExchangeScm;
 
+    #[allow(clippy::float_cmp)] // The provider accepts only binary values 0.0 and 1.0.
     impl DistributionProvider for SequentialExchangeScm {
         fn probability(
             &self,
@@ -2676,6 +2684,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn recursive_search_handles_selected_mediator_surrogate_graph() {
         use antecedent_expr::{
             Assignment, DiscreteAxis, EvalContext, ExactDiscreteLaw, ExactTransportData,
@@ -2827,7 +2836,7 @@ mod tests {
         let coords = (0..4)
             .map(|raw| VariableCoordinate {
                 variable: VariableId::from_raw(raw),
-                domain: if raw == 1 { VariableDomain::Binary } else { VariableDomain::Binary },
+                domain: VariableDomain::Binary,
                 unit: None,
             })
             .collect::<Vec<_>>();
