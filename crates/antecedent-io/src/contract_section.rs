@@ -566,6 +566,10 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
 ///
 /// Missing rehashable payloads are unresolved — attested digests are not enough.
 #[must_use]
+#[expect(
+    clippy::too_many_lines,
+    reason = "This is the shared verifier's ordered ledger of independent unresolved reasons."
+)]
 pub fn verify_contract_against_body(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
@@ -713,7 +717,7 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_response_grid_operation"));
         }
-        Some("response.intervention_gcomp")
+        Some("response.intervention_gcomp" | "cell.aipw")
             if matches!(&contract.target.query, CausalQueryWire::Response(query)
                 if matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
         {
@@ -723,12 +727,6 @@ pub fn verify_contract_against_body(
             if matches!(contract.target.query, CausalQueryWire::Interference { .. }) =>
         {
             unresolved.push(Arc::from("dependencies.checked_interference_operation"));
-        }
-        Some("cell.aipw")
-            if matches!(&contract.target.query, CausalQueryWire::Response(query)
-                if matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
-        {
-            unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
         Some("gcm.fit" | "gcm.fit.bayesian")
             if matches!(contract.target.query, CausalQueryWire::Counterfactual { .. }) =>
@@ -1377,6 +1375,10 @@ fn calibration_basis_matches_contract(
     coordinate_ok && program_ok && snapshot_ok && identification_ok
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Stored-payload verification must retain the complete cross-layer digest checklist."
+)]
 fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>> {
     let mut unresolved = Vec::new();
     require_slot(&mut unresolved, "identification", &contract.reasoning.identification);
@@ -1778,13 +1780,13 @@ fn replay_functional_response_grid(
     if expected_grid.len() != family.members.len() || expected_grid.is_empty() {
         return Err("program.functional_effect_response_grid.member_count");
     }
-    let (reported_grid, means) = match reported {
-        crate::ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
-            grid,
-            dimension: 1,
-            mean,
-        }) => (grid, mean),
-        _ => return Err("functional_effect.response_result_shape"),
+    let crate::ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+        grid: reported_grid,
+        dimension: 1,
+        mean: means,
+    }) = reported
+    else {
+        return Err("functional_effect.response_result_shape");
     };
     if reported_grid.len() != expected_grid.len()
         || means.len() != expected_grid.len()
@@ -1866,6 +1868,10 @@ fn verify_checked_linear_adjustment(
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "The lowering verifier compares one complete checked product across its target, design, and evidence."
+)]
 fn verify_linear_adjustment_lowering(
     contract: &AnalysisResultContractWire,
     lowering: &crate::CheckedLinearAdjustmentLoweringWire,
@@ -1940,9 +1946,8 @@ fn verify_linear_adjustment_lowering(
     if !product.estimands.iter().any(|candidate| candidate.functional == lowering.functional) {
         return false;
     }
-    let mut arena = match crate::expr_arena_from_wire(&lowering.arena) {
-        Ok(arena) => arena,
-        Err(_) => return false,
+    let Ok(mut arena) = crate::expr_arena_from_wire(&lowering.arena) else {
+        return false;
     };
     let treatment = antecedent_core::VariableId::from_raw(lowering.treatment);
     let outcome = antecedent_core::VariableId::from_raw(lowering.outcome);
@@ -2057,8 +2062,7 @@ fn verify_linear_fit_moments(
         || usize::try_from(moments.columns).ok() != Some(p)
         || moments.complete_case_rows != lowering.complete_case_rows
         || moments.complete_case_rows > snapshot.row_count
-        || p < 2
-        || p > 64
+        || !(2..=64).contains(&p)
         || moments.complete_case_rows <= p as u64
         || moments.gram.len() != p * p
         || moments.outcome_cross.len() != p
@@ -2251,9 +2255,8 @@ fn verify_checked_iv(
         | "panel_cluster_hac" => "withheld_non_homoskedastic",
         _ => return false,
     };
-    let mut arena = match crate::expr_arena_from_wire(&product.arena) {
-        Ok(arena) => arena,
-        Err(_) => return false,
+    let Ok(mut arena) = crate::expr_arena_from_wire(&product.arena) else {
+        return false;
     };
     let Ok(expected_functional) = arena.iv_wald(
         antecedent_core::VariableId::from_raw(lowering.treatment),
@@ -2291,6 +2294,10 @@ fn expected_procedure_id(procedure: &str) -> &'static str {
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "The lowering verifier checks the complete front-door product and its source bindings."
+)]
 fn verify_frontdoor_lowering(
     contract: &AnalysisResultContractWire,
     lowering: &crate::CheckedFrontDoorLoweringWire,

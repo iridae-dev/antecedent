@@ -72,81 +72,17 @@ fn collect_factors(
     }
     match arena.node(id) {
         ExprNode::Distribution { variables, conditioned_on, intervention, population, .. } => {
-            let name = arena.population(*population);
-            let vars = arena.var_set(*variables);
-            let conditions = arena.var_set(*conditioned_on);
-            let interventions = arena.intervention_set(*intervention);
-            let regime = catalog
-                .regimes
-                .iter()
-                .filter(|regime| {
-                    regime.population.as_ref() == name
-                        && regime.evidence_kind.can_satisfy_factor()
-                        && regime.intervention_values.is_empty()
-                        && regime.conditioned_on.is_empty()
-                        && matches!(regime.distribution, DistributionAvailability::Joint)
-                        && regime.interventions.len() == interventions.len()
-                        && regime.interventions.iter().all(|v| interventions.contains(v))
-                        && vars.iter().chain(conditions).all(|v| regime.measured.contains(v))
-                })
-                .min_by_key(|regime| regime.id.raw());
-            let target_sampling_failure = name == target
-                && catalog
-                    .target_sampling
-                    .is_some_and(|sampling| !sampling.represents_target_law());
-            let supplied_by = if target_sampling_failure { None } else { regime.map(|r| r.id) };
-            let closest = catalog
-                .regimes
-                .iter()
-                .filter(|candidate| {
-                    candidate.population.as_ref() == name
-                        && candidate.interventions.len() == interventions.len()
-                        && candidate.interventions.iter().all(|v| interventions.contains(v))
-                })
-                .min_by_key(|candidate| candidate.id.raw());
-            let binding_failure = if target_sampling_failure {
-                Some("target sampling does not represent the target population".into())
-            } else if regime.is_none() {
-                let detail = match closest {
-                    None => "matching population and intervention regime absent",
-                    Some(candidate) if !candidate.evidence_kind.can_satisfy_factor() => {
-                        "matching regime is only manipulable or proposed"
-                    }
-                    Some(candidate) if !candidate.intervention_values.is_empty() => {
-                        "matching regime is limited to concrete intervention values"
-                    }
-                    Some(candidate) if !candidate.conditioned_on.is_empty() => {
-                        "matching regime was already conditioned"
-                    }
-                    Some(candidate)
-                        if !matches!(candidate.distribution, DistributionAvailability::Joint) =>
-                    {
-                        "matching regime supplies separate marginals, not the required joint law"
-                    }
-                    Some(_) => "matching regime does not measure every required coordinate",
-                };
-                Some(format!(
-                    "{detail}: {name} law over {vars:?} given {conditions:?} under do({interventions:?})"
-                ))
-            } else {
-                None
-            };
-            factors.push(TransportFactorView {
-                expression_node: id.raw(),
-                population: name.into(),
-                variables: vars.to_vec(),
-                conditioned_on: conditions.to_vec(),
-                interventions,
-                supplied_by,
-                snapshot_identity: supplied_by.and_then(|id| {
-                    catalog
-                        .bindings
-                        .iter()
-                        .find(|binding| binding.regime == id)
-                        .map(|binding| binding.snapshot_identity.to_string())
-                }),
-                binding_failure,
-            });
+            collect_distribution_factor(
+                arena,
+                id,
+                *variables,
+                *conditioned_on,
+                *intervention,
+                *population,
+                catalog,
+                target,
+                factors,
+            );
         }
         ExprNode::Kernel { body, .. }
         | ExprNode::SumOut { expr: body, .. }
@@ -170,6 +106,96 @@ fn collect_factors(
             collect_factors(arena, *right, catalog, target, seen, factors);
         }
     }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit factor premises keep the proof-inspection contract visible"
+)]
+fn collect_distribution_factor(
+    arena: &CausalExprArena,
+    id: ExprId,
+    variable_set: antecedent_expr::VarSetId,
+    condition_set: antecedent_expr::VarSetId,
+    intervention_set: antecedent_expr::InterventionSetId,
+    population_id: antecedent_expr::PopulationKeyId,
+    catalog: &EvidenceCatalog,
+    target: &str,
+    factors: &mut Vec<TransportFactorView>,
+) {
+    let name = arena.population(population_id);
+    let vars = arena.var_set(variable_set);
+    let conditions = arena.var_set(condition_set);
+    let interventions = arena.intervention_set(intervention_set);
+    let regime = catalog
+        .regimes
+        .iter()
+        .filter(|regime| {
+            regime.population.as_ref() == name
+                && regime.evidence_kind.can_satisfy_factor()
+                && regime.intervention_values.is_empty()
+                && regime.conditioned_on.is_empty()
+                && matches!(regime.distribution, DistributionAvailability::Joint)
+                && regime.interventions.len() == interventions.len()
+                && regime.interventions.iter().all(|v| interventions.contains(v))
+                && vars.iter().chain(conditions).all(|v| regime.measured.contains(v))
+        })
+        .min_by_key(|regime| regime.id.raw());
+    let target_sampling_failure = name == target
+        && catalog.target_sampling.is_some_and(|sampling| !sampling.represents_target_law());
+    let supplied_by = if target_sampling_failure { None } else { regime.map(|r| r.id) };
+    let closest = catalog
+        .regimes
+        .iter()
+        .filter(|candidate| {
+            candidate.population.as_ref() == name
+                && candidate.interventions.len() == interventions.len()
+                && candidate.interventions.iter().all(|v| interventions.contains(v))
+        })
+        .min_by_key(|candidate| candidate.id.raw());
+    let binding_failure = if target_sampling_failure {
+        Some("target sampling does not represent the target population".into())
+    } else if regime.is_none() {
+        let detail = match closest {
+            None => "matching population and intervention regime absent",
+            Some(candidate) if !candidate.evidence_kind.can_satisfy_factor() => {
+                "matching regime is only manipulable or proposed"
+            }
+            Some(candidate) if !candidate.intervention_values.is_empty() => {
+                "matching regime is limited to concrete intervention values"
+            }
+            Some(candidate) if !candidate.conditioned_on.is_empty() => {
+                "matching regime was already conditioned"
+            }
+            Some(candidate)
+                if !matches!(candidate.distribution, DistributionAvailability::Joint) =>
+            {
+                "matching regime supplies separate marginals, not the required joint law"
+            }
+            Some(_) => "matching regime does not measure every required coordinate",
+        };
+        Some(format!(
+            "{detail}: {name} law over {vars:?} given {conditions:?} under do({interventions:?})"
+        ))
+    } else {
+        None
+    };
+    factors.push(TransportFactorView {
+        expression_node: id.raw(),
+        population: name.into(),
+        variables: vars.to_vec(),
+        conditioned_on: conditions.to_vec(),
+        interventions,
+        supplied_by,
+        snapshot_identity: supplied_by.and_then(|id| {
+            catalog
+                .bindings
+                .iter()
+                .find(|binding| binding.regime == id)
+                .map(|binding| binding.snapshot_identity.to_string())
+        }),
+        binding_failure,
+    });
 }
 
 /// Untrusted expression plus typed local premises. Successful deserialization
@@ -350,7 +376,7 @@ mod tests {
             .enumerate()
             .map(|(i, population)| {
                 EvidenceRegime::try_new(
-                    RegimeId::from_raw(i as u32),
+                    RegimeId::from_raw(u32::try_from(i).unwrap()),
                     RegimeKind::Observational,
                     EvidenceKind::Available,
                     [],

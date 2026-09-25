@@ -28,22 +28,17 @@ const MAX_REPLAY_OPERATIONS: usize = 50_000_000;
 pub fn distribution_factor_laws_to_wire(
     snapshot: &antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot,
 ) -> Result<DistributionFactorLawsWire, IoError> {
-    let raw = |id: VariableId| u32::try_from(id.raw()).map_err(|_| IoError::TooLarge);
     let key = |requirement: &FactorRequirement| -> Result<DistributionFactorKeyWire, IoError> {
         Ok(DistributionFactorKeyWire {
-            variables: requirement.variables.iter().map(|id| raw(*id)).collect::<Result<_, _>>()?,
-            conditioned_on: requirement
-                .conditioned_on
-                .iter()
-                .map(|id| raw(*id))
-                .collect::<Result<_, _>>()?,
+            variables: requirement.variables.iter().map(|id| id.raw()).collect(),
+            conditioned_on: requirement.conditioned_on.iter().map(|id| id.raw()).collect(),
             intervention: requirement
                 .intervention
                 .iter()
                 .map(|assignment| {
                     Ok(crate::expr_wire::InterventionAssignmentWire {
                         symbolic: assignment.is_symbolic(),
-                        variable: raw(assignment.variable)?,
+                        variable: assignment.variable.raw(),
                         value: ValueWire::from_value(&assignment.value),
                     })
                 })
@@ -62,28 +57,24 @@ pub fn distribution_factor_laws_to_wire(
         .domains
         .iter()
         .map(|domain| {
-            Ok((raw(domain.variable)?, domain.values.iter().map(ValueWire::from_value).collect()))
+            (domain.variable.raw(), domain.values.iter().map(ValueWire::from_value).collect())
         })
-        .collect::<Result<_, IoError>>()?;
+        .collect();
     let factors = snapshot
         .provider
         .factors
         .iter()
         .map(|factor| {
             let factor_key = DistributionFactorKeyWire {
-                variables: factor.variables.iter().map(|id| raw(*id)).collect::<Result<_, _>>()?,
-                conditioned_on: factor
-                    .conditioned_on
-                    .iter()
-                    .map(|id| raw(*id))
-                    .collect::<Result<_, _>>()?,
+                variables: factor.variables.iter().map(|id| id.raw()).collect(),
+                conditioned_on: factor.conditioned_on.iter().map(|id| id.raw()).collect(),
                 intervention: factor
                     .intervention
                     .iter()
                     .map(|assignment| {
                         Ok(crate::expr_wire::InterventionAssignmentWire {
                             symbolic: assignment.is_symbolic(),
-                            variable: raw(assignment.variable)?,
+                            variable: assignment.variable.raw(),
                             value: ValueWire::from_value(&assignment.value),
                         })
                     })
@@ -124,6 +115,10 @@ pub fn distribution_factor_laws_to_wire(
 
 /// Recompute every finite-discrete distribution atom from its checked program and portable
 /// factor laws. Returns a stable dependency/error key suitable for a refusal report.
+#[expect(
+    clippy::too_many_lines,
+    reason = "The bounded joint atom enumeration and its validation must share one replay context."
+)]
 pub(crate) fn replay_distribution_atoms(
     query: &CausalQueryWire,
     result: &InterventionalDistributionWire,
@@ -508,6 +503,17 @@ fn provider_from_laws(
     laws: &DistributionFactorLawsWire,
 ) -> Result<EmpiricalTableProvider, &'static str> {
     let mut provider = EmpiricalTableProvider::new();
+    validate_domains(laws, &mut provider)?;
+    for table in &laws.factors {
+        insert_factor_table(laws, table, &mut provider)?;
+    }
+    Ok(provider)
+}
+
+fn validate_domains(
+    laws: &DistributionFactorLawsWire,
+    provider: &mut EmpiricalTableProvider,
+) -> Result<(), &'static str> {
     let mut seen_domains = Vec::new();
     for (raw, levels) in &laws.domains {
         let variable = VariableId::from_raw(*raw);
@@ -523,98 +529,102 @@ fn provider_from_laws(
         seen_domains.push(*raw);
         provider.set_domain(variable, levels.iter().map(ValueWire::to_value));
     }
-    for table in &laws.factors {
-        let key = &table.key;
-        let variables: Vec<_> = key.variables.iter().copied().map(VariableId::from_raw).collect();
-        let conditioned_on: Vec<_> =
-            key.conditioned_on.iter().copied().map(VariableId::from_raw).collect();
-        let intervention: Vec<_> = key
-            .intervention
-            .iter()
-            .map(|assignment| {
-                if assignment.symbolic {
-                    InterventionAssignment::symbolic(VariableId::from_raw(assignment.variable))
-                } else {
-                    InterventionAssignment::concrete(
-                        VariableId::from_raw(assignment.variable),
-                        assignment.value.to_value(),
-                    )
-                }
-            })
-            .collect();
-        if intervention.iter().any(InterventionAssignment::is_symbolic) {
-            return Err("distribution.symbolic_factor_intervention");
-        }
-        let spec = FactorSpec {
-            variables: &variables,
-            conditioned_on: &conditioned_on,
-            intervention: &intervention,
-            domain: match key.domain {
-                DistributionFactorDomainWire::Observational => DomainRef::Observational,
-                DistributionFactorDomainWire::Interventional => DomainRef::Interventional,
-            },
-            population: &key.population,
-            regime: key.regime.map(RegimeId::from_raw),
-        };
-        let expected_cells = variables
-            .iter()
-            .chain(conditioned_on.iter())
-            .try_fold(1usize, |product, id| {
-                laws.domains
-                    .iter()
-                    .find(|(raw, _)| *raw == id.raw())
-                    .map(|(_, levels)| product.saturating_mul(levels.len()))
-            })
-            .ok_or("distribution.factor_domains")?;
-        if table.rows.len() != expected_cells {
-            return Err("distribution.factor_table_incomplete");
-        }
-        let mut assignments_seen: Vec<Vec<Value>> = Vec::new();
-        let mut conditional_masses: Vec<(Vec<Value>, f64)> = Vec::new();
-        for row in &table.rows {
-            if row.values.len() != variables.len() + conditioned_on.len()
-                || !row.probability.is_finite()
-                || !(0.0..=1.0).contains(&row.probability)
-            {
-                return Err("distribution.factor_row");
-            }
-            let values: Vec<_> = row.values.iter().map(ValueWire::to_value).collect();
-            if assignments_seen.contains(&values) {
-                return Err("distribution.factor_duplicate_row");
-            }
-            for (variable, value) in
-                variables.iter().chain(conditioned_on.iter()).zip(values.iter())
-            {
-                let domain = laws
-                    .domains
-                    .iter()
-                    .find(|(raw, _)| *raw == variable.raw())
-                    .ok_or("distribution.factor_domains")?;
-                if !domain.1.iter().any(|level| level.to_value() == *value) {
-                    return Err("distribution.factor_row_outside_domain");
-                }
-            }
-            assignments_seen.push(values.clone());
-            let condition = values[variables.len()..].to_vec();
-            if let Some((_, mass)) =
-                conditional_masses.iter_mut().find(|(existing, _)| *existing == condition)
-            {
-                *mass += row.probability;
+    Ok(())
+}
+
+fn insert_factor_table(
+    laws: &DistributionFactorLawsWire,
+    table: &DistributionFactorTableWire,
+    provider: &mut EmpiricalTableProvider,
+) -> Result<(), &'static str> {
+    let key = &table.key;
+    let variables: Vec<_> = key.variables.iter().copied().map(VariableId::from_raw).collect();
+    let conditioned_on: Vec<_> =
+        key.conditioned_on.iter().copied().map(VariableId::from_raw).collect();
+    let intervention: Vec<_> = key
+        .intervention
+        .iter()
+        .map(|assignment| {
+            if assignment.symbolic {
+                InterventionAssignment::symbolic(VariableId::from_raw(assignment.variable))
             } else {
-                conditional_masses.push((condition, row.probability));
+                InterventionAssignment::concrete(
+                    VariableId::from_raw(assignment.variable),
+                    assignment.value.to_value(),
+                )
             }
-            let assignment = Assignment::from_pairs(
-                variables.iter().chain(conditioned_on.iter()).copied().zip(values),
-            );
-            provider
-                .insert_probability(&spec, &assignment, row.probability)
-                .map_err(|_| "distribution.factor_row")?;
-        }
-        if conditional_masses.iter().any(|(_, mass)| (mass - 1.0).abs() > MASS_TOLERANCE) {
-            return Err("distribution.factor_normalization");
-        }
+        })
+        .collect();
+    if intervention.iter().any(InterventionAssignment::is_symbolic) {
+        return Err("distribution.symbolic_factor_intervention");
     }
-    Ok(provider)
+    let spec = FactorSpec {
+        variables: &variables,
+        conditioned_on: &conditioned_on,
+        intervention: &intervention,
+        domain: match key.domain {
+            DistributionFactorDomainWire::Observational => DomainRef::Observational,
+            DistributionFactorDomainWire::Interventional => DomainRef::Interventional,
+        },
+        population: &key.population,
+        regime: key.regime.map(RegimeId::from_raw),
+    };
+    let expected_cells = variables
+        .iter()
+        .chain(conditioned_on.iter())
+        .try_fold(1usize, |product, id| {
+            laws.domains
+                .iter()
+                .find(|(raw, _)| *raw == id.raw())
+                .map(|(_, levels)| product.saturating_mul(levels.len()))
+        })
+        .ok_or("distribution.factor_domains")?;
+    if table.rows.len() != expected_cells {
+        return Err("distribution.factor_table_incomplete");
+    }
+    let mut assignments_seen: Vec<Vec<Value>> = Vec::new();
+    let mut conditional_masses: Vec<(Vec<Value>, f64)> = Vec::new();
+    for row in &table.rows {
+        if row.values.len() != variables.len() + conditioned_on.len()
+            || !row.probability.is_finite()
+            || !(0.0..=1.0).contains(&row.probability)
+        {
+            return Err("distribution.factor_row");
+        }
+        let values: Vec<_> = row.values.iter().map(ValueWire::to_value).collect();
+        if assignments_seen.contains(&values) {
+            return Err("distribution.factor_duplicate_row");
+        }
+        for (variable, value) in variables.iter().chain(conditioned_on.iter()).zip(values.iter()) {
+            let domain = laws
+                .domains
+                .iter()
+                .find(|(raw, _)| *raw == variable.raw())
+                .ok_or("distribution.factor_domains")?;
+            if !domain.1.iter().any(|level| level.to_value() == *value) {
+                return Err("distribution.factor_row_outside_domain");
+            }
+        }
+        assignments_seen.push(values.clone());
+        let condition = values[variables.len()..].to_vec();
+        if let Some((_, mass)) =
+            conditional_masses.iter_mut().find(|(existing, _)| *existing == condition)
+        {
+            *mass += row.probability;
+        } else {
+            conditional_masses.push((condition, row.probability));
+        }
+        let assignment = Assignment::from_pairs(
+            variables.iter().chain(conditioned_on.iter()).copied().zip(values),
+        );
+        provider
+            .insert_probability(&spec, &assignment, row.probability)
+            .map_err(|_| "distribution.factor_row")?;
+    }
+    if conditional_masses.iter().any(|(_, mass)| (mass - 1.0).abs() > MASS_TOLERANCE) {
+        return Err("distribution.factor_normalization");
+    }
+    Ok(())
 }
 
 fn validate_law_size(laws: &DistributionFactorLawsWire) -> Result<(), &'static str> {
