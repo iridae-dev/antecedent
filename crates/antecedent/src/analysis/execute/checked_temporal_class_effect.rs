@@ -237,7 +237,7 @@ impl CheckedTemporalClassEffectExecution {
             &values,
         );
         structural.identified_set_interval = identified_set_interval;
-        self.finish(
+        Ok(self.finish(
             started,
             identifier_id,
             estimator_id,
@@ -254,7 +254,7 @@ impl CheckedTemporalClassEffectExecution {
                 strategy: identifier_id,
                 structure_version: operation.structure_version(),
             }),
-        )
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -449,7 +449,7 @@ impl CheckedTemporalClassEffectExecution {
         structural.unevaluable_mass = if total > 0.0 { unevaluable_weight / total } else { 0.0 };
         structural.unidentified_mass =
             (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
-        self.finish(
+        Ok(self.finish(
             started,
             identifier_id,
             estimator_id,
@@ -466,7 +466,7 @@ impl CheckedTemporalClassEffectExecution {
                 strategy: identifier_id,
                 structure_version: operation.structure_version(),
             }),
-        )
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -482,7 +482,7 @@ impl CheckedTemporalClassEffectExecution {
         structural: Option<crate::result::StructuralResponseMixture>,
         bootstrap_replicates_ok: Option<u32>,
         certificate: Option<crate::Identification>,
-    ) -> Result<StudyResult, CausalError> {
+    ) -> StudyResult {
         let query = self.operation.query();
         let mut identification = self.operation.identification().clone();
         let envelope = &self.operation.bundle().envelope.envelope;
@@ -516,6 +516,6 @@ impl CheckedTemporalClassEffectExecution {
                 ..Default::default()
             },
         };
-        Ok(super::finish_identified_execute_with_context(&self.result_context, None, args))
+        super::finish_identified_execute_with_context(&self.result_context, None, args)
     }
 }

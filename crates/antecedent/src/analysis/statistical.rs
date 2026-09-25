@@ -1266,7 +1266,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         let estimate = validate_uncertainty(&wire, point.clone(), &prepared)?;
         let bayesian_estimate = validate_bayesian_posterior(
             wire.bayesian_posterior.as_ref(),
-            point,
+            &point,
             wire.options.estimator.as_str(),
             wire.options.posterior_draws,
             wire.options.coverage_level,
@@ -1576,9 +1576,9 @@ fn validate_uncertainty(
     let Some(row) = &wire.uncertainty else {
         let expected = if wire.samples.is_empty() {
             "exact_supplied_law_no_sampling_uncertainty"
-        } else if is_bayesian_provider(wire.options.to_options()?.estimator) {
-            "bootstrap_not_requested"
-        } else if wire.options.bootstrap_replicates == 0 {
+        } else if is_bayesian_provider(wire.options.to_options()?.estimator)
+            || wire.options.bootstrap_replicates == 0
+        {
             "bootstrap_not_requested"
         } else {
             "transport.unsupported_dependence"
@@ -1705,7 +1705,7 @@ fn validate_uncertainty(
 
 fn validate_bayesian_posterior(
     wire: Option<&BayesianTransportPosteriorWire>,
-    point: antecedent_expr::ExactDistribution,
+    point: &antecedent_expr::ExactDistribution,
     estimator: &str,
     requested: u32,
     coverage: f64,
@@ -2070,11 +2070,11 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
-            .map(|value| value.as_u64().unwrap() as usize)
+            .map(|value| usize::try_from(value.as_u64().unwrap()).unwrap())
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        let draws = oracle["draws"].as_u64().unwrap() as u32;
+        let draws = u32::try_from(oracle["draws"].as_u64().unwrap()).unwrap();
         let tolerance = oracle["monte_carlo_tolerance"].as_f64().unwrap();
         let ctx = ExecutionContext::for_tests(251);
         for (estimator, expected_key) in [

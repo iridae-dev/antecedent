@@ -40,6 +40,10 @@ pub struct ZTransportSensitivityArtifactWire {
 
 impl ZTransportSensitivityArtifactWire {
     /// Recompute a typed sensitivity result and bind it to an exported baseline artifact.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the baseline artifact is invalid or sensitivity optimization fails.
     pub fn checked(
         baseline_artifact: Vec<u8>,
         max_fraction: f64,
@@ -83,11 +87,19 @@ impl ZTransportSensitivityArtifactWire {
     }
 
     /// Export as a portable CBOR item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
         to_cbor(self)
     }
 
     /// Validate bindings and independently recompute the response range.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the wire is malformed, stale, or its result differs on replay.
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<Self, IoError> {
         let wire: Self = from_cbor(bytes)?;
         if wire.version != 1
@@ -119,8 +131,13 @@ impl ZTransportSensitivityArtifactWire {
 }
 
 fn digest_baseline(bytes: &[u8]) -> String {
-    antecedent_io::identity::payload_digest("z_transport_sensitivity_baseline", bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    use std::fmt::Write as _;
+
+    let digest = antecedent_io::identity::payload_digest("z_transport_sensitivity_baseline", bytes);
+    let mut hexadecimal = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut hexadecimal, "{byte:02x}")
+            .expect("writing hexadecimal bytes to a String cannot fail");
+    }
+    hexadecimal
 }

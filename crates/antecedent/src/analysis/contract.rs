@@ -2298,7 +2298,7 @@ fn inferential_commitments(
     if let Some(antecedent_io::EstimatorSpecWire::FrontDoorTwoStage(config)) =
         study.estimator_spec_identity.as_ref()
     {
-        se_kind = config.se_kind.clone();
+        se_kind.clone_from(&config.se_kind);
         if config.bootstrap_replicates > 0 {
             interval_method = IntervalMethod::BootstrapSe;
         }

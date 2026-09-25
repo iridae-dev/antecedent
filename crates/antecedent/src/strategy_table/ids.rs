@@ -987,7 +987,8 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::Dml
         | EstimatorId::DrLearner
         | EstimatorId::CausalForest
-        | EstimatorId::ResponseBayesian => method.is_backdoor_family(),
+        | EstimatorId::ResponseBayesian
+        | EstimatorId::BayesianRobustAte => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage | EstimatorId::FrontDoorFunctional => {
             matches!(method, EstimandMethod::FrontDoor)
         }
@@ -1023,7 +1024,6 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::TransportTrialBayesianBootstrap
         | EstimatorId::InterferenceHtHajek
         | EstimatorId::InterferenceBayesianGaussian => false,
-        EstimatorId::BayesianRobustAte => method.is_backdoor_family(),
     }
 }
 
