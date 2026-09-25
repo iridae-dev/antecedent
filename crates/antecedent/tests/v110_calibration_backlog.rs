@@ -20,19 +20,21 @@ use std::sync::Arc;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
-    MediationContrast, MediationQuery, ResponseFunctional, ResponseQuery, Value, VariableId,
+    Lag, MediationContrast, MediationQuery, ResponseFunctional, ResponseQuery, ResponseUncertainty,
+    TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_graph::{
-    Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
+    Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TieredBackground,
+    WithinTier,
 };
 use common::calibration::{
-    CoverageTally, RecordKey, SampleGrid, gaussian, grid_n, map_replicates, n_sim, stream_seed,
+    gaussian, grid_n, map_replicates, n_sim, stream_seed, CoverageTally, RecordKey, SampleGrid,
 };
 use common::calibration_bind::{bind_all, constructions};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
 use common::reported::{
-    REPORTED_LEVEL, gate, posterior_pair, record_pair, response_band, response_scalar, skip_pair,
+    gate, posterior_pair, record_pair, response_band, response_scalar, skip_pair, REPORTED_LEVEL,
 };
 
 const MEDIATION_N: usize = 160;
@@ -594,10 +596,8 @@ fn joint_band_interval(result: &StudyResult) -> Option<(f64, f64)> {
     if bands.len() != UNKNOWN_TRUTH.len() {
         return None;
     }
-    let covered = bands
-        .iter()
-        .zip(UNKNOWN_TRUTH)
-        .all(|(&(lo, hi), truth)| lo <= truth && truth <= hi);
+    let covered =
+        bands.iter().zip(UNKNOWN_TRUTH).all(|(&(lo, hi), truth)| lo <= truth && truth <= hi);
     let width = bands.iter().map(|(lo, hi)| hi - lo).sum::<f64>();
     Some(if covered { (-width / 2.0, width / 2.0) } else { (1.0, 1.0 + width) })
 }
@@ -634,4 +634,334 @@ fn average_effect_unknown_joint_band_nominal_coverage() {
         tally.record(joint_band_interval(result), 0.0);
     }
     tally.assert_boundary_at([Some(0.940), None, None]);
+}
+
+fn temporal_response(horizons: &[u32]) -> TemporalResponseSpec {
+    TemporalResponseSpec::new(horizons.to_vec(), TemporalPolicy::pulse(-1), None).unwrap()
+}
+
+fn agreeing_temporal_series(n: usize, seed: u64) -> TimeSeriesData {
+    const BURN: usize = 10;
+    let len = n + BURN;
+    let mut noise = gaussian(seed);
+    let (mut t, mut y, mut z, mut w) =
+        (vec![0.0; len], vec![0.0; len], vec![0.0; len], vec![0.0; len]);
+    for s in 0..len {
+        z[s] = noise();
+        w[s] = 0.4 * z[s] + noise();
+        t[s] = 0.5 * z[s] + noise();
+        let (t_lag, z_lag) = if s == 0 { (0.0, 0.0) } else { (t[s - 1], z[s - 1]) };
+        y[s] = 1.0 + 2.0 * t_lag + 0.8 * z_lag + noise();
+    }
+    TimeSeriesData::from_f64_columns(
+        [("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..]), ("w", &w[BURN..])],
+        1,
+    )
+    .unwrap()
+}
+
+/// `Z@-1 -> T@-1`, `Z@-1 -> Y`, `T@-1 -> Y`, `W@-1 — Z@-1`. Both orientations
+/// of the ambiguous edge adjust `{Z@-1}`, so they share one band.
+fn agreeing_temporal_cpdag() -> TemporalCpdag {
+    let mut graph = TemporalCpdag::empty();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    let w1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z1, t1).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_undirected(w1, z1).unwrap();
+    graph
+}
+
+fn disagreeing_temporal_cpdag() -> TemporalCpdag {
+    let mut graph = TemporalCpdag::empty();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_undirected(z1, t1).unwrap();
+    graph
+}
+
+fn temporal_intervention() -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    })
+    .with_temporal(temporal_response(&[1]))
+}
+
+fn temporal_curve() -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    })
+    .with_temporal(temporal_response(&[1]))
+}
+
+fn run_temporal_class(
+    data: TimeSeriesData,
+    graph: impl antecedent::IntoGraphInput,
+    query: ResponseQuery,
+    inference: InferenceMode,
+    replicates: u32,
+    seed: u64,
+) -> (Study, StudyResult) {
+    let study = Study::series(data)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(replicates)
+        .build()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
+    (study, result)
+}
+
+fn temporal_bayes() -> InferenceMode {
+    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400).prior_scale(8.0))
+}
+
+#[test]
+fn agreeing_temporal_cpdag_publishes_shared_band() {
+    let data = agreeing_temporal_series(80, 0x110_0440);
+    let (study, result) = run_temporal_class(
+        data,
+        agreeing_temporal_cpdag(),
+        temporal_intervention(),
+        InferenceMode::Frequentist,
+        19,
+        0x110_0440,
+    );
+    assert_interval_method(&study, &result, "circular_block_se");
+    let response = result.response.as_ref().expect("class response");
+    assert!(matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. }));
+    let atoms: Vec<_> = result
+        .structural_response
+        .as_ref()
+        .expect("atoms")
+        .atoms
+        .iter()
+        .filter(|atom| atom.value.is_some())
+        .collect();
+    assert!(atoms.len() >= 2, "both orientations evaluate");
+    assert!(
+        atoms.iter().all(|atom| atom.response.as_ref().is_some_and(|response| {
+            response.uncertainty == atoms[0].response.as_ref().unwrap().uncertainty
+        })),
+        "completions share one band"
+    );
+
+    let (study, result) = run_temporal_class(
+        agreeing_temporal_series(80, 0x110_0441),
+        agreeing_temporal_cpdag(),
+        temporal_intervention(),
+        temporal_bayes(),
+        0,
+        0x110_0441,
+    );
+    assert_interval_method(&study, &result, "posterior_quantile");
+
+    let (study, result) = run_temporal_class(
+        agreeing_temporal_series(80, 0x110_0442),
+        agreeing_temporal_cpdag(),
+        temporal_curve(),
+        InferenceMode::Frequentist,
+        19,
+        0x110_0442,
+    );
+    assert_interval_method(&study, &result, "circular_block_se");
+    match response_band(&result) {
+        Some((lower, _, _)) => assert_eq!(lower.len(), 2),
+        None => panic!("the shared curve band is pointwise"),
+    }
+
+    let (_, result) = run_temporal_class(
+        agreeing_temporal_series(80, 0x110_0443),
+        disagreeing_temporal_cpdag(),
+        temporal_intervention(),
+        InferenceMode::Frequentist,
+        19,
+        0x110_0443,
+    );
+    assert!(matches!(
+        result.response.as_ref().map(|response| &response.uncertainty),
+        Some(ResponseUncertainty::None)
+    ));
+}
+
+fn covariate_mean(data: &TimeSeriesData) -> f64 {
+    let antecedent_data::ColumnView::Float64(column) =
+        data.column(VariableId::from_raw(2)).expect("z")
+    else {
+        panic!("z is float");
+    };
+    let z = &column.values[..column.values.len() - 1];
+    z.iter().sum::<f64>() / z.len() as f64
+}
+
+fn record_temporal_band(
+    tally: &mut CoverageTally,
+    band: &Option<(Vec<f64>, Vec<f64>, f64)>,
+    index: usize,
+    truth: f64,
+) {
+    match band {
+        Some((lower, upper, _)) => tally.record(Some((lower[index], upper[index])), truth),
+        None => tally.skip(),
+    }
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_intervention_frequentist_nominal_coverage() {
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "temporal_cpdag_intervention_frequentist_nominal_coverage",
+            dgp: "agreeing_temporal_series",
+            interval: "circular_block_se",
+        },
+        REPORTED_LEVEL,
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0450, rep);
+        run_temporal_class(
+            agreeing_temporal_series(grid_n(160), seed),
+            agreeing_temporal_cpdag(),
+            temporal_intervention(),
+            InferenceMode::Frequentist,
+            199,
+            seed,
+        )
+    });
+    for (study, result) in &runs {
+        bind_all(&mut [&mut tally], study, result);
+        record_temporal_band(&mut tally, &response_band(result), 0, 3.0);
+    }
+    gate(&[tally], &[None]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_intervention_bayesian_nominal_coverage() {
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "temporal_cpdag_intervention_bayesian_nominal_coverage",
+            dgp: "agreeing_temporal_series",
+            interval: "posterior_quantile",
+        },
+        REPORTED_LEVEL,
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0451, rep);
+        let data = agreeing_temporal_series(grid_n(160), seed);
+        let truth = 3.0 + 0.8 * covariate_mean(&data);
+        let (study, result) = run_temporal_class(
+            data,
+            agreeing_temporal_cpdag(),
+            temporal_intervention(),
+            temporal_bayes(),
+            0,
+            seed,
+        );
+        (study, result, truth)
+    });
+    for (study, result, truth) in &runs {
+        bind_all(&mut [&mut tally], study, result);
+        record_temporal_band(&mut tally, &response_band(result), 0, *truth);
+    }
+    gate(&[tally], &[None]);
+}
+
+const TEMPORAL_DOSES: [f64; 2] = [0.0, 1.0];
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_curve_frequentist_pointwise_nominal_coverage() {
+    let mut tallies: Vec<CoverageTally> = TEMPORAL_DOSES
+        .iter()
+        .map(|dose| {
+            CoverageTally::for_record(
+                RecordKey {
+                    test: "temporal_cpdag_curve_frequentist_pointwise_nominal_coverage",
+                    dgp: "agreeing_temporal_series",
+                    interval: "circular_block_se",
+                },
+                REPORTED_LEVEL,
+            )
+            .labelled(format!("a={dose}"))
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0452, rep);
+        run_temporal_class(
+            agreeing_temporal_series(grid_n(160), seed),
+            agreeing_temporal_cpdag(),
+            temporal_curve(),
+            InferenceMode::Frequentist,
+            199,
+            seed,
+        )
+    });
+    for (study, result) in &runs {
+        bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        let band = response_band(result);
+        for (index, tally) in tallies.iter_mut().enumerate() {
+            record_temporal_band(tally, &band, index, 1.0 + 2.0 * TEMPORAL_DOSES[index]);
+        }
+    }
+    gate(&tallies, &[None, None]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_curve_bayesian_pointwise_nominal_coverage() {
+    let mut tallies: Vec<CoverageTally> = TEMPORAL_DOSES
+        .iter()
+        .map(|dose| {
+            CoverageTally::for_record(
+                RecordKey {
+                    test: "temporal_cpdag_curve_bayesian_pointwise_nominal_coverage",
+                    dgp: "agreeing_temporal_series",
+                    interval: "posterior_quantile",
+                },
+                REPORTED_LEVEL,
+            )
+            .labelled(format!("a={dose}"))
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0453, rep);
+        let data = agreeing_temporal_series(grid_n(160), seed);
+        let z_bar = covariate_mean(&data);
+        let (study, result) = run_temporal_class(
+            data,
+            agreeing_temporal_cpdag(),
+            temporal_curve(),
+            temporal_bayes(),
+            0,
+            seed,
+        );
+        (study, result, z_bar)
+    });
+    for (study, result, z_bar) in &runs {
+        bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        let band = response_band(result);
+        for (index, tally) in tallies.iter_mut().enumerate() {
+            record_temporal_band(
+                tally,
+                &band,
+                index,
+                1.0 + 2.0 * TEMPORAL_DOSES[index] + 0.8 * z_bar,
+            );
+        }
+    }
+    gate(&tallies, &[None, None]);
 }
