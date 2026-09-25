@@ -291,6 +291,7 @@ mod response_path;
 pub(crate) use response_path::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
 };
+pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
@@ -1186,7 +1187,9 @@ mod identify_only_tests {
                     .all(|d| d.code.as_ref() != "estimate.graph_posterior.joint_if_se"),
                 "joint-IF SE is only published under SameEstimandWeightedMean"
             );
-            assert_eq!(cached_count(&fresh), 0);
+            // The one-shot facade now prepares the sealed graph-posterior plan,
+            // so its per-atom identification is reused during execution.
+            assert_eq!(cached_count(&fresh), 1);
             assert_eq!(cached_count(&click), 1);
             assert_eq!(cached_count(&refreshed), 1);
             assert_eq!(click.refutations.len(), fresh.refutations.len());

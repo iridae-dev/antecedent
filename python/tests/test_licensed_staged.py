@@ -583,6 +583,12 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
         latency="interactive",
     )
     click = prepared.estimate(data, seed=1)
+    plan = prepared.checked_graph_posterior_effect_info()
+    assert plan is not None
+    assert plan["estimator"] == "linear.adjustment.ate"
+    assert plan["validation"] == "none"
+    assert plan["weights"] == pytest.approx([float(weight) for weight in STATIC["posterior_weights"]])
+    assert len(plan["graph_keys"]) == len(plan["identified"]) == 3
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
     assert click.ate is None and fresh.ate is None
@@ -590,6 +596,47 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
     assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+    consumed = antecedent.artifacts.accept(click.export())
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_graph_posterior_effect_operation" in consumed["unresolved"]
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepted: bool):
+    data = _pulse_table(160)
+    graph = _PULSE_ACCEPTED if accepted else _PULSE_TDAG
+    builder_query = antecedent.ResponseCurve(
+        "t", "y", grid=[-0.5, 0.0, 0.5], horizons=[1], policy="pulse"
+    )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=graph,
+        query=builder_query,
+        refute=False,
+        bootstrap=0,
+        seed=8,
+    )
+    del builder_query, graph
+    plan = prepared.checked_temporal_response_info()
+    assert plan is not None
+    assert plan["grid_members"] == pytest.approx([-0.5, 0.0, 0.5])
+    assert plan["horizons"] == [1]
+    assert plan["estimator"] == "temporal.response.gcomp"
+
+    result = prepared.estimate(data, seed=8)
+    assert result.response is not None
+    np.testing.assert_allclose(np.asarray(result.response.values).flatten(), [-0.25, 0.0, 0.25], atol=0.03)
+    changed = {**data, "y": data["y"] + 0.3}
+    refreshed = prepared.refresh(changed, seed=8)
+    assert refreshed.response is not None
+    np.testing.assert_allclose(
+        np.asarray(refreshed.response.values).flatten(),
+        np.asarray(result.response.values).flatten() + 0.3,
+        atol=1e-9,
+    )
+    consumed = antecedent.artifacts.accept(refreshed.export())
+    assert consumed["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_temporal_response_operation" in consumed["unresolved"]
 
 
 def test_licensed_dbn_posterior_prepare_matches_analyze():

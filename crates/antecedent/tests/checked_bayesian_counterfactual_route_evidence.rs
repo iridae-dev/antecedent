@@ -53,12 +53,12 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
 
         let mut prepared = builder.prepare(&ctx).unwrap();
         drop(builder);
-        let operation = prepared
+        let plan = prepared
             .checked_counterfactual_operation()
             .expect("prepared Bayesian route retains its typed operation");
-        assert_eq!(operation.query().outcomes.as_ref(), &[VariableId::from_raw(1)]);
-        assert_eq!(operation.query().interventions.len(), 1);
-        assert_eq!(operation.graph().edges().count(), 1);
+        assert_eq!(plan.query().outcomes.as_ref(), &[VariableId::from_raw(1)]);
+        assert_eq!(plan.query().interventions.len(), 1);
+        assert_eq!(plan.graph().edges().count(), 1);
 
         let result = prepared.estimate(&data, &ctx).unwrap();
         let counterfactual = result.counterfactual.as_ref().unwrap();

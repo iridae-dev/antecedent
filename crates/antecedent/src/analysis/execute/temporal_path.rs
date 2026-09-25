@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+#[path = "checked_temporal_response.rs"]
+pub(super) mod checked_temporal_response;
 // The identification crate owns the observation-assumption id and text table;
 // the temporal path records the same assumptions from the same body.
 use antecedent_identify::response::append_observation_assumptions as append_temporal_observation_assumptions;

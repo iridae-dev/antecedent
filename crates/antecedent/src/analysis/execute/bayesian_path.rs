@@ -1132,33 +1132,66 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_graph_posterior_frequentist_inner(data, gp, query, physical, None, ctx)
+    }
+
+    pub(in crate::analysis) fn execute_checked_graph_posterior_frequentist(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        operation: &super::super::CheckedGraphPosteriorEffect,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.execute_graph_posterior_frequentist_inner(
+            data,
+            operation.posterior(),
+            operation.query(),
+            physical,
+            Some(operation),
+            ctx,
+        )
+    }
+
+    fn execute_graph_posterior_frequentist_inner(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        checked: Option<&super::super::CheckedGraphPosteriorEffect>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if !matches!(self.inference, InferenceMode::Frequentist) {
+        if checked.is_none() && !matches!(self.inference, InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {
                 message: "execute_graph_posterior_frequentist requires inference=Frequentist",
             });
         }
-        let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
-        let estimator_id = if conditional {
+        let conditional =
+            checked.is_none() && matches!(self.query, CausalQuery::ConditionalEffect(_));
+        let estimator_id = if let Some(operation) = checked {
+            operation.estimator()
+        } else if conditional {
             EstimatorId::ConditionalLinearAdjustment
         } else {
             EstimatorId::LinearAdjustmentAte
         };
         let estimator = estimator_id.as_str();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        gp, query, ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(operation) = checked {
+            (operation.identification().clone(), true)
+        } else if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
+            (cache.clone(), true)
+        } else {
+            (
+                crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, query, ctx,
+                )?,
+                false,
+            )
+        };
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
-            self.latency_mode,
+            checked.map_or(self.latency_mode, |operation| operation.latency_mode()),
             identified.graphs.clone(),
             ctx,
             &mut subsample_notes,
@@ -1177,10 +1210,14 @@ impl super::Study {
         let estimates = ctx.map_indexed(kept.len(), |i, inner| {
             let atom = kept[i];
             let mut case_ws = StaticEstimateWorkspaces::default();
-            let case_spec = self
-                .estimator_spec
-                .clone()
-                .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
+            let case_spec = checked.map_or_else(
+                || {
+                    self.estimator_spec
+                        .clone()
+                        .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id))
+                },
+                |operation| operation.procedure().clone(),
+            );
             let estimate = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -1194,9 +1231,13 @@ impl super::Study {
                     &atom.estimand,
                     query,
                     atom.identification.required_assumptions.clone(),
-                    self.bootstrap_replicates,
-                    self.overlap_policy,
-                    self.population_registry.as_ref(),
+                    checked.map_or(self.bootstrap_replicates, |operation| {
+                        operation.bootstrap_replicates()
+                    }),
+                    checked.map_or(self.overlap_policy, |operation| Some(operation.overlap())),
+                    checked
+                        .and_then(|operation| operation.population_registry())
+                        .or(self.population_registry.as_ref()),
                     inner,
                     &mut case_ws,
                 )
@@ -1371,11 +1412,11 @@ impl super::Study {
                         std::slice::from_ref(atom),
                         &mut refute_ws,
                         ctx,
-                        self.refute,
+                        checked.map_or(self.refute, |operation| operation.validation()),
                         estimator,
-                        &self.custom_validators,
+                        if checked.is_some() { &[] } else { &self.custom_validators },
                         None,
-                        self.split.as_ref(),
+                        if checked.is_some() { None } else { self.split.as_ref() },
                         None,
                     )?;
                     reports.append(&mut per_atom);
@@ -1398,11 +1439,11 @@ impl super::Study {
                     &refute_atoms,
                     &mut refute_ws,
                     ctx,
-                    self.refute,
+                    checked.map_or(self.refute, |operation| operation.validation()),
                     estimator,
-                    &self.custom_validators,
+                    if checked.is_some() { &[] } else { &self.custom_validators },
                     None,
-                    self.split.as_ref(),
+                    if checked.is_some() { None } else { self.split.as_ref() },
                     None,
                 )?
             };
