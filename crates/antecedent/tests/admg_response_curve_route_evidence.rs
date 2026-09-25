@@ -13,8 +13,10 @@ use antecedent_core::{
     ResponseValue, SlotAvailability, VariableId,
 };
 use antecedent_data::TabularData;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg};
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
+use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TabularData, Admg, ResponseQuery) {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
@@ -248,6 +250,81 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
             (actual - expected).abs() < if bayesian { 0.06 } else { 1e-12 },
             "{coordinate} artifact {actual} vs {expected}"
         );
+    }
+}
+
+#[test]
+fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
+    let (data, graph, query) = fixture();
+    let n = graph.node_count();
+    let key = adjacency_mask_from_admg(&graph).unwrap();
+    let posterior = GraphPosterior::new(
+        n,
+        vec![0.65, 0.35],
+        vec![key, key],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        1.0,
+        InferenceDiagnostics::analytic("admg_graph_posterior_curve_checked"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Admg);
+
+    for bayesian in [false, true] {
+        let inference = if bayesian {
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(128))
+        } else {
+            InferenceMode::Frequentist
+        };
+        let coordinate = format!(
+            "ResponseCurve:Admg:graph_posterior:{}:none",
+            if bayesian { "Bayesian" } else { "Frequentist" }
+        );
+        let ctx = ExecutionContext::for_tests(42_772);
+        let builder = Study::tabular(data.clone())
+            .graph_posterior(posterior.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(inference);
+        let study = builder.clone().build().unwrap();
+        let mut prepared = study.prepare(&ctx).unwrap();
+        drop(builder);
+        drop(study);
+        assert!(prepared.has_checked_admg_graph_posterior_response_operation());
+        let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+        assert_eq!(plan.query, query);
+        assert_eq!(plan.graph_keys.as_ref(), posterior.graph_keys.as_ref());
+        assert_eq!(plan.weights.as_ref(), &[0.65, 0.35]);
+        assert!(
+            plan.identified.iter().all(|flag| *flag == antecedent_prob::GraphIdentFlag::Identified)
+        );
+        assert_eq!(plan.validation, RefuteSuite::None);
+        match &prepared.contract().unwrap().reasoning.support {
+            SlotAvailability::Available(slot) => {
+                assert_eq!(slot.matrix_coordinate.as_deref(), Some(coordinate.as_str()));
+            }
+            other => panic!("{coordinate}: support unavailable: {other:?}"),
+        }
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        for (actual, expected) in means(&result).iter().zip([0.314_f64, 0.596]) {
+            assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
+        }
+        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        for (actual, expected) in means(&refreshed).iter().zip([0.314_f64, 0.596]) {
+            assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
+        }
+        let artifact = prepared
+            .encode_contracted_result(&refreshed, &coordinate, &ctx)
+            .unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        assert!(
+            consumed.acceptance.accepts_as_verified_program()
+                || !consumed.acceptance.unresolved.is_empty(),
+            "independent consumer must verify the curve or explain its dependency refusal"
+        );
+        assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_admg_graph_posterior_response_operation"
+        }));
     }
 }
 

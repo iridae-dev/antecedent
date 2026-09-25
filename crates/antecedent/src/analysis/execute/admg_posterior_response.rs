@@ -21,6 +21,28 @@ struct AdmgPosteriorResponseAtom {
 }
 
 impl super::Study {
+    pub(in crate::analysis) fn execute_checked_admg_graph_posterior_response(
+        &self,
+        data: &TabularData,
+        operation: &super::super::CheckedAdmgGraphPosteriorResponse,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut bound = self.clone();
+        bound.query = CausalQuery::Response(operation.query().clone());
+        bound.graph_posterior = Some(operation.posterior().clone());
+        bound.graph_posterior_identification_cache =
+            Some(Arc::new(operation.identification().clone()));
+        bound.inference = operation.inference().clone();
+        bound.refute = operation.validation();
+        bound.execute_admg_graph_posterior_response(
+            data,
+            operation.posterior(),
+            operation.query(),
+            operation.physical(),
+            ctx,
+        )
+    }
+
     /// Mix ADMG posterior atoms through `identify_admg_query` + `functional.effect`.
     pub(super) fn execute_admg_graph_posterior_response(
         &self,

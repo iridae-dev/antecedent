@@ -728,6 +728,22 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
     }
+    if contract.structure_source == "graph_posterior"
+        && contract.graph_class == "Admg"
+        && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
+        && resolved_estimator == Some("functional.effect")
+    {
+        unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
+    }
+    if contract.structure_source == "graph_posterior"
+        && contract.graph_class == "Admg"
+        && matches!(contract.target.query, CausalQueryWire::Response(_))
+        && resolved_estimator == Some("functional.effect")
+    {
+        unresolved.push(Arc::from(
+            "dependencies.checked_admg_graph_posterior_response_operation",
+        ));
+    }
     if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. })
@@ -871,6 +887,14 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
     let functional_effect = is_scalar_functional_effect_contract(contract);
+    let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
+        && contract.graph_class == "Admg"
+        && contract
+            .program
+            .as_ref()
+            .and_then(|program| program.commitments.resolved_estimator.as_deref())
+            .or(contract.estimator.as_deref())
+            == Some("functional.effect");
     let posterior_functional_effect = functional_effect
         && (contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
@@ -889,22 +913,37 @@ pub fn verify_contract_against_body(
         // consumer cannot recompute the atom probabilities.
         unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
     }
-    if functional_effect && factor_laws.is_none() && !posterior_functional_effect {
+    if functional_effect
+        && factor_laws.is_none()
+        && !posterior_functional_effect
+        && !graph_posterior_functional_effect
+    {
         unresolved.push(Arc::from("dependencies.functional_effect_factor_laws"));
     }
-    if posterior_functional_effect {
+    if posterior_functional_effect && !graph_posterior_functional_effect {
         // The scalar provider law is enough for a frequentist point replay, but Bayesian
         // results require the shared row weights for every posterior draw.
         unresolved.push(Arc::from("dependencies.functional_effect_posterior_draws"));
     }
     if is_response_functional_effect_contract(contract) {
+        let graph_posterior = contract.structure_source == "graph_posterior"
+            && contract.graph_class == "Admg"
+            && contract
+                .program
+                .as_ref()
+                .and_then(|program| program.commitments.resolved_estimator.as_deref())
+                .or(contract.estimator.as_deref())
+                == Some("functional.effect");
         let posterior = contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
         }) || contract
             .inference_binding
             .as_ref()
             .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some());
-        if posterior {
+        if graph_posterior {
+            // The atom-wise checked execution and frozen graph mass are the
+            // replay dependency; one scalar program cannot represent the family.
+        } else if posterior {
             unresolved.push(Arc::from("dependencies.functional_effect_response_posterior_draws"));
         } else {
             match (
@@ -969,7 +1008,10 @@ pub fn verify_contract_against_body(
             }
         }
     }
-    if functional_effect && !posterior_functional_effect {
+    if functional_effect
+        && !posterior_functional_effect
+        && !graph_posterior_functional_effect
+    {
         match (
             contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
             contract
@@ -1122,6 +1164,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_intervention_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 | "dependencies.checked_graph_posterior_effect_operation"
+                | "dependencies.checked_admg_graph_posterior_response_operation"
                 | "dependencies.checked_conditional_effect_operation"
                 | "dependencies.checked_mediation_operation"
                 | "dependencies.checked_bayesian_mediation_operation"
@@ -1291,7 +1334,19 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         Some(&contract.identities.program),
         program_digest,
     );
-    let functional = contract.program.as_ref().and_then(|item| item.functional_program.as_ref());
+    let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
+        && contract.graph_class == "Admg"
+        && contract
+            .program
+            .as_ref()
+            .and_then(|program| program.commitments.resolved_estimator.as_deref())
+            .or(contract.estimator.as_deref())
+            == Some("functional.effect");
+    let functional = contract
+        .program
+        .as_ref()
+        .and_then(|item| item.functional_program.as_ref())
+        .filter(|_| !graph_posterior_functional_effect);
     let posterior_distribution = contract.estimator.as_deref() == Some("functional.distribution")
         && (contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
@@ -1307,7 +1362,10 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         // executable distribution without the program that was evaluated.
         unresolved.push(Arc::from("program.functional_program"));
     }
-    if is_scalar_functional_effect_contract(contract) && functional.is_none() {
+    if is_scalar_functional_effect_contract(contract)
+        && functional.is_none()
+        && !graph_posterior_functional_effect
+    {
         unresolved.push(Arc::from("program.functional_program"));
     }
     if let Some(program) = functional.filter(|_| {

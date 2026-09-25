@@ -8,6 +8,7 @@ use antecedent_discovery::{
     adjacency_mask_from_admg, set_edge, GraphPosterior, GraphPosteriorAtomKind,
 };
 use antecedent_graph::{Admg, DenseNodeId};
+use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TabularData, Admg, AverageEffectQuery, f64) {
@@ -135,6 +136,22 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             let retained = prepared.checked_graph_posterior_effect_info().unwrap();
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.graph_keys, plan.graph_keys);
+            let artifact = prepared
+                .encode_contracted_result(&refreshed, "admg-graph-posterior-effect", &context)
+                .unwrap();
+            let consumed = consume_analysis_result(&artifact).unwrap();
+            assert!(
+                consumed.acceptance.accepts_as_verified_program()
+                    || !consumed.acceptance.unresolved.is_empty(),
+                "independent consumer must verify the effect or explain its dependency refusal"
+            );
+            assert!(
+                consumed.acceptance.unresolved.iter().any(|reason| {
+                    reason.as_ref() == "dependencies.checked_graph_posterior_effect_operation"
+                }),
+                "graph-posterior aggregation is an explicit replay dependency: {:?}",
+                consumed.acceptance.unresolved
+            );
         }
     }
 }

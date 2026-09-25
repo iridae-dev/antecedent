@@ -6,14 +6,14 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AverageEffectQuery, PopulationRegistry};
+use antecedent_core::{AverageEffectQuery, PopulationRegistry, ResponseQuery};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_estimate::OverlapPolicy;
 use antecedent_prob::GraphIdentFlag;
 
 use crate::{
-    analysis::prepared::CachedGraphPosteriorIdentification, CausalError, EstimatorId,
-    EstimatorSpec, RefuteSuite,
+    CausalError, EstimatorId, EstimatorSpec, RefuteSuite,
+    analysis::prepared::CachedGraphPosteriorIdentification,
 };
 
 /// A frozen frequentist DAG graph-posterior composition.
@@ -32,6 +32,105 @@ pub(crate) struct CheckedGraphPosteriorEffect {
     population_registry: Option<PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
     validation: RefuteSuite,
+}
+
+/// Frozen ADMG posterior response execution, including the atom-wise general-ID cache.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedAdmgGraphPosteriorResponse {
+    posterior: Arc<GraphPosterior>,
+    query: ResponseQuery,
+    identification: Arc<CachedGraphPosteriorIdentification>,
+    physical: crate::planner::PhysicalExecutionPlan,
+    inference: crate::InferenceMode,
+    validation: RefuteSuite,
+}
+
+impl CheckedAdmgGraphPosteriorResponse {
+    pub(crate) fn prepare(
+        posterior: GraphPosterior,
+        query: ResponseQuery,
+        identification: CachedGraphPosteriorIdentification,
+        physical: crate::planner::PhysicalExecutionPlan,
+        inference: crate::InferenceMode,
+        validation: RefuteSuite,
+    ) -> Result<Self, CausalError> {
+        if posterior.atom_kind != GraphPosteriorAtomKind::Admg {
+            return Err(CausalError::Unsupported {
+                message: "checked graph-posterior response requires ADMG atoms",
+            });
+        }
+        if query.temporal.is_some()
+            || query.observation != antecedent_core::ObservationSpec::Complete
+            || query.target_population != antecedent_core::TargetPopulation::AllObserved
+            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || !matches!(
+                query.functional,
+                antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+            )
+            || query.functional.primary_pair().is_none()
+        {
+            return Err(CausalError::Unsupported {
+                message: "checked ADMG graph-posterior response requires a complete-observation mean response with a treatment/outcome pair",
+            });
+        }
+        if !matches!(
+            inference,
+            crate::InferenceMode::Frequentist | crate::InferenceMode::Bayesian(_)
+        ) {
+            return Err(CausalError::Unsupported {
+                message: "checked ADMG graph-posterior response requires frequentist or Bayesian inference",
+            });
+        }
+        let intervention_response = matches!(
+            query.functional,
+            antecedent_core::ResponseFunctional::InterventionResponse { .. }
+        );
+        if (!intervention_response && validation != RefuteSuite::None)
+            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+        {
+            return Err(CausalError::Unsupported {
+                message: "checked ADMG graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
+            });
+        }
+        if posterior.weights.as_ref() != identification.graphs.weights.as_ref()
+            || posterior.graph_keys.as_ref() != identification.graphs.graph_keys.as_ref()
+            || posterior.n_graphs != identification.graphs.n_samples
+            || identification.graphs.identified.len() != posterior.n_graphs
+            || identification.atoms.iter().any(|atom| !posterior.graph_keys.contains(&atom.key))
+        {
+            return Err(CausalError::Unsupported {
+                message: "ADMG response identification cache does not match frozen posterior atoms",
+            });
+        }
+        Ok(Self {
+            posterior: Arc::new(posterior),
+            query,
+            identification: Arc::new(identification),
+            physical,
+            inference,
+            validation,
+        })
+    }
+
+    pub(crate) fn posterior(&self) -> &GraphPosterior {
+        &self.posterior
+    }
+    pub(crate) fn query(&self) -> &ResponseQuery {
+        &self.query
+    }
+    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+        &self.identification
+    }
+    pub(crate) fn physical(&self) -> &crate::planner::PhysicalExecutionPlan {
+        &self.physical
+    }
+    pub(crate) fn inference(&self) -> &crate::InferenceMode {
+        &self.inference
+    }
+    pub(crate) const fn validation(&self) -> RefuteSuite {
+        self.validation
+    }
 }
 
 impl CheckedGraphPosteriorEffect {
@@ -81,8 +180,7 @@ impl CheckedGraphPosteriorEffect {
                 .any(|atom| !posterior.graph_keys.iter().any(|key| *key == atom.key))
         {
             return Err(CausalError::Unsupported {
-                message:
-                    "graph-posterior identification cache does not match frozen atoms and weights",
+                message: "graph-posterior identification cache does not match frozen atoms and weights",
             });
         }
         if cache_graphs.identified.len() != posterior.n_graphs {
@@ -216,32 +314,36 @@ mod tests {
         let graphs = posterior();
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        assert!(CheckedGraphPosteriorEffect::prepare(
-            graphs.clone(),
-            query.clone(),
-            cache(&graphs),
-            EstimatorSpec::Default(EstimatorId::Aipw),
-            0,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            Some(crate::analysis::LatencyMode::Standard),
-            RefuteSuite::None,
-        )
-        .is_err());
+        assert!(
+            CheckedGraphPosteriorEffect::prepare(
+                graphs.clone(),
+                query.clone(),
+                cache(&graphs),
+                EstimatorSpec::Default(EstimatorId::Aipw),
+                0,
+                OverlapPolicy::ExplicitOverride,
+                None,
+                Some(crate::analysis::LatencyMode::Standard),
+                RefuteSuite::None,
+            )
+            .is_err()
+        );
 
         let mut wrong_cache = cache(&graphs);
         wrong_cache.graphs.weights = Arc::from([0.5, 0.5]);
-        assert!(CheckedGraphPosteriorEffect::prepare(
-            graphs,
-            query,
-            wrong_cache,
-            EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
-            0,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            Some(crate::analysis::LatencyMode::Standard),
-            RefuteSuite::None,
-        )
-        .is_err());
+        assert!(
+            CheckedGraphPosteriorEffect::prepare(
+                graphs,
+                query,
+                wrong_cache,
+                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+                0,
+                OverlapPolicy::ExplicitOverride,
+                None,
+                Some(crate::analysis::LatencyMode::Standard),
+                RefuteSuite::None,
+            )
+            .is_err()
+        );
     }
 }

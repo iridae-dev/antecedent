@@ -12,8 +12,12 @@ use antecedent_core::{
     ResponseQuery, ResponseValue, SlotAvailability, Value, VariableId,
 };
 use antecedent_data::TabularData;
+use antecedent_discovery::{
+    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+};
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
+use antecedent_prob::InferenceDiagnostics;
 
 fn fixture(outcome_shift: f64) -> (TabularData, Admg) {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
@@ -260,6 +264,107 @@ fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
                 let refreshed = prepared.refresh(data.clone(), &context).unwrap();
                 assert_plugin_level_validation(&refreshed, suite, &coordinate);
             }
+        }
+    }
+}
+
+fn graph_posterior(graph: &Admg, include_unidentified_atom: bool) -> GraphPosterior {
+    let n = graph.node_count();
+    let identified = adjacency_mask_from_admg(graph).unwrap();
+    let mut cyclic = set_edge(0, n, 0, 1, true);
+    cyclic = set_edge(cyclic, n, 1, 2, true);
+    cyclic = set_edge(cyclic, n, 2, 0, true);
+    GraphPosterior::new(
+        n,
+        vec![0.8, 0.2],
+        if include_unidentified_atom {
+            vec![identified, cyclic]
+        } else {
+            vec![identified, identified]
+        },
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        1.0,
+        InferenceDiagnostics::analytic("admg_graph_posterior_response_checked"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Admg)
+}
+
+#[test]
+fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
+    let (data, graph) = fixture(0.0);
+    let query = query_with_value(Value::f64(1.0));
+    for bayesian in [false, true] {
+        let inference = if bayesian {
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(48))
+        } else {
+            InferenceMode::Frequentist
+        };
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            // Preserve a failed atom in the no-refuter case. Refuters run only
+            // for a fully identified same-estimand mixture by contract.
+            let posterior = graph_posterior(&graph, suite == RefuteSuite::None);
+            let context = ExecutionContext::for_tests(84_005);
+            let builder = Study::tabular(data.clone())
+                .graph_posterior(posterior.clone())
+                .query(CausalQuery::Response(query.clone()))
+                .inference(inference.clone())
+                .refute(suite)
+                .bootstrap_replicates(0);
+            let study = builder.clone().build().unwrap();
+            let mut prepared = study.prepare(&context).unwrap();
+            drop(builder);
+            drop(study);
+            assert!(prepared.has_checked_admg_graph_posterior_response_operation());
+            let plan = prepared.checked_admg_graph_posterior_response_info().unwrap();
+            assert_eq!(plan.query, query);
+            assert_eq!(plan.weights.as_ref(), &[0.8, 0.2]);
+            assert_eq!(plan.identified.len(), 2);
+            assert_eq!(plan.identified[0], antecedent_prob::GraphIdentFlag::Identified);
+            assert_eq!(
+                plan.identified[1],
+                if suite == RefuteSuite::None {
+                    antecedent_prob::GraphIdentFlag::Unidentified
+                } else {
+                    antecedent_prob::GraphIdentFlag::Identified
+                }
+            );
+            assert_eq!(plan.validation, suite);
+            let result = prepared.estimate(&data, &context).unwrap();
+            let mixture = result.structural_response.as_ref().expect("posterior response mass");
+            let expected_unidentified = if suite == RefuteSuite::None { 0.2 } else { 0.0 };
+            assert!((mixture.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
+            assert!((mixture.unidentified_mass - expected_unidentified).abs() < 1e-12);
+            match suite {
+                RefuteSuite::None => assert!(result.refutations.is_empty()),
+                RefuteSuite::Cheap | RefuteSuite::Full => {
+                    assert_plugin_level_validation(
+                        &result,
+                        suite,
+                        &format!(
+                            "InterventionResponse:Admg:graph_posterior:{}:{suite:?}",
+                            if bayesian { "Bayesian" } else { "Frequentist" }
+                        ),
+                    );
+                }
+                RefuteSuite::PlaceboAndRcc => unreachable!(),
+            }
+            let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+            let refreshed_mass = refreshed.structural_response.as_ref().unwrap();
+            assert!((refreshed_mass.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
+            assert!((refreshed_mass.unidentified_mass - expected_unidentified).abs() < 1e-12);
+            let artifact = prepared.encode_contracted_result(&refreshed, "admg-gp-response", &context).unwrap();
+            let consumed = consume_analysis_result(&artifact).unwrap();
+            assert!(
+                consumed.acceptance.accepts_as_verified_program()
+                    || !consumed.acceptance.unresolved.is_empty(),
+                "independent consumer must verify the route or explain its dependency refusal"
+            );
+            assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+                reason.as_ref() == "dependencies.checked_admg_graph_posterior_response_operation"
+            }));
         }
     }
 }
