@@ -101,6 +101,12 @@ fn accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh() {
             assert!((result_value(&result) - result_value(&one_shot)).abs() < 1e-12);
             assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
 
+            let score_table = prepared.score_table().expect("cell scores support retargeting");
+            let retargeted = prepared
+                .retarget(&vec![1.0; score_table.n_rows], &[], &context)
+                .expect("the checked mean response retains its score table");
+            assert!((result_value(&retargeted) - result_value(&result)).abs() < 1e-12);
+
             let refreshed_data = data(0.4);
             let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
             assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
@@ -115,6 +121,26 @@ fn accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh() {
             assert!(!consumed.acceptance.accepts_as_verified_program());
         }
     }
+}
+
+#[test]
+fn checked_cell_aipw_quantile_is_sealed_and_executes() {
+    let mut quantile_query = query();
+    quantile_query.outcome_functional = antecedent_core::OutcomeFunctional::quantile(0.5);
+    let study = builder(data(0.0), quantile_query.clone(), RefuteSuite::None, false);
+    let context = antecedent_core::ExecutionContext::for_tests(822);
+    let mut prepared = study.prepare(&context).unwrap();
+    drop(study);
+    assert!(prepared.checked_cell_aipw_response_info().is_some());
+    assert!(prepared.score_table().is_some());
+
+    let result = prepared.estimate(&data(0.0), &context).unwrap();
+    let value = result_value(&result);
+    assert!(value.is_finite());
+    assert!((value - 10.5).abs() < 0.2, "median response {value}");
+
+    let refreshed = prepared.refresh(data(0.4), &context).unwrap();
+    assert!((result_value(&refreshed) - 10.9).abs() < 0.2);
 }
 
 #[test]

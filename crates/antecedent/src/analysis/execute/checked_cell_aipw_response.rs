@@ -103,7 +103,6 @@ impl CheckedCellAipwResponseOperation {
         if query.temporal.is_some()
             || query.observation != ObservationSpec::Complete
             || query.target_population != TargetPopulation::AllObserved
-            || !query.outcome_functional.is_mean()
             || identifier != IdentifierId::ResponseBackdoor
             || estimator != EstimatorId::CellAipw
             || !valid_suite
