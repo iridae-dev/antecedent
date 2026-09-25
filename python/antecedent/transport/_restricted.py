@@ -11,8 +11,9 @@ import itertools
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
+from .._transport_results import TransportGridPoint, TransportUncertainty
 from ..errors import CausalUnsupportedError, CausalValueError
 from ..graph import Admg
 from ._impl import (
@@ -28,13 +29,12 @@ from ._impl import (
     SelectionDiagram,
     StatisticalTransportData,
     TransportControls,
+    TransportStage,
     TrialAipw,
     TrialAipwData,
-    VariableCoordinate,
     ZTransportQuery,
     identify_z_transport,
 )
-from .._transport_results import TransportGridPoint, TransportUncertainty
 
 SCOPE = "single_source_z_transport_cited_joints_sound_incomplete"
 _COMBINATION = "z_transport.multi_source_combination_not_searched"
@@ -211,7 +211,9 @@ def identify_restricted(
         )
     if not sources:
         raise CausalValueError("restricted-experiment transport requires a controllable set")
-    bundles = [_source_bundle(graph, query, data, source, outcomes, treatments) for source in sources]
+    bundles = [
+        _source_bundle(graph, query, data, source, outcomes, treatments) for source in sources
+    ]
     decisions = [bundle["stage"].decide(bundle["catalog"]) for bundle in bundles]
     identified = [
         (bundle, decision)
@@ -301,7 +303,7 @@ def prepare_restricted(
     shape, worlds = lower_question(query.question)
     limits = controls or TransportControls()
     study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="z_transport", query=query)
-    study._transport_stage = {
+    stage_snapshot: TransportStage = {
         "identified": identified,
         "catalog": catalog,
         "bound": data,
@@ -310,6 +312,7 @@ def prepare_restricted(
         "provider": EmpiricalTable() if identified.empirical else "exact_law",
         "graph": graph,
     }
+    study._transport_stage = stage_snapshot
     if identified.outcome != "identified" or identified.stage is None:
         return study
     native = _RestrictedNative(
@@ -325,11 +328,13 @@ def prepare_restricted(
         ),
     )
     prepared: PreparedAnalysis[Any] = PreparedAnalysis(native, kind="z_transport", query=query)
-    prepared._transport_stage = study._transport_stage
+    prepared._transport_stage = stage_snapshot
     return prepared
 
 
-def _rebuild_laws(graph: Admg, query: Any, data: Any, source_name: str | None) -> tuple[ExactDiscreteLaw, ...]:
+def _rebuild_laws(
+    graph: Admg, query: Any, data: Any, source_name: str | None
+) -> tuple[ExactDiscreteLaw, ...]:
     from ._day1 import _question_parts
 
     treatments, outcomes = _question_parts(query.question)
@@ -439,10 +444,11 @@ def _law_from_sample(graph: Admg, source: Any, sample: RegimeSample) -> ExactDis
     counts = [0] * len(index)
     width = len(next(iter(sample.columns.values())))
     for row in range(width):
-        observed = [sample.columns[name][row] for name in names]
-        if any(value is None for value in observed):
+        observed_row = [sample.columns[name][row] for name in names]
+        if any(value is None for value in observed_row):
             raise CausalValueError("restricted-experiment transport requires complete observations")
-        key = tuple(float(value) for value in observed)
+        complete = cast(list[float], observed_row)
+        key = tuple(float(value) for value in complete)
         slot = index.get(key)
         if slot is None:
             raise CausalValueError("restricted-experiment sample left the declared finite domain")
@@ -526,14 +532,14 @@ def _catalog(
         if law.regime in seen:
             continue
         seen.add(law.regime)
-        values = {name: float(value) for name, value in law.interventions}
+        intervention_values = {name: float(value) for name, value in law.interventions}
         regimes.append(
             EvidenceRegime(
                 law.regime,
                 source.identity,
                 kind="experimental",
-                interventions=tuple(values),
-                intervention_values=values,
+                interventions=tuple(intervention_values),
+                intervention_values=intervention_values,
                 measured=tuple(name for name, _values in law.axes),
             )
         )

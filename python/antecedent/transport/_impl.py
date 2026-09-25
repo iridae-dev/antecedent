@@ -55,7 +55,7 @@ class TransportStage(TypedDict):
     and re-bind data without holding a native execution.
     """
 
-    identified: ClassicalTransportIdentification
+    identified: Any
     catalog: EvidenceCatalog
     bound: ExactTransportData | StatisticalTransportData | TrialAipwData | None
     shape: str
@@ -780,9 +780,7 @@ def plan_z_transport_evidence(
         raise CausalTypeError("stage must be returned by identify_z_transport")
     if failure_snapshot is not None and not isinstance(failure_snapshot, bytes):
         raise CausalTypeError("failure_snapshot must be bytes")
-    report, proposals = stage.plan_evidence(
-        catalog, list(candidates), failure_snapshot
-    )
+    report, proposals = stage.plan_evidence(catalog, list(candidates), failure_snapshot)
     return json.loads(report), tuple(proposals)
 
 
@@ -828,9 +826,7 @@ def reload_lowered_program(identification: TransportIdentification) -> Any:
     return identification._native.reload_checked_program()
 
 
-def restore_lowered_program(
-    identification: TransportIdentification, wire_json: str
-) -> Any:
+def restore_lowered_program(identification: TransportIdentification, wire_json: str) -> Any:
     """Independently import and verify a checked program against its identification."""
     if not isinstance(identification, TransportIdentification):
         raise CausalTypeError("restore_lowered_program requires a TransportIdentification")

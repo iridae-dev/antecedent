@@ -32,6 +32,7 @@ EVIDENCE = {
     "bayes.estimate.interference_neighbor_count": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
     "bayes.estimate.trial_to_target": "crates/antecedent/tests/bayesian_trial_transport.rs",
     "bayes.transport.empirical_and_state_space_laws": "crates/antecedent/src/analysis/statistical.rs",
+    "bayes.transport.z_cited_laws": "crates/antecedent-estimate/tests/z_transport_cited_evidence.rs",
     "bayes.response.simultaneous_joint_band": "crates/antecedent-estimate/src/response/mod.rs",
     "bayes.validate.sbc_glm_families": "crates/antecedent-validate/src/bayesian_checks.rs",
     "bayes.validate.ppc": "crates/antecedent-validate/src/bayesian_checks.rs",

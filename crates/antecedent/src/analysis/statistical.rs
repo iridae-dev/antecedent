@@ -39,6 +39,69 @@ fn is_bayesian_provider(estimator: antecedent_estimate::EmpiricalTableEstimator)
     )
 }
 
+fn bayesian_provider(
+    estimator: antecedent_estimate::EmpiricalTableEstimator,
+) -> Option<antecedent_estimate::BayesianTransportLawProvider> {
+    match estimator {
+        antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap => {
+            Some(antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport)
+        }
+        antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet => {
+            Some(antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet)
+        }
+        _ => None,
+    }
+}
+
+fn apply_posterior_draw_floor(
+    estimate: &mut antecedent_estimate::BayesianStatisticalTransportEstimate,
+) {
+    if estimate.interval_reason.as_deref()
+        != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+    {
+        return;
+    }
+    if estimate.draws_requested < PERCENTILE_95_MIN_REPLICATES
+        || estimate.draws_ok < PERCENTILE_95_MIN_REPLICATES
+    {
+        estimate.atom_intervals = Arc::from([]);
+        estimate.mean_intervals = Arc::from([]);
+        estimate.interval_reason = Some(Arc::from("insufficient_bootstrap_replicates"));
+    }
+}
+
+fn bayesian_uncertainty_slot(
+    requested: u32,
+    dependence: Option<&str>,
+    posterior: Option<&antecedent_estimate::BayesianStatisticalTransportEstimate>,
+) -> SlotAvailability<UncertaintySlot> {
+    if let Some(posterior) = posterior {
+        return match posterior.interval_reason.as_deref() {
+            Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED) => {
+                SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+                    UncertaintySource::Sampling,
+                    antecedent_estimate::POSTERIOR_EQUAL_TAIL,
+                    false,
+                )]))
+            }
+            Some(reason) => SlotAvailability::unavailable(reason),
+            None => SlotAvailability::unavailable("uncertainty_unavailable"),
+        };
+    }
+    if let Some(reason) = dependence {
+        return SlotAvailability::unavailable(reason);
+    }
+    if requested < PERCENTILE_95_MIN_REPLICATES {
+        SlotAvailability::unavailable("insufficient_bootstrap_replicates")
+    } else {
+        SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            antecedent_estimate::POSTERIOR_EQUAL_TAIL,
+            false,
+        )]))
+    }
+}
+
 fn point_options(options: EmpiricalTableOptions) -> EmpiricalTableOptions {
     if is_bayesian_provider(options.estimator) {
         EmpiricalTableOptions {
@@ -552,14 +615,14 @@ impl PreparedStudy<StatisticalPreparedState> {
             formula: self.state.functional.arena().pretty(self.state.functional.root()),
             factors: statistical_requirements(&self.state.functional),
             bindings: statistical_bindings(&self.state.input, &self.state.data),
-            reasoning: self.reasoning(false, None),
+            reasoning: self.reasoning(false, None, None),
             theorem_scope: if matches!(
                 self.state.options.estimator,
                 antecedent_estimate::EmpiricalTableEstimator::Learned(_)
             ) {
                 "checked_transport; learned_categorical_plugin; uncalibrated"
             } else if is_bayesian_provider(self.state.options.estimator) {
-                "checked_transport; finite_discrete_bayesian_posterior; unlicensed"
+                "checked_transport; finite_discrete_bayesian_posterior; estimator_grid_not_measured"
             } else if self.state.functional.derivation().sources().is_empty() {
                 TheoremScope::statistical_table_inspect_label()
             } else {
@@ -574,9 +637,17 @@ impl PreparedStudy<StatisticalPreparedState> {
         &self,
         evaluated: bool,
         estimate: Option<&StatisticalTransportEstimate>,
+        posterior: Option<&antecedent_estimate::BayesianStatisticalTransportEstimate>,
     ) -> ReasoningView {
         let uncertainty = if is_bayesian_provider(self.state.options.estimator) {
-            SlotAvailability::unavailable("bayesian_transport_uncalibrated")
+            bayesian_uncertainty_slot(
+                self.state.options.posterior_draws,
+                antecedent_estimate::dependence_refusal(
+                    self.state.functional.catalog(),
+                    &self.state.input.samples,
+                ),
+                posterior,
+            )
         } else {
             match estimate {
                 Some(est) if est.uncertainty.is_some() && est.uncertainty_reason.is_none() => {
@@ -646,9 +717,9 @@ impl PreparedStudy<StatisticalPreparedState> {
                 if is_bayesian_provider(self.state.options.estimator) {
                     match self.state.options.estimator {
                         antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap =>
-                            "Declared finite joint; Rubin Exp(1) row weights define a posterior on observed support only. Posterior intervals are exposed, but repeated-sampling calibration and support license are pending.",
+                            "Declared finite joint; Rubin Exp(1) row weights define a posterior on observed support only. The equal-tail interval is pointwise and its coverage reason is estimator_grid_not_measured.",
                         _ =>
-                            "Declared full categorical state space; each cell has a symmetric Dirichlet(1) prior. Posterior intervals are exposed, but repeated-sampling calibration and support license are pending.",
+                            "Declared full categorical state space; each cell has a symmetric Dirichlet(1) prior. The equal-tail interval is pointwise and its coverage reason is estimator_grid_not_measured.",
                     }
                 } else if matches!(
                     self.state.options.estimator,
@@ -677,6 +748,33 @@ impl PreparedStudy<StatisticalPreparedState> {
         self.estimate_retained(ctx)
     }
 
+    fn bayesian_estimates(
+        &self,
+        ctx: &ExecutionContext,
+        requests: &[Assignment],
+    ) -> Result<Option<Vec<antecedent_estimate::BayesianStatisticalTransportEstimate>>, IoError>
+    {
+        let Some(provider) = bayesian_provider(self.state.options.estimator) else {
+            return Ok(None);
+        };
+        let mut estimates = antecedent_estimate::evaluate_bayesian_statistical_transport_grid(
+            &self.state.functional,
+            &self.state.input,
+            requests,
+            self.state.limits,
+            provider,
+            self.state.options.posterior_draws,
+            self.state.options.coverage_level,
+            self.state.options.max_joint_cells,
+            ctx,
+        )
+        .map_err(err)?;
+        for estimate in &mut estimates {
+            apply_posterior_draw_floor(estimate);
+        }
+        Ok(Some(estimates))
+    }
+
     /// Estimate using retained providers.
     ///
     /// # Errors
@@ -700,24 +798,11 @@ impl PreparedStudy<StatisticalPreparedState> {
         }
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
-        if is_bayesian_provider(self.state.options.estimator) && !self.state.grid.is_empty() {
-            return Err(err("Bayesian transport treatment grids are not yet licensed"));
-        }
         let point_options = point_options(self.state.options);
-        let estimate = if self.state.grid.is_empty() {
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
-                &self.state.functional,
-                &self.state.input,
-                &[self.state.request.clone()],
-                self.state.limits,
-                &point_options,
-                &frozen_ctx,
-                &self.state.data,
-            )
-            .map_err(err)?.remove(0)
+        let requests = if self.state.grid.is_empty() {
+            vec![self.state.request.clone()]
         } else {
-            let requests: Vec<_> = self
-                .state
+            self.state
                 .grid
                 .iter()
                 .map(|request| {
@@ -725,62 +810,33 @@ impl PreparedStudy<StatisticalPreparedState> {
                         request.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())),
                     )
                 })
-                .collect();
-            let index = self
-                .state
+                .collect()
+        };
+        let index = if self.state.grid.is_empty() {
+            0
+        } else {
+            self.state
                 .grid
                 .iter()
                 .position(|request| *request == statistical_assignments(&self.state.request))
-                .ok_or_else(|| err("retained target missing from grid"))?;
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
-                &self.state.functional,
-                &self.state.input,
-                &requests,
-                self.state.limits,
-                &point_options,
-                &frozen_ctx,
-                &self.state.data,
-            )
-            .map_err(err)?
-            .remove(index)
+                .ok_or_else(|| err("retained target missing from grid"))?
         };
-        let mut estimate = estimate;
+        let mut estimate = antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
+            &self.state.functional,
+            &self.state.input,
+            &requests,
+            self.state.limits,
+            &point_options,
+            &frozen_ctx,
+            &self.state.data,
+        )
+        .map_err(err)?
+        .remove(index);
         Self::withhold_unearned_percentile(&mut estimate, &self.state.options);
-        let bayesian_estimate = match self.state.options.estimator {
-            antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap => {
-                Some(
-                    antecedent_estimate::evaluate_bayesian_statistical_transport(
-                        &self.state.functional,
-                        &self.state.input,
-                        self.state.request.clone(),
-                        self.state.limits,
-                        antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
-                        self.state.options.posterior_draws,
-                        self.state.options.coverage_level,
-                        self.state.options.max_joint_cells,
-                        &frozen_ctx,
-                    )
-                    .map_err(err)?,
-                )
-            }
-            antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet => Some(
-                antecedent_estimate::evaluate_bayesian_statistical_transport(
-                    &self.state.functional,
-                    &self.state.input,
-                    self.state.request.clone(),
-                    self.state.limits,
-                    antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet,
-                    self.state.options.posterior_draws,
-                    self.state.options.coverage_level,
-                    self.state.options.max_joint_cells,
-                    &frozen_ctx,
-                )
-                .map_err(err)?,
-            ),
-            _ => None,
-        };
+        let bayesian_estimate =
+            self.bayesian_estimates(&frozen_ctx, &requests)?.map(|mut rows| rows.remove(index));
         Ok(StatisticalStudyResult {
-            reasoning: self.reasoning(true, Some(&estimate)),
+            reasoning: self.reasoning(true, Some(&estimate), bayesian_estimate.as_ref()),
             estimate,
             bayesian_estimate,
             identities: self.state.identities.clone(),
@@ -818,21 +874,19 @@ impl PreparedStudy<StatisticalPreparedState> {
         evaluated: Option<Vec<antecedent_expr::ExactDistribution>>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<(Self, StatisticalStudyResult)>, IoError> {
-        if is_bayesian_provider(self.state.options.estimator) {
-            return Err(err("Bayesian transport treatment grids are not yet licensed"));
-        }
         if self.state.loaded_only {
             return Err(err("transport.samples_not_embedded"));
         }
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        let point_options = point_options(self.state.options);
         let estimates = match evaluated {
             Some(distributions) => antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_evaluated_point_laws(
                 &self.state.functional,
                 &self.state.input,
                 requests,
                 self.state.limits,
-                &self.state.options,
+                &point_options,
                 &frozen_ctx,
                 &self.state.data,
                 distributions,
@@ -842,16 +896,18 @@ impl PreparedStudy<StatisticalPreparedState> {
                 &self.state.input,
                 requests,
                 self.state.limits,
-                &self.state.options,
+                &point_options,
                 &frozen_ctx,
                 &self.state.data,
             ),
         }
         .map_err(err)?;
+        let posteriors = self.bayesian_estimates(&frozen_ctx, requests)?;
         requests
             .iter()
             .zip(estimates)
-            .map(|(request, mut estimate)| {
+            .enumerate()
+            .map(|(index, (request, mut estimate))| {
                 let prepared = Self::build_fitted(
                     self.state.diagram.clone(),
                     self.state.functional.clone(),
@@ -866,11 +922,16 @@ impl PreparedStudy<StatisticalPreparedState> {
                 )?
                 .with_grid(requests.iter().map(statistical_assignments).collect())?;
                 Self::withhold_unearned_percentile(&mut estimate, &prepared.state.options);
+                let bayesian_estimate = posteriors.as_ref().map(|rows| rows[index].clone());
                 let result = StatisticalStudyResult {
-                    reasoning: prepared.reasoning(true, Some(&estimate)),
+                    reasoning: prepared.reasoning(
+                        true,
+                        Some(&estimate),
+                        bayesian_estimate.as_ref(),
+                    ),
                     identities: prepared.state.identities.clone(),
                     estimate,
-                    bayesian_estimate: None,
+                    bayesian_estimate,
                 };
                 Ok((prepared, result))
             })
@@ -1088,6 +1149,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                     draws_requested: posterior.draws_requested,
                     draws_ok: posterior.draws_ok,
                     draws_failed: posterior.draws_failed,
+                    interval_reason: posterior.interval_reason.as_ref().map(ToString::to_string),
                     probabilities: posterior
                         .distributions
                         .iter()
@@ -1207,7 +1269,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             wire.options.posterior_draws,
             wire.options.coverage_level,
         )?;
-        let reasoning = prepared.reasoning(true, Some(&estimate));
+        let reasoning = prepared.reasoning(true, Some(&estimate), bayesian_estimate.as_ref());
         if super::contract::reasoning_section(&reasoning) != wire.reasoning {
             return Err(err("transport artifact reasoning mismatch"));
         }
@@ -1662,12 +1724,28 @@ fn validate_bayesian_posterior(
         || wire.estimator != estimator
         || wire.interval_method != antecedent_estimate::POSTERIOR_EQUAL_TAIL
         || wire.draws_requested != requested
-        || wire.draws_ok < 2
-        || wire.draws_ok.checked_add(wire.draws_failed) != Some(wire.draws_requested)
         || wire.probabilities.len() != wire.draws_ok as usize
         || wire.probabilities.len().checked_mul(point.atoms.len()).is_none_or(|n| n > 10_000_000)
     {
         return Err(err("Bayesian transport artifact draw metadata mismatch"));
+    }
+    let reason = wire.interval_reason.as_deref();
+    let dependence =
+        matches!(reason, Some("transport.unsupported_dependence" | "no_estimated_regime"));
+    let withheld = dependence
+        || matches!(
+            reason,
+            Some("bootstrap_failure_fraction" | "insufficient_bootstrap_replicates")
+        );
+    if dependence {
+        if wire.draws_ok != 0 || wire.draws_failed != 0 || !wire.probabilities.is_empty() {
+            return Err(err("Bayesian transport artifact draw metadata mismatch"));
+        }
+    } else if wire.draws_ok.checked_add(wire.draws_failed) != Some(wire.draws_requested) {
+        return Err(err("Bayesian transport artifact draw metadata mismatch"));
+    }
+    if withheld && (!wire.atom_intervals.is_empty() || !wire.mean_intervals.is_empty()) {
+        return Err(err("Bayesian transport artifact posterior summary mismatch"));
     }
     let mut distributions = Vec::with_capacity(wire.probabilities.len());
     for probabilities in &wire.probabilities {
@@ -1685,6 +1763,25 @@ fn validate_bayesian_posterior(
             probabilities: probabilities.clone().into(),
             support: point.support.clone(),
         });
+    }
+    if withheld {
+        return Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
+            estimator: Arc::from(wire.estimator.as_str()),
+            interval_method: Arc::from(wire.interval_method.as_str()),
+            distributions: distributions.into(),
+            atom_intervals: Arc::from([]),
+            mean_intervals: Arc::from([]),
+            interval_reason: reason.map(Arc::from),
+            draws_requested: wire.draws_requested,
+            draws_ok: wire.draws_ok,
+            draws_failed: wire.draws_failed,
+        }));
+    }
+    if wire.draws_ok < 2
+        || (reason.is_some()
+            && reason != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED))
+    {
+        return Err(err("Bayesian transport artifact draw metadata mismatch"));
     }
     let mut atom_intervals = Vec::with_capacity(point.atoms.len());
     for atom in 0..point.atoms.len() {
@@ -1728,6 +1825,9 @@ fn validate_bayesian_posterior(
         draws_requested: wire.draws_requested,
         draws_ok: wire.draws_ok,
         draws_failed: wire.draws_failed,
+        interval_reason: Some(Arc::from(
+            reason.unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+        )),
     }))
 }
 
@@ -1941,7 +2041,7 @@ mod tests {
         assert!(!result.reasoning().uncertainty.is_available());
         assert!(matches!(
             &result.reasoning().uncertainty,
-            SlotAvailability::Unavailable { reason } if reason.as_ref() == "bayesian_transport_uncalibrated"
+            SlotAvailability::Unavailable { reason } if reason.as_ref() == "insufficient_bootstrap_replicates"
         ));
 
         let artifact = study.export(&result).unwrap();
@@ -2020,6 +2120,37 @@ mod tests {
                 posterior.mean_intervals,
             );
         }
+    }
+
+    #[test]
+    fn bayesian_draws_that_miss_the_conditioner_withhold_the_interval() {
+        let study = prepared_with_options(
+            "empty-arm",
+            [20, 5, 0, 0],
+            DependenceGroup::IndependentStudies,
+            EmpiricalTableOptions {
+                estimator:
+                    antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap,
+                posterior_draws: 8,
+                ..EmpiricalTableOptions::default()
+            },
+        );
+        let ctx = ExecutionContext::for_tests(3);
+        let withheld = antecedent_estimate::evaluate_bayesian_statistical_transport(
+            &study.state.functional,
+            &study.state.input,
+            study.state.request.clone(),
+            study.state.limits,
+            antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
+            8,
+            0.95,
+            study.state.options.max_joint_cells,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(withheld.draws_failed, 8);
+        assert!(withheld.mean_intervals.is_empty());
+        assert_eq!(withheld.interval_reason.as_deref(), Some("bootstrap_failure_fraction"));
     }
 
     #[test]

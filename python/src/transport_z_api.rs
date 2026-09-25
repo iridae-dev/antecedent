@@ -579,18 +579,44 @@ impl PreparedZTransportStage {
         Ok(py.import("json")?.call_method1("loads", (json,))?.unbind())
     }
 
-    fn estimate(&mut self, py: Python<'_>) -> PyResult<String> {
+    #[pyo3(signature=(estimator=None, posterior_draws=None))]
+    fn estimate(
+        &mut self,
+        py: Python<'_>,
+        estimator: Option<String>,
+        posterior_draws: Option<u32>,
+    ) -> PyResult<String> {
+        let provider = match estimator.as_deref() {
+            None => None,
+            Some("empirical_support_bayesian_bootstrap") => {
+                Some(antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport)
+            }
+            Some("state_space_dirichlet") => {
+                Some(antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet)
+            }
+            Some(name) => return Err(error(format!("unknown z-transport provider {name}"))),
+        };
+        if provider.is_none() && posterior_draws.is_some() {
+            return Err(error("posterior_draws requires a Bayesian z-transport provider"));
+        }
+        let draws = posterior_draws.unwrap_or(199);
         let inner = self.inner.clone();
         let memory = self.memory_bytes;
         let result = crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
             ctx.memory.hard_limit_bytes = memory;
-            inner.estimate(&ctx).map_err(error)
+            match provider {
+                Some(provider) => inner.estimate_bayesian(provider, draws, &ctx).map_err(error),
+                None => inner.estimate(&ctx).map_err(error),
+            }
         })?;
         let names = &self.graph.names;
         let query = self.inner.functional().derivation().query();
         let distribution = result.distribution();
-        let interval = if result.interval_type() == antecedent_estimate::PERCENTILE_BOOTSTRAP {
+        let interval = if matches!(
+            result.interval_type(),
+            antecedent_estimate::PERCENTILE_BOOTSTRAP | antecedent_estimate::POSTERIOR_EQUAL_TAIL
+        ) {
             serde_json::json!({
                 "available": true,
                 "method": result.interval_type(),
