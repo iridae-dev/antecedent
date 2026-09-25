@@ -592,7 +592,7 @@ impl PreparedZTransportStage {
         let distribution = result.distribution();
         let payload = serde_json::json!({
             "status":"available",
-            "scope":"bounded_single_source_z_transport_sound_incomplete",
+            "scope":"single_source_z_transport_cited_joints_sound_incomplete",
             "outcomes":query.outcomes.iter().map(|v| &names[v.as_usize()]).collect::<Vec<_>>(),
             "atoms":distribution.atoms.iter().map(|row| row.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "probabilities":distribution.probabilities.as_ref(),
