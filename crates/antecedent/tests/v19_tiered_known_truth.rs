@@ -163,7 +163,7 @@ fn codetermined_average_effect_known_truth() {
     // (NonparametricallyIdentified). That refusal is unrelated to this fix set; only the
     // licensed estimator is exercised here.
     for estimator in [EstimatorId::Aipw] {
-        let study = Study::tabular(data.clone())
+        let builder = Study::tabular(data.clone())
             .tiered_background(codetermined_background(&data))
             .unwrap()
             .query(query(&data))
@@ -172,8 +172,22 @@ fn codetermined_average_effect_known_truth() {
             .bootstrap_replicates(0)
             .build()
             .unwrap();
-        let fresh = study.clone().run(&ctx).unwrap();
-        let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+        let fresh = builder.clone().run(&ctx).unwrap();
+        let mut prepared = builder.prepare(&ctx).unwrap();
+        let retained_lowering = prepared
+            .checked_aipw_ate()
+            .expect("CoDetermined AIPW must retain its checked closure and row design");
+        let lowering = retained_lowering.lowering();
+        assert_eq!(
+            lowering.procedure,
+            antecedent_estimate::CheckedAipwProcedure::CrossFittedLogisticOls
+        );
+        assert_eq!(
+            lowering.adjustment.as_ref(),
+            &[data.schema().id_of("z").unwrap(), data.schema().id_of("u").unwrap()]
+        );
+        drop(builder);
+        let click = prepared.estimate(&data, &ctx).unwrap();
         for result in [&fresh, &click] {
             assert_eq!(result.support_status.unwrap().as_str(), "licensed");
             assert_eq!(result.logical_plan.identifier.as_deref(), Some("generalized.adjustment"));
@@ -188,6 +202,16 @@ fn codetermined_average_effect_known_truth() {
             );
         }
         assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+        let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+        assert!((refreshed.estimate.ate - CODETERMINED_TRUTH).abs() < 0.12);
+        let artifact =
+            prepared.encode_contracted_result(&refreshed, "codetermined-aipw", &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "CoDetermined artifact dependencies: {:?}",
+            consumed.acceptance.unresolved
+        );
     }
 }
 

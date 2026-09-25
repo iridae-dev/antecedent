@@ -1375,11 +1375,17 @@ pub(crate) struct CheckedAipwOperation {
     population_registry: Option<antecedent_core::PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
     custom_validator_names: Arc<[Arc<str>]>,
+    /// Tier closure used to justify adjustment when this is a CoDetermined route.
+    tiered_background: Option<antecedent_graph::TieredBackground>,
 }
 
 impl CheckedAipwOperation {
     fn sealed_for_direct_execution(&self) -> bool {
-        self.graph_class == GraphClass::Dag
+        ((self.graph_class == GraphClass::Dag && self.tiered_background.is_none())
+            || (self.graph_class == GraphClass::Admg
+                && self.tiered_background.as_ref().is_some_and(|background| {
+                    background.within_tier == antecedent_graph::WithinTier::CoDetermined
+                })))
             && matches!(
                 self.structure_source,
                 crate::support::StructureSource::Explicit
@@ -1438,6 +1444,24 @@ impl CheckedAipwOperation {
                 message: "prepared AIPW operation disagrees with its checked target or query"
                     .into(),
             });
+        }
+        if let Some(background) = &self.tiered_background {
+            let checked = antecedent_identify::identify_tiered(
+                background,
+                &self.query,
+            )?;
+            if checked.status != self.identification.status
+                || checked.query != self.identification.query
+                || !checked.estimands.iter().any(|candidate| {
+                    candidate.functional == self.estimand.functional
+                        && candidate.method == self.estimand.method
+                        && candidate.adjustment_set == self.estimand.adjustment_set
+                })
+            {
+                return Err(CausalError::Compile {
+                    message: "retained CoDetermined AIPW closure no longer justifies its target".into(),
+                });
+            }
         }
         let mut workspace = antecedent_estimate::AipwWorkspace::default();
         let estimate = self
@@ -4051,7 +4075,7 @@ impl PreparedStudy {
         self.execution.checked_linear()
     }
 
-    /// Checked AIPW lowering retained for the supported back-door mean ATE.
+    /// Checked AIPW lowering retained for a supported mean ATE.
     #[must_use]
     pub fn checked_aipw_ate(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
         self.execution.checked_aipw()
@@ -7858,18 +7882,26 @@ impl Study {
             &analysis.inference,
             self.graph.class(),
             self.graph_posterior.is_none(),
-            self.tiered.is_none(),
+            self.tiered.as_ref(),
         ) {
             (
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(query),
                 Some(cache),
-                GraphClass::Dag,
+                graph_class,
                 InferenceMode::Frequentist,
-                GraphClass::Dag,
+                source_graph_class,
                 true,
-                true,
-            ) if matches!(query.outcome_functional, OutcomeFunctional::Mean)
+                tiered_background,
+            ) if matches!(
+                    (graph_class, source_graph_class, tiered_background),
+                    (GraphClass::Dag, GraphClass::Dag, None)
+                        | (GraphClass::Admg, GraphClass::Admg, Some(_))
+                )
+                && tiered_background.is_none_or(|background| {
+                    background.within_tier == antecedent_graph::WithinTier::CoDetermined
+                })
+                && matches!(query.outcome_functional, OutcomeFunctional::Mean)
                 && matches!(query.target_population, TargetPopulation::AllObserved)
                 && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
                         if *variable == query.treatment && value.as_f64() == Some(1.0))
@@ -7919,6 +7951,7 @@ impl Study {
                                 .map(|validator| Arc::from(validator.name()))
                                 .collect::<Vec<_>>(),
                         ),
+                        tiered_background: tiered_background.cloned(),
                     })
                 } else {
                     None
