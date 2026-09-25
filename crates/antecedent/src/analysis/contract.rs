@@ -428,6 +428,9 @@ impl PreparedStudy {
                 snapshot.nested_counterfactual_fit =
                     Some(nested_counterfactual_fit_wire(tabular, operation)?);
             }
+            if let Some(operation) = self.checked_linear_operation() {
+                snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
+            }
         }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
         Ok(crate::result::ExecutedContract { identities: program.identities(snapshot), refute })
@@ -1259,6 +1262,71 @@ fn nested_counterfactual_fit_wire(
     })
 }
 
+/// Retain only the moments needed to replay a point estimate and classical
+/// homoskedastic standard error. Other fit/uncertainty procedures keep their
+/// explicit dependency refusal in the independent consumer.
+fn linear_fit_moments_wire(
+    data: &antecedent_data::TabularData,
+    operation: &crate::analysis::prepared::CheckedLinearOperation,
+) -> Result<Option<antecedent_io::LinearFitMomentsWire>, CausalError> {
+    if !matches!(operation.fitter.fit_kind, antecedent_estimate::LinearFitKind::Ols)
+        || operation.fitter.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+        || operation.fitter.bootstrap_replicates != 0
+    {
+        return Ok(None);
+    }
+    let checked =
+        operation.fitter.rebind_checked(&operation.preparation, data).map_err(CausalError::from)?;
+    let design = &checked.problem().design;
+    if design.nrows == 0
+        || design.ncols < 2
+        || design.ncols > 64
+        || design.matrix.len() != design.nrows * design.ncols
+    {
+        return Ok(None);
+    }
+    let p = design.ncols;
+    let mut gram = vec![0.0; p * p];
+    let mut outcome_cross = vec![0.0; p];
+    let mut outcome_square = 0.0;
+    for row in 0..design.nrows {
+        let y = design.outcome[row];
+        if !y.is_finite() {
+            return Ok(None);
+        }
+        outcome_square += y * y;
+        for left in 0..p {
+            let x_left = design.matrix[left * design.nrows + row];
+            if !x_left.is_finite() {
+                return Ok(None);
+            }
+            outcome_cross[left] += x_left * y;
+            for right in 0..p {
+                gram[left * p + right] += x_left * design.matrix[right * design.nrows + row];
+            }
+        }
+    }
+    if gram.iter().chain(&outcome_cross).any(|value| !value.is_finite())
+        || !outcome_square.is_finite()
+    {
+        return Ok(None);
+    }
+    let Ok(complete_case_rows) = u64::try_from(design.nrows) else {
+        return Ok(None);
+    };
+    let Ok(columns) = u32::try_from(p) else {
+        return Ok(None);
+    };
+    Ok(Some(antecedent_io::LinearFitMomentsWire {
+        format: 1,
+        complete_case_rows,
+        columns,
+        gram,
+        outcome_cross,
+        outcome_square,
+    }))
+}
+
 /// Add `study`'s data snapshot to program payloads already compiled for it.
 fn contract_payloads(
     program: Arc<ProgramPayloads>,
@@ -1288,6 +1356,9 @@ fn contract_payloads(
         if let Some(operation) = prepared.checked_nested_counterfactual_operation() {
             data_snapshot.nested_counterfactual_fit =
                 Some(nested_counterfactual_fit_wire(tabular, operation)?);
+        }
+        if let Some(operation) = prepared.checked_linear_operation() {
+            data_snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
         }
     }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
@@ -1931,6 +2002,7 @@ fn data_snapshot_wire(
         interference: interference.map(super::contract_identity::interference_snapshot),
         distribution_factor_laws: None,
         nested_counterfactual_fit: None,
+        linear_fit_moments: None,
     })
 }
 

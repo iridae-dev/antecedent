@@ -26,13 +26,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    CausalSchema, ExecutionContext, IdentityDomain, NodeRef, SemanticDigest, VariableId,
-    IDENTITY_FORMAT,
+    CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,
+    VariableId,
 };
 use antecedent_discovery::{
-    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
-    pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks,
-    temporal_pag_from_dbn_masks, GraphPosterior, GraphPosteriorAtomKind,
+    GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask, cpdag_from_adjacency_mask,
+    dag_from_adjacency_mask, pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks,
+    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
@@ -45,14 +45,14 @@ use crate::analysis_wire::{IdentifiedEstimandWire, RdDesignWire};
 use crate::convert::{
     admg_to_wire, cpdag_to_wire, dag_to_wire, pag_to_wire, schema_to_wire, vars_to_raw,
 };
-use crate::discovery_wire::{temporal_dag_to_wire, TemporalGraphWire};
+use crate::discovery_wire::{TemporalGraphWire, temporal_dag_to_wire};
 use crate::error::IoError;
-use crate::expr_wire::{expr_arena_to_wire, ExprArenaWire};
+use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
 use crate::query_wire::{
     CausalQueryWire, InterventionWire, OutcomeFunctionalWire, TargetPopulationWire, ValueWire,
 };
 use crate::to_cbor;
-use crate::trace::{assumptions_to_wire, AssumptionRecordWire};
+use crate::trace::{AssumptionRecordWire, assumptions_to_wire};
 use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWire};
 
 /// Domain-separated BLAKE3 digest of a canonical CBOR payload.
@@ -1249,6 +1249,28 @@ pub struct DataSnapshotIdentityWire {
     /// natural direct effect. Older artifacts omit them and remain readable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nested_counterfactual_fit: Option<NestedCounterfactualFitWire>,
+    /// Portable moments for replaying checked static linear adjustment when its
+    /// fit and uncertainty contract is inside the supported replay subset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linear_fit_moments: Option<LinearFitMomentsWire>,
+}
+
+/// Sufficient statistics for replaying a checked homoskedastic OLS fit.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LinearFitMomentsWire {
+    /// Wire format.
+    pub format: u16,
+    /// Number of complete-case rows.
+    pub complete_case_rows: u64,
+    /// Number of ordered design columns.
+    pub columns: u32,
+    /// Row-major `X'X`.
+    pub gram: Vec<f64>,
+    /// `X'Y` in design order.
+    pub outcome_cross: Vec<f64>,
+    /// `Y'Y`.
+    pub outcome_square: f64,
 }
 
 /// Sufficient statistics for the ordered design `[intercept, treatment, mediator]`.
@@ -2543,6 +2565,7 @@ mod tests {
             interference: None,
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
+            linear_fit_moments: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);

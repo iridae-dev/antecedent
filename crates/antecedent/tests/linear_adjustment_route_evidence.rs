@@ -92,21 +92,11 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         )
         .unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert_eq!(
-        consumed.acceptance.unresolved.len(),
-        1,
-        "{coordinate} artifact should have one precise independent-consumption dependency"
-    );
     assert!(
-        consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|reason| { reason.as_ref() == "dependencies.linear_fit_sufficient_statistics" }),
-        "{coordinate} artifact did not expose the numerical replay dependency: {:?}",
+        consumed.acceptance.accepts_as_verified_program(),
+        "{coordinate} artifact should replay from portable OLS moments: {:?}",
         consumed.acceptance.unresolved
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
     let consumed_contract = consumed.contract.as_ref().expect("contracted linear artifact");
     assert_eq!(consumed_contract.estimator.as_deref(), Some("linear.adjustment.ate"));
@@ -116,6 +106,7 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
             .as_ref()
             .is_some_and(|program| { program.checked_linear_adjustment_lowering.is_some() })
     );
+    assert!(consumed_contract.data_snapshot.as_ref().unwrap().linear_fit_moments.is_some());
     if coordinate == "AverageEffect:Dag:explicit:Frequentist:none" {
         let contract = consumed.contract.as_ref().expect("contracted linear artifact");
         let mut missing = contract.clone();
@@ -149,6 +140,34 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
                 .any(|reason| { reason.as_ref() == "program.checked_linear_adjustment_binding" }),
             "semantic lowering tamper was not rejected: {unresolved:?}"
         );
+
+        let mut missing_standard_error = consumed.body.clone();
+        missing_standard_error.standard_error = None;
+        let unresolved = antecedent_io::verify_contract_against_body(
+            &consumed.header,
+            &missing_standard_error,
+            contract,
+        );
+        assert!(
+            unresolved.iter().any(|reason| reason.as_ref() == "body.standard_error"),
+            "an artifact missing the committed analytic standard error was accepted: {unresolved:?}"
+        );
+
+        let mut tampered_moments = contract.clone();
+        tampered_moments
+            .data_snapshot
+            .as_mut()
+            .unwrap()
+            .linear_fit_moments
+            .as_mut()
+            .unwrap()
+            .outcome_cross[1] += 1.0;
+        let unresolved = antecedent_io::verify_contract_against_body(
+            &consumed.header,
+            &consumed.body,
+            &tampered_moments,
+        );
+        assert!(!unresolved.is_empty(), "tampering with replay moments was accepted");
     }
 }
 

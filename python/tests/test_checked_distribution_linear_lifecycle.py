@@ -9,10 +9,14 @@ import pytest
 
 def _distribution_table() -> dict[str, np.ndarray]:
     cells = [
-        (0.0, 0.0, 0.0, 80), (0.0, 0.0, 1.0, 20),
-        (0.0, 1.0, 0.0, 20), (0.0, 1.0, 1.0, 80),
-        (1.0, 0.0, 0.0, 60), (1.0, 0.0, 1.0, 40),
-        (1.0, 1.0, 0.0, 40), (1.0, 1.0, 1.0, 60),
+        (0.0, 0.0, 0.0, 80),
+        (0.0, 0.0, 1.0, 20),
+        (0.0, 1.0, 0.0, 20),
+        (0.0, 1.0, 1.0, 80),
+        (1.0, 0.0, 0.0, 60),
+        (1.0, 0.0, 1.0, 40),
+        (1.0, 1.0, 0.0, 40),
+        (1.0, 1.0, 1.0, 60),
     ]
     return {
         name: np.concatenate([np.full(cell[3], cell[column]) for cell in cells])
@@ -43,7 +47,7 @@ def test_distribution_program_refresh_and_independent_replay() -> None:
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
 
-def test_linear_lowering_refresh_reports_exact_numeric_dependency() -> None:
+def test_linear_lowering_refresh_replays_portable_ols_moments() -> None:
     rng = np.random.default_rng(73)
     z = rng.normal(size=512)
     t = (rng.uniform(size=512) < 1 / (1 + np.exp(-z))).astype(float)
@@ -62,5 +66,4 @@ def test_linear_lowering_refresh_reports_exact_numeric_dependency() -> None:
     refreshed = prepared.refresh(changed)
     assert refreshed.effect == pytest.approx(first.effect + 0.5, abs=1e-10)
     consumed = ant.artifacts.accept(refreshed.export())
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.linear_fit_sufficient_statistics" in consumed["unresolved"]
+    assert consumed["accepts_as_verified_program"] == "true"
