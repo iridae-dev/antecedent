@@ -434,7 +434,8 @@ impl CausalError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&str> {
         let message = match self {
-            Self::Compile { message } | Self::NotIdentified { message, .. } => message.as_str(),
+            Self::NotIdentified { .. } => return Some("effect_not_identified"),
+            Self::Compile { message } => message.as_str(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
             Self::Estimate(EstimationError::Refused { code, .. }) => return Some(code),
             _ => return None,

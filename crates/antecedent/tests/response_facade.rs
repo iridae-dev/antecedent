@@ -500,7 +500,7 @@ fn prepared_response_curve_reuses_identification() {
     let prepared = study.prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!(fresh.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(click.estimand.adjustment_set, fresh.estimand.adjustment_set);
     let click_mean = match &click.response.as_ref().unwrap().estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,

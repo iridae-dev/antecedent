@@ -49,7 +49,7 @@ use super::helpers::{
     AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
     run_plugin_level_refuters, run_refuters,
 };
-use super::stage::{STAGE_ESTIMATE_POINT, STAGE_VALIDATE, StageClock};
+use super::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
 use super::{
     CheckedAdmgGraphPosteriorResponse, CheckedBayesianGraphPosteriorAte,
     CheckedClassGraphPosteriorEffect, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
@@ -1418,7 +1418,13 @@ impl CheckedAipwOperation {
             )
             && self.estimator == crate::strategy_table::EstimatorId::Aipw
             && matches!(self.inference, InferenceMode::Frequentist)
-            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && matches!(
+                self.refute,
+                RefuteSuite::None
+                    | RefuteSuite::Cheap
+                    | RefuteSuite::PlaceboAndRcc
+                    | RefuteSuite::Full
+            )
             && self.custom_validator_names.is_empty()
             && self.preparation.lowering().procedure
                 == antecedent_estimate::CheckedAipwProcedure::CrossFittedLogisticOls
@@ -1599,7 +1605,7 @@ impl CheckedAipwOperation {
 
 /// Checked linear adjustment target with its selected fit and uncertainty
 /// procedure. `default_id` preserves the progressive point/uncertainty stages.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct CheckedLinearOperation {
     pub(crate) fitter: antecedent_estimate::LinearAdjustmentAte,
     pub(crate) preparation: antecedent_estimate::CheckedLinearAdjustmentAte,
@@ -1617,7 +1623,22 @@ pub(crate) struct CheckedLinearOperation {
     support_status: Option<crate::support::CellStatus>,
     structure_source: crate::support::StructureSource,
     population_registry: Option<antecedent_core::PopulationRegistry>,
+    latency_mode: Option<super::latency::LatencyMode>,
+    stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
     custom_validator_names: Arc<[Arc<str>]>,
+}
+
+impl std::fmt::Debug for CheckedLinearOperation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CheckedLinearOperation")
+            .field("query", &self.query)
+            .field("estimator", &self.estimator)
+            .field("default_id", &self.default_id)
+            .field("latency_mode", &self.latency_mode)
+            .field("validation", &self.refute)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Immutable result-construction context retained with a checked static operation.
@@ -1672,7 +1693,13 @@ impl CheckedGlmAdjustmentOperation {
             )
             && self.estimator == crate::strategy_table::EstimatorId::GlmAdjustment
             && matches!(self.inference, InferenceMode::Frequentist)
-            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && matches!(
+                self.refute,
+                RefuteSuite::None
+                    | RefuteSuite::Cheap
+                    | RefuteSuite::PlaceboAndRcc
+                    | RefuteSuite::Full
+            )
     }
 
     fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
@@ -1745,10 +1772,8 @@ impl CheckedLinearOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
-        }
+        let mut clock = StageClock::new();
+        clock.begin(ctx, STAGE_IDENTIFY, 0.05)?;
         if self.preparation.source_functional() != self.estimand.functional
             || self.preparation.target().adjustment_set != self.estimand.adjustment_set
             || self.preparation.lowering().treatment != self.query.treatment
@@ -1760,7 +1785,16 @@ impl CheckedLinearOperation {
                     .into(),
             });
         }
+        clock.finish(STAGE_IDENTIFY);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::stage::StageEvent::Identify {
+                identification: self.identification.clone(),
+                estimand: self.estimand.clone(),
+            },
+        );
 
+        clock.begin(ctx, STAGE_ESTIMATE_POINT, 0.25)?;
         let mut workspace = EstimationWorkspace::default();
         let point = if self.default_id {
             self.fitter
@@ -1775,6 +1809,13 @@ impl CheckedLinearOperation {
                 .fit_checked(&self.preparation, &mut workspace, ctx)
                 .map_err(CausalError::from)?
         };
+        clock.finish(STAGE_ESTIMATE_POINT);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::stage::StageEvent::Point { estimate: point.clone() },
+        );
+
+        clock.begin(ctx, super::stage::STAGE_UNCERTAINTY, 0.55)?;
         let estimate = if self.default_id {
             self.fitter
                 .attach_bootstrap(self.preparation.problem(), &mut workspace, ctx, point)
@@ -1782,7 +1823,17 @@ impl CheckedLinearOperation {
         } else {
             point
         };
+        clock.finish(super::stage::STAGE_UNCERTAINTY);
+        super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
+        );
         let cancelled = estimate.bootstrap_cancelled || ctx.cancellation.is_cancelled();
+        if cancelled {
+            clock.mark_cancelled();
+        } else {
+            clock.begin(ctx, STAGE_VALIDATE, 0.8)?;
+        }
         let (refutations, mut extra_diagnostics) = if cancelled || self.refute == RefuteSuite::None
         {
             (Vec::new(), Vec::new())
@@ -1803,6 +1854,18 @@ impl CheckedLinearOperation {
             )?;
             (reports, diagnostics)
         };
+        if !cancelled {
+            clock.finish(STAGE_VALIDATE);
+        }
+        if !cancelled {
+            super::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                &super::stage::StageEvent::Validate {
+                    refutations: refutations.clone(),
+                    predictive_checks: Vec::new(),
+                },
+            );
+        }
         let mut diagnostics = self.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(antecedent_core::Diagnostic::new(
@@ -1842,9 +1905,9 @@ impl CheckedLinearOperation {
             provenance,
             treatment: self.query.treatment,
             outcome: self.query.outcome,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            latency_mode: None,
-            stage_timings_ns: Vec::new(),
+            wall_time_ns: clock.wall_time_ns(),
+            latency_mode: self.latency_mode.map(|mode| Arc::from(mode.as_str())),
+            stage_timings_ns: clock.timings(),
             bootstrap_replicates_requested: Some(self.fitter.bootstrap_replicates),
             bootstrap_replicates_ok: bootstrap_ok,
             n_draws: None,
@@ -3658,6 +3721,17 @@ pub(crate) enum CheckedProgramBinding<'a> {
 }
 
 impl PreparedExecution {
+    fn set_stage_sink(&mut self, sink: Option<Arc<dyn super::stage::StageResultSink>>) {
+        match self {
+            // These operations own the executable copy of the click controls.
+            // Updating only Study would leave a sealed route unable to stream.
+            Self::CheckedLinear(operation) => operation.stage_sink = sink,
+            Self::BayesianGcomp(operation) => operation.set_stage_sink(sink),
+            Self::BayesianConditional(operation) => operation.set_stage_sink(sink),
+            _ => {}
+        }
+    }
+
     pub(crate) fn program_binding(&self) -> CheckedProgramBinding<'_> {
         match self {
             Self::CheckedAipw(operation) => CheckedProgramBinding::Aipw(&operation.preparation),
@@ -5352,12 +5426,14 @@ impl PreparedStudy {
             };
         let mut diagnostics = metadata.identification.diagnostics.clone();
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(antecedent_core::Diagnostic::new(
-            "exec.identify.cached",
-            antecedent_core::DiagnosticKind::Execution,
-            antecedent_core::DiagnosticSeverity::Info,
-            "identification reused from the checked prepared operation",
-        ));
+        if metadata.identifier != crate::strategy_table::IdentifierId::RdSharp {
+            diagnostics.push(antecedent_core::Diagnostic::new(
+                "exec.identify.cached",
+                antecedent_core::DiagnosticKind::Execution,
+                antecedent_core::DiagnosticSeverity::Info,
+                "identification reused from the checked prepared operation",
+            ));
+        }
         diagnostics.append(&mut extra_diagnostics);
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
@@ -5481,6 +5557,7 @@ impl PreparedStudy {
     /// `None` stops streaming. The sink is an in-process execution control: it
     /// is not part of the contract, program, or claim identity.
     pub fn set_stage_sink(&mut self, sink: Option<Arc<dyn super::stage::StageResultSink>>) {
+        self.execution.set_stage_sink(sink.clone());
         self.analysis.stage_sink = sink;
     }
 
@@ -7627,6 +7704,8 @@ impl Study {
                     support_status: analysis.support_status,
                     structure_source: analysis.structure_source,
                     population_registry: analysis.population_registry.clone(),
+                    latency_mode: analysis.latency_mode,
+                    stage_sink: analysis.stage_sink.clone(),
                     custom_validator_names: Arc::from(
                         analysis
                             .custom_validators
@@ -7666,7 +7745,10 @@ impl Study {
                 && analysis.custom_validators.is_empty()
                 && matches!(
                     analysis.refute,
-                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
                 ) =>
             {
                 let mut fitter = match &analysis.estimator_spec {
@@ -7752,7 +7834,10 @@ impl Study {
                 && analysis.custom_validators.is_empty()
                 && matches!(
                     analysis.refute,
-                    RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+                    RefuteSuite::None
+                        | RefuteSuite::Cheap
+                        | RefuteSuite::PlaceboAndRcc
+                        | RefuteSuite::Full
                 ) =>
             {
                 let identification = antecedent_identify::SharpRdIdentifier::new(
@@ -7764,7 +7849,22 @@ impl Study {
                 )
                 .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
                 .map_err(CausalError::from)?;
-                crate::strategy_table::require_identified(&identification)?;
+                if matches!(identification.status, IdentificationStatus::NotIdentified)
+                    || identification.estimands.is_empty()
+                    || !crate::strategy_table::identification_status_acceptable(
+                        identification.status,
+                    )
+                {
+                    let detail = identification
+                        .diagnostics
+                        .last()
+                        .map_or("effect not identified", |diagnostic| diagnostic.message.as_ref());
+                    return Err(CausalError::not_identified(
+                        identification.status,
+                        antecedent_identify::search_truncated(&identification),
+                        detail,
+                    ));
+                }
                 let estimand = crate::strategy_table::select_estimand(
                     &identification,
                     crate::strategy_table::EstimatorId::RdSharp,
@@ -9798,8 +9898,10 @@ impl Study {
                     graph,
                     &CausalQuery::Mediation(query.clone()),
                 )?;
-                let estimand =
-                    select_estimand(&identification, EstimatorId::StaticMediationLinear)?;
+                let (identification, estimand) = crate::strategy_table::select_claim(
+                    identification,
+                    EstimatorId::StaticMediationLinear,
+                )?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::ConditionalEffect(query) => {

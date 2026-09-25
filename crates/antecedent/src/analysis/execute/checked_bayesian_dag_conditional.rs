@@ -33,6 +33,13 @@ impl std::fmt::Debug for CheckedBayesianConditionalOperation {
 }
 
 impl CheckedBayesianConditionalOperation {
+    pub(crate) fn set_stage_sink(
+        &mut self,
+        sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+    ) {
+        self.stage_sink = sink;
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
         graph: &Dag,
