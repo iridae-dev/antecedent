@@ -1,4 +1,7 @@
-//! Checked execution contract for frequentist DAG graph-posterior effects.
+//! Checked execution contract for graph-posterior average effects.
+//!
+//! Frequentist DAG atoms keep linear adjustment. ADMG atoms keep general ID
+//! and `functional.effect`, including the Bayesian evaluator.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -9,8 +12,8 @@ use antecedent_estimate::OverlapPolicy;
 use antecedent_prob::GraphIdentFlag;
 
 use crate::{
-    CausalError, EstimatorId, EstimatorSpec, RefuteSuite,
-    analysis::prepared::CachedGraphPosteriorIdentification,
+    analysis::prepared::CachedGraphPosteriorIdentification, CausalError, EstimatorId,
+    EstimatorSpec, RefuteSuite,
 };
 
 /// A frozen frequentist DAG graph-posterior composition.
@@ -50,14 +53,14 @@ impl CheckedGraphPosteriorEffect {
         latency_mode: Option<super::latency::LatencyMode>,
         validation: RefuteSuite,
     ) -> Result<Self, CausalError> {
-        if posterior.atom_kind != GraphPosteriorAtomKind::Dag {
+        let licensed = matches!(
+            (posterior.atom_kind, procedure.id()),
+            (GraphPosteriorAtomKind::Dag, EstimatorId::LinearAdjustmentAte)
+                | (GraphPosteriorAtomKind::Admg, EstimatorId::FunctionalEffect)
+        );
+        if !licensed {
             return Err(CausalError::Unsupported {
-                message: "checked frequentist graph-posterior effect requires DAG atoms",
-            });
-        }
-        if procedure.id() != EstimatorId::LinearAdjustmentAte {
-            return Err(CausalError::Unsupported {
-                message: "checked frequentist DAG graph-posterior effect supports linear adjustment only",
+                message: "checked graph-posterior effect supports frequentist DAG linear adjustment or ADMG functional.effect",
             });
         }
         if query.treatment == query.outcome
@@ -78,7 +81,8 @@ impl CheckedGraphPosteriorEffect {
                 .any(|atom| !posterior.graph_keys.iter().any(|key| *key == atom.key))
         {
             return Err(CausalError::Unsupported {
-                message: "graph-posterior identification cache does not match frozen atoms and weights",
+                message:
+                    "graph-posterior identification cache does not match frozen atoms and weights",
             });
         }
         if cache_graphs.identified.len() != posterior.n_graphs {
@@ -111,8 +115,8 @@ impl CheckedGraphPosteriorEffect {
         &self.identification
     }
 
-    pub(crate) const fn estimator(&self) -> EstimatorId {
-        EstimatorId::LinearAdjustmentAte
+    pub(crate) fn estimator(&self) -> EstimatorId {
+        self.procedure.id()
     }
 
     pub(crate) fn procedure(&self) -> &EstimatorSpec {
@@ -212,36 +216,32 @@ mod tests {
         let graphs = posterior();
         let query =
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        assert!(
-            CheckedGraphPosteriorEffect::prepare(
-                graphs.clone(),
-                query.clone(),
-                cache(&graphs),
-                EstimatorSpec::Default(EstimatorId::Aipw),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(crate::analysis::LatencyMode::Standard),
-                RefuteSuite::None,
-            )
-            .is_err()
-        );
+        assert!(CheckedGraphPosteriorEffect::prepare(
+            graphs.clone(),
+            query.clone(),
+            cache(&graphs),
+            EstimatorSpec::Default(EstimatorId::Aipw),
+            0,
+            OverlapPolicy::ExplicitOverride,
+            None,
+            Some(crate::analysis::LatencyMode::Standard),
+            RefuteSuite::None,
+        )
+        .is_err());
 
         let mut wrong_cache = cache(&graphs);
         wrong_cache.graphs.weights = Arc::from([0.5, 0.5]);
-        assert!(
-            CheckedGraphPosteriorEffect::prepare(
-                graphs,
-                query,
-                wrong_cache,
-                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(crate::analysis::LatencyMode::Standard),
-                RefuteSuite::None,
-            )
-            .is_err()
-        );
+        assert!(CheckedGraphPosteriorEffect::prepare(
+            graphs,
+            query,
+            wrong_cache,
+            EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+            0,
+            OverlapPolicy::ExplicitOverride,
+            None,
+            Some(crate::analysis::LatencyMode::Standard),
+            RefuteSuite::None,
+        )
+        .is_err());
     }
 }

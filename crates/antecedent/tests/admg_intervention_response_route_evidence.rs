@@ -193,3 +193,124 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
         }
     }
 }
+
+#[test]
+fn explicit_and_accepted_admg_scalar_response_runs_plugin_level_refuters() {
+    let (data, graph) = fixture(0.0);
+    let truth = 0.596;
+    let query = query_with_value(Value::f64(1.0));
+    for accepted in [false, true] {
+        for bayesian in [false, true] {
+            let inference = if bayesian {
+                InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64))
+            } else {
+                InferenceMode::Frequentist
+            };
+            for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+                let suite_name = match suite {
+                    RefuteSuite::Cheap => "cheap",
+                    RefuteSuite::Full => "full",
+                    RefuteSuite::None | RefuteSuite::PlaceboAndRcc => unreachable!(),
+                };
+                let base = Study::tabular(data.clone())
+                    .query(CausalQuery::Response(query.clone()))
+                    .identifier(IdentifierId::GeneralId)
+                    .estimator(EstimatorId::FunctionalEffect)
+                    .inference(inference.clone())
+                    .refute(suite)
+                    .bootstrap_replicates(0);
+                let builder = if accepted {
+                    base.graph(AcceptedGraph::from(graph.clone()))
+                } else {
+                    base.graph(graph.clone())
+                };
+                let context = ExecutionContext::for_tests(84_003);
+                let study = builder.clone().build().unwrap();
+                let mut prepared = study.prepare(&context).unwrap();
+                drop(builder);
+                drop(study);
+                let coordinate = format!(
+                    "InterventionResponse:Admg:{}:{}:{suite_name}",
+                    if accepted { "accepted" } else { "explicit" },
+                    if bayesian { "Bayesian" } else { "Frequentist" }
+                );
+                let contract = prepared.contract().unwrap();
+                match &contract.reasoning.support {
+                    SlotAvailability::Available(slot) => {
+                        assert_eq!(slot.matrix_coordinate.as_deref(), Some(coordinate.as_str()));
+                    }
+                    other => panic!("{coordinate}: support unavailable: {other:?}"),
+                }
+                let members = prepared
+                    .checked_functional_effect_response_members()
+                    .expect("sealed response operation retains its scalar member");
+                assert_eq!(members.len(), 1);
+                assert_eq!(members[0].grid_value(), 1.0);
+                assert_eq!(
+                    members[0].program().mapping().source,
+                    members[0].program().mapping().executable
+                );
+                let result = prepared.estimate(&data, &context).unwrap();
+                assert!(
+                    (response_value(&result) - truth).abs() < if bayesian { 0.08 } else { 1e-12 },
+                    "{coordinate}: {}",
+                    response_value(&result)
+                );
+                assert_plugin_level_validation(&result, suite, &coordinate);
+                let refreshed = prepared.refresh(data.clone(), &context).unwrap();
+                assert_plugin_level_validation(&refreshed, suite, &coordinate);
+            }
+        }
+    }
+}
+
+fn assert_plugin_level_validation(
+    result: &antecedent::StudyResult,
+    suite: RefuteSuite,
+    coordinate: &str,
+) {
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_ref() == "refute.evalue.not_a_contrast"),
+        "{coordinate}: plugin level must refuse a contrast-shaped E-value"
+    );
+    assert!(
+        result.refutations.iter().any(|report| report.refuter.as_ref() == "overlap.assessment"),
+        "{coordinate}: missing overlap refuter: {:?}",
+        result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>()
+    );
+    assert!(
+        result.refutations.iter().all(|report| report.refuter.as_ref() != "sensitivity.evalue"),
+        "{coordinate}: E-value is not licensed for an intervention level"
+    );
+    match suite {
+        RefuteSuite::Cheap => {
+            assert!(
+                result.refutations.iter().all(|report| report.refuter.as_ref().contains("overlap")),
+                "{coordinate}: cheap is overlap only: {:?}",
+                result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>()
+            );
+        }
+        RefuteSuite::Full => {
+            assert!(
+                result.refutations.iter().any(|report| report.refuter.as_ref() == "overlap.rule"),
+                "{coordinate}: full must add the overlap rule: {:?}",
+                result.refutations.iter().map(|report| report.refuter.as_ref()).collect::<Vec<_>>()
+            );
+            for validator in ["bootstrap", "data_subset", "graph"] {
+                assert!(
+                    result.diagnostics.iter().any(|diagnostic| {
+                        diagnostic.code.as_ref() == "refute.validator.not_applicable"
+                            && diagnostic.fields.iter().any(|(key, value)| {
+                                key.as_ref() == "validator" && value.as_ref() == validator
+                            })
+                    }),
+                    "{coordinate}: {validator} is not licensed on a functional.effect level"
+                );
+            }
+        }
+        RefuteSuite::None | RefuteSuite::PlaceboAndRcc => unreachable!(),
+    }
+}

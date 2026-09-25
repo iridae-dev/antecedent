@@ -32,6 +32,35 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_admg_graph_posterior_with(data, gp, query, physical, None, ctx)
+    }
+
+    pub(in crate::analysis) fn execute_checked_admg_graph_posterior(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        operation: &super::super::CheckedGraphPosteriorEffect,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.execute_admg_graph_posterior_with(
+            data,
+            operation.posterior(),
+            operation.query(),
+            physical,
+            Some(operation.identification()),
+            ctx,
+        )
+    }
+
+    fn execute_admg_graph_posterior_with(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        checked: Option<&CachedGraphPosteriorIdentification>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         if matches!(self.query, CausalQuery::ConditionalEffect(_)) {
             return Err(CausalError::Unsupported {
@@ -43,17 +72,18 @@ impl super::Study {
                 message: "execute_admg_graph_posterior requires Admg posterior atoms".into(),
             });
         }
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        gp, query, ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(cache) = checked {
+            (cache.clone(), true)
+        } else if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
+            (cache.clone(), true)
+        } else {
+            (
+                crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, query, ctx,
+                )?,
+                false,
+            )
+        };
         if identified.atoms.is_empty() && identified.graphs.identified_mass() <= 0.0 {
             return Err(CausalError::Compile {
                 message: "ADMG graph-posterior envelope: no identified ADMG atoms".into(),
