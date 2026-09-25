@@ -26,12 +26,28 @@ enum OutcomeMechanism {
 #[derive(Clone, Copy, Debug)]
 struct Regime {
     /// `None` means observational; otherwise the intervention is applied.
-    do_x: Option<u8>,
-    do_z: Option<u8>,
-    do_w: Option<u8>,
+    x: Option<u8>,
+    z: Option<u8>,
+    w: Option<u8>,
 }
 
 type Law = [f64; 16];
+
+fn assert_law_equal(left: Law, right: Law) {
+    assert_eq!(left.map(f64::to_bits), right.map(f64::to_bits));
+}
+
+fn assert_law_different(left: Law, right: Law) {
+    assert_ne!(left.map(f64::to_bits), right.map(f64::to_bits));
+}
+
+fn assert_risk_equal(left: f64, right: f64) {
+    assert_eq!(left.to_bits(), right.to_bits());
+}
+
+fn assert_risk_different(left: f64, right: f64) {
+    assert_ne!(left.to_bits(), right.to_bits());
+}
 
 fn enumerate_law(mechanism: OutcomeMechanism, regime: Regime) -> Law {
     let mut law = [0.0; 16];
@@ -39,13 +55,13 @@ fn enumerate_law(mechanism: OutcomeMechanism, regime: Regime) -> Law {
     for u in 0..=1_u8 {
         for vz in 0..=1_u8 {
             for vw in 0..=1_u8 {
-                let x = regime.do_x.unwrap_or(u);
+                let x = regime.x.unwrap_or(u);
                 let y = match mechanism {
                     OutcomeMechanism::CopiesObservedTreatment => x,
                     OutcomeMechanism::CopiesTreatmentLatent => u,
                 };
-                let z = regime.do_z.unwrap_or(vz);
-                let w = regime.do_w.unwrap_or(vw);
+                let z = regime.z.unwrap_or(vz);
+                let w = regime.w.unwrap_or(vw);
                 let cell = (x as usize) * 8 + (y as usize) * 4 + (z as usize) * 2 + w as usize;
                 law[cell] += 1.0 / 8.0;
             }
@@ -67,18 +83,18 @@ fn target_y_risk(mechanism: OutcomeMechanism, x: u8) -> f64 {
 }
 
 fn all_binary_regimes_for_zw() -> Vec<Regime> {
-    let mut regimes = vec![Regime { do_x: None, do_z: None, do_w: None }];
+    let mut regimes = vec![Regime { x: None, z: None, w: None }];
     // Complete source family for every non-empty subset of {Z, W}, including
     // both joint assignments. Intervention levels are enumerated exhaustively.
     for z in 0..=1 {
-        regimes.push(Regime { do_x: None, do_z: Some(z), do_w: None });
+        regimes.push(Regime { x: None, z: Some(z), w: None });
     }
     for w in 0..=1 {
-        regimes.push(Regime { do_x: None, do_z: None, do_w: Some(w) });
+        regimes.push(Regime { x: None, z: None, w: Some(w) });
     }
     for z in 0..=1 {
         for w in 0..=1 {
-            regimes.push(Regime { do_x: None, do_z: Some(z), do_w: Some(w) });
+            regimes.push(Regime { x: None, z: Some(z), w: Some(w) });
         }
     }
     regimes
@@ -183,10 +199,11 @@ fn full_experiment_catalog(
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // One independent SCM fixture checks the full evidence and nonidentification claim.
 fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree_on_do_x() {
     let first = OutcomeMechanism::CopiesObservedTreatment;
     let second = OutcomeMechanism::CopiesTreatmentLatent;
-    let observational = Regime { do_x: None, do_z: None, do_w: None };
+    let observational = Regime { x: None, z: None, w: None };
 
     let (diagram, query) = fig2b_style_contract();
     validate_z_transport_query(&diagram, &query).unwrap();
@@ -314,20 +331,20 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
     assert_eq!(record, incomplete_obstruction.to_record());
 
     // The target observational law is identical in the two SCMs.
-    assert_eq!(enumerate_law(first, observational), enumerate_law(second, observational));
+    assert_law_equal(enumerate_law(first, observational), enumerate_law(second, observational));
 
     // Source experiments cover every assignment for each non-empty subset of
     // the declared controllable set {Z, W}, including the joint do(Z,W) laws.
     for regime in all_binary_regimes_for_zw() {
-        assert_eq!(enumerate_law(first, regime), enumerate_law(second, regime));
+        assert_law_equal(enumerate_law(first, regime), enumerate_law(second, regime));
     }
 
     // Yet their target interventional outcome laws disagree. In the first SCM
     // Y follows X; in the second it follows the unobserved common cause U.
-    assert_eq!(target_y_risk(first, 0), 0.0);
-    assert_eq!(target_y_risk(first, 1), 1.0);
-    assert_eq!(target_y_risk(second, 0), 0.5);
-    assert_eq!(target_y_risk(second, 1), 0.5);
+    assert_risk_equal(target_y_risk(first, 0), 0.0);
+    assert_risk_equal(target_y_risk(first, 1), 1.0);
+    assert_risk_equal(target_y_risk(second, 0), 0.5);
+    assert_risk_equal(target_y_risk(second, 1), 0.5);
 }
 
 #[test]
@@ -406,19 +423,19 @@ fn disconnected_controls_cannot_resolve_a_selected_hedge_component() {
 
     // The selected target component still has the observationally equivalent
     // SCM pair, while controls Z and W live in separate ADMG components.
-    assert_eq!(
+    assert_law_equal(
         enumerate_law(
             OutcomeMechanism::CopiesObservedTreatment,
-            Regime { do_x: None, do_z: Some(0), do_w: Some(1) }
+            Regime { x: None, z: Some(0), w: Some(1) },
         ),
         enumerate_law(
             OutcomeMechanism::CopiesTreatmentLatent,
-            Regime { do_x: None, do_z: Some(0), do_w: Some(1) }
-        )
+            Regime { x: None, z: Some(0), w: Some(1) },
+        ),
     );
-    assert_ne!(
+    assert_risk_different(
         target_y_risk(OutcomeMechanism::CopiesObservedTreatment, 0),
-        target_y_risk(OutcomeMechanism::CopiesTreatmentLatent, 0)
+        target_y_risk(OutcomeMechanism::CopiesTreatmentLatent, 0),
     );
 }
 
@@ -427,10 +444,10 @@ fn a_source_experiment_that_controls_x_separates_the_two_models() {
     let first = OutcomeMechanism::CopiesObservedTreatment;
     let second = OutcomeMechanism::CopiesTreatmentLatent;
     for x in 0..=1 {
-        let regime = Regime { do_x: Some(x), do_z: None, do_w: None };
-        assert_ne!(enumerate_law(first, regime), enumerate_law(second, regime));
-        assert_eq!(target_y_risk(first, x), f64::from(x));
-        assert_eq!(target_y_risk(second, x), 0.5);
+        let regime = Regime { x: Some(x), z: None, w: None };
+        assert_law_different(enumerate_law(first, regime), enumerate_law(second, regime));
+        assert_risk_equal(target_y_risk(first, x), f64::from(x));
+        assert_risk_equal(target_y_risk(second, x), 0.5);
     }
 }
 
