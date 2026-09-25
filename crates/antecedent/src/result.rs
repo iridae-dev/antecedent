@@ -627,8 +627,10 @@ impl StudyResult {
     ///    retained). A requested bootstrap that reported no positive-finite SE
     ///    is not a bootstrap interval; an IV result that withheld Wald/bootstrap
     ///    uncertainty is [`IntervalMethod::None`](antecedent_core::IntervalMethod::None).
-    /// 5. When no finite scalar interval exists, a reported identified-set
-    ///    interval is the primary interval; otherwise nothing was reported.
+    /// 5. When no finite scalar interval exists, a withheld unknown-orientation
+    ///    effect reports its scenario max-t band as a simultaneous interval.
+    /// 6. Otherwise a reported identified-set interval is the primary interval,
+    ///    or nothing was reported.
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
@@ -716,6 +718,13 @@ impl StudyResult {
                     return IntervalBinding::none(base);
                 }
                 _ => {}
+            }
+        }
+        if !self.estimate.ate.is_finite() {
+            if let Some(bands) = self.estimate.scenario_intervals.as_deref() {
+                if !bands.is_empty() {
+                    return IntervalBinding::new(M::SimultaneousBand, REPORTED_SE_INTERVAL_LEVEL, base);
+                }
             }
         }
         self.identified_set_interval_binding().unwrap_or_else(|| IntervalBinding::none(base))

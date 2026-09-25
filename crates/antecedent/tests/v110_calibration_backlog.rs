@@ -19,13 +19,15 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, MediationContrast,
-    MediationQuery, ResponseFunctional, ResponseQuery, Value, VariableId,
+    AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
+    MediationContrast, MediationQuery, ResponseFunctional, ResponseQuery, Value, VariableId,
 };
-use antecedent_data::TabularData;
-use antecedent_graph::{Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
+use antecedent_data::{TableView, TabularData};
+use antecedent_graph::{
+    Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
+};
 use common::calibration::{
-    CoverageTally, RecordKey, SampleGrid, grid_n, map_replicates, n_sim, stream_seed,
+    CoverageTally, RecordKey, SampleGrid, gaussian, grid_n, map_replicates, n_sim, stream_seed,
 };
 use common::calibration_bind::{bind_all, constructions};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
@@ -541,4 +543,95 @@ fn response_curve_admg_bayesian_pointwise_nominal_coverage() {
         }
     }
     gate(&tallies, &[None; 2]);
+}
+
+const UNKNOWN_TRUTH: [f64; 2] = [1.0, -1.0];
+
+fn unknown_data(n: usize, seed: u64) -> TabularData {
+    let mut noise = gaussian(seed);
+    let (mut era, mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        era[i] = noise();
+        t[i] = 0.8 * era[i] + noise();
+        m[i] = t[i] + 0.2 * era[i] + 0.5 * noise();
+        y[i] = -t[i] + 2.0 * m[i] + 0.2 * era[i] + noise();
+    }
+    TabularData::from_f64_columns([
+        ("era", era.as_slice()),
+        ("t", t.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap()
+}
+
+fn run_unknown(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
+    let data = unknown_data(n, seed);
+    let schema = data.schema().clone();
+    let background = TieredBackground::from_named(
+        &schema,
+        &[vec!["era"], vec!["t", "m"], vec!["y"]],
+        WithinTier::Unknown,
+    )
+    .ok()?;
+    let query = AverageEffectQuery::binary_ate(schema.id_of("t").ok()?, schema.id_of("y").ok()?);
+    let study = Study::tabular(data)
+        .tiered_background(background)
+        .ok()?
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+/// Joint coverage as one interval of the summed band width: truth `0` lies
+/// inside exactly when both scenario truths lie in their max-t bands.
+fn joint_band_interval(result: &StudyResult) -> Option<(f64, f64)> {
+    let bands = result.estimate.scenario_intervals.as_ref()?;
+    if bands.len() != UNKNOWN_TRUTH.len() {
+        return None;
+    }
+    let covered = bands
+        .iter()
+        .zip(UNKNOWN_TRUTH)
+        .all(|(&(lo, hi), truth)| lo <= truth && truth <= hi);
+    let width = bands.iter().map(|(lo, hi)| hi - lo).sum::<f64>();
+    Some(if covered { (-width / 2.0, width / 2.0) } else { (1.0, 1.0 + width) })
+}
+
+#[test]
+fn average_effect_unknown_publishes_simultaneous_band() {
+    let (study, result) = run_unknown(400, 0x110_0430).expect("unknown orientation runs");
+    assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
+    assert_interval_method(&study, &result, "simultaneous_band");
+    assert!(joint_band_interval(&result).is_some());
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_unknown_joint_band_nominal_coverage() {
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "average_effect_unknown_joint_band_nominal_coverage",
+            dgp: "unknown_data",
+            interval: "simultaneous_band",
+        },
+        REPORTED_LEVEL,
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = 20_300 + rep;
+        run_unknown(grid_n(400), seed)
+    });
+    for run in &runs {
+        let Some((study, result)) = run else {
+            tally.skip();
+            continue;
+        };
+        bind_all(&mut [&mut tally], study, result);
+        tally.record(joint_band_interval(result), 0.0);
+    }
+    tally.assert_boundary_at([Some(0.940), None, None]);
 }
