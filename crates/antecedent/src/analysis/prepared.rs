@@ -5233,6 +5233,36 @@ impl PreparedStudy {
             started,
             ctx,
         )?;
+        // The checked conditional operation carries the full class proof, but
+        // the shared result assembler only knows the selected invariant point
+        // identification. Preserve the class envelope in the public result
+        // certificate so completion masses and individual cases remain
+        // inspectable just as they are for the ordinary class-aware routes.
+        result.certificate = match &operation.class_proof {
+            Some(super::checked_conditional::ConditionalClassProof::Pag { cache, .. }) => {
+                Some(crate::result::AnalysisIdentification {
+                    identification: crate::Identification::Envelope {
+                        envelope: cache.envelope.clone(),
+                        strategy: operation.identifier,
+                        structure_version: operation.graph_version,
+                    },
+                    query: operation.source_query.clone(),
+                    graph_class: operation.graph_class(),
+                })
+            }
+            Some(super::checked_conditional::ConditionalClassProof::Cpdag { cache, .. }) => {
+                Some(crate::result::AnalysisIdentification {
+                    identification: crate::Identification::CpdagEnvelope {
+                        envelope: cache.envelope.clone(),
+                        strategy: operation.identifier,
+                        structure_version: operation.graph_version,
+                    },
+                    query: operation.source_query.clone(),
+                    graph_class: operation.graph_class(),
+                })
+            }
+            None => result.certificate,
+        };
         if let Some(diagnostic) = super::helpers::conditional_quantile_grid_diagnostic(
             data,
             &operation.query,

@@ -281,3 +281,76 @@ fn class_aware_conditional_pins_z_conditional_effect() {
         }
     }
 }
+
+#[test]
+fn checked_pag_conditional_certificate_retains_completion_masses() {
+    let n = 80;
+    let t: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    let y: Vec<f64> = t.iter().map(|value| 1.0 + 2.0 * value).collect();
+    let r: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let s: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+    let v: Vec<f64> = (0..n).map(|i| (i as f64).cos()).collect();
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("r", r.as_slice()),
+        ("s", s.as_slice()),
+        ("v", v.as_slice()),
+    ])
+    .unwrap();
+    let mut pag = Pag::with_variables(5);
+    pag.insert_marked(MarkedEdge {
+        a: DenseNodeId::from_raw(2),
+        b: DenseNodeId::from_raw(0),
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Arrow,
+        middle: MiddleMark::Empty,
+    })
+    .unwrap();
+    pag.insert_marked(MarkedEdge {
+        a: DenseNodeId::from_raw(0),
+        b: DenseNodeId::from_raw(1),
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Arrow,
+        middle: MiddleMark::Empty,
+    })
+    .unwrap();
+    pag.insert_marked(MarkedEdge {
+        a: DenseNodeId::from_raw(3),
+        b: DenseNodeId::from_raw(4),
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: MiddleMark::Empty,
+    })
+    .unwrap();
+    let inner =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0)
+            .with_effect_modifiers([VariableId::from_raw(2)]);
+    let query = ConditionalEffectQuery::try_new(inner).unwrap();
+    let study = Study::tabular(data.clone())
+        .graph(pag.clone())
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let expected = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(&pag, &conditional_query(&ate_pin()).inner)
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(19);
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let click = prepared.estimate(&data, &ctx).unwrap();
+    for result in [&fresh, &click] {
+        let Some(certificate) = &result.certificate else {
+            panic!("checked conditional result omitted its identification certificate");
+        };
+        let crate_identification = &certificate.identification;
+        let antecedent::Identification::Envelope { envelope, .. } = crate_identification else {
+            panic!("PAG conditional result did not retain its completion envelope");
+        };
+        assert_eq!(envelope.cases.len(), expected.cases.len());
+        assert_eq!(envelope.identified_weight, expected.identified_weight);
+        assert_eq!(envelope.unidentified_weight, expected.unidentified_weight);
+    }
+}
