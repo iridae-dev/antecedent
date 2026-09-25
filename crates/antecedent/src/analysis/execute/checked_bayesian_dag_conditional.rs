@@ -3,6 +3,8 @@
 
 use super::*;
 
+const PPC_ALPHA: f64 = 0.05;
+
 /// Bayesian CATE target and its checked DAG proof, prior, and validation plan.
 #[derive(Clone)]
 pub(crate) struct CheckedBayesianConditionalOperation {
@@ -236,7 +238,6 @@ impl CheckedBayesianConditionalOperation {
             )?;
             refutations = reports;
             diagnostics.extend(not_applicable);
-            const PPC_ALPHA: f64 = 0.05;
             let sims = super::super::latency::predictive_check_sims(self.latency);
             let prior = fitter.prior_in_force(prepared.design.ncols);
             let prior_rep = PriorPredictiveCheck::for_estimator(&fitter, ctx)

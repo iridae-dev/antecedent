@@ -42,7 +42,10 @@ impl CheckedTemporalResponseExecution {
             });
         }
         let (status, assumptions) = super::aggregate_temporal_horizon_evidence(
-            operation.evidence().iter().map(|member| member.identification()),
+            operation
+                .evidence()
+                .iter()
+                .map(crate::analysis::TemporalResponseHorizonEvidence::identification),
         )?;
         let mut identification = operation.primary_identification().clone();
         identification.status = status;

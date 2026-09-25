@@ -21,8 +21,7 @@ impl Study {
             IdentifierId::Iv,
             graph,
             &CausalQuery::AverageEffect(query.clone()),
-        )
-        .map_err(CausalError::from)?;
+        )?;
         require_identified(&identification)?;
         let estimator_id = EstimatorId::BayesianIvJointLinear;
         let estimand = select_estimand(&identification, estimator_id)?;
@@ -33,13 +32,10 @@ impl Study {
         let prep = frequentist.prepare(data, &estimand, query).map_err(CausalError::from)?;
         let n = prep.nrows;
         let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
-        let config = match &self.inference {
-            InferenceMode::Bayesian(c) => c,
-            _ => {
-                return Err(CausalError::Compile {
-                    message: "iv.bayesian_joint_linear requires Bayesian inference".into(),
-                });
-            }
+        let InferenceMode::Bayesian(config) = &self.inference else {
+            return Err(CausalError::Compile {
+                message: "iv.bayesian_joint_linear requires Bayesian inference".into(),
+            });
         };
         if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
             || config.prior.is_some()
@@ -141,13 +137,10 @@ impl Study {
         let t = data.float64_masked(query.treatment, &mask).map_err(CausalError::from)?;
         let y = data.float64_masked(query.outcome, &mask).map_err(CausalError::from)?;
         let r = data.float64_masked(rd.running_variable, &mask).map_err(CausalError::from)?;
-        let config = match &self.inference {
-            InferenceMode::Bayesian(c) => c,
-            _ => {
-                return Err(CausalError::Compile {
-                    message: "rd.bayesian_local_linear requires Bayesian inference".into(),
-                });
-            }
+        let InferenceMode::Bayesian(config) = &self.inference else {
+            return Err(CausalError::Compile {
+                message: "rd.bayesian_local_linear requires Bayesian inference".into(),
+            });
         };
         if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
             || config.prior.is_some()

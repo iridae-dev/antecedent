@@ -47,6 +47,10 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 
 impl CheckedCellAipwResponseOperation {
     /// Validate and seal the licensed static DAG response route.
+    #[expect(
+        clippy::float_cmp,
+        reason = "joint binary intervention levels are exact discrete contract values"
+    )]
     pub(crate) fn checked(
         graph: &Dag,
         query: &ResponseQuery,

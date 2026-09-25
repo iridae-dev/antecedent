@@ -581,11 +581,10 @@ impl CheckedTemporalMediationOperation {
                     posterior: if single { first_posterior } else { None },
                     predictive_checks,
                     n_draws: if single {
-                        match &bound.inference {
-                            CheckedMediationInference::Bayesian(config) => {
-                                u32::try_from(config.n_draws).ok()
-                            }
-                            _ => None,
+                        if let CheckedMediationInference::Bayesian(config) = &bound.inference {
+                            u32::try_from(config.n_draws).ok()
+                        } else {
+                            None
                         }
                     } else {
                         None

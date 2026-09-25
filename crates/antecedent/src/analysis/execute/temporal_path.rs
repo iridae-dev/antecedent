@@ -4361,6 +4361,10 @@ impl ClassResponseAssembly {
 /// horizon's evaluated completions publish the same estimate and the same
 /// pointwise band. A horizon whose completions disagree, or that publishes no
 /// band, leaves the class unbanded.
+#[expect(
+    clippy::float_cmp,
+    reason = "class members must agree on the exact declared confidence level"
+)]
 fn shared_temporal_class_uncertainty(
     atoms: &[crate::result::StructuralResponseAtom],
     n_horizons: usize,
