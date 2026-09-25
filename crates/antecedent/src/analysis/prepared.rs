@@ -12,7 +12,7 @@ use std::time::Instant;
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention,
     InterventionalDistributionQuery, MediationQuery, OutcomeFunctional, ResponseQuery,
-    TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value,
+    TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{PanelData, TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_discovery::{
@@ -29,7 +29,7 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
-use crate::strategy_table::DEFAULT_ESTIMATOR;
+use crate::strategy_table::{DEFAULT_ESTIMATOR, EstimatorId, IdentifierId};
 
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Pag, TemporalDag};
@@ -894,6 +894,25 @@ pub struct CheckedStaticDagResponseInfo {
     pub validation: RefuteSuite,
     /// Ordered curve grid. Empty for intervention-response queries.
     pub grid_members: Arc<[f64]>,
+}
+
+/// Inspect the sealed joint-cell AIPW response route retained by preparation.
+#[derive(Clone, Debug)]
+pub struct CheckedCellAipwResponseInfo {
+    /// The complete intervention-response query.
+    pub query: ResponseQuery,
+    /// The checked identifier selected at preparation.
+    pub identifier: IdentifierId,
+    /// The checked estimator selected at preparation.
+    pub estimator: EstimatorId,
+    /// Refutation suite carried by the operation.
+    pub validation: RefuteSuite,
+    /// Whether the graph was explicit or accepted.
+    pub origin: super::execute::DagResponseOrigin,
+    /// Binary joint-cell index evaluated by this route.
+    pub requested_arm: u32,
+    /// Covariate roles retained for adjustment.
+    pub adjustment_set: Arc<[VariableId]>,
 }
 
 /// Read-only target, graph, and procedure of a checked static mediation plan.
@@ -3317,8 +3336,10 @@ pub(crate) enum PreparedExecution {
     Counterfactual(super::execute::CheckedCounterfactualPlan),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
     DerivativeResponse(super::execute::CheckedDerivativeResponseOperation),
+    CellAipwResponse(super::execute::CheckedCellAipwResponseOperation),
     StaticDagResponse(super::execute::CheckedStaticDagResponseOperation),
     StaticMediation(super::execute::CheckedStaticMediationOperation),
+    BayesianStaticMediation(super::execute::CheckedBayesianStaticMediationOperation),
     Attribution(super::execute::CheckedAttributionOperation),
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
     TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
@@ -3377,8 +3398,10 @@ impl PreparedExecution {
             Self::LegacyStudyDispatch
             | Self::Counterfactual(_)
             | Self::DerivativeResponse(_)
+            | Self::CellAipwResponse(_)
             | Self::StaticDagResponse(_)
             | Self::StaticMediation(_)
+            | Self::BayesianStaticMediation(_)
             | Self::Attribution(_)
             | Self::TemporalDagResponse(_)
             | Self::TemporalDagEffect(_)
@@ -3461,6 +3484,11 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedStaticMediationOperation> {
         if let Self::StaticMediation(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn bayesian_static_mediation(
+        &self,
+    ) -> Option<&super::execute::CheckedBayesianStaticMediationOperation> {
+        if let Self::BayesianStaticMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn attribution(&self) -> Option<&super::execute::CheckedAttributionOperation> {
         if let Self::Attribution(value) = self { Some(value) } else { None }
@@ -3701,6 +3729,30 @@ impl PreparedStudy {
         })
     }
 
+    /// Inspect the retained Bayesian DAG mediation target, model, and validation.
+    #[must_use]
+    pub fn checked_bayesian_static_mediation_info(&self) -> Option<CheckedStaticMediationInfo> {
+        let operation = self.execution.bayesian_static_mediation()?;
+        let (query, estimand, program, validation) = operation.inspect();
+        let mut edges: Vec<_> = operation
+            .graph()
+            .edges()
+            .filter_map(|edge| edge.parent_child())
+            .map(|(a, b)| (a.raw(), b.raw()))
+            .collect();
+        edges.sort_unstable();
+        Some(CheckedStaticMediationInfo {
+            query: query.clone(),
+            identifier: crate::strategy_table::IdentifierId::PathSpecificNatural,
+            estimator: crate::strategy_table::EstimatorId::StaticMediationLinear,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            functional_roots: (program.mapping().source.raw(), program.mapping().executable.raw()),
+            graph_edges: edges.into(),
+            bootstrap_replicates: 0,
+            validation,
+        })
+    }
+
     /// Inspect the sealed frequentist attribution target and supplied DAG.
     #[must_use]
     pub fn checked_attribution_info(&self) -> Option<CheckedAttributionInfo> {
@@ -3842,6 +3894,25 @@ impl PreparedStudy {
             estimator,
             validation,
             grid_members: Arc::from(operation.curve_grid()),
+        })
+    }
+
+    /// Read-only view of the sealed Cell AIPW intervention-response route.
+    #[must_use]
+    pub fn checked_cell_aipw_response_info(&self) -> Option<CheckedCellAipwResponseInfo> {
+        let PreparedExecution::CellAipwResponse(operation) = &self.execution else {
+            return None;
+        };
+        let (_, estimand) = operation.target();
+        let (identifier, estimator) = operation.procedure();
+        Some(CheckedCellAipwResponseInfo {
+            query: operation.query().clone(),
+            identifier,
+            estimator,
+            validation: operation.validation(),
+            origin: operation.origin(),
+            requested_arm: operation.requested_arm(),
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
         })
     }
 
@@ -5292,7 +5363,23 @@ impl PreparedStudy {
                 .execute_checked_static_dag_response(data, &self.plan, ctx, operation)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
+            let rebound = operation.refresh(
+                self.analysis.graph.as_dag().ok_or_else(|| CausalError::Compile {
+                    message: "cell AIPW checked route requires its retained DAG".into(),
+                })?,
+                data,
+            )?;
+            let result = self
+                .analysis
+                .execute_checked_cell_aipw_response(data, &self.plan, ctx, &rebound)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         if let PreparedExecution::StaticMediation(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianStaticMediation(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
@@ -5419,6 +5506,16 @@ impl PreparedStudy {
                 None
             };
             self.replace_study(refreshed);
+            if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
+                if let DataInput::Tabular(data) = &self.analysis.data {
+                    self.execution = PreparedExecution::CellAipwResponse(operation.refresh(
+                        self.analysis.graph.as_dag().ok_or_else(|| CausalError::Compile {
+                            message: "cell AIPW checked route requires its retained DAG".into(),
+                        })?,
+                        data,
+                    )?);
+                }
+            }
             if let Some(operation) = rebound_conditional {
                 self.execution = PreparedExecution::CheckedConditional(operation);
             }
@@ -7357,6 +7454,62 @@ impl Study {
             }
             _ => None,
         };
+        let cell_aipw_response_operation = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+        ) {
+            (DataInput::Tabular(_), CausalQuery::Response(query), Some(cache), GraphClass::Dag)
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && matches!(
+                        analysis.structure_source,
+                        crate::support::StructureSource::Explicit
+                            | crate::support::StructureSource::Accepted
+                    ) =>
+            {
+                let identifier = plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER)
+                    .parse()?;
+                let estimator = plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
+                    .parse()?;
+                if estimator == crate::strategy_table::EstimatorId::CellAipw
+                    && analysis.custom_validators.is_empty()
+                    && analysis.shared_batch_design.is_none()
+                    && analysis.continuous_cell.is_none()
+                    && matches!(analysis.inference, InferenceMode::Frequentist)
+                {
+                    Some(super::execute::CheckedCellAipwResponseOperation::checked(
+                        analysis.graph.as_dag().expect("checked DAG response"),
+                        query,
+                        &cache.identification,
+                        &cache.estimand,
+                        identifier,
+                        estimator,
+                        ctx.rng.master_seed(),
+                        analysis.refute,
+                        if analysis.structure_source == crate::support::StructureSource::Accepted {
+                            super::execute::DagResponseOrigin::Accepted
+                        } else {
+                            super::execute::DagResponseOrigin::Explicit
+                        },
+                    )?)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
         let temporal_dag_effect_operation = match (
             &self.data,
             &self.query,
@@ -7719,6 +7872,24 @@ impl Study {
             }
             _ => None,
         };
+        let checked_bayesian_static_mediation = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            analysis.graph.class(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::Mediation(_),
+                Some(cache),
+                GraphClass::Dag,
+                InferenceMode::Bayesian(_),
+            ) => Some(super::execute::CheckedBayesianStaticMediationOperation::checked(
+                &analysis, data, &plan, cache,
+            )?),
+            _ => None,
+        };
         let checked_static_mediation = match (
             &self.data,
             &self.query,
@@ -7752,7 +7923,7 @@ impl Study {
                 CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
                 Some(cache),
                 GraphClass::Dag,
-                InferenceMode::Frequentist,
+                InferenceMode::Frequentist | InferenceMode::Bayesian(_),
             ) if analysis.structure_source == crate::support::StructureSource::Explicit => {
                 Some(super::execute::CheckedAttributionOperation::checked(&analysis, &plan, cache)?)
             }
@@ -7783,8 +7954,12 @@ impl Study {
             PreparedExecution::NestedCounterfactual(operation)
         } else if let Some(operation) = derivative_response_operation {
             PreparedExecution::DerivativeResponse(operation)
+        } else if let Some(operation) = cell_aipw_response_operation {
+            PreparedExecution::CellAipwResponse(operation)
         } else if let Some(operation) = static_dag_response_operation {
             PreparedExecution::StaticDagResponse(operation)
+        } else if let Some(operation) = checked_bayesian_static_mediation {
+            PreparedExecution::BayesianStaticMediation(operation)
         } else if let Some(operation) = checked_static_mediation {
             PreparedExecution::StaticMediation(operation)
         } else if let Some(operation) = checked_attribution {

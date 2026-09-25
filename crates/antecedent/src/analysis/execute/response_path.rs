@@ -591,6 +591,40 @@ impl super::Study {
             },
         }))
     }
+
+    pub(crate) fn execute_checked_cell_aipw_response(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        operation: &CheckedCellAipwResponseOperation,
+    ) -> Result<StudyResult, CausalError> {
+        if self.query != CausalQuery::Response(operation.query().clone())
+            || self.graph.as_dag().is_none_or(|graph| !operation.matches_graph(graph))
+        {
+            return Err(CausalError::Compile {
+                message: "prepared cell AIPW operation no longer matches the study query or graph"
+                    .into(),
+            });
+        }
+        let started = Instant::now();
+        let (identification, estimand) = operation.target();
+        let (identifier_id, estimator_id) = operation.procedure();
+        let table = operation.execute(data, ctx)?;
+        self.execute_cell_aipw_response(
+            data,
+            operation.query(),
+            physical,
+            ctx,
+            identification.clone(),
+            estimand.clone(),
+            identifier_id,
+            estimator_id,
+            true,
+            started,
+            Some(table),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -1252,6 +1286,7 @@ impl super::Study {
                 estimator_id,
                 identify_cached,
                 started,
+                None,
             );
         }
 
@@ -1474,6 +1509,7 @@ impl super::Study {
             estimator_id,
             identify_cached,
             started,
+            None,
         )
     }
 
@@ -1491,6 +1527,7 @@ impl super::Study {
         estimator_id: EstimatorId,
         identify_cached: bool,
         started: Instant,
+        precomputed_table: Option<antecedent_estimate::ScoreTable>,
     ) -> Result<StudyResult, CausalError> {
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
         else {
@@ -1569,8 +1606,10 @@ impl super::Study {
             }
             None => None,
         };
-        let table = est
-            .fit_scores_with_assignment(
+        let table = if let Some(table) = precomputed_table {
+            table
+        } else {
+            est.fit_scores_with_assignment(
                 data,
                 &treatments,
                 *outcome,
@@ -1580,7 +1619,8 @@ impl super::Study {
                 fold_ids.as_deref(),
                 design.as_deref(),
             )
-            .map_err(CausalError::from)?;
+            .map_err(CausalError::from)?
+        };
         let (summary, monotone_rearranged, mut functional_diagnostics) =
             antecedent_estimate::summarize_functional(&table, None)?;
         let n_thresholds = {
