@@ -47,19 +47,19 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
-    BoundTransportFunctional, BoundZTransportFunctional, CatalogTransportResult,
-    CheckedTransportDerivation, ClassicalTransportDerivation, ClassicalTransportQuery,
-    ClassicalTransportResult, MetaSource, MetaTransportQuery, SidLimits,
-    Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError,
-    ZFactorObligation, ZProofOperation, ZTransportDecision, ZTransportDerivation,
-    ZTransportDerivationRecord, ZTransportMissingEvidence, ZTransportObstruction,
-    ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery, ZTransportResult,
-    ZTransportTerminalRecord, bind_z_transport_catalog, decide_z_transport_with_catalog,
-    identify_catalog_transport, identify_classical_transport, identify_meta_catalog,
-    identify_meta_transport, identify_z_transport, identify_z_transport_surrogate,
-    identify_z_transport_with_limits, validate_z_experiment_family, validate_z_transport_query,
-    verify_classical_transport, verify_meta_s_hedge, verify_meta_transport,
-    verify_z_transport_derivation, verify_z_transport_obstruction,
+    bind_z_transport_catalog, decide_z_transport_with_catalog, identify_catalog_transport,
+    identify_classical_transport, identify_meta_catalog, identify_meta_transport,
+    identify_z_transport, identify_z_transport_surrogate, identify_z_transport_with_limits,
+    validate_z_experiment_family, validate_z_transport_query, verify_classical_transport,
+    verify_meta_s_hedge, verify_meta_transport, verify_z_transport_derivation,
+    verify_z_transport_obstruction, BoundTransportFunctional, BoundZTransportFunctional,
+    CatalogTransportResult, CheckedTransportDerivation, ClassicalTransportDerivation,
+    ClassicalTransportQuery, ClassicalTransportResult, MetaSource, MetaTransportQuery, SidLimits,
+    ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportDecision,
+    ZTransportDerivation, ZTransportDerivationRecord, ZTransportMissingEvidence,
+    ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
+    ZTransportResult, ZTransportTerminalRecord, Z_TRANSPORT_MAX_CONTROLLABLE,
+    Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED,
 };
 mod transport_lower;
 
@@ -77,22 +77,22 @@ pub mod oracle_dot;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{
-    AdjustmentSearchConfig, BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, BackdoorIdentifier,
-    PreparedIdentificationGraph, RankedAdjustmentSet,
+    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, RankedAdjustmentSet,
+    BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
-pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
+pub use bounds::{binary_iv_ate_bounds, BinaryIvLaw};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{
-    GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
-    carries_identified_mass, search_truncated,
+    carries_identified_mass, search_truncated, GraphFeature, GraphIdentificationCase,
+    IdentificationEnvelope, ProbabilityMass,
 };
 pub use error::IdentificationError;
 pub use frontdoor::{
-    FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, FrontDoorIdentifier, FrontDoorSearchConfig,
+    FrontDoorIdentifier, FrontDoorSearchConfig, FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use generalized::{
-    CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
     MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use hedge::{HedgeCertificate, HedgeProblem};
@@ -102,7 +102,7 @@ pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
 pub use joint_response::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE;
 pub use path_specific::PathSpecificIdentifier;
-pub use prepared::{PreparedAdmg, dag_to_admg};
+pub use prepared::{dag_to_admg, PreparedAdmg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
 pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
@@ -111,14 +111,14 @@ pub use result::{
     IdentificationResult, IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{
-    PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,
+    TemporalBackdoorIdentifier, TemporalIdentificationResult, PARENT_ADJUSTMENT_RULE,
 };
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use tiered::{
+    identify_tiered, identify_tiered_joint, identify_tiered_joint_on, identify_tiered_on,
     NO_LATENT_TO_OUTCOME, TIERED_ADJUSTMENT_REFUSE, TIERED_JOINT_ADJUSTMENT_REFUSE,
-    TIERED_JOINT_UNKNOWN_REFUSE, identify_tiered, identify_tiered_joint, identify_tiered_joint_on,
-    identify_tiered_on,
+    TIERED_JOINT_UNKNOWN_REFUSE,
 };
 pub use transport::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,

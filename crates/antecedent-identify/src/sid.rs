@@ -6,7 +6,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::selection_separation::{
-    MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
+    for_each_admissible_subset, independently_separated, MutilatedSelection, SubsetSearchEnd,
 };
 use crate::{IdentificationError, PreparedAdmg};
 use antecedent_core::{ExecutionContext, VariableId};
@@ -19,20 +19,20 @@ use std::sync::Arc;
 
 mod meta;
 mod z_transport;
-use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
-    CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
-    identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+    identify_meta_catalog, identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+    CheckedTransportDerivation, MetaSource, MetaTransportQuery,
 };
+use meta::{validate_meta_sources, CLASSICAL_SETTING, META_SETTING};
 pub use z_transport::{
-    BoundZTransportFunctional, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED,
-    ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportDecision,
-    ZTransportDerivation, ZTransportDerivationRecord, ZTransportMissingEvidence,
-    ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
-    ZTransportResult, ZTransportTerminalRecord, bind_z_transport_catalog,
-    decide_z_transport_with_catalog, identify_z_transport, identify_z_transport_surrogate,
-    identify_z_transport_with_limits, validate_z_experiment_family, validate_z_transport_query,
-    verify_z_transport_derivation, verify_z_transport_obstruction,
+    bind_z_transport_catalog, decide_z_transport_with_catalog, identify_z_transport,
+    identify_z_transport_surrogate, identify_z_transport_with_limits, validate_z_experiment_family,
+    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
+    BoundZTransportFunctional, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
+    ZTransportDecision, ZTransportDerivation, ZTransportDerivationRecord,
+    ZTransportMissingEvidence, ZTransportObstruction, ZTransportObstructionRecord,
+    ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportTerminalRecord,
+    Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED,
 };
 
 /// Theoretical query under the classical family of all source experiments.
@@ -2028,20 +2028,22 @@ mod tests {
             panic!("frontdoor must identify");
         };
         assert!(proof.rules().contains(&"sid.line8"));
-        assert!(
-            proof
-                .arena()
-                .leaf_bindings(proof.root())
-                .iter()
-                .all(|b| b.population.as_ref() == "target")
-        );
+        assert!(proof
+            .arena()
+            .leaf_bindings(proof.root())
+            .iter()
+            .all(|b| b.population.as_ref() == "target"));
         verify_classical_transport(&diagram, &query(), &proof, SidLimits::default(), &ctx).unwrap();
         let mut corrupted = proof.clone();
         corrupted.proof[corrupted.root_step].output = corrupted.proof[0].output;
-        assert!(
-            verify_classical_transport(&diagram, &query(), &corrupted, SidLimits::default(), &ctx)
-                .is_err()
-        );
+        assert!(verify_classical_transport(
+            &diagram,
+            &query(),
+            &corrupted,
+            SidLimits::default(),
+            &ctx
+        )
+        .is_err());
     }
     #[test]
     fn source_rescues_unconfounded_selection_mechanism_and_rejects_changed_premise() {
@@ -2057,19 +2059,15 @@ mod tests {
         };
         assert!(proof.rules().contains(&"sid.line10"));
         let changed = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
-        assert!(
-            verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx)
-                .is_err()
-        );
-        assert!(
-            identify_classical_transport(
-                &diagram,
-                &query(),
-                SidLimits { steps: 1, depth: 1 },
-                &ctx
-            )
-            .is_err()
-        );
+        assert!(verify_classical_transport(&changed, &query(), &proof, SidLimits::default(), &ctx)
+            .is_err());
+        assert!(identify_classical_transport(
+            &diagram,
+            &query(),
+            SidLimits { steps: 1, depth: 1 },
+            &ctx
+        )
+        .is_err());
         ctx.cancellation.cancel();
         assert!(
             identify_classical_transport(&diagram, &query(), SidLimits::default(), &ctx).is_err()

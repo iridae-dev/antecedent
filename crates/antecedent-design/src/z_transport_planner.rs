@@ -7,11 +7,11 @@ use std::{collections::BTreeSet, sync::Arc};
 use antecedent_core::{EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, RegimeKind};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    BoundZTransportFunctional, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
-    ZTransportDecision, ZTransportDerivation, ZTransportObstruction, ZTransportObstructionRecord,
-    ZTransportProofInspection, ZTransportQuery, bind_z_transport_catalog,
-    decide_z_transport_with_catalog, identify_classical_transport, identify_z_transport,
-    validate_z_experiment_family,
+    bind_z_transport_catalog, decide_z_transport_with_catalog, identify_classical_transport,
+    identify_z_transport, validate_z_experiment_family, BoundZTransportFunctional,
+    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, ZTransportDecision,
+    ZTransportDerivation, ZTransportObstruction, ZTransportObstructionRecord,
+    ZTransportProofInspection, ZTransportQuery,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -463,13 +463,16 @@ pub fn snapshot_z_transport_failure(
         }
         antecedent_identify::ZTransportResult::NotCertified { reason } => {
             if let Err(family) = validate_z_experiment_family(diagram, query, catalog) {
-                let status = if matches!(
-                    family,
-                    antecedent_identify::ZExperimentFamilyError::UnsupportedDomain { .. }
-                ) {
-                    ZTransportFailureStatus::UnsupportedInput
-                } else {
-                    ZTransportFailureStatus::MissingEvidence
+                let status = match family {
+                    antecedent_identify::ZExperimentFamilyError::UnsupportedDomain { .. } => {
+                        ZTransportFailureStatus::UnsupportedInput
+                    }
+                    antecedent_identify::ZExperimentFamilyError::FamilyExceedsBudget { .. } => {
+                        ZTransportFailureStatus::ExhaustedComputation
+                    }
+                    antecedent_identify::ZExperimentFamilyError::MissingJointLaw { .. } => {
+                        ZTransportFailureStatus::MissingEvidence
+                    }
                 };
                 return ZTransportFailureSnapshot::new(
                     diagram,

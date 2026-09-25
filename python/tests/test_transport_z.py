@@ -96,7 +96,7 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
     _, _, _, prepared, laws = fixture(empirical)
     result = json.loads(prepared.estimate())
     assert result["status"] == "available"
-    assert result["scope"] == "bounded_single_source_z_transport_sound_incomplete"
+    assert result["scope"] == "single_source_z_transport_cited_joints_sound_incomplete"
     assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
     true_mass = sum(
         p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
@@ -379,3 +379,70 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
 
     with pytest.raises(ValueError, match="provider snapshot"):
         proposal.receive(actual, (law,), {"x": 0.0}, "snapshot_z1")
+
+
+def test_z_transport_decide_accepts_cited_margin_without_the_experiment_family():
+    names = ["w", "z", "x", "y"]
+    graph = Admg.from_edges(
+        names,
+        [("w", "z"), ("z", "x"), ("x", "y"), ("w", "y")],
+        [("w", "y"), ("z", "y"), ("z", "x")],
+    )
+    stage = transport.identify_z_transport(
+        graph=graph,
+        query=transport.ZTransportQuery(
+            transport.SelectionDiagram("source", "target", []),
+            outcomes=["y"],
+            treatments=["x"],
+            controllable=["z"],
+            experiment_assignment={"z": 0.0},
+        ),
+    )
+    assert stage.outcome == "identified"
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    regime = transport.EvidenceRegime(
+        "do_z_0",
+        "source",
+        kind="experimental",
+        interventions=["z"],
+        intervention_values={"z": 0.0},
+        measured=["w", "x", "y"],
+    )
+    catalog = transport.EvidenceCatalog(
+        environments=(transport.Environment("source", coordinates),),
+        regimes=(regime,),
+        bindings=(
+            transport.RegimeBinding(
+                "do_z_0",
+                "snapshot_z0",
+                schema_names=["w", "x", "y"],
+                sampling="independent",
+                dependence="independent_studies",
+            ),
+        ),
+    )
+    decision = stage.decide(catalog)
+    assert decision["outcome"] == "identified"
+    assert decision["proof"]["rules"] == ["ztr.surrogate_factorization"]
+    probabilities = []
+    for w in (0, 1):
+        for x in (0, 1):
+            for y in (0, 1):
+                probabilities.append(
+                    (0.25 if w else 0.75) * (0.35 if x else 0.65) * (0.8 if y == x else 0.2)
+                )
+    law = transport.ExactDiscreteLaw(
+        "source",
+        "do_z_0",
+        (("w", (0.0, 1.0)), ("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        tuple(probabilities),
+        "snapshot_z0",
+        interventions=(("z", 0.0),),
+    )
+    prepared = stage.prepare_exact(catalog, (law,), {"x": 0.0})
+    result = json.loads(prepared.estimate())
+    assert result["scope"] == "single_source_z_transport_cited_joints_sound_incomplete"
+    true_mass = sum(
+        p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
+    )
+    assert true_mass == pytest.approx(0.2)
