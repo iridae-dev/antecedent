@@ -867,6 +867,10 @@ impl LinearAdjustmentAte {
     ///
     /// The selected claim is absent, not nonparametrically identified, incompatible with
     /// linear adjustment, or its functional does not match its query and role structure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the checked receipt is built atomically from the validated target, query, schema, and lowering"
+    )]
     pub fn prepare_checked(
         &self,
         data: &TabularData,
@@ -991,6 +995,10 @@ impl LinearAdjustmentAte {
     /// The checked program and lowering are reused unchanged. This verifies the data schema,
     /// retained query, target roles, and source/executable correspondence before preparing
     /// the new row and design binding.
+    #[allow(
+        clippy::float_cmp,
+        reason = "treatment arms are categorical design values and must match the retained query exactly"
+    )]
     pub fn rebind_checked(
         &self,
         checked: &CheckedLinearAdjustmentAte,

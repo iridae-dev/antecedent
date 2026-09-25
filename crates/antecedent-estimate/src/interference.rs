@@ -92,20 +92,20 @@ pub fn estimate_interference_bayesian(
     let mut precision = [[0.0; 3]; 3];
     let mut rhs = [0.0; 3];
     let prior_precision = 1.0 / prior_sd.powi(2);
-    for j in 0..3 {
-        precision[j][j] = prior_precision;
+    for (j, row) in precision.iter_mut().enumerate() {
+        row[j] = prior_precision;
     }
     for i in 0..n {
-        for j in 0..3 {
-            rhs[j] += x[i][j] * outcomes[i];
-            for k in 0..3 {
-                precision[j][k] += x[i][j] * x[i][k];
+        for (j, (rhs_value, row)) in rhs.iter_mut().zip(precision.iter_mut()).enumerate() {
+            *rhs_value += x[i][j] * outcomes[i];
+            for (k, value) in row.iter_mut().enumerate() {
+                *value += x[i][j] * x[i][k];
             }
         }
     }
     let mut observed_gram = precision;
-    for j in 0..3 {
-        observed_gram[j][j] -= prior_precision;
+    for (j, row) in observed_gram.iter_mut().enumerate() {
+        row[j] -= prior_precision;
     }
     if inverse_3(observed_gram).is_none() {
         return Err(EstimationError::unsupported(
@@ -115,9 +115,9 @@ pub fn estimate_interference_bayesian(
     let covariance = inverse_3(precision)
         .ok_or_else(|| EstimationError::unsupported("posterior precision matrix is singular"))?;
     let mut mean = [0.0; 3];
-    for j in 0..3 {
-        for k in 0..3 {
-            mean[j] += covariance[j][k] * rhs[k];
+    for (j, value) in mean.iter_mut().enumerate() {
+        for (k, covariance_value) in covariance[j].iter().enumerate() {
+            *value += covariance_value * rhs[k];
         }
     }
     let from_x = [0.0, from.own, from.neighbors];
@@ -150,8 +150,8 @@ pub fn estimate_interference_bayesian(
 
 fn inverse_3(mut a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     let mut inv = [[0.0; 3]; 3];
-    for i in 0..3 {
-        inv[i][i] = 1.0;
+    for (i, row) in inv.iter_mut().enumerate() {
+        row[i] = 1.0;
     }
     for col in 0..3 {
         let pivot =

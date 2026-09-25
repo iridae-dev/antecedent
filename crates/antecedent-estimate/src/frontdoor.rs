@@ -162,6 +162,10 @@ impl CheckedFrontDoorPreparation {
     /// Rebuild only the numerical design for data with the same semantic schema.
     ///
     /// The causal target, proof-derived root, and typed procedure stay frozen.
+    #[allow(
+        clippy::float_cmp,
+        reason = "retained arm values are categorical intervention labels and must match exactly"
+    )]
     pub fn rebind(&self, data: &TabularData) -> Result<Self, EstimationError> {
         let schema = ProgramSchema::new(
             data.schema()
@@ -225,6 +229,10 @@ impl CheckedFrontDoorPreparation {
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the sealed front-door product validates claim scope, roles, functional, program, and design together"
+)]
 pub(crate) fn prepare_frontdoor_checked(
     data: &TabularData,
     identification: &IdentificationResult,

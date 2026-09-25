@@ -37,6 +37,10 @@ pub struct BayesianIvEstimate {
 /// binary or continuous; the first-stage design includes an intercept. The structural model
 /// currently uses one instrument and a homoskedastic Gaussian likelihood. This function does
 /// not claim generic IV robustness or identification outside that model.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public estimator inputs match the documented model contract"
+)]
 pub fn fit_bayesian_iv(
     instrument: &[f64],
     treatment: &[f64],
@@ -60,6 +64,10 @@ pub fn fit_bayesian_iv(
 
 /// Fit using fixed, declared stage variances instead of estimating them from the observations.
 /// The posterior remains model-based and limited to the stated control-function system.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public estimator inputs match the documented model contract"
+)]
 pub fn fit_bayesian_iv_fixed_variances(
     instrument: &[f64],
     treatment: &[f64],
@@ -102,6 +110,10 @@ pub fn fit_bayesian_iv_fixed_variances(
 /// `(alpha, pi, mu, beta)`. The fixed loading is a substantive restriction:
 /// this route must not be used when the outcome disturbance has an unknown
 /// loading on `v`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public estimator inputs match the documented model contract"
+)]
 pub fn fit_bayesian_iv_joint_fixed_loading(
     instrument: &[f64],
     treatment: &[f64],
@@ -319,6 +331,10 @@ fn fit_bayesian_iv_inner(
 }
 
 /// Evaluate structural-prior sensitivity on caller-declared scales.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "sensitivity forwards the same explicit fit contract"
+)]
 pub fn bayesian_iv_prior_sensitivity(
     instrument: &[f64],
     treatment: &[f64],
@@ -356,17 +372,30 @@ fn mean(x: &[f64]) -> f64 {
 }
 fn quantile(sorted: &[f64], p: f64) -> f64 {
     let at = p * (sorted.len() - 1) as f64;
+    // `p` is an internal fixed quantile probability and the caller supplies nonempty draws.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "clamped quantile rank is in the valid slice-index range"
+    )]
     let lo = at.floor() as usize;
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "clamped quantile rank is in the valid slice-index range"
+    )]
     let hi = at.ceil() as usize;
     sorted[lo] + (at - lo as f64) * (sorted[hi] - sorted[lo])
 }
+
+type NormalPosterior = ([f64; 3], [[f64; 3]; 3], f64);
 
 fn normal_posterior(
     x: &[[f64; 3]],
     y: &[f64],
     sd: f64,
     known_variance: Option<f64>,
-) -> Result<([f64; 3], [[f64; 3]; 3], f64), EstimationError> {
+) -> Result<NormalPosterior, EstimationError> {
     let mut gram = [[0.0; 3]; 3];
     let mut b = [0.0; 3];
     for (row, yi) in x.iter().zip(y) {
@@ -643,8 +672,8 @@ mod tests {
     #[test]
     fn weak_instrument_is_refused() {
         let n = 100;
-        let z: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
-        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| f64::from((i / 2) % 2)).collect();
+        let t: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
         let y = t.clone();
         let e = fit_bayesian_iv(&z, &t, &y, 2.0, 100, 9, 10.0).unwrap_err();
         assert!(e.to_string().contains("weak_instrument"));

@@ -148,8 +148,7 @@ pub fn plan_bayesian_robust_ate_folds(
     input: &BayesianRobustAteInput,
     folds: usize,
 ) -> Result<Vec<u16>, EstimationError> {
-    let mut options = BayesianRobustAteOptions::default();
-    options.folds = folds;
+    let options = BayesianRobustAteOptions { folds, ..BayesianRobustAteOptions::default() };
     validate(input, options)?;
     Ok(fixed_folds(input, folds))
 }
@@ -194,7 +193,8 @@ fn fixed_folds(input: &BayesianRobustAteInput, folds: usize) -> Vec<u16> {
     let mut result = vec![0u16; order.len()];
     for i in order {
         let arm = usize::from(input.treatment[i]);
-        result[i] = (counts[arm] % folds) as u16;
+        result[i] = u16::try_from(counts[arm] % folds)
+            .expect("validated fold count fits the stored fold identity");
         counts[arm] += 1;
     }
     result
@@ -337,8 +337,8 @@ fn solve_penalized(
     rhs: Vec<f64>,
     lambda: f64,
 ) -> Result<Vec<f64>, EstimationError> {
-    for j in 1..gram.len() {
-        gram[j][j] += lambda;
+    for (j, row) in gram.iter_mut().enumerate().skip(1) {
+        row[j] += lambda;
     }
     solve(gram, rhs)
 }
@@ -386,6 +386,12 @@ fn interval(draws: &[f64], coverage: f64) -> (f64, f64) {
     let mut sorted = draws.to_vec();
     sorted.sort_by(f64::total_cmp);
     let q = |p: f64| {
+        // Validated coverage gives a probability and `draws` contains at least two entries.
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "rank is clamped to the nonempty draw slice"
+        )]
         sorted[((p * (sorted.len() + 1) as f64).floor() as usize).clamp(1, sorted.len()) - 1]
     };
     (q((1.0 - coverage) / 2.0), q((1.0 + coverage) / 2.0))
