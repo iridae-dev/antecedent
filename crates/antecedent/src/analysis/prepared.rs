@@ -3564,6 +3564,7 @@ pub(crate) enum PreparedExecution {
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
     BayesianBasisAte(super::execute::CheckedBayesianBasisAteExecution),
+    BayesianBasisCate(super::execute::CheckedBayesianBasisCateExecution),
     StaticResponseCurve(CheckedStaticResponseCurve),
     FrontDoorLinear(CheckedFrontDoorOperation),
     Iv(CheckedIvOperation),
@@ -3632,6 +3633,7 @@ impl PreparedExecution {
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
             | Self::BayesianBasisAte(_)
+            | Self::BayesianBasisCate(_)
             | Self::BayesianGraphPosteriorAte(_)
             | Self::BayesianConditional(_)
             | Self::StaticResponseCurve(_)
@@ -4001,6 +4003,17 @@ impl PreparedStudy {
     pub fn checked_bayesian_basis_ate_info(&self) -> Option<CheckedBayesianBasisAteInfo> {
         match &self.execution {
             PreparedExecution::BayesianBasisAte(operation) => Some(operation.info()),
+            _ => None,
+        }
+    }
+
+    /// Inspect the retained target for the checked Bayesian basis CATE route.
+    #[must_use]
+    pub fn checked_bayesian_basis_cate_query(
+        &self,
+    ) -> Option<&antecedent_core::ConditionalEffectQuery> {
+        match &self.execution {
+            PreparedExecution::BayesianBasisCate(operation) => Some(operation.query()),
             _ => None,
         }
     }
@@ -5952,6 +5965,10 @@ impl PreparedStudy {
                 &operation.inference(),
                 &DataInput::Tabular(data.clone()),
             );
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianBasisCate(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::BayesianConditional(operation) = &self.execution {
@@ -8451,6 +8468,44 @@ impl Study {
             }
             _ => None,
         };
+        let bayesian_basis_cate_execution = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            &analysis.inference,
+            analysis.graph.class(),
+            plan.logical.record.estimator.as_deref(),
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::ConditionalEffect(query),
+                Some(cache),
+                InferenceMode::Bayesian(_),
+                GraphClass::Dag,
+                Some(estimator),
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.refute == RefuteSuite::None
+                && analysis.custom_validators.is_empty()
+                && estimator == crate::strategy_table::EstimatorId::BayesianBasisGcomp.as_str() =>
+            {
+                let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
+                    message: "checked Bayesian basis CATE requires its retained DAG".into(),
+                })?;
+                Some(super::execute::CheckedBayesianBasisCateExecution::checked(
+                    data,
+                    graph,
+                    query.clone(),
+                    cache.identification.clone(),
+                    cache.estimand.clone(),
+                    analysis.inference.clone(),
+                    super::execute::IdentifiedResultContext::from_study(&analysis),
+                    plan.clone(),
+                )?)
+            }
+            _ => None,
+        };
         let bayesian_conditional_execution = match (
             &self.data,
             &self.query,
@@ -9270,6 +9325,8 @@ impl Study {
             PreparedExecution::AdmgResponseCurve(operation)
         } else if let Some(operation) = bayesian_basis_ate_execution {
             PreparedExecution::BayesianBasisAte(operation)
+        } else if let Some(operation) = bayesian_basis_cate_execution {
+            PreparedExecution::BayesianBasisCate(operation)
         } else if let Some(operation) = bayesian_gcomp_execution {
             PreparedExecution::BayesianGcomp(operation)
         } else if let Some(operation) = bayesian_conditional_execution {
