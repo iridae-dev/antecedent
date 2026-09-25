@@ -37,6 +37,7 @@ impl ProgramSchema {
         Self { variables: mapped, duplicate_ids }
     }
     /// Read a variable declaration.
+    #[must_use]
     pub fn variable(&self, id: VariableId) -> Option<&ProgramVariable> {
         self.variables.get(&id)
     }
@@ -160,22 +161,27 @@ impl FunctionalProgram {
         })))
     }
     /// Owned expression arena, exposed read-only.
+    #[must_use]
     pub fn arena(&self) -> &CausalExprArena {
         &self.0.arena
     }
     /// Semantic schema.
+    #[must_use]
     pub fn schema(&self) -> &ProgramSchema {
         &self.0.schema
     }
     /// Source and executable root correspondence.
+    #[must_use]
     pub fn mapping(&self) -> ProgramMapping {
         self.0.mapping
     }
     /// Cached free variables of the executable expression.
+    #[must_use]
     pub fn free_variables(&self) -> &[VariableId] {
         &self.0.free_variables
     }
     /// Cached provider factor requirements.
+    #[must_use]
     pub fn factor_requirements(&self) -> &[FactorRequirement] {
         &self.0.factor_requirements
     }
@@ -219,7 +225,8 @@ fn validate_arena(
 ) -> Result<(), ProgramError> {
     let mut depths = vec![0usize; a.len()];
     for i in 0..a.len() {
-        let n = a.node(ExprId::from_raw(i as u32));
+        let raw = u32::try_from(i).map_err(|_| ProgramError::Limit("node index"))?;
+        let n = a.node(ExprId::from_raw(raw));
         let valid_expr = |id: ExprId| (id.raw() as usize) < i;
         let mut child_depth = 0usize;
         match n {
@@ -443,7 +450,9 @@ mod tests {
         );
 
         let mut cyclic = arena;
-        let next = ExprId::from_raw(cyclic.len() as u32 + 1);
+        let next = ExprId::from_raw(
+            u32::try_from(cyclic.len()).expect("test arena length fits in expression ids") + 1,
+        );
         let parent = cyclic.intern(crate::ExprNode::Kernel {
             body: next,
             bound: VarSetId::from_raw(0),
