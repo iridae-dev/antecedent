@@ -22,7 +22,7 @@
 
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{set_edge, GraphPosterior};
+use antecedent_discovery::{GraphPosterior, set_edge};
 use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark, TemporalCpdag, TemporalDag, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
 

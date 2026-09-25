@@ -773,7 +773,11 @@ def prepare_transport(
 
     if restricted_experiment(query):
         return prepare_restricted(
-            data, query=query, graph=graph, provider=provider, controls=controls or TransportControls()
+            data,
+            query=query,
+            graph=graph,
+            provider=provider,
+            controls=controls or TransportControls(),
         )
 
     catalog, bound = catalog_from_evidence(query, data, graph=graph)

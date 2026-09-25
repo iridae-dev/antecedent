@@ -23,7 +23,7 @@ use antecedent_core::{
     TemporalPolicy, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{PanelData, PanelUnit, TimeSeriesData};
-use antecedent_graph::{ensure_lagged, TemporalCpdag, TemporalDag};
+use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 
 use super::calibration::gaussian;
 

@@ -67,8 +67,8 @@ from ._impl import (
     prepare_trial,
     reload_lowered_expression,
     reload_lowered_program,
-    restore_lowered_program,
     replay_z_transport_proposal,
+    restore_lowered_program,
 )
 
 __all__ = [

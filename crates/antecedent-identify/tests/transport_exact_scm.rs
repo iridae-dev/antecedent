@@ -14,7 +14,7 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    identify_classical_transport, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
+    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
 };
 use std::sync::Arc;
 fn v(i: u32) -> VariableId {
@@ -24,11 +24,7 @@ fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
 }
 fn bernoulli(value: usize, probability: f64) -> f64 {
-    if value == 1 {
-        probability
-    } else {
-        1.0 - probability
-    }
+    if value == 1 { probability } else { 1.0 - probability }
 }
 
 #[test]
@@ -156,10 +152,12 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
     .unwrap();
     let mut altered = witness.to_record();
     altered.evidence_setting = "finite_catalog".into();
-    assert!(antecedent_identify::sid::SHedgeCertificate::from_record_checked(
-        altered, &diagram, &query, &ctx
-    )
-    .is_err());
+    assert!(
+        antecedent_identify::sid::SHedgeCertificate::from_record_checked(
+            altered, &diagram, &query, &ctx
+        )
+        .is_err()
+    );
 
     let mut mutated = witness.clone();
     mutated.larger.bidirected = Arc::from([]);
@@ -508,7 +506,7 @@ fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactD
 
 #[test]
 fn two_population_district_recursion_fails_truth_under_kernel_population_substitution() {
-    use antecedent_identify::{identify_catalog_transport, CatalogTransportResult};
+    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
     const TARGET_Y_SHIFT: f64 = 0.25;
     let mut graph = Admg::with_variables(3);
     graph.insert_directed(d(0), d(1)).unwrap();
@@ -683,7 +681,7 @@ fn original_coordinates_and_intervention_enlargement_are_preserved() {
 
 #[test]
 fn unavailable_target_formula_does_not_hide_available_source_alternative() {
-    use antecedent_identify::{identify_catalog_transport, CatalogTransportResult};
+    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
     let mut graph = Admg::with_variables(2);
     graph.insert_directed(d(0), d(1)).unwrap();
     let diagram = SelectionDiagram::try_new(graph, []).unwrap();
@@ -711,11 +709,13 @@ fn unavailable_target_formula_does_not_hide_available_source_alternative() {
     else {
         panic!("source alternative must bind");
     };
-    assert!(bound
-        .arena()
-        .leaf_bindings(bound.root())
-        .iter()
-        .all(|binding| binding.population.as_ref() == "source"));
+    assert!(
+        bound
+            .arena()
+            .leaf_bindings(bound.root())
+            .iter()
+            .all(|binding| binding.population.as_ref() == "source")
+    );
     // Empty standardization is direct transport, not Figure 5 line 10.
     assert_eq!(bound.derivation().rules(), ["transport.direct"]);
     let empty = identify_catalog_transport(
@@ -1716,7 +1716,7 @@ fn a_direct_transport_step_cannot_be_relabelled_as_figure_five_line_ten() {
 
 #[test]
 fn exhausting_the_standardizer_subset_budget_is_an_obligation_not_an_error() {
-    use antecedent_identify::{identify_catalog_transport, CatalogTransportResult};
+    use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
     // X, Y and 17 pretreatment parents of Y; the first parent's mechanism is selected, so
     // every admissible standardizer contains it and none can be bound from a catalog that
     // holds only the source experiment. 2^17 subsets exceed the step budget.

@@ -310,11 +310,16 @@ impl super::Study {
             estimand: query.functional.clone(),
             identification_status: identification.status,
             estimate: estimate_payload,
-            uncertainty: if curve && curve_bounds.len() == response_len && !curve_bounds.is_empty() {
+            uncertainty: if curve && curve_bounds.len() == response_len && !curve_bounds.is_empty()
+            {
                 ResponseUncertainty::PointwiseBand {
                     level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
-                    lower: Arc::from(curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>()),
-                    upper: Arc::from(curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>()),
+                    lower: Arc::from(
+                        curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>(),
+                    ),
+                    upper: Arc::from(
+                        curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>(),
+                    ),
                     interpretation: antecedent_core::IntervalInterpretation::Credible,
                     draws: None,
                 }

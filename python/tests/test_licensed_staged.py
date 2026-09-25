@@ -587,7 +587,9 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
     assert plan is not None
     assert plan["estimator"] == "linear.adjustment.ate"
     assert plan["validation"] == "none"
-    assert plan["weights"] == pytest.approx([float(weight) for weight in STATIC["posterior_weights"]])
+    assert plan["weights"] == pytest.approx(
+        [float(weight) for weight in STATIC["posterior_weights"]]
+    )
     assert len(plan["graph_keys"]) == len(plan["identified"]) == 3
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
@@ -607,14 +609,10 @@ def test_checked_static_mediation_retains_contrast_and_refresh(accepted: bool):
     m = 0.4 * a + np.sin(np.arange(200) * 0.71)
     y = 0.3 * a + 0.5 * m
     data = {"a": a, "m": m, "y": y}
-    builder_graph = antecedent.Dag.from_edges(
-        ["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")]
-    )
+    builder_graph = antecedent.Dag.from_edges(["a", "m", "y"], [("a", "m"), ("a", "y"), ("m", "y")])
     if accepted:
         builder_graph = antecedent.AcceptedGraph.from_graph(builder_graph, algorithm_id="hand")
-    builder_query = antecedent.MediationEffect(
-        "a", "y", mediators=["m"], contrast="natural_direct"
-    )
+    builder_query = antecedent.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data, graph=builder_graph, query=builder_query, refute=False, bootstrap=0, seed=11
     )
@@ -641,9 +639,7 @@ def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
     from known_truth import static_data
 
     data = static_data(256)
-    builder_graph = antecedent.Dag.from_edges(
-        ["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")]
-    )
+    builder_graph = antecedent.Dag.from_edges(["t", "y", "z"], [("z", "t"), ("z", "y"), ("t", "y")])
     if accepted:
         builder_graph = antecedent.AcceptedGraph.from_graph(builder_graph, algorithm_id="hand")
     builder_query = antecedent.AverageEffect("t", "y")
@@ -784,7 +780,9 @@ def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepte
 
     result = prepared.estimate(data, seed=8)
     assert result.response is not None
-    np.testing.assert_allclose(np.asarray(result.response.values).flatten(), [-0.25, 0.0, 0.25], atol=0.03)
+    np.testing.assert_allclose(
+        np.asarray(result.response.values).flatten(), [-0.25, 0.0, 0.25], atol=0.03
+    )
     changed = {**data, "y": data["y"] + 0.3}
     refreshed = prepared.refresh(changed, seed=8)
     assert refreshed.response is not None

@@ -718,8 +718,10 @@ pub fn decide_two_source_z_transport(
             });
         }
     }
-    if let [ZTransportDecision::ProvenNonTransportable(left), ZTransportDecision::ProvenNonTransportable(right)] =
-        decisions.as_slice()
+    if let [
+        ZTransportDecision::ProvenNonTransportable(left),
+        ZTransportDecision::ProvenNonTransportable(right),
+    ] = decisions.as_slice()
     {
         return Ok(TwoSourceZTransportDecision::ProvenNonTransportable {
             obstructions: [*left.clone(), *right.clone()],
@@ -2916,10 +2918,12 @@ mod tests {
         };
         marginal_only.regimes = altered.into();
         let inspection = proof.inspect_proof(&marginal_only);
-        assert!(inspection
-            .factors
-            .iter()
-            .any(|factor| factor.failure.as_deref() == Some("joint_law_required")));
+        assert!(
+            inspection
+                .factors
+                .iter()
+                .any(|factor| factor.failure.as_deref() == Some("joint_law_required"))
+        );
         assert!(matches!(
             validate_z_experiment_family(&diagram, &query, &marginal_only),
             Err(ZExperimentFamilyError::MissingJointLaw { .. })

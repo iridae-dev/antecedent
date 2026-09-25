@@ -24,7 +24,7 @@
 use antecedent::StudyResult;
 use antecedent_core::ResponseUncertainty;
 
-use super::calibration::{normal_interval, Z90};
+use super::calibration::{Z90, normal_interval};
 
 /// Level every facade interval is published at by default.
 ///

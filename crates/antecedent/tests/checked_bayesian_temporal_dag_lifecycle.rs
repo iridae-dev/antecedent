@@ -2,19 +2,27 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
-use antecedent_core::{CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
+use antecedent_core::{
+    CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+};
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 
 fn series(scale: f64) -> TimeSeriesData {
     let n = 2_400usize;
     let mut rng = antecedent_core::CausalRng::from_seed(77_814);
-    let treatment = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect::<Vec<_>>();
-    let outcome = (0..n).map(|i| {
-        scale * (0.3 + 1.75 * i.checked_sub(1).map_or(0.0, |j| treatment[j])
-            + 0.15 * antecedent_kernels::standard_normal(&mut rng))
-    }).collect::<Vec<_>>();
-    TimeSeriesData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())], 1).unwrap()
+    let treatment =
+        (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect::<Vec<_>>();
+    let outcome = (0..n)
+        .map(|i| {
+            scale
+                * (0.3
+                    + 1.75 * i.checked_sub(1).map_or(0.0, |j| treatment[j])
+                    + 0.15 * antecedent_kernels::standard_normal(&mut rng))
+        })
+        .collect::<Vec<_>>();
+    TimeSeriesData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())], 1)
+        .unwrap()
 }
 
 fn graph() -> TemporalDag {
@@ -30,9 +38,8 @@ fn graph() -> TemporalDag {
 fn lagged_pulse_series(scale: f64) -> TimeSeriesData {
     let n = 2_800usize;
     let mut rng = antecedent_core::CausalRng::from_seed(88_403);
-    let treatment = (0..n)
-        .map(|_| antecedent_kernels::standard_normal(&mut rng))
-        .collect::<Vec<_>>();
+    let treatment =
+        (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect::<Vec<_>>();
     let outcome = (0..n)
         .map(|i| {
             scale
@@ -41,11 +48,8 @@ fn lagged_pulse_series(scale: f64) -> TimeSeriesData {
                     + 0.12 * antecedent_kernels::standard_normal(&mut rng))
         })
         .collect::<Vec<_>>();
-    TimeSeriesData::from_f64_columns(
-        [("t", treatment.as_slice()), ("y", outcome.as_slice())],
-        1,
-    )
-    .unwrap()
+    TimeSeriesData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())], 1)
+        .unwrap()
 }
 
 fn two_lag_graph() -> TemporalDag {
@@ -71,13 +75,8 @@ fn query(sustained: bool) -> TemporalEffectQuery {
 }
 
 fn multi_step_sustained_query() -> TemporalEffectQuery {
-    TemporalEffectQuery::sustained(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-        -2,
-        1.0,
-    )
-    .with_policy(TemporalPolicy::sustained(-2, -1))
+    TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -2, 1.0)
+        .with_policy(TemporalPolicy::sustained(-2, -1))
 }
 
 #[test]
@@ -106,14 +105,7 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
             lagged_pulse_series(1.2),
             4.8,
         ),
-        (
-            series(1.0),
-            graph(),
-            multi_step_sustained_query(),
-            1.75,
-            series(1.2),
-            2.1,
-        ),
+        (series(1.0), graph(), multi_step_sustained_query(), 1.75, series(1.2), 2.1),
     ];
     for (data, graph, target, truth, updated_data, refreshed_truth) in routes {
         for accepted in [false, true] {
@@ -126,13 +118,18 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
                 let builder = Study::series(data.clone())
                     .graph(structure)
                     .query(CausalQuery::TemporalEffect(target.clone()))
-                    .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(384).prior_scale(100.0)))
+                    .inference(InferenceMode::Bayesian(
+                        BayesianConfig::conjugate().n_draws(384).prior_scale(100.0),
+                    ))
                     .refute(suite)
-                    .build().unwrap();
+                    .build()
+                    .unwrap();
                 let mut prepared = builder.prepare(&ctx).unwrap();
                 drop(builder);
 
-                let plan = prepared.checked_bayesian_temporal_dag_effect_info().expect("sealed Bayesian temporal DAG plan");
+                let plan = prepared
+                    .checked_bayesian_temporal_dag_effect_info()
+                    .expect("sealed Bayesian temporal DAG plan");
                 assert_eq!(plan.query, target);
                 assert_eq!(plan.identifier.as_str(), "temporal.backdoor.unfolded");
                 assert_eq!(
@@ -160,13 +157,23 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
                     "refresh estimate={}",
                     refreshed.estimate.ate
                 );
-                assert_eq!(prepared.checked_bayesian_temporal_dag_effect_info().unwrap().query, target);
+                assert_eq!(
+                    prepared.checked_bayesian_temporal_dag_effect_info().unwrap().query,
+                    target
+                );
 
-                let bytes = prepared.encode_contracted_result(&refreshed, "checked-bayesian-temporal-dag", &ctx).unwrap();
+                let bytes = prepared
+                    .encode_contracted_result(&refreshed, "checked-bayesian-temporal-dag", &ctx)
+                    .unwrap();
                 let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-                assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-                    reason.as_ref() == "dependencies.checked_bayesian_temporal_dag_effect_operation"
-                }), "unresolved={:?}", consumed.acceptance.unresolved);
+                assert!(
+                    consumed.acceptance.unresolved.iter().any(|reason| {
+                        reason.as_ref()
+                            == "dependencies.checked_bayesian_temporal_dag_effect_operation"
+                    }),
+                    "unresolved={:?}",
+                    consumed.acceptance.unresolved
+                );
                 assert!(!consumed.acceptance.accepts_as_verified_program());
             }
         }
@@ -180,8 +187,12 @@ fn checked_bayesian_temporal_dag_route_does_not_claim_class_plans() {
     let class = antecedent_graph::TemporalCpdag::empty();
     let accepted = AcceptedGraph::temporal_cpdag(class).unwrap();
     let pulse = query(false);
-    let class_builder = Study::series(data).graph(accepted).query(CausalQuery::TemporalEffect(pulse))
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64))).build().unwrap();
+    let class_builder = Study::series(data)
+        .graph(accepted)
+        .query(CausalQuery::TemporalEffect(pulse))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .build()
+        .unwrap();
     let class_prepared = class_builder.prepare(&ctx).unwrap();
     assert!(class_prepared.checked_bayesian_temporal_dag_effect_info().is_none());
 }

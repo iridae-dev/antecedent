@@ -479,7 +479,9 @@ def test_two_restricted_sources_are_not_combined_by_meta_transport():
     )
     ident = identify(graph=graph, query=query)
     assert ident.status == "NotIdentified"
-    assert ident.certificate["engine"]["reason"] == "z_transport.multi_source_combination_not_searched"
+    assert (
+        ident.certificate["engine"]["reason"] == "z_transport.multi_source_combination_not_searched"
+    )
 
 
 def test_one_restricted_source_identifies_without_the_other():

@@ -127,8 +127,7 @@ impl super::Study {
                 ) =>
             {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "CausalQuery::Distribution requires tabular data and a static Dag or Admg",
+                    message: "CausalQuery::Distribution requires tabular data and a static Dag or Admg",
                 });
             }
             (_, CausalQuery::PathSpecific(_), class)
@@ -972,7 +971,9 @@ impl super::Study {
             && self.structure_source == crate::support::StructureSource::Explicit
             && matches!(self.inference, InferenceMode::Bayesian(_))
             && self.estimator == Some(EstimatorId::BayesianBasisGcomp)
-            && self.identifier.is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
+            && self
+                .identifier
+                .is_none_or(|identifier| identifier == IdentifierId::BackdoorAdjustment)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && matches!(&self.query, CausalQuery::AverageEffect(query)
@@ -983,7 +984,8 @@ impl super::Study {
                 let prepared = self.prepare(ctx)?;
                 if prepared.checked_bayesian_basis_ate_info().is_none() {
                     return Err(CausalError::Compile {
-                        message: "one-shot Bayesian basis ATE did not retain its checked operation".into(),
+                        message: "one-shot Bayesian basis ATE did not retain its checked operation"
+                            .into(),
                     });
                 }
                 return prepared.estimate(data, ctx);
@@ -1006,7 +1008,9 @@ impl super::Study {
                 let prepared = self.prepare(ctx)?;
                 if prepared.checked_bayesian_robust_ate_info().is_none() {
                     return Err(CausalError::Compile {
-                        message: "one-shot Bayesian robust ATE did not retain its checked operation".into(),
+                        message:
+                            "one-shot Bayesian robust ATE did not retain its checked operation"
+                                .into(),
                     });
                 }
                 return prepared.estimate(data, ctx);
@@ -1029,7 +1033,9 @@ impl super::Study {
                 let prepared = self.prepare(ctx)?;
                 if prepared.checked_bayesian_basis_cate_query().is_none() {
                     return Err(CausalError::Compile {
-                        message: "one-shot Bayesian basis CATE did not retain its checked operation".into(),
+                        message:
+                            "one-shot Bayesian basis CATE did not retain its checked operation"
+                                .into(),
                     });
                 }
                 return prepared.estimate(data, ctx);
@@ -1599,8 +1605,8 @@ impl super::Study {
     /// Missing graph structure, unsupported graph class, or identification failure.
     pub fn identify_only(&self) -> Result<IdentificationResult, CausalError> {
         use crate::strategy_table::{
-            identify_admg, identify_static_query, DEFAULT_IDENTIFIER_ID,
-            DEFAULT_RESPONSE_IDENTIFIER_ID,
+            DEFAULT_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, identify_admg,
+            identify_static_query,
         };
 
         if self.graph_posterior.is_some() {
