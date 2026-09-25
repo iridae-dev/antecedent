@@ -9504,7 +9504,9 @@ impl Study {
             }
             _ => None,
         };
-        let execution = if let Some(operation) = checked_linear {
+        let execution = if let Some(operation) = checked_unknown_tiered_average {
+            PreparedExecution::UnknownTieredAverage(operation)
+        } else if let Some(operation) = checked_linear {
             PreparedExecution::CheckedLinear(operation)
         } else if let Some(operation) = checked_glm {
             PreparedExecution::CheckedGlmAdjustment(operation)
@@ -9578,8 +9580,6 @@ impl Study {
             PreparedExecution::BayesianConditional(operation)
         } else if let Some(operation) = checked_response_curve {
             PreparedExecution::StaticResponseCurve(operation)
-        } else if let Some(operation) = checked_unknown_tiered_average {
-            PreparedExecution::UnknownTieredAverage(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };
