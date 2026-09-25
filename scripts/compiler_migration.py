@@ -364,7 +364,10 @@ def validate_route_evidence(test_path: str, assertion: str) -> list[str]:
     except ValueError:
         return ["evidence_test must be a repository-relative path"]
     if path.suffix == ".py":
-        problems = test_evidence.resolve_python_test(path, assertion, ROOT)
+        # Static checks keep validation cheap per registry coordinate. The
+        # grouped execution phase below runs each cited pytest node once and
+        # therefore also proves that pytest actually collects it.
+        problems = test_evidence.static_python_test(path, assertion)
         body = test_evidence.python_closure(path, assertion)
     else:
         _full_name, problems = test_evidence.resolve_rust_test(path, assertion, ROOT)
@@ -412,7 +415,10 @@ def run_route_evidence(rows, issues: list[str]) -> None:
         seen.add(key)
         path = ROOT / key[0]
         if path.suffix == ".py":
-            problems = test_evidence.resolve_python_test(path, key[1], ROOT)
+            # Do not launch one pytest collection process per citation. The
+            # grouped pytest invocation below checks collection and executes
+            # the cited tests in a single process.
+            problems = test_evidence.static_python_test(path, key[1])
             if problems:
                 issues.append(f"{row['coordinate']}: evidence test could not be resolved: {'; '.join(problems)}")
                 continue

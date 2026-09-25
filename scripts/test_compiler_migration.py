@@ -128,7 +128,7 @@ class CompilerMigrationInventoryTests(unittest.TestCase):
         ]
         with (patch.object(test_evidence, "target_root", return_value=(Path("unused"), "antecedent", ["--test", "linear_adjustment_route_evidence"])),
               patch.object(test_evidence, "resolve_rust_test", side_effect=[("one", []), ("two", [])]),
-              patch.object(test_evidence, "resolve_python_test", return_value=[]),
+              patch.object(test_evidence, "static_python_test", return_value=[]),
               patch.object(compiler_migration.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run):
             issues: list[str] = []
             compiler_migration.run_route_evidence(rows, issues)
