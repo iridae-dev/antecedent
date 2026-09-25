@@ -146,6 +146,10 @@ impl CheckedBayesianBasisAteExecution {
         }
     }
 
+    pub(crate) fn inference(&self) -> InferenceMode {
+        InferenceMode::Bayesian(self.config.clone())
+    }
+
     pub(crate) fn execute(
         &self,
         data: &TabularData,
