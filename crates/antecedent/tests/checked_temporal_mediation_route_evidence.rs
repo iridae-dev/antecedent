@@ -247,9 +247,40 @@ fn checked_temporal_mediation_refuses_schema_changes_and_makes_no_joint_horizon_
     let info = multi.checked_temporal_mediation_info().unwrap();
     assert_eq!(info.query, multi_query);
     assert_eq!(info.horizons.as_ref(), &[1, 2]);
+    let at = |horizon: u32| {
+        info.adjustment_sets
+            .iter()
+            .find(|(member, _)| *member == horizon)
+            .map(|(_, keys)| keys.as_ref())
+            .expect("every requested horizon has its own adjustment set")
+    };
+    assert_eq!(
+        at(1),
+        &[antecedent_core::TemporalNodeKey { variable: VariableId::from_raw(3), offset: -1 }]
+    );
+    assert_eq!(
+        at(2),
+        &[
+            antecedent_core::TemporalNodeKey { variable: VariableId::from_raw(0), offset: -1 },
+            antecedent_core::TemporalNodeKey { variable: VariableId::from_raw(3), offset: -1 },
+        ]
+    );
     let result = multi.estimate_series(&series(0.0, false), &context).unwrap();
     let grid = result.mediation_grid.as_ref().expect("horizon-wise results retained");
     assert_eq!(grid.slices.len(), 2);
+    for slice in grid.slices.iter() {
+        // The fixture has only T[t-1] → M[t] → Y[t]. The h=1 product is
+        // 0.8×0.55; at h=2, T[t-2] has no path through M[t] or Y[t], so its
+        // mediated truth is zero. The expected h=2 value must not be copied
+        // from the h=1 response merely because both horizons share one graph.
+        let horizon_truth = if slice.horizon == 1 { MEDIATED_TRUTH } else { 0.0 };
+        assert!(
+            (slice.estimate.effect.ate - horizon_truth).abs() < 0.08,
+            "horizon {} has independent SCM truth {horizon_truth}, got {}",
+            slice.horizon,
+            slice.estimate.effect.ate
+        );
+    }
     assert!(!grid.joint_posterior);
     assert!(
         result.posterior.is_none(),
