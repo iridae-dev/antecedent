@@ -126,8 +126,7 @@ pub fn evaluate_bayesian_statistical_transport_grid(
         if ctx.cancellation.is_cancelled() {
             return Err(EstimationError::data_msg("Bayesian transport execution cancelled"));
         }
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::Transport, 0xB_AE5_0000 | u64::from(draw_id));
+        let mut rng = ctx.rng.stream_for(StreamDomain::Transport, 0xBAE5_0000 | u64::from(draw_id));
         let (mut laws, by_sample) =
             draw_bayesian_transport_laws(input, functional, provider, &mut rng, max_joint_cells)?;
         laws.extend(by_sample.into_values());
@@ -978,9 +977,11 @@ pub fn nominal_z_transport_interval(
                     atom_columns[atom].push(*probability);
                 }
             }
-            Err(antecedent_expr::EvalError::ExactLaw(_))
-            | Err(antecedent_expr::EvalError::ExactRatioSupport { .. })
-            | Err(antecedent_expr::EvalError::DivisionByZero) => failed += 1,
+            Err(
+                antecedent_expr::EvalError::ExactLaw(_)
+                | antecedent_expr::EvalError::ExactRatioSupport { .. }
+                | antecedent_expr::EvalError::DivisionByZero,
+            ) => failed += 1,
             Err(error) => return Err(EstimationError::data_msg(error.to_string())),
         }
     }
@@ -1062,7 +1063,7 @@ pub fn bayesian_z_transport_interval(
             let counts = law.empirical_counts().expect("counted law");
             let mut rng = ctx.rng.stream_for(
                 StreamDomain::Transport,
-                0xB_AE5_7A00_0000 | ((dataset as u64) << 32) | u64::from(draw_id),
+                0xBAE5_7A00_0000 | ((dataset as u64) << 32) | u64::from(draw_id),
             );
             let Some(probabilities) =
                 posterior_cell_probabilities(counts, include_unseen, &mut rng)
@@ -1117,9 +1118,11 @@ pub fn bayesian_z_transport_interval(
                     atom_columns[atom].push(*probability);
                 }
             }
-            Err(antecedent_expr::EvalError::ExactLaw(_))
-            | Err(antecedent_expr::EvalError::ExactRatioSupport { .. })
-            | Err(antecedent_expr::EvalError::DivisionByZero) => failed += 1,
+            Err(
+                antecedent_expr::EvalError::ExactLaw(_)
+                | antecedent_expr::EvalError::ExactRatioSupport { .. }
+                | antecedent_expr::EvalError::DivisionByZero,
+            ) => failed += 1,
             Err(error) => return Err(EstimationError::data_msg(error.to_string())),
         }
     }
