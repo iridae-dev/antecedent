@@ -5,7 +5,7 @@ use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    adjacency_mask_from_admg, set_edge, GraphPosterior, GraphPosteriorAtomKind,
+    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
@@ -117,10 +117,12 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             assert!(result.diagnostics.iter().any(|diagnostic| {
                 diagnostic.code.as_ref() == "estimate.graph_posterior.admg_functional"
             }));
-            assert!(result
-                .diagnostics
-                .iter()
-                .any(|diagnostic| { diagnostic.code.as_ref() == "exec.identify.cached" }));
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| { diagnostic.code.as_ref() == "exec.identify.cached" })
+            );
             match suite {
                 RefuteSuite::None => assert!(result.refutations.is_empty()),
                 RefuteSuite::Cheap | RefuteSuite::Full => {
