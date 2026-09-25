@@ -789,7 +789,7 @@ impl super::Study {
     ///
     /// `InferenceMode::Frequentist`, or any per-graph identification/estimation
     /// infrastructure failure (envelope aggregation, missing effect column, …).
-    pub(super) fn execute_graph_posterior_bayesian(
+    pub(in crate::analysis) fn execute_graph_posterior_bayesian(
         &self,
         data: &TabularData,
         gp: &GraphPosterior,
@@ -826,6 +826,7 @@ impl super::Study {
             .iter()
             .map(|atom| (atom.key, atom.estimand.clone(), atom.identification.clone()))
             .collect();
+        let original_anchor_key = fit_atoms.first().map(|(key, _, _)| *key);
         // Interactive subsampling can demote the first structurally identified
         // atom before estimation. Keep the shared prior anchored to that
         // original first atom below, but anchor the public estimand and
@@ -853,9 +854,10 @@ impl super::Study {
         })?;
         for (i, (key, prep)) in preps.into_iter().enumerate() {
             if i == 0 {
-                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
-                envelope_prior = resolved;
-                envelope_conflict = conflict;
+                let anchor =
+                    super::BayesianGraphPosteriorPriorAnchor::resolve(key, &cfg, &prep, ctx)?;
+                envelope_prior = anchor.prior;
+                envelope_conflict = anchor.conflict;
             }
             prepared.entry(key).or_insert(prep);
         }
@@ -874,43 +876,64 @@ impl super::Study {
                 keep.contains(key) && prepared.contains_key(key) && seen_keys.insert(*key)
             })
             .collect();
-        let fits = ctx.map_indexed(kept.len(), |i, inner| {
-            let (key, estimand, identification) = &kept[i];
-            let prep = prepared.get(key).expect("kept key is prepared");
-            let mut est = est.clone();
-            est.prior.clone_from(&envelope_prior);
-            let mut ws = BayesianGCompWorkspace::default();
-            let posterior =
-                est.fit(prep, identification.status, &mut ws, inner).map_err(CausalError::from)?;
-            Ok::<_, CausalError>((
-                *key,
-                estimand.clone(),
-                identification.clone(),
-                posterior,
-                envelope_prior.clone(),
-            ))
-        })?;
+        let Some(anchor_key) = original_anchor_key else {
+            return Err(CausalError::Compile {
+                message:
+                    "Bayesian graph-posterior envelope has no identified atom for prior anchoring"
+                        .into(),
+            });
+        };
+        let anchor = super::BayesianGraphPosteriorPriorAnchor {
+            key: anchor_key,
+            prior: envelope_prior.clone(),
+            conflict: envelope_conflict.clone(),
+        };
+        let inputs = kept
+            .iter()
+            .map(|(key, estimand, identification)| {
+                let prep = prepared.remove(key).ok_or_else(|| CausalError::Compile {
+                    message: "kept Bayesian graph-posterior key has no prepared design".into(),
+                })?;
+                Ok(super::BayesianGraphPosteriorAtomInput {
+                    key: *key,
+                    weight: identified_weight_for_key(&graphs, *key),
+                    status: identification.status,
+                    estimand: estimand.clone(),
+                    prepared: prep,
+                })
+            })
+            .collect::<Result<Vec<_>, CausalError>>()?;
+        let fitted = super::BayesianGraphPosteriorAtomFits::fit(est.clone(), anchor, inputs, ctx)?;
+        if fitted.prior_anchor.key != anchor_key {
+            return Err(CausalError::Compile {
+                message: "Bayesian graph-posterior fit changed its original prior anchor".into(),
+            });
+        }
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, estimand, identification, posterior, prior) in fits {
-            let Some(prep) = prepared.remove(&key) else {
-                continue;
+        per_graph.extend(fitted.draw_columns.iter().cloned());
+        for atom in fitted.atoms {
+            let key = atom.key;
+            let Some((_, estimand, identification)) =
+                kept.iter().find(|(found, _, _)| *found == key)
+            else {
+                return Err(CausalError::Compile {
+                    message: "Bayesian graph-posterior fit returned an unknown atom key".into(),
+                });
             };
-            per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
                 primary_identification = Some(identification.clone());
             }
-            let weight = identified_weight_for_key(&graphs, key);
             atoms.push(EnvelopeAtomFit {
                 key,
-                prep,
-                posterior,
-                status: identification.status,
-                weight,
-                estimand,
+                prep: atom.prepared,
+                posterior: atom.posterior,
+                status: atom.status,
+                weight: atom.weight,
+                estimand: atom.estimand,
                 indexer: None,
-                prior,
+                prior: atom.prior,
             });
         }
         let mut posterior = aggregate_effect_envelope(

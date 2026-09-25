@@ -1140,6 +1140,32 @@ impl super::Study {
                 return prepared.estimate(data, ctx);
             }
         }
+        if self.graph_posterior.as_ref().is_some_and(|posterior| {
+            matches!(
+                posterior.atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
+            )
+        }) && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(&self.query, CausalQuery::AverageEffect(query)
+                if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved)
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && self.custom_validators.is_empty()
+            && self.estimator.is_none_or(|id| id == EstimatorId::LinearAdjustmentAte)
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_class_graph_posterior_effect_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot class graph-posterior effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
