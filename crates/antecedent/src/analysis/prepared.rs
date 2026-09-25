@@ -50,7 +50,10 @@ use super::helpers::{
     run_plugin_level_refuters, run_refuters,
 };
 use super::stage::{STAGE_ESTIMATE_POINT, STAGE_VALIDATE, StageClock};
-use super::{CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect};
+use super::{
+    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
+    StaticClassGraph, StaticClassIdentification,
+};
 use super::{CheckedConditionalOperation, ConditionalProcedure};
 
 /// Prepare-time identification products for the static ATE / response path.
@@ -3459,6 +3462,7 @@ pub(crate) enum PreparedExecution {
     CheckedConditional(CheckedConditionalOperation),
     BayesianConditional(super::execute::CheckedBayesianConditionalOperation),
     GraphPosteriorEffect(CheckedGraphPosteriorEffect),
+    StaticClassEffect(CheckedStaticClassEffect),
     CheckedAipw(CheckedAipwOperation),
     Counterfactual(super::execute::CheckedCounterfactualPlan),
     NestedCounterfactual(crate::gcm::NestedCounterfactualOperation),
@@ -3543,7 +3547,9 @@ impl PreparedExecution {
             | Self::BayesianGcomp(_)
             | Self::BayesianConditional(_)
             | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
-            Self::GraphPosteriorEffect(_) => CheckedProgramBinding::None,
+            Self::GraphPosteriorEffect(_) | Self::StaticClassEffect(_) => {
+                CheckedProgramBinding::None
+            }
         }
     }
 
@@ -4037,6 +4043,13 @@ impl PreparedStudy {
     #[must_use]
     pub fn has_checked_graph_posterior_effect_operation(&self) -> bool {
         matches!(self.execution, PreparedExecution::GraphPosteriorEffect(_))
+    }
+
+    /// Returns whether the static CPDAG/PAG average effect is bound to a
+    /// completion envelope retained at preparation time.
+    #[must_use]
+    pub fn has_checked_static_class_effect_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::StaticClassEffect(_))
     }
 
     /// Whether preparation retained an ADMG graph-posterior response operation.
@@ -5789,6 +5802,43 @@ impl PreparedStudy {
             };
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::StaticClassEffect(operation) = &self.execution {
+            let mut click_analysis = self.analysis.clone();
+            click_analysis.data = DataInput::Tabular(data.clone());
+            click_analysis.query = CausalQuery::AverageEffect(operation.query().clone());
+            click_analysis.estimator_spec = Some(operation.procedure().clone());
+            click_analysis.refute = operation.validation();
+            click_analysis.bootstrap_replicates = operation.bootstrap_replicates();
+            click_analysis.overlap_policy = Some(operation.overlap());
+            let result = match (operation.graph(), operation.identification()) {
+                (StaticClassGraph::Cpdag(graph), StaticClassIdentification::Cpdag(cache)) => {
+                    click_analysis.cpdag_identification_cache = Some(Arc::new(cache.clone()));
+                    click_analysis.execute_cpdag(
+                        data,
+                        graph,
+                        operation.query(),
+                        operation.physical(),
+                        ctx,
+                    )?
+                }
+                (StaticClassGraph::Pag(graph), StaticClassIdentification::Pag(cache)) => {
+                    click_analysis.pag_identification_cache = Some(Arc::new(cache.clone()));
+                    click_analysis.execute_pag(
+                        data,
+                        graph,
+                        operation.query(),
+                        operation.physical(),
+                        ctx,
+                    )?
+                }
+                _ => {
+                    return Err(CausalError::Compile {
+                        message: "checked static class effect graph and identification cache disagree".into(),
+                    });
+                }
+            };
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         if let PreparedExecution::AdmgGraphPosteriorResponse(operation) = &self.execution {
             let result = self
                 .analysis
@@ -6429,6 +6479,78 @@ fn multi_env_regularity(
 }
 
 impl Study {
+    fn seal_static_class_effect(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<CheckedStaticClassEffect>, CausalError> {
+        let CausalQuery::AverageEffect(query) = &analysis.query else {
+            return Ok(None);
+        };
+        if analysis.graph_posterior.is_some()
+            || !matches!(
+                analysis.structure_source,
+                crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
+            )
+            || !matches!(analysis.inference, InferenceMode::Frequentist)
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(
+                analysis.refute,
+                RefuteSuite::None
+                    | RefuteSuite::Cheap
+                    | RefuteSuite::PlaceboAndRcc
+                    | RefuteSuite::Full
+            )
+            || !analysis.custom_validators.is_empty()
+            || plan.logical.record.identifier.as_deref()
+                != Some(IdentifierId::GeneralizedAdjustment.as_str())
+            || plan.logical.record.estimator.as_deref()
+                != Some(EstimatorId::LinearAdjustmentAte.as_str())
+        {
+            return Ok(None);
+        }
+        let (graph, identification) = match analysis.graph.class() {
+            GraphClass::Cpdag => {
+                let (Some(graph), Some(cache)) = (
+                    analysis.graph.as_cpdag(),
+                    analysis.cpdag_identification_cache.as_deref(),
+                ) else {
+                    return Ok(None);
+                };
+                (
+                    StaticClassGraph::Cpdag(graph.clone()),
+                    StaticClassIdentification::Cpdag(cache.clone()),
+                )
+            }
+            GraphClass::Pag => {
+                let (Some(graph), Some(cache)) = (
+                    plan.static_pag(),
+                    analysis.pag_identification_cache.as_deref(),
+                ) else {
+                    return Ok(None);
+                };
+                (
+                    StaticClassGraph::Pag(graph.clone()),
+                    StaticClassIdentification::Pag(cache.clone()),
+                )
+            }
+            _ => return Ok(None),
+        };
+        let procedure = analysis.estimator_spec.clone().unwrap_or(crate::EstimatorSpec::Default(
+            EstimatorId::LinearAdjustmentAte,
+        ));
+        Ok(Some(CheckedStaticClassEffect::prepare(
+            graph,
+            query.clone(),
+            identification,
+            plan.clone(),
+            procedure,
+            analysis.bootstrap_replicates,
+            analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
+            analysis.refute,
+        )?))
+    }
+
     #[inline(never)]
     fn seal_graph_posterior_effect(
         analysis: &Study,
@@ -8457,6 +8579,7 @@ impl Study {
             None
         };
         let checked_graph_posterior_effect = Self::seal_graph_posterior_effect(&analysis, &plan)?;
+        let checked_static_class_effect = Self::seal_static_class_effect(&analysis, &plan)?;
         let checked_admg_graph_posterior_response =
             Self::seal_admg_graph_posterior_response(&analysis, &plan)?;
         let checked_bayesian_static_mediation = match (
@@ -8567,6 +8690,8 @@ impl Study {
             PreparedExecution::CheckedConditional(operation)
         } else if let Some(operation) = checked_graph_posterior_effect {
             PreparedExecution::GraphPosteriorEffect(operation)
+        } else if let Some(operation) = checked_static_class_effect {
+            PreparedExecution::StaticClassEffect(operation)
         } else if let Some(operation) = checked_aipw {
             PreparedExecution::CheckedAipw(operation)
         } else if let Some(operation) = checked_frontdoor_linear {

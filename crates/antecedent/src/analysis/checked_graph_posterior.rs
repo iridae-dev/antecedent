@@ -16,6 +16,119 @@ use crate::{
     analysis::prepared::CachedGraphPosteriorIdentification,
 };
 
+/// Sealed frequentist effect over a static CPDAG or PAG completion envelope.
+/// The graph and prepare-time completion cache are retained together so
+/// execution cannot silently select a different class member or identifier.
+#[derive(Clone, Debug)]
+pub(crate) struct CheckedStaticClassEffect {
+    graph: StaticClassGraph,
+    query: AverageEffectQuery,
+    identification: StaticClassIdentification,
+    physical: crate::planner::PhysicalExecutionPlan,
+    procedure: EstimatorSpec,
+    bootstrap_replicates: u32,
+    overlap: OverlapPolicy,
+    validation: RefuteSuite,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum StaticClassGraph {
+    Cpdag(antecedent_graph::Cpdag),
+    Pag(antecedent_graph::Pag),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum StaticClassIdentification {
+    Cpdag(crate::analysis::prepared::CachedCpdagIdentification),
+    Pag(crate::analysis::prepared::CachedPagIdentification),
+}
+
+impl CheckedStaticClassEffect {
+    pub(crate) fn prepare(
+        graph: StaticClassGraph,
+        query: AverageEffectQuery,
+        identification: StaticClassIdentification,
+        physical: crate::planner::PhysicalExecutionPlan,
+        procedure: EstimatorSpec,
+        bootstrap_replicates: u32,
+        overlap: OverlapPolicy,
+        validation: RefuteSuite,
+    ) -> Result<Self, CausalError> {
+        if procedure.id() != EstimatorId::LinearAdjustmentAte {
+            return Err(CausalError::Unsupported {
+                message: "checked static class effects require linear.adjustment.ate",
+            });
+        }
+        let matching_class = matches!(
+            (&graph, &identification),
+            (StaticClassGraph::Cpdag(_), StaticClassIdentification::Cpdag(_))
+                | (StaticClassGraph::Pag(_), StaticClassIdentification::Pag(_))
+        );
+        let identification_binds_query = match &identification {
+            StaticClassIdentification::Cpdag(cache) => {
+                cache.identification.query == antecedent_core::CausalQuery::AverageEffect(query.clone())
+            }
+            StaticClassIdentification::Pag(cache) => {
+                cache.identification.query == antecedent_core::CausalQuery::AverageEffect(query.clone())
+            }
+        };
+        if !matching_class
+            || !identification_binds_query
+            || query.treatment == query.outcome
+            || !matches!(
+                validation,
+                RefuteSuite::None
+                    | RefuteSuite::Cheap
+                    | RefuteSuite::PlaceboAndRcc
+                    | RefuteSuite::Full
+            )
+            || physical.logical.record.identifier.as_deref()
+                != Some(crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str())
+            || physical.logical.record.estimator.as_deref()
+                != Some(EstimatorId::LinearAdjustmentAte.as_str())
+        {
+            return Err(CausalError::Unsupported {
+                message: "checked static class effect has incompatible graph, query, procedure, or validation binding",
+            });
+        }
+        Ok(Self {
+            graph,
+            query,
+            identification,
+            physical,
+            procedure,
+            bootstrap_replicates,
+            overlap,
+            validation,
+        })
+    }
+
+    pub(crate) fn graph(&self) -> &StaticClassGraph {
+        &self.graph
+    }
+    pub(crate) fn query(&self) -> &AverageEffectQuery {
+        &self.query
+    }
+    pub(crate) fn identification(&self) -> &StaticClassIdentification {
+        &self.identification
+    }
+    pub(crate) fn physical(&self) -> &crate::planner::PhysicalExecutionPlan {
+        &self.physical
+    }
+    pub(crate) fn procedure(&self) -> &EstimatorSpec {
+        &self.procedure
+    }
+    pub(crate) const fn bootstrap_replicates(&self) -> u32 {
+        self.bootstrap_replicates
+    }
+    pub(crate) const fn overlap(&self) -> OverlapPolicy {
+        self.overlap
+    }
+    pub(crate) const fn validation(&self) -> RefuteSuite {
+        self.validation
+    }
+}
+
 /// A frozen frequentist DAG graph-posterior composition.
 ///
 /// This retains the original graph atoms and posterior weights together with

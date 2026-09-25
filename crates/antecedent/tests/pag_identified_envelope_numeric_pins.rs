@@ -133,9 +133,27 @@ fn run_prepared(
     let (ctx, sink) = recording_ctx(seed);
     let fresh = study.clone().run(&ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1, "a fresh run identifies exactly once");
-    let mut prepared: PreparedStudy = study.prepare(&ctx).unwrap();
+    let prepared_builder = study.clone();
+    let mut prepared: PreparedStudy = prepared_builder.prepare(&ctx).unwrap();
+    drop(prepared_builder);
     assert_eq!(identify_computations(&sink), 2, "prepare identifies exactly once");
+    if matches!(prepared.query(), CausalQuery::AverageEffect(_))
+        && prepared.plan().logical.record.estimator.as_deref() == Some("linear.adjustment.ate")
+    {
+        assert!(prepared.has_checked_static_class_effect_operation());
+    }
     let click = prepared.estimate(data, &ctx).unwrap();
+    if matches!(prepared.query(), CausalQuery::AverageEffect(_))
+        && prepared.plan().logical.record.estimator.as_deref() == Some("linear.adjustment.ate")
+    {
+        let artifact =
+            prepared.encode_contracted_result(&click, "checked-static-class-effect", &ctx).unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_static_class_effect_operation"
+        }));
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+    }
     assert_eq!(cached_count(&fresh), 0);
     assert_eq!(cached_count(&click), 1);
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
@@ -254,6 +272,41 @@ fn pag_identified_envelope_completions_match_the_fixture() {
         assert_eq!(sets, expected, "identified completion adjustment sets");
         assert!(sets.iter().any(Vec::is_empty) && sets.iter().any(|s| !s.is_empty()));
     }
+}
+
+#[test]
+fn pag_effect_executes_from_retained_plan_after_builder_is_dropped() {
+    let fixture = pin();
+    let data = expand_contingency(&fixture);
+    let graph = pag_from_pin(&fixture);
+    let query = ate_query(&fixture);
+    let expected = fixture["frequentist"]["expected_ate"].as_f64().unwrap();
+    let context = ExecutionContext::for_tests(23);
+    let builder = build(
+        &data,
+        &graph,
+        false,
+        CausalQuery::AverageEffect(query),
+        InferenceMode::Frequentist,
+        RefuteSuite::None,
+    );
+    let prepared = builder.prepare(&context).unwrap();
+    assert!(prepared.has_checked_static_class_effect_operation());
+    drop(builder);
+
+    let result = prepared.estimate(&data, &context).unwrap();
+    assert!((result.estimate.ate - expected).abs() < 1e-10);
+    assert!(result.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
+    let artifact = prepared
+        .encode_contracted_result(&result, "checked-static-class-effect", &context)
+        .unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    assert!(
+        consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_static_class_effect_operation"
+        })
+    );
+    assert!(!consumed.acceptance.accepts_as_verified_program());
 }
 
 #[test]

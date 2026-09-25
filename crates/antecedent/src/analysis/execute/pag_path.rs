@@ -392,7 +392,7 @@ impl super::Study {
     }
 
     /// PAG ATE via generalized-adjustment envelope + mass-weighted estimates.
-    pub(super) fn execute_pag(
+    pub(in crate::analysis) fn execute_pag(
         &self,
         data: &TabularData,
         pag: &Pag,
@@ -613,7 +613,7 @@ impl super::Study {
     }
 
     /// CPDAG ATE via MEC-completion envelope + mass-weighted estimates.
-    pub(super) fn execute_cpdag(
+    pub(in crate::analysis) fn execute_cpdag(
         &self,
         data: &TabularData,
         cpdag: &antecedent_graph::Cpdag,
