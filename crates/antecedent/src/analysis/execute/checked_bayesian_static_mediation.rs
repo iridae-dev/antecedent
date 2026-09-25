@@ -66,6 +66,28 @@ impl CheckedBayesianStaticMediationOperation {
                 message: "Bayesian mediation prior artifacts require an explicit coefficient mapping",
             });
         }
+        if config.prior_artifact.is_some() {
+            let treatment_name = data
+                .schema()
+                .get(query.treatment)
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            let outcome_treatment_slope = format!("coef_{}", treatment_name.name);
+            match config.prior_mapping.as_ref() {
+                Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace) => {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian mediation prior transfer requires an outcome-mechanism functional or named treatment-slope mapping; identical coefficient-subspace mapping can bind both mechanisms",
+                    });
+                }
+                Some(antecedent_io::PriorMapping::NamedParameters { pairs })
+                    if pairs.iter().any(|(_, target)| target != &outcome_treatment_slope) =>
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian mediation named prior targets must resolve only to the outcome-mechanism treatment slope",
+                    });
+                }
+                _ => {}
+            }
+        }
         if !matches!(
             study.structure_source,
             crate::support::StructureSource::Explicit | crate::support::StructureSource::Accepted
@@ -186,17 +208,18 @@ impl CheckedBayesianStaticMediationOperation {
             source_contrast: decoded.source_contrast,
         });
         let estimator = bayesian_gcomp(&bound.config, ctx);
-        let (mediation, posterior) = antecedent_estimate::estimate_static_mediation_bayesian(
-            data,
-            &bound.graph,
-            &bound.query,
-            bound.identification.required_assumptions.clone(),
-            &[],
-            &estimator,
-            bound.identification.status,
-            bridge,
-            ctx,
-        )?;
+        let (mediation, posterior) =
+            antecedent_estimate::estimate_static_mediation_bayesian_outcome_prior(
+                data,
+                &bound.graph,
+                &bound.query,
+                bound.identification.required_assumptions.clone(),
+                &[],
+                &estimator,
+                bound.identification.status,
+                bridge,
+                ctx,
+            )?;
         let estimate = mediation.effect.clone();
         let refutations = if bound.validation == RefuteSuite::None {
             Vec::new()

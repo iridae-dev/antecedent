@@ -7,8 +7,9 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
 };
 use antecedent_core::{
-    CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, ResponseFunctional as F,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, VariableId,
+    CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, IntervalInterpretation,
+    ResponseFunctional as F, ResponseIdentification, ResponseQuery, ResponseUncertainty,
+    ResponseValue, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
@@ -160,6 +161,49 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
 
             let result = prepared.estimate(&data, &context).unwrap();
             assert!(result.refutations.is_empty(), "{case}");
+            let uncertainty = &result.response.as_ref().expect("response payload").uncertainty;
+            match (expected.len(), uncertainty) {
+                (
+                    1,
+                    ResponseUncertainty::Scalar {
+                        standard_error,
+                        interpretation: IntervalInterpretation::Confidence,
+                        ..
+                    },
+                ) => {
+                    assert!(standard_error.is_finite() && *standard_error >= 0.0, "{case}");
+                    assert_eq!(result.estimate.se_analytic, *standard_error, "{case}");
+                    assert!(matches!(
+                        *case,
+                        "AverageDerivative"
+                            | "PointDerivative/identity"
+                            | "SemiElasticity/treatment-scale"
+                    ));
+                }
+                (
+                    count,
+                    ResponseUncertainty::PointwiseBand {
+                        lower,
+                        upper,
+                        interpretation: IntervalInterpretation::Confidence,
+                        ..
+                    },
+                ) if count > 1 => {
+                    assert_eq!(lower.len(), count, "{case}");
+                    assert_eq!(upper.len(), count, "{case}");
+                }
+                (1, ResponseUncertainty::None)
+                    if matches!(*case, "Elasticity" | "SemiElasticity/outcome-scale") =>
+                {
+                    assert!(result.estimate.se_analytic.is_nan(), "{case}");
+                }
+                (count, ResponseUncertainty::None) if count > 1 => {
+                    assert!(result.estimate.se_analytic.is_nan(), "{case}");
+                }
+                (count, other) => panic!(
+                    "{case}: expected a confidence scalar or pointwise band for {count} coordinates, got {other:?}"
+                ),
+            }
             let got = match &result.response.as_ref().expect("response payload").estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {
                     vec![*value]
@@ -327,10 +371,32 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             drop(builder);
 
             let result = prepared.estimate(&data, &context).unwrap();
-            assert!(
-                !matches!(result.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None),
-                "{case}: expected posterior uncertainty"
-            );
+            let uncertainty = &result.response.as_ref().unwrap().uncertainty;
+            match (expected.len(), uncertainty) {
+                (
+                    1,
+                    ResponseUncertainty::Scalar {
+                        standard_error,
+                        interpretation: IntervalInterpretation::Credible,
+                        ..
+                    },
+                ) => assert!(standard_error.is_finite() && *standard_error >= 0.0, "{case}"),
+                (
+                    count,
+                    ResponseUncertainty::PointwiseBand {
+                        lower,
+                        upper,
+                        interpretation: IntervalInterpretation::Credible,
+                        ..
+                    },
+                ) if count > 1 => {
+                    assert_eq!(lower.len(), count, "{case}");
+                    assert_eq!(upper.len(), count, "{case}");
+                }
+                (count, other) => panic!(
+                    "{case}: expected a credible scalar or pointwise band for {count} coordinates, got {other:?}"
+                ),
+            }
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(expected_estimator.as_str()));
             let values = match &result.response.as_ref().unwrap().estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => {

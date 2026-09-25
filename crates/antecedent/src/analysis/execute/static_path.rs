@@ -1646,6 +1646,42 @@ impl super::Study {
         }))
     }
 
+    /// Execute the prepared two-scenario Unknown-tier product without looking
+    /// up or rebuilding its identification from the retained Study cache.
+    pub(crate) fn execute_checked_unknown_tiered_average(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        background: &antecedent_graph::TieredBackground,
+        identification: IdentificationResult,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+    ) -> Result<StudyResult, CausalError> {
+        if background.within_tier != antecedent_graph::WithinTier::Unknown
+            || identification.query != CausalQuery::AverageEffect(query.clone())
+            || identification.estimands.len() != 2
+            || identification.status != IdentificationStatus::GraphDependent
+        {
+            return Err(CausalError::Conflict {
+                what: "checked Unknown-tier operation",
+                detail: "retained target, tier interpretation, or scenario envelope changed".into(),
+            });
+        }
+        self.finish_tiered_unknown(
+            data,
+            query,
+            physical,
+            ctx,
+            identification,
+            identifier_id,
+            estimator_id,
+            true,
+            Instant::now(),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn finish_tiered_unknown(
         &self,

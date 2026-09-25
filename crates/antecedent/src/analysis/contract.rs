@@ -1641,6 +1641,13 @@ fn program_payloads(
     } else {
         None
     };
+    let checked_functional_response_members = checked_functional_response_members.filter(|_| {
+        matches!(
+            &study.query,
+            CausalQuery::Response(query)
+                if matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
+        )
+    });
     let checked_functional_response_grid = checked_functional_response_members
         .map(|members| {
             let (treatment, outcome) = match &study.query {

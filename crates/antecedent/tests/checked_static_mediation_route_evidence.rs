@@ -8,7 +8,7 @@ use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, MediationContrast, MediationQuery, Value,
     VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 
 fn v(raw: u32) -> VariableId {
@@ -112,6 +112,12 @@ fn data(direct_delta: f64) -> TabularData {
 
 #[test]
 fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite() {
+    run_on_large_stack(
+        static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_inner,
+    );
+}
+
+fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_inner() {
     let base = data(0.0);
     let context = ExecutionContext::for_tests(203);
     for accepted in [false, true] {
@@ -204,54 +210,206 @@ fn bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume(
     }
     for accepted in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let mut query =
-                MediationQuery::binary(v(0), v(2), [v(1)], MediationContrast::NaturalDirect);
-            query.control = Intervention::set(v(0), Value::f64(0.2));
-            query.active = Intervention::set(v(0), Value::f64(0.8));
-            let builder = Study::tabular(base.clone());
-            let builder = if accepted {
-                builder.graph(AcceptedGraph::dag(graph.clone()))
-            } else {
-                builder.graph(graph.clone())
-            }
-            .query(CausalQuery::Mediation(query.clone()))
-            .inference(InferenceMode::Bayesian(
-                BayesianConfig::conjugate().n_draws(32).prior_scale(1_000.0),
-            ))
-            .refute(suite)
-            .bootstrap_replicates(0)
-            .build()
-            .unwrap();
-            let mut prepared = builder.prepare(&context).unwrap();
-            let plan = prepared
-                .checked_bayesian_static_mediation_info()
-                .expect("sealed Bayesian mediation plan");
-            assert_eq!(plan.query, query);
-            assert_eq!(plan.validation, suite);
-            assert_eq!(plan.identifier.as_str(), "path_specific.natural");
-            assert_eq!(plan.estimator.as_str(), "mediation.linear");
-            assert_eq!(plan.functional_roots.0, plan.functional_roots.1);
-            drop(builder);
-
-            let result = prepared.estimate(&base, &context).unwrap();
-            assert!(result.posterior.is_some());
-            assert!(
-                (result.estimate.ate - 1.8).abs() < 0.5,
-                "{accepted} {suite:?}: {}",
-                result.estimate.ate
-            );
-            assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
-            let refreshed = prepared.refresh(base.clone(), &context).unwrap();
-            assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 1e-10);
-            assert_eq!(prepared.checked_bayesian_static_mediation_info().unwrap().query, query);
-            let artifact = prepared
-                .encode_contracted_result(&refreshed, "checked-bayesian-mediation", &context)
+            for (contrast, expected) in
+                [(MediationContrast::NaturalDirect, 1.8), (MediationContrast::NaturalIndirect, 4.8)]
+            {
+                let mut query = MediationQuery::binary(v(0), v(2), [v(1)], contrast);
+                query.control = Intervention::set(v(0), Value::f64(0.2));
+                query.active = Intervention::set(v(0), Value::f64(0.8));
+                let builder = Study::tabular(base.clone());
+                let builder = if accepted {
+                    builder.graph(AcceptedGraph::dag(graph.clone()))
+                } else {
+                    builder.graph(graph.clone())
+                }
+                .query(CausalQuery::Mediation(query.clone()))
+                .inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().n_draws(32).prior_scale(1_000.0),
+                ))
+                .refute(suite)
+                .bootstrap_replicates(0)
+                .build()
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-            assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-                reason.as_ref() == "dependencies.checked_bayesian_mediation_operation"
-            }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+                let mut prepared = builder.prepare(&context).unwrap();
+                let plan = prepared
+                    .checked_bayesian_static_mediation_info()
+                    .expect("sealed Bayesian mediation plan");
+                assert_eq!(plan.query, query);
+                assert_eq!(plan.validation, suite);
+                assert_eq!(plan.identifier.as_str(), "path_specific.natural");
+                assert_eq!(plan.estimator.as_str(), "mediation.linear");
+                assert_eq!(plan.functional_roots.0, plan.functional_roots.1);
+                drop(builder);
+
+                let result = prepared.estimate(&base, &context).unwrap();
+                assert!(result.posterior.is_some());
+                assert!(
+                    (result.estimate.ate - expected).abs() < 0.5,
+                    "{accepted} {suite:?}: {}",
+                    result.estimate.ate
+                );
+                if contrast == MediationContrast::NaturalIndirect {
+                    assert!(
+                        result.posterior.as_ref().unwrap().assumptions.entries.iter().any(
+                            |record| matches!(
+                                &record.assumption,
+                                antecedent_core::Assumption::ParametricRestriction(restriction)
+                                    if restriction.id.as_ref() == "mediation.no_interaction"
+                            )
+                        ),
+                        "NaturalIndirect must retain the no-interaction alias premise"
+                    );
+                }
+                assert_eq!(result.refutations.is_empty(), suite == RefuteSuite::None);
+                let refreshed = prepared.refresh(base.clone(), &context).unwrap();
+                assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 1e-10);
+                assert_eq!(prepared.checked_bayesian_static_mediation_info().unwrap().query, query);
+                let artifact = prepared
+                    .encode_contracted_result(&refreshed, "checked-bayesian-mediation", &context)
+                    .unwrap();
+                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+                    reason.as_ref() == "dependencies.checked_bayesian_mediation_operation"
+                }));
+                assert!(!consumed.acceptance.accepts_as_verified_program());
+            }
         }
     }
+}
+
+fn equal_width_mediation_data() -> (TabularData, Dag) {
+    let (mut z_values, mut t_values, mut m_values, mut y_values) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for repeat in 0..80 {
+        for mask in 0..8 {
+            let sign = |bit| if mask & (1 << bit) == 0 { -1.0 } else { 1.0 };
+            let z = sign(0);
+            let treatment = sign(1);
+            let mediator = 0.6 * treatment + 0.2 * z + 0.1 * sign(2);
+            let outcome = 0.4 * treatment
+                + 0.5 * mediator
+                + 0.3 * z
+                + 0.01 * (f64::from(repeat) * 0.13).sin();
+            z_values.push(z);
+            t_values.push(treatment);
+            m_values.push(mediator);
+            y_values.push(outcome);
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("z", z_values.as_slice()),
+        ("t", t_values.as_slice()),
+        ("m", m_values.as_slice()),
+        ("y", y_values.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(4);
+    for (parent, child) in [(0, 2), (1, 2), (1, 3), (2, 3)] {
+        graph.insert_directed(DenseNodeId::from_raw(parent), DenseNodeId::from_raw(child)).unwrap();
+    }
+    (data, graph)
+}
+
+#[test]
+fn bayesian_static_mediation_prior_cannot_alias_mechanisms_with_equal_design_width() {
+    run_on_large_stack(
+        bayesian_static_mediation_prior_cannot_alias_mechanisms_with_equal_design_width_inner,
+    );
+}
+
+fn bayesian_static_mediation_prior_cannot_alias_mechanisms_with_equal_design_width_inner() {
+    let (target_data, target_graph) = equal_width_mediation_data();
+    let source_t = target_data.float64_values(v(1)).unwrap();
+    let source_y = source_t
+        .iter()
+        .enumerate()
+        .map(|(row, treatment)| 1.5 + 2.0 * treatment + 0.02 * (row as f64 * 0.3).sin())
+        .collect::<Vec<_>>();
+    let source_data = TabularData::from_f64_columns([
+        ("t", source_t.as_slice()),
+        ("y_source", source_y.as_slice()),
+    ])
+    .unwrap();
+    let mut source_graph = Dag::with_variables(2);
+    source_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let context = ExecutionContext::for_tests(206);
+    let source = Study::tabular(source_data)
+        .graph(source_graph)
+        .query(antecedent_core::AverageEffectQuery::with_levels(v(0), v(1), -1.0, 1.0))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&context)
+        .unwrap();
+    let bytes = antecedent::io::encode_causal_posterior_bytes(
+        source.posterior.as_ref().unwrap(),
+        "equal-width-coefficient-prior",
+    )
+    .unwrap();
+    let mut query = MediationQuery::binary(v(1), v(3), [v(2)], MediationContrast::NaturalDirect);
+    query.control = Intervention::set(v(1), Value::f64(-1.0));
+    query.active = Intervention::set(v(1), Value::f64(1.0));
+
+    let identical = BayesianConfig::conjugate().n_draws(64).prior_from_artifact(
+        bytes.to_vec(),
+        Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace),
+    );
+    let builder = Study::tabular(target_data.clone())
+        .graph(target_graph.clone())
+        .query(CausalQuery::Mediation(query.clone()))
+        .inference(InferenceMode::Bayesian(identical))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let error = builder.prepare(&context).unwrap_err();
+    assert!(error.to_string().contains("identical coefficient-subspace mapping"), "{error}");
+
+    let named = BayesianConfig::conjugate().n_draws(64).prior_from_artifact(
+        bytes.to_vec(),
+        Some(antecedent_io::PriorMapping::NamedParameters {
+            pairs: vec![("coef_t".into(), "coef_t".into())],
+        }),
+    );
+    let result = Study::tabular(target_data)
+        .graph(target_graph)
+        .query(CausalQuery::Mediation(query))
+        .inference(InferenceMode::Bayesian(named))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&context)
+        .unwrap();
+    let scopes = result
+        .posterior
+        .as_ref()
+        .unwrap()
+        .assumptions
+        .entries
+        .iter()
+        .filter_map(|record| {
+            (matches!(
+                &record.assumption,
+                antecedent_core::Assumption::PriorRestriction(prior)
+                    if prior.id.as_ref() == "external_named_prior"
+            ))
+            .then_some(&record.scope)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(scopes.len(), 1, "the named prior may bind one mechanism only: {scopes:?}");
+    assert!(matches!(
+        scopes[0],
+        antecedent_core::AssumptionScope::Variables { variables }
+            if variables.as_ref() == [v(3)]
+    ));
+}
+
+fn run_on_large_stack(run: impl FnOnce() + Send + 'static) {
+    std::thread::Builder::new()
+        .name("checked-mediation-evidence".into())
+        .stack_size(4 * 1024 * 1024)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
 }

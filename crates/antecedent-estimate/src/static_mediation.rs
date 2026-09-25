@@ -224,6 +224,63 @@ pub fn estimate_static_mediation_bayesian(
     bridge: Option<MediationPriorBridge<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
+    estimate_static_mediation_bayesian_impl(
+        data,
+        graph,
+        query,
+        assumptions,
+        extra,
+        estimator,
+        identification,
+        bridge,
+        ctx,
+        false,
+    )
+}
+
+/// Bayesian static mediation with any mapped coefficient prior restricted to
+/// the outcome mechanism. Checked high-level mediation routes use this entry
+/// point because only the outcome treatment slope defines the natural-direct
+/// functional used by the licensed transfer contract.
+#[allow(clippy::too_many_arguments)]
+pub fn estimate_static_mediation_bayesian_outcome_prior(
+    data: &TabularData,
+    graph: &Dag,
+    query: &MediationQuery,
+    assumptions: AssumptionSet,
+    extra: &[VariableId],
+    estimator: &crate::BayesianGComputationAte,
+    identification: antecedent_core::IdentificationStatus,
+    bridge: Option<MediationPriorBridge<'_>>,
+    ctx: &ExecutionContext,
+) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
+    estimate_static_mediation_bayesian_impl(
+        data,
+        graph,
+        query,
+        assumptions,
+        extra,
+        estimator,
+        identification,
+        bridge,
+        ctx,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn estimate_static_mediation_bayesian_impl(
+    data: &TabularData,
+    graph: &Dag,
+    query: &MediationQuery,
+    assumptions: AssumptionSet,
+    extra: &[VariableId],
+    estimator: &crate::BayesianGComputationAte,
+    identification: antecedent_core::IdentificationStatus,
+    bridge: Option<MediationPriorBridge<'_>>,
+    ctx: &ExecutionContext,
+    outcome_prior_only: bool,
+) -> Result<(TemporalMediationEstimate, crate::CausalPosterior), EstimationError> {
     crate::bayesian_mediation::require_gaussian_mediation(estimator)?;
     let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
     if estimator.prior.is_some() {
@@ -322,6 +379,9 @@ pub fn estimate_static_mediation_bayesian(
 
         if let Some(bridge) = bridge {
             let is_outcome = i == query.outcome.as_usize();
+            if outcome_prior_only && !is_outcome {
+                continue;
+            }
             if let Some(prior) = hydrate_mechanism_prior(
                 bridge,
                 &coef_names,

@@ -954,6 +954,14 @@ impl super::Study {
     ///
     /// Compile / execute failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        if let Some(result) = self.run_checked_bayesian_static_mediation(ctx)? {
+            return Ok(*result);
+        }
+        self.run_other_routes(ctx)
+    }
+
+    #[inline(never)]
+    fn run_other_routes(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
@@ -1390,6 +1398,38 @@ impl super::Study {
         }
         let compiled = self.compile(ctx)?;
         self.execute(&compiled, ctx)
+    }
+
+    #[inline(never)]
+    fn run_checked_bayesian_static_mediation(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Box<StudyResult>>, CausalError> {
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.custom_validators.is_empty()
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && matches!(self.query, CausalQuery::Mediation(_))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_bayesian_static_mediation_info().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot Bayesian mediation did not retain its checked operation"
+                            .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx).map(Box::new).map(Some);
+            }
+        }
+        Ok(None)
     }
 
     /// Identify only (no estimation). Supports static DAG and ADMG average-effect

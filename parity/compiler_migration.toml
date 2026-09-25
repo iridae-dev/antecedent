@@ -12,10 +12,8 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_attribution_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"
-
 
 [[route]]
 coordinate = "AnomalyAttribution:Dag:explicit:Frequentist:none"
@@ -42,7 +40,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -71,7 +68,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -1026,10 +1022,12 @@ identifier = "generalized.adjustment"
 estimator = "linear.adjustment.ate"
 kind = "specialized_estimation"
 classification_reason = "route selects a named estimator family or procedure"
-migration_status = "in_progress"
-checked_execution = "unverified"
-builder_independent = "unverified"
-execution_semantics = "unverified"
+migration_status = "verified"
+checked_execution = "verified"
+builder_independent = "verified"
+execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/checked_unknown_tiered_average_lifecycle.rs"
+evidence_assertion = "unknown_tiered_average_executes_from_retained_plan_refreshes_and_refuses_unreplayable_artifact"
 
 [[route]]
 coordinate = "ChangeAttribution:Dag:explicit:Bayesian:none"
@@ -1042,10 +1040,8 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_attribution_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"
-
 
 [[route]]
 coordinate = "ChangeAttribution:Dag:explicit:Frequentist:none"
@@ -1290,6 +1286,7 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
+
 [[route]]
 coordinate = "ConditionalEffect:Dag:accepted:Bayesian:full"
 query = "ConditionalEffect"
@@ -1303,6 +1300,7 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
+
 [[route]]
 coordinate = "ConditionalEffect:Dag:accepted:Bayesian:none"
 query = "ConditionalEffect"
@@ -1316,6 +1314,7 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
+
 [[route]]
 coordinate = "ConditionalEffect:Dag:accepted:Frequentist:cheap"
 query = "ConditionalEffect"
@@ -1371,6 +1370,7 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
+
 [[route]]
 coordinate = "ConditionalEffect:Dag:explicit:Bayesian:full"
 query = "ConditionalEffect"
@@ -1384,6 +1384,7 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
+
 [[route]]
 coordinate = "ConditionalEffect:Dag:explicit:Bayesian:none"
 query = "ConditionalEffect"
@@ -1397,6 +1398,7 @@ builder_independent = "verified"
 execution_semantics = "checked_plan"
 evidence_test = "crates/antecedent/tests/checked_bayesian_conditional_multimodifier_lifecycle.rs"
 evidence_assertion = "three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay"
+
 [[route]]
 coordinate = "ConditionalEffect:Dag:explicit:Frequentist:cheap"
 query = "ConditionalEffect"
@@ -1794,7 +1796,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -1823,7 +1824,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -1852,7 +1852,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -1881,7 +1880,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -1910,9 +1908,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_interference_lifecycle.rs"
 evidence_assertion = "conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped"
+
 [[route]]
 coordinate = "InterferenceQuery:Dag:explicit:Frequentist:none"
 query = "InterferenceQuery"
@@ -1924,9 +1922,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_interference_lifecycle.rs"
 evidence_assertion = "bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scoped"
+
 [[route]]
 coordinate = "InterventionResponse:Admg:accepted:Bayesian:cheap"
 query = "InterventionResponse"
@@ -1958,10 +1956,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "specialized_estimation"
 classification_reason = "route estimates an intervention-response functional"
-migration_status = "in_progress"
-checked_execution = "unverified"
-builder_independent = "unverified"
-execution_semantics = "unverified"
+migration_status = "verified"
+checked_execution = "verified"
+builder_independent = "verified"
+execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:accepted:Frequentist:cheap"
@@ -1994,10 +1994,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "specialized_estimation"
 classification_reason = "route estimates an intervention-response functional"
-migration_status = "in_progress"
-checked_execution = "unverified"
-builder_independent = "unverified"
-execution_semantics = "unverified"
+migration_status = "verified"
+checked_execution = "verified"
+builder_independent = "verified"
+execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:explicit:Bayesian:cheap"
@@ -2030,10 +2032,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "specialized_estimation"
 classification_reason = "route estimates an intervention-response functional"
-migration_status = "in_progress"
-checked_execution = "unverified"
-builder_independent = "unverified"
-execution_semantics = "unverified"
+migration_status = "verified"
+checked_execution = "verified"
+builder_independent = "verified"
+execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:explicit:Frequentist:cheap"
@@ -2066,10 +2070,12 @@ identifier = "general.id"
 estimator = "functional.effect"
 kind = "specialized_estimation"
 classification_reason = "route estimates an intervention-response functional"
-migration_status = "in_progress"
-checked_execution = "unverified"
-builder_independent = "unverified"
-execution_semantics = "unverified"
+migration_status = "verified"
+checked_execution = "verified"
+builder_independent = "verified"
+execution_semantics = "checked_plan"
+evidence_test = "crates/antecedent/tests/admg_intervention_response_route_evidence.rs"
+evidence_assertion = "explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes"
 
 [[route]]
 coordinate = "InterventionResponse:Admg:graph_posterior:Bayesian:cheap"
@@ -3146,9 +3152,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 evidence_assertion = "bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume"
+
 [[route]]
 coordinate = "MediationEffect:Dag:accepted:Bayesian:full"
 query = "MediationEffect"
@@ -3160,9 +3166,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 evidence_assertion = "bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume"
+
 [[route]]
 coordinate = "MediationEffect:Dag:accepted:Bayesian:none"
 query = "MediationEffect"
@@ -3174,9 +3180,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 evidence_assertion = "bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume"
+
 [[route]]
 coordinate = "MediationEffect:Dag:accepted:Frequentist:cheap"
 query = "MediationEffect"
@@ -3230,9 +3236,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 evidence_assertion = "bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume"
+
 [[route]]
 coordinate = "MediationEffect:Dag:explicit:Bayesian:full"
 query = "MediationEffect"
@@ -3244,9 +3250,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 evidence_assertion = "bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume"
+
 [[route]]
 coordinate = "MediationEffect:Dag:explicit:Bayesian:none"
 query = "MediationEffect"
@@ -3258,9 +3264,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_static_mediation_route_evidence.rs"
 evidence_assertion = "bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume"
+
 [[route]]
 coordinate = "MediationEffect:Dag:explicit:Frequentist:cheap"
 query = "MediationEffect"
@@ -3496,7 +3502,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -3525,7 +3530,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -4758,7 +4762,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -4787,7 +4790,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -4816,7 +4818,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -4845,7 +4846,6 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs"
 evidence_assertion = "all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"
 
@@ -5774,9 +5774,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:accepted:Bayesian:full"
 query = "TemporalMediationEffect"
@@ -5788,9 +5788,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:accepted:Bayesian:none"
 query = "TemporalMediationEffect"
@@ -5802,9 +5802,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:accepted:Frequentist:cheap"
 query = "TemporalMediationEffect"
@@ -5816,9 +5816,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:accepted:Frequentist:full"
 query = "TemporalMediationEffect"
@@ -5830,9 +5830,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:accepted:Frequentist:none"
 query = "TemporalMediationEffect"
@@ -5844,9 +5844,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:explicit:Bayesian:cheap"
 query = "TemporalMediationEffect"
@@ -5858,9 +5858,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:explicit:Bayesian:full"
 query = "TemporalMediationEffect"
@@ -5872,9 +5872,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:explicit:Bayesian:none"
 query = "TemporalMediationEffect"
@@ -5886,9 +5886,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:explicit:Frequentist:cheap"
 query = "TemporalMediationEffect"
@@ -5900,9 +5900,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:explicit:Frequentist:full"
 query = "TemporalMediationEffect"
@@ -5914,9 +5914,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:explicit:Frequentist:none"
 query = "TemporalMediationEffect"
@@ -5928,9 +5928,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
+
 [[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:graph_posterior:Bayesian:cheap"
 query = "TemporalMediationEffect"
@@ -6070,9 +6070,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_frontdoor_cheap"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:cheap::estimator=glm.adjustment"
 source_registry = "parity/support_licensed.toml"
@@ -6102,9 +6102,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_iv_2sls_cheap"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:cheap::estimator=iv.wald"
 source_registry = "parity/support_licensed.toml"
@@ -6118,9 +6118,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_iv_wald_cheap"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:cheap::estimator=propensity.matching"
 source_registry = "parity/support_licensed.toml"
@@ -6198,9 +6198,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_frontdoor_full"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:full::estimator=glm.adjustment"
 source_registry = "parity/support_licensed.toml"
@@ -6230,9 +6230,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_iv_2sls_full"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:full::estimator=iv.wald"
 source_registry = "parity/support_licensed.toml"
@@ -6246,9 +6246,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_iv_wald_full"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:full::estimator=propensity.matching"
 source_registry = "parity/support_licensed.toml"
@@ -6326,9 +6326,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_frontdoor_none"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:none::estimator=glm.adjustment"
 source_registry = "parity/support_licensed.toml"
@@ -6358,9 +6358,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_iv_2sls_none"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:none::estimator=iv.wald"
 source_registry = "parity/support_licensed.toml"
@@ -6374,9 +6374,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_accepted_frequentist_iv_wald_none"
+
 [[route]]
 coordinate = "AverageEffect:Dag:accepted:Frequentist:none::estimator=propensity.matching"
 source_registry = "parity/support_licensed.toml"
@@ -6510,9 +6510,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_frontdoor_cheap"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:cheap::estimator=glm.adjustment"
 source_registry = "parity/support_licensed.toml"
@@ -6542,9 +6542,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_iv_2sls_cheap"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:cheap::estimator=iv.wald"
 source_registry = "parity/support_licensed.toml"
@@ -6558,9 +6558,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_iv_wald_cheap"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:cheap::estimator=propensity.matching"
 source_registry = "parity/support_licensed.toml"
@@ -6638,9 +6638,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_frontdoor_full"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:full::estimator=glm.adjustment"
 source_registry = "parity/support_licensed.toml"
@@ -6670,9 +6670,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_iv_2sls_full"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:full::estimator=iv.wald"
 source_registry = "parity/support_licensed.toml"
@@ -6686,9 +6686,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_iv_wald_full"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:full::estimator=propensity.matching"
 source_registry = "parity/support_licensed.toml"
@@ -6766,9 +6766,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_frontdoor_none"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:none::estimator=glm.adjustment"
 source_registry = "parity/support_licensed.toml"
@@ -6798,9 +6798,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_iv_2sls_none"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:none::estimator=iv.wald"
 source_registry = "parity/support_licensed.toml"
@@ -6814,9 +6814,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
 evidence_assertion = "dag_explicit_frequentist_iv_wald_none"
+
 [[route]]
 coordinate = "AverageEffect:Dag:explicit:Frequentist:none::estimator=propensity.matching"
 source_registry = "parity/support_licensed.toml"
@@ -6892,9 +6892,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs"
 evidence_assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh"
+
 [[route]]
 coordinate = "InterventionResponse:Dag:accepted:Frequentist:full::estimator=cell.aipw"
 source_registry = "parity/support_licensed.toml"
@@ -6908,9 +6908,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs"
 evidence_assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh"
+
 [[route]]
 coordinate = "InterventionResponse:Dag:accepted:Frequentist:none::estimator=cell.aipw"
 source_registry = "parity/support_licensed.toml"
@@ -6924,9 +6924,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs"
 evidence_assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh"
+
 [[route]]
 coordinate = "InterventionResponse:Dag:explicit:Frequentist:cheap::estimator=cell.aipw"
 source_registry = "parity/support_licensed.toml"
@@ -6940,9 +6940,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs"
 evidence_assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh"
+
 [[route]]
 coordinate = "InterventionResponse:Dag:explicit:Frequentist:full::estimator=cell.aipw"
 source_registry = "parity/support_licensed.toml"
@@ -6956,9 +6956,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs"
 evidence_assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh"
+
 [[route]]
 coordinate = "InterventionResponse:Dag:explicit:Frequentist:none::estimator=cell.aipw"
 source_registry = "parity/support_licensed.toml"
@@ -6972,9 +6972,9 @@ migration_status = "verified"
 checked_execution = "verified"
 builder_independent = "verified"
 execution_semantics = "checked_plan"
-
 evidence_test = "crates/antecedent/tests/checked_cell_aipw_response_route_evidence.rs"
 evidence_assertion = "accepted_and_explicit_dag_cell_aipw_cover_none_cheap_full_and_refresh"
+
 [[route]]
 coordinate = "transport-stage:antecedent.transport.advanced.PreparedZTransportStage.estimate_refresh"
 source_registry = "parity/transport_stages.toml"

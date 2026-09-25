@@ -521,7 +521,9 @@ impl CheckedFunctionalEffectResponseMember {
     }
 }
 
-/// Retained complete ordered program family for an ADMG response curve.
+/// Retained checked program family for an ADMG response curve or scalar
+/// intervention response. A scalar response is represented as a one-member
+/// family so it shares the same checked identification and provider binding.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedAdmgResponseCurveOperation {
     query: antecedent_core::ResponseQuery,
@@ -732,10 +734,17 @@ impl CheckedAdmgResponseCurveOperation {
             estimand: self.query.functional.clone(),
             identification_status: first.identification.status,
             estimate: antecedent_core::ResponseIdentification::PointIdentified(
-                antecedent_core::ResponseValue::Surface {
-                    grid: Arc::clone(&self.grid),
-                    dimension: 1,
-                    mean: Arc::from(means),
+                if matches!(
+                    self.query.functional,
+                    antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                ) {
+                    antecedent_core::ResponseValue::Scalar(means[0])
+                } else {
+                    antecedent_core::ResponseValue::Surface {
+                        grid: Arc::clone(&self.grid),
+                        dimension: 1,
+                        mean: Arc::from(means),
+                    }
                 },
             ),
             uncertainty: antecedent_core::ResponseUncertainty::None,
@@ -3352,6 +3361,33 @@ pub struct PreparedStudy<S = SampledPreparedState> {
 /// names routes that still use the ordinary dispatcher; the checked variants
 /// carry the complete operation retained by preparation.
 #[derive(Clone, Debug)]
+pub(crate) struct CheckedUnknownTieredAverageOperation {
+    query: AverageEffectQuery,
+    background: antecedent_graph::TieredBackground,
+    identification: antecedent_identify::IdentificationResult,
+    identifier: crate::strategy_table::IdentifierId,
+    estimator: crate::strategy_table::EstimatorId,
+    physical: PhysicalExecutionPlan,
+}
+
+/// Public inspection of the retained two-scenario Unknown-tier ATE operation.
+#[derive(Clone, Debug)]
+pub struct CheckedUnknownTieredAverageInfo {
+    /// Frozen average-effect target.
+    pub query: AverageEffectQuery,
+    /// Number of declared tiers.
+    pub tier_count: usize,
+    /// Canonical identified scenarios retained by the checked operation.
+    pub scenario_count: usize,
+    /// Selected identifier.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// The prepared physical plan identity.
+    pub plan_id: Arc<str>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) enum PreparedExecution {
     LegacyStudyDispatch,
     FunctionalEffect(CheckedFunctionalEffectOperation),
@@ -3371,7 +3407,7 @@ pub(crate) enum PreparedExecution {
     CellAipwResponse(super::execute::CheckedCellAipwResponseOperation),
     StaticDagResponse(super::execute::CheckedStaticDagResponseOperation),
     StaticMediation(super::execute::CheckedStaticMediationOperation),
-    BayesianStaticMediation(super::execute::CheckedBayesianStaticMediationOperation),
+    BayesianStaticMediation(Box<super::execute::CheckedBayesianStaticMediationOperation>),
     Attribution(super::execute::CheckedAttributionOperation),
     TemporalDagResponse(super::execute::CheckedTemporalResponseExecution),
     TemporalDagEffect(super::execute::CheckedTemporalEffectExecution),
@@ -3383,6 +3419,7 @@ pub(crate) enum PreparedExecution {
     StaticResponseCurve(CheckedStaticResponseCurve),
     FrontDoorLinear(CheckedFrontDoorOperation),
     Iv(CheckedIvOperation),
+    UnknownTieredAverage(Box<CheckedUnknownTieredAverageOperation>),
 }
 
 /// Exactly one checked product may supply a prepared result contract. This is
@@ -3413,7 +3450,8 @@ impl PreparedExecution {
             Self::CheckedGlmAdjustment(_)
             | Self::CheckedRd(_)
             | Self::CheckedPropensity(_)
-            | Self::CheckedConditional(_) => CheckedProgramBinding::None,
+            | Self::CheckedConditional(_)
+            | Self::UnknownTieredAverage(_) => CheckedProgramBinding::None,
             Self::FunctionalEffect(operation) => {
                 CheckedProgramBinding::FunctionalEffect(operation.prepared.program())
             }
@@ -4020,6 +4058,22 @@ impl PreparedStudy {
         })
     }
 
+    /// Inspect the sealed two-scenario Unknown-tier average-effect operation.
+    #[must_use]
+    pub fn checked_unknown_tiered_average_info(&self) -> Option<CheckedUnknownTieredAverageInfo> {
+        let PreparedExecution::UnknownTieredAverage(operation) = &self.execution else {
+            return None;
+        };
+        Some(CheckedUnknownTieredAverageInfo {
+            query: operation.query.clone(),
+            tier_count: operation.background.tiers.len(),
+            scenario_count: operation.identification.estimands.len(),
+            identifier: operation.identifier,
+            estimator: operation.estimator,
+            plan_id: Arc::clone(&operation.physical.record.plan_id),
+        })
+    }
+
     /// Inspect the retained checked temporal effect before execution.
     #[must_use]
     pub fn checked_temporal_dag_effect_info(&self) -> Option<CheckedTemporalDagEffectInfo> {
@@ -4109,7 +4163,8 @@ impl PreparedStudy {
             })
     }
 
-    /// Ordered checked members for a prepared ADMG mean response curve.
+    /// Ordered checked members for a prepared ADMG mean response curve or
+    /// scalar intervention response.
     #[must_use]
     pub fn checked_functional_effect_response_members(
         &self,
@@ -5438,6 +5493,19 @@ impl PreparedStudy {
         }
         if let PreparedExecution::Counterfactual(plan) = &self.execution {
             let result = plan.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::UnknownTieredAverage(operation) = &self.execution {
+            let result = self.analysis.execute_checked_unknown_tiered_average(
+                data,
+                &operation.query,
+                &operation.physical,
+                ctx,
+                &operation.background,
+                operation.identification.clone(),
+                operation.identifier,
+                operation.estimator,
+            )?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::DerivativeResponse(operation) = &self.execution {
@@ -7285,21 +7353,50 @@ impl Study {
                     && matches!(
                         query.functional,
                         antecedent_core::ResponseFunctional::MeanCurve { .. }
+                            | antecedent_core::ResponseFunctional::InterventionResponse { .. }
                     )
                     && matches!(
                         analysis.inference,
                         InferenceMode::Frequentist | InferenceMode::Bayesian(_)
                     ) =>
             {
-                let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
-                    &query.functional
-                else {
-                    unreachable!()
+                let (treatment, outcome, grid) = match &query.functional {
+                    antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => (
+                        treatment.variable,
+                        *outcome,
+                        treatment
+                            .grid
+                            .values()
+                            .map_err(|error| CausalError::Compile { message: error.to_string() })?,
+                    ),
+                    antecedent_core::ResponseFunctional::InterventionResponse {
+                        outcome,
+                        interventions,
+                    } if interventions.len() == 1 => {
+                        let intervention = &interventions[0];
+                        let (treatment, _) = query.functional.primary_pair().ok_or_else(|| {
+                            CausalError::Compile {
+                                message: "scalar ADMG response lacks treatment role".into(),
+                            }
+                        })?;
+                        let antecedent_core::Intervention::Set { variable, value } = intervention
+                        else {
+                            return Err(CausalError::Compile {
+                                message: "checked ADMG scalar response requires a single hard-set intervention".into(),
+                            });
+                        };
+                        let value = value.as_f64().filter(|value| value.is_finite()).ok_or_else(|| CausalError::Compile {
+                            message: "checked ADMG scalar response requires one finite numeric intervention value".into(),
+                        })?;
+                        if treatment != *variable {
+                            return Err(CausalError::Compile {
+                                message: "checked ADMG scalar response intervention must assign its declared treatment".into(),
+                            });
+                        }
+                        (treatment, *outcome, vec![value])
+                    }
+                    _ => unreachable!("guarded response operation shape"),
                 };
-                let grid = treatment
-                    .grid
-                    .values()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 if grid.is_empty() {
                     return Err(CausalError::Compile {
                         message: "ADMG response curve has no grid members".into(),
@@ -7313,14 +7410,19 @@ impl Study {
                 let mut members = Vec::with_capacity(grid.len());
                 for level in &grid {
                     let mut member_query = query.clone();
-                    member_query.functional =
-                        antecedent_core::ResponseFunctional::InterventionResponse {
-                            outcome: *outcome,
-                            interventions: Arc::from([Intervention::set(
-                                treatment.variable,
-                                Value::f64(*level),
-                            )]),
-                        };
+                    if matches!(
+                        query.functional,
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    ) {
+                        member_query.functional =
+                            antecedent_core::ResponseFunctional::InterventionResponse {
+                                outcome,
+                                interventions: Arc::from([Intervention::set(
+                                    treatment,
+                                    Value::f64(*level),
+                                )]),
+                            };
+                    }
                     let member_causal_query = CausalQuery::Response(member_query.clone());
                     let identification = crate::strategy_table::identify_admg_query(
                         crate::strategy_table::IdentifierId::GeneralId,
@@ -7336,7 +7438,7 @@ impl Study {
                         &estimand,
                         &identification.arena,
                         identification.required_assumptions.clone(),
-                        &[treatment.variable, *outcome],
+                        &[treatment, outcome],
                     )?;
                     members.push(CheckedFunctionalEffectResponseMember {
                         grid_value: *level,
@@ -8060,9 +8162,9 @@ impl Study {
                 Some(cache),
                 GraphClass::Dag,
                 InferenceMode::Bayesian(_),
-            ) => Some(super::execute::CheckedBayesianStaticMediationOperation::checked(
+            ) => Some(Box::new(super::execute::CheckedBayesianStaticMediationOperation::checked(
                 &analysis, data, &plan, cache,
-            )?),
+            )?)),
             _ => None,
         };
         let checked_static_mediation = match (
@@ -8105,6 +8207,44 @@ impl Study {
             _ => None,
         };
         let score_table = analysis.prepare_score_table(ctx)?;
+        let checked_unknown_tiered_average = match (
+            &self.data,
+            &self.query,
+            analysis.tiered.as_ref(),
+            analysis.identification_cache.as_deref(),
+            &analysis.inference,
+        ) {
+            (
+                DataInput::Tabular(_),
+                CausalQuery::AverageEffect(query),
+                Some(background),
+                Some(cache),
+                InferenceMode::Frequentist,
+            ) if background.within_tier == antecedent_graph::WithinTier::Unknown
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.graph_posterior.is_none()
+                && analysis.custom_validators.is_empty()
+                && matches!(analysis.refute, RefuteSuite::None)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::LinearAdjustmentAte.as_str())
+                && plan.logical.record.identifier.as_deref()
+                    == Some(
+                        crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str(),
+                    )
+                && cache.identification.query == CausalQuery::AverageEffect(query.clone())
+                && cache.identification.estimands.len() == 2 =>
+            {
+                Some(Box::new(CheckedUnknownTieredAverageOperation {
+                    query: query.clone(),
+                    background: background.clone(),
+                    identification: cache.identification.clone(),
+                    identifier: crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+                    estimator: crate::strategy_table::EstimatorId::LinearAdjustmentAte,
+                    physical: plan.clone(),
+                }))
+            }
+            _ => None,
+        };
         let execution = if let Some(operation) = checked_linear {
             PreparedExecution::CheckedLinear(operation)
         } else if let Some(operation) = checked_glm {
@@ -8163,6 +8303,8 @@ impl Study {
             PreparedExecution::BayesianConditional(operation)
         } else if let Some(operation) = checked_response_curve {
             PreparedExecution::StaticResponseCurve(operation)
+        } else if let Some(operation) = checked_unknown_tiered_average {
+            PreparedExecution::UnknownTieredAverage(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };
