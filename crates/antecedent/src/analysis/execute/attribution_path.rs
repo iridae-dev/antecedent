@@ -771,11 +771,11 @@ impl super::Study {
     }
 }
 
-fn dirichlet_row_weights(n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+pub(super) fn dirichlet_row_weights(n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
     (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect()
 }
 
-fn attribution_posterior(
+pub(super) fn attribution_posterior(
     columns: Vec<(String, Vec<f64>)>,
     mut assumptions: antecedent_core::AssumptionSet,
     identification: antecedent_identify::IdentificationStatus,

@@ -695,6 +695,12 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
+        Some("cell.aipw")
+            if matches!(&contract.target.query, CausalQueryWire::Response(query)
+                if matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
+        }
         Some("gcm.fit" | "gcm.fit.bayesian")
             if matches!(contract.target.query, CausalQueryWire::Counterfactual { .. }) =>
         {
@@ -732,15 +738,36 @@ pub fn verify_contract_against_body(
         unresolved.push(Arc::from("dependencies.checked_mediation_operation"));
     }
     if contract.graph_class == "Dag"
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(contract.target.query, CausalQueryWire::Mediation { .. })
+        && resolved_estimator == Some("mediation.linear")
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
+    {
+        unresolved.push(Arc::from("dependencies.checked_bayesian_mediation_operation"));
+    }
+    if contract.graph_class == "Dag"
         && contract.structure_source == "explicit"
         && matches!(
             contract.target.query,
             CausalQueryWire::AnomalyAttribution { .. } | CausalQueryWire::ChangeAttribution { .. }
         )
-        && resolved_estimator == Some("gcm.fit")
-        && contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference.eq_ignore_ascii_case("frequentist")
-        })
+        && ((resolved_estimator == Some("gcm.fit")
+            && contract.program.as_ref().is_some_and(|program| {
+                program.commitments.inference.eq_ignore_ascii_case("frequentist")
+            }))
+            || (matches!(contract.target.query, CausalQueryWire::AnomalyAttribution { .. })
+                && resolved_estimator == Some("gcm.fit.bayesian")
+                && contract.program.as_ref().is_some_and(|program| {
+                    program.commitments.inference.eq_ignore_ascii_case("bayesian")
+                }))
+            || (matches!(contract.target.query, CausalQueryWire::ChangeAttribution { .. })
+                && resolved_estimator == Some("gcm.attribution.bayesian")
+                && contract.program.as_ref().is_some_and(|program| {
+                    program.commitments.inference.eq_ignore_ascii_case("bayesian")
+                })))
     {
         unresolved.push(Arc::from("dependencies.checked_attribution_operation"));
     }
@@ -1078,6 +1105,7 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_graph_posterior_effect_operation"
                 | "dependencies.checked_conditional_effect_operation"
                 | "dependencies.checked_mediation_operation"
+                | "dependencies.checked_bayesian_mediation_operation"
                 | "dependencies.checked_attribution_operation"
                 | "dependencies.checked_bayesian_dag_ate_operation"
                 | "dependencies.checked_bayesian_conditional_operation"

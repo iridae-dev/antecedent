@@ -56,6 +56,7 @@ pub use batch::{
 };
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use contract::CausalContract;
+pub use execute::DagResponseOrigin;
 pub use execute::Study;
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
@@ -63,9 +64,10 @@ pub use latency::{
     STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
 pub use prepared::{
-    CachedTemporalIdentification, CheckedAttributionInfo, CheckedConditionalEffectInfo,
-    CheckedGraphPosteriorEffectInfo, CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo,
-    CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, PreparedStudy,
+    CachedTemporalIdentification, CheckedAttributionInfo, CheckedCellAipwResponseInfo,
+    CheckedConditionalEffectInfo, CheckedGraphPosteriorEffectInfo, CheckedStaticMediationInfo,
+    CheckedTemporalClassEffectInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
+    PreparedStudy,
 };
 pub use stage::{StageEvent, StageResultSink};
 
