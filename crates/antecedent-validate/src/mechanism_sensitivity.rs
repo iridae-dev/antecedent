@@ -240,6 +240,9 @@ impl std::error::Error for ZTransportSensitivityError {}
 /// The compatible formula is `sum_w P_source(Y | w, X, do(Z)) P_source(w | do(Z))`.
 /// The same conditional kernel is used to form both treatment arms. The returned
 /// range is an assumption range over replacement outcome distributions.
+// Keep the checked binding and factor validation together so the returned
+// sensitivity result is built only after the complete proof/provider contract passes.
+#[allow(clippy::too_many_lines)]
 pub fn z_transport_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -343,7 +346,7 @@ pub fn z_transport_mechanism_sensitivity(
     let y_values = law.axes()[yi]
         .values
         .iter()
-        .map(|v| v.as_f64())
+        .map(antecedent_core::Value::as_f64)
         .collect::<Option<Vec<_>>>()
         .ok_or(ZTransportSensitivityError::UnsupportedDomain)?;
     let x_levels = law.axes()[xi].values.len();
@@ -453,6 +456,9 @@ impl std::error::Error for FixedGraphSensitivityError {}
 /// # Errors
 /// Returns a typed refusal for unsupported graphs, mismatched proofs or bindings,
 /// incomplete finite support, and invalid probabilities.
+// This staged validation derives the target contrast from checked graph,
+// kernel, population, and snapshot evidence before optimizing the range.
+#[allow(clippy::too_many_lines)]
 pub fn fixed_graph_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -693,7 +699,9 @@ fn validate_sensitivity_bindings(
             && regime.evidence_kind == EvidenceKind::Available
             && regime.population.as_ref() == query.target.as_ref()
             && regime.kind == antecedent_core::RegimeKind::Observational
-            && catalog.target_sampling.is_some_and(|sampling| sampling.represents_target_law())
+            && catalog
+                .target_sampling
+                .is_some_and(antecedent_core::TargetSampling::represents_target_law)
             && parents
                 .iter()
                 .filter(|parent| **parent != query.treatments[0])
@@ -871,7 +879,7 @@ impl DiscreteKernelSensitivity {
             if !(minimum..=maximum).contains(&threshold) {
                 return None;
             }
-            if threshold == baseline {
+            if exact_threshold_matches_baseline(threshold, baseline) {
                 return Some(0.0);
             }
             let slope = if threshold < baseline { low_slope } else { high_slope };
@@ -893,6 +901,13 @@ impl DiscreteKernelSensitivity {
             },
         })
     }
+}
+
+// A zero tipping fraction is exact only when the declared threshold is exactly
+// the computed baseline; applying a tolerance would change the reported quantity.
+#[allow(clippy::float_cmp)]
+fn exact_threshold_matches_baseline(threshold: f64, baseline: f64) -> bool {
+    threshold == baseline
 }
 
 #[cfg(test)]
@@ -923,12 +938,19 @@ mod tests {
         }
     }
 
+    // The zero-contamination contract requires the extrema to equal baseline
+    // exactly; a tolerance could hide an unintended perturbation.
+    #[allow(clippy::float_cmp)]
+    fn assert_exact_float_eq(actual: f64, expected: f64) {
+        assert_eq!(actual, expected);
+    }
+
     #[test]
     fn zero_fraction_returns_baseline_and_threshold_tips_exactly() {
         let result = fixture(0.0, Some(0.3)).evaluate().unwrap();
         assert!((result.baseline + 0.3).abs() < 1e-12);
-        assert_eq!(result.minimum, result.baseline);
-        assert_eq!(result.maximum, result.baseline);
+        assert_exact_float_eq(result.minimum, result.baseline);
+        assert_exact_float_eq(result.maximum, result.baseline);
         assert_eq!(result.tipping_fraction, None);
         assert!(result.interval_interpretation.contains("not a sampling interval"));
     }
@@ -945,6 +967,9 @@ mod tests {
     }
 
     #[test]
+    // Keep construction, provider binding, and changed-input checks together
+    // because they jointly verify this single staged z-route contract.
+    #[allow(clippy::too_many_lines)]
     fn checked_z_formula_sensitivity_binds_its_provider_and_delta_domain() {
         use antecedent_expr::{
             DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance,
@@ -1051,8 +1076,8 @@ mod tests {
         )
         .unwrap();
         assert!((baseline.response.baseline - 0.4).abs() < 1e-12);
-        assert_eq!(baseline.response.minimum, baseline.response.baseline);
-        assert_eq!(baseline.response.maximum, baseline.response.baseline);
+        assert_exact_float_eq(baseline.response.minimum, baseline.response.baseline);
+        assert_exact_float_eq(baseline.response.maximum, baseline.response.baseline);
         assert_eq!(baseline.provider_snapshot, "source-snapshot");
         let tipping = z_transport_mechanism_sensitivity(
             &diagram,
