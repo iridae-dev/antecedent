@@ -94,6 +94,9 @@ pub struct TransportPlanSpec {
 
 /// Outcome for one evaluated candidate.
 #[derive(Clone, Debug)]
+// Keep the public outcome payload inline to preserve the existing planner API;
+// the proposal is returned infrequently and callers commonly inspect it by value.
+#[expect(clippy::large_enum_variant, reason = "preserves the public planner outcome API")]
 pub enum TransportCandidateOutcome {
     /// The hypothetical addition produced a checked and bound functional.
     VerifiedSufficient(TransportProposal),
