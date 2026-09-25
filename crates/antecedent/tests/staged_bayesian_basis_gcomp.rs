@@ -2,7 +2,8 @@
 
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
+    VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
@@ -104,4 +105,80 @@ fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     for row in 0..values.len() {
         assert_eq!(cate_posterior.draws.column(row + 1).unwrap().len(), 256);
     }
+}
+
+#[test]
+fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
+    let data = fixture();
+    let query = AverageEffectQuery::binary_ate(v(0), v(1));
+    let context = ExecutionContext::for_tests(4222);
+    let builder = Study::tabular(data.clone())
+        .graph(dag())
+        .query(CausalQuery::AverageEffect(query.clone()))
+        .estimator(EstimatorId::BayesianBasisGcomp)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(192).prior_scale(20.0),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let one_shot = builder.run(&context).unwrap();
+    let mut prepared = builder.prepare(&context).unwrap();
+    drop(builder);
+
+    let plan = prepared
+        .checked_bayesian_basis_ate_info()
+        .expect("basis ATE plan survives builder disposal");
+    assert_eq!(plan.query, query);
+    assert_eq!(plan.adjustment_set.as_ref(), &[v(2)]);
+    assert_eq!(plan.posterior_draws, 192);
+    assert_eq!(plan.prior_scale, 20.0);
+    assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("bayesian.basis.gcomp"));
+    assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
+    match &prepared.contract().unwrap().reasoning.support {
+        SlotAvailability::Available(slot) => assert_eq!(
+            slot.matrix_coordinate.as_deref(),
+            Some("AverageEffect:Dag:explicit:Bayesian:none"),
+        ),
+        other => panic!("basis ATE support coordinate is unavailable: {other:?}"),
+    }
+
+    let result = prepared.estimate(&data, &context).unwrap();
+    assert!((result.estimate.ate - 0.5).abs() < 0.08, "ATE={}", result.estimate.ate);
+    assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 192);
+    assert!(one_shot.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
+    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
+
+    let refreshed_treatment = data.float64_values(v(0)).unwrap();
+    let refreshed_outcome =
+        data.float64_values(v(1)).unwrap().into_iter().map(|value| value + 0.4).collect::<Vec<_>>();
+    let refreshed_modifier = data.float64_values(v(2)).unwrap();
+    let shifted = TabularData::from_f64_columns([
+        ("t", refreshed_treatment.as_slice()),
+        ("y", refreshed_outcome.as_slice()),
+        ("z", refreshed_modifier.as_slice()),
+    ])
+    .unwrap();
+    let refreshed = prepared.refresh(shifted, &context).unwrap();
+    assert_eq!(prepared.checked_bayesian_basis_ate_info().unwrap(), plan);
+    assert!((refreshed.estimate.ate - 0.5).abs() < 0.08);
+
+    let bytes = prepared
+        .encode_contracted_result(&refreshed, "checked-bayesian-basis-ate", &context)
+        .unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert!(
+        consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_bayesian_basis_ate_operation"
+        })
+    );
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+
+    let reordered = TabularData::from_f64_columns([
+        ("y", refreshed_outcome.as_slice()),
+        ("t", refreshed_treatment.as_slice()),
+        ("z", refreshed_modifier.as_slice()),
+    ])
+    .unwrap();
+    assert!(prepared.refresh(reordered, &context).is_err());
 }

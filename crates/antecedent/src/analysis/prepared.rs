@@ -1254,6 +1254,19 @@ pub struct CheckedBayesianGcompOperation {
     pub(crate) inference: InferenceMode,
 }
 
+/// Inspection receipt for the checked Bayesian quadratic-basis ATE route.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianBasisAteInfo {
+    /// Target query retained by preparation.
+    pub query: AverageEffectQuery,
+    /// Back-door adjustment variables used by the basis model.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Number of posterior draws used by execution.
+    pub posterior_draws: usize,
+    /// Isotropic coefficient-prior scale retained by preparation.
+    pub prior_scale: f64,
+}
+
 /// Inspection receipt for a prepared Bayesian DAG conditional-effect route.
 #[derive(Clone, Debug)]
 pub struct CheckedBayesianConditionalInfo {
@@ -3550,6 +3563,7 @@ pub(crate) enum PreparedExecution {
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
+    BayesianBasisAte(super::execute::CheckedBayesianBasisAteExecution),
     StaticResponseCurve(CheckedStaticResponseCurve),
     FrontDoorLinear(CheckedFrontDoorOperation),
     Iv(CheckedIvOperation),
@@ -3617,6 +3631,7 @@ impl PreparedExecution {
             | Self::Interference(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
+            | Self::BayesianBasisAte(_)
             | Self::BayesianGraphPosteriorAte(_)
             | Self::BayesianConditional(_)
             | Self::StaticResponseCurve(_) => CheckedProgramBinding::None,
@@ -3980,6 +3995,15 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_bayesian_gcomp_operation(&self) -> Option<&CheckedBayesianGcompOperation> {
         self.execution.bayesian_gcomp()
+    }
+
+    /// Checked Bayesian quadratic-basis ATE plan, when this handle owns one.
+    #[must_use]
+    pub fn checked_bayesian_basis_ate_info(&self) -> Option<CheckedBayesianBasisAteInfo> {
+        match &self.execution {
+            PreparedExecution::BayesianBasisAte(operation) => Some(operation.info()),
+            _ => None,
+        }
     }
 
     /// Validation procedure frozen with the checked Bayesian DAG effect route.
@@ -5920,6 +5944,10 @@ impl PreparedStudy {
                 operation.operation().inference(),
                 &DataInput::Tabular(data.clone()),
             );
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianBasisAte(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::BayesianConditional(operation) = &self.execution {
@@ -8381,6 +8409,44 @@ impl Study {
         } else {
             None
         };
+        let bayesian_basis_ate_execution = match (
+            &self.data,
+            &self.query,
+            analysis.identification_cache.as_deref(),
+            &analysis.inference,
+            analysis.graph.class(),
+            plan.logical.record.estimator.as_deref(),
+        ) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::AverageEffect(query),
+                Some(cache),
+                InferenceMode::Bayesian(_),
+                GraphClass::Dag,
+                Some(estimator),
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.refute == RefuteSuite::None
+                && analysis.custom_validators.is_empty()
+                && estimator == crate::strategy_table::EstimatorId::BayesianBasisGcomp.as_str() =>
+            {
+                let graph = analysis.graph.as_dag().ok_or(CausalError::Compile {
+                    message: "checked Bayesian basis ATE requires its retained DAG".into(),
+                })?;
+                Some(super::execute::CheckedBayesianBasisAteExecution::checked(
+                    data,
+                    graph,
+                    query.clone(),
+                    cache.identification.clone(),
+                    cache.estimand.clone(),
+                    analysis.inference.clone(),
+                    super::execute::IdentifiedResultContext::from_study(&analysis),
+                    plan.clone(),
+                )?)
+            }
+            _ => None,
+        };
         let bayesian_conditional_execution = match (
             &self.data,
             &self.query,
@@ -9198,6 +9264,8 @@ impl Study {
             PreparedExecution::AdmgGraphPosteriorResponse(operation)
         } else if let Some(operation) = admg_response_curve_operation {
             PreparedExecution::AdmgResponseCurve(operation)
+        } else if let Some(operation) = bayesian_basis_ate_execution {
+            PreparedExecution::BayesianBasisAte(operation)
         } else if let Some(operation) = bayesian_gcomp_execution {
             PreparedExecution::BayesianGcomp(operation)
         } else if let Some(operation) = bayesian_conditional_execution {
