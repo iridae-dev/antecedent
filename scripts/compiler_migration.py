@@ -384,7 +384,7 @@ def validate_evidence_body(body: str, assertion: str) -> list[str]:
     )
     if not discarded:
         return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]
-    if not re.search(r"\b(?:execute|estimate|run|evaluate_exact)\s*\(", body):
+    if not re.search(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|refresh_series|run|evaluate_exact)\s*\(", body):
         return [f"evidence assertion {assertion!r} does not execute the prepared plan"]
     if not re.search(r"\b(?:program|plan|lowering)\b", body, re.I):
         return [f"evidence assertion {assertion!r} does not inspect a retained program or plan"]

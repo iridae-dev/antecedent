@@ -714,7 +714,7 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
         &ctx,
         "prepared-ce-b",
         "conditional_effect",
-        None,
+        Some("dependencies.checked_bayesian_conditional_operation"),
     );
 }
 

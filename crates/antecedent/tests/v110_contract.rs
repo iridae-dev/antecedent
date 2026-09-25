@@ -851,6 +851,7 @@ fn consume_licensed_family(
                 | "dependencies.checked_mediation_operation"
                 | "dependencies.checked_bayesian_dag_ate_operation"
                 | "dependencies.checked_temporal_dag_effect_operation"
+                | "dependencies.checked_temporal_class_effect_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 // The portable result is readable and preserves the posterior
                 // claim, but does not carry joint factor draws for replay.

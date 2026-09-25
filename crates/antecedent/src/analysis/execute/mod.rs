@@ -272,14 +272,19 @@ impl std::fmt::Debug for Study {
 mod admg_posterior;
 mod admg_posterior_response;
 mod attribution_path;
+mod checked_attribution;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
+pub(crate) use checked_attribution::CheckedAttributionOperation;
 mod bayesian_basis_path;
 mod checked_bayesian_dag_ate;
 pub(crate) use checked_bayesian_dag_ate::CheckedBayesianDagAteExecution;
+mod checked_bayesian_dag_conditional;
+pub(crate) use checked_bayesian_dag_conditional::CheckedBayesianConditionalOperation;
 mod bayesian_path;
 mod bayesian_robust_ate_path;
 mod bayesian_specialist_path;
 mod checked_static_mediation;
+mod checked_temporal_class_effect;
 mod checked_temporal_effect;
 pub(crate) use checked_static_mediation::CheckedStaticMediationOperation;
 mod class_envelope_se;
@@ -294,6 +299,7 @@ mod identified_set_diagnostics;
 mod pag_path;
 mod panel_path;
 mod response_path;
+pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
 pub(crate) use response_path::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
 };
