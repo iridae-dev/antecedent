@@ -957,6 +957,39 @@ impl super::Study {
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::Response(query)
+                if query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && (matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
+                        && self.refute == RefuteSuite::None
+                        && self.estimator.is_none_or(|id| id == EstimatorId::ResponseKennedyDr)
+                        || matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })
+                            && self.estimator.is_none_or(|id| id == EstimatorId::ResponseInterventionGcomp)))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_static_dag_response_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot static DAG response did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.graph.class() == GraphClass::Dag
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
@@ -1090,13 +1123,35 @@ impl super::Study {
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
             && matches!(&self.query, CausalQuery::AverageEffect(_));
-        if checked_glm || checked_rd {
+        let checked_propensity = matches!(
+            selected_estimator,
+            Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
+        ) && self.graph.class() == GraphClass::Dag
+            && self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::AverageEffect(query)
+                if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && query.effect_modifiers.is_empty()
+                    && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment && value.as_f64() == Some(1.0))
+                    && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment && value.as_f64() == Some(0.0)));
+        if checked_glm || checked_rd || checked_propensity {
             if let DataInput::Tabular(data) = &self.data {
                 let prepared = self.prepare(ctx)?;
                 let selected = if checked_glm {
                     prepared.has_sealed_glm_operation()
-                } else {
+                } else if checked_rd {
                     prepared.has_checked_rd_operation()
+                } else {
+                    prepared.has_checked_propensity_operation()
                 };
                 if !selected {
                     return Err(CausalError::Compile {
@@ -1210,20 +1265,6 @@ impl super::Study {
     /// Same as [`Self::compile`].
     pub fn plan(&self, ctx: &ExecutionContext) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile(ctx)
-    }
-
-    /// Mark physical plan when custom validators are present.
-    pub(super) fn apply_callback_plan_marks(
-        &self,
-        mut record: antecedent_core::PhysicalExecutionPlanRecord,
-        diagnostics: &mut Vec<antecedent_core::Diagnostic>,
-    ) -> antecedent_core::PhysicalExecutionPlanRecord {
-        if !self.custom_validators.is_empty() {
-            let (r, d) = mark_python_callback_plan(record, "validator");
-            record = r;
-            diagnostics.push(d);
-        }
-        record
     }
 }
 

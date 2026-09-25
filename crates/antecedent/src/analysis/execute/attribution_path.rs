@@ -3,67 +3,179 @@
 use super::*;
 use antecedent_core::StreamDomain;
 
-impl super::Study {
-    pub(super) fn execute_counterfactual(
-        &self,
-        data: &TabularData,
-        graph: &Dag,
-        query: &antecedent_core::CounterfactualQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let operation =
-            crate::gcm::CheckedCounterfactualOperation::compile(graph.clone(), query.clone())?;
-        self.execute_counterfactual_checked(data, physical, ctx, &operation)
-    }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum CounterfactualProcedure {
+    HeterogeneityBestScorePoint,
+    HeterogeneityBestScoreDirichletRowWeights { draws: usize },
+}
 
-    pub(crate) fn execute_counterfactual_checked(
-        &self,
-        data: &TabularData,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        operation: &crate::gcm::CheckedCounterfactualOperation,
-    ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        let query = operation.query();
-        let graph = operation.graph();
-        if !matches!(&self.query, CausalQuery::Counterfactual(current)
-            if self.graph.as_dag().is_some_and(|current_graph| operation.matches(current_graph, current)))
-        {
-            return Err(CausalError::Compile {
-                message:
-                    "retained checked counterfactual operation no longer matches its query or graph"
-                        .into(),
-            });
-        }
-        let (treatment, active, control) = binary_cf_interventions(query)?;
-        let outcome = query.outcomes[0];
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification = identify_static_query(
-                    IdentifierId::GcmParametric,
-                    graph,
-                    &CausalQuery::Counterfactual(query.clone()),
-                )?;
-                let estimand = identification.estimands[0].clone();
-                Ok((identification, estimand))
-            })?;
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some()
-            {
-                return Err(CausalError::Unsupported {
-                    message: "Bayesian counterfactuals require a declared mechanism mapping; \
-                              a coefficient artifact cannot be applied as an isotropic GCM prior \
-                              or hydrated onto fitted GCM mechanisms",
-                });
+impl CounterfactualProcedure {
+    pub(crate) fn for_inference(inference: &InferenceMode) -> Result<Self, CausalError> {
+        match inference {
+            InferenceMode::Frequentist => Ok(Self::HeterogeneityBestScorePoint),
+            InferenceMode::Bayesian(config) => {
+                if config.prior_artifact.is_some()
+                    || config.external_compose.is_some()
+                    || config.prior.is_some()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian counterfactuals require a declared mechanism mapping; a coefficient artifact cannot be applied as an isotropic GCM prior or hydrated onto fitted GCM mechanisms",
+                    });
+                }
+                let draws = bayesian_draw_count(inference)?;
+                if draws < 2 {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian counterfactuals require at least two posterior draws",
+                    });
+                }
+                Ok(Self::HeterogeneityBestScoreDirichletRowWeights { draws })
             }
         }
-        let (fitted, ite) = operation.execute(data, ctx)?;
-        let assignments = format!("{:?}", fitted.assignments);
-        let mechanism_assignments = fitted.assignments.clone();
-        let base_model = fitted.model.clone();
-        let (estimate, posterior, ite) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            let n_draws = bayesian_draw_count(&self.inference)?;
+    }
+
+    fn matches_inference(&self, inference: &InferenceMode) -> bool {
+        match (self, inference) {
+            (Self::HeterogeneityBestScorePoint, InferenceMode::Frequentist) => true,
+            (
+                Self::HeterogeneityBestScoreDirichletRowWeights { draws },
+                InferenceMode::Bayesian(config),
+            ) => *draws == config.n_draws,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct CheckedCounterfactualPlan {
+    operation: crate::gcm::CheckedCounterfactualOperation,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identify_cached: bool,
+    inference: InferenceMode,
+    procedure: CounterfactualProcedure,
+    physical: PhysicalExecutionPlan,
+    result_context: IdentifiedResultContext,
+}
+
+impl std::fmt::Debug for CheckedCounterfactualPlan {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CheckedCounterfactualPlan")
+            .field("operation", &self.operation)
+            .field("identification", &self.identification)
+            .field("estimand", &self.estimand)
+            .field("identify_cached", &self.identify_cached)
+            .field("inference", &self.inference)
+            .field("procedure", &self.procedure)
+            .field("physical", &self.physical)
+            .finish_non_exhaustive()
+    }
+}
+
+impl CheckedCounterfactualPlan {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        operation: crate::gcm::CheckedCounterfactualOperation,
+        identification: IdentificationResult,
+        estimand: IdentifiedEstimand,
+        identify_cached: bool,
+        inference: InferenceMode,
+        procedure: CounterfactualProcedure,
+        physical: PhysicalExecutionPlan,
+        result_context: IdentifiedResultContext,
+    ) -> Result<Self, CausalError> {
+        if !matches!(&identification.query, CausalQuery::Counterfactual(query) if query == operation.query())
+            || result_context.query != CausalQuery::Counterfactual(operation.query().clone())
+            || result_context.inference != inference
+            || !procedure.matches_inference(&inference)
+            || !matches!(
+                identification.status,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions
+            )
+            || !identification.estimands.iter().any(|candidate| {
+                candidate.method == estimand.method
+                    && candidate.adjustment_set == estimand.adjustment_set
+                    && candidate.instruments == estimand.instruments
+                    && candidate.mediators == estimand.mediators
+                    && candidate.functional == estimand.functional
+                    && candidate.rd_design == estimand.rd_design
+            })
+            || physical.logical.record.identifier.as_deref() != Some("gcm.parametric")
+            || physical.logical.record.estimator.as_deref() != Some("gcm.fit")
+        {
+            return Err(CausalError::Compile { message: "checked counterfactual plan components do not agree on target, inference, identification, or procedure".into() });
+        }
+        Ok(Self {
+            operation,
+            identification,
+            estimand,
+            identify_cached,
+            inference,
+            procedure,
+            physical,
+            result_context,
+        })
+    }
+
+    pub(crate) fn operation(&self) -> &crate::gcm::CheckedCounterfactualOperation {
+        &self.operation
+    }
+
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        execute_checked_counterfactual_plan(self, data, ctx)
+    }
+}
+
+#[cfg(test)]
+mod checked_counterfactual_plan_tests {
+    use super::{CounterfactualProcedure, InferenceMode};
+    use crate::inference::BayesianConfig;
+
+    #[test]
+    fn refuses_procedure_inference_mismatch_and_wrong_draw_count() {
+        let frequentist = InferenceMode::Frequentist;
+        assert!(
+            !CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws: 32 }
+                .matches_inference(&frequentist)
+        );
+
+        let bayesian = InferenceMode::Bayesian(BayesianConfig::laplace());
+        assert!(!CounterfactualProcedure::HeterogeneityBestScorePoint.matches_inference(&bayesian));
+        let wrong_draws =
+            CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws: 33 };
+        assert!(!wrong_draws.matches_inference(&bayesian));
+        let matching = CounterfactualProcedure::for_inference(&bayesian).unwrap();
+        assert!(matching.matches_inference(&bayesian));
+    }
+}
+
+fn execute_checked_counterfactual_plan(
+    plan: &CheckedCounterfactualPlan,
+    data: &TabularData,
+    ctx: &ExecutionContext,
+) -> Result<StudyResult, CausalError> {
+    let started = Instant::now();
+    let identification = &plan.identification;
+    let estimand = plan.estimand.clone();
+    let identify_cached = plan.identify_cached;
+
+    let query = plan.operation.query();
+    let graph = plan.operation.graph();
+    let (treatment, active, control) = binary_cf_interventions(query)?;
+    let outcome = query.outcomes[0];
+    let (fitted, ite) = plan.operation.execute(data, ctx)?;
+    let assignments = format!("{:?}", fitted.assignments);
+    let mechanism_assignments = fitted.assignments.clone();
+    let base_model = fitted.model.clone();
+    let (estimate, posterior, ite) =
+        if let CounterfactualProcedure::HeterogeneityBestScoreDirichletRowWeights { draws } =
+            &plan.procedure
+        {
+            let n_draws = *draws;
             let n_units = ite.unit_effects.len();
             let mut values = Vec::with_capacity(n_draws);
             // Column-major `units × draws`: one posterior column per unit, read by
@@ -148,90 +260,93 @@ impl super::Study {
                 ite,
             )
         };
-        let verdict = homogeneity_verdict(graph, &mechanism_assignments, treatment, outcome);
-        let homogeneous = match &verdict {
-            HomogeneityVerdict::Structural(family) => Some(*family),
-            _ => None,
-        };
-        let mut estimate = estimate;
-        estimate.unit_effects_homogeneous = homogeneous.is_some();
-        let observed = data.float64_values(treatment)?;
-        let min = observed.iter().copied().fold(f64::INFINITY, f64::min);
-        let max = observed.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let pooled_extrapolative = control < min || control > max || active < min || active > max;
-        let support = unit_support(
-            data,
-            graph,
-            &mechanism_assignments,
-            &ite.exogenous,
-            treatment,
-            outcome,
-            active,
-            control,
-        )?;
-        let mut ite = ite;
-        ite.unit_extrapolative = Some(std::sync::Arc::from(support.extrapolation_flags()));
-        let mut diagnostics = vec![
-            Diagnostic::new(
-                "gcm.counterfactual.mechanisms",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                assignments,
+    let verdict = homogeneity_verdict(graph, &mechanism_assignments, treatment, outcome);
+    let homogeneous = match &verdict {
+        HomogeneityVerdict::Structural(family) => Some(*family),
+        _ => None,
+    };
+    let mut estimate = estimate;
+    estimate.unit_effects_homogeneous = homogeneous.is_some();
+    let observed = data.float64_values(treatment)?;
+    let min = observed.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = observed.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let pooled_extrapolative = control < min || control > max || active < min || active > max;
+    let support = unit_support(
+        data,
+        graph,
+        &mechanism_assignments,
+        &ite.exogenous,
+        treatment,
+        outcome,
+        active,
+        control,
+    )?;
+    let mut ite = ite;
+    ite.unit_extrapolative = Some(std::sync::Arc::from(support.extrapolation_flags()));
+    let mut diagnostics = vec![
+        Diagnostic::new(
+            "gcm.counterfactual.mechanisms",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            assignments,
+        ),
+        Diagnostic::new(
+            "gcm.counterfactual",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "noise_inference={:?}; control={control}; active={active}",
+                ite.noise_inference
             ),
+        ),
+        support.support_diagnostic(min, max, pooled_extrapolative),
+        if posterior.is_some() {
             Diagnostic::new(
-                "gcm.counterfactual",
+                "gcm.counterfactual.bayesian",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
+                "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Both the mean_ite interval and the per-unit intervals carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so a per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
+            )
+        } else {
+            Diagnostic::new(
+                "gcm.counterfactual.uncertainty_unavailable",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable.",
+            )
+        },
+    ];
+    if let Some(family) = homogeneous {
+        let outcome_name = data
+            .schema()
+            .get(outcome)
+            .map_or_else(|_| format!("v{}", outcome.raw()), |v| v.name.to_string());
+        diagnostics.push(
+            Diagnostic::new(
+                "gcm.counterfactual.unit_effects_homogeneous",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
                 format!(
-                    "noise_inference={:?}; control={control}; active={active}",
-                    ite.noise_inference
-                ),
-            ),
-            support.support_diagnostic(min, max, pooled_extrapolative),
-            if posterior.is_some() {
-                Diagnostic::new(
-                    "gcm.counterfactual.bayesian",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; the family selection is made once on the unweighted data and is not revisited per draw. Each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs and unit_effect_intervals the equal-tailed posterior quantiles of each unit's ITE draws at the reported level. Both the mean_ite interval and the per-unit intervals carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so a per-unit interval is a credible interval for that observed unit's contrast under the fitted mechanism, not a predictive interval for a new unit, and the mean_ite interval is for the average over the observed units, not a population beyond them.",
-                )
-            } else {
-                Diagnostic::new(
-                    "gcm.counterfactual.uncertainty_unavailable",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable.",
-                )
-            },
-        ];
-        if let Some(family) = homogeneous {
-            let outcome_name = data
-                .schema()
-                .get(outcome)
-                .map_or_else(|_| format!("v{}", outcome.raw()), |v| v.name.to_string());
-            diagnostics.push(
-                Diagnostic::new(
-                    "gcm.counterfactual.unit_effects_homogeneous",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
-                    format!(
-                        "mechanism family {family:?} for {outcome_name} admits no effect \
+                    "mechanism family {family:?} for {outcome_name} admits no effect \
                          modification; unit_effects equal the mechanism slope for every unit"
-                    ),
-                )
-                .with_fields([
-                    ("outcome", outcome_name),
-                    ("family", family.id().to_string()),
-                    ("unit_effect", ite.mean_ite.to_string()),
-                ]),
-            );
-        }
-        if let HomogeneityVerdict::Empirical { rejected } = &verdict {
-            diagnostics.push(heterogeneity_rejected_diagnostic(data, rejected));
-        }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
+                ),
+            )
+            .with_fields([
+                ("outcome", outcome_name),
+                ("family", family.id().to_string()),
+                ("unit_effect", ite.mean_ite.to_string()),
+            ]),
+        );
+    }
+    if let HomogeneityVerdict::Empirical { rejected } = &verdict {
+        diagnostics.push(heterogeneity_rejected_diagnostic(data, rejected));
+    }
+    Ok(finish_identified_execute_with_context(
+        &plan.result_context,
+        Some(data),
+        IdentifiedExecuteFinish {
+            physical: &plan.physical,
+            identification: identification.clone(),
             estimand,
             estimate,
             identifier_id: IdentifierId::GcmParametric,
@@ -264,7 +379,66 @@ impl super::Study {
                 posterior,
                 ..Default::default()
             },
-        }))
+        },
+    ))
+}
+
+impl super::Study {
+    pub(super) fn execute_counterfactual(
+        &self,
+        data: &TabularData,
+        graph: &Dag,
+        query: &antecedent_core::CounterfactualQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let operation =
+            crate::gcm::CheckedCounterfactualOperation::compile(graph.clone(), query.clone())?;
+        self.execute_counterfactual_checked(data, physical, ctx, &operation)
+    }
+
+    pub(crate) fn execute_counterfactual_checked(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        operation: &crate::gcm::CheckedCounterfactualOperation,
+    ) -> Result<StudyResult, CausalError> {
+        if !matches!(&self.query, CausalQuery::Counterfactual(current)
+            if self.graph.as_dag().is_some_and(|graph| operation.matches(graph, current)))
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "retained checked counterfactual operation no longer matches its query or graph"
+                        .into(),
+            });
+        }
+        let graph = operation.graph();
+        let query = CausalQuery::Counterfactual(operation.query().clone());
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification =
+                    identify_static_query(IdentifierId::GcmParametric, graph, &query)?;
+                let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+                    CausalError::Compile {
+                        message: "counterfactual identification produced no estimand".into(),
+                    }
+                })?;
+                Ok((identification, estimand))
+            })?;
+        let inference = self.inference.clone();
+        let procedure = CounterfactualProcedure::for_inference(&inference)?;
+        let plan = CheckedCounterfactualPlan::new(
+            operation.clone(),
+            identification,
+            estimand,
+            identify_cached,
+            inference,
+            procedure,
+            physical.clone(),
+            IdentifiedResultContext::from_study(self),
+        )?;
+        plan.execute(data, ctx)
     }
 
     pub(super) fn execute_anomaly(

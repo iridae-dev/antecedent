@@ -1025,6 +1025,25 @@ impl PyPreparedAnalysis {
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// Read-only inspection of a retained checked static DAG response operation.
+    ///
+    /// The descriptor is built from the prepared handle rather than the Python
+    /// query object, so callers can inspect the exact functional, procedure,
+    /// validation suite, and frozen curve members after discarding their builder.
+    fn checked_static_dag_response_info(&self, py: Python<'_>) -> PyResult<Option<Py<PyDict>>> {
+        let Some(info) = self.inner.checked_static_dag_response_info() else {
+            return Ok(None);
+        };
+        let descriptor = PyDict::new(py);
+        descriptor.set_item("query", format!("{:?}", info.query.functional))?;
+        descriptor.set_item("identifier", info.identifier.as_str())?;
+        descriptor.set_item("estimator", info.estimator.as_str())?;
+        descriptor
+            .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;
+        descriptor.set_item("grid_members", info.grid_members.as_ref())?;
+        Ok(Some(descriptor.unbind()))
+    }
+
     /// Inspection of the frozen execution, using the executed reasoning slots.
     fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
         let result = self

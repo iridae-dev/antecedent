@@ -670,10 +670,30 @@ pub fn verify_contract_against_body(
         Some("rd.sharp") => {
             unresolved.push(Arc::from("dependencies.checked_rd_operation"));
         }
+        Some("propensity.weighting" | "propensity.matching") => {
+            unresolved.push(Arc::from("dependencies.checked_propensity_operation"));
+        }
         Some("response.kennedy_dr" | "response.riesz_ade" | "response.gam_derivative")
-            if matches!(contract.target.query, CausalQueryWire::Response(_)) =>
+            if matches!(&contract.target.query, CausalQueryWire::Response(query)
+                if matches!(query.functional,
+                    crate::ResponseFunctionalWire::PointDerivative { .. }
+                    | crate::ResponseFunctionalWire::AverageDerivative { .. }
+                    | crate::ResponseFunctionalWire::DirectionalDerivative { .. }
+                    | crate::ResponseFunctionalWire::Jacobian { .. })) =>
         {
             unresolved.push(Arc::from("dependencies.checked_derivative_response_operation"));
+        }
+        Some("response.kennedy_dr")
+            if matches!(&contract.target.query, CausalQueryWire::Response(query)
+                if matches!(query.functional, crate::ResponseFunctionalWire::MeanCurve { .. })) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_response_grid_operation"));
+        }
+        Some("response.intervention_gcomp")
+            if matches!(&contract.target.query, CausalQueryWire::Response(query)
+                if matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
         Some("gcm.fit" | "gcm.fit.bayesian")
             if matches!(contract.target.query, CausalQueryWire::Counterfactual { .. }) =>
@@ -946,7 +966,10 @@ fn producer_encoding_unresolved(
             key.as_ref(),
             "dependencies.checked_glm_operation"
                 | "dependencies.checked_rd_operation"
+                | "dependencies.checked_propensity_operation"
                 | "dependencies.checked_derivative_response_operation"
+                | "dependencies.checked_response_grid_operation"
+                | "dependencies.checked_intervention_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
         )
     });

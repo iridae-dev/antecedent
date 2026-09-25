@@ -3345,6 +3345,15 @@ class PreparedAnalysis(Generic[ResultT]):
         """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
         return str(self._native.plan_summary().get("structure_source", "explicit"))
 
+    def checked_static_dag_response_info(self) -> dict[str, Any] | None:
+        """Inspect the frozen checked DAG response query and procedure, if present.
+
+        The returned mapping is read-only evidence from the prepared native handle;
+        it remains available after the original query and graph objects are dropped.
+        """
+        info = self._native.checked_static_dag_response_info()
+        return None if info is None else dict(info)
+
     @property
     def evidence_status(self) -> str | None:
         """`licensed` or `allowed_unlicensed`, or ``None`` if the query is off-axis."""

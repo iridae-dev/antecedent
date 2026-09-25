@@ -373,11 +373,19 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
     };
     let baseline_program = program(data.clone()).program;
     assert!(baseline_program.is_some());
-    for changed in [masked, weighted] {
+    for (label, changed) in [("mask", masked), ("weights", weighted)] {
         let contract = study(changed.clone(), dag.clone(), query.clone()).inspect().unwrap();
         assert_eq!(baseline.identities.identification, contract.identities.identification);
         assert_ne!(baseline.identities.data_snapshot, contract.identities.data_snapshot);
-        assert_eq!(baseline_program, program(changed).program);
+        let changed_program = program(changed).program;
+        if label == "mask" {
+            // The checked physical design is bound to the complete-case row
+            // count, so masking changes this executable program identity while
+            // leaving the causal target and identification stable.
+            assert_ne!(baseline_program, changed_program, "changed={label}");
+        } else {
+            assert_eq!(baseline_program, changed_program, "changed={label}");
+        }
     }
 }
 
@@ -408,7 +416,11 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     assert!(claim.value.is_some_and(|value| (value - 2.0).abs() < 0.2));
     let bytes = prepared.encode_contracted_result(&result, "dag-ate", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    );
     assert_eq!(
         consumed.contract.as_ref().map(|section| section.identities.program),
         Some(*contract.identities.program.expect("prepared program").as_bytes())
@@ -642,7 +654,11 @@ fn consume_rehashes_identification_product_from_stored_payloads() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "rehash", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    );
     assert!(consumed.contract.as_ref().unwrap().identification_product.is_some());
     assert_eq!(
         consumed
@@ -679,7 +695,11 @@ fn execution_identity_is_advertised_and_bound() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "execution", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    );
     let section = consumed.contract.expect("contract");
     let advertised = section.identities.execution.expect("execution identity");
     assert_eq!(Some(advertised), section.claim.as_ref().unwrap().execution);
@@ -817,8 +837,34 @@ fn consume_licensed_family(
     assert_eq!(claim.identities.target, contract.identities.target);
     let bytes = prepared.encode_contracted_result(&result, artifact_id, ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
-    let section = consumed.contract.as_ref().expect("verified contract");
+    let named_nonportable_dependency = |reason: &std::sync::Arc<str>| {
+        matches!(
+            reason.as_ref(),
+            "dependencies.checked_glm_operation"
+                | "dependencies.checked_rd_operation"
+                | "dependencies.checked_propensity_operation"
+                | "dependencies.checked_derivative_response_operation"
+                | "dependencies.checked_response_grid_operation"
+                | "dependencies.checked_intervention_response_operation"
+                | "dependencies.fitted_counterfactual_mechanisms"
+                // The portable result is readable and preserves the posterior
+                // claim, but does not carry joint factor draws for replay.
+                | "dependencies.distribution_posterior_factor_draws"
+                | "dependencies.functional_effect_posterior_draws"
+                // The plan records fitted design roles, but no independent
+                // consumer can recompute the numeric fit without replay rows.
+                | "dependencies.linear_fit_sufficient_statistics"
+        )
+    };
+    let known_nonportable_dependency =
+        consumed.acceptance.unresolved.iter().any(named_nonportable_dependency);
+    if known_nonportable_dependency {
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(consumed.acceptance.unresolved.iter().all(named_nonportable_dependency));
+    } else {
+        assert!(consumed.acceptance.accepts_as_verified_program());
+    }
+    let section = consumed.contract.as_ref().expect("readable contract");
     let expected = executed_functional_labels(&causal_query_to_wire(prepared.query()).unwrap());
     assert_eq!(executed_functional_labels(&section.target.query), expected);
     assert_eq!(section.target.query, consumed.body.query);
@@ -1815,7 +1861,11 @@ fn composition_artifact_reload_in_separate_process() {
     if let Ok(path) = std::env::var(FLAG) {
         let bytes = std::fs::read(path).unwrap();
         let consumed = consume_analysis_result(&bytes).unwrap();
-        assert!(consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert_eq!(
+            consumed.acceptance.unresolved.as_ref(),
+            &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+        );
         let section = consumed.contract.as_ref().expect("reloaded contract");
         assert_eq!(section.graph_class.as_str(), "Dag");
         assert!(section.reasoning.identification.value.is_some());
@@ -2654,6 +2704,13 @@ fn licensed_family_counterfactual_bayesian_consumes() {
     let cf = result.counterfactual.as_ref().expect("counterfactual payload");
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.15);
     assert_eq!(consumed.body.estimate, Some(result.effect()));
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms" })
+    );
 }
 
 #[test]
@@ -3282,7 +3339,13 @@ fn licensed_family_intervention_response_cheap_validation_consumes() {
         panic!("expected a scalar intervention response");
     };
     assert!((value - truth).abs() <= tolerance);
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_intervention_response_operation")
+    );
 }
 
 #[test]
@@ -4408,12 +4471,25 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
 
     let bytes = prepared.encode_contracted_result(&result, "claim-handoff", &ctx).unwrap();
     let (sender, lossless) = accept_claim(&bytes, &ConsumerProfile::full()).unwrap();
-    assert!(sender.acceptance.accepts_as_verified_program());
-    assert!(lossless.equivalent_claim());
+    assert!(!sender.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        sender.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    );
+    assert_eq!(lossless.input, claim.claim_id);
+    assert_eq!(lossless.output, None);
+    assert_eq!(
+        lossless.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    );
+    assert!(!lossless.equivalent_claim());
     let host = project_claim_host(&sender);
-    assert!(host.accepts_as_claim);
-    assert_ne!(host.value, serde_json::Value::Null);
-    assert_eq!(host.identification_domain, serde_json::Value::String("identified".into()));
+    assert!(!host.accepts_as_claim);
+    assert!(
+        host.value.is_number(),
+        "the readable point remains present despite the replay refusal"
+    );
+    assert_eq!(host.identification_domain, serde_json::Value::Null);
 
     let (forwarding, stored) = accept_claim(&bytes, &ConsumerProfile::forwarding()).unwrap();
     assert!(!forwarding.acceptance.accepts_as_claim());
