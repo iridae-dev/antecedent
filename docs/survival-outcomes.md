@@ -1,0 +1,142 @@
+# Survival outcomes: current 2.1.0 slice
+
+The current survival API is an explicitly limited point-estimation utility for
+two-arm, individually randomized studies with right-censored follow-up. It
+computes arm-specific Kaplan–Meier step curves and restricted mean survival
+time (RMST) through a user-specified horizon. A declared treatment assignment
+is required before the result is described as causal.
+
+```python
+import antecedent
+
+query = antecedent.SurvivalOutcome(
+    duration="follow_up_days",
+    event_observed="event",
+    treatment="treated",
+    tau=180,
+    randomized=True,
+)
+summary = antecedent.estimate_survival(data, query)
+summary.rmst_difference
+summary.times, summary.control_survival, summary.treated_survival
+```
+
+Rows with `event_observed=False` are treated as right-censored: they remain in
+the risk set through their recorded duration and do not count as events. The
+implementation requires both arms to have observed follow-up at least through
+`tau`. It assumes individual random assignment, independent right censoring
+within each arm, consistency, and no interference. These assumptions are
+reported but cannot be verified from the table.
+
+The returned survival curves and RMST contrast are **point-only**. This
+utility does not provide standard errors, confidence intervals, hypothesis
+tests, or calibration evidence and does not add a support-matrix license.
+Longitudinal or observational survival estimands remain unsupported.
+
+## Caller-supplied censoring weights
+
+`estimate_survival_ipcw` provides a separate weighted product-limit path for
+right-censored randomized studies. It takes a strictly increasing time grid
+from zero through `tau`, including each recorded event/censor time, and a
+subjects-by-grid matrix `censoring_survival`. Each matrix entry is the
+subject-specific probability of remaining uncensored immediately before that
+grid time. The caller must fit and validate these probabilities; the API does
+not estimate censoring models or verify their provenance.
+
+```python
+weighted = antecedent.survival.estimate_survival_ipcw(
+    data,
+    query,
+    times=[0.0, 30.0, 60.0, 180.0],
+    censoring_survival=subject_survival_of_censoring,
+    minimum_probability=0.01,
+)
+weighted.rmst_difference
+weighted.censoring_survival_provenance
+```
+
+The native estimator uses inverse-`G` weighted event and risk counts at each
+observed event time, then integrates its right-continuous curve for RMST. It
+refuses probabilities below the declared positivity floor, probabilities
+outside `(0, 1]`, non-monotone rows, and weighted event counts exceeding the
+risk set. The reported minimum `G` and event-time risk-set sizes are diagnostics,
+not inference. Results remain point-only and unlicensed: no standard errors,
+confidence intervals, or tests are provided. Assumptions include correct
+caller-supplied conditional censoring survival, sequential censoring
+positivity, independent censoring given the supplied history, random assignment,
+consistency, and no interference. Delayed-entry weighting is not implemented.
+
+The same supplied-`G` contract is available for competing-risk cumulative
+incidence via `estimate_cumulative_incidence_ipcw(data, competing_query,
+times=..., censoring_survival=...)`. It uses inverse-`G` weighted target-cause
+failures and all-cause event-free survival in the Aalen–Johansen recursion;
+positive non-target causes remain competing events. It requires at least two
+distinct observed causes, a present target cause, both randomized arms through
+`tau`, and the same time-grid and positivity checks. The result reports minimum
+event-time risk-set sizes and minimum supplied `G`, but remains point-only and
+unlicensed, with no interval or test claim. Delayed entry is refused.
+
+## Delayed entry and left truncation
+
+Both survival and cumulative-incidence queries accept a `delayed_entry` column.
+This reuses the observation contract's explicit `IndependentGiven` assumption;
+the supported claim is the marginal empty-variable form:
+
+```python
+query = antecedent.survival.SurvivalOutcome(
+    duration="follow_up_days",
+    event_observed="event",
+    treatment="treated",
+    tau=180,
+    randomized=True,
+    delayed_entry="entry_day",
+    observation_assumption=antecedent.observation.IndependentGiven(()),
+)
+summary = antecedent.survival.estimate_survival(data, query)
+```
+
+The event-time risk set follows counting-process intervals `(entry, duration]`:
+subjects entering exactly at an event time do not join that time's risk set;
+right-censored subjects remain in it through their censoring time. The native
+kernel rejects negative or non-finite entry times and entry times that are not
+strictly earlier than the recorded event/censor time. RMST starts at time zero,
+so each randomized arm must include at least one time-zero entrant; the
+estimator also requires observed follow-up through `tau` in each arm. These
+guards avoid presenting unsupported extrapolation from a left-truncated sample
+as an RMST from the origin.
+
+The empty `IndependentGiven(())` claim asserts marginal independent entry and
+right censoring; it does not verify either condition. Conditional delayed entry,
+covariate-adjusted censoring, and interval censoring remain refused. Delayed
+entry results remain point-only and unlicensed.
+
+## Competing risks
+
+For competing events, use a cause-code column: zero denotes right censoring;
+each positive integer denotes one observed event type. Select one positive
+target code. At least two event causes must appear in the data, and the target
+cause must be present. The native estimator updates the target cumulative
+incidence with the Aalen–Johansen risk-set recursion, treating every positive
+cause code as an event that removes the subject from the event-free risk set.
+Other causes are therefore competing events, never ordinary censoring.
+
+```python
+query = antecedent.survival.CompetingRisksOutcome(
+    duration="follow_up_days",
+    event_cause="event_code",  # 0 = censored; 1, 2, ... = distinct event causes
+    treatment="treated",
+    target_cause=1,
+    tau=180,
+    randomized=True,
+)
+cif = antecedent.survival.estimate_cumulative_incidence(data, query)
+cif.incidence_difference
+```
+
+This is also **point-only and unlicensed**, with no interval or calibration
+claim. Its assumptions include individual random assignment, complete and
+distinct coding of competing causes, independent right censoring within each
+arm, consistency, and no interference. The implementation requires both arms
+to have observed follow-up through `tau`. Delayed entry uses the same explicit
+`IndependentGiven(())` contract and `(entry, duration]` risk-set rule above;
+cause misclassification and covariate-adjusted censoring are unsupported.

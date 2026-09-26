@@ -160,6 +160,22 @@ neighbor exposure on a fixed validated network; the unlicensed
 `InterferenceQuery` cell on `analyze` is NeighborCount under Bernoulli
 assignment.
 
+The unlicensed `interference.estimate` utility also accepts complete and
+cluster randomization with the built-in exposure maps. For cluster designs it
+reports the observed number of units and distinct randomization clusters at
+each requested exposure. You can additionally pass
+`PartialInterference(clusters=...)` on the query to state a partial-interference
+assumption. The utility checks that these labels match the cluster-randomization
+partition and that every supplied network edge stays inside its cluster. This
+checks the recorded network topology; it cannot establish that the network is
+complete or rule out unrecorded interference.
+
+The returned variance remains the covariance-free Young bound under the
+declared assignment design. Cluster assignment is reflected in exposure
+probabilities, but this result does not provide a cluster-robust interval or a
+calibrated confidence interval. The direct utility remains outside the support
+matrix; these diagnostics and designs are not licensed on `analyze`.
+
 Exposure probabilities are enumerated exactly through the configured small-
 design limit and estimated with deterministic seeded Monte Carlo above it. The
 result retains both Horvitz–Thompson and Hájek estimates; they are not aliases.
