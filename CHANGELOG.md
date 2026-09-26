@@ -27,6 +27,10 @@ Antecedent 2.1.0 keeps the `identify → estimate → inspect → refresh → ex
 - Empirical cited tables publish a nominal percentile bootstrap interval, and Bayesian providers publish a posterior equal-tail interval, both labelled with an unmeasured coverage status; exported point artifacts stay point-only.
 - The restricted-experiment route is a first-class prepared study in Python: it exports, loads, inspects, previews, and refreshes with a new snapshot identity like every other route.
 
+#### Nested counterfactuals
+
+- The fixed-DAG natural-direct-effect route replays both treatment worlds from one abduced exogenous table. It also fits a non-separable outcome basis, under which the frozen mediator carries its abduced disturbance into a non-additive outcome so the direct effect reads the shared draw. A discriminating fixture confirms the route matches the shared-abduction truth and differs from the disturbance-free value a non-shared draw produces, a separable outcome or a disturbance-free mediator collapses the two, and an underdetermined outcome basis is refused with a typed error. The effect stays point-only.
+
 ### Breaking changes from 2.0.0
 
 Python
