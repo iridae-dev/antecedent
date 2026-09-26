@@ -820,7 +820,7 @@ fn transfer_without_mapping_fails_closed() {
         .unwrap()
         .run(&ctx)
         .unwrap_err();
-    assert!(err.to_string().contains("shared coefficient prior"), "{err}");
+    assert!(err.to_string().contains("require an explicit coefficient mapping"), "{err}");
 
     let cf = CounterfactualQuery::new(
         VariableId::from_raw(2),
