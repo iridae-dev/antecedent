@@ -2729,7 +2729,7 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
     if !valid_format || !valid_method || !lag_valid || lowering.folds != 5 {
         unresolved.push(Arc::from("program.checked_aipw_lowering"));
     }
-    if contract.estimator.as_deref() != Some("aipw") {
+    if !is_aipw_contract(contract) {
         unresolved.push(Arc::from("program.checked_aipw_binding"));
     }
     let commitments = contract.program.as_ref().map(|program| &program.commitments);
@@ -2841,10 +2841,20 @@ fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &
         || !digest_matches
         || !snapshot_matches
         || !ordered_unique
-        || contract.estimator.as_deref() != Some("aipw")
+        || !is_aipw_contract(contract)
     {
         unresolved.push(Arc::from("checked_aipw.row_binding"));
     }
+}
+
+/// Whether the artifact executed AIPW, whether the caller declared the
+/// estimator or the planner resolved it (a tiered closure resolves to AIPW
+/// without a declaration).
+fn is_aipw_contract(contract: &AnalysisResultContractWire) -> bool {
+    contract.estimator.as_deref() == Some("aipw")
+        || contract.program.as_ref().is_some_and(|program| {
+            program.commitments.resolved_estimator.as_deref() == Some("aipw")
+        })
 }
 
 /// Score-reuse layer: present with its digest, fitted on this snapshot, and
