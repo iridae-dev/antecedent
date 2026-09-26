@@ -14,9 +14,10 @@ provider and from an interval license. The support registry and
 | Registered surrogate graph with separate experimental margins or a missing selected joint regime | Required joint law is unavailable | Formula may be certified, binding refuses with the missing factor | Refused until actual matching evidence arrives | Refused |
 | Selected confounded outcome with an independently checked classical s-hedge | Complete actual source experimental family and target observational joint law | A checked obstruction under the stronger all-experiments family implies obstruction for restricted experiments; portable snapshot carries the witness | Refused | Refused |
 | Restricted experiment with X↔Y, X→Y, and disconnected controllables Z and W | The declared controllable set. An empty catalog reaches the same terminal as the full family | Portable TRz line-11 obstruction, independently checked by two binary SCMs that agree on all supplied laws but differ on target `do(X)` | Refused | Refused |
-| Two sources, searched separately | Shared outcomes, treatments, and target. Each source has its own population, controllable set, experiment assignment, and selection diagram. At most two sources | One identifying source is enough and is named. Two line-11 terminals certify one obstruction only when both sources share the controllable set and selection targets; otherwise, and whenever a result would need a factor from each source, the decision is `transport_not_certified` naming `z_transport.multi_source_combination_not_searched` | The identifying source's own cited factors only | Same nominal interval as that source's empirical tables; no cross-source interval |
+| Two sources, searched separately | Shared outcomes, treatments, and target. Each source has its own population, controllable set, experiment assignment, and selection diagram. At most two sources | One identifying source is enough and is named. Two line-11 terminals certify one obstruction only when both sources share the controllable set and selection targets. Complementary factors combine under two registered factorizations (disconnected graph components; intervention-separated outcome groups of one connected graph); a single connected c-factor that would need one fabricated joint over both sources' interventions is `transport_not_certified` naming `z_transport.multi_source_combination_not_searched` | The identifying source's own cited factors only | Same nominal interval as that source's empirical tables; no cross-source interval |
 | Complementary evidence for a bounded disconnected two-component target | Exactly two disconnected static graph components; each has a queried outcome and treatment; each source supplies that component's jointly measured outcome law under its declared joint intervention regime | Two independently checked source-exchange derivations combine by graph component independence; separate marginals do not bind, and neither component may require evidence from both sources | Each component formula is evaluable by the exact provider; the joint law is the product of its component laws, checked against exact SCM truth | Exact laws are point-only; no cross-source interval is reported |
-| Cross-source factor combination outside the bounded disconnected case, or more than two sources | Multiple source catalogs whose factors would be mixed within a connected component, or more than two sources | Refused by name. Classical meta-transport is not used, because it assumes every source can experiment on every variable | Refused | Refused |
+| Connected complementary target: one connected graph whose intervened outcomes m-separate into two groups given the treatments | One connected shared graph. Each queried outcome group is d-separated from the other given the treatments in the `do(X)`-mutilated graph, so `P*_x(y)` factorizes; each source supplies its group's marginal interventional effect `P*_{x_g}(y_g)` under its own do regime | Each group's marginal effect is an independently checked single-source TRz derivation bound only to its own source's regimes; the product of the two group laws is the target law under the intervention-separated factorization. A single c-factor that would span both sources is never fabricated | Each group formula is evaluable by the exact provider; the joint law is the product, checked against an independently enumerated SCM to a tight tolerance | Exact laws are point-only; no cross-source interval is reported |
+| Cross-source factor combination that would fabricate a joint, or more than two sources | Multiple source catalogs whose factors would be mixed within one connected c-factor (outcomes m-connected given the treatments), or more than two sources | Refused by name (`z_transport.multi_source_combination_not_searched`). Classical meta-transport is not used, because it assumes every source can experiment on every variable | Refused | Refused |
 | Fixed graph one-factor mechanism sensitivity | Checked baseline proof, complete categorical support, and source/target parent-law bindings. The outcome kernel may change across both arms or one treatment-level slice. A named non-treatment parent mechanism may also change when its directed parents are included in the supplied joint and the source law factorizes according to the fixed DAG | Incompatible formula shapes, out-of-domain arm selections, treatment-node selection, incomplete parent laws, and factorization violations refuse | Exact response range and extremal witnesses, zero-fraction baseline, synthetic tipping point, and a non-root conditional-factor fixture; one changed categorical factor is propagated through the downstream parent law while all other mechanisms stay fixed | Assumption range, not a sampling interval; unsupported graph/provider families and jointly varying factors remain closed |
 | Candidate evidence planning and arrival for the registered surrogate formula | Frozen failed catalog, feasible declared study and cost, matching actual provider snapshot and joint regime | A candidate ranks only after isolated hypothetical binding; arrival re-identifies against available evidence | Typed hypothetical catalog delta and proof replay from portable proposal; matching evidence executes, exports a point artifact, and passes independent artifact consumption | Cost rank is not a probability of success |
 
@@ -24,12 +25,15 @@ A positive catalog decision binds the joints the formula cites. A line-11
 certificate is structural in the declared controllable set and does not wait
 for the experiment power set. The guarantee stays sound and incomplete within
 twelve observed and four controllable variables. Two sources are searched
-separately; combination is supported only for two disconnected static graph
-components, each with one queried outcome/treatment component and one source
-that supplies its matching joint regime. Other mixed-source combinations stay
-closed under `z_transport.multi_source_combination_not_searched`. Missing cited
-factors, unsupported input, and exhausted search never become nonidentification
-proofs.
+separately; complementary combination is supported under two factorizations,
+each a product of one factor per source bound under the joint-regime rule: two
+disconnected static graph components, and one connected graph whose intervened
+outcomes m-separate into two groups given the treatments. A single connected
+c-factor whose outcomes stay m-connected given the treatments would need a
+fabricated joint over both sources' interventions and stays closed under
+`z_transport.multi_source_combination_not_searched`, as do more than two
+sources. Missing cited factors, unsupported input, and exhausted search never
+become nonidentification proofs.
 
 The scoped route has a separate versioned artifact whose consumer rechecks the
 proof, catalog, laws, provider snapshots, and point result. An empirical
@@ -38,5 +42,6 @@ interval is a nominal percentile bootstrap with reason
 (`estimator="empirical_support_bayesian_bootstrap"` or `"state_space_dirichlet"`)
 is licensed on the same cited empirical tables as an equal-tail posterior
 interval around the plug-in point, also with reason `estimator_grid_not_measured`
-and no coverage record. Calibrated coverage and cross-source combination remain
-closed.
+and no coverage record. Calibrated coverage remains closed. Cross-source
+combination is licensed for the two complementary factorizations above; a
+fabricated joint over both sources' interventions stays closed.
