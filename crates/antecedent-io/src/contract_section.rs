@@ -723,6 +723,23 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
+        // A static Bayesian response publishes a posterior over the retained
+        // adjustment target; the sealed static response operation is its replay
+        // dependency exactly as for the frequentist estimators above.
+        Some("response.bayesian")
+            if matches!(&contract.target.query, CausalQueryWire::Response(query)
+                if query.temporal.is_none()
+                    && matches!(query.functional, crate::ResponseFunctionalWire::MeanCurve { .. })) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_response_grid_operation"));
+        }
+        Some("response.bayesian")
+            if matches!(&contract.target.query, CausalQueryWire::Response(query)
+                if query.temporal.is_none()
+                    && matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
+        }
         Some("interference.ht_hajek" | "interference.bayesian_gaussian")
             if matches!(contract.target.query, CausalQueryWire::Interference { .. }) =>
         {
@@ -834,6 +851,40 @@ pub fn verify_contract_against_body(
         && resolved_estimator == Some("functional.effect")
     {
         unresolved.push(Arc::from("dependencies.checked_admg_graph_posterior_response_operation"));
+    }
+    let static_response_estimator = matches!(
+        resolved_estimator,
+        Some("response.intervention_gcomp" | "response.kennedy_dr" | "response.bayesian")
+    );
+    if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && matches!(&contract.target.query, CausalQueryWire::Response(query)
+        if query.temporal.is_none()
+            && matches!(
+                query.functional,
+                crate::ResponseFunctionalWire::MeanCurve { .. }
+                    | crate::ResponseFunctionalWire::InterventionResponse { .. }
+            ))
+        && static_response_estimator
+    {
+        // The completion envelope and per-completion mixing are the replay
+        // dependency; one scalar program cannot represent the class family.
+        unresolved.push(Arc::from("dependencies.checked_static_class_response_operation"));
+    }
+    if contract.structure_source == "graph_posterior"
+        && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
+        && matches!(&contract.target.query, CausalQueryWire::Response(query)
+        if query.temporal.is_none()
+            && matches!(
+                query.functional,
+                crate::ResponseFunctionalWire::MeanCurve { .. }
+                    | crate::ResponseFunctionalWire::InterventionResponse { .. }
+            ))
+        && static_response_estimator
+    {
+        // The atom-wise checked execution and frozen graph mass are the
+        // replay dependency; one scalar program cannot represent the family.
+        unresolved.push(Arc::from("dependencies.checked_graph_posterior_response_operation"));
     }
     if matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1355,6 +1406,8 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_temporal_graph_posterior_response_operation"
                 | "dependencies.checked_bayesian_temporal_class_effect_operation"
                 | "dependencies.checked_temporal_graph_posterior_effect_operation"
+                | "dependencies.checked_static_class_response_operation"
+                | "dependencies.checked_graph_posterior_response_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay

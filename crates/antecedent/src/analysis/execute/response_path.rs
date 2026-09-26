@@ -193,9 +193,10 @@ fn dag_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
     (graph.node_count(), edges.into())
 }
 
-/// Checked frequentist execution for static DAG response curves and scalar
-/// intervention g-computation. Grid coordinates or intervention values remain
-/// attached to the exact response query through preparation and execution.
+/// Checked execution for static DAG response curves and scalar intervention
+/// g-computation, frequentist or Bayesian. Grid coordinates or intervention
+/// values remain attached to the exact response query through preparation and
+/// execution, and the inference procedure is fixed with them.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedStaticDagResponseOperation {
     graph: Dag,
@@ -207,6 +208,7 @@ pub(crate) struct CheckedStaticDagResponseOperation {
     identifier: IdentifierId,
     estimator: EstimatorId,
     fitter: ContinuousResponseEstimator,
+    inference: InferenceMode,
     refute: RefuteSuite,
 }
 
@@ -220,6 +222,7 @@ impl CheckedStaticDagResponseOperation {
         identifier: IdentifierId,
         estimator: EstimatorId,
         options: antecedent_estimate::ContinuousResponseOptions,
+        inference: InferenceMode,
         refute: RefuteSuite,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
@@ -250,15 +253,24 @@ impl CheckedStaticDagResponseOperation {
                 });
             }
         };
-        let expected_estimator = match query.functional {
-            ResponseFunctional::MeanCurve { .. } => EstimatorId::ResponseKennedyDr,
-            ResponseFunctional::InterventionResponse { .. } => {
+        let expected_estimator = match (&query.functional, &inference) {
+            (_, InferenceMode::Bayesian(_)) => EstimatorId::ResponseBayesian,
+            (ResponseFunctional::MeanCurve { .. }, InferenceMode::Frequentist) => {
+                EstimatorId::ResponseKennedyDr
+            }
+            (ResponseFunctional::InterventionResponse { .. }, InferenceMode::Frequentist) => {
                 EstimatorId::ResponseInterventionGcomp
             }
             _ => unreachable!(),
         };
+        // A Bayesian intervention level publishes a posterior, not the plugin
+        // g-computation level the cheap/full refuters are licensed for.
+        let bayesian = matches!(inference, InferenceMode::Bayesian(_));
         let admissible_refuter = match query.functional {
             ResponseFunctional::MeanCurve { .. } => refute == RefuteSuite::None,
+            ResponseFunctional::InterventionResponse { .. } if bayesian => {
+                refute == RefuteSuite::None
+            }
             ResponseFunctional::InterventionResponse { .. } => {
                 matches!(
                     refute,
@@ -317,8 +329,14 @@ impl CheckedStaticDagResponseOperation {
             identifier,
             estimator,
             fitter,
+            inference,
             refute,
         })
+    }
+
+    /// Inference procedure fixed by preparation.
+    pub(crate) fn inference(&self) -> &InferenceMode {
+        &self.inference
     }
 
     /// Retained response query, including full grid or intervention values.
@@ -384,15 +402,21 @@ impl CheckedStaticDagResponseOperation {
                 });
             }
         }
-        let (response, scores) = self
-            .fitter
-            .estimate_identified_scored(
-                data,
-                &self.query,
-                self.identification.status,
-                self.identification.required_assumptions.clone(),
-            )
-            .map_err(CausalError::from)?;
+        let (response, scores) = match &self.inference {
+            InferenceMode::Frequentist => self
+                .fitter
+                .estimate_identified_scored(
+                    data,
+                    &self.query,
+                    self.identification.status,
+                    self.identification.required_assumptions.clone(),
+                )
+                .map_err(CausalError::from)?,
+            InferenceMode::Bayesian(config) => {
+                let response = self.execute_bayesian(data, config, ctx)?;
+                (response, None)
+            }
+        };
         if response.estimand != self.query.functional {
             return Err(CausalError::Compile {
                 message: "response estimator returned a different functional than the sealed query"
@@ -412,6 +436,52 @@ impl CheckedStaticDagResponseOperation {
             }
         }
         Ok((response, scores))
+    }
+
+    /// Posterior g-computation over the retained adjustment target. Prior
+    /// transfer resolves against the same linear response problem the legacy
+    /// route prepares, and an artifact or catalog without a response-specific
+    /// mapping is refused rather than replaced by an isotropic prior.
+    fn execute_bayesian(
+        &self,
+        data: &TabularData,
+        config: &BayesianConfig,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalResponse, CausalError> {
+        if (config.prior_artifact.is_some() || config.external_compose.is_some())
+            && config.prior_mapping.is_none()
+            && config.prior.is_none()
+        {
+            return Err(CausalError::Unsupported {
+                message: "Bayesian response prior transfer requires a response-specific \
+                          mapping (dose/intervention coordinate to outcome-regression \
+                          coefficients); incompatible catalogs must not fall back to \
+                          isotropic priors",
+            });
+        }
+        let mut bayes = bayesian_gcomp(config, ctx);
+        if config.prior_artifact.is_some() || config.external_compose.is_some() {
+            let (outcome, treatments) = response_prior_targets(&self.query.functional)?;
+            let prep = self
+                .fitter
+                .prepare_linear_response_problem(data, outcome, &treatments)
+                .map_err(CausalError::from)?;
+            let (resolved, _) =
+                crate::inference::resolve_bayesian_prior_with_conflict(config, &prep, Some(ctx))?;
+            bayes.prior = resolved;
+        } else {
+            bayes.prior.clone_from(&config.prior);
+        }
+        self.fitter
+            .estimate_bayesian(
+                data,
+                &self.query,
+                self.identification.status,
+                self.identification.required_assumptions.clone(),
+                &bayes,
+                ctx,
+            )
+            .map_err(CausalError::from)
     }
 }
 
@@ -601,10 +671,10 @@ impl super::Study {
         operation: &CheckedCellAipwResponseOperation,
     ) -> Result<StudyResult, CausalError> {
         if self.query != CausalQuery::Response(operation.query().clone())
-            || self.graph.as_dag().is_none_or(|graph| !operation.matches_graph(graph))
+            || !operation.matches_structure(&self.graph, self.tiered.as_ref())
         {
             return Err(CausalError::Compile {
-                message: "prepared cell AIPW operation no longer matches the study query or graph"
+                message: "prepared cell AIPW operation no longer matches the study query, graph, or tier closure"
                     .into(),
             });
         }

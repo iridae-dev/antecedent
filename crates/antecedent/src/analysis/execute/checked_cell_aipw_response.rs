@@ -1,4 +1,5 @@
-//! Sealed checked execution product for static DAG joint-cell AIPW responses.
+//! Sealed checked execution product for joint-cell AIPW responses on a static
+//! DAG or on a CoDetermined tier closure.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -10,10 +11,23 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::{CellSaturatedAipw, ScoreTable};
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
-use antecedent_graph::Dag;
+use antecedent_graph::{Admg, Dag, TieredBackground, WithinTier};
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 
+use crate::accepted::AcceptedGraph;
 use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
+
+/// The structure a joint cell was identified on.
+#[derive(Clone, Debug)]
+pub(crate) enum CellAipwStructure {
+    /// A supplied or accepted static DAG.
+    Dag(Dag),
+    /// A CoDetermined tier background and the ancestral ADMG it materializes.
+    TierClosure { admg: Admg, background: TieredBackground },
+}
+
+/// Node count, sorted directed edges, and sorted bidirected edges.
+type StructureSignature = (usize, Arc<[(u32, u32)]>, Arc<[(u32, u32)]>);
 
 /// Whether preparation received a graph explicitly or through acceptance.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,8 +45,8 @@ pub enum DagResponseOrigin {
 /// numerical cell AIPW procedure without consulting a retained Study builder.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedCellAipwResponseOperation {
-    graph: Dag,
-    graph_signature: (usize, Arc<[(u32, u32)]>),
+    structure: CellAipwStructure,
+    structure_signature: StructureSignature,
     query: ResponseQuery,
     outcome: VariableId,
     treatments: Arc<[VariableId]>,
@@ -46,13 +60,14 @@ pub(crate) struct CheckedCellAipwResponseOperation {
 }
 
 impl CheckedCellAipwResponseOperation {
-    /// Validate and seal the licensed static DAG response route.
+    /// Validate and seal the licensed joint-cell response route on a static
+    /// DAG or a CoDetermined tier closure.
     #[expect(
         clippy::float_cmp,
         reason = "joint binary intervention levels are exact discrete contract values"
     )]
     pub(crate) fn checked(
-        graph: &Dag,
+        structure: &CellAipwStructure,
         query: &ResponseQuery,
         identification: &IdentificationResult,
         estimand: &IdentifiedEstimand,
@@ -104,10 +119,22 @@ impl CheckedCellAipwResponseOperation {
         }
         let valid_suite =
             matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full);
+        let (expected_identifier, structure_ok) = match structure {
+            CellAipwStructure::Dag(graph) => (
+                IdentifierId::ResponseBackdoor,
+                graph_contains(graph, *outcome, &treatments, &estimand.adjustment_set),
+            ),
+            CellAipwStructure::TierClosure { admg, background } => (
+                IdentifierId::GeneralizedAdjustment,
+                background.within_tier == WithinTier::CoDetermined
+                    && origin == DagResponseOrigin::Explicit
+                    && admg_contains(admg, *outcome, &treatments, &estimand.adjustment_set),
+            ),
+        };
         if query.temporal.is_some()
             || query.observation != ObservationSpec::Complete
             || query.target_population != TargetPopulation::AllObserved
-            || identifier != IdentifierId::ResponseBackdoor
+            || identifier != expected_identifier
             || estimator != EstimatorId::CellAipw
             || !valid_suite
             || identification.query != CausalQuery::Response(query.clone())
@@ -126,17 +153,22 @@ impl CheckedCellAipwResponseOperation {
                 .estimands
                 .iter()
                 .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
-            || !graph_contains(graph, *outcome, &treatments, &estimand.adjustment_set)
+            || !structure_ok
         {
             return Err(CausalError::Compile {
                 message: "cell AIPW query, graph, target, identification, procedure, or validation suite do not form one checked route".into(),
             });
         }
-        let graph_replay = crate::strategy_table::identify_static_query(
-            identifier,
-            graph,
-            &CausalQuery::Response(query.clone()),
-        )?;
+        let graph_replay = match structure {
+            CellAipwStructure::Dag(graph) => crate::strategy_table::identify_static_query(
+                identifier,
+                graph,
+                &CausalQuery::Response(query.clone()),
+            )?,
+            CellAipwStructure::TierClosure { admg, background } => {
+                antecedent_identify::identify_tiered_joint_on(background, admg, query)?
+            }
+        };
         if graph_replay.status != identification.status
             || graph_replay.estimands.len() != identification.estimands.len()
             || graph_replay
@@ -151,8 +183,8 @@ impl CheckedCellAipwResponseOperation {
             });
         }
         Ok(Self {
-            graph: graph.clone(),
-            graph_signature: graph_signature(graph),
+            structure: structure.clone(),
+            structure_signature: structure_signature(structure),
             query: query.clone(),
             outcome: *outcome,
             treatments: treatments.into(),
@@ -190,17 +222,55 @@ impl CheckedCellAipwResponseOperation {
         self.requested_arm
     }
 
-    pub(crate) fn matches_graph(&self, graph: &Dag) -> bool {
-        graph_signature(graph) == self.graph_signature
-            && graph_signature(&self.graph) == self.graph_signature
+    /// The tier closure this cell was sealed on, when it is not a plain DAG route.
+    pub(crate) fn within_tier(&self) -> Option<WithinTier> {
+        match &self.structure {
+            CellAipwStructure::Dag(_) => None,
+            CellAipwStructure::TierClosure { background, .. } => Some(background.within_tier),
+        }
+    }
+
+    /// Verify that a study still carries the structure fixed at preparation:
+    /// the same DAG, or the same tier background and its materialized closure.
+    pub(crate) fn matches_structure(
+        &self,
+        graph: &AcceptedGraph,
+        tiered: Option<&TieredBackground>,
+    ) -> bool {
+        let current = match (&self.structure, graph.as_dag(), graph.as_admg(), tiered) {
+            (CellAipwStructure::Dag(_), Some(dag), None, None) => {
+                structure_signature(&CellAipwStructure::Dag(dag.clone()))
+            }
+            (
+                CellAipwStructure::TierClosure { background, .. },
+                None,
+                Some(admg),
+                Some(current_background),
+            ) if current_background == background => {
+                structure_signature(&CellAipwStructure::TierClosure {
+                    admg: admg.clone(),
+                    background: background.clone(),
+                })
+            }
+            _ => return false,
+        };
+        current == self.structure_signature
+            && structure_signature(&self.structure) == self.structure_signature
     }
 
     /// Validate replacement rows against the frozen coordinates, then return
     /// this same procedure and query for refresh execution.
-    pub(crate) fn refresh(&self, graph: &Dag, data: &TabularData) -> Result<Self, CausalError> {
-        if !self.matches_graph(graph) {
+    pub(crate) fn refresh(
+        &self,
+        graph: &AcceptedGraph,
+        tiered: Option<&TieredBackground>,
+        data: &TabularData,
+    ) -> Result<Self, CausalError> {
+        if !self.matches_structure(graph, tiered) {
             return Err(CausalError::Compile {
-                message: "refreshed cell AIPW graph differs from the checked graph".into(),
+                message:
+                    "refreshed cell AIPW structure differs from the checked graph or tier closure"
+                        .into(),
             });
         }
         let mut variables = self.treatments.to_vec();
@@ -239,10 +309,51 @@ impl CheckedCellAipwResponseOperation {
     }
 }
 
-fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
-    let mut edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-    edges.sort_unstable();
-    (graph.node_count(), edges.into())
+fn structure_signature(structure: &CellAipwStructure) -> StructureSignature {
+    match structure {
+        CellAipwStructure::Dag(graph) => {
+            let mut edges =
+                graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
+            edges.sort_unstable();
+            (graph.node_count(), edges.into(), Arc::from([]))
+        }
+        CellAipwStructure::TierClosure { admg, .. } => {
+            let count = admg.node_count();
+            let mut directed = Vec::new();
+            let mut bidirected = Vec::new();
+            for raw in 0..u32::try_from(count).unwrap_or(u32::MAX) {
+                let node = antecedent_graph::DenseNodeId::from_raw(raw);
+                directed.extend(admg.children(node).iter().map(|child| (raw, child.raw())));
+                bidirected.extend(
+                    admg.bidirected_neighbors(node)
+                        .iter()
+                        .map(|other| (raw.min(other.raw()), raw.max(other.raw()))),
+                );
+            }
+            directed.sort_unstable();
+            directed.dedup();
+            bidirected.sort_unstable();
+            bidirected.dedup();
+            (count, directed.into(), bidirected.into())
+        }
+    }
+}
+
+/// Every role variable is a node of the closure ADMG and the roles are disjoint.
+fn admg_contains(
+    admg: &Admg,
+    outcome: VariableId,
+    treatments: &[VariableId],
+    adjustment: &[VariableId],
+) -> bool {
+    let count = admg.node_count();
+    std::iter::once(outcome)
+        .chain(treatments.iter().copied())
+        .chain(adjustment.iter().copied())
+        .all(|variable| usize::try_from(variable.raw()).is_ok_and(|raw| raw < count))
+        && treatments.iter().all(|treatment| treatment != &outcome)
+        && treatments.iter().all(|treatment| !adjustment.contains(treatment))
+        && !adjustment.contains(&outcome)
 }
 
 fn same_estimand(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
@@ -340,7 +451,7 @@ mod tests {
         let (graph, query, data, identification) = fixture();
         let estimand = identification.estimands.first().unwrap().clone();
         let operation = CheckedCellAipwResponseOperation::checked(
-            &graph,
+            &CellAipwStructure::Dag(graph.clone()),
             &query,
             &identification,
             &estimand,
@@ -362,7 +473,8 @@ mod tests {
         let cell = scores.columns.iter().position(|column| column.arm == 3).unwrap();
         assert!((summary.means[cell] - 10.5).abs() < 0.2);
 
-        let refreshed = operation.refresh(&graph, &data).unwrap();
+        let refreshed =
+            operation.refresh(&AcceptedGraph::from(graph.clone()), None, &data).unwrap();
         assert_eq!(refreshed.target().1.adjustment_set, frozen_target);
         assert!(
             (antecedent_estimate::summarize_functional(
@@ -383,7 +495,7 @@ mod tests {
         let (graph, query, _, identification) = fixture();
         let estimand = identification.estimands.first().unwrap().clone();
         let operation = CheckedCellAipwResponseOperation::checked(
-            &graph,
+            &CellAipwStructure::Dag(graph.clone()),
             &query,
             &identification,
             &estimand,
@@ -396,7 +508,8 @@ mod tests {
         .unwrap();
         let mut wrong_graph = graph.clone();
         wrong_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        assert!(!operation.matches_graph(&wrong_graph));
+        assert!(!operation.matches_structure(&AcceptedGraph::from(wrong_graph), None));
+        assert!(operation.matches_structure(&AcceptedGraph::from(graph.clone()), None));
 
         let treatment = match &query.functional {
             ResponseFunctional::InterventionResponse { interventions, .. } => {
@@ -424,7 +537,7 @@ mod tests {
         )
         .unwrap();
         let err = CheckedCellAipwResponseOperation::checked(
-            &graph,
+            &CellAipwStructure::Dag(graph.clone()),
             &bad_query,
             &bad_identification,
             bad_identification.estimands.first().unwrap(),

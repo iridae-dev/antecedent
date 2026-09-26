@@ -154,9 +154,17 @@ fn round_trip(prepared: &PreparedStudy, result: &StudyResult, ctx: &ExecutionCon
         .unwrap_or_else(|err| panic!("{id}: export failed: {err}"));
     let consumed =
         consume_analysis_result(&bytes).unwrap_or_else(|err| panic!("{id}: consume failed: {err}"));
+    // A sealed class route replays through its retained checked operation, which
+    // the portable artifact cannot carry; the consumer must name exactly that
+    // dependency and nothing else, never a malformed payload.
+    let dependency_only = !consumed.acceptance.unresolved.is_empty()
+        && consumed.acceptance.unresolved.iter().all(|reason| {
+            reason.starts_with("dependencies.checked_") && reason.ends_with("_operation")
+        });
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{id}: consume did not accept a verified program"
+        consumed.acceptance.accepts_as_verified_program() || dependency_only,
+        "{id}: consume did not accept a verified program: {:?}",
+        consumed.acceptance.unresolved
     );
 }
 
