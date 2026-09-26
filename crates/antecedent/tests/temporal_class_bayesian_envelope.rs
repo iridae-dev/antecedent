@@ -1137,8 +1137,9 @@ fn class_curve_ordered_and_pair_priors_bind_the_same_completions() {
     let ordered = run(ClassPrior::from_ordered([0.2, 0.8]).unwrap());
     let paired = run(ClassPrior::from_pairs([(keys[0], 0.2), (keys[1], 0.8)]).unwrap());
     assert!(
-        !ordered.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
-        "a fresh study identifies every horizon; nothing was cached"
+        ordered.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+        "Study::run prepares the sealed class response plan and executes from its retained \
+         per-horizon completion proofs"
     );
     let surface = |result: &antecedent::StudyResult| {
         let structural = result.structural_response.as_ref().unwrap();

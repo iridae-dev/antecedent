@@ -14,7 +14,9 @@ mod checked_conditional;
 mod checked_graph_posterior;
 mod checked_propensity;
 mod checked_temporal_class_effect;
+mod checked_temporal_class_response;
 mod checked_temporal_effect;
+mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 mod contract;
 mod contract_identity;
@@ -35,7 +37,11 @@ pub(crate) use checked_graph_posterior::{
     StaticClassGraph, StaticClassIdentification,
 };
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
+pub(crate) use checked_temporal_class_response::CheckedTemporalClassResponseOperation;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;
+pub(crate) use checked_temporal_graph_posterior_response::{
+    CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
+};
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
@@ -87,9 +93,10 @@ pub use prepared::{
     CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo, CheckedUnknownTieredAverageInfo,
     PreparedStudy,
 };
+pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
 pub use stage::{StageEvent, StageResultSink};
 
 pub(crate) use checked_temporal_response::{
-    CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence,
+    CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence, temporal_response_is_direct,
 };
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};

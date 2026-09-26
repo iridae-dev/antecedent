@@ -1,12 +1,15 @@
-//! Builder-independent evidence for checked TemporalDag MeanCurve execution.
+//! Builder-independent evidence for checked frequentist `TemporalDag` response
+//! execution (`MeanCurve` and single-step `InterventionResponse`).
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(clippy::cast_possible_truncation, reason = "small deterministic fixture indices")]
 
 use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, ContinuousDomain, GridSpec, Lag, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseValue, TemporalPolicy, TemporalResponseSpec, VariableId,
+    CausalQuery, ContinuousDomain, GridSpec, Intervention, Lag, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseValue, TemporalPolicy, TemporalResponseSpec,
+    Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -42,6 +45,14 @@ fn query() -> ResponseQuery {
             VariableId::from_raw(0),
             GridSpec::Values(Arc::from([-0.5, 0.0, 0.5])),
         ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap())
+}
+
+fn intervention_query() -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.5))]),
     })
     .with_temporal(TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap())
 }
@@ -104,6 +115,70 @@ fn temporal_mean_curve_is_sealed_refreshable_and_has_precise_artifact_dependency
         }
         let artifact = prepared
             .encode_contracted_result(&refreshed, "checked-temporal-response", &context)
+            .unwrap();
+        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
+            dependency.as_ref() == "dependencies.checked_temporal_response_operation"
+        }));
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+    }
+}
+
+#[test]
+fn temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact_dependency() {
+    let initial = series(0.0);
+    let graph = graph();
+    let query = intervention_query();
+    let context = antecedent_core::ExecutionContext::for_tests(122);
+
+    for accepted in [false, true] {
+        let builder = if accepted {
+            Study::series(initial.clone()).graph(AcceptedGraph::temporal_dag(graph.clone()))
+        } else {
+            Study::series(initial.clone()).graph(graph.clone())
+        }
+        .query(CausalQuery::Response(query.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+        let one_shot = builder.run(&context).unwrap();
+        let mut prepared = builder.prepare(&context).unwrap();
+        let info = prepared.checked_temporal_response_info().expect("sealed temporal plan");
+        assert_eq!(info.query, query);
+        assert_eq!(info.identifier, IdentifierId::TemporalBackdoorUnfolded);
+        assert_eq!(info.estimator, EstimatorId::TemporalResponseGcomp);
+        assert_eq!(info.uncertainty.as_ref(), "frequentist.no_interval");
+        assert_eq!(info.grid_members.as_ref(), &[0.5]);
+        assert_eq!(info.horizons.as_ref(), &[1]);
+        drop(builder);
+
+        let first = prepared.estimate_series(&initial, &context).unwrap();
+        assert_eq!(
+            first.response.as_ref().unwrap().provenance_id.as_ref(),
+            "estimate.temporal_response.intervention_gcomp"
+        );
+        let actual = means(&first);
+        assert_eq!(actual.len(), 1);
+        assert!((actual[0] - means(&one_shot)[0]).abs() < 1e-10);
+        let truth = 1.2 + 1.8 * 0.5;
+        assert!((actual[0] - truth).abs() < 0.08, "{} != {truth}", actual[0]);
+
+        let refreshed = prepared.refresh_series(series(0.4), &context).unwrap();
+        let refreshed_truth = 1.6 + 1.8 * 0.5;
+        assert!((means(&refreshed)[0] - refreshed_truth).abs() < 0.08);
+        let widened = TimeSeriesData::from_f64_columns(
+            [("treatment", &[0.0; 16][..]), ("outcome", &[0.0; 16][..]), ("extra", &[0.0; 16][..])],
+            1,
+        )
+        .unwrap();
+        assert!(prepared.refresh_series(widened, &context).is_err());
+        let artifact = prepared
+            .encode_contracted_result(
+                &refreshed,
+                "checked-temporal-intervention-response",
+                &context,
+            )
             .unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
