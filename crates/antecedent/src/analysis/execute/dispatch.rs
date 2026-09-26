@@ -1166,7 +1166,7 @@ impl super::Study {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.refute == RefuteSuite::None
             && self.custom_validators.is_empty()
             && matches!(&self.query, CausalQuery::Response(query)
@@ -1179,8 +1179,11 @@ impl super::Study {
                     && query.observation == antecedent_core::ObservationSpec::Complete
                     && query.target_population == antecedent_core::TargetPopulation::AllObserved
                     && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-                    && matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. }))
-            && self.estimator.is_none_or(|id| id == EstimatorId::TemporalResponseGcomp)
+                    && crate::analysis::temporal_response_is_direct(query))
+            && self.estimator.is_none_or(|id| match self.inference {
+                InferenceMode::Bayesian(_) => id == EstimatorId::TemporalResponseBayesian,
+                InferenceMode::Frequentist => id == EstimatorId::TemporalResponseGcomp,
+            })
         {
             if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
                 let prepared = self.prepare(ctx)?;
@@ -1566,6 +1569,94 @@ impl super::Study {
                     });
                 }
                 return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+            && self.observation_delayed_entry.is_none()
+            && matches!(&self.query, CausalQuery::Response(query)
+                if query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
+                        antecedent_core::TemporalPolicy::Pulse { .. } => true,
+                        antecedent_core::TemporalPolicy::Sustained { from, until } => from == until,
+                        _ => false,
+                    })
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                    && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && crate::analysis::temporal_response_is_direct(query))
+            && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
+            && self.estimator.is_none_or(|id| match self.inference {
+                InferenceMode::Bayesian(_) => id == EstimatorId::TemporalResponseBayesian,
+                InferenceMode::Frequentist => id == EstimatorId::TemporalResponseGcomp,
+            })
+        {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_temporal_class_response_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot temporal class response did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
+            }
+        }
+        if self.graph_posterior.as_ref().is_some_and(|posterior| {
+            matches!(
+                posterior.atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Dag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
+            )
+        }) && self.tiered.is_none()
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
+            && self.custom_validators.is_empty()
+            && self.observation_delayed_entry.is_none()
+            && matches!(&self.query, CausalQuery::Response(query)
+            if query.is_temporal()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && crate::analysis::temporal_response_is_direct(query)
+                && matches!(
+                    (&query.functional, self.refute),
+                    (_, RefuteSuite::None)
+                        | (
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            RefuteSuite::Cheap | RefuteSuite::Full,
+                        )
+                ))
+            && self.identifier.is_none_or(|id| {
+                match self.graph_posterior.as_ref().map(|posterior| posterior.atom_kind) {
+                    Some(antecedent_discovery::GraphPosteriorAtomKind::Dag) => {
+                        id == IdentifierId::TemporalBackdoorUnfolded
+                    }
+                    _ => id == IdentifierId::GeneralizedAdjustment,
+                }
+            })
+            && self.estimator.is_none_or(|id| match self.inference {
+                InferenceMode::Bayesian(_) => id == EstimatorId::TemporalResponseBayesian,
+                InferenceMode::Frequentist => id == EstimatorId::TemporalResponseGcomp,
+            })
+        {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_temporal_graph_posterior_response_operation() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot temporal graph-posterior response did not retain its checked operation".into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
             }
         }
         // The migrated static mean adjustment route executes from the prepared

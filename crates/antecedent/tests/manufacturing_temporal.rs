@@ -1323,7 +1323,9 @@ fn dbn_posterior_response_curve_matches_identified_atom() {
     ));
     let mixture = fresh.structural_response.as_ref().unwrap();
     assert!((mixture.unidentified_mass - unidentified_truth).abs() < 1e-12);
-    assert_eq!(cached_count(&fresh), 0);
+    // `Study::run` prepares the sealed DBN-posterior response plan and executes
+    // from its retained atom proofs, so the one-shot result reports the reuse.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
     assert_eq!(cached_count(&refreshed), 1);
 

@@ -911,17 +911,40 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_bayesian_dag_ate_operation"));
     }
+    let program_inference =
+        contract.program.as_ref().map(|program| program.commitments.inference.to_ascii_lowercase());
+    let temporal_response_procedure = matches!(
+        (resolved_estimator, program_inference.as_deref()),
+        (Some("temporal.response.gcomp"), Some("frequentist"))
+            | (Some("response.temporal.bayesian"), Some("bayesian"))
+    );
+    let direct_temporal_response = matches!(&contract.target.query, CausalQueryWire::Response(query)
+        if matches!(
+            query.functional,
+            crate::ResponseFunctionalWire::MeanCurve { .. }
+                | crate::ResponseFunctionalWire::InterventionResponse { .. }
+        ) && matches!(query.observation, crate::ObservationSpecWire::Complete));
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
-        && matches!(&contract.target.query, CausalQueryWire::Response(query)
-            if matches!(query.functional, crate::ResponseFunctionalWire::MeanCurve { .. })
-                && matches!(query.observation, crate::ObservationSpecWire::Complete))
-        && resolved_estimator == Some("temporal.response.gcomp")
-        && contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference.eq_ignore_ascii_case("frequentist")
-        })
+        && direct_temporal_response
+        && temporal_response_procedure
     {
         unresolved.push(Arc::from("dependencies.checked_temporal_response_operation"));
+    }
+    if matches!(contract.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
+        && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
+        && direct_temporal_response
+        && temporal_response_procedure
+    {
+        unresolved.push(Arc::from("dependencies.checked_temporal_class_response_operation"));
+    }
+    if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+        && contract.structure_source == "graph_posterior"
+        && direct_temporal_response
+        && temporal_response_procedure
+    {
+        unresolved
+            .push(Arc::from("dependencies.checked_temporal_graph_posterior_response_operation"));
     }
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1297,6 +1320,8 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_unknown_tiered_average_operation"
                 | "dependencies.checked_bayesian_graph_posterior_ate_operation"
                 | "dependencies.checked_bayesian_class_conditional_operation"
+                | "dependencies.checked_temporal_class_response_operation"
+                | "dependencies.checked_temporal_graph_posterior_response_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay

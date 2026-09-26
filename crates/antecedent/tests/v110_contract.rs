@@ -852,6 +852,8 @@ fn consume_licensed_family(
                 | "dependencies.checked_bayesian_dag_ate_operation"
                 | "dependencies.checked_temporal_dag_effect_operation"
                 | "dependencies.checked_temporal_class_effect_operation"
+                | "dependencies.checked_temporal_class_response_operation"
+                | "dependencies.checked_temporal_graph_posterior_response_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 // The portable result is readable and preserves the posterior
                 // claim, but does not carry joint factor draws for replay.
@@ -3502,7 +3504,13 @@ fn licensed_family_temporal_cpdag_response_curve_consumes() {
     match prepared.encode_contracted_result(&result, "tresp-tcpdag", &ctx) {
         Ok(bytes) => {
             let consumed = consume_analysis_result(&bytes).unwrap();
-            assert!(consumed.acceptance.accepts_as_verified_program());
+            // The class response executes from a retained completion proof that
+            // the portable artifact does not carry; an independent consumer must
+            // name that missing operation rather than accept a program-less replay.
+            assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
+                dependency.as_ref() == "dependencies.checked_temporal_class_response_operation"
+            }));
+            assert!(!consumed.acceptance.accepts_as_verified_program());
             assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalCpdag");
         }
         Err(err) => {

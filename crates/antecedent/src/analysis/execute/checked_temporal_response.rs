@@ -79,7 +79,47 @@ impl CheckedTemporalResponseExecution {
             self.operation.procedure().3,
             ctx,
         )?;
-        let response = self.operation.execute(data, ctx)?;
+        let (treatment, outcome) =
+            self.operation.query().functional.primary_pair().ok_or_else(|| {
+                CausalError::Compile {
+                    message: "temporal response has no treatment/outcome pair".into(),
+                }
+            })?;
+        let mut conflict_summary = None;
+        let mut response = match self.operation.inference() {
+            InferenceMode::Frequentist => self.operation.execute(data, ctx)?,
+            InferenceMode::Bayesian(cfg) => {
+                let mut bayes = bayesian_gcomp(cfg, ctx);
+                let aligned = self
+                    .operation
+                    .evidence()
+                    .iter()
+                    .map(crate::analysis::TemporalResponseHorizonEvidence::cached_horizon)
+                    .collect::<Vec<_>>();
+                let aligned_refs = aligned.iter().collect::<Vec<_>>();
+                let (resolved, conflict) = super::resolve_temporal_response_prior(
+                    cfg,
+                    data,
+                    temporal,
+                    &aligned_refs,
+                    treatment,
+                    outcome,
+                    ctx,
+                )?;
+                bayes.prior = resolved;
+                conflict_summary = conflict;
+                self.operation.execute_bayesian(data, &bayes, ctx)?
+            }
+        };
+        // The estimator accepts one aggregate status; the sealed route keeps the
+        // richer per-horizon proof statuses on the surface, as the fresh path does.
+        if let Some(per_horizon) = response.horizon_identification.as_mut() {
+            for (record, member) in
+                Arc::make_mut(per_horizon).iter_mut().zip(self.operation.evidence())
+            {
+                record.status = member.identification().status;
+            }
+        }
         let (scalar, standard_error) =
             super::super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
@@ -89,15 +129,12 @@ impl CheckedTemporalResponseExecution {
             OverlapPolicy::ExplicitOverride,
         )
         .with_n_obs(lag_aligned_rows(data, self.operation.evidence()));
-        let (treatment, outcome) =
-            self.operation.query().functional.primary_pair().ok_or_else(|| {
-                CausalError::Compile {
-                    message: "temporal MeanCurve has no treatment/outcome pair".into(),
-                }
-            })?;
         let mut diagnostics = Vec::new();
         for member in self.operation.evidence() {
             diagnostics.extend(member.identification().diagnostics.iter().cloned());
+        }
+        if let Some(summary) = conflict_summary.as_ref() {
+            push_conflict_diagnostics(&mut diagnostics, summary);
         }
         if horizons_use_different_adjustments(self.operation.evidence()) {
             diagnostics.push(Diagnostic::new(
@@ -255,6 +292,7 @@ mod tests {
             IdentifierId::TemporalBackdoorUnfolded,
             EstimatorId::TemporalResponseGcomp,
             32,
+            &InferenceMode::Frequentist,
         )
         .unwrap();
 

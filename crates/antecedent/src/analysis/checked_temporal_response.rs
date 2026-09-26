@@ -1,4 +1,5 @@
-//! Sealed temporal response execution for a fixed TemporalDag and dose × horizon grid.
+//! Sealed temporal response execution for a fixed TemporalDag: a dose × horizon
+//! mean curve or a single-step intervention response, frequentist or Bayesian.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -13,8 +14,30 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{NodeRef, TemporalDag};
 use antecedent_identify::result::IdentificationResult;
 
+use crate::InferenceMode;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
+
+/// Whether a temporal response is a mean curve or a single-step intervention
+/// that the temporal response estimator evaluates directly (no Sequence or
+/// mean-mechanism overlays, one intervention coordinate).
+#[must_use]
+pub(crate) fn temporal_response_is_direct(query: &ResponseQuery) -> bool {
+    if query.temporal.is_none() {
+        return false;
+    }
+    match &query.functional {
+        ResponseFunctional::MeanCurve { .. } => true,
+        ResponseFunctional::InterventionResponse { interventions, .. } => {
+            interventions.len() == 1
+                && matches!(
+                    antecedent_estimate::plan_from_response_query(query),
+                    Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single { .. }))
+                )
+        }
+        _ => false,
+    }
+}
 
 /// Proof and finite-unfolding context for one requested horizon.
 #[derive(Clone, Debug)]
@@ -131,13 +154,28 @@ impl TemporalResponseHorizonEvidence {
     pub(crate) const fn indexer(&self) -> &TemporalIndexer {
         &self.indexer
     }
+
+    /// The same proof member in the prepare-time cache shape the shared
+    /// Bayesian prior resolver reads.
+    #[must_use]
+    pub(crate) fn cached_horizon(
+        &self,
+    ) -> crate::analysis::prepared::CachedTemporalHorizonIdentification {
+        crate::analysis::prepared::CachedTemporalHorizonIdentification {
+            horizon: self.horizon,
+            identification: self.identification.clone(),
+            estimand: self.estimand.clone(),
+            indexer: self.indexer.clone(),
+        }
+    }
 }
 
-/// Checked TemporalDag dose-by-horizon response operation.
+/// Checked TemporalDag response operation.
 ///
-/// The operation fixes the ordered response grid, every horizon's identification
-/// proof and estimand, the temporal indexer used to bind lagged columns, and the
-/// frequentist procedure/uncertainty method before execution.
+/// The operation fixes the response functional (an ordered dose grid for a
+/// mean curve, or one single-step intervention), every horizon's
+/// identification proof and estimand, the temporal indexer used to bind lagged
+/// columns, and the frequentist or Bayesian procedure before execution.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedTemporalResponseOperation {
     graph: TemporalDag,
@@ -147,13 +185,14 @@ pub(crate) struct CheckedTemporalResponseOperation {
     assumptions: AssumptionSet,
     identifier: IdentifierId,
     estimator: EstimatorId,
+    inference: InferenceMode,
     fitter: antecedent_estimate::TemporalResponseEstimator,
     bootstrap_replicates: u32,
     grid: Arc<[f64]>,
 }
 
 impl CheckedTemporalResponseOperation {
-    /// Seal a point-identified frequentist temporal response route.
+    /// Seal a point-identified temporal response route.
     pub(crate) fn checked(
         graph: &TemporalDag,
         query: &ResponseQuery,
@@ -161,38 +200,53 @@ impl CheckedTemporalResponseOperation {
         identifier: IdentifierId,
         estimator: EstimatorId,
         bootstrap_replicates: u32,
+        inference: &InferenceMode,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let spec = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "checked temporal response requires a temporal response specification".into(),
         })?;
-        let (treatment, outcome, grid) = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, outcome } => {
-                let values = treatment
-                    .grid
-                    .values()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                (treatment.variable, *outcome, values)
-            }
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "checked temporal operation currently supports MeanCurve only",
-                });
-            }
+        if !temporal_response_is_direct(query) {
+            return Err(CausalError::Unsupported {
+                message: "checked temporal operation supports MeanCurve and single-step InterventionResponse only",
+            });
+        }
+        let (treatment, outcome) =
+            query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                message: "temporal response query has no treatment/outcome pair".into(),
+            })?;
+        let grid = match &query.functional {
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment
+                .grid
+                .values()
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
+            _ => match antecedent_estimate::plan_from_response_query(query) {
+                Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
+                    level: Some(level),
+                    ..
+                })) => vec![level],
+                _ => Vec::new(),
+            },
         };
-        if grid.is_empty()
-            || grid.len().saturating_mul(spec.horizons.len())
+        let cells_per_horizon = match &query.functional {
+            ResponseFunctional::MeanCurve { .. } => grid.len(),
+            _ => 1,
+        };
+        if cells_per_horizon == 0
+            || cells_per_horizon.saturating_mul(spec.horizons.len())
                 > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
         {
             return Err(CausalError::Unsupported {
                 message: "temporal response dose-by-horizon grid exceeds its materialization limit",
             });
         }
-        if identifier != IdentifierId::TemporalBackdoorUnfolded
-            || estimator != EstimatorId::TemporalResponseGcomp
-        {
+        let expected_estimator = match inference {
+            InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
+            InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
+        };
+        if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {
             return Err(CausalError::Compile {
-                message: "checked temporal MeanCurve requires temporal backdoor and temporal response g-computation".into(),
+                message: "checked temporal response requires temporal backdoor and the temporal response estimator of its inference mode".into(),
             });
         }
         if spec.horizons.as_ref()
@@ -250,10 +304,17 @@ impl CheckedTemporalResponseOperation {
             assumptions,
             identifier,
             estimator,
+            inference: inference.clone(),
             fitter,
             bootstrap_replicates,
             grid: grid.into(),
         })
+    }
+
+    /// Frequentist or Bayesian inference fixed at preparation.
+    #[must_use]
+    pub(crate) const fn inference(&self) -> &InferenceMode {
+        &self.inference
     }
 
     /// Exact retained query and ordered dose grid.
@@ -289,10 +350,12 @@ impl CheckedTemporalResponseOperation {
     /// Fixed method, backend and uncertainty identity.
     #[must_use]
     pub(crate) fn procedure(&self) -> (IdentifierId, EstimatorId, &'static str, u32) {
-        let uncertainty = if self.bootstrap_replicates == 0 {
-            "frequentist.no_interval"
-        } else {
-            "frequentist.circular_block_bootstrap"
+        let uncertainty = match &self.inference {
+            InferenceMode::Bayesian(_) => "bayesian.posterior_draws",
+            InferenceMode::Frequentist if self.bootstrap_replicates == 0 => {
+                "frequentist.no_interval"
+            }
+            InferenceMode::Frequentist => "frequentist.circular_block_bootstrap",
         };
         (self.identifier, self.estimator, uncertainty, self.bootstrap_replicates)
     }
@@ -304,26 +367,66 @@ impl CheckedTemporalResponseOperation {
             && temporal_graph_signature(&self.graph) == self.graph_signature
     }
 
-    /// Execute from retained proof members and procedure, without re-identification.
+    /// Execute the frequentist procedure from retained proof members, without
+    /// re-identification.
     pub(crate) fn execute(
         &self,
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<CausalResponse, CausalError> {
+        if !matches!(self.inference, InferenceMode::Frequentist) {
+            return Err(CausalError::Compile {
+                message: "checked Bayesian temporal response executes with its resolved prior"
+                    .into(),
+            });
+        }
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled {
                 stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
             });
         }
-        let pairs = self
-            .evidence
-            .iter()
-            .map(|member| (&member.estimand, &member.indexer))
-            .collect::<Vec<_>>();
+        let pairs = self.horizon_pairs();
         let status = self.evidence[0].identification.status;
         self.fitter
             .estimate(data, &pairs, &self.query, status, self.assumptions.clone(), ctx)
             .map_err(CausalError::from)
+    }
+
+    /// Execute the Bayesian procedure from retained proof members and the
+    /// resolved coefficient prior, without re-identification.
+    pub(crate) fn execute_bayesian(
+        &self,
+        data: &TimeSeriesData,
+        bayes: &antecedent_estimate::BayesianGComputationAte,
+        ctx: &ExecutionContext,
+    ) -> Result<CausalResponse, CausalError> {
+        if !matches!(self.inference, InferenceMode::Bayesian(_)) {
+            return Err(CausalError::Compile {
+                message: "checked frequentist temporal response has no Bayesian procedure".into(),
+            });
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let pairs = self.horizon_pairs();
+        let status = self.evidence[0].identification.status;
+        self.fitter
+            .estimate_bayesian(
+                data,
+                &pairs,
+                &self.query,
+                status,
+                self.assumptions.clone(),
+                bayes,
+                ctx,
+            )
+            .map_err(CausalError::from)
+    }
+
+    fn horizon_pairs(&self) -> Vec<(&IdentifiedEstimand, &TemporalIndexer)> {
+        self.evidence.iter().map(|member| (&member.estimand, &member.indexer)).collect()
     }
 }
 
@@ -402,6 +505,7 @@ mod tests {
             IdentifierId::TemporalBackdoorUnfolded,
             EstimatorId::TemporalResponseGcomp,
             bootstrap_replicates,
+            &InferenceMode::Frequentist,
         )
         .unwrap();
         (operation, data)
@@ -413,7 +517,14 @@ mod tests {
         let ctx = ExecutionContext::for_tests(41);
         let response = operation.execute(&data, &ctx).unwrap();
         assert_eq!(operation.grid(), [-0.5, 0.0, 0.5]);
-        assert_eq!(operation.evidence().iter().map(|m| m.horizon()).collect::<Vec<_>>(), [1]);
+        assert_eq!(
+            operation
+                .evidence()
+                .iter()
+                .map(TemporalResponseHorizonEvidence::horizon)
+                .collect::<Vec<_>>(),
+            [1]
+        );
         let antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Surface { mean, .. },
         ) = response.estimate

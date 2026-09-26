@@ -53,11 +53,34 @@ impl super::Study {
         let mut unidentified_mass = 0.0;
         let mut any_partial = false;
         let mut primary = None;
+        // A prepared handle retains one completion envelope per atom for the
+        // first requested horizon, keyed by atom position. Atoms the retained
+        // envelope marked unidentified keep their mass without re-enumeration,
+        // and evaluable atoms reuse their retained proof for that horizon.
+        let retained = self
+            .temporal_class_posterior_identification_cache
+            .as_deref()
+            .filter(|cache| cache.graphs.n_samples == gp.n_graphs);
+        let first_horizon = query.temporal.as_ref().and_then(|spec| spec.horizons.first().copied());
         let mapped = ctx.map_indexed(gp.n_graphs, |i, inner| {
             let key = u64::try_from(i).map_err(|_| CausalError::Compile {
                 message: "temporal class graph-posterior response: too many atoms".into(),
             })?;
             let weight = gp.weights[i];
+            if retained.is_some_and(|cache| {
+                cache.graphs.identified.get(i) == Some(&GraphIdentFlag::Unidentified)
+            }) {
+                return Ok((key, weight, None));
+            }
+            let retained_atom = retained
+                .and_then(|cache| cache.class_atoms.iter().find(|atom| atom.key == key))
+                .zip(first_horizon)
+                .map(|(atom, horizon)| {
+                    Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
+                        envelope: atom.envelope.clone(),
+                        by_horizon: vec![(horizon, atom.envelope.clone())],
+                    })
+                });
             let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
             let reconstructed = reconstruct_temporal_class_atom(
                 gp.atom_kind,
@@ -76,7 +99,7 @@ impl super::Study {
             atom_study.graph = graph;
             atom_study.refute = RefuteSuite::None;
             atom_study.custom_validators.clear();
-            atom_study.temporal_class_identification_cache = None;
+            atom_study.temporal_class_identification_cache = retained_atom;
             atom_study.temporal_class_posterior_identification_cache = None;
             match atom_study.execute_temporal_class_response(data, query, physical, inner) {
                 Ok(result) => Ok((key, weight, Some(Ok(result)))),
@@ -352,7 +375,7 @@ impl super::Study {
             estimator_id,
             treatment,
             outcome,
-            identify_cached: false,
+            identify_cached: retained.is_some(),
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,

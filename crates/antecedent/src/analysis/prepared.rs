@@ -1032,6 +1032,62 @@ pub struct CheckedTemporalDagResponseInfo {
     pub horizons: Arc<[u32]>,
 }
 
+/// Read-only source graph, completion proof, and procedure of a retained
+/// TemporalCpdag/TemporalPag response.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassResponseInfo {
+    /// Exact response functional, policy, and requested horizons.
+    pub query: ResponseQuery,
+    /// Source class retained with the completion proof.
+    pub graph_class: GraphClass,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference mode label fixed during preparation.
+    pub inference: Arc<str>,
+    /// Validation suite fixed during preparation.
+    pub validation: RefuteSuite,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+    /// Ordered requested horizons, each with a retained completion envelope.
+    pub horizons: Arc<[u32]>,
+    /// Number of completion atoms retained for the first requested horizon.
+    pub completion_count: usize,
+    /// Maximum number of class completions searched, when configured.
+    pub completion_limit: Option<usize>,
+    /// Identified enumeration mass retained for the first requested horizon.
+    pub identified_mass: f64,
+    /// Unidentified enumeration mass retained for the first requested horizon.
+    pub unidentified_mass: f64,
+    /// Source graph version sealed with the proof.
+    pub graph_version: u64,
+}
+
+/// Frozen temporal response posterior: atom keys, weights, identification
+/// flags, and the selected inference and validation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedTemporalGraphPosteriorResponseInfo {
+    /// Response target retained at preparation.
+    pub query: ResponseQuery,
+    /// Atom class of the frozen posterior.
+    pub atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    /// Frozen graph identity per posterior atom.
+    pub graph_keys: Arc<[u64]>,
+    /// Frozen posterior weight per atom.
+    pub weights: Arc<[f64]>,
+    /// Identified and unidentified atom status, preserving unresolved mass.
+    pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference mode label fixed during preparation.
+    pub inference: Arc<str>,
+    /// Validation suite fixed at preparation.
+    pub validation: RefuteSuite,
+}
+
 /// Read-only target, proof, and procedure of a prepared TemporalDag effect.
 #[derive(Clone, Debug)]
 pub struct CheckedTemporalDagEffectInfo {
@@ -3756,6 +3812,8 @@ pub(crate) enum PreparedExecution {
     Iv(CheckedIvOperation),
     UnknownTieredAverage(Box<CheckedUnknownTieredAverageOperation>),
     BayesianClassConditional(super::CheckedBayesianClassConditional),
+    TemporalClassResponse(Box<super::CheckedTemporalClassResponseOperation>),
+    TemporalGraphPosteriorResponse(Box<super::CheckedTemporalGraphPosteriorResponse>),
 }
 
 /// Exactly one checked product may supply a prepared result contract. This is
@@ -3840,6 +3898,8 @@ impl PreparedExecution {
             | Self::UnknownTieredAverage(_)
             | Self::AdmgGraphPosteriorResponse(_)
             | Self::BayesianClassConditional(_) => CheckedProgramBinding::None,
+            | Self::TemporalClassResponse(_)
+            | Self::TemporalGraphPosteriorResponse(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -3932,6 +3992,16 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedTemporalResponseExecution> {
         if let Self::TemporalDagResponse(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn temporal_class_response(
+        &self,
+    ) -> Option<&super::CheckedTemporalClassResponseOperation> {
+        if let Self::TemporalClassResponse(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn temporal_graph_posterior_response(
+        &self,
+    ) -> Option<&super::CheckedTemporalGraphPosteriorResponse> {
+        if let Self::TemporalGraphPosteriorResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_dag_effect(
         &self,
@@ -4273,6 +4343,14 @@ impl PreparedStudy {
 
     pub(crate) fn has_checked_temporal_dag_response_operation(&self) -> bool {
         matches!(self.execution, PreparedExecution::TemporalDagResponse(_))
+    }
+
+    pub(crate) fn has_checked_temporal_class_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::TemporalClassResponse(_))
+    }
+
+    pub(crate) fn has_checked_temporal_graph_posterior_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::TemporalGraphPosteriorResponse(_))
     }
 
     pub(crate) fn has_checked_temporal_dag_effect_operation(&self) -> bool {
@@ -4715,6 +4793,50 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_temporal_response_info(&self) -> Option<CheckedTemporalDagResponseInfo> {
         self.checked_temporal_dag_response_info()
+    }
+
+    /// Inspect the retained source graph and per-horizon temporal class
+    /// response envelopes.
+    #[must_use]
+    pub fn checked_temporal_class_response_info(&self) -> Option<CheckedTemporalClassResponseInfo> {
+        let operation = self.execution.temporal_class_response()?;
+        let (identifier, estimator, bootstrap_replicates, validation) = operation.procedure();
+        let (identified_mass, unidentified_mass) = operation.enumeration_mass();
+        Some(CheckedTemporalClassResponseInfo {
+            query: operation.query().clone(),
+            graph_class: operation.graph_class(),
+            identifier,
+            estimator,
+            inference: Arc::from(inference_label(operation.inference())),
+            validation,
+            bootstrap_replicates,
+            horizons: Arc::from(operation.horizons()),
+            completion_count: operation.completion_count(),
+            completion_limit: operation.max_completions(),
+            identified_mass,
+            unidentified_mass,
+            graph_version: u64::from(operation.structure_version()),
+        })
+    }
+
+    /// Inspect the retained temporal graph-posterior response operation.
+    #[must_use]
+    pub fn checked_temporal_graph_posterior_response_info(
+        &self,
+    ) -> Option<CheckedTemporalGraphPosteriorResponseInfo> {
+        let operation = self.execution.temporal_graph_posterior_response()?;
+        let (graph_keys, weights, identified) = operation.atom_weights();
+        Some(CheckedTemporalGraphPosteriorResponseInfo {
+            query: operation.query().clone(),
+            atom_kind: operation.posterior().atom_kind,
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            identifier: operation.identifier(),
+            estimator: operation.estimator(),
+            inference: Arc::from(inference_label(operation.inference())),
+            validation: operation.validation(),
+        })
     }
 
     /// Checked linear two-stage front-door lowering retained by this handle.
@@ -6764,6 +6886,29 @@ impl PreparedStudy {
             }
             return self.stamp(&input, operation.execute(data, ctx)?);
         }
+        if let PreparedExecution::TemporalClassResponse(operation) = &self.execution {
+            if !operation.matches_source_graph(&self.analysis.graph) {
+                return Err(CausalError::Compile {
+                    message:
+                        "checked temporal class response source graph differs from the retained proof"
+                            .into(),
+                });
+            }
+            let result =
+                self.analysis.execute_checked_temporal_class_response(data, operation, ctx)?;
+            return self.stamp(&input, result);
+        }
+        if let PreparedExecution::TemporalGraphPosteriorResponse(operation) = &self.execution {
+            if !operation.matches_posterior(self.analysis.graph_posterior.as_ref()) {
+                return Err(CausalError::Compile {
+                    message: "checked temporal graph-posterior response atoms differ from the retained proof".into(),
+                });
+            }
+            let result = self
+                .analysis
+                .execute_checked_temporal_graph_posterior_response(data, operation, ctx)?;
+            return self.stamp(&input, result);
+        }
         let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
         self.stamp(&input, result)
     }
@@ -6998,6 +7143,27 @@ impl PreparedStudy {
                 unreachable!("refresh_series constructs temporal data")
             };
             operation.execute(series, ctx)?
+        } else if let PreparedExecution::TemporalClassResponse(operation) = &self.execution {
+            if !operation.matches_source_graph(&refreshed.graph) {
+                return Err(CausalError::Compile {
+                    message: "checked temporal class response refresh graph differs from its retained proof".into(),
+                });
+            }
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &refreshed.data else {
+                unreachable!("refresh_series constructs temporal data")
+            };
+            refreshed.execute_checked_temporal_class_response(series, operation, ctx)?
+        } else if let PreparedExecution::TemporalGraphPosteriorResponse(operation) = &self.execution
+        {
+            if !operation.matches_posterior(refreshed.graph_posterior.as_ref()) {
+                return Err(CausalError::Compile {
+                    message: "checked temporal graph-posterior response refresh atoms differ from its retained proof".into(),
+                });
+            }
+            let (DataInput::Temporal(series) | DataInput::Event(series)) = &refreshed.data else {
+                unreachable!("refresh_series constructs temporal data")
+            };
+            refreshed.execute_checked_temporal_graph_posterior_response(series, operation, ctx)?
         } else {
             refreshed.execute(&self.plan, ctx)?
         };
@@ -7336,6 +7502,152 @@ impl Study {
             plan.clone(),
             analysis.inference.clone(),
             analysis.refute,
+        )?)))
+    }
+
+    /// Seal a TemporalCpdag/TemporalPag response over its retained per-horizon
+    /// completion envelopes (explicit or accepted structure, validation none).
+    fn seal_temporal_class_response(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<Box<super::CheckedTemporalClassResponseOperation>>, CausalError> {
+        let (
+            DataInput::Temporal(_) | DataInput::Event(_),
+            CausalQuery::Response(query),
+            Some(cache),
+            GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+        ) = (
+            &analysis.data,
+            &analysis.query,
+            analysis.temporal_class_identification_cache.as_deref(),
+            analysis.graph.class(),
+        )
+        else {
+            return Ok(None);
+        };
+        if analysis.graph_posterior.is_some()
+            || analysis.tiered.is_some()
+            || !matches!(
+                analysis.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            || !analysis.custom_validators.is_empty()
+            || analysis.refute != RefuteSuite::None
+            || analysis.observation_delayed_entry.is_some()
+            || query.observation != antecedent_core::ObservationSpec::Complete
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || !super::temporal_response_is_direct(query)
+            || analysis
+                .identifier
+                .is_some_and(|id| id != crate::strategy_table::IdentifierId::GeneralizedAdjustment)
+        {
+            return Ok(None);
+        }
+        let expected_estimator = match analysis.inference {
+            InferenceMode::Bayesian(_) => {
+                crate::strategy_table::EstimatorId::TemporalResponseBayesian
+            }
+            InferenceMode::Frequentist => crate::strategy_table::EstimatorId::TemporalResponseGcomp,
+        };
+        if analysis.estimator.is_some_and(|id| id != expected_estimator) {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(super::CheckedTemporalClassResponseOperation::checked(
+            analysis.graph.clone(),
+            query,
+            cache,
+            analysis.max_completions,
+            &analysis.inference,
+            analysis.bootstrap_replicates,
+            analysis.class_prior.clone(),
+            analysis.refute,
+            plan.clone(),
+        )?)))
+    }
+
+    /// Seal a temporal graph-posterior response over its frozen atoms and
+    /// per-atom proofs (TemporalDag, TemporalCpdag, or TemporalPag atoms).
+    fn seal_temporal_graph_posterior_response(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<Box<super::CheckedTemporalGraphPosteriorResponse>>, CausalError> {
+        let (
+            DataInput::Temporal(_) | DataInput::Event(_),
+            Some(posterior),
+            CausalQuery::Response(query),
+        ) = (&analysis.data, analysis.graph_posterior.as_ref(), &analysis.query)
+        else {
+            return Ok(None);
+        };
+        if !query.is_temporal()
+            || analysis.tiered.is_some()
+            || !analysis.custom_validators.is_empty()
+            || analysis.observation_delayed_entry.is_some()
+            || query.observation != antecedent_core::ObservationSpec::Complete
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || !super::temporal_response_is_direct(query)
+        {
+            return Ok(None);
+        }
+        let intervention_response = matches!(
+            query.functional,
+            antecedent_core::ResponseFunctional::InterventionResponse { .. }
+        );
+        if !matches!(
+            (intervention_response, analysis.refute),
+            (_, RefuteSuite::None) | (true, RefuteSuite::Cheap | RefuteSuite::Full)
+        ) {
+            return Ok(None);
+        }
+        let expected_estimator = match analysis.inference {
+            InferenceMode::Bayesian(_) => {
+                crate::strategy_table::EstimatorId::TemporalResponseBayesian
+            }
+            InferenceMode::Frequentist => crate::strategy_table::EstimatorId::TemporalResponseGcomp,
+        };
+        if analysis.estimator.is_some_and(|id| id != expected_estimator) {
+            return Ok(None);
+        }
+        let proof = match posterior.atom_kind {
+            antecedent_discovery::GraphPosteriorAtomKind::Dag => {
+                if analysis.identifier.is_some_and(|id| {
+                    id != crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded
+                }) {
+                    return Ok(None);
+                }
+                let Some(cache) = analysis.dbn_posterior_identification_cache.as_ref() else {
+                    return Ok(None);
+                };
+                super::TemporalPosteriorResponseProof::Dbn(Arc::clone(cache))
+            }
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+            | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                if analysis.identifier.is_some_and(|id| {
+                    id != crate::strategy_table::IdentifierId::GeneralizedAdjustment
+                }) {
+                    return Ok(None);
+                }
+                let Some(cache) = analysis.temporal_class_posterior_identification_cache.as_ref()
+                else {
+                    return Ok(None);
+                };
+                super::TemporalPosteriorResponseProof::Class(Arc::clone(cache))
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some(Box::new(super::CheckedTemporalGraphPosteriorResponse::prepare(
+            posterior.clone(),
+            query.clone(),
+            proof,
+            plan.clone(),
+            analysis.inference.clone(),
+            analysis.refute,
+            analysis.bootstrap_replicates,
+            analysis.max_completions,
+            analysis.class_prior.clone(),
         )?)))
     }
 
@@ -9391,7 +9703,10 @@ impl Study {
                         | crate::support::StructureSource::Accepted
                 )
                 && analysis.custom_validators.is_empty()
-                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && matches!(
+                    analysis.inference,
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                )
                 && analysis.refute == RefuteSuite::None
                 && query.temporal.is_some()
                 && query.temporal.as_ref().is_some_and(|spec| match &spec.policy {
@@ -9402,13 +9717,17 @@ impl Study {
                 && query.observation == antecedent_core::ObservationSpec::Complete
                 && query.target_population == TargetPopulation::AllObserved
                 && matches!(query.outcome_functional, OutcomeFunctional::Mean)
-                && matches!(
-                    query.functional,
-                    antecedent_core::ResponseFunctional::MeanCurve { .. }
-                ) =>
+                && super::temporal_response_is_direct(query) =>
             {
                 let identifier = crate::strategy_table::IdentifierId::TemporalBackdoorUnfolded;
-                let estimator = crate::strategy_table::EstimatorId::TemporalResponseGcomp;
+                let estimator = match analysis.inference {
+                    InferenceMode::Bayesian(_) => {
+                        crate::strategy_table::EstimatorId::TemporalResponseBayesian
+                    }
+                    InferenceMode::Frequentist => {
+                        crate::strategy_table::EstimatorId::TemporalResponseGcomp
+                    }
+                };
                 if plan
                     .logical
                     .record
@@ -9455,6 +9774,7 @@ impl Study {
                         identifier,
                         estimator,
                         analysis.bootstrap_replicates,
+                        &analysis.inference,
                     )?;
                     let execution = super::execute::CheckedTemporalResponseExecution::checked(
                         operation,
@@ -9545,6 +9865,9 @@ impl Study {
         let checked_static_class_effect = Self::seal_static_class_effect(&analysis, &plan)?;
         let checked_admg_graph_posterior_response =
             Self::seal_admg_graph_posterior_response(&analysis, &plan)?;
+        let checked_temporal_class_response = Self::seal_temporal_class_response(&analysis, &plan)?;
+        let checked_temporal_graph_posterior_response =
+            Self::seal_temporal_graph_posterior_response(&analysis, &plan)?;
         let checked_bayesian_static_mediation = match (
             &self.data,
             &self.query,
@@ -9721,6 +10044,10 @@ impl Study {
             PreparedExecution::StaticResponseCurve(operation)
         } else if let Some(operation) = checked_bayesian_class_conditional {
             PreparedExecution::BayesianClassConditional(operation)
+        } else if let Some(operation) = checked_temporal_class_response {
+            PreparedExecution::TemporalClassResponse(operation)
+        } else if let Some(operation) = checked_temporal_graph_posterior_response {
+            PreparedExecution::TemporalGraphPosteriorResponse(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };
@@ -10832,6 +11159,14 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
 
 fn is_supplied_static_graph(class: GraphClass) -> bool {
     matches!(class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg)
+}
+
+/// Inspector label for a retained inference mode.
+fn inference_label(inference: &InferenceMode) -> String {
+    match inference {
+        InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
+        InferenceMode::Frequentist => "frequentist".to_owned(),
+    }
 }
 
 impl PreparedStudy {
