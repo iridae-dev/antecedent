@@ -12,9 +12,10 @@ use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     BoundZTransportFunctional, ClassicalTransportQuery, ClassicalTransportResult,
     IdentificationBudget, IdentificationError, SidLimits, ZTransportDecision, ZTransportDerivation,
-    ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
-    ZTransportResult, bind_z_transport_catalog, decide_z_transport_with_catalog,
-    identify_classical_transport, identify_z_transport, validate_z_experiment_family,
+    ZTransportLimitsReceipt, ZTransportObstruction, ZTransportObstructionRecord,
+    ZTransportProofInspection, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+    decide_z_transport_with_catalog, identify_classical_transport, identify_z_transport_reporting,
+    validate_z_experiment_family,
 };
 pub use antecedent_io::z_transport_artifact::ZTransportQueryWire;
 use serde::{Deserialize, Serialize};
@@ -49,6 +50,9 @@ pub struct ZTransportFailureSnapshot {
     proof_graph: Option<ZTransportProofInspection>,
     obstruction: Option<antecedent_identify::sid::SHedgeRecord>,
     z_obstruction: Option<ZTransportObstructionRecord>,
+    /// Limits in force and what the bounded search consumed, when the status is
+    /// an exhausted computation. Absent for every other status.
+    limits_receipt: Option<ZTransportLimitsReceipt>,
     /// The checked positive formula of a missing-evidence failure, identified
     /// once at snapshot time and reused by every proposal.
     derivation: Option<Arc<ZTransportDerivation>>,
@@ -83,6 +87,10 @@ pub struct ZTransportFailureSnapshotWire {
     /// Checked bounded `TRz` line-11 obstruction, with complete-family evidence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub z_obstruction: Option<ZTransportObstructionRecord>,
+    /// Limits in force and what the search consumed when the bounded computation
+    /// was exhausted, so an exhausted status is inspectable, not opaque.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limits_receipt: Option<ZTransportLimitsReceipt>,
     /// Canonical digest of the frozen catalog.
     pub catalog_digest: String,
     /// Digest of the sorted graph wire and selection targets.
@@ -113,6 +121,7 @@ impl ZTransportFailureSnapshot {
             proof_graph: None,
             obstruction: None,
             z_obstruction: None,
+            limits_receipt: None,
             derivation: None,
             catalog_digest: catalog_digest(catalog)?,
             graph_digest: graph_digest(diagram)?,
@@ -144,6 +153,13 @@ impl ZTransportFailureSnapshot {
         self.derivation.as_deref()
     }
 
+    /// Limits in force and what the search consumed, when a budget stopped the
+    /// bounded computation. Absent for every other status.
+    #[must_use]
+    pub const fn limits_receipt(&self) -> Option<&ZTransportLimitsReceipt> {
+        self.limits_receipt.as_ref()
+    }
+
     /// Encode all inputs needed to independently inspect this failure.
     ///
     /// # Errors
@@ -166,6 +182,7 @@ impl ZTransportFailureSnapshot {
             proof_graph: self.proof_graph.clone(),
             obstruction: self.obstruction.clone(),
             z_obstruction: self.z_obstruction.clone(),
+            limits_receipt: self.limits_receipt.clone(),
             catalog_digest: self.catalog_digest.clone(),
             graph_digest: self.graph_digest.clone(),
             snapshot_digest: String::new(),
@@ -218,6 +235,7 @@ impl ZTransportFailureSnapshot {
                 .collect::<Vec<_>>(),
         )?;
         snapshot.proof_graph.clone_from(&wire.proof_graph);
+        snapshot.limits_receipt.clone_from(&wire.limits_receipt);
         if let Some(record) = &wire.obstruction {
             let classical = ClassicalTransportQuery {
                 outcomes: Arc::clone(&query.outcomes),
@@ -249,6 +267,7 @@ impl ZTransportFailureSnapshot {
             || recomputed.obstruction != snapshot.obstruction
             || recomputed.z_obstruction != snapshot.z_obstruction
             || recomputed.proof_graph != snapshot.proof_graph
+            || recomputed.limits_receipt != snapshot.limits_receipt
         {
             return Err(ZTransportPlanningError::Invalid(
                 "failure snapshot outcome differs from current checked identification".into(),
@@ -421,30 +440,34 @@ pub fn snapshot_z_transport_failure(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<ZTransportFailureSnapshot, ZTransportPlanningError> {
-    let identification = match identify_z_transport(diagram, query, limits, ctx) {
-        Ok(result) => result,
-        Err(error) => {
-            let status = match &error {
-                IdentificationError::UnsupportedInput { .. } => {
-                    Some(ZTransportFailureStatus::UnsupportedInput)
+    let mut receipt = None;
+    let identification =
+        match identify_z_transport_reporting(diagram, query, limits, ctx, &mut receipt) {
+            Ok(result) => result,
+            Err(error) => {
+                let status = match &error {
+                    IdentificationError::UnsupportedInput { .. } => {
+                        Some(ZTransportFailureStatus::UnsupportedInput)
+                    }
+                    IdentificationError::Budget { budget: IdentificationBudget::ZTransport } => {
+                        Some(ZTransportFailureStatus::ExhaustedComputation)
+                    }
+                    _ => None,
+                };
+                if let Some(status) = status {
+                    let mut snapshot = ZTransportFailureSnapshot::new(
+                        diagram,
+                        query,
+                        catalog,
+                        status,
+                        [Arc::from(error.to_string())],
+                    )?;
+                    snapshot.limits_receipt = receipt;
+                    return Ok(snapshot);
                 }
-                IdentificationError::Budget { budget: IdentificationBudget::ZTransport } => {
-                    Some(ZTransportFailureStatus::ExhaustedComputation)
-                }
-                _ => None,
-            };
-            if let Some(status) = status {
-                return ZTransportFailureSnapshot::new(
-                    diagram,
-                    query,
-                    catalog,
-                    status,
-                    [Arc::from(error.to_string())],
-                );
+                return Err(error.into());
             }
-            return Err(error.into());
-        }
-    };
+        };
     match identification {
         ZTransportResult::Identified(derivation) => {
             match bind_z_transport_catalog(diagram, query, &derivation, catalog) {
@@ -487,7 +510,7 @@ pub fn snapshot_z_transport_failure(
                 Err(error) => Err(error.into()),
             }
         }
-        ZTransportResult::NotCertified { reason } => {
+        ZTransportResult::NotCertified { reason, .. } => {
             match decide_z_transport_with_catalog(diagram, query, catalog, limits, ctx)? {
                 ZTransportDecision::ProvenNonTransportable(obstruction) => {
                     let mut snapshot = ZTransportFailureSnapshot::new(
@@ -1221,6 +1244,55 @@ mod tests {
         let unresolved = snapshot(&diagram, &query, &incomplete);
         assert_eq!(unresolved.status(), &ZTransportFailureStatus::ProofObstruction);
         assert!(unresolved.to_wire().unwrap().z_obstruction.is_some());
+    }
+
+    #[test]
+    fn exhausted_snapshot_carries_a_limits_receipt_that_survives_replay() {
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([VariableId::from_raw(1)]),
+            treatments: Arc::from([VariableId::from_raw(0)]),
+            controllable: Arc::from([VariableId::from_raw(2)]),
+            experiment_assignment: Arc::from([]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let variables = (0..3)
+            .map(|raw| VariableCoordinate {
+                variable: VariableId::from_raw(raw),
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect::<Vec<_>>();
+        let catalog = EvidenceCatalog::try_new(
+            [
+                Environment::try_new("source", variables.clone(), []).unwrap(),
+                Environment::try_new("target", variables, []).unwrap(),
+            ],
+            [],
+            [],
+            None,
+        )
+        .unwrap();
+        // A one-step budget stops the bounded search before it decides.
+        let limits = SidLimits { steps: 1, depth: 256 };
+        let snapshot =
+            snapshot_z_transport_failure(&diagram, &query, &catalog, limits, &ctx()).unwrap();
+        assert_eq!(snapshot.status(), &ZTransportFailureStatus::ExhaustedComputation);
+        let receipt = snapshot.limits_receipt().expect("an exhausted snapshot carries a receipt");
+        assert_eq!(receipt.budget, antecedent_identify::ZTransportBudgetKind::Steps);
+        assert_eq!(receipt.steps_limit, 1);
+        assert_eq!(receipt.depth_limit, 256);
+        assert!(receipt.steps_consumed.is_some_and(|steps| steps >= 1));
+        // The receipt roundtrips through the wire and re-verifies under the same
+        // limits: a recompute must reproduce the identical receipt.
+        let wire = snapshot.to_wire().unwrap();
+        assert!(wire.limits_receipt.is_some());
+        let restored = ZTransportFailureSnapshot::from_wire(&wire, limits, &ctx()).unwrap();
+        assert_eq!(restored.limits_receipt(), snapshot.limits_receipt());
     }
 
     #[test]
