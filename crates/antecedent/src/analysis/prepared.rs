@@ -1666,8 +1666,10 @@ impl CheckedAipwOperation {
                     | RefuteSuite::Full
             )
             && self.custom_validator_names.is_empty()
+            && matches!(self.fitter.overlap, OverlapPolicy::RequireDiagnostics { .. })
+            && self.preparation.lowering().overlap == self.fitter.overlap
             && self.preparation.lowering().procedure
-                == antecedent_estimate::CheckedAipwProcedure::CrossFittedLogisticOls
+                == antecedent_estimate::CheckedAipwProcedure::for_overlap(self.fitter.overlap)
             && self.preparation.lowering().population == TargetPopulation::AllObserved
     }
 
@@ -9062,7 +9064,7 @@ impl Study {
                     == Some(crate::strategy_table::EstimatorId::Aipw.as_str()) =>
             {
                 let fitter = checked_aipw_fitter(&analysis);
-                if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { trim: None, .. }) {
+                if matches!(fitter.overlap, OverlapPolicy::RequireDiagnostics { .. }) {
                     let preparation = fitter.prepare_checked(data, &cache.identification, 0)?;
                     let identifier = plan
                         .logical

@@ -575,15 +575,26 @@ impl PreparedStudy {
                 values: binding.weights.to_vec(),
             });
         }
-        if self.checked_aipw_ate().is_some() {
-            let table =
-                result.estimate.score_table.as_ref().ok_or_else(|| CausalError::Compile {
-                    message: "checked AIPW execution did not retain its complete-case score rows"
-                        .into(),
-                })?;
+        if let Some(checked) = self.checked_aipw_ate() {
+            // The cross-fitted procedure publishes its complete-case rows on the
+            // score table; the trimmed common-support procedure has no table and
+            // binds the rows its preparation retained.
+            let rows = match (&result.estimate.score_table, checked.lowering().procedure) {
+                (Some(table), _) => table.row_index.to_vec(),
+                (None, antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls) => {
+                    checked.lowering().rows.to_vec()
+                }
+                (None, antecedent_estimate::CheckedAipwProcedure::CrossFittedLogisticOls) => {
+                    return Err(CausalError::Compile {
+                        message:
+                            "checked AIPW execution did not retain its complete-case score rows"
+                                .into(),
+                    });
+                }
+            };
             let rows = antecedent_io::CheckedAipwRowsWire {
                 format: 1,
-                rows: table.row_index.to_vec(),
+                rows,
                 data_snapshot: *contract.identities.data_snapshot.as_bytes(),
             };
             contract.checked_aipw_rows =
@@ -1522,11 +1533,17 @@ fn program_payloads(
             outcome: lowering.outcome.raw(),
             adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
             population: "all_observed".into(),
-            procedure: "cross_fitted_logistic_ols".into(),
+            procedure: lowering.procedure.as_str().into(),
             folds: lowering.folds as u64,
             se_kind: lowering.se_kind.as_str().into(),
             se_lag,
             bootstrap_replicates: lowering.bootstrap_replicates,
+            trim_bits: match lowering.overlap {
+                antecedent_estimate::OverlapPolicy::RequireDiagnostics {
+                    trim: Some(trim), ..
+                } => Some(trim.to_bits()),
+                _ => None,
+            },
         }
     });
     let checked_frontdoor_lowering =
