@@ -10,6 +10,7 @@ use antecedent_estimate::bayesian_robust_ate::{
 };
 
 #[derive(Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)] // independent fixture switches, each a distinct data-generating choice
 struct Scenario {
     name: &'static str,
     nonlinear_propensity: bool,
