@@ -331,6 +331,8 @@ mod checked_temporal_graph_posterior_response;
 mod checked_temporal_class_mediation;
 mod checked_bayesian_temporal_class_effect;
 mod checked_temporal_graph_posterior_effect;
+mod checked_graph_posterior_response;
+mod checked_static_class_response;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
@@ -341,6 +343,9 @@ mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;
 pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
+pub(crate) use checked_cell_aipw_response::CellAipwStructure;
+pub(crate) use checked_graph_posterior_response::CheckedGraphPosteriorResponse;
+pub(crate) use checked_static_class_response::CheckedStaticClassResponse;
 include!("execute_helpers.rs");
 
 pub(super) use class_envelope_se::{

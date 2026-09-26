@@ -577,9 +577,11 @@ fn prepared_graph_posterior_response_reuses_identification() {
     let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
+    // A one-shot graph-posterior response executes its retained prepared plan,
+    // so the fresh result reports the identification it reused from that plan.
     assert_eq!(
         fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
-        0
+        1
     );
     assert_eq!(
         first.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),

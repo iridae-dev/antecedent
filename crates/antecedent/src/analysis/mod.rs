@@ -98,7 +98,7 @@ pub use prepared::{
     CheckedCellAipwResponseInfo,
     CheckedClassGraphPosteriorEffectInfo,
     CheckedConditionalEffectInfo,
-    CheckedGraphPosteriorEffectInfo,
+    CheckedGraphPosteriorEffectInfo, CheckedStaticClassResponseInfo, CheckedGraphPosteriorResponseInfo,
     CheckedInterferenceInfo,
     CheckedStaticClassEffectInfo,
     CheckedStaticMediationInfo,

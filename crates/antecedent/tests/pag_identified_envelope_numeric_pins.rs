@@ -477,7 +477,9 @@ fn fresh_and_click(study: &Study, data: &TabularData, seed: u64) -> Vec<antecede
     let fresh = study.clone().run(&ctx).unwrap();
     let click = study.prepare(&ctx).unwrap().estimate(data, &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2, "the click must reuse the prepared envelope");
-    assert_eq!(cached_count(&fresh), 0);
+    // A one-shot class response executes its retained prepared plan, so the
+    // fresh result reports the identification it reused from that plan.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
     vec![fresh, click]
 }

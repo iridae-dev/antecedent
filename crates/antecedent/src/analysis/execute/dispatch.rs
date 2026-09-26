@@ -1277,18 +1277,31 @@ impl super::Study {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
             && self.custom_validators.is_empty()
             && matches!(&self.query, CausalQuery::Response(query)
-                if query.temporal.is_none()
-                    && query.observation == antecedent_core::ObservationSpec::Complete
-                    && query.target_population == antecedent_core::TargetPopulation::AllObserved
-                    && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-                    && (matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
-                        && self.refute == RefuteSuite::None
-                        && self.estimator.is_none_or(|id| id == EstimatorId::ResponseKennedyDr)
-                        || matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })
-                            && self.estimator.is_none_or(|id| id == EstimatorId::ResponseInterventionGcomp)))
+            if query.temporal.is_none()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && match (&query.functional, &self.inference) {
+                    (antecedent_core::ResponseFunctional::MeanCurve { .. }, InferenceMode::Frequentist) => {
+                        self.refute == RefuteSuite::None
+                            && self.estimator.is_none_or(|id| id == EstimatorId::ResponseKennedyDr)
+                    }
+                    (antecedent_core::ResponseFunctional::InterventionResponse { .. }, InferenceMode::Frequentist) => {
+                        self.estimator.is_none_or(|id| id == EstimatorId::ResponseInterventionGcomp)
+                    }
+                    (
+                        antecedent_core::ResponseFunctional::MeanCurve { .. }
+                        | antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                        InferenceMode::Bayesian(_),
+                    ) => {
+                        self.refute == RefuteSuite::None
+                            && self.estimator.is_none_or(|id| id == EstimatorId::ResponseBayesian)
+                    }
+                    _ => false,
+                })
         {
             if let DataInput::Tabular(data) = &self.data {
                 let prepared = self.prepare(ctx)?;
@@ -1475,6 +1488,110 @@ impl super::Study {
                         message:
                             "one-shot static estimator route did not retain its checked operation"
                                 .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(self.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::Response(query)
+            if class_aware_response_supported(query)
+                && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && self.estimator.is_none_or(|id| {
+                    id == match self.inference {
+                        InferenceMode::Frequentist => EstimatorId::default_for_response(&query.functional),
+                        InferenceMode::Bayesian(_) => EstimatorId::ResponseBayesian,
+                    }
+                }))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_static_class_response_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot static class response did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.as_ref().is_some_and(|posterior| {
+            matches!(
+                posterior.atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Dag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
+            )
+        }) && self.tiered.is_none()
+            && matches!(self.inference, InferenceMode::Frequentist | InferenceMode::Bayesian(_))
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::Response(query)
+            if graph_posterior_response_supported(query).is_ok()
+                && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && match &query.functional {
+                    antecedent_core::ResponseFunctional::MeanCurve { .. } => {
+                        self.refute == RefuteSuite::None
+                    }
+                    antecedent_core::ResponseFunctional::InterventionResponse { .. } => {
+                        matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+                    }
+                    _ => false,
+                }
+                && self.estimator.is_none_or(|id| {
+                    id == match self.inference {
+                        InferenceMode::Frequentist => EstimatorId::default_for_response(&query.functional),
+                        InferenceMode::Bayesian(_) => EstimatorId::ResponseBayesian,
+                    }
+                }))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_graph_posterior_response_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot graph-posterior response did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        if self.graph_posterior.is_none()
+            && self.tiered.as_ref().is_some_and(|background| {
+                background.within_tier == antecedent_graph::WithinTier::CoDetermined
+            })
+            && self.graph.class() == GraphClass::Admg
+            && self.structure_source == crate::support::StructureSource::Explicit
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && self.custom_validators.is_empty()
+            && self.shared_batch_design.is_none()
+            && self.continuous_cell.is_none()
+            && self.estimator == Some(EstimatorId::CellAipw)
+            && matches!(&self.query, CausalQuery::Response(query)
+                if query.temporal.is_none()
+                    && query.observation == antecedent_core::ObservationSpec::Complete
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                    && matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. }))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if prepared.checked_cell_aipw_response_info().is_none() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot CoDetermined joint cell response did not retain its checked operation"
+                            .into(),
                     });
                 }
                 return prepared.estimate(data, ctx);

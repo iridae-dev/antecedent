@@ -958,6 +958,9 @@ pub struct CheckedStaticDagResponseInfo {
     pub validation: RefuteSuite,
     /// Ordered curve grid. Empty for intervention-response queries.
     pub grid_members: Arc<[f64]>,
+    /// Inference procedure label fixed during preparation
+    /// (`frequentist` or `bayesian:<backend>`).
+    pub inference: Arc<str>,
 }
 
 /// Inspect the sealed joint-cell AIPW response route retained by preparation.
@@ -977,6 +980,9 @@ pub struct CheckedCellAipwResponseInfo {
     pub requested_arm: u32,
     /// Covariate roles retained for adjustment.
     pub adjustment_set: Arc<[VariableId]>,
+    /// Tier interpretation when the cell was sealed on a tier closure rather
+    /// than a plain DAG.
+    pub within_tier: Option<antecedent_graph::WithinTier>,
 }
 
 /// Read-only target, graph, and procedure of a checked static mediation plan.
@@ -1385,6 +1391,53 @@ pub struct CheckedBayesianGraphPosteriorAteInfo {
 pub struct CheckedAdmgGraphPosteriorResponseInfo {
     /// Response target retained at preparation.
     pub query: antecedent_core::ResponseQuery,
+    /// Frozen graph identity per posterior atom.
+    pub graph_keys: Arc<[u64]>,
+    /// Frozen posterior weight per atom.
+    pub weights: Arc<[f64]>,
+    /// Identified and unidentified atom status, preserving unresolved mass.
+    pub identified: Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Validation suite fixed at preparation.
+    pub validation: RefuteSuite,
+}
+
+/// Frozen explicit/accepted CPDAG or PAG response route.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedStaticClassResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Graph class the completion envelope was enumerated for.
+    pub graph_class: GraphClass,
+    /// Identifier fixed at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference procedure label (`frequentist` or `bayesian:<backend>`).
+    pub inference: Arc<str>,
+    /// Validation suite fixed at preparation.
+    pub validation: RefuteSuite,
+    /// Completions retained in the frozen envelope.
+    pub completion_count: usize,
+    /// Identified completion mass retained in the frozen envelope.
+    pub identified_mass: f64,
+    /// Unidentified completion mass retained in the frozen envelope.
+    pub unidentified_mass: f64,
+}
+
+/// Frozen DAG, CPDAG or PAG response posterior, including atom weights and
+/// identification flags.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedGraphPosteriorResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Atom kind of the frozen posterior.
+    pub atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    /// Identifier fixed at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference procedure label (`frequentist` or `bayesian:<backend>`).
+    pub inference: Arc<str>,
     /// Frozen graph identity per posterior atom.
     pub graph_keys: Arc<[u64]>,
     /// Frozen posterior weight per atom.
@@ -3908,6 +3961,8 @@ pub(crate) enum PreparedExecution {
     TemporalClassMediation(Box<super::execute::CheckedTemporalClassMediationOperation>),
     BayesianTemporalClassEffect(Box<super::CheckedBayesianTemporalClassEffectOperation>),
     TemporalGraphPosteriorEffect(Box<super::CheckedTemporalGraphPosteriorEffect>),
+    StaticClassResponse(Box<super::execute::CheckedStaticClassResponse>),
+    GraphPosteriorResponse(Box<super::execute::CheckedGraphPosteriorResponse>),
 }
 
 /// Exactly one checked product may supply a prepared result contract. This is
@@ -3985,6 +4040,8 @@ impl PreparedExecution {
             | Self::GraphPosteriorEffect(_)
             | Self::StaticClassEffect(_)
             | Self::ClassGraphPosteriorEffect(_)
+            | Self::StaticClassResponse(_)
+            | Self::GraphPosteriorResponse(_)
             | Self::CheckedGlmAdjustment(_)
             | Self::CheckedRd(_)
             | Self::CheckedPropensity(_)
@@ -4055,6 +4112,16 @@ impl PreparedExecution {
         &self,
     ) -> Option<&CheckedAdmgGraphPosteriorResponse> {
         if let Self::AdmgGraphPosteriorResponse(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn static_class_response(
+        &self,
+    ) -> Option<&super::execute::CheckedStaticClassResponse> {
+        if let Self::StaticClassResponse(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn graph_posterior_response(
+        &self,
+    ) -> Option<&super::execute::CheckedGraphPosteriorResponse> {
+        if let Self::GraphPosteriorResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
         if let Self::BayesianGcomp(value) = self { Some(value.operation()) } else { None }
@@ -4630,6 +4697,58 @@ impl PreparedStudy {
         })
     }
 
+    /// Whether preparation retained an explicit/accepted class response operation.
+    #[must_use]
+    pub fn has_checked_static_class_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::StaticClassResponse(_))
+    }
+
+    /// Inspect the retained explicit/accepted CPDAG or PAG response operation.
+    #[must_use]
+    pub fn checked_static_class_response_info(&self) -> Option<CheckedStaticClassResponseInfo> {
+        let operation = self.execution.static_class_response()?;
+        let (identifier, estimator) = operation.procedure();
+        let (completion_count, identified_mass, unidentified_mass) = operation.envelope_summary();
+        Some(CheckedStaticClassResponseInfo {
+            query: operation.query().clone(),
+            graph_class: operation.graph_class(),
+            identifier,
+            estimator,
+            inference: Arc::from(inference_label(operation.inference())),
+            validation: operation.validation(),
+            completion_count,
+            identified_mass,
+            unidentified_mass,
+        })
+    }
+
+    /// Whether preparation retained a DAG, CPDAG, or PAG graph-posterior
+    /// response operation.
+    #[must_use]
+    pub fn has_checked_graph_posterior_response_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::GraphPosteriorResponse(_))
+    }
+
+    /// Inspect the retained DAG, CPDAG, or PAG graph-posterior response operation.
+    #[must_use]
+    pub fn checked_graph_posterior_response_info(
+        &self,
+    ) -> Option<CheckedGraphPosteriorResponseInfo> {
+        let operation = self.execution.graph_posterior_response()?;
+        let (identifier, estimator) = operation.procedure();
+        Some(CheckedGraphPosteriorResponseInfo {
+            query: operation.query().clone(),
+            atom_kind: operation.posterior().atom_kind,
+            identifier,
+            estimator,
+            inference: Arc::from(inference_label(operation.inference())),
+            graph_keys: Arc::clone(&operation.identification().graphs.graph_keys),
+            weights: Arc::clone(&operation.identification().graphs.weights),
+            identified: Arc::clone(&operation.identification().graphs.identified),
+            validation: operation.validation(),
+        })
+    }
+
     /// Read-only target, row binding, and uncertainty selected for propensity estimation.
     #[must_use]
     pub fn checked_propensity_info(&self) -> Option<CheckedPropensityInfo> {
@@ -4726,6 +4845,7 @@ impl PreparedStudy {
             estimator,
             validation,
             grid_members: Arc::from(operation.curve_grid()),
+            inference: Arc::from(inference_label(operation.inference())),
         })
     }
 
@@ -4745,6 +4865,7 @@ impl PreparedStudy {
             origin: operation.origin(),
             requested_arm: operation.requested_arm(),
             adjustment_set: Arc::clone(&estimand.adjustment_set),
+            within_tier: operation.within_tier(),
         })
     }
 
@@ -4968,10 +5089,7 @@ impl PreparedStudy {
     ) -> Option<CheckedTemporalGraphPosteriorEffectInfo> {
         let operation = self.execution.temporal_graph_posterior_effect()?;
         let (graph_keys, weights, identified) = operation.sample_mass();
-        let inference = match operation.inference() {
-            InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
-            InferenceMode::Frequentist => "frequentist".to_owned(),
-        };
+        let inference = inference_label(operation.inference());
         Some(CheckedTemporalGraphPosteriorEffectInfo {
             query: operation.query().clone(),
             atom_kind: operation.posterior().atom_kind,
@@ -6460,18 +6578,19 @@ impl PreparedStudy {
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::StaticDagResponse(operation) = &self.execution {
-            let result = self
+            let mut result = self
                 .analysis
                 .execute_checked_static_dag_response(data, &self.plan, ctx, operation)?;
+            super::execute::push_gaussian_likelihood_disclosure(
+                &mut result,
+                operation.inference(),
+                &DataInput::Tabular(data.clone()),
+            );
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
-            let rebound = operation.refresh(
-                self.analysis.graph.as_dag().ok_or_else(|| CausalError::Compile {
-                    message: "cell AIPW checked route requires its retained DAG".into(),
-                })?,
-                data,
-            )?;
+            let rebound =
+                operation.refresh(&self.analysis.graph, self.analysis.tiered.as_ref(), data)?;
             let result = self
                 .analysis
                 .execute_checked_cell_aipw_response(data, &self.plan, ctx, &rebound)?;
@@ -6667,6 +6786,26 @@ impl PreparedStudy {
             let result = operation.execute(&self.analysis, data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if let PreparedExecution::StaticClassResponse(operation) = &self.execution {
+            let mut result =
+                self.analysis.execute_checked_static_class_response(data, operation, ctx)?;
+            super::execute::push_gaussian_likelihood_disclosure(
+                &mut result,
+                operation.inference(),
+                &DataInput::Tabular(data.clone()),
+            );
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::GraphPosteriorResponse(operation) = &self.execution {
+            let mut result =
+                self.analysis.execute_checked_graph_posterior_response(data, operation, ctx)?;
+            super::execute::push_gaussian_likelihood_disclosure(
+                &mut result,
+                operation.inference(),
+                &DataInput::Tabular(data.clone()),
+            );
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.interference =
@@ -6742,9 +6881,8 @@ impl PreparedStudy {
             if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
                 if let DataInput::Tabular(data) = &self.analysis.data {
                     self.execution = PreparedExecution::CellAipwResponse(operation.refresh(
-                        self.analysis.graph.as_dag().ok_or_else(|| CausalError::Compile {
-                            message: "cell AIPW checked route requires its retained DAG".into(),
-                        })?,
+                        &self.analysis.graph,
+                        self.analysis.tiered.as_ref(),
                         data,
                     )?);
                 }
@@ -7477,6 +7615,14 @@ fn multi_env_regularity(
     Ok(first)
 }
 
+/// Stable inspector label for a retained inference procedure.
+fn inference_label(inference: &InferenceMode) -> String {
+    match inference {
+        InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
+        InferenceMode::Frequentist => "frequentist".to_owned(),
+    }
+}
+
 impl Study {
     fn seal_static_class_effect(
         analysis: &Study,
@@ -8079,6 +8225,179 @@ impl Study {
             analysis.max_completions,
             analysis.refute,
             plan.clone(),
+        )?)))
+    }
+
+    fn seal_static_class_response(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<Box<super::execute::CheckedStaticClassResponse>>, CausalError> {
+        let CausalQuery::Response(query) = &analysis.query else {
+            return Ok(None);
+        };
+        if analysis.graph_posterior.is_some()
+            || analysis.tiered.is_some()
+            || !matches!(
+                analysis.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            || !matches!(
+                analysis.inference,
+                InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+            )
+            || !analysis.custom_validators.is_empty()
+            || analysis.refute != RefuteSuite::None
+            || !super::execute::class_aware_response_supported(query)
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+        {
+            return Ok(None);
+        }
+        let (graph, identification) = match analysis.graph.class() {
+            GraphClass::Cpdag => {
+                let (Some(graph), Some(cache)) =
+                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
+                else {
+                    return Ok(None);
+                };
+                (
+                    StaticClassGraph::Cpdag(graph.clone()),
+                    StaticClassIdentification::Cpdag(cache.clone()),
+                )
+            }
+            GraphClass::Pag => {
+                let (Some(graph), Some(cache)) =
+                    (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                else {
+                    return Ok(None);
+                };
+                (
+                    StaticClassGraph::Pag(graph.clone()),
+                    StaticClassIdentification::Pag(cache.clone()),
+                )
+            }
+            _ => return Ok(None),
+        };
+        let expected_estimator = match analysis.inference {
+            InferenceMode::Frequentist => EstimatorId::default_for_response(&query.functional),
+            InferenceMode::Bayesian(_) => EstimatorId::ResponseBayesian,
+        };
+        let identifier: IdentifierId = plan
+            .logical
+            .record
+            .identifier
+            .as_deref()
+            .unwrap_or(crate::strategy_table::DEFAULT_PAG_IDENTIFIER)
+            .parse()?;
+        let estimator: EstimatorId = plan
+            .logical
+            .record
+            .estimator
+            .as_deref()
+            .unwrap_or(expected_estimator.as_str())
+            .parse()?;
+        if identifier != IdentifierId::GeneralizedAdjustment
+            || estimator != expected_estimator
+            || analysis.estimator.is_some_and(|selected| selected != estimator)
+            || analysis.estimator_spec.as_ref().is_some_and(|spec| spec.id() != estimator)
+        {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(super::execute::CheckedStaticClassResponse::prepare(
+            graph,
+            query.clone(),
+            identification,
+            plan.clone(),
+            identifier,
+            estimator,
+            analysis.inference.clone(),
+            analysis.refute,
+        )?)))
+    }
+
+    fn seal_graph_posterior_response(
+        analysis: &Study,
+        plan: &PhysicalExecutionPlan,
+    ) -> Result<Option<Box<super::execute::CheckedGraphPosteriorResponse>>, CausalError> {
+        let (Some(posterior), CausalQuery::Response(query), Some(identification)) = (
+            analysis.graph_posterior.as_ref(),
+            &analysis.query,
+            analysis.graph_posterior_identification_cache.as_deref(),
+        ) else {
+            return Ok(None);
+        };
+        let class_atoms = match posterior.atom_kind {
+            antecedent_discovery::GraphPosteriorAtomKind::Dag => false,
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+            | antecedent_discovery::GraphPosteriorAtomKind::Pag => true,
+            _ => return Ok(None),
+        };
+        if analysis.tiered.is_some()
+            || !matches!(
+                analysis.inference,
+                InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+            )
+            || !analysis.custom_validators.is_empty()
+            || !matches!(
+                analysis.refute,
+                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
+            )
+            || query.temporal.is_some()
+            || query.observation != antecedent_core::ObservationSpec::Complete
+            || query.target_population != TargetPopulation::AllObserved
+            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+            || !matches!(
+                query.functional,
+                antecedent_core::ResponseFunctional::MeanCurve { .. }
+                    | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+            )
+            || (matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
+                && analysis.refute != RefuteSuite::None)
+        {
+            return Ok(None);
+        }
+        super::execute::graph_posterior_response_supported(query)?;
+        let expected_estimator = match analysis.inference {
+            InferenceMode::Frequentist => EstimatorId::default_for_response(&query.functional),
+            InferenceMode::Bayesian(_) => EstimatorId::ResponseBayesian,
+        };
+        let expected_identifier = if class_atoms {
+            crate::strategy_table::DEFAULT_PAG_IDENTIFIER_ID
+        } else {
+            crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID
+        };
+        let identifier: IdentifierId = plan
+            .logical
+            .record
+            .identifier
+            .as_deref()
+            .unwrap_or(expected_identifier.as_str())
+            .parse()?;
+        let estimator: EstimatorId = plan
+            .logical
+            .record
+            .estimator
+            .as_deref()
+            .unwrap_or(expected_estimator.as_str())
+            .parse()?;
+        if identifier != expected_identifier
+            || estimator != expected_estimator
+            || analysis.estimator.is_some_and(|selected| selected != estimator)
+            || analysis.estimator_spec.as_ref().is_some_and(|spec| spec.id() != estimator)
+        {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(super::execute::CheckedGraphPosteriorResponse::prepare(
+            posterior.clone(),
+            query.clone(),
+            identification.clone(),
+            plan.clone(),
+            identifier,
+            estimator,
+            analysis.inference.clone(),
+            analysis.refute,
+            analysis.latency_mode,
         )?)))
     }
 
@@ -9737,7 +10056,10 @@ impl Study {
                             | crate::support::StructureSource::Accepted
                     )
                     && analysis.custom_validators.is_empty()
-                    && matches!(analysis.inference, InferenceMode::Frequentist)
+                    && matches!(
+                        analysis.inference,
+                        InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                    )
                     && query.temporal.is_none()
                     && query.observation == antecedent_core::ObservationSpec::Complete
                     && query.target_population == TargetPopulation::AllObserved
@@ -9749,7 +10071,8 @@ impl Study {
                         || matches!(
                             query.functional,
                             antecedent_core::ResponseFunctional::InterventionResponse { .. }
-                        )) =>
+                        ) && (matches!(analysis.inference, InferenceMode::Frequentist)
+                            || analysis.refute == RefuteSuite::None)) =>
             {
                 let identifier = plan
                     .logical
@@ -9765,12 +10088,17 @@ impl Study {
                     .as_deref()
                     .unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_ESTIMATOR)
                     .parse()?;
-                if estimator == crate::strategy_table::EstimatorId::ResponseKennedyDr
-                    && matches!(
-                        query.functional,
-                        antecedent_core::ResponseFunctional::MeanCurve { .. }
-                    )
-                    || estimator == crate::strategy_table::EstimatorId::ResponseInterventionGcomp
+                let bayesian = matches!(analysis.inference, InferenceMode::Bayesian(_));
+                if bayesian && estimator == crate::strategy_table::EstimatorId::ResponseBayesian
+                    || !bayesian
+                        && estimator == crate::strategy_table::EstimatorId::ResponseKennedyDr
+                        && matches!(
+                            query.functional,
+                            antecedent_core::ResponseFunctional::MeanCurve { .. }
+                        )
+                    || !bayesian
+                        && estimator
+                            == crate::strategy_table::EstimatorId::ResponseInterventionGcomp
                         && matches!(
                             query.functional,
                             antecedent_core::ResponseFunctional::InterventionResponse { .. }
@@ -9784,6 +10112,7 @@ impl Study {
                         identifier,
                         estimator,
                         analysis.response_options.clone().unwrap_or_default(),
+                        analysis.inference.clone(),
                         analysis.refute,
                     )?)
                 } else {
@@ -9828,7 +10157,9 @@ impl Study {
                     && matches!(analysis.inference, InferenceMode::Frequentist)
                 {
                     Some(super::execute::CheckedCellAipwResponseOperation::checked(
-                        analysis.graph.as_dag().expect("checked DAG response"),
+                        &super::execute::CellAipwStructure::Dag(
+                            analysis.graph.as_dag().expect("checked DAG response").clone(),
+                        ),
                         query,
                         &cache.identification,
                         &cache.estimand,
@@ -9845,6 +10176,50 @@ impl Study {
                 } else {
                     None
                 }
+            }
+            (
+                DataInput::Tabular(_),
+                CausalQuery::Response(query),
+                Some(cache),
+                GraphClass::Admg,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.structure_source == crate::support::StructureSource::Explicit
+                && analysis.tiered.as_ref().is_some_and(|background| {
+                    background.within_tier == antecedent_graph::WithinTier::CoDetermined
+                })
+                && analysis.custom_validators.is_empty()
+                && analysis.shared_batch_design.is_none()
+                && analysis.continuous_cell.is_none()
+                && matches!(analysis.inference, InferenceMode::Frequentist)
+                && plan.logical.record.estimator.as_deref()
+                    == Some(crate::strategy_table::EstimatorId::CellAipw.as_str())
+                && plan.logical.record.identifier.as_deref()
+                    == Some(
+                        crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str(),
+                    ) =>
+            {
+                let (Some(admg), Some(background)) =
+                    (analysis.graph.as_admg(), analysis.tiered.as_ref())
+                else {
+                    return Err(CausalError::Compile {
+                        message: "CoDetermined joint cell prepare lost its closure ADMG or tiers"
+                            .into(),
+                    });
+                };
+                Some(super::execute::CheckedCellAipwResponseOperation::checked(
+                    &super::execute::CellAipwStructure::TierClosure {
+                        admg: admg.clone(),
+                        background: background.clone(),
+                    },
+                    query,
+                    &cache.identification,
+                    &cache.estimand,
+                    crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+                    crate::strategy_table::EstimatorId::CellAipw,
+                    ctx.rng.master_seed(),
+                    analysis.refute,
+                    super::execute::DagResponseOrigin::Explicit,
+                )?)
             }
             _ => None,
         };
@@ -10312,6 +10687,9 @@ impl Study {
         let checked_temporal_class_response = Self::seal_temporal_class_response(&analysis, &plan)?;
         let checked_temporal_graph_posterior_response =
             Self::seal_temporal_graph_posterior_response(&analysis, &plan)?;
+        let checked_static_class_response = Self::seal_static_class_response(&analysis, &plan)?;
+        let checked_graph_posterior_response =
+            Self::seal_graph_posterior_response(&analysis, &plan)?;
         let checked_bayesian_static_mediation = match (
             &self.data,
             &self.query,
@@ -10502,6 +10880,10 @@ impl Study {
             PreparedExecution::BayesianTemporalClassEffect(operation)
         } else if let Some(operation) = temporal_graph_posterior_effect_operation {
             PreparedExecution::TemporalGraphPosteriorEffect(operation)
+        } else if let Some(operation) = checked_static_class_response {
+            PreparedExecution::StaticClassResponse(operation)
+        } else if let Some(operation) = checked_graph_posterior_response {
+            PreparedExecution::GraphPosteriorResponse(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };
